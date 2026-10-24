@@ -41,6 +41,41 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
+export const DeferredConnectionAfterPayloadCapture: Story = {
+    render: () => '<section aria-label="Captured demo lifecycle"></section>',
+    play: async ({ canvasElement }) => {
+        const errors: string[] = [];
+        const onError = (event: ErrorEvent) => { errors.push(event.message); event.preventDefault(); };
+        const tag = `demo-capture-${crypto.randomUUID()}`;
+        customElements.define(tag, class extends HTMLElement {
+            connectedCallback() {
+                const payload = document.createElement('template');
+                payload.content.append(...this.childNodes);
+                this.append(payload);
+            }
+        });
+        const parent = document.createElement(tag);
+        const demo = document.createElement('cem-demo-element') as CemDemoElement;
+        demo.innerHTML = '<template slot="source"><strong>Retained source</strong></template>';
+        parent.append(demo);
+        window.addEventListener('error', onError);
+        try {
+            canvasElement.querySelector('section')?.append(parent);
+            // Insertion queues the parent's callback before its child's. The
+            // parent captures the child before that connection callback runs.
+            expect(demo.isConnected).toBe(false);
+            expect(errors).toEqual([]);
+            expect(demo.state).toBe('idle');
+            canvasElement.append(demo);
+            await demo.updateComplete;
+            expect(demo.state).toBe('ready');
+            expect(demo.source).toBe('<strong>Retained source</strong>');
+            expect(requiredRegion(demo, 'demo').textContent).toBe('Retained source');
+            expect(errors).toEqual([]);
+        } finally { window.removeEventListener('error', onError); }
+    },
+};
+
 export const InlineBody: Story = {
     render: () => `
         <cem-demo-element legend="Inline body">

@@ -35,3 +35,7 @@ A larger combined demo-import run also exposed existing tree-gallery null
 These independent failures remain in the active TODO; no full-inventory
 `verify-demo-imports` pass is claimed. The earlier custom-legend viewer waits
 were corrected in the verifier and the menu-item/theme-switch rerun passed.
+
+The independent gallery errors and stalled theme update were subsequently
+[diagnosed and repaired](todo-completed-gallery-imports-2026-10-24.md), with a
+passing targeted 14-page source/built import cohort.

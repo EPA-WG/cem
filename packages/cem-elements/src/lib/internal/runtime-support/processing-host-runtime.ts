@@ -676,7 +676,15 @@ class RootCemProcessingHost implements CemProcessingHost {
             this.engine.dispose({ reason: 'runtime-disposed' });
         });
         this.stopGeneration = nativeCheckpointSubscribe(this.checkpointClient, () => {
-            if (!this.generationRetired && !nativeCheckpointIdentity(this.checkpointClient)) { this.generationRetired = true; this.revokeNativeAuthority(); }
+            // Recovery coverage can be refused (for example by the bounded
+            // owner inventory) while the physical runtime remains usable.
+            // Only removal, terminal retirement or revoked fresh admission
+            // ends this host's generation; worker transport loss is fenced below.
+            if (!this.generationRetired && (!nativeCheckpointGeneration(this.checkpointClient)
+                || nativeCheckpointRetirementStarted(this.checkpointClient) && !nativeCheckpointIdentity(this.checkpointClient)
+                || this.fresh && !this.fresh.current())) {
+                this.generationRetired = true; this.revokeNativeAuthority();
+            }
         });
         nativeCheckpointRequirements(this.checkpointClient, sources => {
             if (this.pendingStylesheetLoads.size || [...this.nativeSessionHandles.keys()].some(key => !sources.has(`session:${key}`))

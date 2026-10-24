@@ -666,6 +666,29 @@ it('cancels a native session after fallback import and releases its owner before
 });
 
 
+it('keeps ordinary stylesheet work available after checkpoint owner inventory overflow', async () => {
+    const worker = new StylesheetProcessingWorker();
+    const root = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(root, { workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => worker as unknown as Worker });
+    const releases: Array<() => void> = [];
+    try {
+        const { artifact } = await host.compile(compileInput('checkpoint-overflow-css')).result;
+        const client = host.checkpointClient;
+        if (!client || !host.checkpointInstance) throw new Error('missing checkpoint owner inventory');
+        expect(nativeCheckpointIdentity(client)).toBeDefined();
+        for (let index = 0; index < 257; index++) releases.push(host.checkpointInstance(`owner-${index}`));
+        expect(nativeCheckpointIdentity(client)).toBeUndefined();
+        expect(nativeCheckpointSnapshot(new Map([[client, ['owner-0']]]))).toBeUndefined();
+        const result = await host.stylesheet({ ...stylesheetBegin, artifact }).result;
+        expect(result).toHaveProperty('loadId');
+        expect(host.mode).toBe('worker');
+        expect(worker.terminated).toBe(false);
+        await host.stylesheet({ action: 'release', artifact, consumer: stylesheetBegin.consumer }).result;
+        expect(nativeCheckpointIdentity(client)).toBeUndefined();
+    } finally { for (const release of releases) release(); await host.dispose({ reason: 'runtime-disposed' }).result; root.dispose(); }
+});
+
 it('reacquires stylesheet source after bounded worker artifact eviction', async () => {
     const worker = new StylesheetProcessingWorker(1);
     const root = createCemDeclarationScope({ document: {} as Document });

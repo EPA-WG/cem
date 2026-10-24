@@ -1221,7 +1221,7 @@ fn load_builtin_document_model_for_identity_inner(
 
     Some(compile_document_model(
         &package.descriptor.schema_uri,
-        package.schema_source,
+        &package.schema_source,
     ))
     .filter(|model| (include_empty || !model.is_empty()) && model.is_ready_for_validation())
 }
@@ -15708,7 +15708,7 @@ fn behavior_definitions_for_function_schema(
     }
     let package = load_builtin_schema_package(schema_uri)
         .map_err(|_| format!("schema `{schema_uri}` is not available as a built-in package"))?;
-    let document = parse_cem_document(package.schema_source);
+    let document = parse_cem_document(&package.schema_source);
     let schema_id = first_element_id_by_local_name(&document, "schema")
         .ok_or_else(|| format!("schema `{schema_uri}` has no root schema declaration"))?;
     let uses = collect_schema_uses(&document, schema_id);
@@ -15775,7 +15775,7 @@ fn resolve_behavior_definition(
         return local_behaviors.get(name).cloned();
     }
     let package = load_builtin_schema_package(referenced_schema_uri).ok()?;
-    let document = parse_cem_document(package.schema_source);
+    let document = parse_cem_document(&package.schema_source);
     let schema_id = first_element_id_by_local_name(&document, "schema")?;
     let uses = collect_schema_uses(&document, schema_id);
     collect_behavior_definitions(&document, schema_id, referenced_schema_uri, &uses)
@@ -18901,7 +18901,7 @@ fn resolve_base_element_model(
     }
     compile_document_model_with_seen(
         &package.descriptor.schema_uri,
-        package.schema_source,
+        &package.schema_source,
         seen_schema_uris,
     )
     .element(element_name)

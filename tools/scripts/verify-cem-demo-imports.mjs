@@ -133,6 +133,8 @@ try {
                         missing: tags.filter(tag => !customElements.get(tag)),
                         diagnostics: [...document.querySelectorAll('cem-element')].flatMap(node => window.cemPlaygroundRuntime?.diagnosticsFor(node) ?? []).filter(value => value.code !== 'cem-element.registry_same_scope_duplicate'),
                         palette: getComputedStyle(document.querySelector('cem-gallery-page') ?? document.body).getPropertyValue('--cem-palette-comfort'),
+                        themeDiagnostics: [...document.querySelectorAll('cem-gallery-page > cem-gallery-nav cem-theme-switch')]
+                            .flatMap(node => window.cemPlaygroundRuntime?.diagnosticsFor(node) ?? []),
                         links: [...document.querySelectorAll('link[rel=stylesheet]')].map(node => ({ href: node.href, loaded: Boolean(node.sheet) })),
                         bootstrap: [...document.querySelectorAll('body > cem-element [data-cem-anonymous-instance]')].map(node => window.cemPlaygroundRuntime?.snapshotInstance(node).slices),
                     }), fixture.tags).catch(() => ({}));

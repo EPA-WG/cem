@@ -161,7 +161,11 @@ unique runtime/client identities and complete owner coverage, and rejects foreig
 duplicate, stale or authority-bearing records. Every asynchronous export/seal
 rechecks the private registry and exact coverage revision. A failed or stale seal
 preserves last-good bytes; policy revocation erases them. Limits refuse the whole
-domain while ordinary rendering continues. Logical-only transport receipts remain
+domain while ordinary rendering continues. In particular, exceeding the bounded
+processing-host owner inventory removes recovery coverage without declaring the
+physical runtime retired or invalidating ordinary stylesheet operations. Actual
+worker loss, revoked fresh admission and completed/failed terminal retirement
+retain their generation fences. Logical-only transport receipts remain
 compatible but provide no physical-generation coverage.
 
 These registrations cover the framework's shared native entrypoints. Separately

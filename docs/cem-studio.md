@@ -3650,9 +3650,13 @@ identity, source import and formatter/colorizer semantics stay native. See the
 [build and verification commands](https://github.com/EPA-WG/cem/blob/develop/packages/cem-ml-npm/README.md#optional-native-schema-asset-packs-prototype).
 
 The prototype deliberately retains default embedded sources and does not enroll
-the optional delivery tree in Studio's production service-worker map. Actual
-native consumers still need owned bootstrap/source access before those bodies
-can be excluded from an opt-in binary. Production loading will also need explicit
+the optional delivery tree in Studio's production service-worker map. Native
+package consumers now accept shared owned manifest/schema text; admitted packs
+produce the same consumer inputs without static lifetimes. Packed conversion
+readers remain authoritative and parsed formatter/colorizer options are keyed by
+complete descriptor/source identity, with admission rechecked before cache reuse.
+These boundaries do not themselves remove embedded bodies from an opt-in binary.
+Production loading will still need explicit
 pack inventory in deployment/service-worker resources and coordinated reload
 policy. Raw/gzip delivery, allocator/linear-memory observations and cold-load
 latency are measured separately; no binary, headroom or checkpoint reduction is

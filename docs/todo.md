@@ -32,10 +32,10 @@ Completed [editor filename de-duplication](archive/todo-completed-compact-studio
 
 Completed [graph parameter-map authoring and Studio controls](archive/todo-completed-graph-parameters-2026-10-23.md) is archived.
 
-Continue Studio functionality by migrating optional native schema/package and
-formatter/colorizer consumers to owned bootstrap/source inputs. Follow with
-shared optional-pack acquisition, offline delivery and fresh-generation reimport;
-then measure download, cold latency and allocator/linear-memory headroom.
+Continue Studio functionality with shared optional-pack acquisition, offline
+delivery and fresh-generation reimport. Follow with opt-in embedded-body
+exclusion; then measure download, cold latency and allocator/linear-memory
+headroom.
 
 Completed [shared popup surfaces and indicator clearance](archive/todo-completed-compact-studio-2026-10-23.md#shared-popup-surfaces-and-indicator-clearance) is archived.
 
@@ -45,18 +45,18 @@ Completed [immediate persisted theme updates](archive/todo-completed-compact-stu
 
 Completed [canonical source viewer repair](archive/todo-completed-canonical-source-2026-10-24.md) covers explicit XHTML endpoints, source/package viewer checks and the complete nine-gallery compact Studio gate.
 
-- [ ] Diagnose broader demo-import verifier failures independently of canonical URLs: tree gallery reports pre-existing `Cannot read properties of null (reading 'querySelector')` page errors, and a combined icon-button run did not settle the selected page theme. Keep the original browser-error and persisted-theme assertions; the canonical endpoint checks and compact Studio source/isolated-package gate pass.
+Completed [gallery lifecycle and checkpoint-limit repairs](archive/todo-completed-gallery-imports-2026-10-24.md) covers delayed connection callbacks, inventory refusal versus physical retirement, and the targeted source/package import gate.
 
-
-The optional native schema-asset prototype is complete; embedded bodies and the
-default complete release remain intact. Continue with owned consumers and shared
-loading before claiming binary, headroom or checkpoint savings. Implementation,
-measurements and verification are in the
+The optional native schema-asset prototype and
+[owned package/formatter consumers](archive/todo-completed-owned-schema-inputs-2026-10-24.md)
+are complete; embedded bodies and the default complete release remain intact.
+Continue with shared loading before claiming binary, headroom or checkpoint
+savings. Prototype implementation, measurements and verification are in the
 [archived evidence](archive/todo-snapshot-2026-10-23.md#project-builds-and-artifact-previews).
 
-- [ ] Migrate native schema/package and formatter/colorizer consumers from static embedded references to owned bootstrap/source inputs; qualify artifact caches by admitted source identity before excluding optional bodies from an opt-in WASM build. Keep the default complete release unchanged.
-
 - [ ] Integrate explicit optional-pack acquisition into shared runtime resource loading, with complete deployment/service-worker inventory, offline/cancellation diagnostics and fresh-generation reimport; let Studio consume the shared contract declaratively.
+
+- [ ] After shared pack-loading integration, exclude optional embedded source bodies in an opt-in WASM profile while retaining the default complete release; verify strict missing-source refusal and complete offline delivery.
 
 - [ ] Measure the resulting binary partition's raw/gzip download, cold command/editor latency and allocator/linear-memory headroom before considering a separate rare-command WASM ABI/heap; retain independent checkpoint and credential admission.
 
@@ -300,7 +300,7 @@ Completed workspace, source-editor, node and edge authoring work remains in the
 Native parameter maps, shared form controls and their verification are in the
 [graph authoring completion record](archive/todo-completed-graph-parameters-2026-10-23.md).
 
-Continue with the owned optional native consumers, shared pack-loading contract
+Continue with the shared pack-loading contract, opt-in embedded-body exclusion
 and measurements under [Project builds and artifact previews](#project-builds-and-artifact-previews).
 Preserve the [bounded project lifecycle](cem-studio.md#next-delivery-milestone-user-owned-project-workspace):
 100 graph nodes / 1 MiB source and 20 history snapshots / 8 MiB. Authored ID

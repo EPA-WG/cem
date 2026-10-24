@@ -669,6 +669,41 @@ impl SchemaAssetPack {
         active(control, scope)?;
         Ok(imported)
     }
+    /// Return independently owned source inputs after native package identity
+    /// validation. Releasing this store cannot invalidate downstream consumers.
+    pub fn owned_package(
+        &self,
+        package_id: &str,
+        version: &str,
+    ) -> Result<crate::schema::package_loader::SchemaPackage, SchemaAssetPackError> {
+        let loaded = self.load_package(package_id, version)?;
+        let package = self
+            .index
+            .packages
+            .iter()
+            .find(|package| package.package_id == package_id && package.version == version)
+            .ok_or_else(|| error("missing", "Package is absent from pinned bootstrap."))?;
+        let manifest_path = format!("{}package.cem", package.directory()?);
+        let text = |path: &str| -> Result<Arc<str>, SchemaAssetPackError> {
+            let bytes = self.source_bytes(package_id, version, path)?;
+            let source = std::str::from_utf8(bytes)
+                .map_err(|_| error("utf8", "Admitted package text is invalid."))?;
+            Ok(Arc::from(source))
+        };
+        Ok(crate::schema::package_loader::SchemaPackage {
+            descriptor: loaded.descriptor,
+            manifest_source: text(&manifest_path)?.into(),
+            schema_source: text(&package.source)?.into(),
+            source_policy: crate::schema::package_loader::SchemaPackageSourcePolicy::Authoritative,
+        })
+    }
+
+    /// A strict reader for formatter/colorizer source inputs. Every read checks
+    /// the original immutable admission; no embedded body can satisfy a refusal.
+    pub fn conversion_reader(&self) -> SchemaAssetConversionReader<'_> {
+        SchemaAssetConversionReader { pack: self }
+    }
+
     pub fn load_package(
         &self,
         package_id: &str,
@@ -706,6 +741,51 @@ impl SchemaAssetPack {
             manifest,
             schema,
         })
+    }
+}
+
+pub struct SchemaAssetConversionReader<'a> {
+    pack: &'a SchemaAssetPack,
+}
+
+impl crate::conversion::ConversionPackageArtifactSourceReader for SchemaAssetConversionReader<'_> {
+    fn read(
+        &self,
+        artifact: &crate::conversion::ConversionPackageArtifactDescriptor,
+    ) -> Result<crate::conversion::ConversionPackageArtifactRead, String> {
+        let package = self
+            .pack
+            .index
+            .packages
+            .iter()
+            .find(|package| package.package_id == artifact.package_id)
+            .ok_or_else(|| {
+                error(
+                    "missing",
+                    "Artifact package is absent from pinned bootstrap.",
+                )
+                .to_string()
+            })?;
+        let descriptor = self
+            .pack
+            .source_descriptor(&artifact.package_id, &package.version, &artifact.path)
+            .map_err(|error| error.to_string())?;
+        let provenance = self
+            .pack
+            .source_provenance(&artifact.package_id, &package.version, &artifact.path)
+            .map_err(|error| error.to_string())?;
+        Ok(crate::conversion::ConversionPackageArtifactRead {
+            uri: provenance.canonical_uri.to_owned(),
+            bytes: self
+                .pack
+                .source_bytes(&artifact.package_id, &package.version, &artifact.path)
+                .map_err(|error| error.to_string())?
+                .to_vec(),
+            content_type: Some(descriptor.content_type.clone()),
+        })
+    }
+    fn allow_embedded_fallback(&self) -> bool {
+        false
     }
 }
 
@@ -1458,6 +1538,12 @@ mod tests {
                     .descriptor,
                 package.schema_descriptor()
             );
+            let owned = pack
+                .owned_package(&package.package_id, &package.version)
+                .unwrap();
+            assert_eq!(owned.descriptor, package.schema_descriptor());
+            assert!(!owned.manifest_source.is_empty());
+            assert!(!owned.schema_source.is_empty());
         }
     }
 

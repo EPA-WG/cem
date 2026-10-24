@@ -125,21 +125,10 @@ fn admitted_csv_pack_runs_native_formatter_and_colorizer_with_original_source_pr
     }
     assert_eq!(pack.admitted_sources(), selected_paths.len());
     assert_eq!(pack.admitted_bytes(), selected_bytes);
-    let loaded = pack.load_package("csv", "1.0.0").unwrap();
+    let loaded = pack.owned_package("csv", "1.0.0").unwrap();
     let schemas = pack.schema_registry().unwrap();
-    let manifest = std::str::from_utf8(
-        pack.source_bytes("csv", &loaded.descriptor.version, selected_paths[0])
-            .unwrap(),
-    )
-    .unwrap();
     let mut conversions = ConversionRegistry::new();
-    for artifact in conversion_package_artifacts_from_validated_schema_package_manifest(
-        "csv",
-        manifest,
-        "schema-packages/csv/v1",
-    )
-    .unwrap()
-    {
+    for artifact in conversion_package_artifacts_from_schema_package(&loaded).unwrap() {
         conversions.register_package_artifact(artifact);
     }
     for path in [COMPACT, TERMINAL] {
@@ -153,34 +142,11 @@ fn admitted_csv_pack_runs_native_formatter_and_colorizer_with_original_source_pr
         ));
     }
     let reads = RefCell::new(Vec::new());
+    let admitted_reader = pack.conversion_reader();
     let read = |artifact: &ConversionPackageArtifactDescriptor| {
-        let descriptor = pack
-            .source_descriptor(
-                &artifact.package_id,
-                &loaded.descriptor.version,
-                &artifact.path,
-            )
-            .map_err(|error| error.to_string())?;
-        let provenance = pack
-            .source_provenance(
-                &artifact.package_id,
-                &loaded.descriptor.version,
-                &artifact.path,
-            )
-            .map_err(|error| error.to_string())?;
-        reads.borrow_mut().push(provenance.canonical_uri.to_owned());
-        Ok(ConversionPackageArtifactRead {
-            uri: provenance.canonical_uri.to_owned(),
-            bytes: pack
-                .source_bytes(
-                    &artifact.package_id,
-                    &loaded.descriptor.version,
-                    &artifact.path,
-                )
-                .map_err(|error| error.to_string())?
-                .to_vec(),
-            content_type: Some(descriptor.content_type.clone()),
-        })
+        let source = admitted_reader.read(artifact)?;
+        reads.borrow_mut().push(source.uri.clone());
+        Ok(source)
     };
     let strict_reader = AuthoritativeConversionPackageArtifactReader::new(&read);
     let environment = ConversionOutputPipelineEnvironment {
@@ -288,4 +254,192 @@ fn admitted_csv_pack_runs_native_formatter_and_colorizer_with_original_source_pr
         .any(|diagnostic| diagnostic.message.contains("no embedded fallback")));
     assert_eq!(pack.admitted_sources(), selected_paths.len());
     assert_eq!(pack.admitted_bytes(), selected_bytes);
+}
+
+#[test]
+fn output_artifact_cache_revalidates_source_bytes_for_legacy_and_authoritative_readers() {
+    let schemas = SchemaRegistry::with_builtin_schemas();
+    let conversions = ConversionRegistry::with_builtin_converters();
+    let artifact = compact_artifact(&conversions);
+    let cache = ConversionOutputPipelineArtifactCache::default();
+    let original = builtin_schema_package_artifact_source("csv", COMPACT)
+        .unwrap()
+        .source;
+    let bytes = RefCell::new(original.as_bytes().to_vec());
+    let read = |_: &ConversionPackageArtifactDescriptor| {
+        Ok(ConversionPackageArtifactRead {
+            uri: COMPACT.to_owned(),
+            bytes: bytes.borrow().clone(),
+            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+        })
+    };
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &schemas,
+        conversion_registry: &conversions,
+        package_artifact_reader: Some(&read),
+        artifact_cache: Some(&cache),
+    };
+    parse_cem_tree_cemt_output_artifact_module_options(&environment, artifact).unwrap();
+    let first_count = cache.module_options.borrow().len();
+    *bytes.borrow_mut() = b"{this is not a valid output module".to_vec();
+    assert!(
+        parse_cem_tree_cemt_output_artifact_module_options(&environment, artifact).is_err(),
+        "a descriptor cannot reuse a different body's parsed options"
+    );
+    *bytes.borrow_mut() = original.as_bytes().to_vec();
+    let strict_reader = AuthoritativeConversionPackageArtifactReader::new(&read);
+    let strict = ConversionOutputPipelineEnvironment {
+        package_artifact_reader: Some(&strict_reader),
+        ..environment
+    };
+    parse_cem_tree_cemt_output_artifact_module_options(&strict, artifact).unwrap();
+    assert!(cache.module_options.borrow().len() >= first_count);
+    // Identical immutable bytes may reuse admitted cached options even for a
+    // strict reader; admission still runs on every lookup.
+    let previous = cache.module_options.borrow().len();
+    parse_cem_tree_cemt_output_artifact_module_options(&strict, artifact).unwrap();
+    assert_eq!(cache.module_options.borrow().len(), previous);
+}
+
+#[test]
+fn strict_source_cache_qualifies_uri_mime_descriptor_and_revalidates_refusal() {
+    let schemas = SchemaRegistry::with_builtin_schemas();
+    let conversions = ConversionRegistry::with_builtin_converters();
+    let artifact = compact_artifact(&conversions);
+    let cache = ConversionOutputPipelineArtifactCache::default();
+    let selected = RefCell::new(Some(ConversionPackageArtifactRead {
+        uri: COMPACT.into(),
+        bytes: builtin_schema_package_artifact_source("csv", COMPACT)
+            .unwrap()
+            .source
+            .as_bytes()
+            .to_vec(),
+        content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.into()),
+    }));
+    let read = |_: &ConversionPackageArtifactDescriptor| {
+        selected
+            .borrow()
+            .clone()
+            .ok_or_else(|| "admission revoked".to_owned())
+    };
+    let strict = AuthoritativeConversionPackageArtifactReader::new(&read);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &schemas,
+        conversion_registry: &conversions,
+        package_artifact_reader: Some(&strict),
+        artifact_cache: Some(&cache),
+    };
+    for _ in 0..2 {
+        parse_cem_tree_cemt_output_artifact_module_options(&environment, artifact).unwrap();
+    }
+    assert_eq!(
+        cache.module_options.borrow().len(),
+        1,
+        "admitted strict reads may cache parsed options"
+    );
+    selected.borrow_mut().as_mut().unwrap().uri = "memory://another-source.cemt".into();
+    parse_cem_tree_cemt_output_artifact_module_options(&environment, artifact).unwrap();
+    assert_eq!(cache.module_options.borrow().len(), 2);
+    selected.borrow_mut().as_mut().unwrap().content_type =
+        Some("application/cem; charset=utf-8".into());
+    parse_cem_tree_cemt_output_artifact_module_options(&environment, artifact).unwrap();
+    assert_eq!(cache.module_options.borrow().len(), 3);
+    let mut descriptor = artifact.clone();
+    descriptor.generated = !descriptor.generated;
+    parse_cem_tree_cemt_output_artifact_module_options(&environment, &descriptor).unwrap();
+    assert_eq!(cache.module_options.borrow().len(), 4);
+    *selected.borrow_mut() = None;
+    assert!(
+        parse_cem_tree_cemt_output_artifact_module_options(&environment, artifact)
+            .unwrap_err()
+            .contains("admission revoked")
+    );
+}
+
+#[test]
+fn output_artifact_source_cache_stays_bounded_across_admitted_source_revisions() {
+    let schemas = SchemaRegistry::with_builtin_schemas();
+    let conversions = ConversionRegistry::with_builtin_converters();
+    let artifact = compact_artifact(&conversions);
+    let cache = ConversionOutputPipelineArtifactCache::default();
+    let uri = RefCell::new(String::new());
+    let read = |_: &ConversionPackageArtifactDescriptor| {
+        Ok(ConversionPackageArtifactRead {
+            uri: uri.borrow().clone(),
+            bytes: b"{module @version=\"1.0.0\"}".to_vec(),
+            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.into()),
+        })
+    };
+    let strict = AuthoritativeConversionPackageArtifactReader::new(&read);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &schemas,
+        conversion_registry: &conversions,
+        package_artifact_reader: Some(&strict),
+        artifact_cache: Some(&cache),
+    };
+    for index in 0..260 {
+        *uri.borrow_mut() = format!("memory://source-{index}.cemt");
+        parse_cem_tree_cemt_output_artifact_module_options(&environment, artifact).unwrap();
+    }
+    assert_eq!(cache.module_options.borrow().len(), 256);
+}
+
+#[test]
+fn owned_packed_package_outlives_store_and_missing_package_never_loads_embedded_sources() {
+    let export = builtin_schema_asset_pack_export().unwrap();
+    let index = export.index.to_bytes().unwrap();
+    let mut pack = SchemaAssetPack::from_index_bytes(
+        &index,
+        &schema_asset_sha256(&index),
+        SchemaAssetPackLimits::default(),
+    )
+    .unwrap();
+    assert!(pack
+        .owned_package("csv", "1.0.0")
+        .unwrap_err()
+        .code
+        .contains("missing"));
+    let control = OperationControl::default();
+    let mut packages = Vec::new();
+    for package_id in ["csv", "cem-dom-projection"] {
+        let descriptor = export
+            .index
+            .packages
+            .iter()
+            .find(|package| package.package_id == package_id)
+            .unwrap();
+        for source in export.sources.iter().filter(|source| {
+            source.descriptor.package_id == package_id
+                && (source.descriptor.path.ends_with("/package.cem")
+                    || source.descriptor.path == descriptor.source)
+        }) {
+            pack.admit_source(
+                package_id,
+                "1.0.0",
+                &source.descriptor.path,
+                source.source.as_bytes().to_vec(),
+                &source.descriptor.content_type,
+                &control,
+                control.root_scope(),
+            )
+            .unwrap();
+        }
+        packages.push(pack.owned_package(package_id, "1.0.0").unwrap());
+    }
+    let clones = packages.clone();
+    assert!(std::ptr::eq::<str>(
+        packages[0].schema_source.as_ref(),
+        clones[0].schema_source.as_ref()
+    ));
+    drop(pack);
+    drop(export);
+    drop(packages);
+    assert!(
+        !conversion_package_artifacts_from_schema_package(&clones[0])
+            .unwrap()
+            .is_empty()
+    );
+    assert!(!conversion_descriptors_from_schema_package(&clones[1])
+        .unwrap()
+        .is_empty());
 }

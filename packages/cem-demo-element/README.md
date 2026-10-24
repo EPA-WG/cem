@@ -9,6 +9,11 @@ CEM-ML platform. The WASM response includes diagnostics and output-to-source
 spans so the public renderer can also serve CEM Studio rather than becoming a
 demo-only implementation.
 
+Connection callbacks that arrive after ancestor payload capture are ignored
+while the element is disconnected. Reinserting it into the live document
+initializes its source, styles and demo normally; inert template documents are
+never used as presentation hosts.
+
 ## Use
 
 Map the CEM-ML WASM package to a local installation and load the element:

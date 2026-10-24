@@ -226,8 +226,11 @@ named catalog/control metadata; source interpretation remains native.
 
 This prototype does **not** remove embedded bodies, change Studio's production
 resource map or enable automatic recovery. It therefore claims no WASM size,
-resident-memory or checkpoint savings. Native consumer ownership must migrate
-before embedded bodies can become optional. The verifier records raw/gzip
+resident-memory or checkpoint savings. Native package consumers now accept shared
+owned source text, and formatter/colorizer caches revalidate admission and use
+complete source identities. The
+remaining shared resource-loader/deployment integration and opt-in body-exclusion
+build still precede any binary partition claim. The verifier records raw/gzip
 delivery, cold import time, allocator observations and linear-memory capacity
 separately under `dist/reports/cem-ml-npm/`. See the
 [Studio loading design](https://github.com/EPA-WG/cem/blob/develop/docs/cem-studio.md#checkpoint-capacity-and-optional-module-loading).

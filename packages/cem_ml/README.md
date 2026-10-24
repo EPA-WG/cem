@@ -41,8 +41,23 @@ apply before admission. Failed reads never consult embedded sources.
 bootstrap. Source import preserves its original catalog URI and creates fresh
 native owners; CEM/XML sources retain lexical capture, while data-format sources
 use the shared data importer. Catalog metadata alone does not activate a schema.
-Use an authoritative conversion artifact reader for opt-in packed transformations
-so failed acquisition cannot select an embedded artifact or descriptor-only cache.
+`SchemaPackage::from_sources` accepts owned manifest/schema text and verifies the
+selected bootstrap metadata through native imports. Package consumers use shared
+source-text inputs; `BuiltinSchemaPackage` remains a compatibility name.
+Admitted text uses `Arc<str>` storage, while the complete embedded default
+adapter borrows its existing static bytes without a second catalog copy.
+`SchemaAssetPack::owned_package` supplies the same consumer object after pinned
+native identity validation, and that object's text survives releasing the store.
+Authoritative packages extract conversion metadata from their own manifest,
+without validating against a similarly named embedded template.
+
+Use `SchemaAssetPack::conversion_reader()` for opt-in packed transformations.
+It checks the original admission on every formatter/colorizer read and cannot
+select an embedded artifact when a source is missing. The per-pipeline parsed
+module cache holds at most 256 entries, keyed by the full artifact descriptor,
+canonical source URI, source content type and SHA-256 of the actual bytes.
+Admission runs before every lookup, including cache hits; cached options never
+satisfy a refused read. Identical admitted sources can share parsed options.
 `ConversionPackageArtifactReader<'a>` now names the object-safe
 `ConversionPackageArtifactSourceReader` contract. Closure values and the
 environment's lifetime shape remain supported; call erased readers with

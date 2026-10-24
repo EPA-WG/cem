@@ -49,7 +49,7 @@ fn validate_xpath_schema_package_source(
         return None;
     }
     let package = load_builtin_schema_package(&descriptor.schema_uri).ok()?;
-    let contracts = xpath::XPathSchemaContractCatalog::from_schema_source(package.schema_source);
+    let contracts = xpath::XPathSchemaContractCatalog::from_schema_source(&package.schema_source);
     let ast = xpath::xpath_expression_ast_from_source_bytes(
         xpath::XPathSourceRequest {
             bytes: request.bytes,
@@ -74,7 +74,7 @@ fn validate_csv_schema_package_source(
     descriptor: &SchemaDescriptor,
 ) -> Option<SchemaPackageSourceValidationReport> {
     let package = load_builtin_schema_package(&descriptor.schema_uri).ok()?;
-    let contracts = csv::CsvSchemaContractCatalog::from_schema_source(package.schema_source);
+    let contracts = csv::CsvSchemaContractCatalog::from_schema_source(&package.schema_source);
     let parse_report = csv::extract_csv_parse_report(csv::CsvSourceValidationRequest {
         bytes: request.bytes,
         source_uri: request.source_uri,

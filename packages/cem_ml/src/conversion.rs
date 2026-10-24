@@ -32,9 +32,9 @@ use crate::projection::{
 };
 use crate::run_config::ScopeConfig;
 #[cfg(test)]
-use crate::schema::package_loader::load_builtin_schema_package;
+use crate::schema::package_loader::{load_builtin_schema_package, BuiltinSchemaPackage};
 use crate::schema::package_loader::{
-    load_builtin_schema_package_from_descriptor, BuiltinSchemaPackage,
+    load_builtin_schema_package_from_descriptor, SchemaPackage, SchemaPackageSourcePolicy,
 };
 use crate::schema::package_sources::{
     builtin_schema_package_artifact_source, builtin_schema_package_source,
@@ -267,7 +267,7 @@ pub struct ConversionDescriptor {
     pub cost: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ConversionPackageArtifactDescriptor {
     pub package_id: String,
     pub kind: String,
@@ -1213,9 +1213,19 @@ impl ConversionPackageArtifactSourceReader for AuthoritativeConversionPackageArt
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct ConversionArtifactSourceKey {
+    descriptor: ConversionPackageArtifactDescriptor,
+    uri: String,
+    content_type: Option<String>,
+    digest: String,
+}
+
 #[derive(Debug, Default)]
 pub struct ConversionOutputPipelineArtifactCache {
-    module_options: RefCell<BTreeMap<String, Result<TransformTemplateModuleOptions, String>>>,
+    module_options: RefCell<
+        BTreeMap<ConversionArtifactSourceKey, Result<TransformTemplateModuleOptions, String>>,
+    >,
 }
 
 #[derive(Clone, Copy)]
@@ -2920,51 +2930,8 @@ fn parse_cem_tree_cemt_output_artifact_module_options(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     artifact: &ConversionPackageArtifactDescriptor,
 ) -> Result<TransformTemplateModuleOptions, String> {
-    // This cache identifies descriptors, not admitted immutable source bytes.
-    // An authoritative reader must revalidate its selected source before every
-    // parse; cached embedded options cannot stand in for that admission.
-    if environment
-        .package_artifact_reader
-        .is_some_and(|reader| !reader.allow_embedded_fallback())
-    {
-        return parse_cem_tree_cemt_output_artifact_module_options_uncached(environment, artifact);
-    }
-    let cache_key = cem_tree_cemt_output_artifact_cache_key(artifact);
-    if let Some(cache) = environment.artifact_cache {
-        if let Some(cached) = cache.module_options.borrow().get(&cache_key) {
-            return cached.clone();
-        }
-    }
-
-    let result = parse_cem_tree_cemt_output_artifact_module_options_uncached(environment, artifact);
-    if let Some(cache) = environment.artifact_cache {
-        cache
-            .module_options
-            .borrow_mut()
-            .insert(cache_key, result.clone());
-    }
-    result
-}
-
-fn cem_tree_cemt_output_artifact_cache_key(
-    artifact: &ConversionPackageArtifactDescriptor,
-) -> String {
-    format!(
-        "{}|{}|{}|{}|{}",
-        artifact.package_id,
-        artifact.kind,
-        artifact.path,
-        artifact.function_name.as_deref().unwrap_or_default(),
-        artifact.function_profile.as_deref().unwrap_or_default()
-    )
-}
-
-fn parse_cem_tree_cemt_output_artifact_module_options_uncached(
-    environment: &ConversionOutputPipelineEnvironment<'_>,
-    artifact: &ConversionPackageArtifactDescriptor,
-) -> Result<TransformTemplateModuleOptions, String> {
-    #[cfg(test)]
-    let _profile = writer_profile_tests::Span::new("module/artifact-load-and-parse");
+    // Revalidate admission before every lookup, including failed reads and
+    // authoritative readers. Descriptor identity alone cannot select source bytes.
     let source =
         read_cem_tree_cemt_output_stage_artifact(environment, artifact).map_err(|error| {
             format!(
@@ -2972,6 +2939,35 @@ fn parse_cem_tree_cemt_output_artifact_module_options_uncached(
                 artifact.kind, artifact.path
             )
         })?;
+    let cache_key = ConversionArtifactSourceKey {
+        descriptor: artifact.clone(),
+        uri: source.uri.clone(),
+        content_type: source.content_type.clone(),
+        digest: crate::schema::asset_pack::schema_asset_sha256(&source.bytes),
+    };
+    if let Some(cache) = environment.artifact_cache {
+        if let Some(cached) = cache.module_options.borrow().get(&cache_key) {
+            return cached.clone();
+        }
+    }
+    let result = parse_cem_tree_cemt_output_artifact_module_options_source(artifact, source);
+    if let Some(cache) = environment.artifact_cache {
+        let mut entries = cache.module_options.borrow_mut();
+        // A per-pipeline cache must remain bounded across changing source bodies.
+        if entries.len() >= 256 {
+            entries.pop_first();
+        }
+        entries.insert(cache_key, result.clone());
+    }
+    result
+}
+
+fn parse_cem_tree_cemt_output_artifact_module_options_source(
+    artifact: &ConversionPackageArtifactDescriptor,
+    source: ConversionPackageArtifactRead,
+) -> Result<TransformTemplateModuleOptions, String> {
+    #[cfg(test)]
+    let _profile = writer_profile_tests::Span::new("module/artifact-load-and-parse");
     let parse_response =
         parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
             template: TemplateInput {
@@ -13811,13 +13807,14 @@ fn primary_content_type_essence(
 }
 
 pub fn conversion_descriptors_from_schema_package(
-    package: &BuiltinSchemaPackage,
+    package: &SchemaPackage,
 ) -> Result<Vec<ConversionDescriptor>, ConversionManifestError> {
     let base_path = package_manifest_base_path(&package.descriptor);
-    conversion_descriptors_from_schema_package_manifest(
+    conversion_descriptors_from_schema_package_manifest_inner(
         &package.descriptor.package_id,
-        package.manifest_source,
+        &package.manifest_source,
         &base_path,
+        package.source_policy == SchemaPackageSourcePolicy::Embedded,
     )
 }
 
@@ -13881,13 +13878,14 @@ fn conversion_descriptors_from_schema_package_manifest_inner(
 }
 
 pub fn conversion_package_artifacts_from_schema_package(
-    package: &BuiltinSchemaPackage,
+    package: &SchemaPackage,
 ) -> Result<Vec<ConversionPackageArtifactDescriptor>, ConversionManifestError> {
     let base_path = package_manifest_base_path(&package.descriptor);
-    conversion_package_artifacts_from_schema_package_manifest(
+    conversion_package_artifacts_from_schema_package_manifest_inner(
         &package.descriptor.package_id,
-        package.manifest_source,
+        &package.manifest_source,
         &base_path,
+        package.source_policy == SchemaPackageSourcePolicy::Embedded,
     )
 }
 
@@ -14894,7 +14892,7 @@ pub fn builtin_conversion_package_artifacts() -> Vec<ConversionPackageArtifactDe
         .collect()
 }
 
-fn builtin_conversion_packages() -> impl Iterator<Item = BuiltinSchemaPackage> {
+fn builtin_conversion_packages() -> impl Iterator<Item = SchemaPackage> {
     let schemas = SchemaRegistry::with_builtin_schemas();
     builtin_converter_package_schema_uris()
         .iter()
@@ -14908,14 +14906,14 @@ fn builtin_conversion_packages() -> impl Iterator<Item = BuiltinSchemaPackage> {
 }
 
 fn builtin_package_conversion_descriptors(
-    package: &BuiltinSchemaPackage,
+    package: &SchemaPackage,
 ) -> Vec<ConversionDescriptor> {
     conversion_descriptors_from_schema_package(package)
         .expect("built-in package converter metadata must be valid")
 }
 
 fn builtin_package_conversion_package_artifacts(
-    package: &BuiltinSchemaPackage,
+    package: &SchemaPackage,
 ) -> Vec<ConversionPackageArtifactDescriptor> {
     conversion_package_artifacts_from_schema_package(package)
         .expect("built-in package artifact metadata must be valid")
@@ -15358,7 +15356,7 @@ mod tests {
         }
     }
 
-    fn package_source(manifest_source: &'static str) -> BuiltinSchemaPackage {
+    fn package_source(manifest_source: &str) -> BuiltinSchemaPackage {
         let mut descriptor = descriptor(
             CEM_DOM_PROJECTION_SCHEMA_URI,
             SchemaContentType::primary(CEM_DOM_PROJECTION_CONTENT_TYPE),
@@ -15368,8 +15366,9 @@ mod tests {
             "schema-packages/cem-dom-projection/v1/schema/cem-dom-projection.cem".to_owned();
         BuiltinSchemaPackage {
             descriptor,
-            manifest_source,
-            schema_source: "",
+            manifest_source: manifest_source.into(),
+            schema_source: "".into(),
+            source_policy: SchemaPackageSourcePolicy::Embedded,
         }
     }
 
@@ -15663,7 +15662,7 @@ mod tests {
             1,
         );
         let package = BuiltinSchemaPackage {
-            manifest_source: Box::leak(manifest.into_boxed_str()),
+            manifest_source: manifest.into(),
             ..package
         };
 
@@ -21283,7 +21282,7 @@ mod tests {
             r#"@function-name="cem.missing-tree""#,
         );
         let package = BuiltinSchemaPackage {
-            manifest_source: Box::leak(manifest.into_boxed_str()),
+            manifest_source: manifest.into(),
             ..package
         };
 
@@ -21311,7 +21310,7 @@ mod tests {
             1,
         );
         let package = BuiltinSchemaPackage {
-            manifest_source: Box::leak(manifest.into_boxed_str()),
+            manifest_source: manifest.into(),
             ..package
         };
 

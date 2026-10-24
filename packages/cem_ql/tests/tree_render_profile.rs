@@ -106,8 +106,9 @@ fn conversions_with_one_schema_registry() -> ConversionRegistry {
         let source = builtin_schema_package_source(&descriptor.package_id).unwrap();
         let package = BuiltinSchemaPackage {
             descriptor: descriptor.clone(),
-            manifest_source: source.manifest_source,
-            schema_source: source.schema_source,
+            manifest_source: source.manifest_source.into(),
+            schema_source: source.schema_source.into(),
+            source_policy: cem_ml::schema::package_loader::SchemaPackageSourcePolicy::Embedded,
         };
         for descriptor in conversion_descriptors_from_schema_package(&package).unwrap() {
             conversions.register(descriptor).unwrap();

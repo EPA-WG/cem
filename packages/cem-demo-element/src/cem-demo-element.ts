@@ -112,6 +112,9 @@ export class CemDemoElement extends HTMLElement {
     }
 
     connectedCallback(): void {
+        // A parent's queued connection callback can capture this element into
+        // an inert payload before this already-queued callback is delivered.
+        if (!this.isConnected) return;
         installStyles(this.ownerDocument);
         if (!this.#initialized) this.#initialize();
         const src = this.src;
