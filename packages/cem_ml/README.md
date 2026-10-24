@@ -64,6 +64,44 @@ environment's lifetime shape remain supported; call erased readers with
 `reader.read(artifact)`. Wrap an already erased `&dyn Fn` in a forwarding closure
 when supplying it to the environment.
 
+`schema::asset_pack_activation::activate_schema_asset_packages` publishes exact
+package versions into an ordinary native `EngineContext`. Supply an immutable
+`Arc<SchemaAssetPack>` and a bounded selection such as
+`&[("cem-dom-projection", "1.0.0")]`. Admit manifest/schema bodies first; declared
+converter and formatter identities must exist in the pinned index, while their
+bodies can be acquired before the operation that needs them. Dependencies must
+already be registered or belong to the selected set. This API checks the native
+manifest/schema identity and uses the existing model compiler, readiness rules
+and exact `SchemaPackageReplacementGrant` contract. A built-in package cannot be
+replaced merely by supplying a pack or manifest.
+
+Publication of the selected set is atomic. Refusal preserves the previous
+registries, source binding and prepared contracts. Old preparations retire only
+after the complete set succeeds. Context clones share the immutable source
+allocation; releasing the last clone releases that ownership. Republishing a
+context cannot mix index pins or discard a previously owned admitted body.
+The ordinary mutable-manifest loader also cannot change a pinned package, even
+with an owner replacement grant; use a fresh consumer context to change its pin.
+`SchemaAssetActivation` exposes its index digest, retained source count and bytes
+for embedding ownership accounting; these values confer no retirement grant.
+
+Ordinary converter/template imports and output pipelines consume this binding.
+Selected package reads preserve canonical source URIs and reject missing bodies,
+MIME/identity mismatches and escapes to filesystem/embedded fallback. Unselected
+packages retain their legacy behavior. The reader contract's
+`allow_embedded_fallback_for(artifact)` permits this mixed context; its default
+preserves existing readers' `allow_embedded_fallback()` policy.
+
+The native tests activate the actual DOM projection package and exercise ordinary
+CEM-to-HTML conversion. CSV's current source-only schema model reports unsupported
+diagnostic behaviors, so public activation refuses it; admitting bytes does not
+grant an incomplete model validation authority. A separate output-reader fixture
+checks ordinary CSV formatter/colorizer admission without claiming successful
+CSV schema activation. No diagnostics are discarded to make activation succeed.
+Persistent WASM endpoints, shared declarative demand and coordinated generation
+handoff remain integration work. This native API does not enable automatic
+recovery, serialize native owners, or change credential/checkpoint admission.
+
 The `schema-asset-packs` feature adds stateless WASM probes, leaving the default
 ABI/catalog intact. The native producer and isolated offline/WASM verification
 commands are documented in the

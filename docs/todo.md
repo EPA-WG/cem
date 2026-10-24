@@ -32,9 +32,9 @@ Completed [editor filename de-duplication](archive/todo-completed-compact-studio
 
 Completed [graph parameter-map authoring and Studio controls](archive/todo-completed-graph-parameters-2026-10-23.md) is archived.
 
-Continue Studio functionality with persistent native optional-package activation
-and declarative command/render demand. Follow with an opt-in Studio deployment
-profile and embedded-body exclusion; then measure download, cold latency and
+Continue Studio functionality with persistent owned WASM package activation
+and declarative command/render demand; the native context binding is implemented.
+Follow with an opt-in Studio deployment profile and embedded-body exclusion; then measure download, cold latency and
 allocator/linear-memory headroom.
 
 Completed [shared popup surfaces and indicator clearance](archive/todo-completed-compact-studio-2026-10-23.md#shared-popup-surfaces-and-indicator-clearance) is archived.
@@ -56,7 +56,11 @@ before claiming binary, headroom or checkpoint savings. Prototype implementation
 measurements and verification are in the
 [archived evidence](archive/todo-snapshot-2026-10-23.md#project-builds-and-artifact-previews).
 
-- [ ] Connect the shared optional-pack loader to persistent native package activation and ordinary command/render consumers. Expose demand through shared declarative resource bindings so Studio needs no UI JavaScript; enroll active package/source ownership in the existing generation and credential-admission protocol.
+Completed [native owned-package activation](archive/todo-completed-native-package-activation-2026-10-24.md) covers atomic publication, source ownership, ordinary engine consumers and strict body admission. WASM endpoint/service wiring and declarative demand remain below.
+
+- [ ] Add native parser-backed package compilation contracts, starting with CSV's existing `csv-parse-report-fact` diagnostic behaviors. Preserve real parser validation and source ownership; the new activation boundary must continue refusing unsupported or pending models, with no diagnostic filtering or synthetic ready models.
+
+- [ ] Connect the shared optional-pack loader to persistent owned WASM activation endpoints and ordinary command/render services, using the native `SchemaAssetActivation` context binding. Expose demand through shared declarative resource bindings so Studio needs no UI JavaScript; enroll active package/source ownership in the existing inventory, generation and credential-admission protocol. Do not serialize native owners or infer retirement authority from source-count/byte metrics.
 
 - [ ] Add an opt-in Studio native deployment graph/profile for the optional WASM and complete emitted pack tree, using the implemented service-worker inventory group. Keep default complete deployment intact and bind source reimport to coordinated runtime publication.
 

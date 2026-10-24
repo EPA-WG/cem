@@ -455,6 +455,27 @@ fn render_export_conversion_template(
     target_scope: &ScopeConfig,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> ExportConversionTemplateResult {
+    let mut local_diagnostics = Vec::new();
+    // Even a registered native execution fallback cannot replace missing
+    // explicitly selected source bodies. Check admission before adapter choice.
+    let owned_template = context
+        .converter_registry
+        .converter(&conversion.converter_id)
+        .filter(|descriptor| {
+            context.schema_asset_activation.as_ref()
+                .is_some_and(|binding| binding.owns_package(&descriptor.package_id))
+        })
+        .and_then(|descriptor| descriptor.template.as_ref());
+    let admitted_template = if let Some(template) = owned_template {
+        let Some(input) = load_converter_template(context, template, &mut local_diagnostics) else {
+            diagnostics.append(&mut local_diagnostics);
+            return ExportConversionTemplateResult::Failed;
+        };
+        Some(input)
+    } else {
+        None
+    };
+
     let ConversionExecution::CemtTemplate {
         adapter_id,
         template,
@@ -463,7 +484,6 @@ fn render_export_conversion_template(
         return ExportConversionTemplateResult::UseDirectPipeline;
     };
 
-    let mut local_diagnostics = Vec::new();
     local_diagnostics.extend(conversion.output_pipeline_diagnostics.clone());
     if local_diagnostics
         .iter()
@@ -488,7 +508,8 @@ fn render_export_conversion_template(
         );
     };
 
-    let Some(template_input) = load_converter_template(context, template, &mut local_diagnostics)
+    let Some(template_input) = admitted_template
+        .or_else(|| load_converter_template(context, template, &mut local_diagnostics))
     else {
         return fallback_or_publish_converter_diagnostics(
             conversion,
@@ -764,6 +785,11 @@ fn read_converter_template(
     context: &EngineContext,
     template: &crate::conversion::ConversionTemplateDescriptor,
 ) -> Result<ResolvedRead, ResolverDiagnostic> {
+    if let Some(binding) = &context.schema_asset_activation {
+        if binding.owns_path(&template.path) {
+            return binding.read_source(&template.path);
+        }
+    }
     let content_type_hint = Some(template.content_type.as_str());
     let uri = template.path.as_str();
     if has_uri_scheme(uri) && !is_windows_drive_path(uri) {
@@ -826,13 +852,6 @@ fn execute_cem_tree_output_pipeline_with_context(
 ) -> crate::conversion::ConversionOutputPipelineExecution {
     let schema_registry = SchemaRegistry::with_builtin_schemas();
     let conversion_registry = ConversionRegistry::with_builtin_converters();
-    let package_artifact_reader =
-        |artifact: &ConversionPackageArtifactDescriptor| -> Result<ConversionPackageArtifactRead, String> {
-            let Some(context) = context else {
-                return Err("package artifact reader requires an engine context".to_owned());
-            };
-            read_conversion_package_artifact(context, artifact).map_err(|error| error.to_string())
-        };
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: context
             .map(|context| &context.schema_registry)
@@ -840,9 +859,8 @@ fn execute_cem_tree_output_pipeline_with_context(
         conversion_registry: context
             .map(|context| &context.converter_registry)
             .unwrap_or(&conversion_registry),
-        package_artifact_reader: context.map(|_| {
-            &package_artifact_reader
-                as &crate::conversion::ConversionPackageArtifactReader<'_>
+        package_artifact_reader: context.map(|context| {
+            context as &crate::conversion::ConversionPackageArtifactReader<'_>
         }),
         artifact_cache: None,
     };
@@ -866,14 +884,10 @@ fn execute_conversion_output_pipeline_from_typed_formatted_cem_tree_with_context
     diagnostic_node: Option<&str>,
     diagnostic_uri: Option<&str>,
 ) -> crate::conversion::ConversionOutputPipelineExecution {
-    let package_artifact_reader =
-        |artifact: &ConversionPackageArtifactDescriptor| -> Result<ConversionPackageArtifactRead, String> {
-            read_conversion_package_artifact(context, artifact).map_err(|error| error.to_string())
-        };
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: Some(&package_artifact_reader),
+        package_artifact_reader: Some(context),
         artifact_cache: None,
     };
     execute_conversion_output_pipeline_from_typed_formatted_cem_tree_with_environment(
@@ -884,6 +898,32 @@ fn execute_conversion_output_pipeline_from_typed_formatted_cem_tree_with_context
         diagnostic_node,
         diagnostic_uri,
     )
+}
+
+fn activated_package_artifact_reader(
+    context: &EngineContext,
+) -> Option<&crate::conversion::ConversionPackageArtifactReader<'_>> {
+    context.schema_asset_activation.as_ref().map(|_| {
+        context as &crate::conversion::ConversionPackageArtifactReader<'_>
+    })
+}
+
+impl crate::conversion::ConversionPackageArtifactSourceReader for EngineContext {
+    fn read(
+        &self,
+        artifact: &ConversionPackageArtifactDescriptor,
+    ) -> Result<ConversionPackageArtifactRead, String> {
+        if let Some(binding) = &self.schema_asset_activation {
+            if binding.owns_package(&artifact.package_id) {
+                return binding.read_artifact(artifact);
+            }
+        }
+        read_conversion_package_artifact(self, artifact).map_err(|error| error.to_string())
+    }
+    fn allow_embedded_fallback_for(&self, artifact: &ConversionPackageArtifactDescriptor) -> bool {
+        !self.schema_asset_activation.as_ref()
+            .is_some_and(|binding| binding.owns_package(&artifact.package_id))
+    }
 }
 
 fn read_conversion_package_artifact(
@@ -978,6 +1018,14 @@ pub fn load_schema_package_manifest_into_context(
     context: &mut EngineContext,
     input: &EngineInput,
 ) -> EngineResult<Vec<Diagnostic>> {
+    load_schema_package_manifest_staged(context, input, true)
+}
+
+pub(crate) fn load_schema_package_manifest_staged(
+    context: &mut EngineContext,
+    input: &EngineInput,
+    retire_preparations: bool,
+) -> EngineResult<Vec<Diagnostic>> {
     let mut package_input = input.clone();
     if package_input.from_format.is_none() {
         package_input.from_format = Some(InputFormat::Cem);
@@ -993,9 +1041,27 @@ pub fn load_schema_package_manifest_into_context(
             Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE.to_owned());
     }
 
+    context.ensure_active()?;
     let package_input = materialized_input(&package_input, context)?;
-    let loaded = load_document_input(&package_input, context);
     let manifest_uri = input_uri(&package_input, context);
+    // Refuse a pinned-owner mutation before manifest resource checks can read
+    // templates/examples at the candidate's mutable transport location.
+    if let (Some(binding), Ok(source)) = (
+        &context.schema_asset_activation, std::str::from_utf8(&package_input.bytes),
+    ) {
+        if let Ok(id) = crate::schema::registry::schema_package_id_from_manifest_source(
+            source, "external-schema-package",
+        ) {
+            if binding.owns_package(&id) {
+                if let Err(message) = binding.check_manifest(&id, &manifest_uri, source) {
+                    return Ok(vec![schema_package_load_diagnostic(
+                        Some(&manifest_uri), "cem.schema_package.activated_source_mismatch", message,
+                    )]);
+                }
+            }
+        }
+    }
+    let loaded = load_document_input(&package_input, context);
     let run = run_pipeline_as_scoped_with_context_and_source_uri(
         &loaded.bytes,
         loaded.from_format,
@@ -1017,8 +1083,13 @@ pub fn load_schema_package_manifest_into_context(
 
     match std::str::from_utf8(&loaded.bytes) {
         Ok(manifest_source) => {
-            let mut registration_diagnostics =
-                register_validated_schema_package_manifest(context, manifest_source, &manifest_uri);
+            let mut registration_diagnostics = if retire_preparations {
+                register_validated_schema_package_manifest(context, manifest_source, &manifest_uri)
+            } else {
+                register_validated_schema_package_manifest_with_retirement(
+                    context, manifest_source, &manifest_uri, false,
+                )
+            };
             diagnostics.append(&mut registration_diagnostics);
         }
         Err(error) => diagnostics.push(schema_package_load_diagnostic(
@@ -1038,6 +1109,17 @@ fn register_validated_schema_package_manifest(
     manifest_source: &str,
     manifest_uri: &str,
 ) -> Vec<Diagnostic> {
+    register_validated_schema_package_manifest_with_retirement(
+        context, manifest_source, manifest_uri, true,
+    )
+}
+
+fn register_validated_schema_package_manifest_with_retirement(
+    context: &mut EngineContext,
+    manifest_source: &str,
+    manifest_uri: &str,
+    retire_preparations: bool,
+) -> Vec<Diagnostic> {
     let package_id = match crate::schema::registry::schema_package_id_from_manifest_source(
         manifest_source,
         "external-schema-package",
@@ -1051,6 +1133,15 @@ fn register_validated_schema_package_manifest(
             )]
         }
     };
+    if let Some(binding) = &context.schema_asset_activation {
+        if binding.owns_package(&package_id) {
+            if let Err(message) = binding.check_manifest(&package_id, manifest_uri, manifest_source) {
+                return vec![schema_package_load_diagnostic(
+                    Some(manifest_uri), "cem.schema_package.activated_source_mismatch", message,
+                )];
+            }
+        }
+    }
     let incoming = crate::schema::registry::SchemaPackageOrigin::Manifest(manifest_uri.to_owned());
     let authorized = [
         context.schema_registry.package_origin(&package_id),
@@ -1125,7 +1216,10 @@ fn register_validated_schema_package_manifest(
         staged
             .converter_registry
             .set_package_origin(&package_id, incoming);
-        context.schema_document_models.retire_preparations_replaced_by(&staged.schema_document_models);
+        if retire_preparations {
+            context.schema_document_models
+                .retire_preparations_replaced_by(&staged.schema_document_models);
+        }
         context.schema_registry = staged.schema_registry;
         context.schema_document_models = staged.schema_document_models;
         context.converter_registry = staged.converter_registry;
@@ -3754,7 +3848,7 @@ fn convert_transform_graph_artifact(
         let environment = ConversionOutputPipelineEnvironment {
             schema_registry: &context.schema_registry,
             conversion_registry: &context.converter_registry,
-            package_artifact_reader: None,
+            package_artifact_reader: activated_package_artifact_reader(context),
             artifact_cache: None,
         };
         let execution = execute_html_document_output_pipeline_with_environment(
@@ -6317,6 +6411,11 @@ fn read_template_import_source(
     content_type_hint: Option<&str>,
 ) -> Result<ResolvedRead, ResolverDiagnostic> {
     let base_uri = template.uri.as_str();
+    if let Some(binding) = &context.schema_asset_activation {
+        if let Some(read) = binding.read_import(base_uri, import_uri) {
+            return read;
+        }
+    }
     if has_uri_scheme(import_uri) && !is_windows_drive_path(import_uri) {
         if let Some(path) = parse_local_file_uri(import_uri)
             .transpose()
@@ -6562,7 +6661,7 @@ fn convert_loaded_csv_ast_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_csv_document_output_pipeline_with_environment(
@@ -6637,7 +6736,7 @@ fn convert_loaded_generic_data_ast_to_csv_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_csv_document_output_pipeline_with_environment(
@@ -6869,7 +6968,7 @@ fn convert_loaded_yaml_ast_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_yaml_document_output_pipeline_with_environment(
@@ -6936,7 +7035,7 @@ fn convert_loaded_generic_data_ast_to_yaml_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_yaml_document_output_pipeline_with_environment(
@@ -7185,7 +7284,7 @@ fn convert_loaded_json_ast_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_json_document_output_pipeline_with_environment(
@@ -7251,7 +7350,7 @@ fn convert_loaded_json_schema_ast_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_json_schema_document_output_pipeline_with_environment(
@@ -7341,7 +7440,7 @@ fn convert_loaded_html_ast_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_html_document_output_pipeline_with_environment(
@@ -7428,7 +7527,7 @@ fn convert_loaded_css_ast_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_css_document_output_pipeline_with_environment(
@@ -7496,7 +7595,7 @@ fn convert_loaded_xml_ast_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_xml_document_output_pipeline_with_environment(
@@ -7564,7 +7663,7 @@ fn convert_loaded_xhtml_ast_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_xhtml_document_output_pipeline_with_environment(
@@ -7632,7 +7731,7 @@ fn convert_loaded_svg_ast_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_svg_document_output_pipeline_with_environment(
@@ -7700,7 +7799,7 @@ fn convert_loaded_mathml_ast_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_mathml_document_output_pipeline_with_environment(
@@ -7770,7 +7869,7 @@ fn convert_loaded_xslt_ast_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_xslt_stylesheet_output_pipeline_with_environment(
@@ -7840,7 +7939,7 @@ fn convert_loaded_relax_ng_ast_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_relax_ng_document_output_pipeline_with_environment(
@@ -7911,7 +8010,7 @@ fn convert_loaded_markdown_ast_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_markdown_document_output_pipeline_with_environment(
@@ -8996,7 +9095,7 @@ fn convert_loaded_generic_data_ast_to_json_output(
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
-        package_artifact_reader: None,
+        package_artifact_reader: activated_package_artifact_reader(context),
         artifact_cache: None,
     };
     let execution = execute_json_document_output_pipeline_with_environment(

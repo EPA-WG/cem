@@ -153,6 +153,10 @@ pub struct EngineContext {
     pub schema_document_models: SchemaDocumentModelRegistry,
     pub converter_registry: ConversionRegistry,
     pub schema_package_manifests: Vec<EngineInput>,
+    /// Immutable native sources and package identities owned by this consumer.
+    /// Only native activation can construct this binding; request data is no grant.
+    pub schema_asset_activation:
+        Option<Arc<crate::schema::asset_pack_activation::SchemaAssetActivation>>,
     /// Source arenas only; reference results belong to each compilation snapshot.
     pub schema_package_sources: crate::schema::package_compilation::SchemaPackageSourceRegistry,
     /// Explicit runtime stage, independent of ordinary query adapter registration.
@@ -194,6 +198,7 @@ impl Default for EngineContext {
             schema_document_models: SchemaDocumentModelRegistry::default(),
             converter_registry: ConversionRegistry::with_builtin_converters(),
             schema_package_manifests: Vec::new(),
+            schema_asset_activation: None,
             schema_package_sources: Default::default(),
             schema_package_compiler: None,
             schema_package_replacement_grants: Vec::new(),

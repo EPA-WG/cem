@@ -958,6 +958,9 @@ mod tests {
         codes.extend(schema_package_diagnostic_code_literals(include_str!(
             "package_consistency.rs"
         )));
+        codes.extend(schema_package_diagnostic_code_literals(include_str!(
+            "asset_pack_activation.rs"
+        )));
         codes
     }
 

@@ -1162,6 +1162,11 @@ pub trait ConversionPackageArtifactSourceReader {
     fn allow_embedded_fallback(&self) -> bool {
         true
     }
+
+    /// Mixed contexts can preserve legacy packages while selected packages stay strict.
+    fn allow_embedded_fallback_for(&self, _artifact: &ConversionPackageArtifactDescriptor) -> bool {
+        self.allow_embedded_fallback()
+    }
 }
 
 impl<F> ConversionPackageArtifactSourceReader for F
@@ -2864,7 +2869,7 @@ fn read_cem_tree_cemt_output_stage_artifact(
         match reader.read(artifact) {
             Ok(source) => return Ok(source),
             Err(error) => {
-                if !reader.allow_embedded_fallback() {
+                if !reader.allow_embedded_fallback_for(artifact) {
                     return Err(error);
                 }
                 if let Some(source) =

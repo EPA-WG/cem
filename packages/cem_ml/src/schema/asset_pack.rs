@@ -127,7 +127,7 @@ impl SchemaAssetPackageDescriptor {
         }
     }
 
-    fn directory(&self) -> Result<String, SchemaAssetPackError> {
+    pub(crate) fn directory(&self) -> Result<String, SchemaAssetPackError> {
         let major = self.version.split('.').next().unwrap_or("");
         if !identifier(&self.package_id)
             || self.version.len() > 64
