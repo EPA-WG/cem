@@ -118,16 +118,31 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
             if (!active) return;
             await runtime.whenRenderSettled(element);
             const visited = new Set<HTMLElement>();
-            for (;;) {
-                const child = [...element.querySelectorAll<HTMLElement>('*')].find(child =>
-                    !visited.has(child) && runtime.hasDeclarationFor(child));
-                if (!child || !active) return;
-                visited.add(child);
-                // An ancestor can publish a new payload to an existing child.
-                // Settle in DOM order, then discover its current descendants;
-                // parallel waits can observe a child before that update arrives.
-                await runtime.whenRenderSettled(child);
-            }
+            let changed: boolean;
+            const observer = new MutationObserver(() => { changed = true; });
+            observer.observe(element, { subtree: true, childList: true, attributes: true });
+            try {
+                for (;;) {
+                    let discovered = false;
+                    let walker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT);
+                    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                        if (!active) return;
+                        const child = node as HTMLElement;
+                        if (visited.has(child) || !element.contains(child) || !runtime.hasDeclarationFor(child)) continue;
+                        visited.add(child); discovered = true;
+                        // An ancestor can publish a child's payload while settling.
+                        // Follow the live subtree without rescanning it per owner.
+                        changed = false; observer.takeRecords();
+                        await runtime.whenRenderSettled(child);
+                        // Publication may replace this branch or insert an owner
+                        // before the cursor. Only actual mutations restart the
+                        // walk, retaining the original DOM-order settlement.
+                        if (changed || observer.takeRecords().length) walker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT);
+                    }
+                    // Also discover declarations activated on existing nodes.
+                    if (!discovered || !active) return;
+                }
+            } finally { observer.disconnect(); }
         },
         dispose() {
             if (!active) return;

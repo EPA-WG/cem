@@ -108,9 +108,13 @@ covers native metadata planning, effective export selection, selected-resource
 admission, bounded shared preparation, complete physical publication despite
 cancellation/host closure, offline acceptance and 30 fresh-browser measurements.
 HTML startup downloads no optional packages; the first dependent command pays
-activation. The frozen-baseline editor timeouts remain a separate next item.
+activation. The frozen-baseline editor timeouts are addressed below.
 
-- [ ] Reduce large plaintext draft publication/settling cost in Studio. The existing 200-line desktop editor cases exceed their 30-second deadlines, including frozen pre-change Studio sources. Profile shared/native rendering and the eleven-view publication fan-out; avoid unchanged view updates through shared declarative/runtime contracts, preserve focus/selection and scrolling, and keep the existing deadlines and credential policy.
+Completed [shared host-view settlement](archive/todo-completed-host-view-settlement-2026-10-24.md)
+covers the plaintext draft profile, bounded DOM-order discovery, asynchronous
+parent payloads, inserted/replaced owners and disposal. Both original desktop
+editor cases and all 140 Studio workbench/navigation/recovery tests pass with
+unchanged deadlines, focus/selection/scroll assertions and credential policy.
 
 - [ ] Extend the opt-in Studio host's trusted grants and declarative project demand beyond CSV to Markdown, SCSS, XSLT and Relax NG before general adoption. Keep grants outside project/URL/status data and verify offline execution, complete runtime publication and credential refusal for each format.
 

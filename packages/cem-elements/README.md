@@ -1395,8 +1395,12 @@ XHTML/CEM-ML view. Host JavaScript supplies non-UI services and explicitly named
 state slices; the declaration owns visible markup, status mapping, disabled
 state and interaction bindings. `view.update(values)` updates slices and
 `view.whenSettled()` waits for the view and its produced descendants, settling
-ancestors before descendants so nested payload updates are included. Native
-surface preparation is separate: `cem-open` reports admitted visibility.
+ancestors before descendants so nested payload updates are included. It walks
+unchanged subtrees without querying all descendants for every owner. If an owner
+publishes DOM changes while settling, traversal restarts in current DOM order;
+new or replaced owners are included. Disposal stops further waits, and the
+temporary mutation observer is released on completion or failure. Native surface
+preparation is separate: `cem-open` reports admitted visibility.
 
 Declare `host-command="save"` on a control, with optional
 `host-command-event="input|change|submit|cem-close|cem-tree-activate|cem-tree-toggle|cem-disclosure-toggle|cem-tab|cem-preview-navigate"`

@@ -2,6 +2,7 @@ import { expect, waitFor } from 'storybook/test';
 import preview, { cemComponentDeclarationSource, createCemStoryRuntime } from '../../.storybook/preview.js';
 import { mountCemView, type CemHostCommandRequest } from './host-view.js';
 import { connectCemNativeSurface } from './native-surface.js';
+import type { CemElementRuntime } from './cem-elements.js';
 
 const meta = preview.meta({ title: 'Runtime/Declarative host-service views' });
 
@@ -461,3 +462,151 @@ async function authoredContract(canvasElement: HTMLElement, fallback: boolean) {
 }
 export const AuthoredWorker = meta.story({ render: () => '<section></section>', play: async ({ canvasElement }) => authoredContract(canvasElement, false) });
 export const AuthoredFallback = meta.story({ render: () => '<section></section>', play: async ({ canvasElement }) => authoredContract(canvasElement, true) });
+
+/** Exercise host settlement ordering without making native rendering its clock. */
+function settlementFixture(canvasElement: HTMLElement, settle: (owner: HTMLElement) => void | Promise<void> = () => undefined) {
+    const document = canvasElement.ownerDocument;
+    const window = document.defaultView, root = canvasElement.querySelector('section');
+    if (!window || !root) throw new Error('Missing settlement fixture document or mount');
+    const tag = `settlement-owner-${crypto.randomUUID()}`;
+    window.customElements.define(tag, class extends window.HTMLElement {});
+    const labels = new WeakMap<HTMLElement, string>();
+    const calls: string[] = [];
+    const runtime = {
+        hasDeclarationFor: (owner: HTMLElement) => owner.localName === tag,
+        setInstanceSlices: () => false,
+        registerCheckpointCommands: () => () => undefined,
+        whenRenderSettled: async (owner: HTMLElement) => {
+            calls.push(labels.get(owner) ?? 'view');
+            await settle(owner);
+        },
+    } as unknown as CemElementRuntime;
+    const view = mountCemView(runtime, { root, tag });
+    const owner = (label: string) => {
+        const element = document.createElement(tag);
+        labels.set(element, label);
+        return element;
+    };
+    return { document, view, owner, calls };
+}
+
+export const SettlementWalksLargeOwnerTrees = meta.story({
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        const { document, view, owner, calls } = settlementFixture(canvasElement);
+        const expected = ['view'];
+        for (let index = 0; index < 120; index++) {
+            const group = document.createElement('div');
+            const parent = owner(`parent-${index}`), child = owner(`child-${index}`);
+            parent.append(document.createElement('span'), child);
+            group.append(document.createElement('span'), parent);
+            view.element.append(group);
+            expected.push(`parent-${index}`, `child-${index}`);
+        }
+        let queries = 0, walks = 0, steps = 0;
+        const queryDescriptor = Object.getOwnPropertyDescriptor(view.element, 'querySelectorAll');
+        const walkerDescriptor = Object.getOwnPropertyDescriptor(document, 'createTreeWalker');
+        const createWalker = document.createTreeWalker.bind(document);
+        Object.defineProperty(view.element, 'querySelectorAll', { configurable: true, value: (selector: string) => {
+            queries++;
+            return Element.prototype.querySelectorAll.call(view.element, selector);
+        } });
+        Object.defineProperty(document, 'createTreeWalker', { configurable: true, value: (root: Node, show?: number, filter?: NodeFilter | null) => {
+            const walker = createWalker(root, show, filter);
+            if (root === view.element) {
+                walks++;
+                const next = walker.nextNode.bind(walker);
+                Object.defineProperty(walker, 'nextNode', { configurable: true, value: () => { steps++; return next(); } });
+            }
+            return walker;
+        } });
+        try {
+            await view.whenSettled();
+            expect(calls).toEqual(expected);
+            // Bound traversal work rather than machine-dependent elapsed time.
+            // Restarting a full descendant query for each owner is quadratic.
+            expect(queries).toBeLessThanOrEqual(3);
+            expect(walks).toBeLessThanOrEqual(3);
+            expect(steps).toBeLessThanOrEqual(4 * (120 * 5 + 1));
+        } finally {
+            if (queryDescriptor) Object.defineProperty(view.element, 'querySelectorAll', queryDescriptor);
+            else Reflect.deleteProperty(view.element, 'querySelectorAll');
+            if (walkerDescriptor) Object.defineProperty(document, 'createTreeWalker', walkerDescriptor);
+            else Reflect.deleteProperty(document, 'createTreeWalker');
+            view.dispose();
+        }
+    },
+});
+
+export const SettlementWaitsForParentPayload = meta.story({
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        const fixture = settlementFixture(canvasElement, async owner => {
+            if (owner === parent) {
+                expect(fixture.calls).toEqual(['view', 'parent']);
+                await Promise.resolve();
+                child.setAttribute('value', 'prepared by parent');
+            } else if (owner === child) {
+                expect(child.getAttribute('value')).toBe('prepared by parent');
+                await Promise.resolve();
+                grandchild.setAttribute('value', 'prepared by child');
+                child.append(grandchild);
+            } else if (owner === grandchild) {
+                expect(grandchild.getAttribute('value')).toBe('prepared by child');
+            }
+        });
+        const parent = fixture.owner('parent'), child = fixture.owner('child'), grandchild = fixture.owner('grandchild');
+        parent.append(child); fixture.view.element.append(parent);
+        try {
+            await fixture.view.whenSettled();
+            expect(fixture.calls).toEqual(['view', 'parent', 'child', 'grandchild']);
+        } finally { fixture.view.dispose(); }
+    },
+});
+
+export const SettlementDiscoversEarlierAndReplacedOwners = meta.story({
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        for (const replace of [false, true]) {
+            const fixture = settlementFixture(canvasElement, async owner => {
+                if (owner !== current) return;
+                await Promise.resolve();
+                earlier.append(inserted);
+                if (replace) current.replaceWith(replacement);
+            });
+            const earlier = fixture.document.createElement('div');
+            const current = fixture.owner('current'), inserted = fixture.owner('inserted-before-cursor');
+            const replacement = fixture.owner('replacement'), nested = fixture.owner('replacement-child'), later = fixture.owner('later');
+            replacement.append(nested);
+            fixture.view.element.append(earlier, current, later);
+            try {
+                await fixture.view.whenSettled();
+                expect(fixture.calls).toEqual(['view', 'current', 'inserted-before-cursor', ...(replace ? ['replacement', 'replacement-child'] : []), 'later']);
+            } finally { fixture.view.dispose(); }
+        }
+    },
+});
+
+export const SettlementStopsAfterDisposal = meta.story({
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        let entered!: () => void, release!: () => void;
+        const started = new Promise<void>(resolve => { entered = resolve; });
+        const pending = new Promise<void>(resolve => { release = resolve; });
+        const fixture = settlementFixture(canvasElement, async owner => {
+            if (owner === first) { entered(); await pending; }
+        });
+        const first = fixture.owner('first'), later = fixture.owner('later');
+        fixture.view.element.append(first, later);
+        try {
+            const settled = fixture.view.whenSettled();
+            await started;
+            fixture.view.dispose();
+            release();
+            await settled;
+            await fixture.view.whenSettled();
+            expect(fixture.calls).toEqual(['view', 'first']);
+            expect(fixture.view.element.isConnected).toBe(false);
+        } finally { release(); fixture.view.dispose(); }
+    },
+});
