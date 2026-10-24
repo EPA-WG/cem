@@ -228,6 +228,16 @@ offline. The verifier checks admitted CSV import and formatter execution both
 online and from the complete offline cache. This experimental profile makes no
 binary-size or memory-saving claim; partition measurements remain next.
 
+Measure prepared profiles with
+`yarn nx run @epa-wg/cem-studio:measure:schema-assets`. This uncached, serial target
+runs five samples per profile/workload in fresh Chromium processes and writes
+`dist/reports/cem-studio/schema-assets-measurements.json`. It compares complete
+per-URL raw/gzip delivery, first CSV command including activation, native paint,
+actual Studio editor readiness, and separate allocator/linear-memory observations.
+The [method and measured results](../../docs/schema-asset-profile-measurements.md)
+keep checkpoint and credential admission independent. Current eager demand costs
+more startup time and CSV heap capacity, so the complete deployment stays default.
+
 Those JavaScript assets may own bootstrap, workers, persistence, and browser
 service adapters. Visible DOM composition and UI bindings belong to the
 canonical declarations and shared runtime.

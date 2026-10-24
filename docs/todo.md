@@ -33,8 +33,8 @@ Completed [editor filename de-duplication](archive/todo-completed-compact-studio
 Completed [graph parameter-map authoring and Studio controls](archive/todo-completed-graph-parameters-2026-10-23.md) is archived.
 
 Shared package transports, coordinated Studio demand and opt-in embedded-body
-exclusion are complete. Continue with download, cold latency and allocator/linear-
-memory measurements before broadening optional-profile adoption.
+exclusion and isolated profile measurements are complete. Continue with
+project/resource-driven declarative demand before broadening optional adoption.
 
 Completed [shared popup surfaces and indicator clearance](archive/todo-completed-compact-studio-2026-10-23.md#shared-popup-surfaces-and-indicator-clearance) is archived.
 
@@ -97,7 +97,13 @@ and alias refusal, deferred conversion registration, actual binary-body omission
 and online/offline Studio formatter/recovery acceptance. The default deployment
 and credential policy remain unchanged; gzip delivery is currently larger.
 
-- [ ] Measure the resulting binary partition's raw/gzip download, cold command/editor latency and allocator/linear-memory headroom before considering a separate rare-command WASM ABI/heap; retain independent checkpoint and credential admission.
+Completed [profile delivery, latency and native memory measurements](archive/todo-completed-schema-profile-measurements-2026-10-24.md)
+cover 30 fresh-browser samples and the [recorded method/results](schema-asset-profile-measurements.md).
+The current optional profile adds startup/delivery cost and CSV capacity despite
+saving 256 KiB of initial/paint linear capacity. Keep the complete default and
+prioritize demand selection before a separate rare-command ABI/heap.
+
+- [ ] Make optional Studio package demand project/resource-driven instead of unconditional CSV shell startup. Preserve trusted grants and complete coordinated physical-runtime activation before dependent work; remeasure editor readiness and the first dependent command without new Studio JavaScript UI behavior or relaxed credential/budget guards.
 
 - [ ] Extend the opt-in Studio host's trusted grants and declarative project demand beyond CSV to Markdown, SCSS, XSLT and Relax NG before general adoption. Keep grants outside project/URL/status data and verify offline execution, complete runtime publication and credential refusal for each format.
 

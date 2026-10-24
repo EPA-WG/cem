@@ -893,6 +893,26 @@
                 "{workspaceRoot}/dist/reports/cem-studio/schema-assets-{samples,build}.json"
             ]
         },
+        "test:schema-measurements": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node --test scripts/schema-assets-measurements.test.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": ["{projectRoot}/scripts/schema-assets-measurements*.mjs"]
+        },
+        "measure:schema-assets": {
+            "cache": false,
+            "parallelism": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["test:schema-measurements", "verify:output", "verify:schema-assets"],
+            "options": {
+                "command": "node scripts/measure-schema-assets.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/schema-assets-measurements.json"]
+        },
         "verify:schema-assets": {
             "cache": true,
             "executor": "nx:run-commands",

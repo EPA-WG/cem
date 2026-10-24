@@ -3720,12 +3720,13 @@ The isolated browser gate verifies all 205 files, cold offline loading and
 byte-only fresh-heap reimport with its server transport disconnected; it also
 verifies missing-source refusal and invalid/incomplete installation failure.
 
-An opt-in Studio deployment graph and automatic package-owner handoff within
-coordinated reload policy remain ahead; current enrollment refuses retirement
-while the persistent owner is live.
-Raw/gzip delivery, allocator/linear-memory observations and cold-load
-latency are measured separately; no binary, headroom or checkpoint reduction is
-claimed. Default release catalogs and themes remain complete. A separate
+The opt-in Studio deployment and explicit coordinated package-owner handoff
+are implemented. A persistent owner blocks retirement until the complete checked
+resource/host handoff releases it. Raw/gzip delivery, allocator/linear-memory
+observations and cold-load latency are recorded by the
+[isolated profile measurement target](schema-asset-profile-measurements.md).
+The measured initial/paint capacity reduction does not establish whole-Studio
+memory or checkpoint savings; current eager CSV activation adds startup cost. Default release catalogs and themes remain complete. A separate
 rare-command WASM module needs an explicit ABI, independent ownership and recovery
 enrollment; additional heaps are not automatically a memory reduction. Studio UI
 remains declarative, automatic recovery stays disabled, and entered passwords or
@@ -3735,8 +3736,8 @@ one-time codes still block recovery until the user explicitly clears them.
 The shared package-resource handoff now has a concrete owned invocation adapter.
 The optional profile verifier exercises two consecutive offline handoffs, exact
 physical source/target identity, complete embedding ownership, checkpoint and
-credential refusal, fresh compilation and atomic host/resource binding. This
-is the first transport; command-service workers and rendering worker/fallback
-adapters remain required for Studio-wide demand adoption. Activation on the
-invocation heap does not supply a worker context. See the
-[completed contract and evidence](archive/todo-completed-package-resource-handoff-2026-10-24.md).
+credential refusal, fresh compilation and atomic host/resource binding. Owned
+invocation, command-service workers, rendering workers and owned fallback adapters
+now participate in the shared Studio demand group. Each physical heap still
+requires its own admitted context. See the [shared demand evidence](archive/todo-completed-studio-package-demand-2026-10-24.md)
+and [original handoff contract](archive/todo-completed-package-resource-handoff-2026-10-24.md).
