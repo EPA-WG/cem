@@ -60,7 +60,9 @@ const deploymentDigest = hash(JSON.stringify([source, target, pin.indexDigest, a
 const build = await json(resolve(project, 'src/studio.build.json'));
 Object.assign(build, { buildIdentity: 'cem-studio-schema-assets-v1', deploymentProfile: 'schema-assets', deploymentDigest,
     schemaAssetBase: './schema-assets/', schemaAssetIndexDigest: pin.indexDigest, embeddedBodies: true,
-    packagePublication: 'explicit-host-admission', automaticRecovery: false });
+    packagePublication: 'explicit-host-admission', automaticRecovery: false,
+    schemaPackageHostConfiguration: { rootQueueSize: 1024, schemaPackageReplacementGrants: [{ packageId: 'csv',
+        expectedOrigin: { kind: 'builtin' }, replacementManifestUri: 'schema-packages/csv/v1/package.cem' }] } });
 const inventory = await json(resolve(project, 'src/cache-inventory.json'));
 Object.assign(inventory, { deploymentProfile: 'schema-assets', deploymentDigest });
 inventory.groups.push({ id: 'schema-assets', strategy: 'cache-first', inventory: './schema-assets/integrity.json' });

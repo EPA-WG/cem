@@ -77,11 +77,13 @@ context.on('page', page => {
 try {
     const defaultPage = await context.newPage();
     await openStudio(defaultPage, `${origin}/ordinary/index.html`);
+    assert.equal(await defaultPage.evaluate(() => globalThis.__cemStudioApplication.packageStatus()), undefined);
     await install(defaultPage);
     const defaultNames = await defaultPage.evaluate(() => caches.keys());
     assert.equal(defaultNames.length, 3);
     const page = await context.newPage();
     await openStudio(page, `${origin}/optional/index.html`);
+    const studioDemand = await verifyStudioDemand(page);
     await install(page);
     const names = await page.evaluate(() => caches.keys());
     assert.equal(names.length, 7);
@@ -111,14 +113,18 @@ try {
         const probe = await context.newPage(); await probe.goto(`${origin}/optional/package-probe.html`);
         renderingProbes.push({ mode, probe });
     }
+    // The standalone raw-loader fixture must not borrow Studio's already-bound
+    // logical root, trusted configuration or selected helper generation.
+    const loaderProbe = await context.newPage(); await loaderProbe.goto(`${origin}/optional/package-probe.html`);
     await context.setOffline(true);
     disconnected = true;
     await page.reload({ waitUntil: 'load' });
     await ready(page);
+    const offlineStudioDemand = await verifyStudioDemand(page);
     const command = await versionCommand(page);
     assert.equal(command.exitCode, 0);
     assert.equal(command.runtime, 'wasm-browser-worker');
-    const evidence = await page.evaluate(async ({ selected, maps, pin }) => {
+    const evidence = await loaderProbe.evaluate(async ({ selected, maps, pin }) => {
         const { CemSchemaAssetPackLoader } = await import(maps.resources['@epa-wg/cem-elements/dist/lib/schema-asset-pack.js'].path);
         const { CemElementRuntime } = await import(maps.resources['@epa-wg/cem-elements/cem-elements'].path);
         const { createCemMlWasmGeneration } = await import(maps.resources['@epa-wg/cem-ml/wasm/factory'].path);
@@ -191,6 +197,7 @@ try {
             if (first.memory()) first.dispose(); if (second.memory()) second.dispose();
         }
     }, { selected, maps, pin });
+    await loaderProbe.close();
     assert.equal(evidence.inventoryFiles, packFiles.length);
     assert.equal(evidence.retirementRefused, true);
     const packageHandoff = await verifyOwnedPackageHandoff(page, maps);
@@ -222,7 +229,7 @@ try {
     assert.deepEqual(await treeHashes(ordinary), baseline);
     const report = { schemaVersion: 1, status: 'passed', deploymentDigest: build.deploymentDigest,
         nativeErrors: graphReport.summary.errorCount + graphReport.summary.fatalCount, emittedPackFiles: packFiles.length, scopedCacheGroups: optionalNames.length,
-        defaultCacheIsolation: true, defaultOutputPreserved: true, coldOfflineStudio: true, command, ...evidence, packageHandoff, workerPackageHandoff, renderingPackageHandoffs,
+        defaultCacheIsolation: true, defaultOutputPreserved: true, coldOfflineStudio: true, studioDemand, offlineStudioDemand, command, ...evidence, packageHandoff, workerPackageHandoff, renderingPackageHandoffs,
         automaticRecovery: false, packagePublication: 'explicit-host-admission', disconnectedRequests };
     const reportPath = resolve(workspace, 'dist/reports/cem-studio/schema-assets-profile.json');
     await mkdir(resolve(workspace, 'dist/reports/cem-studio'), { recursive: true });
@@ -245,6 +252,23 @@ async function treeHashes(root) { return Promise.all((await files(root)).map(asy
 async function ready(page) {
     await page.waitForFunction(() => globalThis.__cemStudioApplication
         && document.querySelector('[data-cem-studio-shell]')?.getAttribute('data-cem-studio-state') === 'ready', undefined, { timeout: 60_000 });
+}
+async function verifyStudioDemand(page) {
+    await page.waitForFunction(() => {
+        const status = globalThis.__cemStudioApplication?.packageStatus();
+        return status?.state === 'idle' && status.demandCount === 1 && status.runtimeCount >= 4;
+    }, undefined, { timeout: 30_000 });
+    return page.evaluate(async () => {
+        const app = globalThis.__cemStudioApplication;
+        const options = { bytes: new TextEncoder().encode('id,name\n1,Ada\n'), uri: 'demand.csv', contentType: 'text/csv', schema: 'https://cem.dev/ns/data/csv/1' };
+        const parsed = await app.validator.parseResource(options);
+        if (parsed.result.exitCode !== 0) throw Error('Studio package command did not complete');
+        let invalidRefused = false;
+        try { await app.validator.parseResource({ ...options, bytes: new TextEncoder().encode('id,name\n1,"Ada\n') }); }
+        catch (error) { invalidRefused = JSON.stringify(error.result).includes('cem.csv.unclosed_quote'); }
+        if (!invalidRefused) throw Error('Studio package command lost native CSV diagnostics');
+        return { ...app.packageStatus(), nativeCommand: true, nativeInvalidCsvRefused: true };
+    });
 }
 async function openStudio(page, url) {
     await page.goto(url);

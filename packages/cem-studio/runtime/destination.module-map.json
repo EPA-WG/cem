@@ -41,7 +41,8 @@
             "contentType": "text/javascript",
             "moduleImports": {
                 "@epa-wg/cem-ml-cli/browser-commands": "@epa-wg/cem-ml-cli/browser-commands",
-                "@epa-wg/cem-elements/command-result": "@epa-wg/cem-elements/command-result"
+                "@epa-wg/cem-elements/command-result": "@epa-wg/cem-elements/command-result",
+                "@epa-wg/cem-elements": "@epa-wg/cem-elements/index"
             }
         },
         "@epa-wg/cem-studio/workbench": {

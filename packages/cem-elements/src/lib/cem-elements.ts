@@ -76,7 +76,7 @@ import {
     type CemModuleUrlResolutionReferrer,
     type CemModuleUrlResolutionRequest,
 } from './internal/runtime-support/module-url-resolution.js';
-import { checkpointProcessingControl, processingRenderBindings, cemProcessingHostForScope } from './internal/runtime-support/processing-host-runtime.js';
+import { bindCemProcessingNativeWork, type CemProcessingNativeWork, checkpointProcessingControl, processingRenderBindings, cemProcessingHostForScope } from './internal/runtime-support/processing-host-runtime.js';
 import {
     cemProcessingHostOwnerScope, createCemProcessingTextSource,
     type CemArtifactRegistryHooks,
@@ -739,6 +739,8 @@ export interface CemElementRuntimeOptions {
     processingWorkerFactory?: CemProcessingWorkerFactory;
     /** Trusted package activation setup for rendering workers, never authored resource data. */
     processingPackageHostConfiguration?: string;
+    /** Shared host admission around native processing; inherited by live previews. */
+    processingNativeWork?: CemProcessingNativeWork;
     /**
      * Retained native declaration and inert-payload CSS is enabled by default.
      * Transport returns bytes and response metadata; native import owns parsing,
@@ -1862,6 +1864,7 @@ export class CemElementRuntime {
     private readonly processingRenderJobs = new WeakMap<HTMLElement, ActiveProcessingRenderJob>();
     private readonly processingWorkerFactory?: CemProcessingWorkerFactory;
     private readonly processingPackageHostConfiguration?: string;
+    private readonly processingNativeWork?: CemProcessingNativeWork;
     private readonly retainedStylesheets?: Exclude<CemElementRuntimeOptions['retainedStylesheets'], false>;
     private readonly stylesheetConnections = new WeakMap<HTMLElement, CemStylesheetConnection>();
     private readonly publicationControllers = new WeakMap<HTMLElement, AbortController>();
@@ -1952,6 +1955,7 @@ export class CemElementRuntime {
         this.validateGeneratedIds = options.validateGeneratedIds ?? false;
         this.processingWorkerFactory = options.processingWorkerFactory;
         this.processingPackageHostConfiguration = options.processingPackageHostConfiguration;
+        this.processingNativeWork = options.processingNativeWork;
         this.retainedStylesheets = options.retainedStylesheets === false ? undefined : options.retainedStylesheets ?? {};
         if (this.retainedStylesheets) this.scopePolicyStamp += ':retained-declaration-css:retained-instance-css';
         this.processingPoolPolicy = options.processingPoolPolicy;
@@ -1970,10 +1974,11 @@ export class CemElementRuntime {
 
     private readonly recoveryScope?: import('./internal/runtime-support/native-generation.js').CemNativeRecoveryScope;
     /** Trusted browser lifecycle setup, never taken from a resource-set envelope. */
-    previewRuntimeOptions(): Pick<CemElementRuntimeOptions, 'checkpointPublication' | 'recoveryScope' | 'processingWorkerFactory' | 'processingPoolPolicy' | 'processingPackageHostConfiguration'> & { dispose(): void } {
+    previewRuntimeOptions(): Pick<CemElementRuntimeOptions, 'checkpointPublication' | 'recoveryScope' | 'processingWorkerFactory' | 'processingPoolPolicy' | 'processingPackageHostConfiguration' | 'processingNativeWork'> & { dispose(): void } {
         const publication = this.checkpointPublication?.fork();
         return { checkpointPublication: publication, recoveryScope: this.recoveryScope,
             processingPackageHostConfiguration: this.processingPackageHostConfiguration,
+            processingNativeWork: this.processingNativeWork,
             processingWorkerFactory: this.processingWorkerFactory, processingPoolPolicy: this.processingPoolPolicy,
             dispose: () => publication?.dispose() };
     }
@@ -4263,11 +4268,16 @@ export class CemElementRuntime {
     }
     private processingHost(compiled: CompiledDeclaration): CemProcessingHost {
         const binding = this.checkpointScopeBindings.get(cemProcessingHostOwnerScope(compiled.declarationScope));
-        if (binding) return this.admittedCheckpointBinding(binding) ? binding.host : binding.previous!;
+        if (binding) {
+            const host = this.admittedCheckpointBinding(binding) ? binding.host : binding.previous!;
+            bindCemProcessingNativeWork(host, this.processingNativeWork);
+            return host;
+        }
         return cemProcessingHostForScope(compiled.declarationScope, {
             workerScriptUrl: new URL('./internal/runtime-support/processing-worker.js', import.meta.url),
             workerFactory: this.processingWorkerFactory,
             packageHostConfiguration: this.processingPackageHostConfiguration,
+            nativeWork: this.processingNativeWork,
             poolPolicy: this.processingPoolPolicy,
             onTrace: this.onProcessingTrace,
         });

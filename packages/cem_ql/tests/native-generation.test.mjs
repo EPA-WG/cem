@@ -347,3 +347,22 @@ test('async resource release rechecks original witnesses and refuses late comple
         await assert.rejects(releaseNativeGenerationResourcesAsync(a.participant, () => true), /resource/);
     }
 });
+
+test('resource cohorts require every original peer before any release', async () => {
+    const { registerNativeGenerationResource, releaseNativeGenerationResources } = await import('../runtime/native-generation.mjs');
+    const a = source(), b = source(); let released = 0;
+    const attach = (participant, peers) => registerNativeGenerationResource(participant, () => ({ peers, current: () => true,
+        release: () => { released++; }, prepare: async () => { throw Error('unused'); } }), () => undefined);
+    const membership = attach(a.participant, [a.participant, b.participant]);
+    assert.throws(() => new CemNativeGenerationGroup([a.participant]), /coverage/);
+    assert.throws(() => releaseNativeGenerationResources(a.participant, () => true), /resource/);
+    assert.equal(released, 0);
+    membership.remove();
+    const copied = attach(a.participant, [a.participant, { ...b.participant }]);
+    assert.throws(() => new CemNativeGenerationGroup([a.participant, b.participant]), /coverage/);
+    copied.remove();
+    attach(a.participant, [a.participant, b.participant]);
+    new CemNativeGenerationGroup([a.participant, b.participant]);
+    releaseNativeGenerationResources(a.participant, () => true);
+    assert.equal(released, 1);
+});

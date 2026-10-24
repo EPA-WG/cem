@@ -112,6 +112,8 @@ export function createCemStudioFileSystemController(options?: {
 }): CemStudioFileSystemController;
 export function mountCemStudioApplicationShell(options: {
     root: Element;
+    /** Trusted optional-deployment demand; the shell owns its HTTP resource. */
+    packageDemandUrl?: string;
     storage?: Storage;
     registration?: ServiceWorkerRegistration;
     repository?: { status(): Promise<{ state: string; persisted?: boolean }> };

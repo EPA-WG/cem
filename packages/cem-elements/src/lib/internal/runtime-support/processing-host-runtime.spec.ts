@@ -1098,3 +1098,36 @@ it('refuses changing package grants on an existing root and isolates pools with 
     await Promise.all([first.dispose({ reason: 'runtime-disposed' }).result, second.dispose({ reason: 'runtime-disposed' }).result]);
     scopes.forEach(scope => scope.dispose());
 });
+
+it('waits for trusted shared native admission and keeps pending work in the original drain', async () => {
+    const worker = new ControlledProcessingWorker(), scope = createCemDeclarationScope({ document: {} as Document });
+    let admit!: () => void;
+    const allowed = new Promise<void>(resolve => { admit = resolve; });
+    const nativeWork = vi.fn(async <T>(_host: unknown, work: () => Promise<T>) => { await allowed; return work(); });
+    const options = { workerScriptUrl: 'https://example.test/demand-worker.js', workerFactory: () => worker as unknown as Worker, nativeWork };
+    const host = cemProcessingHostForScope(scope, options);
+    const job = host.compile(compileInput('demand'));
+    await vi.waitFor(() => expect(nativeWork).toHaveBeenCalledOnce());
+    expect(worker.requests).toHaveLength(0);
+    expect(nativeWork.mock.calls[0][0]).toBe(host);
+    expect(() => cemProcessingHostForScope(scope, { ...options, nativeWork: async (_host, work) => work() })).toThrow('configuration');
+    admit(); await vi.waitFor(() => expect(worker.requests).toHaveLength(1));
+    worker.respondNext(); await job.result;
+    scope.dispose();
+});
+
+it('refuses a failed shared package gate before native compilation without choosing another heap', async () => {
+    const worker = new ControlledProcessingWorker(), scope = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(scope, { workerScriptUrl: 'https://example.test/demand-refused.js',
+        workerFactory: () => worker as unknown as Worker, nativeWork: async () => { throw Error('package-group-refused'); } });
+    await expect(host.compile(compileInput('refused')).result).rejects.toThrow('package-group-refused');
+    expect(worker.requests).toHaveLength(0); expect(host.mode).toBe('worker'); scope.dispose();
+});
+
+it('refuses adding a demand gate after an ordinary root has selected its worker pool', async () => {
+    const worker = new ControlledProcessingWorker(), scope = createCemDeclarationScope({ document: {} as Document });
+    const options = { workerScriptUrl: 'https://example.test/late-demand.js', workerFactory: () => worker as unknown as Worker };
+    const host = cemProcessingHostForScope(scope, options); await host.ready;
+    expect(() => cemProcessingHostForScope(scope, { ...options, nativeWork: async (_host, work) => work() })).toThrow('configuration');
+    scope.dispose();
+});

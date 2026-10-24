@@ -85,6 +85,9 @@ for (const asset of declaredAssets) {
         `${asset.identity} declared module edges but remained byte-identical`,
     );
     const outputText = outputBytes.toString('utf8');
+    // Check executable module edges. JSDoc import types are preserved comments,
+    // not native-graph runtime imports and cannot retain a browser dependency.
+    const moduleSpecifiers = ts.preProcessFile(outputText, true, true).importedFiles.map(({ fileName }) => fileName);
     for (const [specifier, targetIdentity] of Object.entries(asset.moduleImports)) {
         const targetAsset = assetsByIdentity.get(targetIdentity);
         assert.ok(targetAsset, `${asset.identity} points to undeclared asset ${targetIdentity}`);
@@ -94,9 +97,8 @@ for (const asset of declaredAssets) {
             new RegExp(`['"]${escapeRegex(rewritten)}['"]`),
             `${asset.identity} did not rewrite ${specifier} to ${rewritten}`,
         );
-        assert.doesNotMatch(
-            outputText,
-            moduleSpecifierRegex(specifier),
+        assert.ok(
+            !moduleSpecifiers.includes(specifier),
             `${asset.identity} retained bare specifier ${specifier}`,
         );
     }
@@ -398,10 +400,6 @@ function escapeRegex(value) {
 function relativeModuleTarget(fromTarget, toTarget) {
     const path = relative(dirname(fromTarget.slice(2)), toTarget.slice(2)).replaceAll('\\', '/');
     return path.startsWith('.') ? path : `./${path}`;
-}
-
-function moduleSpecifierRegex(specifier) {
-    return new RegExp(`\\b(?:from\\s*|import\\s*(?:\\(\\s*)?)['"]${escapeRegex(specifier)}['"]`);
 }
 
 function sha256(bytes) {

@@ -13,7 +13,7 @@ export interface CemLivePreviewOptions extends CemLivePreviewResources {
     sourceUri: string;
     onError?: (message: string) => void;
     /** Trusted parent setup, outside the authored resource transport envelope. */
-    runtimeOptions?: Pick<CemElementRuntimeOptions, 'checkpointPublication' | 'recoveryScope' | 'processingWorkerFactory' | 'processingPoolPolicy'> & { dispose?: () => void };
+    runtimeOptions?: Pick<CemElementRuntimeOptions, 'checkpointPublication' | 'recoveryScope' | 'processingWorkerFactory' | 'processingPoolPolicy' | 'processingPackageHostConfiguration' | 'processingNativeWork'> & { dispose?: () => void };
 }
 export interface CemLivePreview {
     readonly ready: Promise<void>;

@@ -1,7 +1,7 @@
 export * from './lib/cem-elements.js';
 export * from './lib/repository.js';
 export { openCemHttpResource } from './lib/http-resource-transport.js';
-export { CemSchemaAssetPackRecoveryBinding, cemSchemaAssetTransportFromBinding, cemSchemaAssetRuntimeFromBinding, type CemSchemaAssetPackRecoveryOptions, type CemSchemaAssetNativeBinding, CemSchemaAssetPackLoader, CemSchemaAssetLoadError, type CemSchemaAssetPackOptions, type CemSchemaAssetRuntime,
+export { cemSchemaAssetGenerationTarget, CemSchemaAssetDemandGroup, type CemSchemaAssetDemandGroupOptions, type CemSchemaAssetDemandEndpoint, CemSchemaAssetPackRecoveryBinding, cemSchemaAssetTransportFromBinding, cemSchemaAssetRuntimeFromBinding, type CemSchemaAssetPackRecoveryOptions, type CemSchemaAssetNativeBinding, CemSchemaAssetPackLoader, CemSchemaAssetLoadError, type CemSchemaAssetPackOptions, type CemSchemaAssetRuntime,
     type CemSchemaAssetRuntimeEndpoint, type CemSchemaAssetTransportRuntime, type CemSchemaAssetTransportSource, type CemSchemaAssetNativeRuntime, type CemSchemaAssetSourceIdentity, type CemSchemaAssetPackageIdentity, type CemLoadedSchemaAssetSource } from './lib/schema-asset-pack.js';
 export { CemCommittedCheckpointStore, type CemCommitReceipt, type CemCheckpointNativeRuntime, type CemCheckpointOwnerReceipt, type CemCheckpointSealer, type CemStoredCheckpoint, type CemCheckpointRetirementHandoff } from './lib/committed-checkpoint.js';
 export { mountCemView, type CemHostCommandRequest, type CemHostViewOptions, type CemHostView } from './lib/host-view.js';

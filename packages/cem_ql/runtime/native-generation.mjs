@@ -193,7 +193,7 @@ export class CemNativeGenerationGroup {
     #records;
     #state = 'idle';
     constructor(participants) {
-        const entries = slots(participants), records = entries.map(value => state.participants.get(value));
+        const participantsSnapshot = slots(participants), records = participantsSnapshot.map(value => state.participants.get(value));
         if (records.some(record => !record || record.group || record.consumed) || new Set(records).size !== records.length) fail('coverage');
         this.#records = records;
         for (const record of records) record.group = this;
@@ -203,6 +203,7 @@ export class CemNativeGenerationGroup {
                 const entries = [...record.resources].map(resource => {
                     const snapshot = resource.capture();
                     if (!snapshot || typeof snapshot.current !== 'function' || typeof snapshot.release !== 'function' || typeof snapshot.prepare !== 'function') fail('resource');
+                    if (snapshot.peers !== undefined && slots(snapshot.peers).some(peer => !participantsSnapshot.includes(peer))) fail('coverage');
                     return { current: snapshot.current, release: snapshot.release, prepare: snapshot.prepare, released: false };
                 });
                 record.resourceSnapshot = { revision, entries };

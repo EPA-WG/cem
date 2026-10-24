@@ -1676,6 +1676,34 @@ resource imports use that heap's published context. Import still produces the
 retained typed CEM tree, with checked source diagnostics and existing limits.
 Defaults retain their complete embedded catalog until explicitly opted in.
 
+For a host spanning several physical runtimes, use `CemSchemaAssetDemandGroup`.
+Its `run(work, originalEndpoint)` enrolls each actual heap/worker once and waits
+for retained demand before running a newly allocated client. Bind `loadResource`
+as the declarative HTTP opener and route managed asynchronous native work
+through the same group. At most 16 physical participants, 64 demands and 1024
+queued jobs are retained; each loader still enforces its 32 MiB byte bound.
+`cleanup(work)` preserves exact-owner cleanup after ordinary demand is fenced.
+`assertReady()` lets synchronous adapters refuse pending package publication.
+`status()` contains advisory state and counts, never native handles or grants.
+
+`CemElementRuntime` accepts the trusted `processingNativeWork(host, work, cleanup)`
+hook. Resolve `processingSchemaAssetBinding(host)` inside that hook's queued
+operation, then use its original endpoint and participant; cleanup must avoid
+opening/enrolling an endpoint after native admission closes. The hook and trusted
+package configuration are immutable for an existing logical root and distinguish
+worker pools. Live previews inherit both, including fresh processing hosts, while
+their own HTTP resource restrictions remain in place. Independent groups cannot
+silently share one worker's package owner.
+
+Each endpoint supplies its recovery policy witness and original fresh-target
+adapter (`cemSchemaAssetGenerationTarget` handles the built-in facades). Demand
+cohorts require every original participant before cleanup. A changed membership,
+entered-credential witness, copied participant, failed peer or incomplete binding
+cannot publish a fresh cohort. Native byte preparation and host staging precede
+one complete binding transaction; staged package owners are reused by fresh hosts.
+Fresh replay imports each body once before activation, without a redundant parse
+pass or a network fetch. The existing five-second group deadline remains intact.
+
 `schema-package-owners` is a nondiscardable native inventory root. Raw admission
 closure refuses new owners, imports and activation; exact-owner cleanup remains
 available. A live owner blocks the existing empty-inventory retirement check.

@@ -89,6 +89,8 @@ export declare function claimNativeGenerationBindings(authority: ReturnType<type
 /** @internal Shared generation resources remain outside checkpoint/status DTOs. */
 export declare function registerNativeGenerationResource(participant: CemNativeGenerationParticipant,
     capture: () => Readonly<{ current(): boolean; release(): void | Promise<void>;
+        /** Original inseparable peers, checked before any retirement cleanup. */
+        peers?: readonly CemNativeGenerationParticipant[];
         prepare(context: CemNativeGenerationBindingContext): Promise<CemPreparedGenerationBinding> }>, dispose: () => void): Readonly<{ remove(): void }>;
 export declare function hasNativeGenerationResources(participant: CemNativeGenerationParticipant): boolean;
 /** @internal Invoke only inside original checkpoint/embedding ownership confirmation. */

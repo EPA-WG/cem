@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { afterAll, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, expect, it, vi } from 'vitest';
 import { CemSchemaAssetPackLoader, type CemSchemaAssetNativeRuntime } from './schema-asset-pack.js';
 import type { CemHttpRequest, CemHttpResourceLoadResult } from './cem-elements.js';
 
@@ -11,6 +11,17 @@ const root = resolve(import.meta.dirname, '../../..');
 const pack = join(root, 'cem-ml-npm/dist-schema-assets');
 const modulePath = join(root, 'cem-ml-npm/dist-schema-assets-wasm/wasm/node/cem_ml.js');
 const temporary = mkdtempSync(join(tmpdir(), 'cem-pack-activation-'));
+const nativeRequire = createRequire(import.meta.url);
+afterEach(() => {
+    vi.restoreAllMocks();
+    // Each raw CJS fixture has its own real heap. Do not let Node's module cache
+    // retain every completed case's WASM instance for the entire test file.
+    for (const path of Object.keys(nativeRequire.cache)) if (path.startsWith(`${temporary}/`)) {
+        const parent = nativeRequire.cache[path]?.parent;
+        if (parent) parent.children = parent.children.filter(child => !child.filename.startsWith(`${temporary}/`));
+        delete nativeRequire.cache[path];
+    }
+});
 afterAll(() => rmSync(temporary, { recursive: true, force: true }));
 interface Native extends CemSchemaAssetNativeRuntime {
     commandNativeResourceInventory(): string;
@@ -28,7 +39,7 @@ let sequence = 0;
 function freshNative(): Native {
     const path = join(temporary, String(++sequence));
     cpSync(dirname(modulePath), path, { recursive: true });
-    return createRequire(import.meta.url)(join(path, 'cem_ml.js')) as Native;
+    return nativeRequire(join(path, 'cem_ml.js')) as Native;
 }
 const baseUrl = 'https://assets.example.test/schema-assets/';
 const csv = { packageId: 'csv', version: '1.0.0' };
@@ -313,4 +324,118 @@ nativeCase('refuses replay after an async activation loses its acknowledgment', 
         await expect(loader.loadResource(demand())).rejects.toThrow('cem.schema_asset.uncertain');
     } finally { loader.dispose(); }
     expect(owners(native)).toBe(0);
+});
+
+nativeCase('coordinates demand across independent heaps and lazy clients without duplicating owners', async () => {
+    const { CemSchemaAssetDemandGroup } = await import('./schema-asset-pack.js');
+    const { registerNativeGeneration, discardNativeGenerationResources } = await import('./internal/runtime-support/native-generation.js');
+    const group = new CemSchemaAssetDemandGroup({ baseUrl, loadHttpResource: transport, activationHostConfiguration: hostConfiguration });
+    const endpoint = (native: Native) => ({ runtime: { native, current: () => true }, current: () => true,
+        participant: registerNativeGeneration(native.commandNativeMemoryIdentity(), crypto.randomUUID(), async () => { throw Error('unused'); }),
+        target: () => { throw Error('must use the complete recovery group'); } });
+    const first = freshNative(), second = freshNative(), lazy = freshNative();
+    const a = endpoint(first), b = endpoint(second), c = endpoint(lazy);
+    try {
+        await group.run(() => undefined, () => a);
+        await group.run(() => undefined, () => b);
+        expect(owners(first)).toBe(0);
+        let finish!: () => void;
+        const active = group.run(() => new Promise<void>(resolve => { finish = resolve; }));
+        await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+        const loading = group.loadResource(demand());
+        expect(() => group.assertReady()).toThrow('busy');
+        expect(owners(first)).toBe(0);
+        finish(); await active;
+        const response = await loading;
+        expect(response.response.contentType).toBe('application/json');
+        expect([owners(first), owners(second), owners(lazy)]).toEqual([1, 1, 0]);
+        await group.run(() => expect(owners(lazy)).toBe(1), () => c);
+        await group.run(() => undefined, () => a);
+        await expect(group.run(() => undefined, () => ({ ...a, participant: { ...a.participant } }))).rejects.toThrow('resource-target');
+        expect([owners(first), owners(second), owners(lazy)]).toEqual([1, 1, 1]);
+        group.assertReady();
+        discardNativeGenerationResources(c.participant);
+        expect(owners(lazy)).toBe(0);
+        expect(group.status()).toMatchObject({ runtimeCount: 2, demandCount: 1 });
+    } finally { group.dispose(); }
+    expect([owners(first), owners(second), owners(lazy)]).toEqual([0, 0, 0]);
+});
+
+nativeCase('fences a partially activated demand group and preserves entered-credential recovery refusal', async () => {
+    const { CemSchemaAssetDemandGroup, cemSchemaAssetTransportFromBinding } = await import('./schema-asset-pack.js');
+    const { registerNativeGeneration, CemNativeGenerationGroup, releaseNativeGenerationResources } = await import('./internal/runtime-support/native-generation.js');
+    const first = freshNative(), denied = freshNative();
+    let credentialsClear = true;
+    const participant = registerNativeGeneration(first.commandNativeMemoryIdentity(), crypto.randomUUID(), async () => { throw Error('unused'); });
+    const group = new CemSchemaAssetDemandGroup({ baseUrl, loadHttpResource: transport, activationHostConfiguration: hostConfiguration });
+    try {
+        await group.run(() => undefined, () => ({ runtime: { native: first, current: () => true }, participant,
+            current: () => credentialsClear, target: () => { throw Error('must not prepare'); } }));
+        await group.loadResource(demand());
+        credentialsClear = false;
+        expect(() => new CemNativeGenerationGroup([participant])).toThrow('stale');
+        expect(owners(first)).toBe(1);
+        credentialsClear = true;
+        const native = denied;
+        const runtime = cemSchemaAssetTransportFromBinding({ current: () => true,
+            memory: () => native.commandNativeMemoryIdentity(),
+            call: (name, args) => Reflect.apply(native[name as keyof Native] as (...args: unknown[]) => unknown, native, args) }, '{}');
+        await expect(group.run(() => { throw Error('must not publish'); }, () => ({ runtime,
+            participant: registerNativeGeneration(native.commandNativeMemoryIdentity(), crypto.randomUUID(), async () => { throw Error('unused'); }),
+            current: () => true, target: () => { throw Error('unused'); } }))).rejects.toThrow('activation');
+        await expect(group.run(() => undefined)).rejects.toThrow('stale');
+        expect(() => releaseNativeGenerationResources(participant, () => true)).toThrow('resource');
+        await group.cleanup(() => undefined);
+    } finally { group.dispose(); }
+    expect([owners(first), owners(denied)]).toEqual([0, 0]);
+});
+
+nativeCase('requires the complete demand cohort and reuses staged owners during fresh host publication', async () => {
+    const { CemSchemaAssetDemandGroup } = await import('./schema-asset-pack.js');
+    const { registerNativeGeneration, CemNativeGenerationGroup, releaseNativeGenerationResources,
+        completeNativeRetirement, issueNativeGenerationBindingTicket, resumeNativeGenerationBindings } = await import('./internal/runtime-support/native-generation.js');
+    const originals = [freshNative(), freshNative()], targets = [freshNative(), freshNative()];
+    const targetImports = targets.map(native => vi.spyOn(native, 'schemaAssetPackImportV1'));
+    const ids = targets.map(() => crypto.randomUUID());
+    const targetParticipants: import('./internal/runtime-support/native-generation.js').CemNativeGenerationParticipant[] = [];
+    const participants = originals.map((native, index) => registerNativeGeneration(native.commandNativeMemoryIdentity(), crypto.randomUUID(), async () => ({
+        identity: targets[index].commandNativeMemoryIdentity(), runtimeId: ids[index], runtime: targets[index], current: () => true, discard() { /* Binding owns cleanup. */ },
+    })));
+    const open = vi.fn(transport);
+    const group = new CemSchemaAssetDemandGroup({ baseUrl, loadHttpResource: open, activationHostConfiguration: JSON.stringify({ schemaPackageReplacementGrants: [{ packageId: 'cem-element-template', expectedOrigin: { kind: 'builtin' }, replacementManifestUri: 'schema-packages/cem-element-template/v1/package.cem' }] }) });
+    const endpoint = (native: Native, index: number, participant = participants[index]) => ({
+        runtime: { native, current: () => true }, participant, current: () => true,
+        target: (runtime: object) => {
+            expect(runtime).toBe(targets[index]);
+            targetParticipants[index] ??= registerNativeGeneration(targets[index].commandNativeMemoryIdentity(), ids[index], async () => { throw Error('unused'); });
+            return { runtime: { native: targets[index], current: () => true }, participant: targetParticipants[index] };
+        },
+    });
+    try {
+        for (let index = 0; index < originals.length; index++) await group.run(() => undefined, () => endpoint(originals[index], index));
+        await group.loadResource({ ...demand(), resolvedUrl: `${baseUrl}demand/cem-element-template/1.0.0` });
+        expect(() => new CemNativeGenerationGroup([participants[0]])).toThrow('coverage');
+        expect(originals.map(owners)).toEqual([1, 1]);
+        expect(() => releaseNativeGenerationResources(participants[0], () => true)).toThrow('resource');
+        const complete = new CemNativeGenerationGroup(participants);
+        const tickets = participants.map((participant, index) => issueNativeGenerationBindingTicket(participant, () => true, async () => {
+            await group.run(() => expect(owners(targets[index])).toBe(1), () => endpoint(targets[index], index, targetParticipants[index]));
+            return { owner: {}, current: () => true, discard() { /* Binding owns cleanup. */ }, bind() { /* No separate host route in this fixture. */ } };
+        }));
+        for (let index = 0; index < originals.length; index++) {
+            originals[index].closeCommandNativeAdmission(); releaseNativeGenerationResources(participants[index], () => true);
+        }
+        expect(originals.map(owners)).toEqual([0, 0]);
+        const retirements = participants.map(participant => completeNativeRetirement(participant, new Uint8Array([1])));
+        await expect(complete.allocate(retirements.slice(0, 1))).rejects.toThrow('coverage');
+        const reads = open.mock.calls.length;
+        const admission = await complete.allocate(retirements);
+        const resumed = await resumeNativeGenerationBindings(admission, tickets);
+        expect(open.mock.calls.length).toBe(reads);
+        for (const imported of targetImports) expect(imported).toHaveBeenCalledTimes(2);
+        expect(group.status()).toEqual({ state: 'idle', runtimeCount: 2, demandCount: 1 });
+        for (let index = 0; index < targets.length; index++) await group.run(() => expect(owners(targets[index])).toBe(1), () => endpoint(targets[index], index, targetParticipants[index]));
+        expect(() => new CemNativeGenerationGroup([targetParticipants[0]])).toThrow('coverage');
+        resumed.revoke(); expect(targets.map(owners)).toEqual([0, 0]);
+    } finally { group.dispose(); }
 });

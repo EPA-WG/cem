@@ -432,6 +432,7 @@ export function createCemStudioFileSystemController(options = {}) {
  *   registration?: ServiceWorkerRegistration,
  *   repository?: {status: () => Promise<{state: string, persisted?: boolean}>},
  *   persistState?: () => Promise<void>,
+ *   packageDemandUrl?: string,
  *   fileSystem?: Parameters<typeof createCemStudioFileSystemController>[0],
  * }} options
  */
@@ -452,6 +453,7 @@ export async function mountCemStudioApplicationShell(options) {
         tag: 'cem-studio-shell',
         state: {
             themeMode: theme.mode,
+            packageDemandUrl: options.packageDemandUrl,
             recoveryStatus: recovery.snapshot(),
         },
         commands: {

@@ -1,4 +1,4 @@
-import { CemElementRuntime, CemNativeRecoveryScope } from '@epa-wg/cem-elements';
+import { CemElementRuntime, CemNativeRecoveryScope, CemSchemaAssetDemandGroup, isolateCemFallbackGeneration, processingSchemaAssetBinding, cemSchemaAssetGenerationTarget } from '@epa-wg/cem-elements';
 import { createCemStudioNavigation } from './navigation.js';
 import '@epa-wg/custom-element';
 
@@ -20,8 +20,36 @@ import {
 const mounted = mountCemStudio();
 const registration = await registerCemStudioServiceWorker().catch(() => undefined);
 const recoveryScope = new CemNativeRecoveryScope();
-const validator = await createCemStudioBrowserValidator({ recoveryScope });
-await installCemStudioShellComponents({ runtime: new CemElementRuntime({ declarationTag: 'cem-studio-component-declaration', recoveryScope }) });
+const deploymentResponse = await fetch(new URL('./build.json', mounted.baseUrl));
+if (!deploymentResponse.ok || deploymentResponse.redirected) throw Error('CEM Studio deployment metadata is unavailable');
+const deployment = await deploymentResponse.json();
+/** @type {CemSchemaAssetDemandGroup | undefined} */
+let packageDemand;
+let packageHostConfiguration, packageDemandUrl;
+if (deployment.deploymentProfile === 'schema-assets') {
+    if (deployment.packagePublication !== 'explicit-host-admission' || deployment.automaticRecovery !== false
+        || typeof deployment.schemaAssetBase !== 'string' || !deployment.schemaPackageHostConfiguration) throw Error('CEM Studio package configuration is invalid');
+    const baseUrl = new URL(deployment.schemaAssetBase, mounted.baseUrl).href;
+    packageHostConfiguration = deployment.schemaPackageHostConfiguration;
+    const configuration = JSON.stringify(packageHostConfiguration);
+    packageDemand = new CemSchemaAssetDemandGroup({ baseUrl, activationHostConfiguration: configuration });
+    const fallback = isolateCemFallbackGeneration({ packageHostConfiguration: configuration });
+    await fallback.ready();
+    await packageDemand.run(() => undefined, () => ({ runtime: fallback.packageResourceBinding(),
+        participant: fallback.generationParticipant(), current: () => true,
+        target: cemSchemaAssetGenerationTarget }));
+    packageDemandUrl = new URL('demand/csv/1.0.0', baseUrl).href;
+}
+const validator = await createCemStudioBrowserValidator({ recoveryScope, packageDemand, packageHostConfiguration });
+const demandGroup = packageDemand;
+/** @type {ReturnType<CemElementRuntime['previewRuntimeOptions']>['processingNativeWork']} */
+const processingNativeWork = demandGroup && ((host, work, cleanup) => cleanup ? demandGroup.cleanup(work) : demandGroup.run(work, async () => ({
+    ...await processingSchemaAssetBinding(host), current: () => true,
+    target: cemSchemaAssetGenerationTarget,
+})));
+await installCemStudioShellComponents({ runtime: new CemElementRuntime({ declarationTag: 'cem-studio-component-declaration', recoveryScope,
+    processingPackageHostConfiguration: packageHostConfiguration && JSON.stringify(packageHostConfiguration),
+    processingNativeWork, loadHttpResource: packageDemand?.loadResource }) });
 const repository = createCemStudioProjectRepository({
     validateProject: validator.validateProject,
 });
@@ -44,6 +72,7 @@ const workbench = await createCemStudioNavigation({ workbench: sessionWorkbench,
 const shell = await mountCemStudioApplicationShell({
     root: mounted.root,
     registration,
+    packageDemandUrl,
     repository,
     persistState: async () => {
         throw Object.assign(new Error('Save source and Apply or reset the command draft before updating.'), { code: 'unsaved-work' });
@@ -106,6 +135,7 @@ Object.defineProperty(globalThis, '__cemStudioApplication', {
         session,
         repository,
         validator,
+        packageStatus: () => packageDemand?.status(),
         exampleProjects,
         fileSystemProvider,
         workbench,

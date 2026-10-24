@@ -1,3 +1,4 @@
+import { cemSchemaAssetRuntimeFromBinding, cemSchemaAssetGenerationTarget } from '@epa-wg/cem-elements';
 import { readCommandOutput, readCommandOutputs } from '@epa-wg/cem-elements/command-result';
 import { commandSchema, parseCemMlCommandText, serializeCemMlCommandText } from '@epa-wg/cem-ml-cli/browser-commands';
 import {
@@ -18,8 +19,8 @@ const ARTIFACT_READ_BYTES = 1024 * 1024;
 const PORTABLE_STUDIO_OPERATIONS = new Set(['parse', 'inspect', 'convert', 'query', 'transform', 'trace']);
 
 /** Create one reusable real CEM-ML browser command validator.
- * @param {{recoveryScope?: import('@epa-wg/cem-elements').CemNativeRecoveryScope}} [options] */
-export async function createCemStudioBrowserValidator({ recoveryScope } = {}) {
+ * @param {{recoveryScope?: import('@epa-wg/cem-elements').CemNativeRecoveryScope, packageDemand?: import('@epa-wg/cem-elements').CemSchemaAssetDemandGroup, packageHostConfiguration?: object}} [options] */
+export async function createCemStudioBrowserValidator({ recoveryScope, packageDemand, packageHostConfiguration } = {}) {
     const {
         createBrowserCommandInvocationBinding,
         commandSchema,
@@ -38,7 +39,7 @@ export async function createCemStudioBrowserValidator({ recoveryScope } = {}) {
     let nextWrite = 1;
     /** @type {Parameters<typeof createBrowserCommandServiceBinding>[0]} */
     const clientOptions = {
-        hostConfiguration: { schemaPackageReplacementGrants: [], rootQueueSize: 1024 },
+        hostConfiguration: packageHostConfiguration ?? { schemaPackageReplacementGrants: [], rootQueueSize: 1024 },
         host: {
             currentRevision: async ({ requestId }) => {
                 const ledger = ledgers.get(requestId);
@@ -83,6 +84,21 @@ export async function createCemStudioBrowserValidator({ recoveryScope } = {}) {
         } });
     } catch (error) { invocationBinding.close(); throw error; }
     const client = services;
+    if (packageDemand) {
+        const current = () => !closed && !ledgers.size && !pendingWrites.size && !committedWrites.size;
+        try {
+            await packageDemand.run(() => undefined, () => ({
+                runtime: cemSchemaAssetRuntimeFromBinding(invocationBinding.runtime.nativeResourceBinding()),
+                participant: invocationBinding.runtime.generationParticipant(), current,
+                target: cemSchemaAssetGenerationTarget,
+            }));
+            await packageDemand.run(() => undefined, () => ({
+                runtime: client.runtime.packageResourceBinding(), participant: client.runtime.generationParticipant(), current,
+                target: cemSchemaAssetGenerationTarget,
+            }));
+        } catch (error) { invocationBinding.close(); client.close(); throw error; }
+    }
+    const nativeWork = work => packageDemand ? packageDemand.run(work) : work();
 
     let nextRequest = 1;
 
@@ -99,7 +115,7 @@ export async function createCemStudioBrowserValidator({ recoveryScope } = {}) {
         resourceScheme = 'cem-studio',
         signal,
         readOutput = false,
-    }) => {
+    }) => nativeWork(async () => {
         const requestId = `cem-studio-${operation}-${nextRequest++}`;
         const inputResourceUri = resourceUri(uri, projectId, resourceScheme);
         const parsed = parsedCommand ?? parseCemMlCommand(argv(inputResourceUri), { runtime: 'wasm-browser-worker' });
@@ -161,7 +177,7 @@ export async function createCemStudioBrowserValidator({ recoveryScope } = {}) {
             committedWrites.delete(requestId);
             await handle.dispose().catch(() => undefined);
         }
-    };
+    });
 
     const prepareResourceInvocation = async (parsed, options, requestId, requireResourceSet) => {
         const {
@@ -313,7 +329,7 @@ export async function createCemStudioBrowserValidator({ recoveryScope } = {}) {
         return new Uint8Array(outcome.output.bytes);
     };
 
-    const previewResourceCommand = async (options) => {
+    const previewResourceCommand = async (options) => nativeWork(async () => {
         const inputResourceUri = resourceUri(
             options.uri ?? 'input.cem',
             options.projectId ?? 'cem-studio-command',
@@ -343,7 +359,7 @@ export async function createCemStudioBrowserValidator({ recoveryScope } = {}) {
             parsed,
             semantic: projectCommandSemanticPreview(invocation),
         });
-    };
+    });
 
     const decodeResourceCommand = (bytes) => parseCemMlCommandResource(bytes, { runtime: 'wasm-browser-worker' }).command;
 
@@ -388,6 +404,7 @@ export async function createCemStudioBrowserValidator({ recoveryScope } = {}) {
         serializeResourceCommand,
         decodeResourceCommand,
         authorGraph(request) {
+            packageDemand?.assertReady();
             const response = JSON.parse(invocationBinding.authorTransformConfigV1(JSON.stringify(request)));
             if (response.error) throw new Error(response.error);
             return response;

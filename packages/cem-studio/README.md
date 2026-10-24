@@ -198,18 +198,29 @@ factories select the optional binary. Profile caches include the deployment
 input digest and registration scope, so installing either profile preserves the
 other profile's caches. The verifier uses isolated browser storage.
 
-Delivery alone does not activate a package. A trusted embedding host must bind
-`CemSchemaAssetPackLoader.loadResource` as the shared HTTP opener and grant any
-native package replacement explicitly; declarations may then demand
-`schema-assets/demand/<packageId>/<version>` through `http-request`. Factory
-allocations remain empty until admitted. Fresh source preparation reimports
-original bytes into distinct native owners; the existing coordinated publication
-and credential gates still govern replacement. Entered passwords/one-time codes
+Delivery alone does not activate a package. The optional deployment explicitly
+binds `CemSchemaAssetDemandGroup` and supplies a trusted, exact built-in CSV
+replacement grant in its graph-emitted `build.json`. The declarative shell's
+`http-request` demands `schema-assets/demand/csv/1.0.0`. Its ready response follows
+activation of every enrolled physical heap: graph authoring/invocation, command
+worker, owned helper/fallback, and rendering workers. Other packages require
+additional trusted host grants; a project, URL or status cannot supply them.
+
+The shared group serializes managed asynchronous native work with demand and
+fences ordinary work after partial/uncertain activation. Render and live-preview
+hosts inherit the same admission hook; a new physical heap replays existing
+demand before its first managed job. Preview HTTP resources remain confined to
+their original project resource set. Synchronous graph authoring refuses pending
+package publication without waiting on unrelated rendering work.
+
+Fresh source preparation imports each retained original body once into its new
+native owner before activation. Original participant cohorts must be complete
+before cleanup; native inventory, ownership, coordinated publication and
+credential gates still govern replacement. Entered passwords/one-time codes
 block recovery until cleared. Automatic whole-Studio recovery stays disabled.
-The shared package-owner adapter now has an owned invocation transport, verified
-through consecutive offline handoffs. Worker command/render transports and
-Studio-wide demand routing remain next, followed by embedded-body exclusion.
-This profile makes no binary-size or memory-saving claim.
+The ordinary deployment retains its complete embedded catalog and does not
+create a demand group. This profile makes no binary-size or memory-saving claim;
+embedded-body exclusion and partition measurement remain next.
 
 Those JavaScript assets may own bootstrap, workers, persistence, and browser
 service adapters. Visible DOM composition and UI bindings belong to the

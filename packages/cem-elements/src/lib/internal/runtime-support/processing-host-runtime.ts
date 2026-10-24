@@ -61,7 +61,15 @@ import {
     type ResolvedCemProcessingPoolPolicy,
 } from './processing-scheduler.js';
 
+export type CemProcessingNativeWork = <T>(host: CemProcessingHost, work: () => Promise<T>, cleanup: boolean) => Promise<T>;
+
+const nativeWorkByHost = new WeakMap<RootCemProcessingHost, CemProcessingNativeWork | undefined>();
+const nativeWorkIds = new WeakMap<CemProcessingNativeWork, number>();
+let nativeWorkSequence = 0;
+
 export interface CemProcessingHostRuntimeOptions {
+    /** Trusted shared admission, never supplied by a template or checkpoint DTO. */
+    nativeWork?: CemProcessingNativeWork;
     /** Trusted original setup; excluded from authored requests and status DTOs. */
     packageHostConfiguration?: string;
     workerScriptUrl: string | URL;
@@ -1067,29 +1075,33 @@ class RootCemProcessingHost implements CemProcessingHost {
         this.jobs.start(request.jobId);
         const result = Promise.resolve().then(async () => {
             await Promise.allSettled([...this.recoveryJobs, ...this.hostJobs, ...this.stylesheetJobs, ...this.nativeSessionJobs]);
-            if (!this.fallbackSelected && !this.generationRetired) {
-                // The worker may also serve other roots. Release this root's owners first.
-                if (this.nativeSessionHandles.size) await Promise.all([...this.nativeSessionHandles.values()].filter(s => s.mode === 'worker').map(s =>
-                    this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'native-session',
-                        { action: 'release', handle: s.handle }), s.handle.scopePolicyStamp).catch(() => nativeCheckpointRefuse(this.checkpointClient))));
+            const cleanup = async () => {
+                if (!this.fallbackSelected && !this.generationRetired) {
+                    // The worker may also serve other roots. Release this root's owners first.
+                    if (this.nativeSessionHandles.size) await Promise.all([...this.nativeSessionHandles.values()].filter(s => s.mode === 'worker').map(s =>
+                        this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'native-session',
+                            { action: 'release', handle: s.handle }), s.handle.scopePolicyStamp).catch(() => nativeCheckpointRefuse(this.checkpointClient))));
 
-                await Promise.all([...this.stylesheetConsumers.values()].map((consumer) =>
-                    this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'stylesheet',
-                        { ...consumer, action: 'release' }), consumer.artifact.scopePolicyStamp).catch(() => nativeCheckpointRefuse(this.checkpointClient))));
+                    await Promise.all([...this.stylesheetConsumers.values()].map((consumer) =>
+                        this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'stylesheet',
+                            { ...consumer, action: 'release' }), consumer.artifact.scopePolicyStamp).catch(() => nativeCheckpointRefuse(this.checkpointClient))));
 
-                await Promise.all([...this.documentInputs.values()].map((document) =>
-                    this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'document',
-                        { action: 'release', handle: document.handle }), document.handle.scopePolicyStamp)
-                        .catch(() => nativeCheckpointRefuse(this.checkpointClient))));
-            }
-            this.nativeSessionHandles.clear();
-            this.stylesheetConsumers.clear();
-            this.pendingStylesheetLoads.clear();
-            this.documentInputs.clear();
-            this.lease.release();
-            this.compileInputs.clear();
-            this.jobPolicies.clear();
-            return this.engine.dispose(input);
+                    await Promise.all([...this.documentInputs.values()].map((document) =>
+                        this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'document',
+                            { action: 'release', handle: document.handle }), document.handle.scopePolicyStamp)
+                            .catch(() => nativeCheckpointRefuse(this.checkpointClient))));
+                }
+                this.nativeSessionHandles.clear();
+                this.stylesheetConsumers.clear();
+                this.pendingStylesheetLoads.clear();
+                this.documentInputs.clear();
+                this.lease.release();
+                this.compileInputs.clear();
+                this.jobPolicies.clear();
+                return this.engine.dispose(input);
+            };
+            const gate = nativeWorkByHost.get(this);
+            return gate ? gate(this, cleanup, true) : cleanup();
         }).catch(error => { nativeCheckpointRefuse(this.checkpointClient); throw error; }).finally(() => {
             releaseCheckpoint(); this.stopGeneration(); this.onFreshDispose?.(); this.onFreshDispose = undefined;
             (this.fresh?.domain ?? cemMainThreadCheckpointDomain).remove(this.checkpointClient);
@@ -1133,69 +1145,73 @@ class RootCemProcessingHost implements CemProcessingHost {
                 throw new Error('the CEM processing host is disposed');
             }
             await this.ready;
-            this.assertNotCancelled(request);
-            if (this.fallbackSelected) {
-                entering();
-                this.recordPendingFallback(request, scopePolicyStamp);
-                return this.addPendingTransitionDiagnostic(
-                    await this.executeMainThreadWithArtifact(request, cancellationAccepted)
-                );
-            }
-            try {
-                if (preflight) {
-                    await this.lease.request(preflight, preflight.payload.scopePolicyStamp);
+            const work = async () => {
+                this.assertNotCancelled(request);
+                if (this.fallbackSelected) {
+                    entering();
+                    this.recordPendingFallback(request, scopePolicyStamp);
+                    return this.addPendingTransitionDiagnostic(
+                        await this.executeMainThreadWithArtifact(request, cancellationAccepted)
+                    );
+                }
+                try {
+                    if (preflight) {
+                        await this.lease.request(preflight, preflight.payload.scopePolicyStamp);
+                        this.assertNotCancelled(request);
+                    }
+                    entering();
+                    const response = await this.lease.request(request, scopePolicyStamp);
+                    if (request.operation === 'stylesheet' && response.operation === 'stylesheet'
+                        && 'loadId' in response.result && (this.disposed || this.jobs.isCancelled(request.jobId))) {
+                        await this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'stylesheet', {
+                            action: 'release', artifact: request.payload.artifact, consumer: request.payload.consumer,
+                            loadId: response.result.loadId,
+                        }), scopePolicyStamp).catch(() => undefined);
+                    }
+                    if (request.operation === 'native-session' && request.payload.action === 'prepare'
+                        && (this.disposed || this.jobs.isCancelled(request.jobId))) {
+                        await this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'native-session', {
+                            action: 'release', handle: request.payload.handle,
+                        }), scopePolicyStamp).catch(() => undefined);
+                    }
                     this.assertNotCancelled(request);
+                    if (request.operation === 'cancel' && cancellationAccepted) {
+                        return {
+                            targetJobId: request.payload.targetJobId,
+                            accepted: true,
+                        } as OperationResult<TOperation>;
+                    }
+                    return responseResult<TOperation>(response, operation);
+                } catch (error) {
+                    this.assertNotCancelled(request);
+                    if (!(error instanceof CemProcessingWorkerTransportError)) {
+                        throw error;
+                    }
+                    // Source paint is disposable and belongs to its original heap.
+                    // Do not move that owner or replay paint through another runtime.
+                    if (request.operation === 'highlight') throw new Error('cem.source_highlight.generation_lost', { cause: error });
+                    this.selectFallback(error, request);
+                    if (request.operation === 'native-session' && request.payload.action !== 'prepare') {
+                        throw new Error('Native session worker owner was lost; prepare a fresh session', { cause: error });
+                    }
+                    if (request.operation === 'stylesheet' && request.payload.action !== 'begin') {
+                        throw new Error('stylesheet worker owner was lost; restart the load', { cause: error });
+                    }
+                    if (request.operation === 'cancel') {
+                        return {
+                            targetJobId: request.payload.targetJobId,
+                            accepted: cancellationAccepted,
+                        } as OperationResult<TOperation>;
+                    }
+                    const retry = createCemProcessingRequestEnvelope(this.sequence, operation, payload);
+                    entering();
+                    const retried = await this.executeMainThreadWithArtifact(retry, cancellationAccepted);
+                    this.assertNotCancelled(request);
+                    return this.addPendingTransitionDiagnostic(retried);
                 }
-                entering();
-                const response = await this.lease.request(request, scopePolicyStamp);
-                if (request.operation === 'stylesheet' && response.operation === 'stylesheet'
-                    && 'loadId' in response.result && (this.disposed || this.jobs.isCancelled(request.jobId))) {
-                    await this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'stylesheet', {
-                        action: 'release', artifact: request.payload.artifact, consumer: request.payload.consumer,
-                        loadId: response.result.loadId,
-                    }), scopePolicyStamp).catch(() => undefined);
-                }
-                if (request.operation === 'native-session' && request.payload.action === 'prepare'
-                    && (this.disposed || this.jobs.isCancelled(request.jobId))) {
-                    await this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'native-session', {
-                        action: 'release', handle: request.payload.handle,
-                    }), scopePolicyStamp).catch(() => undefined);
-                }
-                this.assertNotCancelled(request);
-                if (request.operation === 'cancel' && cancellationAccepted) {
-                    return {
-                        targetJobId: request.payload.targetJobId,
-                        accepted: true,
-                    } as OperationResult<TOperation>;
-                }
-                return responseResult<TOperation>(response, operation);
-            } catch (error) {
-                this.assertNotCancelled(request);
-                if (!(error instanceof CemProcessingWorkerTransportError)) {
-                    throw error;
-                }
-                // Source paint is disposable and belongs to its original heap.
-                // Do not move that owner or replay paint through another runtime.
-                if (request.operation === 'highlight') throw new Error('cem.source_highlight.generation_lost', { cause: error });
-                this.selectFallback(error, request);
-                if (request.operation === 'native-session' && request.payload.action !== 'prepare') {
-                    throw new Error('Native session worker owner was lost; prepare a fresh session', { cause: error });
-                }
-                if (request.operation === 'stylesheet' && request.payload.action !== 'begin') {
-                    throw new Error('stylesheet worker owner was lost; restart the load', { cause: error });
-                }
-                if (request.operation === 'cancel') {
-                    return {
-                        targetJobId: request.payload.targetJobId,
-                        accepted: cancellationAccepted,
-                    } as OperationResult<TOperation>;
-                }
-                const retry = createCemProcessingRequestEnvelope(this.sequence, operation, payload);
-                entering();
-                const retried = await this.executeMainThreadWithArtifact(retry, cancellationAccepted);
-                this.assertNotCancelled(request);
-                return this.addPendingTransitionDiagnostic(retried);
-            }
+            };
+            const gate = nativeWorkByHost.get(this);
+            return gate ? gate(this, work, cleanup) : work();
         }).finally(() => {
             this.jobs.finish(request.jobId);
             this.jobPolicies.delete(request.jobId);
@@ -1449,6 +1465,7 @@ export function cemProcessingHostForScope(
     const existing = hostsByRoot.get(ownerScope);
     if (existing) {
         if (hostPackageConfigurations.get(existing) !== packageConfiguration) throw Error('cem.schema_asset.configuration');
+        bindCemProcessingNativeWork(existing, options.nativeWork);
         existing.addTraceObserver(options.onTrace);
         return existing;
     }
@@ -1457,6 +1474,7 @@ export function cemProcessingHostForScope(
         workerPoolForDocument(ownerScope.document, options),
         options.onTrace
     );
+    bindCemProcessingNativeWork(host, options.nativeWork);
     hostsByRoot.set(ownerScope, host);
     hostPackageConfigurations.set(host, packageConfiguration);
     return host;
@@ -1514,7 +1532,9 @@ function workerPoolForDocument(
         byPolicy = new Map();
         byFactory.set(workerFactory, byPolicy);
     }
-    const key = `${String(options.workerScriptUrl)}\u0000${policy.workerCount}\u0000${policy.maxWorkers}\u0000${policy.queueSize}\u0000${JSON.stringify(options.packageHostConfiguration ?? null)}`;
+    let workId = options.nativeWork && nativeWorkIds.get(options.nativeWork);
+    if (options.nativeWork && !workId) { workId = ++nativeWorkSequence; nativeWorkIds.set(options.nativeWork, workId); }
+    const key = `${workId ?? 0}\u0000${String(options.workerScriptUrl)}\u0000${policy.workerCount}\u0000${policy.maxWorkers}\u0000${policy.queueSize}\u0000${JSON.stringify(options.packageHostConfiguration ?? null)}`;
     const existing = byPolicy.get(key);
     if (existing) {
         return existing;
@@ -1545,4 +1565,12 @@ export function processingRenderBindings(host: CemProcessingHost): CemQlRenderBi
 export function processingSchemaAssetBinding(host: CemProcessingHost): Promise<{ runtime: CemSchemaAssetTransportRuntime; participant: CemNativeGenerationParticipant }> {
     if (!(host instanceof RootCemProcessingHost)) return Promise.reject(Error('cem.schema_asset.unsupported'));
     return host.schemaAssetBinding();
+}
+
+/** Original host setup is immutable, including hosts restored on a fresh generation. */
+export function bindCemProcessingNativeWork(host: CemProcessingHost, work?: CemProcessingNativeWork): void {
+    if (!(host instanceof RootCemProcessingHost)) throw Error('cem.schema_asset.unsupported');
+    const previous = nativeWorkByHost.get(host);
+    if (nativeWorkByHost.has(host) && previous !== work) throw Error('cem.schema_asset.configuration');
+    nativeWorkByHost.set(host, work);
 }

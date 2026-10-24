@@ -144,7 +144,7 @@ export interface CemStudioGraphConfiguration {
     graph: Readonly<Record<string, unknown>>;
 }
 
-export declare function createCemStudioBrowserValidator(options?: { readonly recoveryScope?: import('@epa-wg/cem-elements').CemNativeRecoveryScope }): Promise<CemStudioBrowserValidator>;
+export declare function createCemStudioBrowserValidator(options?: { readonly recoveryScope?: import('@epa-wg/cem-elements').CemNativeRecoveryScope; readonly packageDemand?: import('@epa-wg/cem-elements').CemSchemaAssetDemandGroup; readonly packageHostConfiguration?: object }): Promise<CemStudioBrowserValidator>;
 export declare function loadCemStudioFeatureTour(options?: {
     baseUrl?: string | URL;
     fetch?: typeof globalThis.fetch;

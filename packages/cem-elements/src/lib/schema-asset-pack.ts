@@ -113,6 +113,10 @@ export class CemSchemaAssetPackLoader {
         }
     }
 
+    /** Host comparison only; never a replacement or publication permit. */
+    owns(runtime: CemSchemaAssetRuntimeEndpoint): boolean {
+        return !this.detached && this.memory !== undefined && this.memory === physicalIdentity(runtime);
+    }
     /** No decoded source, native handle or mutable cache buffer is published. */
     async loadSource(identity: CemSchemaAssetSourceIdentity, signal?: AbortSignal): Promise<CemLoadedSchemaAssetSource> {
         return this.operation(signal, async active => {
@@ -182,23 +186,27 @@ export class CemSchemaAssetPackLoader {
                     if (!descriptors.length) fail('missing');
                     for (const descriptor of descriptors) await this.loadSource(descriptor, active);
                 }
-                this.guard(active);
-                const sources = [...this.retained.values()].map(({ descriptor, bytes }) => ({
-                    packageId: descriptor.packageId, version: descriptor.version, path: descriptor.path, bytes }));
-                const publication = this.runtime.activate(index.bytes, index.pin.indexDigest, sources, JSON.stringify(packages));
-                try {
-                    const result = await nativeControl<{ ready: boolean; indexDigest: string }>(() => publication, active);
-                    if (result.indexDigest !== index.pin.indexDigest || result.ready !== true) fail('activation');
-                    this.guard(active);
-                } catch (error) {
-                    // An aborted/lost async mutation may have reached native code.
-                    // Refuse replay until explicit disposal; never guess its outcome.
-                    if (publication instanceof Promise) this.uncertain = true;
-                    throw error;
-                }
-                for (const identity of packages) this.activated.set(identity.packageId, { ...identity });
+                await this.publishSelection(index, packages, active);
             });
         } finally { this.activating = false; }
+    }
+
+    private async publishSelection(index: { bytes: Uint8Array; pin: Bootstrap }, packages: readonly CemSchemaAssetPackageIdentity[], active: AbortSignal): Promise<void> {
+        this.guard(active);
+        const sources = [...this.retained.values()].map(({ descriptor, bytes }) => ({
+            packageId: descriptor.packageId, version: descriptor.version, path: descriptor.path, bytes }));
+        const publication = this.runtime.activate(index.bytes, index.pin.indexDigest, sources, JSON.stringify(packages));
+        try {
+            const result = await nativeControl<{ ready: boolean; indexDigest: string }>(() => publication, active);
+            if (result.indexDigest !== index.pin.indexDigest || result.ready !== true) fail('activation');
+            this.guard(active);
+        } catch (error) {
+            // An aborted/lost async mutation may have reached native code.
+            // Refuse replay until explicit disposal; never guess its outcome.
+            if (publication instanceof Promise) this.uncertain = true;
+            throw error;
+        }
+        for (const identity of packages) this.activated.set(identity.packageId, { ...identity });
     }
 
     /** Shared declarative demand through an existing http-request resource.
@@ -249,8 +257,10 @@ export class CemSchemaAssetPackLoader {
                     fresh.retained.set(sourceKey, entry);
                     fresh.residentBytes += entry.bytes.byteLength;
                 }
+                // These original bodies were just imported on this exact fresh
+                // heap. Publish once without a second import/parse pass.
+                if (this.activated.size) await fresh.publishSelection(index, [...this.activated.values()], active);
             });
-            if (this.activated.size) await fresh.activatePackages([...this.activated.values()], signal);
             this.lifetime.signal.throwIfAborted(); signal?.throwIfAborted();
             return fresh;
         } catch (error) { fresh.dispose(); throw error; }
@@ -435,6 +445,10 @@ export class CemSchemaAssetPackLoader {
 
 export interface CemSchemaAssetPackRecoveryOptions {
     loader: CemSchemaAssetPackLoader;
+    /** Complete original demand cohort; no labels or copied participants. */
+    peers?: () => readonly CemNativeGenerationParticipant[];
+    onBound?: (participant: CemNativeGenerationParticipant) => void;
+    onDispose?: () => void;
     participant: CemNativeGenerationParticipant;
     /** Original shared host adapter resolving the new physical runtime. */
     target(runtime: object): { runtime: CemSchemaAssetRuntimeEndpoint; participant: CemNativeGenerationParticipant };
@@ -446,12 +460,17 @@ export interface CemSchemaAssetPackRecoveryOptions {
  * Native owners and replay buffers never enter checkpoint/status DTOs. */
 export class CemSchemaAssetPackRecoveryBinding {
     private loader: CemSchemaAssetPackLoader;
+    private staged?: CemSchemaAssetPackLoader;
     private closed = false;
     private registration?: Readonly<{ remove(): void }>;
     private readonly target: CemSchemaAssetPackRecoveryOptions['target'];
     private readonly admitted: () => boolean;
+    private readonly peers?: () => readonly CemNativeGenerationParticipant[];
+    private readonly onBound?: (participant: CemNativeGenerationParticipant) => void;
+    private readonly onDispose?: () => void;
     constructor(options: CemSchemaAssetPackRecoveryOptions) {
-        this.loader = options.loader; this.target = options.target; this.admitted = options.current;
+        this.loader = options.loader; this.target = options.target; this.admitted = options.current; this.peers = options.peers; this.onBound = options.onBound;
+        this.onDispose = options.onDispose;
         if (typeof this.target !== 'function' || typeof this.admitted !== 'function' || this.admitted() !== true) fail('stale');
         this.loader.assertRecoveryParticipant(options.participant);
         this.enroll(options.participant);
@@ -462,37 +481,164 @@ export class CemSchemaAssetPackRecoveryBinding {
     loadSource = (identity: CemSchemaAssetSourceIdentity, signal?: AbortSignal): Promise<CemLoadedSchemaAssetSource> => {
         this.guard(); return this.loader.loadSource(identity, signal);
     };
+    /** Host identity comparison only; no native owner or recovery authority escapes. */
+    owns(runtime: CemSchemaAssetRuntimeEndpoint): boolean {
+        return !this.closed && (this.loader.owns(runtime) || this.staged?.owns(runtime) === true);
+    }
     private guard(recovery = false): void { if (this.closed || recovery && this.admitted() !== true) fail('stale'); }
     private enroll(participant: CemNativeGenerationParticipant): void {
         this.registration = registerNativeGenerationResource(participant, () => {
             this.guard(true);
-            const previous = this.loader, source = previous.prepareRecoverySource();
-            const current = () => !this.closed && this.loader === previous && this.admitted() === true && source.current();
-            return { current, release: () => { if (!current()) fail('stale'); return source.release(); },
+            const previous = this.loader, source = previous.prepareRecoverySource(), peers = this.peers?.().slice();
+            const peersCurrent = () => { const actual = this.peers?.(); return !peers || actual?.length === peers.length && peers.every(peer => actual.includes(peer)); };
+            const current = () => !this.closed && this.loader === previous && this.admitted() === true && peersCurrent() && source.current();
+            return { current, peers, release: () => { if (!current()) fail('stale'); return source.release(); },
                 prepare: async (context: CemNativeGenerationBindingContext) => {
                     if (!current() || context.signal.aborted) fail('stale');
                     const target = this.target(context.generation.runtime);
                     assertNativeGenerationResourceTarget(target.participant, context.generation.runtimeId, physicalIdentity(target.runtime) as object);
                     const fresh = await source.prepare(target.runtime, context.signal);
+                    this.staged = fresh;
                     let discarded = false;
                     const discard = () => {
                         if (discarded) return; discarded = true;
-                        if (this.loader === fresh || this.loader === previous) { this.registration?.remove(); this.closed = true; }
+                        if (this.loader === fresh || this.loader === previous) { this.registration?.remove(); this.closed = true; this.onDispose?.(); }
                         fresh.dispose(); previous.dispose();
+                        if (this.staged === fresh) this.staged = undefined;
                     };
                     if (!current() || context.signal.aborted) { discard(); fail('stale'); }
                     return { owner: this, current: () => !discarded && current() && !context.signal.aborted,
                         bind: () => {
                             if (!context.active() || !current() || discarded || context.signal.aborted) fail('stale');
                             this.registration?.remove(); this.loader = fresh;
+                            this.staged = undefined;
                             this.enroll(target.participant);
-                        }, bound: () => { previous.dispose(); }, discard };
+                        }, bound: () => { this.onBound?.(target.participant); previous.dispose(); }, discard };
                 } };
         }, () => this.dispose());
     }
     dispose(): void {
         if (this.closed) return;
-        this.closed = true; this.registration?.remove(); this.loader.dispose();
+        this.closed = true; this.registration?.remove(); this.onDispose?.(); this.loader.dispose(); this.staged?.dispose(); this.staged = undefined;
+    }
+}
+
+export interface CemSchemaAssetDemandEndpoint extends Omit<CemSchemaAssetPackRecoveryOptions, 'loader'> {
+    runtime: CemSchemaAssetRuntimeEndpoint;
+}
+export type CemSchemaAssetDemandGroupOptions = Omit<CemSchemaAssetPackOptions, 'runtime'>;
+
+/** Resolve an original fresh host facade. The recovery binding separately checks
+ * its registered physical identity and participant against the allocation. */
+export function cemSchemaAssetGenerationTarget(runtime: object): Pick<CemSchemaAssetDemandEndpoint, 'runtime' | 'participant'> {
+    const participant = Reflect.get(runtime, 'generationParticipant');
+    const transport = Reflect.get(runtime, 'packageResourceBinding');
+    const native = Reflect.get(runtime, 'nativeResourceBinding');
+    if (typeof participant !== 'function' || typeof transport !== 'function' && typeof native !== 'function') fail('unsupported');
+    return { participant: participant.call(runtime), runtime: typeof transport === 'function'
+        ? transport.call(runtime) : cemSchemaAssetRuntimeFromBinding(native.call(runtime)) };
+}
+
+/** Explicit demand shared by independent physical heaps. Ordinary native work and
+ * package publication share one bounded queue. A failed activation fences the
+ * group: no partially activated collection can publish a ready status or run work.
+ * Recovery remains the original complete generation transaction of each binding. */
+export class CemSchemaAssetDemandGroup {
+    private readonly bindings: CemSchemaAssetPackRecoveryBinding[] = [];
+    private readonly participants = new Map<CemSchemaAssetPackRecoveryBinding, CemNativeGenerationParticipant>();
+    private readonly demands = new Map<string, CemHttpRequest>();
+    private readonly base: URL;
+    private tail: Promise<unknown> = Promise.resolve();
+    private pending = 0;
+    private pendingDemands = 0;
+    private closed = false;
+    private failed = false;
+    private readonly options: CemSchemaAssetDemandGroupOptions;
+    constructor(options: CemSchemaAssetDemandGroupOptions) {
+        this.options = { ...options, policy: options.policy && { ...options.policy } };
+        this.base = new URL(options.baseUrl);
+        if (!['https:', 'http:'].includes(this.base.protocol) || this.base.username || this.base.password
+            || this.base.search || this.base.hash || !this.base.pathname.endsWith('/')) fail('policy');
+    }
+    /** Call around native work, including lazily allocated render/preview hosts.
+     * Resolve the original endpoint inside the queue, never from authored data. */
+    run<T>(work: () => T | Promise<T>, endpoint?: () => CemSchemaAssetDemandEndpoint | Promise<CemSchemaAssetDemandEndpoint>): Promise<T> {
+        return this.enqueue(work, endpoint);
+    }
+    /** Exact existing owner cleanup stays serialized even after demand is fenced. */
+    cleanup<T>(work: () => T | Promise<T>): Promise<T> { return this.enqueue(work, undefined, true); }
+    private enqueue<T>(work: () => T | Promise<T>, endpoint?: () => CemSchemaAssetDemandEndpoint | Promise<CemSchemaAssetDemandEndpoint>, cleanup = false): Promise<T> {
+        if (!cleanup && (this.closed || this.failed)) return Promise.reject(new CemSchemaAssetLoadError('cem.schema_asset.stale'));
+        if (this.pending >= 1024) return Promise.reject(new CemSchemaAssetLoadError('cem.schema_asset.busy'));
+        this.pending++;
+        const result = this.tail.then(async () => {
+            if (!cleanup && (this.closed || this.failed)) fail('stale');
+            if (endpoint) await this.enroll(await endpoint());
+            if (!cleanup && (this.closed || this.failed)) fail('stale');
+            return work();
+        }).finally(() => { this.pending--; });
+        this.tail = result.catch(() => undefined);
+        return result;
+    }
+    /** Synchronous adapters cannot wait for a package publication. Ordinary
+     * asynchronous work in another physical heap does not change their packages. */
+    assertReady(): void { if (this.closed || this.failed || this.pendingDemands) fail('busy'); }
+    /** Advisory control DTO; counts never authorize native work or recovery. */
+    status(): Readonly<{ state: 'idle' | 'busy' | 'failed' | 'disposed'; runtimeCount: number; demandCount: number }> {
+        return Object.freeze({ state: this.closed ? 'disposed' : this.failed ? 'failed' : this.pending ? 'busy' : 'idle',
+            runtimeCount: this.bindings.length, demandCount: this.demands.size });
+    }
+    loadResource = (request: CemHttpRequest): Promise<CemHttpResourceLoadResult> => {
+        if (!request.resolvedUrl.startsWith(new URL('demand/', this.base).href)) {
+            return (this.options.loadHttpResource ?? openCemHttpResource)(request);
+        }
+        // Snapshot all mutable caller-owned inputs before crossing the queue.
+        const demand = { ...request, headers: { ...request.headers }, policy: { ...request.policy } };
+        this.pendingDemands++;
+        return this.run(async () => {
+            if (!this.bindings.length) fail('unsupported');
+            if (!this.demands.has(demand.resolvedUrl) && this.demands.size >= 64) fail('limit');
+            try {
+                let result: CemHttpResourceLoadResult | undefined;
+                for (const binding of this.bindings) result = await binding.loadResource(demand);
+                if (this.closed || demand.signal.aborted) fail('stale');
+                this.demands.set(demand.resolvedUrl, { ...demand, signal: new AbortController().signal });
+                if (!result) fail('unsupported');
+                return result;
+            } catch (error) { this.failed = true; throw error; }
+        }).finally(() => { this.pendingDemands--; });
+    };
+    private async enroll(endpoint: CemSchemaAssetDemandEndpoint): Promise<void> {
+        endpoint = { ...endpoint };
+        const identity = physicalIdentity(endpoint.runtime);
+        if (!identity) fail('stale');
+        assertNativeGenerationResourceTarget(endpoint.participant, undefined, identity);
+        if (this.bindings.some(binding => binding.owns(endpoint.runtime))) return;
+        if (this.bindings.length >= 16) fail('limit');
+        const loader = new CemSchemaAssetPackLoader({ ...this.options, runtime: endpoint.runtime });
+        let binding: CemSchemaAssetPackRecoveryBinding;
+        let enrolling = true;
+        try { binding = new CemSchemaAssetPackRecoveryBinding({ ...endpoint, loader,
+            current: () => (enrolling || this.pending === 0) && !this.closed && !this.failed && endpoint.current(),
+            peers: () => [...this.participants.values()],
+            onBound: participant => this.participants.set(binding, participant),
+            onDispose: () => {
+                this.participants.delete(binding);
+                const index = this.bindings.indexOf(binding);
+                if (index >= 0) this.bindings.splice(index, 1);
+            },
+        }); }
+        catch (error) { loader.dispose(); throw error; }
+        finally { enrolling = false; }
+        this.bindings.push(binding); this.participants.set(binding, endpoint.participant);
+        try { for (const demand of this.demands.values()) await binding.loadResource(demand); }
+        catch (error) { this.failed = true; throw error; }
+    }
+    dispose(): void {
+        if (this.closed) return;
+        this.closed = true;
+        for (const binding of [...this.bindings]) binding.dispose();
+        this.bindings.length = 0; this.participants.clear(); this.demands.clear();
     }
 }
 

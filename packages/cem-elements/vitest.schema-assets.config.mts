@@ -5,5 +5,7 @@ import { defineConfig } from 'vitest/config';
 // acquire an optional native build as an implicit prerequisite.
 export default defineConfig({
     root: fileURLToPath(new URL('.', import.meta.url)),
-    test: { name: 'schema-assets', environment: 'node', include: ['src/**/*.schema-assets.spec.ts', 'src/lib/http-resource-transport.spec.ts'] },
+    // Each file creates several real heaps. Keep the original five-second handoff
+    // deadline independent of competing native compilation in another test file.
+    test: { fileParallelism: false, name: 'schema-assets', environment: 'node', include: ['src/**/*.schema-assets.spec.ts', 'src/lib/http-resource-transport.spec.ts'] },
 });

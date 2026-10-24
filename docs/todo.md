@@ -85,7 +85,12 @@ checked release, fresh publication, pressure/revocation guards and consecutive
 offline handoffs with native imports and template compilation.
 
 
-- [ ] Wire explicit shared demand bindings into Studio's command/render groups. Keep every native context on its own physical heap; require complete coordinated publication and entered-credential refusal. Preserve the default complete deployment and disabled automatic whole-Studio recovery.
+Completed [shared Studio package demand](archive/todo-completed-studio-package-demand-2026-10-24.md)
+covers explicit declarative demand across invocation, command, rendering and owned
+helper heaps; lazy preview admission; complete original recovery cohorts;
+single-pass fresh import; closed-runtime cleanup; and offline Studio acceptance.
+The default complete deployment, credential refusal and disabled automatic
+whole-Studio recovery are preserved.
 
 - [ ] After shared pack-loading integration, exclude optional embedded source bodies in an opt-in WASM profile while retaining the default complete release; verify strict missing-source refusal and complete offline delivery.
 
