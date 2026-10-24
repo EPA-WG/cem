@@ -73,7 +73,11 @@ Completed [shared package resource handoff and owned invocation transport](archi
 covers original physical identities, checked release, fresh compilation, complete
 binding, policy/credential refusals, cleanup and consecutive offline handoffs.
 
-- [ ] Add command-service worker package transport to the shared handoff: acquire original bytes under the pinned pack contract, activate on the exact worker heap, release only under original checkpoint/embedding confirmation, and restore packages alongside command clients. Keep native owners/grants out of transferable status/checkpoint records and refuse missing/late/unknown work.
+Completed [command-service worker package transport](archive/todo-completed-command-worker-packages-2026-10-24.md)
+covers pinned original-byte delivery, exact worker ownership, trusted startup
+grants, asynchronous checked release, native empty-inventory confirmation,
+consecutive offline handoffs, credential refusal and late/unknown-outcome guards.
+
 
 - [ ] Add equivalent rendering worker and owned-fallback package adapters, then wire explicit shared demand bindings into Studio's command/render groups. Keep every native context on its own physical heap; require complete coordinated publication and entered-credential refusal. Preserve the default complete deployment and disabled automatic whole-Studio recovery.
 

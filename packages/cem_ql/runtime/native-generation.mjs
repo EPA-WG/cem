@@ -64,8 +64,8 @@ export function assertNativeGenerationResourceTarget(participant, runtimeId, ide
 }
 function resourcesCurrent(record) {
     const snapshot = record.resourceSnapshot;
-    return !record.resources?.size && !snapshot || !!snapshot && snapshot.revision === record.resourceRevision
-        && snapshot.entries.every(entry => entry.current() === true) && snapshot.revision === record.resourceRevision;
+    return !record.resourceReleaseFailed && (!record.resources?.size && !snapshot || !!snapshot && snapshot.revision === record.resourceRevision
+        && snapshot.entries.every(entry => entry.current() === true) && snapshot.revision === record.resourceRevision);
 }
 /** Called only inside the existing original checkpoint/embedding cleanup gate.
  * Synchronous cleanup never opens admission; any failure leaves retirement blocked. */
@@ -73,18 +73,56 @@ export function releaseNativeGenerationResources(participant, current) {
     const record = state.participants.get(participant);
     if (!record) fail('resource');
     if (!record.resources?.size && !record.resourceSnapshot) return;
-    if (!record.group || record.receipt || typeof current !== 'function' || current() !== true || !resourcesCurrent(record)) fail('resource');
+    if (record.resourceReleasing || !record.group || record.receipt || typeof current !== 'function' || current() !== true || !resourcesCurrent(record)) fail('resource');
     for (const entry of record.resourceSnapshot.entries) {
         if (current() !== true || !resourcesCurrent(record)) fail('resource-stale');
-        if (!entry.released) { if (entry.release() !== undefined) fail('resource'); entry.released = true; }
+        if (!entry.released) {
+            const result = entry.release();
+            if (result !== undefined) {
+                record.resourceReleaseFailed = true;
+                if (result instanceof Promise) void result.catch(() => undefined);
+                fail('resource');
+            }
+            entry.released = true;
+        }
         if (current() !== true || !resourcesCurrent(record)) fail('resource-stale');
     }
+}
+/** Async transport cleanup stays inside the original checkpoint deadline. A
+ * missing, failed or late acknowledgment poisons this source attempt; neither a
+ * copied worker response nor later cleanup completion grants retirement. */
+export async function releaseNativeGenerationResourcesAsync(participant, current, timeoutMs = 5000) {
+    const record = state.participants.get(participant);
+    if (!record || record.resourceReleasing || record.resourceReleaseFailed || !Number.isSafeInteger(timeoutMs)
+        || timeoutMs < 1 || timeoutMs > 5000) fail('resource');
+    if (!record.resources?.size && !record.resourceSnapshot) return;
+    if (!record.group || record.receipt || typeof current !== 'function' || current() !== true || !resourcesCurrent(record)) fail('resource');
+    record.resourceReleasing = true;
+    let timer, expired = false;
+    const valid = () => !expired && !record.resourceReleaseFailed && current() === true && resourcesCurrent(record);
+    try {
+        await Promise.race([(async () => {
+            for (const entry of record.resourceSnapshot.entries) {
+                if (!valid()) fail('resource-stale');
+                if (!entry.released) {
+                    const result = await entry.release();
+                    if (!valid()) fail('resource-stale');
+                    if (result !== undefined) fail('resource');
+                    entry.released = true;
+                }
+                if (!valid()) fail('resource-stale');
+            }
+        })(), new Promise((_, reject) => { timer = setTimeout(() => {
+            expired = true; reject(new Error('cem.runtime.allocation.resource-timeout'));
+        }, timeoutMs); })]);
+    } catch (error) { record.resourceReleaseFailed = true; throw error; }
+    finally { clearTimeout(timer); record.resourceReleasing = false; }
 }
 /** Internal: called only after original ownership/census/handoff retirement. */
 export function completeNativeRetirement(participant, bytes) {
     const record = object(participant) && state.participants.get(participant);
     if (!record || record.receipt || !(bytes instanceof Uint8Array) || !(bytes.buffer instanceof ArrayBuffer) || bytes.byteLength < 1 || bytes.byteLength > 4 * 1024 * 1024) fail('receipt');
-    if (!resourcesCurrent(record) || record.resources?.size && !record.resourceSnapshot?.entries.every(entry => entry.released)) fail('resource');
+    if (record.resourceReleasing || !resourcesCurrent(record) || record.resources?.size && !record.resourceSnapshot?.entries.every(entry => entry.released)) fail('resource');
     const checkpoint = new Uint8Array(bytes);
     const receipt = Object.freeze({ checkpoint: new Uint8Array(checkpoint), replacementAllowed: false });
     record.receipt = receipt; record.identity = undefined;

@@ -46,6 +46,7 @@ try {
             const paths = {
                 'runtime.js': resolve(workspaceRoot, 'packages/cem-ml-npm/dist/wasm/browser/cem_ml.js'),
                 'runtime.wasm': resolve(workspaceRoot, 'packages/cem-ml-npm/dist/wasm/browser/cem_ml_bg.wasm'),
+                'protocol.js': resolve(projectRoot, 'dist/protocol.js'),
                 'browser-worker.js': resolve(projectRoot, 'dist/browser-worker.js'),
                 'managed-native-runtime.js': resolve(projectRoot, 'dist/managed-native-runtime.js'),
                 'native-admission.js': resolve(projectRoot, 'dist/native-admission.js'),

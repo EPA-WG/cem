@@ -179,6 +179,27 @@ Grants do not load manifests; the common engine still checks exact ownership.
 A new client takes a new snapshot. Worker failure closes the existing client;
 there is no implicit restart or authority change.
 
+The optional schema-asset profile also exposes the browser client's original
+`packageResourceBinding()` for `CemSchemaAssetPackLoader` from
+`@epa-wg/cem-elements/schema-assets`. This shared byte transport sends the pinned
+index and original source bodies, never native owner IDs or source ASTs. The
+worker uses its startup `hostConfiguration` for activation. Demand URLs and
+loader configuration cannot supply replacement grants. The default complete
+WASM profile does not acquire optional packages implicitly.
+
+Use `CemSchemaAssetPackRecoveryBinding` with the same original worker participant
+and prepare complete host resume tickets before closure. With attached packages,
+`client.closeNativeAdmission(owners, timeout, handoff)` requires the original
+complete embedding acknowledgment and a current checkpoint handoff within the
+existing 1 MiB per-command budget. It closes raw/managed native admission, awaits
+package-owner release and validates the empty native inventory. Cleanup replies
+never grant retirement independently; timeouts, unknown work, stale ownership
+and late replies refuse. Native package owners remain worker-local, and the
+shared complete binding transaction restores packages on the fresh worker before
+publishing command routes. Entered password/OTP controls continue to block
+recovery; automatic whole-Studio recovery remains disabled. See the
+[shared loader contract](../cem-elements/README.md#optional-native-schema-source-loading).
+
 The Node command service adds explicit filesystem, local `file://`, HTTPS, and
 application-stream resolution plus prepared file/stream writes. Parsed command
 lowering, resource discovery, canonical requests, diagnostics, reports,

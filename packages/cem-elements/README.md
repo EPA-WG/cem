@@ -1722,10 +1722,30 @@ all routes inactive, then binds the complete set. Failure or revocation closes
 every fresh route and disposes its package owners. The legacy single invocation
 `resume` refuses attached resources so it cannot omit their restoration.
 
-The first concrete transport is the owned browser invocation runtime. Command
-service workers and rendering worker/fallback transports still require their
-own package adapters before Studio can adopt shared demand throughout its
-workspace. A package activated on one heap never supplies another heap's
+Owned browser invocation and command-service worker transports are supported.
+For a command worker, supply its original `client.packageResourceBinding()`
+directly as the loader's `runtime`. The shared asynchronous endpoint checks the
+actual Worker identity, carries bounded original index/source bytes, and keeps
+all native owner IDs inside that worker. It accepts one loader per physical
+worker; duplicate loaders refuse. `hostConfiguration` is snapshotted when the
+worker starts and renewed by its original allocator. A loader's
+`activationHostConfiguration` cannot override the worker's setup. Package
+messages reject unknown operations/fields, shared mutable buffers, oversized
+indices/sources/selections and aggregate messages above 32 MiB before posting.
+
+Register `CemSchemaAssetPackRecoveryBinding` on the worker's original
+`generationParticipant()`. Resolve each fresh target using its own
+`packageResourceBinding()` and participant. The command worker's
+`closeNativeAdmission(owners, timeout, handoff)` closes raw and managed admission,
+awaits package cleanup under the original embedding/checkpoint witnesses, then
+requires an empty native census. The original five-second checkpoint deadline
+also covers cleanup; a failed, missing, stale or late acknowledgment cannot
+retire the source. Restoration recompiles packages before the complete command
+binding transaction publishes. Aborted or lost asynchronous activation outcomes
+block replay until explicit disposal.
+
+Rendering worker/fallback transports still need package adapters before Studio
+can adopt shared demand throughout its workspace. A package activated on one heap never supplies another heap's
 context. Ordinary reads retain their native admission policy; the recovery
 binding's separate `current` fence blocks recovery while credentials are entered.
 Automatic whole-Studio recovery remains disabled, and neither source bytes nor

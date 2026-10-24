@@ -1,4 +1,4 @@
-import { issueNativeGenerationBindingTicket, type CemNativeGenerationBindingTicket, initializeFreshGeneration, registerNativeGeneration, completeNativeRetirement, type CemNativeGenerationParticipant, type CemNativeGenerationCandidate, type CemNativeRecoveryScope, type CemNativeRecoveryEnrollment } from './generation-lifecycle.js';
+import { hasNativeGenerationResources, releaseNativeGenerationResourcesAsync, discardNativeGenerationResources, issueNativeGenerationBindingTicket, type CemNativeGenerationBindingTicket, initializeFreshGeneration, registerNativeGeneration, completeNativeRetirement, type CemNativeGenerationParticipant, type CemNativeGenerationCandidate, type CemNativeRecoveryScope, type CemNativeRecoveryEnrollment } from './generation-lifecycle.js';
 import type { CommandNativeRetirementHandoff, CommandNativeRetiredGeneration, CommandNativeEmbeddingOwnership } from './native-embedding.js';
 export type { CommandNativeEmbeddingOwnership, CommandNativeInventory, CommandNativeClosureValidation, CommandNativeRetirementHandoff, CommandNativeRetiredGeneration } from './native-embedding.js';
 import { CommandNativeClientCheckpoint, type CommandNativeDrain } from './native-admission.js';
@@ -6,6 +6,7 @@ export type { CommandNativeDrain } from './native-admission.js';
 import runtimeMetadata from '@epa-wg/cem-ml/runtime.json' with { type: 'json' };
 
 import {
+    parseBrowserCommandPackageRequest,
     DEFAULT_STARTUP_TIMEOUT_MS,
     MAX_STARTUP_TIMEOUT_MS,
     OPERATION_PROTOCOL_VERSION,
@@ -13,6 +14,8 @@ import {
 } from './protocol.js';
 import type {
     BrowserCommandActionResultMessage,
+    BrowserCommandPackageOperation,
+    BrowserCommandPackageSource,
     BrowserCommandArtifactDisposeRequest,
     BrowserCommandArtifactReadRequest,
     BrowserCommandArtifactsDisposeRequest,
@@ -275,6 +278,7 @@ export class BrowserCommandServiceClient {
     #recoveryRevision = 0;
     #capabilityCalls = 0;
     #unknownWriteOutcome = false;
+    #retiringPhysical = false;
 
 
     private constructor(
@@ -341,7 +345,7 @@ export class BrowserCommandServiceClient {
             type: 'module',
         });
         try {
-            const initialization = await initializeFreshGeneration(signal, () => initializeWorker(physicalWorker, startupTimeoutMs, runtimeHostId), () => physicalWorker.terminate());
+            const initialization = await initializeFreshGeneration(signal, () => initializeWorker(physicalWorker, startupTimeoutMs, runtimeHostId, hostConfigurationJson), () => physicalWorker.terminate());
             return new BrowserCommandServiceClient(
                 physicalWorker,
                 initialization,
@@ -391,8 +395,8 @@ export class BrowserCommandServiceClient {
         this.#requireOpen(); this.#nativeCheckpoint.releaseEmbedding(lease);
     }
 
-    closeNativeAdmission(ownership: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000): Promise<CommandNativeDrain> {
-        return this.#captureNative(timeoutMs, ownership, 'close');
+    closeNativeAdmission(ownership: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000, handoff?: CommandNativeRetirementHandoff): Promise<CommandNativeDrain> {
+        return this.#captureNative(timeoutMs, ownership, 'close', handoff);
     }
 
     revalidateNativeCheckpoint(proof: CommandNativeDrain, ownership: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000): Promise<CommandNativeDrain> {
@@ -404,9 +408,21 @@ export class BrowserCommandServiceClient {
         return this.#captureNative(timeoutMs, ownership);
     }
 
-    #captureNative(timeoutMs: number, ownership?: readonly CommandNativeEmbeddingOwnership[], coordination?: 'close' | CommandNativeDrain): Promise<CommandNativeDrain> {
+    #captureNative(timeoutMs: number, ownership?: readonly CommandNativeEmbeddingOwnership[], coordination?: 'close' | CommandNativeDrain, handoff?: CommandNativeRetirementHandoff): Promise<CommandNativeDrain> {
         this.#requireOpen();
-        return this.#nativeCheckpoint.capture(() => {
+        return this.#nativeCheckpoint.capture(async acknowledged => {
+            const participant = this.#allocationParticipant;
+            if (coordination === 'close' && participant && hasNativeGenerationResources(participant)) {
+                const current = () => acknowledged() && handoff?.current() === true;
+                if (!handoff || !current()) throw Error('cem.command.retirement.handoff');
+                const bytes = handoff.retain();
+                if (!(bytes instanceof Uint8Array) || !(bytes.buffer instanceof ArrayBuffer) || !bytes.byteLength
+                    || bytes.byteLength > 1024 * 1024 || !current()) throw Error('cem.command.retirement.handoff');
+                // Close raw and managed native admission before async cleanup.
+                await this.#packageAction({ operation: 'close' }, true);
+                if (!current()) throw Error('cem.command.retirement.stale');
+                await releaseNativeGenerationResourcesAsync(participant, current, Math.min(timeoutMs, 5000));
+            }
             const actionId = this.#nextAction();
             return this.#action<CommandNativeDrain>(actionId, {
                 type: 'cem-command-native-checkpoint', actionId, timeoutMs,
@@ -414,6 +430,39 @@ export class BrowserCommandServiceClient {
                 ...(coordination === undefined ? {} : { nativeClosure: coordination === 'close' ? 'close' : coordination.nativeClosure?.inventoryRevision }),
             }).then(({ value }) => value);
         }, timeoutMs, ownership, coordination);
+    }
+
+    /** Original async byte endpoint. No owner IDs, grants, arbitrary native calls
+     * or transferable physical identities are exposed through the worker protocol. */
+    packageResourceBinding() {
+        this.#requireOpen(); this.#nativeCheckpoint.assertExecution();
+        return Object.freeze({
+            current: () => { try { this.#requireOpen(); this.#nativeCheckpoint.assertExecution(); return true; } catch { return false; } },
+            identity: (): object | undefined => this.#closed ? undefined : this.#physicalWorker,
+            bootstrap: () => this.#packageAction<string>({ operation: 'bootstrap' }),
+            summary: (index: Uint8Array, pin: string) => this.#packageAction<string>({ operation: 'summary', index, pin }),
+            importSource: (index: Uint8Array, pin: string, packageId: string, version: string, path: string, bytes: Uint8Array) =>
+                this.#packageAction<string>({ operation: 'import', index, pin, source: { packageId, version, path, bytes } }),
+            activate: (index: Uint8Array, pin: string, sources: readonly BrowserCommandPackageSource[], selection: string) =>
+                this.#packageAction<string>({ operation: 'activate', index, pin, sources, selection }),
+            release: () => this.#packageAction<boolean>({ operation: 'release' }, true),
+        });
+    }
+    async #packageAction<T>(operation: BrowserCommandPackageOperation | { operation: 'close' }, cleanup = false): Promise<T> {
+        this.#requireOpen();
+        if (this.#actions.size >= 8 || this.#executions.size || this.#capabilityCalls) throw Error('cem.schema_asset.busy');
+        if (!cleanup) { this.#nativeCheckpoint.assertExecution(); this.#recoveryRevision++; }
+        const actionId = this.#nextActionId++;
+        if (operation.operation !== 'close') parseBrowserCommandPackageRequest({ type: 'cem-command-package', actionId, ...operation });
+        if (cleanup) this.#retirementActions.add(actionId); else this.#nativeCheckpoint.changed();
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+            const { value } = await Promise.race([this.#action<T>(actionId, { type: 'cem-command-package', actionId, ...operation }),
+                new Promise<never>((_resolve, reject) => { timer = setTimeout(() => {
+                    const error = Error('cem.schema_asset.timeout'); this.#failTransport(error, 'message-error'); reject(error);
+                }, cleanup ? 5000 : 30_000); })]);
+            return value;
+        } finally { clearTimeout(timer); }
     }
 
     generationParticipant(): CemNativeGenerationParticipant {
@@ -468,7 +517,7 @@ export class BrowserCommandServiceClient {
         };
         const participant = this.#allocationParticipant;
         return this.#nativeCheckpoint.retire(proof, ownership, handoff,
-            () => send(proof.nativeClosure?.inventoryRevision), () => send(), () => this.close(), timeoutMs).then(result => participant ? completeNativeRetirement(participant, result.checkpoint) : result);
+            () => send(proof.nativeClosure?.inventoryRevision), () => send(), () => { this.#retiringPhysical = true; return this.close(); }, timeoutMs).then(result => participant ? completeNativeRetirement(participant, result.checkpoint) : result);
     }
 
     isNativeCheckpointCurrent(proof: CommandNativeDrain): boolean {
@@ -478,22 +527,20 @@ export class BrowserCommandServiceClient {
     async close(): Promise<void> {
         if (this.#closed) return;
         this.#nativeCheckpoint.invalidate();
-        this.#closed = true;
-        this.#physicalWorker.removeEventListener('message', this.#onMessage);
-        this.#physicalWorker.removeEventListener('error', this.#onError);
-        this.#physicalWorker.removeEventListener('messageerror', this.#onMessageError);
         try {
-            this.#physicalWorker.postMessage({ type: 'cem-worker-close' });
-        } catch {
-            // Termination and pending-request cleanup remain authoritative.
+            if (this.#allocationParticipant && !this.#retiringPhysical) discardNativeGenerationResources(this.#allocationParticipant);
         } finally {
-            this.#physicalWorker.terminate();
-            this.#rejectPending(
-                new BrowserCommandServiceError(
-                    'cem.browser_command.client_closed',
-                    'CEM-ML browser command-service client was closed',
-                ),
-            );
+            this.#closed = true;
+            this.#physicalWorker.removeEventListener('message', this.#onMessage);
+            this.#physicalWorker.removeEventListener('error', this.#onError);
+            this.#physicalWorker.removeEventListener('messageerror', this.#onMessageError);
+            try { this.#physicalWorker.postMessage({ type: 'cem-worker-close' }); }
+            catch { /* Physical termination remains authoritative. */ }
+            finally {
+                this.#physicalWorker.terminate();
+                this.#rejectPending(new BrowserCommandServiceError('cem.browser_command.client_closed',
+                    'CEM-ML browser command-service client was closed'));
+            }
         }
     }
 
@@ -723,6 +770,8 @@ export class BrowserCommandServiceClient {
         this.#nativeCheckpoint.invalidate();
         this.#closed = true;
         this.#physicalWorker.terminate();
+        try { if (this.#allocationParticipant) discardNativeGenerationResources(this.#allocationParticipant); }
+        catch { /* Every route is fenced; a failed adapter cannot prevent physical termination. */ }
         try {
             this.#onWorkerFailure?.({ worker: this.worker, code, message: error.message });
         } catch {
@@ -767,6 +816,7 @@ async function initializeWorker(
     worker: Worker,
     startupTimeoutMs: number,
     runtimeHostId: string,
+    packageHostConfigurationJson?: string,
 ): Promise<BrowserWorkerInitializePayload> {
     return new Promise((resolve, reject) => {
         let settled = false;
@@ -806,6 +856,7 @@ async function initializeWorker(
             effectiveWorkers: 1,
             runtimeHostId,
             abiIdentity: runtimeAbiIdentity(),
+            ...(packageHostConfigurationJson === undefined ? {} : { packageHostConfigurationJson }),
         };
         worker.postMessage(bootstrap);
     });

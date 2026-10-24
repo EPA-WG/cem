@@ -1,3 +1,4 @@
+import { parseBrowserCommandPackageRequest as parsePackageRequest } from './protocol.js';
 import { CommandNativeAdmissionError, isCommandNativeAdmissionError } from './native-admission.js';
 import { assertCommandNativeHeadroom, prepareCommandNativeRetirement, abortCommandNativeRetirement, commandNativeAdmission, closeCommandNativeAdmission, validateCommandNativeClosure, readCommandNativeInventory, commandNativeRuntime as runtime } from './managed-native-runtime.js';
 
@@ -47,6 +48,9 @@ workerScope.addEventListener('message', (event: MessageEvent<unknown>) => {
         const message = event.data;
         void checkpointCommandNative(message).catch(reportFailure);
         return;
+    }
+    if (lifecycle === 'ready' && isRecord(event.data) && event.data.type === 'cem-command-package') {
+        executePackage(event.data); return;
     }
     if (lifecycle === 'ready' && isWorkRequest(event.data)) {
         executeWork(event.data);
@@ -341,6 +345,7 @@ function parseBootstrap(value: unknown): BrowserWorkerBootstrap {
     }
     return {
         type: 'cem-worker-initialize',
+        ...(typeof value.packageHostConfigurationJson === 'string' ? { packageHostConfigurationJson: value.packageHostConfigurationJson } : {}),
         worker: {
             slot: value.worker.slot,
             generation: value.worker.generation,
@@ -440,4 +445,54 @@ function retireCommandNative(message: Record<string, unknown>): void {
         result = { error: { code: error.code, message: error.message } };
     }
     workerScope.postMessage({ type: 'cem-command-action-result', actionId: message.actionId, result });
+}
+
+
+// Optional ABI is absent from default-profile generated declarations. The managed
+// proxy still refuses missing methods; this structural type cannot add exports.
+const packageRuntime = runtime as unknown as {
+    schemaAssetPackBootstrapV1(): string;
+    schemaAssetPackSummaryV1(index: Uint8Array, pin: string): string;
+    schemaAssetPackImportV1(index: Uint8Array, pin: string, id: string, version: string, path: string, bytes: Uint8Array): string;
+    schemaAssetOwnerOpenV1(index: Uint8Array, pin: string, configuration: string): number;
+    schemaAssetOwnerAdmitV1(owner: number, id: string, version: string, path: string, bytes: Uint8Array): void;
+    schemaAssetOwnerActivateV1(owner: number, selection: string): string;
+    schemaAssetOwnerDisposeV1(owner: number): boolean;
+};
+// One owner on this exact worker heap, never encoded in transferable replies.
+let packageOwner: number | undefined;
+function executePackage(value: Record<string, unknown>): void {
+    if (!isPositiveInteger(value.actionId)) throw Error('Invalid package action');
+    let result: unknown;
+    try {
+        if (value.operation === 'close') {
+            if (Object.keys(value).length !== 3) throw Error('Invalid package closure');
+            commandNativeAdmission.close(); closeCommandNativeAdmission();
+            workerScope.postMessage({ type: 'cem-command-action-result', actionId: value.actionId, result: true }); return;
+        }
+        const message = parsePackageRequest(value);
+        switch (message.operation) {
+            case 'bootstrap': result = packageRuntime.schemaAssetPackBootstrapV1(); break;
+            case 'summary': result = packageRuntime.schemaAssetPackSummaryV1(message.index, message.pin); break;
+            case 'import': {
+                const source = message.source;
+                result = packageRuntime.schemaAssetPackImportV1(message.index, message.pin, source.packageId, source.version, source.path, source.bytes); break;
+            }
+            case 'activate': {
+                const configuration = bootstrapState?.packageHostConfigurationJson;
+                if (configuration === undefined) throw Error('cem.schema_asset.policy');
+                packageOwner ??= packageRuntime.schemaAssetOwnerOpenV1(message.index, message.pin, configuration);
+                for (const source of message.sources) packageRuntime.schemaAssetOwnerAdmitV1(packageOwner, source.packageId, source.version, source.path, source.bytes);
+                result = packageRuntime.schemaAssetOwnerActivateV1(packageOwner, message.selection); break;
+            }
+            case 'release':
+                if (packageOwner !== undefined && packageRuntime.schemaAssetOwnerDisposeV1(packageOwner) !== true) throw Error('cem.schema_asset.owner');
+                packageOwner = undefined; result = true; break;
+        }
+    } catch (error) {
+        result = { error: { code: typeof error === 'string' && /^cem\.[a-z0-9_.]+$/u.test(error) ? error
+            : isCommandNativeAdmissionError(error) ? error.code : 'cem.schema_asset.transport', message: 'Worker package operation refused' } };
+    }
+    workerScope.postMessage({ type: 'cem-command-action-result', actionId: value.actionId, result,
+        ...(commandNativeAdmission.closure === undefined ? {} : { nativeAdmissionClosed: true }) });
 }

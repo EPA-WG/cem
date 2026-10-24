@@ -3,7 +3,7 @@ import type { CemHttpRequest, CemHttpResourceLoadResult, CemHttpResourcePolicy,
     CemResourceResolution, CemResourceResolutionRequest, CemResourceResolutionResult } from './cem-elements.js';
 import { openCemHttpResource } from './http-resource-transport.js';
 
-/** Optional native ABI only. These calls release all temporary native owners. */
+/** Optional native ABI; persistent package owners remain embedding-owned. */
 export interface CemSchemaAssetNativeRuntime {
     schemaAssetPackBootstrapV1(): string;
     schemaAssetPackSummaryV1(index: Uint8Array, pin: string): string;
@@ -19,16 +19,30 @@ export interface CemSchemaAssetRuntime {
     /** Host admission fence; a loader never grants recovery or runtime ownership. */
     current(): boolean;
 }
+/** Original host transport; native owners remain inside the physical endpoint.
+ * Identity is the actual Worker or Memory, never a runtime label or DTO. */
+export interface CemSchemaAssetTransportRuntime {
+    current(): boolean;
+    identity(): object | undefined;
+    bootstrap(): string | Promise<string>;
+    summary(index: Uint8Array, pin: string): string | Promise<string>;
+    importSource(index: Uint8Array, pin: string, packageId: string, version: string, path: string, bytes: Uint8Array): string | Promise<string>;
+    activate(index: Uint8Array, pin: string, sources: readonly CemSchemaAssetTransportSource[], selection: string): string | Promise<string>;
+    release(): boolean | Promise<boolean>;
+}
+export interface CemSchemaAssetTransportSource extends CemSchemaAssetSourceIdentity { bytes: Uint8Array }
+export type CemSchemaAssetRuntimeEndpoint = CemSchemaAssetRuntime | CemSchemaAssetTransportRuntime;
 export interface CemSchemaAssetPackOptions {
     baseUrl: string;
-    runtime: CemSchemaAssetRuntime;
+    runtime: CemSchemaAssetRuntimeEndpoint;
     resolveResourceUrl?: (request: CemResourceResolutionRequest) => CemResourceResolutionResult | Promise<CemResourceResolutionResult>;
     loadHttpResource?: (request: CemHttpRequest) => Promise<CemHttpResourceLoadResult>;
     policy?: Partial<CemHttpResourcePolicy>;
     /** May lower the shared 32 MiB admission bound. Includes retained index and pending reads. */
     maxResidentBytes?: number;
     /** Explicit trusted embedding configuration, never taken from a template or URL.
-     * Required for activation; native exact replacement grants remain authoritative. */
+     * Required for local activation. Worker transports use original worker setup;
+     * this field cannot override it. Native exact grants remain authoritative. */
     activationHostConfiguration?: string;
 }
 export interface CemSchemaAssetSourceIdentity { packageId: string; version: string; path: string }
@@ -46,6 +60,7 @@ function fail(code: string): never { throw new CemSchemaAssetLoadError(`cem.sche
 const digestPattern = /^[a-f0-9]{64}$/u;
 const key = (source: CemSchemaAssetSourceIdentity) => JSON.stringify([source.packageId, source.version, source.path]);
 const mediaType = (value: string | null) => value?.split(';', 1)[0]?.trim().toLowerCase();
+const transportLeases = new WeakMap<object, object>();
 const MAX_INDEX = 4 * 1024 * 1024, MAX_SOURCE = 16 * 1024 * 1024, MAX_RESIDENT = 32 * 1024 * 1024;
 
 /** Bounded original-byte acquisition and explicit embedding-owned activation.
@@ -54,12 +69,13 @@ const MAX_INDEX = 4 * 1024 * 1024, MAX_SOURCE = 16 * 1024 * 1024, MAX_RESIDENT =
  */
 export class CemSchemaAssetPackLoader {
     private readonly options: Omit<CemSchemaAssetPackOptions, 'runtime'>;
-    private endpoint?: CemSchemaAssetRuntime;
+    private endpoint?: CemSchemaAssetTransportRuntime;
     private readonly base: URL;
     private readonly policy: CemHttpResourcePolicy;
     private readonly capacity: number;
+    private readonly activationEnabled: boolean;
     private readonly lifetime = new AbortController();
-    private memory?: WebAssembly.Memory;
+    private memory?: object;
     private index?: { bytes: Uint8Array; pin: Bootstrap; sources: Map<string, SourceDescriptor> };
     private readonly retained = new Map<string, { descriptor: SourceDescriptor; bytes: Uint8Array }>();
     private residentBytes = 0;
@@ -67,7 +83,7 @@ export class CemSchemaAssetPackLoader {
     private active = 0;
     private epoch = 0;
     private detached = false;
-    private owner?: number;
+    private uncertain = false;
     private activating = false;
     private activationQueue: Promise<void> = Promise.resolve();
     private queuedActivations = 0;
@@ -75,12 +91,8 @@ export class CemSchemaAssetPackLoader {
 
     constructor(options: CemSchemaAssetPackOptions) {
         const { runtime, ...transport } = options;
-        const native = runtime.native;
-        const methods = ['schemaAssetPackBootstrapV1', 'schemaAssetPackSummaryV1', 'schemaAssetPackImportV1', 'commandNativeMemoryIdentity',
-            'schemaAssetOwnerOpenV1', 'schemaAssetOwnerAdmitV1', 'schemaAssetOwnerActivateV1', 'schemaAssetOwnerDisposeV1'] as const;
-        this.endpoint = { native: Object.freeze(Object.fromEntries(methods.map(name => [name,
-            typeof native[name] === 'function' ? native[name].bind(native) : undefined]))) as unknown as CemSchemaAssetNativeRuntime,
-            current: runtime.current.bind(runtime) };
+        this.activationEnabled = !('native' in runtime) || typeof options.activationHostConfiguration === 'string';
+        this.endpoint = snapshotTransport(runtime, options.activationHostConfiguration);
         this.base = new URL(options.baseUrl);
         if (!['https:', 'http:'].includes(this.base.protocol) || this.base.username || this.base.password
             || this.base.search || this.base.hash || !this.base.pathname.endsWith('/')) fail('policy');
@@ -92,12 +104,13 @@ export class CemSchemaAssetPackLoader {
             || this.policy.redirect !== 'error') fail('policy');
         Object.freeze(this.policy);
         this.options = { ...transport, policy: this.policy };
-        for (const name of ['schemaAssetPackBootstrapV1', 'schemaAssetPackSummaryV1', 'schemaAssetPackImportV1', 'commandNativeMemoryIdentity'] as const) {
-            if (typeof this.runtime.native[name] !== 'function') fail('unsupported');
-        }
         this.guard();
-        this.memory = this.runtime.native.commandNativeMemoryIdentity();
+        this.memory = this.runtime.identity();
         if (!this.memory) fail('unsupported');
+        if (!('native' in runtime)) {
+            if (transportLeases.has(this.memory)) fail('owner_busy');
+            transportLeases.set(this.memory, this.runtime);
+        }
     }
 
     /** No decoded source, native handle or mutable cache buffer is published. */
@@ -114,7 +127,7 @@ export class CemSchemaAssetPackLoader {
             if (!bytes) fail('response');
             try {
                 this.guard(active);
-                const result = this.import(index, descriptor, bytes);
+                const result = await this.import(index, descriptor, bytes, active);
                 this.guard(active);
                 if (!this.retained.has(entryKey)) {
                     acquired?.release(); // Transfer the reservation into retained bytes.
@@ -157,14 +170,9 @@ export class CemSchemaAssetPackLoader {
 
     private async activateSelection(packages: readonly CemSchemaAssetPackageIdentity[], signal?: AbortSignal): Promise<void> {
         this.guard(signal);
+        if (!this.activationEnabled) fail('policy');
         if (!packages.length || packages.length > 64
             || new Set(packages.map(p => p.packageId)).size !== packages.length) fail('identity');
-        const native = this.runtime.native;
-        const openOwner = native.schemaAssetOwnerOpenV1, admit = native.schemaAssetOwnerAdmitV1,
-            activate = native.schemaAssetOwnerActivateV1;
-        if (!openOwner || !admit || !activate || !native.schemaAssetOwnerDisposeV1) fail('unsupported');
-        const hostConfiguration = this.options.activationHostConfiguration;
-        if (typeof hostConfiguration !== 'string') fail('policy');
         this.activating = true;
         try {
             await this.operation(signal, async active => {
@@ -175,18 +183,19 @@ export class CemSchemaAssetPackLoader {
                     for (const descriptor of descriptors) await this.loadSource(descriptor, active);
                 }
                 this.guard(active);
-                const owner = this.owner ?? nativeCall(() => openOwner(index.bytes, index.pin.indexDigest, hostConfiguration));
-                if (!Number.isSafeInteger(owner) || owner < 1) fail('response');
-                this.owner = owner;
-                for (const { descriptor, bytes } of this.retained.values()) {
+                const sources = [...this.retained.values()].map(({ descriptor, bytes }) => ({
+                    packageId: descriptor.packageId, version: descriptor.version, path: descriptor.path, bytes }));
+                const publication = this.runtime.activate(index.bytes, index.pin.indexDigest, sources, JSON.stringify(packages));
+                try {
+                    const result = await nativeControl<{ ready: boolean; indexDigest: string }>(() => publication, active);
+                    if (result.indexDigest !== index.pin.indexDigest || result.ready !== true) fail('activation');
                     this.guard(active);
-                    nativeCall(() => admit(owner, descriptor.packageId, descriptor.version, descriptor.path, bytes));
+                } catch (error) {
+                    // An aborted/lost async mutation may have reached native code.
+                    // Refuse replay until explicit disposal; never guess its outcome.
+                    if (publication instanceof Promise) this.uncertain = true;
+                    throw error;
                 }
-                this.guard(active);
-                const result = nativeControl<{ ready: boolean; indexDigest: string }>(() =>
-                    activate(owner, JSON.stringify(packages)));
-                if (result.indexDigest !== index.pin.indexDigest || result.ready !== true) fail('activation');
-                this.guard(active);
                 for (const identity of packages) this.activated.set(identity.packageId, { ...identity });
             });
         } finally { this.activating = false; }
@@ -221,20 +230,21 @@ export class CemSchemaAssetPackLoader {
      * Each retained source is admitted/imported again on the distinct target heap.
      * The caller still owns coordinated retirement and final publication.
      */
-    async prepareFreshRuntime(runtime: CemSchemaAssetRuntime, signal?: AbortSignal): Promise<CemSchemaAssetPackLoader> {
+    async prepareFreshRuntime(runtime: CemSchemaAssetRuntimeEndpoint, signal?: AbortSignal): Promise<CemSchemaAssetPackLoader> {
         this.lifetime.signal.throwIfAborted(); signal?.throwIfAborted();
+        if (this.uncertain) fail('uncertain');
         if (this.active || this.activating || this.queuedActivations) fail('busy');
-        if (runtime.native.commandNativeMemoryIdentity() === this.memory) fail('generation');
+        if (physicalIdentity(runtime) === this.memory) fail('generation');
         const fresh = new CemSchemaAssetPackLoader({ ...this.options, runtime });
         try {
             await fresh.operation(signal, async active => {
-                const pin = fresh.bootstrap(active);
+                const pin = await fresh.bootstrap(active);
                 if (!this.index) return;
                 if (pin.indexDigest !== this.index.pin.indexDigest) fail('digest');
-                const index = fresh.admitIndex(this.index.bytes, pin, active);
+                const index = await fresh.admitIndex(this.index.bytes, pin, active);
                 for (const [sourceKey, entry] of this.retained) {
                     fresh.guard(active);
-                    fresh.import(index, entry.descriptor, entry.bytes);
+                    await fresh.import(index, entry.descriptor, entry.bytes, active);
                     fresh.guard(active);
                     fresh.retained.set(sourceKey, entry);
                     fresh.residentBytes += entry.bytes.byteLength;
@@ -256,22 +266,24 @@ export class CemSchemaAssetPackLoader {
     /** @internal Byte-only source lease for an original generation-resource adapter.
      * release is invoked only within checked checkpoint/embedding cleanup. It
      * drops every old native reference while preserving immutable replay bytes. */
-    prepareRecoverySource(): Readonly<{ current(): boolean; release(): void;
-        prepare(runtime: CemSchemaAssetRuntime, signal: AbortSignal): Promise<CemSchemaAssetPackLoader> }> {
+    prepareRecoverySource(): Readonly<{ current(): boolean; release(): void | Promise<void>;
+        prepare(runtime: CemSchemaAssetRuntimeEndpoint, signal: AbortSignal): Promise<CemSchemaAssetPackLoader> }> {
         this.guard();
         if (this.active || this.activating || this.queuedActivations || this.detached) fail('busy');
         const epoch = this.epoch;
         const current = () => !this.lifetime.signal.aborted && epoch === this.epoch && !this.active && !this.activating && !this.queuedActivations;
         return Object.freeze({ current, release: () => {
             if (!current()) fail('stale');
-            if (this.detached) return;
-            if (this.endpoint?.native.commandNativeMemoryIdentity() !== this.memory) fail('stale');
-            if (this.owner !== undefined) {
-                const dispose = this.endpoint?.native.schemaAssetOwnerDisposeV1, owner = this.owner;
-                if (!dispose || nativeCall(() => dispose(owner)) !== true) fail('owner');
-                this.owner = undefined;
-            }
-            this.detached = true; this.endpoint = undefined; this.memory = undefined;
+            if (this.detached) return undefined;
+            const endpoint = this.endpoint;
+            if (!endpoint || endpoint.identity() !== this.memory) fail('stale');
+            const detach = (released: boolean) => {
+                if (released !== true || !current()) fail('owner');
+                this.detached = true; this.endpoint = undefined; this.memory = undefined;
+            };
+            const result = endpoint.release();
+            if (result instanceof Promise) return result.then(detach);
+            detach(result); return undefined;
         }, prepare: (runtime, signal) => {
             if (!current() || !this.detached) fail('stale');
             return this.prepareFreshRuntime(runtime, signal);
@@ -284,43 +296,41 @@ export class CemSchemaAssetPackLoader {
         this.activated.clear();
         // Cleanup stays available under closed native admission. A failed cleanup
         // leaves its owner visible in inventory and cannot authorize retirement.
-        if (this.owner !== undefined && this.endpoint) {
-            const owner = this.owner;
-            nativeCall(() => this.endpoint?.native.schemaAssetOwnerDisposeV1?.(owner));
-            this.owner = undefined;
-        }
+        const result = this.endpoint?.release();
+        if (result instanceof Promise) void result.catch(() => { /* Failed cleanup stays visible in native inventory. */ });
         this.endpoint = undefined; this.memory = undefined;
     }
 
-    private get runtime(): CemSchemaAssetRuntime {
+    private get runtime(): CemSchemaAssetTransportRuntime {
         if (!this.endpoint) fail(this.detached ? 'stale' : 'disposed');
         return this.endpoint;
     }
     private guard(signal?: AbortSignal): void {
         this.lifetime.signal.throwIfAborted(); signal?.throwIfAborted();
+        if (this.uncertain) fail('uncertain');
         if (this.runtime.current() !== true) fail('stale');
-        if (this.memory && this.runtime.native.commandNativeMemoryIdentity() !== this.memory) fail('stale');
+        if (this.memory && this.runtime.identity() !== this.memory) fail('stale');
     }
-    private bootstrap(signal: AbortSignal): Bootstrap {
+    private async bootstrap(signal: AbortSignal): Promise<Bootstrap> {
         this.guard(signal);
-        const pin = nativeControl<Bootstrap>(() => this.runtime.native.schemaAssetPackBootstrapV1());
+        const pin = await nativeControl<Bootstrap>(() => this.runtime.bootstrap(), signal);
         if (!digestPattern.test(pin.indexDigest) || !Number.isSafeInteger(pin.indexBytes) || pin.indexBytes < 1 || pin.indexBytes > MAX_INDEX
             || !Number.isSafeInteger(pin.sourceCount) || pin.sourceCount < 1 || pin.sourceCount > 1024) fail('bootstrap');
         this.guard(signal); return pin;
     }
     private async loadIndex(signal: AbortSignal) {
-        const pin = this.bootstrap(signal); // Native admission applies on cache hits too.
+        const pin = await this.bootstrap(signal); // Native admission applies on cache hits too.
         if (this.index) {
             if (this.index.pin.indexDigest !== pin.indexDigest) fail('digest');
             return this.index;
         }
         const acquired = await this.read('index.json', pin.indexBytes, 'application/json', signal);
-        try { return this.admitIndex(acquired.bytes, pin, signal, acquired.release); }
+        try { return await this.admitIndex(acquired.bytes, pin, signal, acquired.release); }
         finally { acquired.release(); }
     }
-    private admitIndex(bytes: Uint8Array, pin: Bootstrap, signal: AbortSignal, release?: () => void) {
+    private async admitIndex(bytes: Uint8Array, pin: Bootstrap, signal: AbortSignal, release?: () => void) {
         this.guard(signal);
-        const summary = nativeControl<Bootstrap>(() => this.runtime.native.schemaAssetPackSummaryV1(bytes, pin.indexDigest));
+        const summary = await nativeControl<Bootstrap>(() => this.runtime.summary(bytes, pin.indexDigest), signal);
         for (const field of ['indexDigest', 'indexBytes', 'sourceCount', 'sourceBytes', 'packageCount'] as const) {
             if (summary[field] !== pin[field]) fail('bootstrap');
         }
@@ -342,9 +352,9 @@ export class CemSchemaAssetPackLoader {
         }
         return this.index;
     }
-    private import(index: NonNullable<CemSchemaAssetPackLoader['index']>, descriptor: SourceDescriptor, bytes: Uint8Array): ImportedSource {
-        const result = nativeControl<ImportedSource>(() => this.runtime.native.schemaAssetPackImportV1(index.bytes, index.pin.indexDigest,
-            descriptor.packageId, descriptor.version, descriptor.path, bytes));
+    private async import(index: NonNullable<CemSchemaAssetPackLoader['index']>, descriptor: SourceDescriptor, bytes: Uint8Array, signal: AbortSignal): Promise<ImportedSource> {
+        const result = await nativeControl<ImportedSource>(() => this.runtime.importSource(index.bytes, index.pin.indexDigest,
+            descriptor.packageId, descriptor.version, descriptor.path, bytes), signal);
         if (key(result) !== key(descriptor) || result.indexDigest !== index.pin.indexDigest || result.digest !== descriptor.digest
             || result.sourceUri !== descriptor.path || result.sourceBytes !== descriptor.byteLength
             || !Number.isSafeInteger(result.nodeCount) || result.nodeCount < 1) fail('response');
@@ -427,7 +437,7 @@ export interface CemSchemaAssetPackRecoveryOptions {
     loader: CemSchemaAssetPackLoader;
     participant: CemNativeGenerationParticipant;
     /** Original shared host adapter resolving the new physical runtime. */
-    target(runtime: object): { runtime: CemSchemaAssetRuntime; participant: CemNativeGenerationParticipant };
+    target(runtime: object): { runtime: CemSchemaAssetRuntimeEndpoint; participant: CemNativeGenerationParticipant };
     /** Recovery policy fence, including credentials; ordinary reads retain native admission. */
     current(): boolean;
 }
@@ -458,11 +468,11 @@ export class CemSchemaAssetPackRecoveryBinding {
             this.guard(true);
             const previous = this.loader, source = previous.prepareRecoverySource();
             const current = () => !this.closed && this.loader === previous && this.admitted() === true && source.current();
-            return { current, release: () => { if (!current()) fail('stale'); source.release(); },
+            return { current, release: () => { if (!current()) fail('stale'); return source.release(); },
                 prepare: async (context: CemNativeGenerationBindingContext) => {
                     if (!current() || context.signal.aborted) fail('stale');
                     const target = this.target(context.generation.runtime);
-                    assertNativeGenerationResourceTarget(target.participant, context.generation.runtimeId, target.runtime.native.commandNativeMemoryIdentity());
+                    assertNativeGenerationResourceTarget(target.participant, context.generation.runtimeId, physicalIdentity(target.runtime) as object);
                     const fresh = await source.prepare(target.runtime, context.signal);
                     let discarded = false;
                     const discard = () => {
@@ -506,6 +516,52 @@ export function cemSchemaAssetRuntimeFromBinding(binding: CemSchemaAssetNativeBi
     } };
 }
 
+function physicalIdentity(runtime: CemSchemaAssetRuntimeEndpoint): object | undefined {
+    return 'native' in runtime ? runtime.native.commandNativeMemoryIdentity() : runtime.identity();
+}
+function snapshotTransport(runtime: CemSchemaAssetRuntimeEndpoint, hostConfiguration?: string): CemSchemaAssetTransportRuntime {
+    if (!('native' in runtime)) {
+        const names = ['current', 'identity', 'bootstrap', 'summary', 'importSource', 'activate', 'release'] as const;
+        if (names.some(name => typeof runtime[name] !== 'function')) fail('unsupported');
+        const methods = Object.fromEntries(names.map(name => [name, runtime[name].bind(runtime)])) as unknown as CemSchemaAssetTransportRuntime;
+        const identity = methods.identity();
+        const endpoint = Object.freeze({ ...methods, release: () => {
+            if (!identity || transportLeases.get(identity) !== endpoint) return true;
+            const complete = (released: boolean) => {
+                if (released === true && transportLeases.get(identity) === endpoint) transportLeases.delete(identity);
+                return released;
+            };
+            const result = methods.release();
+            return result instanceof Promise ? result.then(complete) : complete(result);
+        } });
+        return endpoint;
+    }
+    const methods = ['schemaAssetPackBootstrapV1', 'schemaAssetPackSummaryV1', 'schemaAssetPackImportV1', 'commandNativeMemoryIdentity',
+        'schemaAssetOwnerOpenV1', 'schemaAssetOwnerAdmitV1', 'schemaAssetOwnerActivateV1', 'schemaAssetOwnerDisposeV1'] as const;
+    const native = Object.fromEntries(methods.map(name => [name, typeof runtime.native[name] === 'function'
+        ? runtime.native[name].bind(runtime.native) : undefined])) as unknown as CemSchemaAssetNativeRuntime;
+    for (const name of methods.slice(0, 4)) if (typeof native[name] !== 'function') fail('unsupported');
+    const open = native.schemaAssetOwnerOpenV1, admit = native.schemaAssetOwnerAdmitV1,
+        activate = native.schemaAssetOwnerActivateV1, dispose = native.schemaAssetOwnerDisposeV1;
+    let owner: number | undefined;
+    return Object.freeze({ current: runtime.current.bind(runtime), identity: native.commandNativeMemoryIdentity,
+        bootstrap: native.schemaAssetPackBootstrapV1, summary: native.schemaAssetPackSummaryV1, importSource: native.schemaAssetPackImportV1,
+        activate: (index: Uint8Array, pin: string, sources: readonly CemSchemaAssetTransportSource[], selection: string) => {
+            if (!open || !admit || !activate || !dispose) fail('unsupported');
+            if (typeof hostConfiguration !== 'string') fail('policy');
+            const activeOwner = owner ?? nativeCall(() => open(index, pin, hostConfiguration));
+            owner = activeOwner;
+            if (!Number.isSafeInteger(activeOwner) || activeOwner < 1) fail('response');
+            for (const source of sources) nativeCall(() => admit(activeOwner, source.packageId, source.version, source.path, source.bytes));
+            return nativeCall(() => activate(activeOwner, selection));
+        }, release: () => {
+            if (owner === undefined) return true;
+            const activeOwner = owner;
+            if (!dispose || nativeCall(() => dispose(activeOwner)) !== true) fail('owner');
+            owner = undefined; return true;
+        } });
+}
+
 function control<T>(text: string): T {
     if (typeof text !== 'string' || text.length > 16 * 1024) fail('response');
     let value: unknown;
@@ -517,8 +573,9 @@ function closeBody(iterator: AsyncIterator<Uint8Array> | undefined): void {
     try { void Promise.resolve(iterator?.return?.()).catch(() => undefined); }
     catch { /* A broken provider cannot retain loader admission or replace its result. */ }
 }
-function nativeControl<T>(read: () => string): T {
-    return nativeCall(() => control<T>(read()));
+async function nativeControl<T>(read: () => string | Promise<string>, signal: AbortSignal): Promise<T> {
+    try { return control<T>(await abortable(Promise.resolve(read()), signal)); }
+    catch (error) { return nativeCall(() => { throw error; }); }
 }
 function nativeCall<T>(read: () => T): T {
     try { return read(); }

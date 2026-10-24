@@ -187,6 +187,7 @@ try {
     assert.equal(evidence.inventoryFiles, packFiles.length);
     assert.equal(evidence.retirementRefused, true);
     const packageHandoff = await verifyOwnedPackageHandoff(page, maps);
+    const workerPackageHandoff = await verifyWorkerPackageHandoff(page, maps);
     disconnected = false;
     for (const variant of ['invalid', 'orphan']) {
         const refused = await browser.newContext();
@@ -209,7 +210,7 @@ try {
     assert.deepEqual(await treeHashes(ordinary), baseline);
     const report = { schemaVersion: 1, status: 'passed', deploymentDigest: build.deploymentDigest,
         nativeErrors: graphReport.summary.errorCount + graphReport.summary.fatalCount, emittedPackFiles: packFiles.length, scopedCacheGroups: optionalNames.length,
-        defaultCacheIsolation: true, defaultOutputPreserved: true, coldOfflineStudio: true, command, ...evidence, packageHandoff,
+        defaultCacheIsolation: true, defaultOutputPreserved: true, coldOfflineStudio: true, command, ...evidence, packageHandoff, workerPackageHandoff,
         automaticRecovery: false, packagePublication: 'explicit-host-admission', disconnectedRequests };
     const reportPath = resolve(workspace, 'dist/reports/cem-studio/schema-assets-profile.json');
     await mkdir(resolve(workspace, 'dist/reports/cem-studio'), { recursive: true });
@@ -323,5 +324,124 @@ async function verifyOwnedPackageHandoff(page, maps) {
             return { rounds: 2, distinctGenerations: identities.length, credentialRefusal: blocked,
                 completeOwnership: true, checkpointRequired: true, originalCommandBudget: true, legacyPartialResumeRefused: true, staleAliasesFenced: true, automaticRecovery: false };
         } finally { packages.dispose(); loader.dispose(); host.close(); admissions.forEach(admission => admission.revoke()); scope.dispose(); }
+    }, maps);
+}
+
+
+async function verifyWorkerPackageHandoff(page, maps) {
+    return page.evaluate(async maps => {
+        const { CemSchemaAssetPackLoader, CemSchemaAssetPackRecoveryBinding } =
+            await import(maps.resources['@epa-wg/cem-elements/dist/lib/schema-asset-pack.js'].path);
+        const { CemNativeRecoveryScope, resumeNativeGenerationBindings } = await import(maps.resources['@epa-wg/cem-elements/native-generation'].path);
+        const { createCemMlWasmGeneration } = await import(maps.resources['@epa-wg/cem-ml/wasm/factory'].path);
+        const api = await import('@epa-wg/cem-ml-cli/browser-commands');
+        const ensure = (condition, message) => { if (!condition) throw Error(message); };
+        const bytes = new TextEncoder().encode('id,name\n1,"Ada\n'), uri = 'memory:worker-command.csv';
+        const sha256 = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(byte => byte.toString(16).padStart(2, '0')).join('');
+        const version = { revision: 1, sha256 }, project = { projectId: 'worker-package-fixture', revision: 1 }, resourceVersions = { [uri]: version };
+        const factory = createCemMlWasmGeneration(); await factory.initialize();
+        let runPlan;
+        try { runPlan = JSON.parse(factory.call('normalizeCommandRunPlanV1', [JSON.stringify({ configBytes: [...new TextEncoder().encode(JSON.stringify({
+            inputs: [{ uri, rootScope: { defaultContentType: 'text/csv', schema: 'https://cem.dev/ns/data/csv/1' } }], outputs: [],
+        }))] })])); } finally { factory.dispose(); }
+        const request = id => ({ protocolVersion: 1, requestId: id, project, resourceVersions,
+            operation: { kind: 'validate', inputIds: ['input:0'], projection: 'text' }, runPlan, resources: {},
+            policyStamp: { resolver: 'fixture', safety: 'fixture', budget: 'fixture' } });
+        const forbidden = async () => { throw Error('unexpected publication'); };
+        const hostCapabilities = { currentRevision: async () => ({ project, resourceVersions }),
+            readResource: async () => ({ version, bytes: [...bytes], identity: { contentType: 'text/csv', schema: 'https://cem.dev/ns/data/csv/1' } }),
+            prepareWrite: forbidden, commitWrite: forbidden, rollbackWrite: async () => undefined };
+        const grants = { schemaPackageReplacementGrants: [{ packageId: 'csv', expectedOrigin: { kind: 'builtin' },
+            replacementManifestUri: 'schema-packages/csv/v1/package.cem' }] };
+        const ungranted = await api.createBrowserCommandServiceClient({ host: hostCapabilities, hostConfiguration: {} });
+        const ungrantedLoader = new CemSchemaAssetPackLoader({ baseUrl: new URL('./schema-assets/', location.href).href,
+            runtime: ungranted.packageResourceBinding(), activationHostConfiguration: JSON.stringify(grants) });
+        try { ensure(await ungrantedLoader.activatePackages([{ packageId: 'csv', version: '1.0.0' }]).then(() => false, () => true),
+            'loader configuration overrode trusted worker package grants'); }
+        finally { ungrantedLoader.dispose(); await ungranted.close(); }
+        let credentialsEntered = false;
+        const scope = new CemNativeRecoveryScope(), host = await api.createBrowserCommandServiceBinding({ host: hostCapabilities, hostConfiguration: grants },
+            { recoveryScope: scope, id: 'optional-worker-packages', hostWitness: () => () => !credentialsEntered });
+        const initial = host.runtime, baseUrl = new URL('./schema-assets/', location.href).href;
+        const loader = new CemSchemaAssetPackLoader({ baseUrl, runtime: initial.packageResourceBinding() });
+        const packages = new CemSchemaAssetPackRecoveryBinding({ loader, participant: initial.generationParticipant(), current: () => !credentialsEntered,
+            target: runtime => {
+                if (!(runtime instanceof api.BrowserCommandServiceClient)) throw Error('foreign worker target');
+                return { runtime: runtime.packageResourceBinding(), participant: runtime.generationParticipant() };
+            } });
+        const demandUrl = new URL('demand/csv/1.0.0', baseUrl).href;
+        const demand = () => packages.loadResource({ authoredUrl: demandUrl, resolvedUrl: demandUrl, baseUrl,
+            resolverIdentity: 'fixture', resourcePolicyStamp: 'fixture', contextIdentity: 'fixture:worker', method: 'GET', headers: {},
+            policy: { allowCrossOrigin: false, maxResponseBytes: 4096, timeoutMs: 30_000, redirect: 'error' }, signal: new AbortController().signal });
+        const identities = [initial.worker.runtimeInstanceId], admissions = [];
+        const validate = async id => {
+            const handle = host.execute(request(id));
+            const result = await handle.result();
+            ensure(JSON.stringify(result).includes('cem.csv.unclosed_quote'), 'worker ignored persistent native CSV context');
+            await handle.dispose();
+        };
+        try {
+            await demand(); await validate('before-worker-handoff');
+            ensure((() => { try { new CemSchemaAssetPackLoader({ baseUrl, runtime: initial.packageResourceBinding() }); return false; }
+                catch (error) { return error.code === 'cem.schema_asset.owner_busy'; } })(), 'duplicate loader shared worker package ownership');
+            credentialsEntered = true;
+            ensure(await scope.prepare().then(() => false, () => true), 'credentials did not block worker recovery');
+            credentialsEntered = false;
+            for (let round = 0; round < 2; round++) {
+                const old = host.runtime, alias = old.packageResourceBinding();
+                const first = old.claimNativeEmbedding(), second = old.claimNativeEmbedding();
+                ensure(await old.closeNativeAdmission([first]).then(() => false, () => true), 'worker cleanup accepted omitted embedding owner');
+                const plan = await scope.prepare(), ticket = host.prepareResume(), group = plan.createGenerationGroup();
+                ensure(await old.closeNativeAdmission([first, second]).then(() => false, () => true), 'worker package cleanup omitted handoff');
+                ensure(await old.closeNativeAdmission([first, second], 5000, { current: plan.current,
+                    retain: () => new Uint8Array(1024 * 1024 + 1) }).then(() => false, () => true), 'worker cleanup widened checkpoint budget');
+                const handoff = { current: () => plan.current() && !credentialsEntered,
+                    retain: () => new TextEncoder().encode('No artifacts, credential controls or pending external effects retained.') };
+                credentialsEntered = true;
+                ensure(await old.closeNativeAdmission([first, second], 5000, handoff).then(() => false, () => true), 'entered credential allowed worker package release');
+                credentialsEntered = false;
+                let proof = await old.closeNativeAdmission([first, second], 5000, handoff);
+                proof = await old.revalidateNativeCheckpoint(proof, [first, second]);
+                ensure(proof.embeddingOwners === 2 && proof.nativeInventory.blockingResources === 0, 'worker retirement skipped native empty census');
+                const retired = await old.retireNativeGeneration(proof, [first, second], handoff);
+                ensure(!alias.current() && alias.identity() === undefined, 'retired package alias retained worker');
+                ensure(await alias.bootstrap().then(() => false, () => true), 'retired worker package action remained admitted');
+                const admission = await group.allocate([retired]); admissions.push(admission);
+                await resumeNativeGenerationBindings(admission, [ticket]);
+                identities.push(host.worker.runtimeInstanceId);
+                await validate(`after-worker-handoff-${round}`); await demand();
+                if (round) { admissions[0].revoke(); await validate('after-previous-revocation'); }
+            }
+            ensure(new Set(identities).size === 3, 'worker package handoff reused physical generation');
+            // Delay only this isolated fixture's cleanup acknowledgment. Even
+            // after late cleanup succeeds, the original timed-out checkpoint must
+            // remain uncertain and cannot yield a retirement receipt.
+            const old = host.runtime, endpoint = old.packageResourceBinding(), physical = endpoint.identity();
+            const owner = old.claimNativeEmbedding(), plan = await scope.prepare();
+            plan.createGenerationGroup();
+            const postMessage = physical.postMessage.bind(physical); let delayed, delayedReply;
+            physical.postMessage = message => {
+                if (message.type === 'cem-command-package' && message.operation === 'release') { delayed = message; return; }
+                postMessage(message);
+            };
+            try {
+                const handoff = { current: plan.current, retain: () => new Uint8Array([1]) };
+                ensure(await old.closeNativeAdmission([owner], 100, handoff).then(() => false,
+                    error => error.code === 'cem.command.checkpoint.timeout'), 'missing package cleanup acknowledgment granted checkpoint');
+                ensure(delayed, 'cleanup delay fixture never reached native release');
+                delayedReply = new Promise(resolve => {
+                    const receive = event => { if (event.data?.actionId === delayed.actionId) {
+                        physical.removeEventListener('message', receive); resolve();
+                    } }; physical.addEventListener('message', receive);
+                });
+                postMessage(delayed); await delayedReply;
+                ensure(await old.checkpointNative(100, [owner]).then(() => false, () => true), 'late package acknowledgment revived an uncertain checkpoint');
+            } finally { physical.postMessage = postMessage; }
+            admissions.at(-1).revoke();
+            ensure(await Promise.resolve().then(demand).then(() => false, () => true), 'revoked worker package demand remained live');
+            return { rounds: 2, distinctWorkers: identities.length, offlineDemand: true, ordinaryCsvValidation: true,
+                credentialRefusal: true, completeOwnership: true, checkpointRequired: true, originalCommandBudget: true,
+                emptyNativeInventory: true, staleAliasesFenced: true, workerOwnedGrants: true, exclusiveLoader: true, lateAcknowledgmentRefused: true, automaticRecovery: false };
+        } finally { packages.dispose(); loader.dispose(); await host.close(); admissions.forEach(admission => admission.revoke()); scope.dispose(); }
     }, maps);
 }

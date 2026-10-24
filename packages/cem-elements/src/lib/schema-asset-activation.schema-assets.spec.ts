@@ -275,3 +275,42 @@ nativeCase('snapshots native methods and normalized transport policy across fres
     } finally { fresh?.dispose(); loader.dispose(); }
     expect(owners(native)).toBe(0); expect(owners(target)).toBe(0);
 });
+
+
+nativeCase('refuses replay after an async activation loses its acknowledgment', async () => {
+    const native = freshNative();
+    const open = native.schemaAssetOwnerOpenV1, admit = native.schemaAssetOwnerAdmitV1,
+        activate = native.schemaAssetOwnerActivateV1, dispose = native.schemaAssetOwnerDisposeV1;
+    if (!open || !admit || !activate || !dispose) throw Error('missing native owner ABI');
+    let owner: number | undefined, started!: () => void, finish!: () => void;
+    const publicationStarted = new Promise<void>(resolve => { started = resolve; });
+    const runtime = { current: () => true, identity: () => native.commandNativeMemoryIdentity(),
+        bootstrap: async () => native.schemaAssetPackBootstrapV1(),
+        summary: async (index: Uint8Array, pin: string) => native.schemaAssetPackSummaryV1(index, pin),
+        importSource: async (index: Uint8Array, pin: string, id: string, version: string, path: string, bytes: Uint8Array) =>
+            native.schemaAssetPackImportV1(index, pin, id, version, path, bytes),
+        activate: async (index: Uint8Array, pin: string, sources: readonly { packageId: string; version: string; path: string; bytes: Uint8Array }[], selection: string) => {
+            const activeOwner = open(index, pin, hostConfiguration); owner = activeOwner;
+            for (const source of sources) admit(activeOwner, source.packageId, source.version, source.path, source.bytes);
+            const result = activate(activeOwner, selection);
+            started();
+            return new Promise<string>(resolve => { finish = () => resolve(result); });
+        }, release: async () => {
+            if (owner !== undefined) dispose(owner);
+            owner = undefined; return true;
+        } };
+    const controller = new AbortController();
+    const loader = new CemSchemaAssetPackLoader({ baseUrl, runtime, loadHttpResource: transport });
+    try {
+        const pending = loader.activatePackages([csv], controller.signal);
+        await publicationStarted;
+        expect(owners(native)).toBe(1);
+        controller.abort(Error('lost activation reply'));
+        await expect(pending).rejects.toThrow('lost activation reply');
+        await vi.waitFor(() => expect(() => loader.prepareRecoverySource()).toThrow('cem.schema_asset.uncertain'));
+        await expect(loader.prepareFreshRuntime(runtime)).rejects.toThrow('cem.schema_asset.uncertain');
+        finish();
+        await expect(loader.loadResource(demand())).rejects.toThrow('cem.schema_asset.uncertain');
+    } finally { loader.dispose(); }
+    expect(owners(native)).toBe(0);
+});

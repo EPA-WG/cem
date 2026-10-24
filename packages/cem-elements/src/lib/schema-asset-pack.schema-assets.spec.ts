@@ -225,16 +225,17 @@ it('closes a response arriving after cancellation without running its iterator',
     const opened = new Promise<CemHttpResourceLoadResult>(resolveLoaded => { deliver = resolveLoaded; });
     const returned = vi.fn(async () => ({ done: true as const, value: undefined }));
     const next = vi.fn();
-    const loader = new CemSchemaAssetPackLoader(options({ loadHttpResource: () => opened }));
+    const opener = vi.fn(() => opened);
+    const loader = new CemSchemaAssetPackLoader(options({ loadHttpResource: opener }));
     try {
         const pending = loader.loadSource(selected, controller.signal);
-        await Promise.resolve();
+        await vi.waitFor(() => expect(opener).toHaveBeenCalledOnce());
         controller.abort(new Error('cancel opener'));
         await expect(pending).rejects.toThrow('cancel opener');
         deliver({ ...response({ resolvedUrl: baseUrl } as CemHttpRequest, new Uint8Array()),
             body: { [Symbol.asyncIterator]: () => ({ next, return: returned }) } });
-        await Promise.resolve(); await Promise.resolve();
-        expect(returned).toHaveBeenCalledOnce(); expect(next).not.toHaveBeenCalled();
+        await vi.waitFor(() => expect(returned).toHaveBeenCalledOnce());
+        expect(next).not.toHaveBeenCalled();
     } finally { loader.dispose(); }
 });
 
@@ -305,4 +306,17 @@ it('rejects resolver origin/protocol changes and redirects even with a custom op
     } }));
     try { await expect(loader.loadSource(selected)).rejects.toThrow('cem.schema_asset.policy'); }
     finally { loader.dispose(); }
+});
+
+
+it('cancels an asynchronous package endpoint without waiting for a missing worker response', async () => {
+    const identity = {}, controller = new AbortController();
+    const loader = new CemSchemaAssetPackLoader({ baseUrl, runtime: { current: () => true, identity: () => identity,
+        bootstrap: () => new Promise<string>(() => { /* Simulate a missing response. */ }),
+        summary: () => '', importSource: () => '', activate: () => '', release: () => true } });
+    try {
+        const pending = loader.loadSource(selected, controller.signal);
+        controller.abort(Error('cancel pending worker'));
+        await expect(pending).rejects.toThrow('cancel pending worker');
+    } finally { loader.dispose(); }
 });

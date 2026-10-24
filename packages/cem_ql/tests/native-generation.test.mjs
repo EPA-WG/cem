@@ -322,3 +322,28 @@ test('a busy resource capture leaves participants available for a new complete p
     releaseNativeGenerationResources(a.participant, () => true);
     const admission = await group.allocate([a.retire()]); admission.revoke();
 });
+
+
+test('async resource release rechecks original witnesses and refuses late completion', async () => {
+    const { registerNativeGenerationResource, releaseNativeGenerationResourcesAsync } = await import('../runtime/native-generation.mjs');
+    for (const scenario of ['success', 'stale', 'late', 'reject']) {
+        const a = source(); let current = true, finish;
+        registerNativeGenerationResource(a.participant, () => ({ current: () => true,
+            release: () => new Promise((resolve, reject) => { finish = scenario === 'reject' ? () => reject(Error('cleanup failed')) : resolve; }),
+            prepare: async () => { throw Error('unused'); } }), () => { /* No fixture heap. */ });
+        new CemNativeGenerationGroup([a.participant]);
+        const releasing = releaseNativeGenerationResourcesAsync(a.participant, () => current, scenario === 'late' ? 5 : 5000);
+        assert.throws(() => a.retire(), /resource/);
+        if (scenario === 'stale') current = false;
+        if (scenario === 'late') {
+            await assert.rejects(releasing, /timeout/); finish();
+            await new Promise(done => setImmediate(done));
+        } else {
+            finish();
+            if (scenario === 'success') { await releasing; a.retire(); continue; }
+            await assert.rejects(releasing, scenario === 'reject' ? /cleanup failed/ : /stale/);
+        }
+        assert.throws(() => a.retire(), /resource/);
+        await assert.rejects(releaseNativeGenerationResourcesAsync(a.participant, () => true), /resource/);
+    }
+});
