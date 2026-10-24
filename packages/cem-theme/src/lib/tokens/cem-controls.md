@@ -106,25 +106,39 @@ Boundary heuristic:
 | `--cem-data-row-height` | `var(--cem-list-row-height)` | Minimum structured row block size; content may wrap and grow | required |
 | `--cem-data-icon-size` | `var(--cem-icon-button-icon-size)` | Glyph box in a structured row | required |
 
-### Desktop compact geometry
+### Inherited compact geometry
 
-The inherited `data-cem-density="compact|super-compact"` profiles are an explicit
-desktop policy, separate from coupling-mode overrides. They apply only for a
-fine primary pointer with hover and no coarse input (including hybrid devices).
-The compact profile reduces chrome; super-compact is reserved for structured
-tree/table composites and makes rows as close as lines in a paragraph. It has
-no row padding or vertical gap, uses a `1lh` minimum, and keeps icons at `1em`.
+The inherited `data-cem-density="compact|super-compact"` profiles are explicit
+geometry policies, separate from coupling-mode overrides. Place the attribute on
+the page/container alongside `data-theme` so application bars, action controls,
+menus and structured data share the requested geometry. Compact reduces chrome
+only for a fine primary pointer with hover and no coarse input. Super-compact
+applies on every input modality when explicitly authored: its generic control
+height and D2 coupling minimum are `0px`, inline/block padding is zero and icons
+are `1em`. Content determines button height, including an icon-only button's
+glyph. Tree/list/menu/table rows retain a `1lh` minimum; trees and tables also
+remove row padding and vertical gaps, so rows follow adjacent paragraph lines.
 Wrapped labels and text zoom grow the line boxes; no fixed height clips text.
-Coarse/hybrid input retains the original target geometry and D2 minimums. Glyph
-sizes remain `1em` on every modality: changing an icon's ink does not shrink its
-operable container. The generator emits only the icon glyph rows outside the
-precise-input gate; control/container sizes remain inside it.
+The optional `--cem-shape-height` consumer override remains independent, and
+explicit `size`/`data-cem-size` profiles retain their requested minimum heights.
+
+Compact retains the original target geometry and D2 minimums on coarse, hybrid
+or unknown input, while keeping its glyphs at `1em`. Super-compact has no hidden
+input gate and does not revert to `0.5rem` block padding on those devices.
+The generator emits its complete profile after the gated compact rules.
+
+Use `data-cem-density="normal"` on a nested container to restore the canonical
+baseline values for every density endpoint, including glyph sizes on all input
+modalities. This is an explicit reset; omitting the attribute inherits its
+ancestor's density. The reset reads this document's baseline geometry table,
+does not add baseline aliases, and leaves unrelated tokens and explicit size
+profiles alone. Local custom-property overrides remain available.
 
 ###### cem-controls-density-overrides
 
 | Token | compact | super-compact |
 |---|---|---|
-| `--cem-control-height` | `1.75rem` | `1lh` |
+| `--cem-control-height` | `1.75rem` | `0px` |
 | `--cem-control-padding-x` | `0.375rem` | `0px` |
 | `--cem-control-padding-y` | `0.125rem` | `0px` |
 | `--cem-icon-button-size` | `1.5rem` | `1em` |
@@ -324,7 +338,7 @@ A draft becomes "canonical" when all of the following are true:
 | `cem-progress-geometry` | §3.2 | Circular-progress diameter and shared progress-track thickness |
 | `cem-slider-geometry` | §3.3 | Slider track thickness and visible thumb diameter |
 | `cem-controls-geometry-overrides` | §3.4 | Forgiving/compact override values for visual geometry (generator-only; no new tokens) |
-| `cem-controls-density-overrides` | Desktop compact geometry | Explicit inherited desktop chrome/paragraph-line data geometry; no new tokens |
+| `cem-controls-density-overrides` | Inherited compact geometry | Input-gated compact chrome and explicit content-sized super-compact geometry; no new tokens |
 
 Generator derivation rules:
 - `cem-controls-size-profiles` → `[data-cem-size]` height overrides, emitted after coupling rules.

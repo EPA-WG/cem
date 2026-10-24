@@ -71,7 +71,7 @@ line two"'></cem-data-view>
 <cem-demo-element legend="Bounded nested structure" description="Four nested levels retain a visible depth-limit notice; the original project resource is unchanged."><template>
 <cem-data-view label="Depth limit" value='{"a":{"b":{"c":{"d":{"hidden":"Beyond preview depth"}}}}}'></cem-data-view>
 </template></cem-demo-element>
-<section><h2>Theme and density matrix</h2><p>Rows use normal, compact and paragraph-line profiles. Text wraps at narrow widths and zoom; no extra vertical row padding or gaps are added in the desktop paragraph-line profile. Touch and hybrid devices retain larger dimensions. The passive data view has no hover, press or selection commands; keyboard focus belongs to its scroll region.</p>
+<section><h2>Theme and density matrix</h2><p>Rows use normal, compact and paragraph-line profiles. Text wraps at narrow widths and zoom; the explicit super-compact paragraph-line profile retains 1lh row minima with zero coupling minima and no extra vertical row padding or gaps on every input device. Normal and compact profiles retain their existing input policies. The passive data view has no hover, press or selection commands; keyboard focus belongs to its scroll region.</p>
 <cem-demo-element legend="light density comparison" description="One native source in each inherited density profile; these fixed example themes remain independent of the page theme."><template>
 <div class="cem-theme-light" data-gallery-theme="light">
 <cem-data-view label="Default" value='[{"name":"Ada","count":3},{"name":"Bob","count":7}]'></cem-data-view>

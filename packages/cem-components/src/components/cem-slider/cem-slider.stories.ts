@@ -267,6 +267,80 @@ export const VisualValues = meta.story({
     },
 });
 
+export const SuperCompactGeometry = meta.story({
+    name: 'preserves intrinsic thumbs and native range input when the page coupling minimum is zero',
+    parameters: { docs: { description: { story: 'Geometry and hit-target checks run in Storybook; trusted ArrowRight event checks require the browser runner.' } } },
+    render: () => '<section data-theme="cem-theme-light" data-cem-density="super-compact" data-cem-spacing="normal">'
+        + '<cem-slider min="0" max="100" step="5" discrete show-tick-marks><input type="range" name="volume" data-cem-slider-thumb="single" value="50" aria-label="Volume"></cem-slider>'
+        + '<cem-slider min="0" max="100" step="5" discrete show-tick-marks><input type="range" name="minimum" data-cem-slider-thumb="start" value="25" aria-label="Minimum price"><input type="range" name="maximum" data-cem-slider-thumb="end" value="75" aria-label="Maximum price"></cem-slider>'
+        + '</section>',
+    play: async ({ canvasElement }) => {
+        const boundary = requiredElement<HTMLElement>(canvasElement, '[data-cem-density]');
+        for (const host of boundary.querySelectorAll<HTMLElement>('cem-slider')) await whenCemRendered(host);
+        const sliders = [sliderParts(boundary, 'cem-slider:has(input[name=volume])'), sliderParts(boundary, 'cem-slider:has(input[name=minimum])')];
+        const originals = sliders.flatMap(parts => parts.inputs);
+        const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+        const expectGeometry = (extent: number) => {
+            for (const parts of sliders) {
+                const visual = parts.visual.getBoundingClientRect();
+                expect(parts.owner.getBoundingClientRect().height).toBeGreaterThanOrEqual(extent);
+                expect(Math.abs(visual.height - extent)).toBeLessThan(0.1);
+                for (const layer of [parts.inputsOwner, ...parts.inputs]) {
+                    const rect = layer.getBoundingClientRect();
+                    expect(Math.abs(rect.height - extent)).toBeLessThan(0.1);
+                    expect(Math.abs(rect.top - visual.top)).toBeLessThan(0.1);
+                }
+                for (const track of parts.visual.querySelectorAll<HTMLElement>('[part~=track], [part~=active-track], [part~=ticks]')) {
+                    const rect = track.getBoundingClientRect();
+                    expect(Math.abs(rect.height - 0.25 * rem)).toBeLessThan(0.1);
+                    expect(Math.abs(rect.top + rect.height / 2 - visual.top - visual.height / 2)).toBeLessThan(0.1);
+                }
+                for (const input of parts.inputs) {
+                    const rect = input.getBoundingClientRect();
+                    const fraction = (input.valueAsNumber - Number(input.min)) / (Number(input.max) - Number(input.min));
+                    const centerX = rect.left + extent / 2 + (rect.width - extent) * fraction;
+                    const centerY = rect.top + rect.height / 2;
+                    // The native input is pointer-events:none; only its thumb can own these points.
+                    expect(document.elementFromPoint(centerX, centerY)).toBe(input);
+                    expect(document.elementFromPoint(centerX + extent / 4, centerY)).toBe(input);
+                    expect(valueLabel(parts, input.dataset.cemSliderThumb as 'single' | 'start' | 'end').getBoundingClientRect().bottom).toBeLessThan(visual.top);
+                }
+            }
+        };
+        for (const theme of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
+            boundary.setAttribute('data-theme', `cem-theme-${theme}`); await nextRenderFrame();
+            expect(getComputedStyle(sliders[0].host).getPropertyValue('--cem-coupling-zone-min').trim()).toBe('0px');
+            expect(getComputedStyle(sliders[0].host).getPropertyValue('--cem-slider-thumb-size').trim()).toBe('1.25rem');
+            expectGeometry(1.25 * rem);
+        }
+        boundary.setAttribute('data-cem-density', 'normal'); await nextRenderFrame();
+        expectGeometry(3 * rem);
+        boundary.setAttribute('data-cem-density', 'super-compact');
+        boundary.style.setProperty('--cem-coupling-zone-min', '60px'); await nextRenderFrame();
+        expectGeometry(60);
+        boundary.style.removeProperty('--cem-coupling-zone-min');
+        boundary.style.setProperty('--cem-slider-thumb-size', '32px'); await nextRenderFrame();
+        expectGeometry(32);
+        boundary.style.removeProperty('--cem-slider-thumb-size'); await nextRenderFrame();
+        expectGeometry(1.25 * rem);
+        expect(sliders.flatMap(parts => parts.inputs)).toEqual(originals);
+
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
+        const events: Array<{ type: string; target: EventTarget | null; trusted: boolean }> = [];
+        for (const input of originals) {
+            for (const type of ['input', 'change']) input.addEventListener(type, event => events.push({ type: event.type, target: event.target, trusted: event.isTrusted }));
+        }
+        for (const input of originals) {
+            const before = input.valueAsNumber;
+            events.length = 0; input.focus(); await userEvent.keyboard('{ArrowRight}');
+            expect(input.valueAsNumber).toBe(before + 5);
+            expect(events).toEqual([{ type: 'input', target: input, trusted: true }, { type: 'change', target: input, trusted: true }]);
+        }
+        expectGeometry(1.25 * rem);
+    },
+});
+
 interface SliderParts {
     host: HTMLElement;
     inputs: HTMLInputElement[];

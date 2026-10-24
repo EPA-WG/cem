@@ -81,6 +81,11 @@ export const NestedExampleThemes = meta.story({
     beforeEach: () => { localStorage.removeItem('story-gallery-matrix'); },
     play: async ({ canvasElement }) => {
         const page = required(canvasElement, 'cem-gallery-page'); await ready(page);
+        await expect(page).toHaveAttribute('data-cem-density', 'super-compact');
+        await expect(page).toHaveAttribute('data-cem-spacing', 'normal');
+        const content = required(page, ':scope > [part=content]');
+        await expect(content).toHaveAttribute('data-cem-density', 'normal');
+        await expect(content).toHaveAttribute('data-cem-spacing', 'normal');
         const fixed = [...page.querySelectorAll<HTMLElement>('section[data-gallery-theme]')];
         const paint = () => fixed.map(section => {
             const style = getComputedStyle(section), control = getComputedStyle(required(section, 'button'));
@@ -91,7 +96,33 @@ export const NestedExampleThemes = meta.story({
             await choose(pageSwitch(page), theme);
             await waitFor(() => expect(page).toHaveAttribute('data-theme', `cem-theme-${theme}`));
             expect(paint()).toEqual(baseline);
+            for (const section of fixed) {
+                const control = required(section, 'button');
+                expect(getComputedStyle(control).getPropertyValue('--cem-coupling-zone-min').trim()).toBe('3rem');
+                expect(control.getBoundingClientRect().height).toBeGreaterThanOrEqual(48);
+            }
+            const trigger = required(pageSwitch(page), '[part=trigger] button');
+            const triggerStyle = getComputedStyle(trigger);
+            expect(triggerStyle.getPropertyValue('--cem-coupling-zone-min').trim()).toBe('0px');
+            expect(triggerStyle.getPropertyValue('--cem-control-height').trim()).toBe('0px');
+            expect(triggerStyle.getPropertyValue('--cem-control-padding-y').trim()).toBe('0px');
+            expect(triggerStyle.minBlockSize).toBe('0px');
+            expect(triggerStyle.paddingBlockStart).toBe('0px');
+            expect(triggerStyle.paddingBlockEnd).toBe('0px');
+            expect(triggerStyle.borderTopWidth).toBe('0px');
+            const icon = required(trigger, 'cem-icon');
+            expect(Math.abs(trigger.getBoundingClientRect().height - icon.getBoundingClientRect().height)).toBeLessThan(0.1);
+            expect(trigger.getBoundingClientRect().height).toBeLessThan(48);
         }
+        const trigger = required(pageSwitch(page), '[part=trigger] button');
+        page.setAttribute('data-cem-density', 'normal'); await whenCemRendered(page);
+        expect(page.querySelector('cem-theme-switch[part=theme] [part=trigger] button')).toBe(trigger);
+        expect(trigger.getBoundingClientRect().height).toBeGreaterThanOrEqual(48);
+        page.setAttribute('data-cem-density', 'super-compact'); await whenCemRendered(page);
+        expect(getComputedStyle(trigger).minBlockSize).toBe('0px');
+        expect(getComputedStyle(trigger).paddingBlockStart).toBe('0px');
+        expect(trigger.getBoundingClientRect().height).toBeLessThan(48);
+        expect(paint()).toEqual(baseline);
     },
 });
 

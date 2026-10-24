@@ -24,7 +24,9 @@ Entered passwords or one-time codes continue to block recovery until explicitly
 cleared by the user; automatic whole-Studio recovery remains disabled. Follow the
 [credential privacy policy](committed-checkpoints.md#credential-privacy-policy-for-live-login-recovery).
 
-Completed [compact Studio layout and shared runtime work](archive/todo-completed-compact-studio-2026-10-23.md) is archived.
+Completed [compact Studio layout and shared runtime work](archive/todo-completed-compact-studio-2026-10-23.md) is archived. The [font-relative tree spacing follow-up](archive/todo-completed-compact-studio-2026-10-23.md#font-relative-tree-spacing-follow-up) records the IDE reference refinement. The [page-level super-compact follow-up](archive/todo-completed-compact-studio-2026-10-23.md#page-level-super-compact-theme-follow-up) records header controls, mode boundaries and verification.
+
+The [explicit content-sized super-compact policy](archive/todo-completed-compact-studio-2026-10-23.md#explicit-content-sized-super-compact-policy) supersedes its earlier pointer-gated geometry.
 
 Completed [graph parameter-map authoring and Studio controls](archive/todo-completed-graph-parameters-2026-10-23.md) is archived.
 
@@ -34,6 +36,9 @@ shared optional-pack acquisition, offline delivery and fresh-generation reimport
 then measure download, cold latency and allocator/linear-memory headroom.
 
 ## Project builds and artifact previews
+
+- [ ] Repair extensionless Canonical source URLs in component property pages and galleries after the folder-level import-map migration; use explicit XHTML paths with the shared resolver, verify source/package viewers and rerun the broader compact-Studio gallery gate. The unchanged `cem-text` viewer currently resolves `@epa-wg/cem-components/components/cem-text` to a directory and returns HTTP 404.
+
 
 The optional native schema-asset prototype is complete; embedded bodies and the
 default complete release remain intact. Continue with owned consumers and shared

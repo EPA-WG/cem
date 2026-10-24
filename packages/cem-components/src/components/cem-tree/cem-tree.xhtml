@@ -186,8 +186,9 @@
     }
 }
 :scope[data-cem-density='super-compact'] :where([part~='root'], [part~='item'], [part~='group']) { row-gap: var(--cem-data-row-gap); }
+:scope[data-cem-density='super-compact'] > :where([part~='root']) { padding-inline: var(--cem-data-tree-padding-inline); }
 :scope[data-cem-density='super-compact'] :where([part~='group']) { margin-inline-start: var(--cem-data-tree-indent); }
-:scope[data-cem-density='super-compact'] :where([part~='node']) { min-block-size: var(--cem-data-row-height); padding-block: var(--cem-data-row-padding-block); padding-inline: var(--cem-data-row-padding-inline); border-width: var(--cem-data-row-border-width); row-gap: var(--cem-data-row-gap); }
+:scope[data-cem-density='super-compact'] :where([part~='node']) { min-block-size: var(--cem-data-row-height); padding-block: var(--cem-data-row-padding-block); padding-inline: var(--cem-data-row-padding-inline); border-width: var(--cem-data-row-border-width); row-gap: var(--cem-data-row-gap); column-gap: var(--cem-data-tree-column-gap); }
 :scope[data-cem-density='super-compact'] :where([part~='node']:focus-visible) { outline-offset: var(--cem-data-row-focus-offset); }
 :scope[data-cem-density='super-compact'] :where([part~='marker']) { block-size: var(--cem-data-icon-size); inline-size: var(--cem-data-icon-size); }
 :scope[data-cem-density='super-compact'] :where([part~='icon']) { font-size: var(--cem-data-icon-size); inline-size: var(--cem-data-icon-size); }

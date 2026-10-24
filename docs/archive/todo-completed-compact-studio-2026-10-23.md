@@ -69,3 +69,118 @@ accessibility. Its optional `--presentation-only` and `--supplier-only` dispatch
 paths are not claimed as separately executed. Automated evidence does not
 establish physical-device or spoken assistive-technology acceptance; those
 pre-existing TODOs remain open.
+
+## Font-relative tree spacing follow-up
+
+- [x] Match condensed tree spacing to the IDE reference using font-relative outer inset, horizontal gaps and hierarchy indentation; extend the existing shared tree story to verify nesting and font scaling, retain paragraph-like vertical rhythm, inherited overrides and larger touch targets.
+
+The canonical D1 theme now separates the outer tree inset (`0.25em`), horizontal
+column gaps (`0.25em`) and per-level indentation (`1.4em`). The shared declarative
+tree consumes these inherited tokens. Paragraph-like vertical rows, `1em` icons,
+ordinary-tree geometry and coarse/hybrid target policies remain intact.
+
+Verification: **13/13 shared tree stories**, **6/6 density tests**, the browser
+density contract across five themes, precise/coarse input and forced colors,
+and the **22-task Studio build** passed. Nested label offsets, enlarged fonts
+and inherited spacing overrides are checked in the existing tree story.
+
+## Tree density theme matrices and Studio geometry
+
+- [x] Add normal, sparse and condensed tree examples to all five gallery themes; verify real computed row/coupling geometry and inherited sparse spacing rather than attributes alone.
+- [x] Verify all three Studio navigation trees use condensed computed geometry, including generated output, while preserving selected descendants, keyboard behavior and the existing touch policy.
+
+Each of the five tree gallery themes now presents normal, sparse and condensed
+examples through the shared responsive `cem-grid`, with matching enabled and
+disabled trees. Sparse spacing is emitted on explicit containers as well as the
+document root. Normal retains the standard coupling minimum; condensed selects
+`data-cem-density="super-compact"`. Studio already authors this profile on
+Projects, Structure and Output files; regression checks now measure the real
+computed coupling, row minimum and height on all three, after output is built.
+
+Verification passed: source and isolated-package gallery matrices (five themes ×
+three modes), two focused Studio navigation/selection cases, six density tests,
+five-theme precise/coarse-input and forced-color browser checks, scoped lint,
+and the 22-task Studio build. On precise desktop input, the live Projects tree
+measured about 19.2px (`1lh`) versus the normal gallery row’s 48px (`3rem`).
+Existing touch/hybrid policy, font size and credential recovery rules are unchanged.
+
+## Page-level super-compact theme follow-up
+
+- [x] Apply inherited page-level theme, spacing and super-compact density to Studio and gallery chrome; retain independent gallery density examples, explicit size profiles, credential policy and coarse/hybrid targets.
+- [x] Add canonical normal-density/spacing reset boundaries and verify nested normal, sparse and super-compact theme geometry, inherited overrides and forced colors.
+- [x] Verify real app-bar icon buttons and Studio header content height under page-level super-compact density, and document the public attributes and token contract.
+
+Studio and shared gallery chrome now expose `data-cem-density="super-compact"`
+and `data-cem-spacing="normal"` alongside the page theme. The existing canonical
+super-compact profile supplies `1lh` control/coupling minima, zero control padding,
+zero guard/halo and `1em` glyphs on precise desktop input. Explicit sizes and
+consumer shape-height overrides remain supported. No application JavaScript UI
+behavior or component-local token defaults were added.
+
+Normal density and spacing boundaries restore only mode-owned values from their
+canonical base tables. Gallery `part="content"` isolates ordinary samples and
+property forms from page chrome; nested sparse and condensed examples retain
+their selected presentation. Coarse/hybrid targets, entered-credential blocking,
+disabled automatic recovery and the aggregate 4 MiB checkpoint budget remain intact.
+
+Verification passed: **9/9 generated theme tests**, **14/14 shared app-bar/gallery
+stories**, **31/31 Studio shell/navigation cases**, five-theme precise/coarse and
+forced-color browser checks, all five tree-gallery density matrices from source
+and isolated package archives, scoped lint, theme CSS generation and the
+**22-task Studio build**. Real shared icon buttons, normal resets, independent
+spacing, explicit sizes, text scaling, inherited overrides and retained editor
+selection are covered. Hybrid exclusion is verified in the generated media
+contract; physical-device acceptance is not claimed.
+
+Isolated browser checks of the rebuilt Studio at port 8080 measured a **21.19px
+header**, **15px theme button** and **0px block padding** on precise desktop
+input. Coarse input retained the **48px button / 3rem minimum**. The gallery at
+port 8081 uses the same page profile and retains independent normal/condensed
+examples. Its preview server now includes the shared navigation declaration in
+its narrow public-asset list. Saved projects and drafts were not modified.
+
+## Explicit content-sized super-compact policy
+
+- [x] Make explicit super-compact geometry content-sized with zero coupling minimum and zero block padding even when fine-pointer detection does not match; retain independent normal/compact modes, explicit sizes, inherited overrides and credential privacy.
+- [x] Verify real buttons, Studio chrome and tree gallery super-compact geometry under fine/coarse/unknown pointer media, including nested normal/sparse resets, and align docs with the explicit policy.
+- [x] Preserve the shared slider’s intrinsic thumb/track geometry when the super-compact coupling minimum is zero, with a colocated story for noncollapsed controls and range interaction.
+- [x] Verify unconditional super-compact table/data-view row geometry, and preserve intrinsic datepicker calendar width and stepper connector alignment when the coupling minimum is zero, using colocated component stories.
+
+This correction supersedes the earlier media-gated super-compact policy above.
+Explicit `data-cem-density="super-compact"` now applies on every input modality.
+Its canonical coupling minimum, generic control height and inline/block control
+padding are all `0px`; tree/table/list/menu rows retain `1lh`. Only `compact`
+retains the precise-input media gate. Normal density boundaries, explicit size
+profiles and inherited consumer overrides remain available. Entered-credential
+blocking, disabled automatic recovery and the 4 MiB budget are unchanged.
+
+Shared controls retain their intrinsic content geometry: slider inputs and
+thumbs use the larger of the coupling minimum and canonical thumb diameter;
+datepicker columns and popup sizing follow text with the existing viewport cap;
+stepper connectors follow each header's actual marker center. These are
+component-owned declarative CSS changes, with no application UI JavaScript or
+new component-local public token defaults. Table/data-view and other shared
+stories now assert explicit super-compact geometry without pointer guards.
+
+Verification passed: **9/9 generated-theme cases**, **34/34 app-bar/tree/slider/
+gallery-page stories**, **23/23 datepicker/stepper/table/data-view stories**, and
+**31/31 Studio shell/navigation cases** (**97 targeted cases**). The five-theme
+browser contract verifies actual fine, coarse, hybrid and no-pointer media,
+text scaling, explicit sizes, local overrides, normal/sparse resets and forced
+colors. Scoped lint, whitespace checks, theme generation and the final
+**22-task Studio build** passed. The new datepicker/stepper stories required
+waiting for their existing asynchronous render/focus publication before making
+the original assertions; production behavior and timeouts were not weakened.
+
+Live isolated contexts at ports 8080 and 8081 confirmed `0px` coupling/control
+minima and block padding in all four input modes. Studio's header measured
+21.19px; its theme button followed its 13.33px glyph content. Condensed tree rows
+measured 19.19px (`1lh`) on every input mode; normal samples retained their
+`3rem` floor and normal padding. Saved projects and drafts were untouched.
+
+The broader nine-gallery source/package gate did **not** complete: it exposed an
+unchanged extensionless Canonical source URL in `cem-text` that maps to a folder
+and returns HTTP 404. That independent import-map follow-up is recorded in the
+active TODO. The gallery verifier now waits for nested accordion panel content
+before capturing retained owners; the original identity assertion remains intact.
+No complete package-gallery pass is claimed for this correction.

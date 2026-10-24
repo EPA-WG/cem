@@ -473,7 +473,25 @@ describe('Studio compact declarative layout', () => {
         } finally { view.dispose(); root.remove(); }
     }, 30_000);
 
+    async function loadTreeTheme() {
+        const theme = document.createElement('link');
+        theme.rel = 'stylesheet'; theme.href = new URL('../../cem-theme/dist/lib/css/cem-combined.css', import.meta.url).href;
+        const ready = new Promise((resolve, reject) => { theme.onload = resolve; theme.onerror = reject; });
+        document.head.append(theme); onTestFinished(() => theme.remove()); await ready;
+    }
+    function expectCondensedTree(tree) {
+        expect(tree.getAttribute('data-cem-density')).toBe('super-compact');
+        const row = tree.querySelector('[role=treeitem]'), style = getComputedStyle(row);
+        const line = Number.parseFloat(style.lineHeight);
+        expect(style.getPropertyValue('--cem-coupling-zone-min').trim()).toBe('0px');
+        expect(style.paddingBlockStart).toBe('0px');
+        expect(Math.abs(Number.parseFloat(style.minBlockSize) - line)).toBeLessThan(0.1);
+        expect(Math.abs(row.getBoundingClientRect().height - line)).toBeLessThan(0.1);
+        expect(row.getBoundingClientRect().height).toBeLessThan(48);
+    }
+
     it('keeps the source editor and selected descendant when tree and accordion sections collapse', async () => {
+        await loadTreeTheme();
         const { service } = await fixture();
         const root = document.createElement('main'); root.style.cssText = 'inline-size:1280px; block-size:640px;'; document.body.append(root);
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench: service });
@@ -482,7 +500,8 @@ describe('Studio compact declarative layout', () => {
             expect(root.querySelector('cem-accordion[fit=fill]').getAttribute('label')).toBe('Navigation');
             expect(root.querySelector('cem-accordion[fit=fill]').querySelectorAll('cem-expansion[layout=panel]')).toHaveLength(3);
             const tree = root.querySelector('cem-tree[label="Project files"]');
-            expect(tree.getAttribute('data-cem-density')).toBe('super-compact');
+            expectCondensedTree(tree);
+            expectCondensedTree(root.querySelector('cem-tree[label=Projects]'));
             expect(tree.hasAttribute('separate-toggle')).toBe(true);
             const center = root.querySelector('cem-studio-workbench-center > [part~=content]');
             expect(getComputedStyle(center).display).toBe('flex');
@@ -506,6 +525,7 @@ describe('Studio compact declarative layout', () => {
     }, 30_000);
 
     it('renders project Build and readonly output centers from the last activated navigation item', async () => {
+        await loadTreeTheme();
         const { service, browser } = await fixture();
         const root = document.createElement('main'); document.body.append(root);
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench: service });
@@ -526,6 +546,9 @@ describe('Studio compact declarative layout', () => {
             expect(readonly.value).toContain('generated/index.html');
             expect(readonly.getAttribute('source-id')).toContain('output');
             expect(root.querySelectorAll('cem-tree[label="Output files"] [role=treeitem]').length).toBeGreaterThan(1);
+            const trees = [...root.querySelectorAll('cem-studio-workbench-navigation cem-tree')];
+            expect(trees).toHaveLength(3);
+            trees.forEach(expectCondensedTree);
             const invalid = service.snapshot().navigation.output.children[0].children.find(item => item.path === 'generated/invalid.json');
             await service.openEntity(invalid.key); await view.whenSettled();
             expect(service.snapshot().projectPreview.preview.kind).toBe('download');

@@ -186,10 +186,14 @@ button[slot=toggle]:where(:focus-visible),
     color: var(--cem-select-popup-text);
     font-family: var(--cem-typography-ui-font-family);
     font-size: var(--cem-typography-ui-font-size);
-    inline-size: calc(
-        var(--cem-coupling-zone-min) * 7
-        + var(--cem-gap-related) * 6
-        + var(--cem-gap-group) * 2
+    inline-size: max-content;
+    min-inline-size: min(
+        calc(
+            max(var(--cem-coupling-zone-min), 1lh, 2ch) * 7
+            + var(--cem-gap-related) * 6
+            + var(--cem-gap-group) * 2
+        ),
+        calc(100vi - var(--cem-gap-block) * 2)
     );
     inset: auto;
     line-height: var(--cem-typography-ui-line-height);

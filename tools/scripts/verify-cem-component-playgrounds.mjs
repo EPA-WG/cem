@@ -33,6 +33,7 @@ if (!passiveTags.length) throw new Error(`Unknown passive component: ${passiveCo
 const feedbackOnly = process.argv.includes('--feedback-only');
 const disclosureDataOnly = process.argv.includes('--disclosure-data-only');
 const compactStudioOnly = process.argv.includes('--compact-studio-only');
+const treeOnly = process.argv.includes('--tree-only');
 const compactStudioTags = ['cem-accordion', 'cem-data-view', 'cem-expansion', 'cem-tree', 'cem-workspace', 'cem-table', 'cem-icon', 'cem-text', 'cem-app-bar'];
 const layoutOnly = process.argv.includes('--layout-only');
 const sourceEditorOnly = process.argv.includes('--source-editor-only');
@@ -61,6 +62,7 @@ try {
     if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' || evidenceOutput)) throw new Error('Browser evidence flags require --native-datalist-only or --history-only');
     browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
     if (!installedOnly && recoveryStatusOnly) await verifyRecoveryStatus(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && treeOnly) await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`, ['cem-tree']);
     else if (!installedOnly && compactStudioOnly) await verifyCompactStudio(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && sourceEditorOnly) await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`, ['cem-source-editor']);
     else if (!installedOnly && fieldsetOnly) await verifyFieldset(`${origin}/packages/cem-components/playgrounds/`);
@@ -114,6 +116,7 @@ try {
         execFileSync('tar', ['-xzf', join(temporary, output[0].filename), '--strip-components=1', '-C', target]);
     }
     if (recoveryStatusOnly) await verifyRecoveryStatus(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (treeOnly) await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, ['cem-tree']);
     else if (compactStudioOnly) await verifyCompactStudio(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (sourceEditorOnly) await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, ['cem-source-editor']);
     else if (fieldsetOnly) await verifyFieldset(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
@@ -170,7 +173,8 @@ try {
             console.log(JSON.stringify(report, null, 2));
         }
     }
-    if (compactStudioOnly) console.log(`Compact Studio accordion/data-view properties, all nine affected galleries and the canonical bundle verified from ${verifiedLocations}.`);
+    if (treeOnly) console.log(`Tree galleries: normal, sparse and condensed geometry in all five themes verified from ${verifiedLocations}.`);
+    else if (compactStudioOnly) console.log(`Compact Studio accordion/data-view properties, all nine affected galleries and the canonical bundle verified from ${verifiedLocations}.`);
     else if (disclosureDataOnly) console.log(`Disclosure, sorting, pagination and passive table delivery verified from ${verifiedLocations}.`);
     else if (layoutOnly) console.log(`Passive layout, content state, property controls, galleries and bundle verified from ${verifiedLocations}.`);
     else if (navigationContentOnly) console.log(`Navigation and content properties, galleries and bundle verified from ${verifiedLocations}.`);
@@ -1031,6 +1035,30 @@ async function verifyGalleries(baseUrl, tags) {
                     .map(node => ({ legend: node.getAttribute('legend'), state: node.getAttribute('data-state'), text: node.innerText.slice(-1500) })));
                 throw new Error(`${tag} gallery examples failed at ${page.url()}: ${JSON.stringify(failed)}`, { cause: error });
             });
+            if (tag === 'cem-tree') {
+                for (const theme of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
+                    const metrics = {};
+                    for (const mode of ['normal', 'sparse', 'condensed']) {
+                        const tree = page.locator(`[data-gallery-theme="${theme}"] cem-demo-element[legend="${theme} ${mode} tree"] cem-tree`).first();
+                        assert.equal(await tree.count(), 1, `${theme}: ${mode} example must exist`);
+                        metrics[mode] = await tree.evaluate(host => {
+                            const row = host.querySelector('[role=treeitem]'), style = getComputedStyle(row);
+                            return { height: row.getBoundingClientRect().height, minimum: parseFloat(style.minBlockSize),
+                                line: parseFloat(style.lineHeight), font: style.fontSize,
+                                gap: parseFloat(getComputedStyle(host.querySelector('[part=root]')).rowGap),
+                                coupling: style.getPropertyValue('--cem-coupling-zone-min').trim(),
+                                padding: style.paddingBlockStart };
+                        });
+                    }
+                    assert.ok(metrics.sparse.gap > metrics.normal.gap, `${theme}: sparse spacing must change computed gaps`);
+                    assert.equal(metrics.condensed.font, metrics.normal.font, `${theme}: condensation preserves text size`);
+                    assert.equal(metrics.condensed.coupling, '0px', `${theme}: explicit condensed coupling is zero regardless of pointer`);
+                    assert.equal(metrics.condensed.padding, '0px', `${theme}: explicit condensed rows have no block padding`);
+                    assert.ok(Math.abs(metrics.condensed.height - metrics.condensed.line) < 0.1, `${theme}: condensed row follows one line`);
+                    assert.ok(Math.abs(metrics.condensed.minimum - metrics.condensed.line) < 0.1, `${theme}: actual minimum follows one line`);
+                    assert.ok(metrics.condensed.height < metrics.normal.height, `${theme}: condensed is visibly shorter than normal`);
+                }
+            }
             const declaration = await readFile(join(root, 'packages/cem-components/src/components', tag, tag + '.xhtml'), 'utf8');
             // Public parameter defaults have bodies; @value instructions emit owned DOM attributes.
             const implemented = [...new Set([
@@ -2468,6 +2496,12 @@ async function verifyCompactStudio(baseUrl, galleries = true) {
         assert.equal(await sections.count(), 3);
         assert.equal(await accordion.locator('cem-expansion[expanded]').count(), 2, 'Accordion allows multiple independently open sections');
         const first = sections.nth(0), second = sections.nth(1);
+        // The accordion can settle before its nested expansion declarations render.
+        // Capture real retained owners only after their projected content exists.
+        for (const section of [first, second]) {
+            await section.locator('[part=panel] p').waitFor({ state: 'attached' });
+            await section.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        }
         await first.evaluate(node => { window.compactPanel = node.querySelector('[part=panel]'); window.compactChild = node.querySelector('[part=panel] p'); });
         await first.locator('[part=header]').click();
         await page.waitForFunction(() => document.querySelector('.properties cem-accordion cem-expansion [part=header]')?.getAttribute('aria-expanded') === 'false');
@@ -2546,11 +2580,17 @@ async function verifyCompactStudio(baseUrl, galleries = true) {
         await branch.waitFor(); await tree.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
         const marker = branch.locator('[part=marker]');
         const dimensions = await marker.evaluate(node => {
-            const box = node.getBoundingClientRect(), row = node.parentElement.getBoundingClientRect();
-            return { width: box.width, height: box.height, row: row.height, coarse: matchMedia('(any-pointer: coarse)').matches };
+            const box = node.getBoundingClientRect(), row = node.parentElement.getBoundingClientRect(), style = getComputedStyle(node.parentElement);
+            return { width: box.width, height: box.height, row: row.height, line: parseFloat(style.lineHeight), font: parseFloat(style.fontSize),
+                coupling: style.getPropertyValue('--cem-coupling-zone-min').trim(), padding: style.paddingBlockStart, coarse: matchMedia('(any-pointer: coarse)').matches };
         });
         assert.equal(dimensions.coarse, true);
-        assert.ok(dimensions.width >= 48 && dimensions.height >= 48 && dimensions.row >= 48, 'Separate touch disclosure and row activation retain independent 3rem targets');
+        assert.equal(dimensions.coupling, '0px', 'Explicit super-compact stays content-sized with a coarse pointer');
+        assert.equal(dimensions.padding, '0px');
+        assert.ok(Math.abs(dimensions.row - dimensions.line) < 0.1, 'Explicit super-compact retains paragraph-line rows on coarse input');
+        assert.ok(Math.abs(dimensions.width - dimensions.font) < 0.1 && Math.abs(dimensions.height - dimensions.font) < 0.1, 'Disclosure ink and target follow one text em');
+        const normal = coarsePage.locator('cem-demo-element[legend="light normal tree"] cem-tree [role=treeitem]').first();
+        assert.ok(await normal.evaluate(row => row.getBoundingClientRect().height >= 48), 'Normal trees retain larger coarse targets');
         await marker.tap();
         await coarsePage.waitForFunction(() => document.querySelector('cem-tree[label="Project navigation"] [data-tree-value="project"]')?.getAttribute('aria-expanded') === 'false');
         assert.equal(await tree.getAttribute('selected-values'), 'article', 'Touch disclosure retains descendant selection');

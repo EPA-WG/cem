@@ -33,6 +33,7 @@
 }
 
 :scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) {
+    align-self: start;
     flex: 1 1 0;
     min-inline-size: 0;
     position: relative;
@@ -43,7 +44,7 @@
     block-size: var(--cem-stroke-divider);
     content: '';
     inline-size: var(--_cem-stepper-gap);
-    inset-block-start: calc(var(--cem-coupling-zone-min) / 2);
+    inset-block-start: calc(50% - var(--cem-stroke-divider) / 2);
     inset-inline-start: 100%;
     pointer-events: none;
     position: absolute;

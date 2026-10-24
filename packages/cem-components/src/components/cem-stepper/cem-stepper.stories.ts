@@ -319,6 +319,78 @@ export const StatePaintAndGeometry = meta.story({
  },
 });
 
+export const SuperCompactConnectors = meta.story({
+    name: 'centers connectors on content-sized markers with status and wrapped labels',
+    parameters: { docs: { description: { story: 'Geometry checks run in Storybook; trusted roving focus and Enter activation require the browser runner.' } } },
+    render: () => '<section data-theme="cem-theme-light" data-cem-density="super-compact" data-cem-spacing="normal">'
+        + '<cem-stepper label="Short steps"><cem-step value="one" label="One"><label>Draft <input name="draft" value="Initial"></label></cem-step><cem-step value="two" label="Two"><p>Second panel</p></cem-step></cem-stepper>'
+        + '<cem-stepper label="Wrapped steps"><cem-step value="sources" label="Review supplier transformation and source metadata" optional><p>Sources</p></cem-step><cem-step value="details" label="Confirm directory content and generated build artifacts" completed editable><p>Details</p></cem-step><cem-step value="publish" label="Publish the generated website" invalid><p>Publication</p></cem-step></cem-stepper>'
+        + '</section>',
+    play: async ({ canvasElement }) => {
+        const boundary = requiredElement<HTMLElement>(canvasElement, '[data-cem-density]');
+        boundary.style.inlineSize = '24em';
+        for (const host of boundary.querySelectorAll<HTMLElement>('cem-stepper')) await whenCemRendered(host);
+        const short = stepperParts(boundary, 'cem-stepper[label="Short steps"]');
+        const wrapped = stepperParts(boundary, 'cem-stepper[label="Wrapped steps"]');
+        const expectCenteredConnectors = () => {
+            for (const parts of [short, wrapped]) {
+                for (const [index, item] of parts.items.entries()) {
+                    const header = requiredItem(parts.headers, index);
+                    const itemRect = item.getBoundingClientRect(), headerRect = header.getBoundingClientRect();
+                    const marker = requiredElement(header, '[part~=marker]').getBoundingClientRect();
+                    expect(Math.abs(itemRect.height - headerRect.height)).toBeLessThan(0.1);
+                    expect(Math.abs(marker.top + marker.height / 2 - headerRect.top - headerRect.height / 2)).toBeLessThan(0.1);
+                    if (index === parts.items.length - 1) continue;
+                    const connector = getComputedStyle(item, '::after');
+                    expect(Number.parseFloat(connector.height)).toBeGreaterThan(0);
+                    expect(Number.parseFloat(connector.width)).toBeGreaterThan(0);
+                    const connectorCenter = itemRect.top + Number.parseFloat(connector.top) + Number.parseFloat(connector.height) / 2;
+                    expect(Math.abs(connectorCenter - marker.top - marker.height / 2)).toBeLessThan(0.1);
+                }
+            }
+        };
+        for (const theme of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
+            boundary.setAttribute('data-theme', `cem-theme-${theme}`); await nextRenderFrame();
+            const style = getComputedStyle(requiredItem(short.headers, 0));
+            expect(style.getPropertyValue('--cem-coupling-zone-min').trim()).toBe('0px');
+            expect(style.minBlockSize).toBe('0px');
+            expect(style.paddingBlockStart).toBe('0px');
+            expect(requiredItem(short.headers, 0).getBoundingClientRect().height).toBeLessThan(48);
+            expectCenteredConnectors();
+        }
+        expect(wrapped.host.querySelectorAll('[part~=status]')).toHaveLength(3);
+        expect([...wrapped.host.querySelectorAll<HTMLElement>('[part~=label]')].some(label => label.getBoundingClientRect().height > Number.parseFloat(getComputedStyle(label).lineHeight) + 1)).toBe(true);
+        const initialHeight = requiredItem(short.headers, 0).getBoundingClientRect().height;
+        boundary.style.setProperty('--cem-typography-ui-font-size', '20px'); await nextRenderFrame();
+        expect(requiredItem(short.headers, 0).getBoundingClientRect().height).toBeGreaterThan(initialHeight);
+        expectCenteredConnectors();
+        boundary.style.setProperty('--cem-coupling-zone-min', '60px'); await nextRenderFrame();
+        expect(requiredItem(short.headers, 0).getBoundingClientRect().height).toBeGreaterThanOrEqual(60);
+        expectCenteredConnectors();
+        boundary.style.removeProperty('--cem-coupling-zone-min'); await nextRenderFrame();
+        expectCenteredConnectors();
+
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
+        const input = requiredElement<HTMLInputElement>(short.host, 'input[name=draft]'); input.value = 'Edited';
+        const events: unknown[] = [];
+        short.host.addEventListener('cem-step', event => events.push((event as CustomEvent).detail));
+        requiredItem(short.headers, 0).focus(); await userEvent.keyboard('{ArrowRight}');
+        await waitFor(() => document.activeElement === short.headers[1], 'second step focus after the roving render');
+        expect(document.activeElement).toBe(short.headers[1]);
+        expect(short.host.selectedIndex).toBe(0);
+        expect(events).toEqual([]);
+        await userEvent.keyboard('{Enter}'); await waitForSelection(short.host, 1);
+        expect(events).toEqual([{ value: 'two', index: 1, previousIndex: 0 }]);
+        expect(requiredElement(short.host, 'input[name=draft]')).toBe(input);
+        expect(input.value).toBe('Edited');
+        const current = stepperParts(boundary, 'cem-stepper[label="Short steps"]');
+        current.headers.forEach((header, index) => expect(header).toBe(short.headers[index]));
+        current.panels.forEach((panel, index) => expect(panel).toBe(short.panels[index]));
+        expectCenteredConnectors();
+    },
+});
+
 function stepperParts(root: ParentNode, selector: string): StepperParts {
     const host = requiredElement<TestCemStepper>(root, selector);
     const owner = requiredElement<HTMLElement>(host, ':scope > .cem-stepper:not(.cem-stepper--invalid)');

@@ -207,12 +207,29 @@ classification metadata). `project`, `resource`/`file`/`configuration`, and `out
 the shared semantic kind colors; interaction and disabled paint take precedence.
 Icons do not become part of the accessible name or create another focus owner.
 
-An explicit `data-cem-density="super-compact"` on the tree host opts it into the canonical precise-input
-line-row recipe: paragraph-like adjacent rows, no extra row padding or vertical
-gap, and `1em` icons. Focus rings remain inside the line. Coarse or hybrid input
-retains the normal larger target recipe; zoom and font changes can grow rows.
-This is a shared theme setting, never an application-local font reduction.
+An explicit `data-cem-density="super-compact"` on the tree host opts it into the
+canonical line-row recipe: paragraph-like adjacent rows with a `1lh` row minimum,
+no extra row padding or vertical gap, and `1em` icons. Coupling and generic control
+height minima and control padding are zero. This explicit profile applies without
+an input media gate, including coarse and hybrid input. Focus rings remain inside
+the line; wrapping, zoom and font changes can grow rows. This is a shared theme
+setting, never an application-local font reduction.
+Horizontal spacing is independent: the shared theme supplies a `0.25em` outer
+inline inset (`--cem-data-tree-padding-inline`), `0.25em` between disclosure,
+icon and label (`--cem-data-tree-column-gap`), and `1.4em` per nesting level
+(`--cem-data-tree-indent`). All three scale with the tree font and accept
+inherited overrides; the outer inset is applied once, rather than at each level.
 
 Ordinary trees retain their original control, gap, icon and coupling token reads,
 including inherited consumer overrides. The new structured-row aliases apply
 only to the explicit super-compact tree profile.
+
+The theme gallery includes normal, sparse and condensed trees in each of its five
+theme modes, with the same enabled/disabled payload. Normal uses baseline
+spacing; `data-cem-spacing="sparse"` increases inherited gaps. Condensed uses
+`data-cem-density="super-compact"`, matching all three Studio navigation trees.
+Their computed coupling minimum is `0px` and row minimum is `1lh` across input
+configurations, rather than the normal `3rem` coupling minimum. The gallery and
+Studio tests measure those computed values, including the output tree after a
+build. Normal trees and the precise-input-only compact profile keep their
+existing geometry.

@@ -199,6 +199,16 @@ Day rows are produced only while open; the six-week grid contains inert blank
 cells outside years 0001–9999. Public `slot`/`part` hooks and native surface
 ownership replace the legacy component-local behavior and global CSS.
 
+Calendar width follows its actual weekday/header text, with a seven-column
+minimum derived from the coupling minimum, one line and two character widths.
+The normal coupling profile retains its existing width floor. Explicit
+super-compact can set control/coupling minima and padding to zero without
+collapsing the calendar's columns. Both the intrinsic width and minimum remain
+bounded by the existing viewport/gutter cap; inherited typography and deliberate
+coupling overrides continue to size the calendar. The compact story checks
+seven visible columns, weekday/day text fit, enlarged text, normal/custom floors,
+the viewport cap and one native draft/Apply commit.
+
 The executable assertion matrix is:
 
 | Concern | Required evidence |

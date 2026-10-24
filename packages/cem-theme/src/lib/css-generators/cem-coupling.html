@@ -62,14 +62,21 @@
 }
 /* endregion coupling mode: compact */
 
-/* Explicit desktop profile is independent of the unchanged coupling modes. */
+/* Restore the canonical minimums inside an inherited desktop density. */
+:root[data-cem-density="normal"], :where([data-cem-density="normal"]) {```{cem:for-each @select="$datadom.slices.density" @as="override" |{cem:for-each @select="$datadom.slices.minimums" @as="row" |{cem:if @test='row.token == override.token' |```
+  ```{$row.token}: {$row.value};}}}```
+}
+
+/* Compact desktop profile is independent of the unchanged coupling modes. */
 @media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
   :root[data-cem-density="compact"], :where([data-cem-density="compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
     ```{$row.token}: {$row.compact};}```
   }
-  :root[data-cem-density="super-compact"], :where([data-cem-density="super-compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
-    ```{$row.token}: {$row.super_compact};}```
-  }
+}
+
+/* Explicit super-compact uses content bounds without a hidden modality fallback. */
+:root[data-cem-density="super-compact"], :where([data-cem-density="super-compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
+  ```{$row.token}: {$row.super_compact};}```
 }
 ```}}
 }

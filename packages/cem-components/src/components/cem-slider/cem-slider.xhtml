@@ -6,7 +6,7 @@
 :scope {
     display: block;
     inline-size: 100%;
-    min-inline-size: var(--cem-coupling-zone-min);
+    min-inline-size: max(var(--cem-coupling-zone-min), var(--cem-slider-thumb-size));
 }
 :scope > [part~=root] {
     --_cem-range-end-position: 50%;
@@ -15,7 +15,7 @@
     box-sizing: border-box;
     display: block;
     inline-size: 100%;
-    min-block-size: var(--cem-coupling-zone-min);
+    min-block-size: max(var(--cem-coupling-zone-min), var(--cem-slider-thumb-size));
     position: relative;
 }
 :scope:where([discrete]) > [part~=root] {
@@ -23,7 +23,7 @@
 }
 [part~=visual],
 [part~=inputs] {
-    block-size: var(--cem-coupling-zone-min);
+    block-size: max(var(--cem-coupling-zone-min), var(--cem-slider-thumb-size));
     inset-block-end: var(--cem-stroke-none);
     inset-inline: var(--cem-stroke-none);
     position: absolute;
@@ -35,7 +35,7 @@
 [part~=active-track],
 [part~=ticks] {
     block-size: var(--cem-slider-track-thickness);
-    inset-block-start: calc((var(--cem-coupling-zone-min) - var(--cem-slider-track-thickness)) / 2);
+    inset-block-start: calc((max(var(--cem-coupling-zone-min), var(--cem-slider-thumb-size)) - var(--cem-slider-track-thickness)) / 2);
     position: absolute;
 }
 [part~=track] {
@@ -68,7 +68,7 @@
     font-size: var(--cem-typography-data-font-size);
     font-variant-numeric: var(--cem-typography-data-font-variant-numeric);
     font-weight: var(--cem-typography-data-font-weight);
-    inset-block-end: calc(var(--cem-coupling-zone-min) + var(--cem-gap-related));
+    inset-block-end: calc(max(var(--cem-coupling-zone-min), var(--cem-slider-thumb-size)) + var(--cem-gap-related));
     letter-spacing: var(--cem-typography-data-letter-spacing);
     line-height: var(--cem-typography-data-line-height);
     position: absolute;
@@ -89,7 +89,7 @@
 [part~=inputs] > :where(input[type='range']) {
     appearance: none;
     background: transparent;
-    block-size: var(--cem-coupling-zone-min);
+    block-size: max(var(--cem-coupling-zone-min), var(--cem-slider-thumb-size));
     inline-size: 100%;
     inset: var(--cem-stroke-none);
     margin: var(--cem-stroke-none);
@@ -105,12 +105,12 @@
     appearance: none;
     background-clip: content-box;
     background-color: var(--cem-slider-thumb-color);
-    block-size: var(--cem-coupling-zone-min);
-    border: calc((var(--cem-coupling-zone-min) - var(--cem-slider-thumb-size)) / 2) solid transparent;
+    block-size: max(var(--cem-coupling-zone-min), var(--cem-slider-thumb-size));
+    border: max(0px, calc((max(var(--cem-coupling-zone-min), var(--cem-slider-thumb-size)) - var(--cem-slider-thumb-size)) / 2)) solid transparent;
     border-radius: var(--cem-bend-circle);
     box-sizing: border-box;
-    inline-size: var(--cem-coupling-zone-min);
-    margin-block-start: calc((var(--cem-slider-track-thickness) - var(--cem-coupling-zone-min)) / 2);
+    inline-size: max(var(--cem-coupling-zone-min), var(--cem-slider-thumb-size));
+    margin-block-start: calc((var(--cem-slider-track-thickness) - max(var(--cem-coupling-zone-min), var(--cem-slider-thumb-size))) / 2);
     pointer-events: auto;
 }
 [part~=inputs] > :where(input[type='range'])::-moz-range-track {
@@ -121,11 +121,11 @@
     appearance: none;
     background-clip: content-box;
     background-color: var(--cem-slider-thumb-color);
-    block-size: var(--cem-coupling-zone-min);
-    border: calc((var(--cem-coupling-zone-min) - var(--cem-slider-thumb-size)) / 2) solid transparent;
+    block-size: max(var(--cem-coupling-zone-min), var(--cem-slider-thumb-size));
+    border: max(0px, calc((max(var(--cem-coupling-zone-min), var(--cem-slider-thumb-size)) - var(--cem-slider-thumb-size)) / 2)) solid transparent;
     border-radius: var(--cem-bend-circle);
     box-sizing: border-box;
-    inline-size: var(--cem-coupling-zone-min);
+    inline-size: max(var(--cem-coupling-zone-min), var(--cem-slider-thumb-size));
     pointer-events: auto;
 }
 [part~=inputs] > :where(input[type='range']):where(:enabled:hover)::-webkit-slider-thumb {

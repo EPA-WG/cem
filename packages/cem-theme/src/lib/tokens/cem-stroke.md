@@ -172,10 +172,15 @@ These are the **canonical semantic endpoints** that components consume.
 | `--cem-data-row-border-width` | `var(--cem-stroke-boundary)` | `0px` |
 | `--cem-data-row-focus-offset` | `var(--cem-stroke-indicator-offset)` | `calc(-1 * var(--cem-stroke-focus))` |
 
-These inherited `data-cem-density` overrides use the shared precise-input gate
-from D2. Super-compact structured rows have no extra border height and retain
-their full focus thickness inside the row. Adjacent row indicators cannot overlap.
-Coarse/hybrid devices keep the baseline external indicator and larger target.
+Compact inherited `data-cem-density` overrides use the precise-input gate from
+D2. Explicit super-compact applies on every input modality: structured rows
+have no extra border height and retain their full focus thickness inside the
+row. Adjacent row indicators cannot overlap. Normal and input-gated compact
+keep their baseline external indicator on coarse/hybrid/unknown input.
+`data-cem-density="normal"` restores the canonical structured-row border and
+focus-offset endpoints inside a page-level compact/super-compact profile. The
+reset uses the semantic table values, preserves focus thickness and unrelated
+stroke endpoints, and is available on every input modality.
 
 ### 4.2 Semantics (normative)
 

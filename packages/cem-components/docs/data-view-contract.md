@@ -13,7 +13,7 @@ project build or save.
 | `label` | Visible table caption or structural heading; default Data |
 | `slot="label"` | Projected visible label replaces the fallback text |
 | `aria-label` | Optional independent accessible name |
-| `data-cem-density="super-compact"` | Inherited shared paragraph-line presentation on eligible desktops |
+| `data-cem-density="super-compact"` | Inherited shared paragraph-line presentation on every input device |
 
 Arrays become tables with a union of columns from displayed rows. Object rows
 use property names; primitives and heterogeneous rows have a `#value` column.
@@ -31,11 +31,13 @@ native import. Every truncation is labeled; malformed and unsupported input
 produces a visible native error. Limits bound preview presentation and do not
 rewrite project resources or generated artifacts.
 
-Geometry consumes canonical D1/D2c/D5 data-row tokens. In the super-compact
-desktop profile rows are adjacent paragraph lines with no extra vertical gap,
-padding or border; wrapped values can grow. Touch and hybrid devices keep larger
-geometry. Project theme and project output themes remain independent of the
-Studio chrome profile.
+Geometry consumes canonical D1/D2c/D5 data-row tokens. In the explicit
+super-compact profile rows retain a `1lh` minimum with no extra vertical gap,
+padding or border; wrapped values can grow. Coupling and generic control height
+minima are zero, and the profile applies without an input media gate, including
+coarse and hybrid devices. Normal geometry and the precise-input-only compact
+profile retain their existing behavior. Project theme and project output themes
+remain independent of the Studio chrome profile.
 
 The component is passive: `disabled`, `readonly`, `selected`, `invalid`, sorting
 and pagination are not component states. Use `cem-table` for authored table

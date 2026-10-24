@@ -137,12 +137,18 @@ yarn nx run @epa-wg/cem-theme:lint
 
 ## Related docs
 
-Compact desktop tools can set `data-cem-density="compact"` on a container and
-`data-cem-density="super-compact"` on its tree/table data surfaces. Structured
-rows then follow consecutive paragraph lines: `1lh` minimum, zero row padding
-and vertical gap, and `1em` glyphs. Wrapping and text scaling remain available.
-The profile requires fine hover input and no coarse pointer; touch and hybrid
-devices retain larger targets. Existing coupling/spacing modes are unchanged.
+Tools can set `data-cem-density="compact"` or `"super-compact"` on a
+page container alongside `data-theme` and `data-cem-spacing="normal|dense|sparse"`.
+Super-compact generic controls use zero height/coupling minima and zero control
+padding on every input modality, so application chrome follows its content.
+Structured rows retain `1lh` minima and follow consecutive paragraph lines:
+zero row padding and vertical gap, and `1em` glyphs. Wrapping and text scaling
+remain available. Nested `data-cem-density="normal"` and
+`data-cem-spacing="normal"` restore the respective canonical defaults;
+explicit control size profiles and public token overrides remain supported.
+Compact requires fine hover input and no coarse pointer; touch, hybrid and
+unknown input retain its larger targets. Explicit super-compact has no hidden
+input gate. Existing coupling/spacing mode values are unchanged.
 Consume canonical `--cem-data-row-*`/`--cem-data-icon-size` tokens rather than
 adding component-local density defaults. The D2 policy and its inset-focus and
 keyboard requirements are documented in the canonical

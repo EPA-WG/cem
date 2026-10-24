@@ -134,6 +134,14 @@ They may be written as private runtime CSS properties; component CSS must still
 contain no public token invention, raw color, or spacing constants. This audit
 adds no entry to `components-css-exceptions.md`.
 
+The native thumb and its input/visual layers use the larger of
+`--cem-coupling-zone-min` and `--cem-slider-thumb-size`. The same extent centers
+the tracks, offsets discrete value labels, and positions the native thumb.
+Transparent thumb borders reserve only the nonnegative difference between that
+extent and the visible thumb diameter. A page-level super-compact profile can
+therefore set the coupling minimum to zero without collapsing the canonical
+thumb; ordinary and explicitly larger coupling targets retain their geometry.
+
 ## Forced-colors boundary
 
 Generated theme CSS maps the remaining and disabled track/thumb to `GrayText`,
@@ -158,6 +166,7 @@ gate form the executable contract:
 | State paint | enabled thumb hover/active, focus-visible coexistence, disabled precedence and suppression |
 | Stability | pointer enter/leave and focus retain dimensions, DOM identity, attributes, values, and event counts |
 | Optional visuals | tick marks and discrete labels mirror normalized values without accessible duplication |
+| Super-compact geometry | zero coupling retains intrinsic thumb size, centered tracks and input layers; thumb hit testing, inherited overrides, and exact native single/range keyboard events remain intact |
 | Forced colors | system track/thumb/tick/focus colors and stable geometry with automatic adjustment |
 
 ## Benchmark references

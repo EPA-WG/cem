@@ -204,23 +204,34 @@ An independently requested inherited `data-cem-density="compact"` profile
 allows 1.5rem chrome targets with the existing 0.5rem guard **only** when the primary pointer
 is fine, hover is available, and no input device reports a coarse pointer.
 The CSS gate is `(hover: hover) and (pointer: fine) and (not (any-pointer: coarse))`.
-This preserves the 3rem/0.5rem defaults on touch, hybrid and unknown input.
+Compact preserves the 3rem/0.5rem defaults on touch, hybrid and unknown input.
 
-`data-cem-density="super-compact"` is a narrower opt-in for structured tree/table
-composite selection. Rows follow consecutive text lines: `1lh` minimum,
-zero guard/halo, and no overlapping invisible targets. This is the deliberately
-approved compact structured-text exception, not the general target-size claim.
-Consumers must provide full-width labels, keyboard navigation, visible inset
-focus, distinct selection and disclosure controls, and content wrapping. Do not
-apply it to ordinary forms or unrelated action clusters. Row geometry and 1em
-icons belong to D2c; D1 owns zero row padding/gaps; D5 contains focus within the
-line box. Removing the profile restores ordinary inherited coupling.
+`data-cem-density="super-compact"` is an explicit content-sized profile
+for application chrome and structured tree/table composite selection. It may
+be placed on the page alongside `data-theme`; descendants inherit `0px` zone,
+guard and halo minimums on every input modality, including coarse, hybrid and
+unknown input. Content determines control height; D2 adds no invisible target
+or spacing. D2c separately retains `1lh` structured-row minima, and wrapped
+content can grow beyond one line. This deliberately requested profile is
+independent of the modality-neutral default target-size policy.
+Consumers must retain keyboard operation, clear accessible names, visible focus
+and distinct controls. Structured rows additionally provide full-width labels,
+inset focus, distinct selection/disclosure and content wrapping. Row/control
+geometry and 1em icons belong to D2c; D1 owns zero padding/row gaps; D5 contains
+structured-row focus within the line box.
+
+A nested `data-cem-density="normal"` restores the canonical zone, guard and halo
+from the minimums table on every input modality. Omission inherits the parent
+profile instead. The normal boundary resets only density-owned endpoints;
+existing coupling modes and deliberate local custom-property overrides remain
+independent. Precise-input gating applies only to compact; explicitly authored
+super-compact does not silently return to normal operable zones or padding.
 
 ###### cem-coupling-density-overrides
 
 | Token | compact | super-compact |
 |---|---|---|
-| `--cem-coupling-zone-min` | `1.5rem` | `1lh` |
+| `--cem-coupling-zone-min` | `1.5rem` | `0px` |
 | `--cem-coupling-guard-min` | `0.5rem` | `0px` |
 | `--cem-coupling-halo` | `0px` | `0px` |
 

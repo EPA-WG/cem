@@ -79,26 +79,38 @@
   /* endregion layout tokens */
 }
 
+/* An explicit normal boundary restores only density-owned canonical endpoints. */
+:root[data-cem-density="normal"], :where([data-cem-density="normal"]) {```{cem:for-each @select="$datadom.slices.density" @as="override" |{cem:for-each @select="(datadom.slices.gaps,datadom.slices.insets,datadom.slices.rdata,datadom.slices.layout)" @as="row" |{cem:if @test='row.token == override.token' |```
+  ```{$row.token}: {$row.value};}}}```
+}
+
+/* Normal spacing resets inherited dense/sparse endpoints without changing density. */
+:root[data-cem-spacing="normal"], :where([data-cem-spacing="normal"]) {```{cem:for-each @select="$datadom.slices.overrides" @as="override" |{cem:for-each @select="(datadom.slices.gaps,datadom.slices.insets,datadom.slices.rreading,datadom.slices.rdata,datadom.slices.layout)" @as="row" |{cem:if @test='row.token == override.token' |```
+  ```{$row.token}: {$row.value};}}}```
+}
+
 /* region spacing mode: dense */
-:root[data-cem-spacing="dense"] {```{cem:for-each @select="$datadom.slices.overrides" @as="row" |```
+:root[data-cem-spacing="dense"], :where([data-cem-spacing="dense"]) {```{cem:for-each @select="$datadom.slices.overrides" @as="row" |```
   ```{$row.token}: {$row.dense};}```
 }
 /* endregion spacing mode: dense */
 
 /* region spacing mode: sparse */
-:root[data-cem-spacing="sparse"] {```{cem:for-each @select="$datadom.slices.overrides" @as="row" |```
+:root[data-cem-spacing="sparse"], :where([data-cem-spacing="sparse"]) {```{cem:for-each @select="$datadom.slices.overrides" @as="row" |```
   ```{$row.token}: {$row.sparse};}```
 }
 /* endregion spacing mode: sparse */
 
-/* Explicit desktop density; coarse and hybrid inputs retain the baseline. */
+/* Compact desktop density keeps the precise-input policy. */
 @media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
   :root[data-cem-density="compact"], :where([data-cem-density="compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
     ```{$row.token}: {$row.compact};}```
   }
-  :root[data-cem-density="super-compact"], :where([data-cem-density="super-compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
-    ```{$row.token}: {$row.super_compact};}```
-  }
+}
+
+/* Explicit super-compact content geometry applies on every input modality. */
+:root[data-cem-density="super-compact"], :where([data-cem-density="super-compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
+  ```{$row.token}: {$row.super_compact};}```
 }
 ```}}
 }

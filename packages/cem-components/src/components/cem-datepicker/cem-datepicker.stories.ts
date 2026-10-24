@@ -280,6 +280,79 @@ export const LiveBoundsAndExpanded = meta.story({
         await waitForDialog(parts.dialog, false);
     },
 });
+
+export const SuperCompactCalendarGeometry = meta.story({
+    render: () => `<section data-cem-density="super-compact" data-cem-spacing="normal">${fixtureFor('arrival-datepicker')}</section>`,
+    parameters: { docs: { description: { story: 'Browser-runner-only: trusted native calendar navigation and commit; intrinsic calendar columns remain visible when control/coupling minima are zero.' } } },
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
+        const boundary = requiredElement<HTMLElement>(canvasElement, '[data-cem-density]');
+        const theme = requiredElement<HTMLElement>(boundary, '[data-datepicker-contract-fixture]');
+        await whenCemRendered(requiredElement<HTMLElement>(boundary, '#arrival-datepicker'));
+        const parts = datepickerParts(boundary, '#arrival-datepicker');
+        const events = nativeValueEvents(parts.input);
+        parts.input.focus();
+        await userEvent.keyboard('{ArrowDown}');
+        await waitForDialog(parts.dialog, true);
+        await waitForActiveDate(parts, '2026-08-11');
+
+        const assertCalendarColumns = () => {
+            const headers = [...parts.dialog.querySelectorAll<HTMLElement>('[role=columnheader]')];
+            expect(headers).toHaveLength(7);
+            const grid = requiredElement<HTMLElement>(parts.dialog, '[role=grid]');
+            const gridBox = grid.getBoundingClientRect();
+            for (const [index, header] of headers.entries()) {
+                const box = header.getBoundingClientRect();
+                expect(box.width).toBeGreaterThan(0);
+                expect(box.left).toBeGreaterThanOrEqual(gridBox.left - 0.5);
+                expect(box.right).toBeLessThanOrEqual(gridBox.right + 0.5);
+                if (index > 0) expect(box.left).toBeGreaterThanOrEqual(headers[index - 1].getBoundingClientRect().right);
+            }
+            for (const cell of parts.dialog.querySelectorAll<HTMLElement>('[role=columnheader],button[role=gridcell]')) {
+                const text = document.createRange(); text.selectNodeContents(cell);
+                expect(text.getBoundingClientRect().width).toBeLessThanOrEqual(cell.clientWidth + 0.5);
+                text.detach();
+            }
+            expect(gridBox.width).toBeGreaterThanOrEqual(7 * parseFloat(getComputedStyle(parts.dialog).lineHeight));
+            expect(parts.dialog.getBoundingClientRect().width).toBeLessThanOrEqual(window.innerWidth + 0.5);
+        };
+
+        for (const mode of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
+            theme.className = `cem-theme-${mode}`; await nextRenderFrame();
+            expect(getComputedStyle(parts.dialog).getPropertyValue('--cem-coupling-zone-min').trim()).toBe('0px');
+            expect(getComputedStyle(dayFor(parts, '2026-08-11')).paddingBlockStart).toBe('0px');
+            assertCalendarColumns();
+        }
+        boundary.style.cssText = '--cem-typography-ui-font-size:20px;--cem-typography-ui-line-height:1.5;--cem-typography-data-font-size:20px;--cem-typography-data-line-height:1.5;';
+        await nextRenderFrame(); assertCalendarColumns();
+        boundary.style.cssText = '';
+        boundary.setAttribute('data-cem-density', 'normal'); await nextRenderFrame();
+        expect(getComputedStyle(parts.dialog).getPropertyValue('--cem-coupling-zone-min').trim()).toBe('3rem');
+        expect(parts.dialog.getBoundingClientRect().width).toBeGreaterThanOrEqual(7 * 48);
+        assertCalendarColumns();
+        boundary.setAttribute('data-cem-density', 'super-compact');
+        boundary.style.cssText = '--cem-coupling-zone-min:56px;'; await nextRenderFrame();
+        expect(parts.dialog.getBoundingClientRect().width).toBeGreaterThanOrEqual(7 * 56);
+        assertCalendarColumns();
+        // Exercise the existing viewport-relative cap through its public gutter token.
+        boundary.style.cssText = '--cem-gap-block:calc(50vi - 90px);'; await nextRenderFrame();
+        expect(parts.dialog.getBoundingClientRect().width).toBeGreaterThanOrEqual(179.5);
+        expect(parts.dialog.getBoundingClientRect().width).toBeLessThanOrEqual(180.5);
+        boundary.style.cssText = ''; await nextRenderFrame(); assertCalendarColumns();
+
+        expect(parts.input.value).toBe('2026-08-11'); expect(events).toEqual([]);
+        await userEvent.keyboard('{ArrowRight}'); await waitForActiveDate(parts, '2026-08-12');
+        await userEvent.keyboard('{Enter}');
+        await waitFor(() => dayFor(parts, '2026-08-12').getAttribute('aria-selected') === 'true', 'compact calendar draft selection');
+        expect(events).toEqual([]);
+        await userEvent.click(parts.apply); await waitForDialog(parts.dialog, false); await nextRenderFrame();
+        expect(parts.input.value).toBe('2026-08-12');
+        expect(events).toEqual(['input:true:false', 'change:true:false']);
+        expect(document.activeElement).toBe(parts.input);
+    },
+});
+
 interface DatepickerParts {
     apply: HTMLButtonElement;
     cancel: HTMLButtonElement;

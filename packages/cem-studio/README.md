@@ -38,9 +38,12 @@ The URL selects a project, resource, configuration or generated output. The cent
 shows project Build controls, a source editor, a folder listing or read-only
 generated text, while the right pane follows its output context.
 
-Studio uses the canonical compact desktop profile. Trees and JSON/CSV tables use
-the super-compact profile: adjacent paragraph lines, zero row padding/gaps and
-1em glyphs, with larger hit targets retained for coarse/hybrid input. Native
+Studio sets `data-theme`, `data-cem-spacing="normal"` and
+`data-cem-density="super-compact"` on its shell. This explicit profile applies
+on every input device: coupling and generic control height minima and control
+padding are zero, so header controls follow their content. Trees and JSON/CSV
+tables retain `1lh` rows, zero row padding/gaps and `1em` glyphs. Explicit
+control sizes and inherited consumer overrides still apply. Native
 provenance relates source files to generated artifacts; bounded per-file Markdown
 conversion and the shared `cem-data-view` provide read-only HTML/table previews
 without saving drafts or starting arbitrary project builds.

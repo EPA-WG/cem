@@ -31,6 +31,8 @@ after page ownership is established. The page composes one
 | `heading` | Navigation heading | `Components` |
 | `index-href` | Component playground index link, relative to the document | `./index.html` |
 | `storage-key` | Shared page preference key | `cem-playground-theme` |
+| `data-cem-density` | Inherited page chrome geometry: `normal`, `compact`, `super-compact` | `super-compact` |
+| `data-cem-spacing` | Inherited page spacing: `normal`, `dense`, `sparse` | `normal` |
 
 A live text `local-storage` resource supplies the page theme. It stores one full
 identifier: `cem-theme-light`, `cem-theme-dark`, `cem-theme-contrast-light`,
@@ -46,7 +48,23 @@ a separate page preference. No page-local theme JavaScript or ancestor mutation
 is needed.
 
 The page owns viewport sizing, padding, palette background and text color. Its
-default slot retains authored content, native form values and nested component
+host exposes density and spacing alongside `data-theme`. The explicit
+super-compact profile uses zero coupling and generic control height minima and
+zero control padding, so navigation buttons follow their content instead of a
+fixed 48px height. It applies without an input media gate, including coarse,
+hybrid and unknown pointer capabilities. Tree/table rows retain `1lh` minima.
+Explicit control size profiles and inherited consumer overrides still apply.
+Normal geometry and the precise-input-only compact profile keep their existing
+behavior. Density and spacing are authored preferences, independent of the
+stored light/contrast theme.
+
+The `part="content"` wrapper establishes `data-cem-density="normal"` and
+`data-cem-spacing="normal"` for examples. Normal/sparse samples and ordinary
+property forms keep their own geometry while page chrome is condensed. Samples
+can opt into `compact` or `super-compact` themselves; nested `normal` boundaries
+restore canonical geometry. No example storage keys are changed.
+
+The page's default slot retains authored content, native form values and nested component
 identities across theme changes. Keep source viewers separate from reactive
 property forms, as usual.
 

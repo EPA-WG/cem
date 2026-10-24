@@ -104,6 +104,12 @@ is canonical before component CSS consumes it. Existing dimensions cover all
 geometry and text; this contract adds no CSS exception. D7 is unused because no
 component animation or transition is introduced.
 
+Horizontal connectors follow the center of their content-sized header and
+marker rather than half the coupling minimum. Each structural list item follows
+its own header height, so status text, wrapped labels, text zoom and a zero
+super-compact coupling minimum preserve connector alignment. Vertical connectors
+continue between adjacent items at the marker's inline position.
+
 ## Forced-colors boundary
 
 Default/header text and remaining connectors resolve to `CanvasText`/`GrayText`;
@@ -127,6 +133,7 @@ gate form the executable contract:
 | Keyboard | one roving tab stop, orientation axes, wrap, disabled skip, Home/End, native Enter/Space activation |
 | Workflow | nonlinear selection, linear forward gate, completed/optional/invalid rules, editable return, application-owned facts |
 | State/stability | current/completed/invalid/disabled/focus/hover coexistence, persistent panel content, stable transient geometry and state |
+| Super-compact geometry | zero coupling keeps short headers content-sized and connectors centered on markers with wrapped labels/status, text zoom and larger inherited targets |
 | Programmatic | silent reflected `selectedIndex`, clamping, live payload/state updates, no inferred validation |
 | Forced colors | system current/hover/active/focus/status/disabled paint, progress connector distinction, no animation/z-index dependence |
 

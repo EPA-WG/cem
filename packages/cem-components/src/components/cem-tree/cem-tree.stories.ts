@@ -38,27 +38,43 @@ export const SeparateDisclosure = meta.story({
 });
 
 export const SuperCompactLines = meta.story({
-    render: () => '<cem-tree data-cem-density="super-compact" separate-toggle label="Paragraph-like rows"><cem-tree-item value="first" label="First resource" icon="▤" kind="resource" expandable></cem-tree-item><cem-tree-item value="second" label="Second resource" icon="▤" kind="resource"></cem-tree-item><cem-tree-item value="third" label="Third resource" icon="▤" kind="resource"></cem-tree-item></cem-tree>',
+    render: () => '<cem-tree data-cem-density="super-compact" separate-toggle expanded-values="first" label="Paragraph-like rows"><cem-tree-item value="first" label="First resource" icon="▤" kind="resource"><cem-tree-item value="child" label="Nested resource" icon="▤" kind="resource"></cem-tree-item></cem-tree-item><cem-tree-item value="second" label="Second resource" icon="▤" kind="resource"></cem-tree-item><cem-tree-item value="third" label="Third resource" icon="▤" kind="resource"></cem-tree-item></cem-tree>',
     play: async ({ canvasElement }) => {
         const host = requiredElement<HTMLElement>(canvasElement, 'cem-tree'); await whenCemRendered(host);
         const rows = [...host.querySelectorAll<HTMLButtonElement>('[role=treeitem]')];
-        const precise = matchMedia('(hover: hover) and (pointer: fine)').matches && !matchMedia('(any-pointer: coarse)').matches;
         const style = getComputedStyle(rows[0]);
-        if (precise) {
-            const line = Number.parseFloat(style.lineHeight);
-            expect(style.paddingBlockStart).toBe('0px');
-            expect(style.paddingInlineStart).toBe('0px');
-            expect(style.borderTopWidth).toBe('0px');
-            expect(Math.abs(rows[0].getBoundingClientRect().height - line)).toBeLessThan(0.1);
-            expect(Math.abs(rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().bottom)).toBeLessThan(0.1);
-            expect(getComputedStyle(requiredElement(rows[0], '[part=icon]')).fontSize).toBe(style.fontSize);
-        } else {
-            expect(rows[0].getBoundingClientRect().height).toBeGreaterThanOrEqual(resolveTokenLength(rows[0], '--cem-coupling-zone-min'));
-        }
+        const root = requiredElement<HTMLElement>(host, '[part=root]');
+        const child = requiredElement<HTMLElement>(host, '[data-tree-value=child]');
+        const horizontalGeometry = (inset: number, gap: number, indent: number) => {
+            const parentLabel = requiredElement(rows[0], '[part=label]').getBoundingClientRect();
+            const childLabel = requiredElement(child, '[part=label]').getBoundingClientRect();
+            expect(Math.abs(rows[0].getBoundingClientRect().left - root.getBoundingClientRect().left - inset)).toBeLessThan(0.1);
+            expect(Math.abs(Number.parseFloat(getComputedStyle(rows[0]).columnGap) - gap)).toBeLessThan(0.1);
+            expect(Math.abs(childLabel.left - parentLabel.left - indent)).toBeLessThan(0.1);
+        };
+        const font = Number.parseFloat(style.fontSize);
+        horizontalGeometry(font * 0.25, font * 0.25, font * 1.4);
+        const line = Number.parseFloat(style.lineHeight);
+        expect(style.getPropertyValue('--cem-coupling-zone-min').trim()).toBe('0px');
+        expect(style.getPropertyValue('--cem-control-height').trim()).toBe('0px');
+        expect(style.getPropertyValue('--cem-control-padding-y').trim()).toBe('0px');
+        expect(style.getPropertyValue('--cem-data-row-height').trim()).toBe('1lh');
+        expect(style.paddingBlockStart).toBe('0px');
+        expect(style.paddingInlineStart).toBe('0px');
+        expect(style.borderTopWidth).toBe('0px');
+        expect(Math.abs(rows[0].getBoundingClientRect().height - line)).toBeLessThan(0.1);
+        expect(Math.abs(rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().bottom)).toBeLessThan(0.1);
+        expect(getComputedStyle(requiredElement(rows[0], '[part=icon]')).fontSize).toBe(style.fontSize);
         const first = rows[0];
         host.style.setProperty('--cem-typography-ui-font-size', '20px'); await nextRenderFrame();
         expect(host.querySelector('[role=treeitem]')).toBe(first);
         expect(Number.parseFloat(getComputedStyle(first).fontSize)).toBe(20);
+        horizontalGeometry(5, 5, 28);
+        host.style.setProperty('--cem-data-tree-padding-inline', '9px');
+        host.style.setProperty('--cem-data-tree-column-gap', '11px');
+        host.style.setProperty('--cem-data-tree-indent', '37px');
+        await nextRenderFrame();
+        horizontalGeometry(9, 11, 37);
         expect(first.getBoundingClientRect().height).toBeGreaterThanOrEqual(Number.parseFloat(getComputedStyle(first).lineHeight));
         host.style.setProperty('--cem-coupling-zone-min', '48px'); await nextRenderFrame();
         const marker = requiredElement<HTMLElement>(first, '[part=marker]');

@@ -165,9 +165,10 @@ These rules prevent spacing changes from degrading operability, accessibility, o
 
 2. **Normative layout contract for interactive adjacency**
 
-The explicit precise-input desktop density policy in D2 §6.0 is independently
-opted in and has its own target/guard values. It never alters these spacing modes
-or the coarse/hybrid default contract.
+The explicit density policies in D2 §6.0 are independently opted in and have
+their own target/guard values. Compact is gated to precise input; explicitly
+authored super-compact is content-sized on every input modality. Neither changes
+the canonical spacing mode values or the normal/default coupling contract.
 
 When spacing occurs **between two interactive affordances**, layout must respect D2 guard:
 
@@ -340,21 +341,37 @@ Optimized for scan/compare flows (tables, metrics).
 | `--cem-data-row-padding-inline` | `var(--cem-control-padding-x)` | Structured row inline inset; hierarchy indentation is separate | required |
 | `--cem-data-row-gap` | `var(--cem-gap-related)` | Vertical spacing between structured rows and groups | required |
 | `--cem-data-tree-indent` | `var(--cem-control-padding-x)` | Hierarchy indentation independent of row padding | required |
+| `--cem-data-tree-padding-inline` | `0px` | Outer tree inset, independent of per-level indentation | required |
+| `--cem-data-tree-column-gap` | `var(--cem-gap-related)` | Horizontal separation of tree disclosure, icon and label | required |
 
-### 6.6 Desktop density profiles
+### 6.6 Inherited density profiles
 
 `data-cem-density="compact"` is an inherited desktop chrome recipe. Use
-`data-cem-density="super-compact"` on structured trees and tabular data: rows
-follow adjacent lines of one paragraph, with no extra padding or vertical gap.
-`1lh` is a minimum, so wrapped labels and user text scaling can grow naturally.
+`data-cem-density="super-compact"` on a page/container alongside `data-theme`
+for content-sized application chrome and structured trees/tabular data. Controls
+have zero padding; structured rows follow adjacent lines of one paragraph,
+with no extra padding or vertical gap.
+Structured rows retain a `1lh` minimum; generic buttons have no imposed height
+minimum, so content, wrapped labels and user text scaling can grow naturally.
 Icons remain `1em`; the profile never scales the font to manufacture density.
+Tree geometry distinguishes its `0.25em` outer inline inset, `0.25em` horizontal
+column gaps and `1.4em` increment per nesting level. These follow the row font;
+they do not introduce row padding or vertical spacing between paragraph lines.
 
-Both profiles require a fine primary pointer with hover and **no coarse pointer
-at all**. Coarse, unknown and hybrid input keep the modality-neutral D2 contract.
-This explicit profile is separate from existing spacing/coupling modes, which
-retain their previous values. D2 owns the approved desktop target policy;
+Compact requires a fine primary pointer with hover and **no coarse pointer at
+all**. Super-compact is an explicit geometry choice on every input modality;
+coarse, unknown and hybrid input do not reinstate its padding or insets.
+These profiles are separate from existing spacing/coupling modes, which
+retain their previous values. D2 owns the requested target policy;
 D2c owns row/control geometry and D5 keeps structured-row focus inside its line.
 Components consume these tokens without per-component density recipes.
+
+`data-cem-density="normal"` establishes a nested baseline boundary by reading
+the original canonical values for the density table's endpoints. It restores
+insets, gutters and data-row geometry without redefining typography or unrelated
+spacing tokens. Omission keeps the ancestor's density. `data-cem-spacing` remains
+an independent spacing choice; use `data-cem-density="normal"` together with
+`data-cem-spacing="sparse"` to show a sparse sample inside a condensed page.
 
 ###### cem-dim-density-overrides
 
@@ -371,7 +388,9 @@ Components consume these tokens without per-component density recipes.
 | `--cem-data-row-padding-block` | `var(--cem-control-padding-y)` | `0px` |
 | `--cem-data-row-padding-inline` | `var(--cem-control-padding-x)` | `0px` |
 | `--cem-data-row-gap` | `var(--cem-gap-related)` | `0px` |
-| `--cem-data-tree-indent` | `1em` | `1em` |
+| `--cem-data-tree-indent` | `1.4em` | `1.4em` |
+| `--cem-data-tree-padding-inline` | `0.25em` | `0.25em` |
+| `--cem-data-tree-column-gap` | `0.25em` | `0.25em` |
 
 ---
 
@@ -447,6 +466,16 @@ Mode intent summary:
 - **normal**: baseline values as defined in Sections 6–7.
 - **dense**: reduce gaps/insets by ~1 step where it does not harm reading cadence or interactive coupling.
 - **sparse**: increase gaps/insets by ~1 step to improve readability and perceived calm.
+
+`data-cem-spacing="dense|normal|sparse"` may be placed on a container or component
+host; the canonical endpoints are inherited by its descendants. An explicit
+`normal` boundary restores the original values of the spacing table's endpoints
+even under a dense/sparse ancestor. Omitting the attribute inherits its parent.
+Spacing changes gaps and insets; condensed control/tree row heights are selected
+separately with `data-cem-density="super-compact"`. Normal spacing alone does not
+reset density or its operable minimums. On one boundary, an explicit compact
+density selects its complete geometry after spacing; nested boundaries may
+choose a different spacing or density for their descendants.
 
 Hard constraints (never override):
 

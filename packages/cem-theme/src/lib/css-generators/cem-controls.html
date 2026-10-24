@@ -80,19 +80,26 @@
 }
 /* endregion coupling mode: compact */
 
-/* Glyphs follow text in every input modality; hit geometry remains gated below. */
-:where([data-cem-density="compact"], [data-cem-density="super-compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |{cem:if @test='row.token != "--cem-icon-button-size"' |{cem:if @test='str:starts_with(row.token, "--cem-icon-") || row.token == "--cem-data-icon-size"' |```
+/* Restore canonical density endpoints, including glyphs on every input modality. */
+:root[data-cem-density="normal"], :where([data-cem-density="normal"]) {```{cem:for-each @select="$datadom.slices.density" @as="override" |{cem:for-each @select="$datadom.slices.geometry" @as="row" |{cem:if @test='row.token == override.token' |```
+  ```{$row.token}: {$row.value};}}}```
+}
+
+/* Compact glyphs follow text even while its target geometry stays input-gated. */
+:where([data-cem-density="compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |{cem:if @test='row.token != "--cem-icon-button-size"' |{cem:if @test='str:starts_with(row.token, "--cem-icon-") || row.token == "--cem-data-icon-size"' |```
   ```{$row.token}: {$row.compact};}}}```
 }
 
-/* Desktop compact chrome and paragraph-line structured rows. */
+/* Compact chrome retains its precise-input policy. */
 @media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
   :root[data-cem-density="compact"], :where([data-cem-density="compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
     ```{$row.token}: {$row.compact};}```
   }
-  :root[data-cem-density="super-compact"], :where([data-cem-density="super-compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
-    ```{$row.token}: {$row.super_compact};}```
-  }
+}
+
+/* Explicit super-compact controls fit content on every input modality. */
+:root[data-cem-density="super-compact"], :where([data-cem-density="super-compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
+  ```{$row.token}: {$row.super_compact};}```
 }
 
 /* Optional inherited size profiles; explicit geometry wins over coupling height. */

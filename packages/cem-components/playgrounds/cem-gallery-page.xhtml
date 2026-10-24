@@ -5,6 +5,8 @@
     {attribute @name=heading | Components}
     {attribute @name=index-href | ./index.html}
     {attribute @name=storage-key | cem-playground-theme}
+    {attribute @name=data-cem-density | super-compact}
+    {attribute @name=data-cem-spacing | normal}
     {local-storage @slice=theme @key="{$storage-key}" @type=text @live=true}
     {attribute @name=data-theme @select='if ((datadom.slices.theme ?? "") == "cem-theme-dark") || ((datadom.slices.theme ?? "") == "cem-theme-contrast-light") || ((datadom.slices.theme ?? "") == "cem-theme-contrast-dark") || ((datadom.slices.theme ?? "") == "cem-theme-native") { datadom.slices.theme } else { "cem-theme-light" }'}
     {style @type="text/css" |```
@@ -12,6 +14,6 @@
       :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
     ```}
     {cem-gallery-nav @part=navigation @heading="{$heading}" @index-href="{$index-href}" @theme-storage-key="{$storage-key}" @theme-value="{$data-theme}"}
-    {slot}
+    {div @part=content @data-cem-density=normal @data-cem-spacing=normal | {slot}}
   </template>
 </cem-element>

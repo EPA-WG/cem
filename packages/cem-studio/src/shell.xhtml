@@ -9,7 +9,8 @@
  {attribute @name=data-theme @select='datadom.slices.themeMode ?? "cem-theme-light"'}
  {attribute @name=data-cem-studio-shell @select='""'}
  {attribute @name=data-cem-studio-state @select='"ready"'}
- {attribute @name=data-cem-density @select='"compact"'}
+ {attribute @name=data-cem-density | super-compact}
+ {attribute @name=data-cem-spacing | normal}
  {body |
  {style @type=text/css |```
 :scope { display: block; min-inline-size: 0; color: var(--cem-palette-comfort-text); background-color: var(--cem-palette-comfort); font-family: var(--cem-typography-ui-font-family); }

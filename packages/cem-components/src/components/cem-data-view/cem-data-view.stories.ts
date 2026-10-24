@@ -81,11 +81,12 @@ export const LabelUpdateAndInheritedDensity = meta.story({
             await nextRenderFrame();
             const row = required<HTMLElement>(host, 'tbody tr'); const cell = required<HTMLElement>(row, 'td');
             expect(getComputedStyle(cell).fontSize).toBe('19px');
-            if (matchMedia('(hover: hover) and (pointer: fine) and (not (any-pointer: coarse))').matches) {
-                expect(getComputedStyle(cell).paddingBlockStart).toBe('0px');
-                expect(getComputedStyle(cell).paddingBlockEnd).toBe('0px');
-                expect(row.getBoundingClientRect().height).toBeCloseTo(parseFloat(getComputedStyle(cell).lineHeight), 0);
-            }
+            const style = getComputedStyle(cell);
+            expect(style.getPropertyValue('--cem-coupling-zone-min').trim()).toBe('0px');
+            expect(style.getPropertyValue('--cem-control-padding-y').trim()).toBe('0px');
+            expect(style.paddingBlockStart).toBe('0px');
+            expect(style.paddingBlockEnd).toBe('0px');
+            expect(row.getBoundingClientRect().height).toBeCloseTo(parseFloat(style.lineHeight), 0);
         }
         host.setAttribute('value', '[{"changed":true}]'); await whenCemRendered(host);
         expect(host.textContent).toContain('changed'); expect(host.textContent).toContain('true');

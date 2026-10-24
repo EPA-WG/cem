@@ -69,10 +69,13 @@ chevrons, dense rows, compact headings and clear pane boundaries. Studio keeps
 its own project/resource/configuration model and the requested right output pane;
 a terminal, IDE activity rail and editor tab system are not prerequisites.
 
-Confirmed choices: multiple accordion sections can stay open together; introduce
-a shared desktop compact density profile with smaller precise-input rows while
-retaining larger touch targets. Studio opts into `data-cem-density="compact"`;
-its structured trees and data tables opt into `data-cem-density="super-compact"`.
+Confirmed choices: multiple accordion sections can stay open together; use the
+shared super-compact density profile for content-sized controls and paragraph-line
+data rows. Studio sets `data-cem-density="super-compact"` and
+`data-cem-spacing="normal"` alongside `data-theme` on its shell. This explicit
+profile applies regardless of pointer capabilities: coupling and generic control
+height minima and control padding are zero, while tree/table rows retain `1lh`
+minima. Explicit control sizes and inherited consumer overrides still apply.
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -204,18 +207,19 @@ are insufficient: the current coupling contract still requires a `3rem` target
 and `0.5rem` guard, and expansion/workspace panels add container insets. Merely
 changing Studio CSS or shrinking the root font would violate that contract.
 
-Implement an opt-in shared desktop compact profile in the canonical D1/D2/D2c
-source tables and generators, preserving existing profiles. It must explicitly
-specify row/header/control geometry, adjacency and precise-input target bounds,
-plus the larger-target policy for coarse/touch input. An initial visual target
-for compact section headers is 24–28 CSS pixels at a 16px root. Structured
-tree/table rows use `1lh`, as adjacent lines within a paragraph: zero row gap,
-zero block/inline cell padding, zero row borders and inset focus paint.
-Purposeful tree indentation and icon/text separation remain. Wrapping, font
-changes and zoom increase row height naturally; typography is never shrunk.
-Cover hybrid hardware explicitly: `pointer: fine` alone does not prove that
-touch/coarse input is absent. Retain the larger-target recipe when coarse input
-is available; test both pure precise-input and hybrid configurations.
+The canonical D1/D2/D2c source tables and generators provide an explicit
+`data-cem-density="super-compact"` profile. Its `--cem-coupling-zone-min`,
+`--cem-control-height` and control padding tokens are `0px`, so headers and
+buttons take their height from content. The profile applies without an input
+media gate, including coarse, hybrid and unknown pointer capabilities.
+Structured tree/table rows separately use `1lh`, as adjacent lines within a
+paragraph: zero row gap, zero block/inline cell padding, zero row borders and
+inset focus paint. Purposeful tree indentation and icon/text separation remain.
+Wrapping, font changes and zoom increase row height naturally; typography is
+never shrunk. Explicit control size profiles and inherited consumer overrides
+remain authoritative. The ordinary baseline and precise-input-only `compact`
+profile retain their existing larger-target policy. Test all input configurations
+so an explicit super-compact selection cannot silently restore ordinary padding.
 
 Use zero extra page/card/tree-container padding and no vertical gaps between
 rows. Retain only purposeful indentation, icon/text separation and the token-owned

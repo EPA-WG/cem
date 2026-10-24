@@ -19,8 +19,12 @@ only its section. Closing a section never selects a tree item or changes editor
 ownership; a hidden focused descendant returns to its header.
 
 The container consumes shared palette, typography and stroke tokens. Density and
-control target geometry come from the canonical theme, including the precise-only
-compact profile and coarse/hybrid fallback. Forced colors use Canvas/CanvasText.
+control target geometry come from the canonical theme. Explicit super-compact
+density uses zero coupling and generic control height minima and zero control
+padding on every input device, so headers follow their content. Normal geometry
+and the precise-input-only compact profile retain their larger-target policy.
+Explicit control sizes and inherited overrides remain authoritative. Forced colors
+use Canvas/CanvasText.
 No component-local public defaults or application CSS reach into child internals.
 
 The [property playground](../playgrounds/cem-accordion.html),

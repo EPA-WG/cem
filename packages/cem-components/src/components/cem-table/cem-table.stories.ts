@@ -10,14 +10,15 @@ export const SuperCompactRows = meta.story({
         const rows = [...host.querySelectorAll<HTMLElement>('[role=row]')];
         expect(host.querySelectorAll('[role=columnheader]')).toHaveLength(2);
         expect(host.querySelectorAll('[role=cell]')).toHaveLength(4);
-        const precise = matchMedia('(hover: hover) and (pointer: fine)').matches && !matchMedia('(any-pointer: coarse)').matches;
-        if (precise) {
-            expect(getComputedStyle(rows[0]).paddingBlockStart).toBe('0px');
-            expect(getComputedStyle(rows[0]).paddingInlineStart).toBe('0px');
-            const line = Number.parseFloat(getComputedStyle(rows[0]).lineHeight);
-            expect(Math.abs(rows[0].getBoundingClientRect().height - line)).toBeLessThan(0.1);
-            expect(Math.abs(rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().bottom)).toBeLessThan(0.1);
-        }
+        const style = getComputedStyle(rows[0]);
+        expect(style.getPropertyValue('--cem-coupling-zone-min').trim()).toBe('0px');
+        expect(style.getPropertyValue('--cem-control-padding-y').trim()).toBe('0px');
+        expect(style.paddingBlockStart).toBe('0px');
+        expect(style.paddingBlockEnd).toBe('0px');
+        expect(style.paddingInlineStart).toBe('0px');
+        const line = Number.parseFloat(style.lineHeight);
+        expect(Math.abs(rows[0].getBoundingClientRect().height - line)).toBeLessThan(0.1);
+        expect(Math.abs(rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().bottom)).toBeLessThan(0.1);
         const cells = [...host.querySelectorAll<HTMLElement>('[role=cell]')];
         expect(cells[0].getBoundingClientRect().left).toBe(cells[2].getBoundingClientRect().left);
         expect(cells[1].getBoundingClientRect().left).toBe(cells[3].getBoundingClientRect().left);

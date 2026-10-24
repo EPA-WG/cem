@@ -1,5 +1,5 @@
 import { expect } from 'storybook/test';
-import preview, { assertLightDomRendered, assertAriaReferenceIntegrity, nextRenderFrame, loadCemWorkflowDependencies, loadCemDeclaration, whenCemRendered, createCemStoryRuntime, assertAccessibleName } from '../../../../cem-elements/.storybook/preview.js';
+import preview, { assertLightDomRendered, assertAriaReferenceIntegrity, nextRenderFrame, loadCemWorkflowDependencies, loadCemComponent, loadCemDeclaration, whenCemRendered, createCemStoryRuntime, assertAccessibleName } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-app-bar.xhtml?raw';
 const meta = preview.meta({ component: 'cem-app-bar', title: 'CEM Components/cem-app-bar', loaders: [async () => { await loadCemDeclaration('cem-app-bar', declarationSource); return {}; }] });
 
@@ -18,6 +18,68 @@ export const CompactHeading = meta.story({
         expect(host.querySelector('h1')).toBe(heading);
         host.removeAttribute('appearance'); await whenCemRendered(host);
         expect(getComputedStyle(owner).paddingBlockStart).toBe('33px');
+    },
+});
+
+export const SuperCompactActions = meta.story({
+    loaders: [async () => { await loadCemComponent('cem-icon'); await loadCemComponent('cem-icon-button'); return {}; }],
+    render: () => '<section data-theme="cem-theme-light" data-cem-density="super-compact" data-cem-spacing="normal"><cem-app-bar appearance="compact" label="Studio"><h1 slot="title">Site · content/article.md - CEM Studio</h1><cem-icon-button image="◐" aria-label="Choose theme" variant="contextual"></cem-icon-button></cem-app-bar></section>',
+    play: async ({ canvasElement }) => {
+        const boundary = required<HTMLElement>(canvasElement, '[data-cem-density]');
+        const host = required<HTMLElement>(boundary, 'cem-app-bar'); await whenCemRendered(host);
+        const action = required<HTMLElement>(host, 'cem-icon-button'); await whenCemRendered(action);
+        await whenCemRendered(required<HTMLElement>(action, 'cem-icon'));
+        const header = required<HTMLElement>(host, '[part=root]');
+        const actions = required<HTMLElement>(host, '[part=actions]');
+        const title = required<HTMLElement>(host, '[part=title]');
+        const button = required<HTMLButtonElement>(action, 'button');
+        const expectContentHeight = () => {
+            const style = getComputedStyle(header);
+            const contentHeight = Math.max(title.getBoundingClientRect().height, actions.getBoundingClientRect().height);
+            const chrome = Number.parseFloat(style.paddingBlockStart) + Number.parseFloat(style.paddingBlockEnd)
+                + Number.parseFloat(style.borderTopWidth) + Number.parseFloat(style.borderBottomWidth);
+            expect(Math.abs(header.getBoundingClientRect().height - contentHeight - chrome)).toBeLessThan(0.1);
+        };
+        for (const theme of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
+            boundary.setAttribute('data-theme', `cem-theme-${theme}`); await nextRenderFrame();
+            const style = getComputedStyle(button);
+            expect(assertAccessibleName(button, 'Choose theme')).toBe('Choose theme');
+            expectContentHeight();
+            expect(style.getPropertyValue('--cem-control-height').trim()).toBe('0px');
+            expect(style.getPropertyValue('--cem-coupling-zone-min').trim()).toBe('0px');
+            expect(style.getPropertyValue('--cem-control-padding-y').trim()).toBe('0px');
+            expect(style.minBlockSize).toBe('0px');
+            expect(style.paddingBlockStart).toBe('0px');
+            expect(style.paddingBlockEnd).toBe('0px');
+            expect(style.paddingInlineStart).toBe('0px');
+            expect(style.borderTopWidth).toBe('0px');
+            expect(getComputedStyle(header).paddingBlockStart).toBe('0px');
+            expect(getComputedStyle(header).paddingBlockEnd).toBe('0px');
+            const contentHeight = required<HTMLElement>(action, 'cem-icon').getBoundingClientRect().height;
+            expect(Math.abs(button.getBoundingClientRect().height - contentHeight)).toBeLessThan(0.1);
+            expect(button.getBoundingClientRect().height).toBeLessThan(48);
+            expect(header.getBoundingClientRect().height).toBeLessThan(48);
+        }
+        boundary.style.cssText = '--cem-control-height:42px;--cem-coupling-zone-min:46px;--cem-control-padding-y:3px';
+        await nextRenderFrame();
+        expect(getComputedStyle(button).minBlockSize).toBe('46px');
+        expect(getComputedStyle(button).paddingBlockStart).toBe('3px');
+        expect(getComputedStyle(header).paddingBlockStart).toBe('3px');
+        expect(button.getBoundingClientRect().height).toBeGreaterThanOrEqual(46);
+        expectContentHeight();
+        boundary.removeAttribute('style');
+        action.setAttribute('size', 'large'); await whenCemRendered(action);
+        await whenCemRendered(required<HTMLElement>(action, 'cem-icon'));
+        const largeHeight = 4 * Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+        expect(Number.parseFloat(getComputedStyle(button).minBlockSize)).toBeCloseTo(largeHeight);
+        expect(button.getBoundingClientRect().height).toBeGreaterThanOrEqual(largeHeight);
+        expectContentHeight();
+        action.removeAttribute('size'); await whenCemRendered(action);
+        await whenCemRendered(required<HTMLElement>(action, 'cem-icon'));
+        expect(action.querySelector('button')).toBe(button);
+        expect(getComputedStyle(button).minBlockSize).toBe('0px');
+        expect(button.getBoundingClientRect().height).toBeLessThan(48);
+        expectContentHeight();
     },
 });
 function required<T extends Element = HTMLElement>(root: ParentNode, selector: string): T {

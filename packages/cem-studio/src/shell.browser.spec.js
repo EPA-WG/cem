@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import {
     CEM_STUDIO_THEME_MODES,
@@ -160,7 +160,8 @@ describe('CEM Studio installable application shell', () => {
         const section = root.querySelector('cem-studio-shell > [part=root]');
         const status = root.querySelector('footer[aria-label="Studio status"]');
         expect(getComputedStyle(section).display).toBe('grid');
-        expect(root.querySelector('cem-studio-shell').getAttribute('data-cem-density')).toBe('compact');
+        expect(root.querySelector('cem-studio-shell').getAttribute('data-cem-density')).toBe('super-compact');
+        expect(root.querySelector('cem-studio-shell').getAttribute('data-cem-spacing')).toBe('normal');
         expect(getComputedStyle(section).rowGap).toBe('0px');
         expect(getComputedStyle(status).columnGap).toBe('8px');
         shell.setWorkspaceState('Login · source.cem - CEM Studio', 'Unsaved changes', { projectName: 'Login', path: 'source.cem', pathKind: 'file' });
@@ -173,6 +174,43 @@ describe('CEM Studio installable application shell', () => {
         root.querySelector('cem-studio-shell').style.setProperty('--cem-coupling-guard-min', '37px');
         expect(getComputedStyle(section).rowGap).toBe('0px');
         expect(getComputedStyle(status).columnGap).toBe('37px');
+    });
+
+    it('keeps real header theme controls at content height in the page super-compact profile', async () => {
+        const css = document.createElement('link'); css.rel = 'stylesheet';
+        css.href = new URL('../../cem-theme/dist/lib/css/cem-combined.css', import.meta.url).href;
+        onTestFinished(() => css.remove());
+        const ready = new Promise((resolve, reject) => { css.onload = resolve; css.onerror = reject; });
+        document.head.append(css); await ready;
+        const root = document.createElement('main'); document.body.append(root);
+        const shell = await mountCemStudioApplicationShell({ root, storage: memoryStorage({}) }); mountedShells.push(shell);
+        const host = root.querySelector('cem-studio-shell');
+        const header = root.querySelector('header.cem-app-bar');
+        const button = header.querySelector('cem-theme-switch [part=trigger] button');
+        expect(host.getAttribute('data-cem-density')).toBe('super-compact');
+        expect(host.getAttribute('data-cem-spacing')).toBe('normal');
+        for (const mode of CEM_STUDIO_THEME_MODES) {
+            shell.theme.setMode(mode); await shell.whenSettled();
+            expect(header.querySelector('cem-theme-switch [part=trigger] button')).toBe(button);
+            const controlStyle = getComputedStyle(button), headerStyle = getComputedStyle(header);
+            expect(controlStyle.getPropertyValue('--cem-control-height').trim()).toBe('0px');
+            expect(controlStyle.getPropertyValue('--cem-coupling-zone-min').trim()).toBe('0px');
+            expect(controlStyle.minBlockSize).toBe('0px');
+            expect(controlStyle.paddingBlockStart).toBe('0px');
+            expect(controlStyle.paddingBlockEnd).toBe('0px');
+            expect(headerStyle.paddingBlockStart).toBe('0px');
+            expect(headerStyle.paddingBlockEnd).toBe('0px');
+            expect(button.getBoundingClientRect().height).toBeLessThan(48);
+            const childrenHeight = Math.max(...[...header.children].map(node => node.getBoundingClientRect().height));
+            const borders = parseFloat(headerStyle.borderTopWidth) + parseFloat(headerStyle.borderBottomWidth);
+            expect(Math.abs(header.getBoundingClientRect().height - childrenHeight - borders)).toBeLessThan(0.1);
+            expect(header.getBoundingClientRect().height).toBeLessThan(48);
+        }
+        host.style.setProperty('--cem-control-height', '44px');
+        host.style.setProperty('--cem-control-padding-y', '3px');
+        expect(button.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+        expect(getComputedStyle(button).paddingBlockStart).toBe('3px');
+        expect(shell.view.errors).toEqual([]);
     });
 
     it('renders production CEM controls and persists every repository-defined theme mode', async () => {
