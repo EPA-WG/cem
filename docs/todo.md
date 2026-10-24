@@ -32,10 +32,10 @@ Completed [editor filename de-duplication](archive/todo-completed-compact-studio
 
 Completed [graph parameter-map authoring and Studio controls](archive/todo-completed-graph-parameters-2026-10-23.md) is archived.
 
-Continue Studio functionality with shared optional-pack acquisition, offline
-delivery and fresh-generation reimport. Follow with opt-in embedded-body
-exclusion; then measure download, cold latency and allocator/linear-memory
-headroom.
+Continue Studio functionality with persistent native optional-package activation
+and declarative command/render demand. Follow with an opt-in Studio deployment
+profile and embedded-body exclusion; then measure download, cold latency and
+allocator/linear-memory headroom.
 
 Completed [shared popup surfaces and indicator clearance](archive/todo-completed-compact-studio-2026-10-23.md#shared-popup-surfaces-and-indicator-clearance) is archived.
 
@@ -50,11 +50,15 @@ Completed [gallery lifecycle and checkpoint-limit repairs](archive/todo-complete
 The optional native schema-asset prototype and
 [owned package/formatter consumers](archive/todo-completed-owned-schema-inputs-2026-10-24.md)
 are complete; embedded bodies and the default complete release remain intact.
-Continue with shared loading before claiming binary, headroom or checkpoint
-savings. Prototype implementation, measurements and verification are in the
+The [shared acquisition and offline delivery contract](archive/todo-completed-schema-acquisition-2026-10-24.md)
+is implemented. Continue with persistent consumer activation and opt-in deployment
+before claiming binary, headroom or checkpoint savings. Prototype implementation,
+measurements and verification are in the
 [archived evidence](archive/todo-snapshot-2026-10-23.md#project-builds-and-artifact-previews).
 
-- [ ] Integrate explicit optional-pack acquisition into shared runtime resource loading, with complete deployment/service-worker inventory, offline/cancellation diagnostics and fresh-generation reimport; let Studio consume the shared contract declaratively.
+- [ ] Connect the shared optional-pack loader to persistent native package activation and ordinary command/render consumers. Expose demand through shared declarative resource bindings so Studio needs no UI JavaScript; enroll active package/source ownership in the existing generation and credential-admission protocol.
+
+- [ ] Add an opt-in Studio native deployment graph/profile for the optional WASM and complete emitted pack tree, using the implemented service-worker inventory group. Keep default complete deployment intact and bind source reimport to coordinated runtime publication.
 
 - [ ] After shared pack-loading integration, exclude optional embedded source bodies in an opt-in WASM profile while retaining the default complete release; verify strict missing-source refusal and complete offline delivery.
 
@@ -300,8 +304,8 @@ Completed workspace, source-editor, node and edge authoring work remains in the
 Native parameter maps, shared form controls and their verification are in the
 [graph authoring completion record](archive/todo-completed-graph-parameters-2026-10-23.md).
 
-Continue with the shared pack-loading contract, opt-in embedded-body exclusion
-and measurements under [Project builds and artifact previews](#project-builds-and-artifact-previews).
+Continue with persistent native package activation, opt-in deployment/body
+exclusion and measurements under [Project builds and artifact previews](#project-builds-and-artifact-previews).
 Preserve the [bounded project lifecycle](cem-studio.md#next-delivery-milestone-user-owned-project-workspace):
 100 graph nodes / 1 MiB source and 20 history snapshots / 8 MiB. Authored ID
 changes, aliases and expression-valued attributes remain source-only. Keep

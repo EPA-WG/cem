@@ -28,6 +28,12 @@
             "types": "./dist/lib/command-result.d.ts",
             "import": "./dist/lib/command-result.js",
             "default": "./dist/lib/command-result.js"
+        },
+        "./schema-assets": {
+            "@epa-wg/cem": "./src/lib/schema-asset-pack.ts",
+            "types": "./dist/lib/schema-asset-pack.d.ts",
+            "import": "./dist/lib/schema-asset-pack.js",
+            "default": "./dist/lib/schema-asset-pack.js"
         }
     },
     "files": [

@@ -1587,3 +1587,60 @@ It does not inspect credentials, run native work, capture or authorize recovery.
 Dispose with the view; suspend publications across checkpoint quiescence and
 release only after fresh owners settle. See the
 [shared recovery-status contract](../cem-components/docs/recovery-status-contract.md).
+
+### Optional native schema source loading
+
+`CemSchemaAssetPackLoader` is a shared non-UI byte service for the opt-in native
+schema-asset profile. It uses `openCemHttpResource`, the HTTP transport also used
+by declarative resources. Custom resolvers/openers use the existing
+`CemResourceResolutionRequest` / `CemHttpRequest` contracts. Source interpretation
+stays in native code; JSON is used only for the named catalog and scalar import
+receipts.
+
+```ts
+import { CemSchemaAssetPackLoader } from '@epa-wg/cem-elements/schema-assets';
+
+const loader = new CemSchemaAssetPackLoader({
+    baseUrl: new URL('./schema-assets/', deploymentUrl).href,
+    runtime: { native: optionalNativeRuntime, current: () => owner.isCurrent() },
+    loadHttpResource: host.loadHttpResource,
+});
+const source = await loader.loadSource({
+    packageId: 'csv', version: '1.0.0',
+    path: 'schema-packages/csv/v1/formatters/compact.cemt',
+}, signal);
+// source.bytes is an independent original-byte copy; sourceUri is canonical.
+```
+
+Initialize the optional native heap first. The loader authenticates `index.json`
+against that heap's compiled pin before reading its catalog DTO. Native admission
+and import run on every source access, including cache hits. Missing, offline,
+tampered, incorrectly typed or oversized responses refuse without embedded
+fallback. Digest-named static sources may use `application/octet-stream` as
+transport MIME; the authenticated native catalog owns their semantic MIME.
+Default transport omits credentials, denies redirects and cross-origin resolution,
+and enforces a 30-second deadline. Hosts can allow cross-origin resolution or
+lower the deadline, entry bound and aggregate capacity explicitly.
+
+The service permits at most eight simultaneous loads, a 4 MiB index, 16 MiB
+source, 65,536 chunks per response and 32 MiB retained/pending byte capacity.
+Caller-owned result copies and native parsing allocations are separate from this transport capacity; native
+memory admission remains mandatory. Abort/dispose fences late completions and
+closes response iterators without waiting for uncooperative return handlers.
+`dispose()` drops retained bytes, native callbacks and the memory identity.
+
+`deploymentUrls()` returns the complete immutable offline delivery list, including
+metadata sidecars. Those sidecars are inventories, not trust anchors.
+`prepareFreshRuntime({ native, current }, signal)` admits the retained index and
+reimports original bytes into a distinct initialized heap without network reads
+or native-handle transfer. Call it after old work drains and before dropping the
+old loader's bytes. Host currentness and the physical memory identity are checked
+at asynchronous/native boundaries. The returned loader does not retire a runtime,
+activate a schema, publish owners, serialize credentials or grant checkpoint
+authority. Existing credential refusal and coordinated recovery gates still
+apply; automatic recovery is unchanged.
+
+`yarn nx run cem-elements:verify:schema-assets --parallel=1` prepares the explicit
+optional profile and runs real native ABI integration tests plus an isolated
+production-service-worker offline fixture. Ordinary unit tests do not require
+that optional build.

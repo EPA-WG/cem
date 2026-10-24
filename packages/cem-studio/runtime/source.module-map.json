@@ -888,6 +888,14 @@
         "@epa-wg/cem-components/components/cem-data-view": {
             "path": "../../../node_modules/@epa-wg/cem-components/src/components/cem-data-view/cem-data-view.xhtml",
             "contentType": "application/xhtml+xml"
+        },
+        "@epa-wg/cem-elements/dist/lib/http-resource-transport.js": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/http-resource-transport.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/schema-asset-pack.js": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/schema-asset-pack.js",
+            "contentType": "text/javascript"
         }
     }
 }

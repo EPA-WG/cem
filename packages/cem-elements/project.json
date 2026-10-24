@@ -783,6 +783,31 @@
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []
+        },
+        "verify:schema-assets": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "dependsOn": [
+                "build",
+                {
+                    "projects": [
+                        "@epa-wg/cem-ml"
+                    ],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "cwd": "{workspaceRoot}",
+                "parallel": false,
+                "commands": [
+                    "node packages/cem-ml-npm/scripts/build-schema-assets.mjs",
+                    "node packages/cem-ml-npm/scripts/build-schema-assets-wasm.mjs",
+                    "node packages/cem-ml-npm/scripts/verify-schema-assets.mjs --wasm=packages/cem-ml-npm/dist-schema-assets-wasm/wasm/node/cem_ml.js",
+                    "yarn vitest --config packages/cem-elements/vitest.schema-assets.config.mts --run",
+                    "node tools/scripts/verify-cem-schema-assets-offline.mjs"
+                ]
+            },
+            "outputs": []
         }
     }
 }

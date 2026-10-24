@@ -15,6 +15,6 @@ export default defineConfig({
         name: 'unit',
         environment: 'node',
         include: ['src/**/*.spec.ts'],
-        exclude: ['src/**/*.edge-ssr.spec.ts', 'src/**/edge-ssr-*.spec.ts'],
+        exclude: ['src/**/*.edge-ssr.spec.ts', 'src/**/edge-ssr-*.spec.ts', 'src/**/*.schema-assets.spec.ts'],
     },
 });

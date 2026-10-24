@@ -138,6 +138,57 @@ async function loadDeploymentPlan() {
                     ...catalog.cacheUrls.map((path) => new URL(path, catalogUrl).href),
                 ]),
             });
+        } else if (group?.id === 'schema-assets') {
+            // Opt-in delivery only. The native-compiled bootstrap, not this
+            // offline inventory, remains the schema/source trust anchor.
+            if (group.strategy !== 'cache-first' || typeof group.inventory !== 'string') {
+                throw new Error('CEM Studio schema-asset group is invalid');
+            }
+            const inventoryUrl = new URL(group.inventory, self.registration.scope);
+            if (!inventoryUrl.href.startsWith(self.registration.scope) || inventoryUrl.origin !== self.location.origin) {
+                throw new Error('CEM Studio schema-asset inventory is outside scope');
+            }
+            const response = await fetch(inventoryUrl, { cache: 'no-store', credentials: 'omit', redirect: 'error' });
+            if (!response.ok || response.redirected) throw new Error('CEM Studio schema-asset inventory is unavailable');
+            const pack = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await schemaAssetControlBytes(response, 1024 * 1024)));
+            if (pack?.formatVersion !== 1 || pack.algorithm !== 'sha256' || pack.commonVersion !== inventory.commonVersion
+                || !/^[a-f0-9]{64}$/.test(pack.indexSha256) || !Array.isArray(pack.offlineUrls) || !Array.isArray(pack.files)
+                || pack.files.length > 1030 || pack.offlineUrls.length !== pack.files.length + 1) {
+                throw new Error('CEM Studio schema-asset inventory is invalid');
+            }
+            const files = pack.files.map(file => file?.path);
+            if (new Set(files).size !== files.length || !files.includes('index.json')
+                || !pack.offlineUrls.includes('integrity.json')
+                || new Set(pack.offlineUrls).size !== pack.offlineUrls.length
+                || files.some(path => !pack.offlineUrls.includes(path))) {
+                throw new Error('CEM Studio schema-asset inventory is incomplete');
+            }
+            const base = new URL('./', inventoryUrl);
+            const indexResponse = await fetch(new URL('index.json', base), { cache: 'no-store', credentials: 'omit', redirect: 'error' });
+            if (!indexResponse.ok || indexResponse.redirected) throw new Error('CEM Studio schema-asset index is unavailable');
+            // Explicit catalog DTO only: establish delivery completeness, not
+            // native schema identity or source interpretation/activation.
+            const indexBytes = await schemaAssetControlBytes(indexResponse, 4 * 1024 * 1024);
+            const indexDigest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', indexBytes)), byte => byte.toString(16).padStart(2, '0')).join('');
+            if (indexDigest !== pack.indexSha256) throw new Error('CEM Studio schema-asset delivery index differs');
+            const index = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(indexBytes));
+            if (index.formatVersion !== 'cem-schema-asset-pack/1' || !Array.isArray(index.sources) || index.sources.length > 1024
+                || index.sources.some(source => !/^[a-f0-9]{64}$/.test(source?.digest))) {
+                throw new Error('CEM Studio schema-asset catalog is invalid');
+            }
+            const expected = new Set(['index.json', 'index.sha256', 'bootstrap.json', 'measurements.json', 'integrity.json',
+                ...index.sources.map(source => `sources/${source.digest}`)]);
+            if (expected.size !== pack.offlineUrls.length || pack.offlineUrls.some(path => !expected.has(path))) {
+                throw new Error('CEM Studio schema-asset inventory omits catalog sources');
+            }
+            const urls = pack.offlineUrls.map(path => {
+                if (typeof path !== 'string' || !/^(?:[a-z0-9_.-]+\/)*[a-z0-9_.-]+$/.test(path)
+                    || path.split('/').some(segment => segment === '.' || segment === '..')) {
+                    throw new Error('CEM Studio schema-asset URL is invalid');
+                }
+                return new URL(path, base).href;
+            });
+            groups.push({ cacheName: `${cacheName(inventory.commonVersion, group.id)}:${pack.indexSha256}`, urls });
         }
     }
     if (!groups.some(({ urls }) => urls.includes(SHELL_FALLBACK))) {
@@ -149,6 +200,30 @@ async function loadDeploymentPlan() {
         }
     }
     return { groups };
+}
+
+async function schemaAssetControlBytes(response, capacity) {
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('CEM Studio schema-asset control body is missing');
+    const chunks = [];
+    let length = 0, complete = false;
+    try {
+        for (;;) {
+            const chunk = await reader.read();
+            if (chunk.done) { complete = true; break; }
+            if (length + chunk.value.byteLength > capacity || chunks.length >= 65_536) {
+                throw new Error('CEM Studio schema-asset control body is too large');
+            }
+            chunks.push(chunk.value); length += chunk.value.byteLength;
+        }
+    } finally {
+        if (!complete) void reader.cancel().catch(() => undefined);
+        reader.releaseLock();
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return bytes;
 }
 
 function uniqueUrls(paths) {

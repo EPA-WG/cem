@@ -1,3 +1,4 @@
+import { openCemHttpResource as defaultLoadHttpResource, streamCemHttpResponseBody as responseBody } from './http-resource-transport.js';
 import { CemRecoveryStatusObserver } from './recovery-status.js';
 import { prepareCemProviderHandoff, type CemProviderHandoff } from './checkpoint-provider-handoff.js';
 import { prepareCemEditorProviderHandoff } from './form-control-capability.js';
@@ -9470,66 +9471,6 @@ function httpRequestMetadata(request: CemHttpRequest): CemHttpResourceEnvelope['
         headers: { ...request.headers },
         expectedContentTypes: request.expectedContentTypes,
     };
-}
-
-async function defaultLoadHttpResource(request: CemHttpRequest): Promise<CemHttpResourceLoadResult> {
-    if (!request.policy.allowCrossOrigin) {
-        const baseOrigin = new URL(request.baseUrl).origin;
-        const resolvedOrigin = new URL(request.resolvedUrl).origin;
-        if (baseOrigin !== resolvedOrigin) {
-            throw new Error(`cross-origin http-request \`${request.resolvedUrl}\` requires host policy`);
-        }
-    }
-    const response = await fetch(request.resolvedUrl, {
-        method: request.method,
-        headers: request.headers,
-        credentials: request.credentials as RequestCredentials | undefined,
-        cache: request.cache as RequestCache | undefined,
-        redirect: request.policy.redirect,
-        signal: request.signal,
-    });
-    if (!response.ok) {
-        throw new Error(`HTTP ${response.status} for ${request.resolvedUrl}`);
-    }
-    return {
-        response: {
-            url: response.url,
-            status: response.status,
-            statusText: response.statusText,
-            ok: response.ok,
-            redirected: response.redirected,
-            headers: headersToRecord(response.headers),
-            contentType: response.headers.get('content-type'),
-        },
-        body: responseBody(response),
-    };
-}
-
-function headersToRecord(headers: Headers): Record<string, string> {
-    const record: Record<string, string> = {};
-    headers.forEach((value, name) => {
-        record[name.toLowerCase()] = value;
-    });
-    return record;
-}
-
-async function* responseBody(response: Response): AsyncIterable<Uint8Array> {
-    if (response.body) {
-        const reader = response.body.getReader();
-        try {
-            for (;;) {
-                const chunk = await reader.read();
-                if (chunk.done) {
-                    break;
-                }
-                yield chunk.value;
-            }
-        } finally {
-            reader.releaseLock();
-        }
-        return;
-    }
-    yield new Uint8Array(await response.arrayBuffer());
 }
 
 function mediaType(contentType: string | null | undefined): string | null {

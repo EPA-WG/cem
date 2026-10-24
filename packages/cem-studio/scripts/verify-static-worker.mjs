@@ -2375,13 +2375,17 @@ async function inspectShell(page) {
             const style = getComputedStyle(header);
             const trigger = getComputedStyle(themeTrigger);
             themeStyles.push({ mode, background: style.backgroundColor, color: style.color, padding: style.paddingInlineStart,
-                triggerColor: trigger.color, triggerBorder: trigger.borderTopWidth, triggerHeight: trigger.minBlockSize });
+                triggerColor: trigger.color, triggerBorder: trigger.borderTopWidth, triggerHeight: trigger.minBlockSize,
+                triggerContentHeight: themeTrigger.getBoundingClientRect().height });
+            // Super-compact removes imposed minima. Visible content still needs
+            // a real box; allow the fractional rounding seen in layout metrics.
             themeTriggerStyled &&= trigger.color !== style.backgroundColor && trigger.borderTopStyle === 'solid' &&
-                parseFloat(trigger.minBlockSize) > 0 && themeTrigger.getAttribute('aria-label') === 'Change theme';
+                parseFloat(trigger.minBlockSize) === 0 && themeTrigger.getBoundingClientRect().height + 1 / 64 >= parseFloat(trigger.fontSize)
+                && themeTrigger.getAttribute('aria-label') === 'Change theme';
             themeTriggerRetained &&= themeTrigger === document.querySelector('[data-cem-studio-theme] [part=trigger] button') &&
                 document.querySelector('[data-cem-studio-theme]').getAttribute('value') === mode;
             themesStyled &&= style.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
-                style.color !== style.backgroundColor && parseFloat(style.paddingInlineStart) > 0;
+                style.color !== style.backgroundColor && parseFloat(style.paddingInlineStart) === 0;
             const treeStyle = getComputedStyle(document.querySelector('cem-tree [role="treeitem"]:not([aria-selected="true"])'));
             const paneStyle = getComputedStyle(document.querySelector('cem-tabs[label="Workbench panes"] [role="tab"]'));
             explorerStyles.push({ mode, background: treeStyle.backgroundColor, color: treeStyle.color, height: treeStyle.minBlockSize, paneColor: paneStyle.color, paneBackground: paneStyle.backgroundColor });
@@ -2389,17 +2393,25 @@ async function inspectShell(page) {
             const editor = getComputedStyle(document.querySelector('[data-cem-studio-editor] [role="textbox"]'));
             const action = getComputedStyle(document.querySelector('[data-cem-studio-reload] button'));
             workbenchStyles.push({ mode, background: editor.backgroundColor, color: editor.color,
-                boundary: editor.borderTopWidth, actionBorder: action.borderTopWidth, actionMinimum: action.minBlockSize });
+                boundary: editor.borderTopWidth, actionBorder: action.borderTopWidth, actionMinimum: action.minBlockSize,
+                actionContentHeight: document.querySelector('[data-cem-studio-reload] button').getBoundingClientRect().height,
+                actionRects: document.querySelector('[data-cem-studio-reload] button').getClientRects().length });
             workbenchStyled &&= editor.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
                 editor.color !== editor.backgroundColor && editor.borderTopStyle === 'solid' && parseFloat(editor.borderTopWidth) > 0 &&
-                action.borderTopStyle === 'solid' && parseFloat(action.minBlockSize) > 0 && action.color !== action.backgroundColor;
+                action.borderTopStyle === 'solid' && parseFloat(action.minBlockSize) === 0
+                && (document.querySelector('[data-cem-studio-reload] button').getClientRects().length === 0
+                    || document.querySelector('[data-cem-studio-reload] button').getBoundingClientRect().height + 1 / 64 >= parseFloat(action.fontSize))
+                && action.color !== action.backgroundColor;
             const commandEditor = getComputedStyle(document.querySelector('[data-cem-studio-command-editor] textarea'));
             const commandAction = getComputedStyle(document.querySelector('[data-cem-studio-command-copy] button'));
             commandStyles.push({ mode, background: commandEditor.backgroundColor, color: commandEditor.color,
                 indicator: commandEditor.boxShadow, actionBorder: commandAction.borderTopWidth, actionMinimum: commandAction.minBlockSize });
             commandStyled &&= commandEditor.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
                 commandEditor.color !== commandEditor.backgroundColor && commandEditor.boxShadow !== 'none' &&
-                commandAction.borderTopStyle === 'solid' && parseFloat(commandAction.minBlockSize) > 0 && commandAction.color !== commandAction.backgroundColor;
+                commandAction.borderTopStyle === 'solid' && parseFloat(commandAction.minBlockSize) === 0
+                && (document.querySelector('[data-cem-studio-command-copy] button').getClientRects().length === 0
+                    || document.querySelector('[data-cem-studio-command-copy] button').getBoundingClientRect().height + 1 / 64 >= parseFloat(commandAction.fontSize))
+                && commandAction.color !== commandAction.backgroundColor;
             const figure = getComputedStyle(previewProbe.querySelector('figure'));
             const text = getComputedStyle(previewProbe.querySelector('pre'));
             previewStyles.push({ mode, background: figure.backgroundColor, color: figure.color,

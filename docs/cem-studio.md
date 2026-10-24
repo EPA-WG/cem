@@ -3656,9 +3656,30 @@ produce the same consumer inputs without static lifetimes. Packed conversion
 readers remain authoritative and parsed formatter/colorizer options are keyed by
 complete descriptor/source identity, with admission rechecked before cache reuse.
 These boundaries do not themselves remove embedded bodies from an opt-in binary.
-Production loading will still need explicit
-pack inventory in deployment/service-worker resources and coordinated reload
-policy. Raw/gzip delivery, allocator/linear-memory observations and cold-load
+The shared `CemSchemaAssetPackLoader` now performs bounded acquisition through
+the ordinary HTTP transport, authenticates the index through the native-compiled
+pin and reimports retained original bytes on a distinct initialized heap. It
+checks host currentness and physical memory identity, applies native admission
+again to cache hits, and fences cancellation/disposal without waiting for hostile
+stream-return handlers. It does not activate packages or grant recovery authority.
+
+The production service worker accepts this explicit opt-in inventory group:
+
+```json
+{ "id": "schema-assets", "strategy": "cache-first", "inventory": "./schema-assets/integrity.json" }
+```
+
+Deploy every file in the emitted pack at that base. Installation rejects missing
+files, incomplete inventories and paths outside the declared pack/scope. The
+cache name includes the index digest; inventory sidecars never replace native
+pin/source validation. The default graph-emitted inventory omits this group.
+The isolated browser gate verifies all 205 files, cold offline loading and
+byte-only fresh-heap reimport with its server transport disconnected; it also
+verifies missing-source refusal and invalid/incomplete installation failure.
+
+Persistent native activation, ordinary command/render demand, an opt-in Studio
+deployment graph and enrollment in coordinated reload policy remain ahead.
+Raw/gzip delivery, allocator/linear-memory observations and cold-load
 latency are measured separately; no binary, headroom or checkpoint reduction is
 claimed. Default release catalogs and themes remain complete. A separate
 rare-command WASM module needs an explicit ABI, independent ownership and recovery

@@ -229,11 +229,34 @@ resource map or enable automatic recovery. It therefore claims no WASM size,
 resident-memory or checkpoint savings. Native package consumers now accept shared
 owned source text, and formatter/colorizer caches revalidate admission and use
 complete source identities. The
-remaining shared resource-loader/deployment integration and opt-in body-exclusion
-build still precede any binary partition claim. The verifier records raw/gzip
+remaining native activation, opt-in deployment and body-exclusion builds still
+precede any binary partition claim. The verifier records raw/gzip
 delivery, cold import time, allocator observations and linear-memory capacity
 separately under `dist/reports/cem-ml-npm/`. See the
 [Studio loading design](https://github.com/EPA-WG/cem/blob/develop/docs/cem-studio.md#checkpoint-capacity-and-optional-module-loading).
+
+The shared `CemSchemaAssetPackLoader` in `@epa-wg/cem-elements` now acquires
+these sources through the same stream-shaped HTTP transport used by declarative
+resources. Supply an initialized optional runtime and its host admission fence;
+the native-compiled bootstrap authenticates the downloaded catalog before
+selection, and native admission/import runs again for cached sources. Neither
+`bootstrap.json` nor `integrity.json` grants trust. Binary transport MIME is
+allowed for digest-named static files; semantic source MIME remains pinned in
+the native-authenticated index.
+
+`prepareFreshRuntime` accepts a distinct initialized heap and reimports retained
+original bytes without carrying native handles or fetching again. It prepares
+source readiness only; existing ownership, checkpoint, credential and publication
+gates still govern replacement. The production Studio worker understands an
+explicit optional `schema-assets` inventory group; default builds omit that
+group and continue using the complete embedded runtime. Persistent native
+package activation and ordinary command/render demand are separate next steps.
+
+Run `yarn nx run cem-elements:verify:schema-assets --parallel=1` to build the
+optional assets/profile, verify native emission and admission, run shared-loader
+tests and verify cold offline delivery with the production Studio service worker.
+The browser fixture disconnects its transport in addition to page offline
+emulation and never opens saved projects or drafts.
 
 ## Unmanaged embedding boundary
 
