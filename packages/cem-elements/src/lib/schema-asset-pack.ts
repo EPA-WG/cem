@@ -8,6 +8,10 @@ export interface CemSchemaAssetNativeRuntime {
     schemaAssetPackSummaryV1(index: Uint8Array, pin: string): string;
     schemaAssetPackImportV1(index: Uint8Array, pin: string, packageId: string, version: string, path: string, bytes: Uint8Array): string;
     commandNativeMemoryIdentity(): WebAssembly.Memory;
+    schemaAssetOwnerOpenV1?(index: Uint8Array, pin: string, hostConfiguration: string): number;
+    schemaAssetOwnerAdmitV1?(owner: number, packageId: string, version: string, path: string, bytes: Uint8Array): void;
+    schemaAssetOwnerActivateV1?(owner: number, selection: string): string;
+    schemaAssetOwnerDisposeV1?(owner: number): boolean;
 }
 export interface CemSchemaAssetRuntime {
     native: CemSchemaAssetNativeRuntime;
@@ -22,8 +26,12 @@ export interface CemSchemaAssetPackOptions {
     policy?: Partial<CemHttpResourcePolicy>;
     /** May lower the shared 32 MiB admission bound. Includes retained index and pending reads. */
     maxResidentBytes?: number;
+    /** Explicit trusted embedding configuration, never taken from a template or URL.
+     * Required for activation; native exact replacement grants remain authoritative. */
+    activationHostConfiguration?: string;
 }
 export interface CemSchemaAssetSourceIdentity { packageId: string; version: string; path: string }
+export interface CemSchemaAssetPackageIdentity { packageId: string; version: string }
 interface SourceDescriptor extends CemSchemaAssetSourceIdentity { digest: string; byteLength: number; contentType: string }
 interface Bootstrap { indexDigest: string; indexBytes: number; sourceCount: number; sourceBytes: number; packageCount: number }
 interface ImportedSource extends CemSchemaAssetSourceIdentity {
@@ -39,7 +47,7 @@ const key = (source: CemSchemaAssetSourceIdentity) => JSON.stringify([source.pac
 const mediaType = (value: string | null) => value?.split(';', 1)[0]?.trim().toLowerCase();
 const MAX_INDEX = 4 * 1024 * 1024, MAX_SOURCE = 16 * 1024 * 1024, MAX_RESIDENT = 32 * 1024 * 1024;
 
-/** Bounded original-byte acquisition, never a schema parser or activation API.
+/** Bounded original-byte acquisition and explicit embedding-owned activation.
  * Only named native catalog/control DTOs cross JSON boundaries. Native code
  * authenticates the bootstrap/index and interprets every imported source.
  */
@@ -56,6 +64,11 @@ export class CemSchemaAssetPackLoader {
     private residentBytes = 0;
     private pendingBytes = 0;
     private active = 0;
+    private owner?: number;
+    private activating = false;
+    private activationQueue: Promise<void> = Promise.resolve();
+    private queuedActivations = 0;
+    private readonly activated = new Map<string, CemSchemaAssetPackageIdentity>();
 
     constructor(options: CemSchemaAssetPackOptions) {
         const { runtime, ...transport } = options;
@@ -114,13 +127,94 @@ export class CemSchemaAssetPackLoader {
         });
     }
 
+    /** Fetch original bodies, then let native code publish the complete selection.
+     * This loader owns the sole package context in its physical runtime. It must
+     * be disposed before that runtime can pass the existing empty-inventory gate. */
+    async activatePackages(packages: readonly CemSchemaAssetPackageIdentity[], signal?: AbortSignal): Promise<void> {
+        this.guard(signal);
+        if (!Array.isArray(packages) || !packages.length || packages.length > 64
+            || packages.some(identity => !identity || typeof identity.packageId !== 'string' || typeof identity.version !== 'string'
+                || identity.packageId.length > 256 || identity.version.length > 64)) fail('identity');
+        if (this.queuedActivations >= 8) fail('busy');
+        this.queuedActivations++;
+        // Copy authored identities before any wait. No caller can change the
+        // selection while another declaration owns the publication boundary.
+        const selection = packages.map(identity => ({ ...identity }));
+        const work = this.activationQueue.then(() => this.activateSelection(selection, signal))
+            .finally(() => { this.queuedActivations--; });
+        this.activationQueue = work.catch(() => undefined);
+        if (signal) await abortable(work, signal); else await work;
+    }
+
+    private async activateSelection(packages: readonly CemSchemaAssetPackageIdentity[], signal?: AbortSignal): Promise<void> {
+        this.guard(signal);
+        if (!packages.length || packages.length > 64
+            || new Set(packages.map(p => p.packageId)).size !== packages.length) fail('identity');
+        const native = this.runtime.native;
+        const openOwner = native.schemaAssetOwnerOpenV1, admit = native.schemaAssetOwnerAdmitV1,
+            activate = native.schemaAssetOwnerActivateV1;
+        if (!openOwner || !admit || !activate || !native.schemaAssetOwnerDisposeV1) fail('unsupported');
+        const hostConfiguration = this.options.activationHostConfiguration;
+        if (typeof hostConfiguration !== 'string') fail('policy');
+        this.activating = true;
+        try {
+            await this.operation(signal, async active => {
+                const index = await this.loadIndex(active);
+                for (const identity of packages) {
+                    const descriptors = [...index.sources.values()].filter(source => source.packageId === identity.packageId && source.version === identity.version);
+                    if (!descriptors.length) fail('missing');
+                    for (const descriptor of descriptors) await this.loadSource(descriptor, active);
+                }
+                this.guard(active);
+                const owner = this.owner ?? nativeCall(() => openOwner(index.bytes, index.pin.indexDigest, hostConfiguration));
+                if (!Number.isSafeInteger(owner) || owner < 1) fail('response');
+                this.owner = owner;
+                for (const { descriptor, bytes } of this.retained.values()) {
+                    this.guard(active);
+                    nativeCall(() => admit(owner, descriptor.packageId, descriptor.version, descriptor.path, bytes));
+                }
+                this.guard(active);
+                const result = nativeControl<{ ready: boolean; indexDigest: string }>(() =>
+                    activate(owner, JSON.stringify(packages)));
+                if (result.indexDigest !== index.pin.indexDigest || result.ready !== true) fail('activation');
+                this.guard(active);
+                for (const identity of packages) this.activated.set(identity.packageId, { ...identity });
+            });
+        } finally { this.activating = false; }
+    }
+
+    /** Shared declarative demand through an existing http-request resource.
+     * Install as loadHttpResource in a host that owns this same runtime; ordinary
+     * requests use the configured transport. The returned JSON is a named status
+     * DTO, not a schema/document AST or a replacement-authorization grant. */
+    async loadResource(request: CemHttpRequest): Promise<CemHttpResourceLoadResult> {
+        const prefix = new URL('demand/', this.base).href;
+        if (!request.resolvedUrl.startsWith(prefix)) {
+            return (this.options.loadHttpResource ?? openCemHttpResource)(request);
+        }
+        this.guard(request.signal);
+        const url = new URL(request.resolvedUrl);
+        if (request.method !== 'GET' || url.search || url.hash || url.username || url.password) fail('policy');
+        const parts = url.href.slice(prefix.length).split('/');
+        if (parts.length !== 2 || parts.some(part => !part)) fail('identity');
+        let identity: CemSchemaAssetPackageIdentity;
+        try { identity = { packageId: decodeURIComponent(parts[0]), version: decodeURIComponent(parts[1]) }; }
+        catch { return fail('identity'); }
+        await this.activatePackages([identity], request.signal);
+        this.guard(request.signal);
+        const body = new TextEncoder().encode(JSON.stringify({ kind: 'cem-schema-package-status/1', state: 'ready', ...identity }));
+        return { response: { url: url.href, status: 200, statusText: 'OK', ok: true, redirected: false,
+            contentType: 'application/json', headers: { 'content-type': 'application/json' } },
+            body: { async *[Symbol.asyncIterator]() { yield body; } } };
+    }
+
     /** Explicit byte-only preparation, independent of checkpoint/credential authority.
      * Each retained source is admitted/imported again on the distinct target heap.
      * The caller still owns coordinated retirement and final publication.
      */
     async prepareFreshRuntime(runtime: CemSchemaAssetRuntime, signal?: AbortSignal): Promise<CemSchemaAssetPackLoader> {
         this.lifetime.signal.throwIfAborted(); signal?.throwIfAborted();
-        if (this.active) fail('busy');
+        if (this.active || this.activating || this.queuedActivations) fail('busy');
         if (runtime.native.commandNativeMemoryIdentity() === this.memory) fail('generation');
         const fresh = new CemSchemaAssetPackLoader({ ...this.options, runtime });
         try {
@@ -137,6 +231,8 @@ export class CemSchemaAssetPackLoader {
                     fresh.residentBytes += entry.bytes.byteLength;
                 }
             });
+            if (this.activated.size) await fresh.activatePackages([...this.activated.values()], signal);
+            this.lifetime.signal.throwIfAborted(); signal?.throwIfAborted();
             return fresh;
         } catch (error) { fresh.dispose(); throw error; }
     }
@@ -144,6 +240,14 @@ export class CemSchemaAssetPackLoader {
     dispose(): void {
         this.lifetime.abort(new CemSchemaAssetLoadError('cem.schema_asset.disposed'));
         this.index = undefined; this.retained.clear(); this.residentBytes = 0;
+        this.activated.clear();
+        // Cleanup stays available under closed native admission. A failed cleanup
+        // leaves its owner visible in inventory and cannot authorize retirement.
+        if (this.owner !== undefined && this.endpoint) {
+            const owner = this.owner;
+            nativeCall(() => this.endpoint?.native.schemaAssetOwnerDisposeV1?.(owner));
+            this.owner = undefined;
+        }
         this.endpoint = undefined; this.memory = undefined;
     }
 
@@ -290,7 +394,10 @@ function closeBody(iterator: AsyncIterator<Uint8Array> | undefined): void {
     catch { /* A broken provider cannot retain loader admission or replace its result. */ }
 }
 function nativeControl<T>(read: () => string): T {
-    try { return control<T>(read()); }
+    return nativeCall(() => control<T>(read()));
+}
+function nativeCall<T>(read: () => T): T {
+    try { return read(); }
     catch (error) {
         if (typeof error === 'string' && /^cem\.[a-z0-9_.]+$/u.test(error)) throw new CemSchemaAssetLoadError(error);
         throw error;

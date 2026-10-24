@@ -3661,7 +3661,27 @@ the ordinary HTTP transport, authenticates the index through the native-compiled
 pin and reimports retained original bytes on a distinct initialized heap. It
 checks host currentness and physical memory identity, applies native admission
 again to cache hits, and fences cancellation/disposal without waiting for hostile
-stream-return handlers. It does not activate packages or grant recovery authority.
+stream-return handlers. Explicit trusted host configuration can now enable
+persistent native package activation. The shared loader's `activatePackages`
+fetches a complete selected package's original bodies and publishes only a
+checked, authorized native contract; pending or invalid candidates preserve the
+incumbent. Ordinary commands, resolver contexts and CSV resource imports on that
+physical heap use the published context. No native owner is serialized.
+
+Declarative demand reuses `http-request` with a URL under the loader's configured
+`schema-assets/demand/<packageId>/<version>` endpoint. The shared host installs
+`loader.loadResource` as its HTTP opener; a successful request returns a named
+package-status resource and dependent declarations can wait for its loaded state.
+The URL cannot grant replacement authority, switch heaps or enable unavailable
+operations. Exact replacement grants come only from trusted embedding setup.
+See the [shared loader contract](../packages/cem-elements/README.md#persistent-activation-and-declarative-demand).
+
+The persistent owner is a nondiscardable `schema-package-owners` inventory root.
+Closed native admission rejects activation/import but allows exact-owner cleanup;
+live owners and asynchronous command activity block retirement. A fresh loader
+reimports bytes and recompiles active packages on a distinct admitted heap without
+network fallback. Both owners remain live until their host explicitly disposes
+them; preparation grants no checkpoint or generation-publication authority.
 
 The production service worker accepts this explicit opt-in inventory group:
 
@@ -3677,8 +3697,9 @@ The isolated browser gate verifies all 205 files, cold offline loading and
 byte-only fresh-heap reimport with its server transport disconnected; it also
 verifies missing-source refusal and invalid/incomplete installation failure.
 
-Persistent native activation, ordinary command/render demand, an opt-in Studio
-deployment graph and enrollment in coordinated reload policy remain ahead.
+An opt-in Studio deployment graph and automatic package-owner handoff within
+coordinated reload policy remain ahead; current enrollment refuses retirement
+while the persistent owner is live.
 Raw/gzip delivery, allocator/linear-memory observations and cold-load
 latency are measured separately; no binary, headroom or checkpoint reduction is
 claimed. Default release catalogs and themes remain complete. A separate

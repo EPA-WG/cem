@@ -30,6 +30,7 @@ pub const COMMAND_REGISTRIES: &[&str] = &[
     "resolver-read-hooks",
     "resolver-write-hooks",
     "resumable-hosts",
+    "schema-package-owners",
     "template-cache",
     "templates",
     "transform-observers",

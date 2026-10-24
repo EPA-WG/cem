@@ -1062,12 +1062,21 @@ pub(crate) fn load_schema_package_manifest_staged(
         }
     }
     let loaded = load_document_input(&package_input, context);
-    let run = run_pipeline_as_scoped_with_context_and_source_uri(
+    // Immutable native pack admission is a declaration/compilation phase, not
+    // execution of deployment examples or eager compilation of every formatter.
+    // Ordinary validate/check still runs the complete resource contract rule.
+    let owned_admission = context
+        .schema_asset_activation
+        .as_ref()
+        .is_some_and(|binding| binding.owns_path(&manifest_uri));
+    let run = run_pipeline_as_with_validation_phase(
         &loaded.bytes,
         loaded.from_format,
-        &package_input.root_scope,
-        context,
-        &manifest_uri,
+        Some(&package_input.root_scope),
+        Some(context),
+        Some(&manifest_uri),
+        true,
+        !owned_admission,
     );
 
     let mut diagnostics = loaded.diagnostics;
@@ -2326,6 +2335,26 @@ fn run_pipeline_as_with_model_validation(
     source_uri: Option<&str>,
     include_document_model: bool,
 ) -> PipelineRun {
+    run_pipeline_as_with_validation_phase(
+        bytes,
+        from_format,
+        root_scope,
+        context,
+        source_uri,
+        include_document_model,
+        true,
+    )
+}
+
+fn run_pipeline_as_with_validation_phase(
+    bytes: &[u8],
+    from_format: InputFormat,
+    root_scope: Option<&ScopeConfig>,
+    context: Option<&EngineContext>,
+    source_uri: Option<&str>,
+    include_document_model: bool,
+    package_resource_checks: bool,
+) -> PipelineRun {
     match from_format {
         InputFormat::Cem => run_pipeline_with::<CemTokenizer>(
             bytes,
@@ -2333,6 +2362,7 @@ fn run_pipeline_as_with_model_validation(
             context,
             source_uri,
             include_document_model,
+            package_resource_checks,
         ),
         InputFormat::Html => run_pipeline_with::<HtmlTokenizer>(
             bytes,
@@ -2340,6 +2370,7 @@ fn run_pipeline_as_with_model_validation(
             context,
             source_uri,
             include_document_model,
+            package_resource_checks,
         ),
         InputFormat::Xml => run_pipeline_with::<XmlTokenizer>(
             bytes,
@@ -2347,6 +2378,7 @@ fn run_pipeline_as_with_model_validation(
             context,
             source_uri,
             include_document_model,
+            package_resource_checks,
         ),
     }
 }
@@ -2357,6 +2389,7 @@ fn run_pipeline_with<T>(
     context: Option<&EngineContext>,
     source_uri: Option<&str>,
     include_document_model: bool,
+    package_resource_checks: bool,
 ) -> PipelineRun
 where
     T: SchemaTokenizer + FromBytes,
@@ -2449,7 +2482,9 @@ where
     };
 
     // Validation rule registry.
-    let registry = if include_document_model {
+    let registry = if !package_resource_checks {
+        RuleRegistry::with_tier_a_rules_for_owned_package_admission()
+    } else if include_document_model {
         RuleRegistry::with_tier_a_rules()
     } else {
         RuleRegistry::with_tier_a_rules_for_runtime_validation()

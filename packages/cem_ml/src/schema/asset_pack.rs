@@ -338,6 +338,7 @@ fn error(kind: &'static str, message: &str) -> SchemaAssetPackError {
 
 /// Owned per consumer/generation. This is a source store, not a schema grant,
 /// checkpoint, global cache, or transport retry/fallback mechanism.
+#[derive(Clone)]
 pub struct SchemaAssetPack {
     index: SchemaAssetPackIndex,
     index_digest: String,

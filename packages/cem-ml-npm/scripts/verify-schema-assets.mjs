@@ -103,6 +103,9 @@ function verifyWasm(modulePath, indexBytes, digest, index, read) {
   assert.equal(defaults.schemaAssetPackBootstrapV1, undefined, 'default ABI must not include optional bootstrap');
   assert.equal(defaults.schemaAssetPackSummaryV1, undefined, 'default ABI must not include optional pack probes');
   assert.equal(defaults.schemaAssetPackImportV1, undefined, 'default ABI must not include optional pack probes');
+  for (const name of ['schemaAssetOwnerOpenV1', 'schemaAssetOwnerAdmitV1', 'schemaAssetOwnerActivateV1', 'schemaAssetOwnerDisposeV1']) {
+    assert.equal(defaults[name], undefined, 'default ABI must not include optional persistent package owners');
+  }
   const loadRuntime = name => {
     const root = resolve(temporaryRoot, name);
     cpSync(dirname(modulePath), root, { recursive: true });

@@ -41,6 +41,8 @@
 mod runtime_memory;
 #[cfg(feature = "schema-asset-packs")]
 mod schema_asset_pack;
+#[cfg(feature = "schema-asset-packs")]
+pub use schema_asset_pack::active_context as schema_asset_context;
 
 use crate::runtime_inventory::NativeRegistry as RefCell;
 use std::collections::BTreeMap;
@@ -978,10 +980,12 @@ pub fn resolver_registry_for_schemes(schemes: &[&str]) -> ResolverRegistry {
 }
 
 pub fn context_with_resolver_schemes(schemes: &[&str]) -> crate::engine::EngineContext {
-    crate::engine::EngineContext {
-        resolver_registry: resolver_registry_for_schemes(schemes),
-        ..crate::engine::EngineContext::default()
-    }
+    #[cfg(feature = "schema-asset-packs")]
+    let mut context = schema_asset_context().unwrap_or_default();
+    #[cfg(not(feature = "schema-asset-packs"))]
+    let mut context = crate::engine::EngineContext::default();
+    context.resolver_registry = resolver_registry_for_schemes(schemes);
+    context
 }
 
 pub fn schema_package_manifest_input(uri: &str) -> crate::engine::EngineInput {
@@ -1354,5 +1358,9 @@ pub fn resource_inventory_entries() -> Vec<crate::runtime_inventory::RegistryInv
     entries.push(Entry::new("cemt-call-cache", 0, calls));
     entries.push(Entry::new("cemt-object-cache", 0, objects));
     entries.extend(command_service::resource_inventory_entries());
+    #[cfg(feature = "schema-asset-packs")]
+    entries.push(Entry::new("schema-package-owners", schema_asset_pack::inventory_count(), 0));
+    #[cfg(not(feature = "schema-asset-packs"))]
+    entries.push(Entry::new("schema-package-owners", 0, 0));
     entries
 }

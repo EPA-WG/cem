@@ -570,6 +570,19 @@ pub fn import_data_bytes(
     projection: &str,
     source_uri: &str,
 ) -> Result<Arc<RetainedCemTree>, String> {
+    #[cfg(all(target_arch = "wasm32", feature = "schema-asset-packs"))]
+    let context = crate::api::wasm::schema_asset_context();
+    #[cfg(not(all(target_arch = "wasm32", feature = "schema-asset-packs")))]
+    let context = None;
+    import_data_bytes_with_context(bytes, content_type, projection, source_uri, context.as_ref())
+}
+
+/// The same import boundary with an explicitly owned package context. A selected
+/// native parser validates original bytes before projecting its retained AST.
+pub fn import_data_bytes_with_context(
+    bytes: &[u8], content_type: &str, projection: &str, source_uri: &str,
+    context: Option<&crate::engine::EngineContext>,
+) -> Result<Arc<RetainedCemTree>, String> {
     if bytes.len() > MAX_DOCUMENT_BYTES {
         return Err("Source exceeds the 16 MiB document import limit.".into());
     }
@@ -615,7 +628,27 @@ pub fn import_data_bytes(
         ));
         return RetainedCemTree::new(builder.ast, source_uri, text, builder.semantics, None);
     }
-    let native = Arc::new(parse_bytes(bytes, content_type, source_uri, MAX_DOCUMENT_VALUES)?);
+    let (_, normalized) = import_content_type(content_type)?;
+    let model = context.and_then(|ctx| ctx.schema_document_models.resolve_for_identity(
+        None, Some(&normalized), Some(&ctx.schema_registry),
+    ).or_else(|| ctx.schema_document_models.inspect_for_identity(
+        None, Some(&normalized), Some(&ctx.schema_registry),
+    )));
+    let native = if model.is_some_and(|model| model.parser_contract.is_some()
+        || crate::schema::parser_contracts::requires_parser_contract(&model.schema_uri)) {
+        let loaded = crate::lifecycle::LifecycleRegistry::with_builtin_adapters().load(
+            &crate::engine::EngineInput {
+                uri: source_uri.into(), bytes: bytes.to_vec(), from_format: None,
+                identity: Some(crate::engine::FormatIdentity { content_type: Some(normalized.clone()), ..Default::default() }),
+                root_scope: Default::default(),
+            }, context.unwrap(),
+        );
+        if let Some(diagnostic) = loaded.diagnostics.iter().find(|d| d.severity.is_hard_violation()) {
+            return Err(format!("{}: {}", diagnostic.code, diagnostic.message));
+        }
+        loaded.ast_stream.ok_or("Owned native parser did not produce an AST")?
+    } else { parse_bytes(bytes, content_type, source_uri, MAX_DOCUMENT_VALUES)? };
+    let native = Arc::new(native);
     project_native(
         native,
         "",

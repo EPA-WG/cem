@@ -171,15 +171,23 @@ impl RuleRegistry {
 
     /// Register the Tier A catalog of CEM UI + policy rules.
     pub fn with_tier_a_rules() -> Self {
-        Self::tier_a_rules(true)
+        Self::tier_a_rules(true, true)
     }
 
     /// The explicit runtime stage replaces only the source model consumer.
     pub(crate) fn with_tier_a_rules_for_runtime_validation() -> Self {
-        Self::tier_a_rules(false)
+        Self::tier_a_rules(false, true)
     }
 
-    fn tier_a_rules(include_document_model: bool) -> Self {
+    /// Immutable owned-pack admission checks declarations and native contracts.
+    /// Executable bodies remain checked at their consuming boundary; deployment
+    /// examples are not runtime compilation dependencies. Full validation keeps
+    /// its source/artifact/example checks.
+    pub(crate) fn with_tier_a_rules_for_owned_package_admission() -> Self {
+        Self::tier_a_rules(true, false)
+    }
+
+    fn tier_a_rules(include_document_model: bool, package_resource_checks: bool) -> Self {
         let mut r = Self::new();
         r.register(Box::new(rules::ReferenceIntegrityRule));
         r.register(Box::new(rules::AccessibleNameRule));
@@ -193,7 +201,11 @@ impl RuleRegistry {
         if include_document_model {
             r.register(Box::new(rules::SchemaDocumentModelRule));
         }
-        r.register(Box::new(rules::SchemaPackageConverterContractRule));
+        if package_resource_checks {
+            r.register(Box::new(rules::SchemaPackageConverterContractRule));
+        } else {
+            r.register(Box::new(rules::SchemaPackageMetadataContractRule));
+        }
         r.register(Box::new(rules::OpenContentPolicyRule));
         r.register(Box::new(rules::UnboundPrefixRule::default()));
         r.register(Box::new(rules::NoncanonicalDelimiterRule));

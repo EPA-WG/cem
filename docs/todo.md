@@ -32,9 +32,9 @@ Completed [editor filename de-duplication](archive/todo-completed-compact-studio
 
 Completed [graph parameter-map authoring and Studio controls](archive/todo-completed-graph-parameters-2026-10-23.md) is archived.
 
-Continue Studio functionality with persistent owned WASM package activation
-and declarative command/render demand; the native context binding is implemented.
-Follow with an opt-in Studio deployment profile and embedded-body exclusion; then measure download, cold latency and
+Continue Studio functionality with an opt-in Studio deployment profile for the
+implemented persistent WASM package activation and declarative demand.
+Follow with embedded-body exclusion; then measure download, cold latency and
 allocator/linear-memory headroom.
 
 Completed [shared popup surfaces and indicator clearance](archive/todo-completed-compact-studio-2026-10-23.md#shared-popup-surfaces-and-indicator-clearance) is archived.
@@ -60,13 +60,17 @@ Completed [native owned-package activation](archive/todo-completed-native-packag
 
 Completed [native CSV parser contracts](archive/todo-completed-csv-parser-contracts-2026-10-24.md) enable owned CSV package activation and ordinary import/validation with checked fact bindings, original source ownership and separate structural-validation readiness.
 
-- [ ] Connect the shared optional-pack loader to persistent owned WASM activation endpoints and ordinary command/render services, using the native `SchemaAssetActivation` context binding. Expose demand through shared declarative resource bindings so Studio needs no UI JavaScript; enroll active package/source ownership in the existing inventory, generation and credential-admission protocol. Do not serialize native owners or infer retirement authority from source-count/byte metrics.
+Completed [persistent WASM package activation and declarative demand](archive/todo-completed-persistent-wasm-packages-2026-10-24.md) covers native owner inventory, ordinary command/import contexts, explicit admission versus full resource-validation phases, existing HTTP-resource binding and distinct-heap recompilation. No native owners or retirement authority cross status/checkpoint records.
 
 - [ ] Add an opt-in Studio native deployment graph/profile for the optional WASM and complete emitted pack tree, using the implemented service-worker inventory group. Keep default complete deployment intact and bind source reimport to coordinated runtime publication.
 
 - [ ] After shared pack-loading integration, exclude optional embedded source bodies in an opt-in WASM profile while retaining the default complete release; verify strict missing-source refusal and complete offline delivery.
 
 - [ ] Measure the resulting binary partition's raw/gzip download, cold command/editor latency and allocator/linear-memory headroom before considering a separate rare-command WASM ABI/heap; retain independent checkpoint and credential admission.
+
+- [ ] Add a package-owner adapter to coordinated generation-group handoff: prepare/recompile a fresh owned context, release old owners only after the existing checkpoint/credential and embedding-ownership confirmation, and publish the target atomically with its command/render clients. Current explicit preparation grants no publication authority, and live owners correctly block retirement; keep automatic whole-Studio recovery disabled.
+
+- [ ] Make full schema-package artifact/example validation prefer its supplied resource reader over filesystem reads for file-like canonical URIs. Preserve full validation's diagnostics and legacy filesystem behavior when no reader is supplied; keep this separate from immutable owned-pack admission and strict runtime artifact consumption.
 
 - [ ] Diagnose the three existing linked package preparation source-map failures at `schema_package_lifecycle/attribute_datatypes.rs:473`: pretyped handoff, callback context/publication guards and checked preparation replacement retain an additional `SourceBoundary` frame. All three reproduce on unchanged `eca54d20`; preserve source provenance and intended assertions when resolving the mismatch. The broader cohort passes 46/49 cases; see the [CSV contract verification](archive/todo-completed-csv-parser-contracts-2026-10-24.md#verification).
 
@@ -79,6 +83,33 @@ Completed [native CSV parser contracts](archive/todo-completed-csv-parser-contra
 - [ ] Repair the existing native conversion baselines independently of recovery: `cross_surface_conversion_rules::cem_fixture_preserves_anonymous_scope_expression_avt_comments_and_rich_content` loses the expected `{.busy}` value in both default and stripped tests, and stripped CLI `convert_cemt_profile_ambiguity_reports_and_explicit_selectors_resolve` expects raw CEM where the current renderer returns a `<pre>` wrapper. Preserve the intended native semantics and assertions when resolving the mismatch.
 
 - [ ] Investigate the existing stripped WASM binary-size gate: current stripped output is 27,264,508 bytes versus 27,033,499 default bytes, despite the stripped capability contract rejecting debug control. Establish actual debugger-code omission and the correct size baseline without weakening the gate to hide retention.
+
+## Studio samples: supported content types and schemas
+
+Add an Examples subfolder named **Content types and schemas**, organized into
+Data, Documents and UI, Queries and transformations, and Schema authoring.
+Reuse the existing manifest-generated **Schema examples** resources and authored
+projects where possible. Entries remain ordinary cloneable projects with resources
+and configurations; collection folders are discovery metadata. Keep the current
+package-activation work first, then prioritize these functional samples before
+unrelated diagnostic/helper acceptance.
+
+- [ ] Audit native package manifests and browser command capabilities to inventory supported content types, aliases, schema identities and operations. Map each supported combination to an existing or new sample; distinguish import, validation, formatting, querying and transformation support, documenting unsupported operations explicitly.
+- [ ] Add the catalog subfolder and its category folders using the application data model and shared tree/folder listings. Preserve stable project/resource IDs, URL selection, read-only originals, independent saved clones and existing drafts.
+- [ ] Add JSON and YAML data projects: API payload inspection, configuration validation, selecting/filtering records and rendering a report through the native retained-tree pipeline.
+- [ ] Add a CSV project: importing spreadsheet/inventory data, header and quoting diagnostics, tabular preview and converting selected records into a report. Include an intentional malformed row and a documented repair.
+- [ ] Add XML and XHTML projects: importing a supplier catalog, namespace-aware selection, validation and template-driven HTML output; cross-reference the Supplier-pipeline example rather than duplicate it.
+- [ ] Add a Markdown project: article preview and a folder-based Markdown + CEM-ML site with metadata, relative links, CSS and images; reuse the existing site example and expose its source-to-artifact provenance.
+- [ ] Add HTML and CEM-ML projects: semantic comparison, a minimal reusable declarative component and data-bound HTML generation. Reuse Login where appropriate; keep theme/storage keys independent from Studio and preserve credential privacy policy.
+- [ ] Add SVG and MathML projects: inspect and validate a vector diagram and a mathematical expression, then preview supported output using shared preview components.
+- [ ] Add CSS, SCSS and CSS-selector projects: inspect/format a stylesheet, demonstrate supported variable/nesting transformations and select document elements. State native subset limits and include scoped-style examples where supported.
+- [ ] Add CEM-QL and XPath projects: standalone expressions, selecting/filtering/joining data, parameter maps and inspecting native results with source provenance.
+- [ ] Add CEM transformation and XSLT projects: transform a source document into HTML or data artifacts, compare supported approaches and inspect a multi-step transformation graph with explicit entry artifacts.
+- [ ] Add schema-authoring projects for native CEM schemas, JSON Schema and RELAX NG: define a small domain contract, validate passing/failing inputs and repair the reported violations. Expose supported schema subsets and declaration/reference behavior.
+- [ ] Add module-map and portable configuration projects: resolve relative and mapped resource dependencies, inspect a CLI command/run configuration and build a portable Studio project. Cover the supported schema versions without implying schema identity alone grants execution support.
+- [ ] Add native DOM/AST/event projection projects: explain import versus structural inspection, show source locations and compare projections using the shared CEM-ML presentation path. Include any additional supported schema families found by the inventory audit.
+- [ ] Give each project a README with its typical use, content types/schema identities, supported configurations, expected artifacts, provenance and deliberate failure/repair steps where applicable. Reuse shared table, editor and preview controls; add no sample-specific UI JavaScript.
+- [ ] Add native fixtures for each sample's authored configurations, expected artifacts and intentional diagnostics, plus Studio catalog/navigation/clone/build/preview and offline-inventory coverage. Preserve saved projects/drafts and test that original examples remain unchanged after editing clones.
 
 ## Amsterdam presentation samples: active Studio priority
 

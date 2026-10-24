@@ -1,6 +1,7 @@
-//! Optional, stateless asset-pack probes. Transport copies are bounded before
-//! allocation; original source parsing and provenance remain native. No store,
-//! owner handle, recovery grant or credential state survives a call.
+//! Optional probes and one embedding-owned package context per physical runtime.
+//! Original sources and native contracts never leave the owning heap.
+use crate::runtime_inventory::NativeRegistry;
+use crate::schema::asset_pack_session::SchemaAssetSession;
 use crate::{
     operation_control::OperationControl,
     runtime_memory::{runtime_budget, runtime_sample, RuntimeMemoryPermit},
@@ -10,6 +11,157 @@ use crate::{
 use js_sys::Uint8Array;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+
+thread_local! {
+    static OWNER: NativeRegistry<Option<(u32, SchemaAssetSession)>> = const { NativeRegistry::new(None) };
+    static NEXT_OWNER: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Trusted embedding selection is per physical heap. Never serialized in a
+/// checkpoint. In-flight commands clone the context and retain NativeActivity.
+pub fn active_context() -> Option<crate::engine::EngineContext> {
+    OWNER.with(|owner| {
+        owner.borrow().as_ref().and_then(|(_, session)| {
+            session
+                .context()
+                .schema_asset_activation
+                .as_ref()
+                .map(|_| session.context().clone())
+        })
+    })
+}
+pub(super) fn inventory_count() -> u64 {
+    OWNER.with(|owner| u64::from(owner.borrow().is_some()))
+}
+
+#[wasm_bindgen(js_name = "schemaAssetOwnerOpenV1")]
+pub fn owner_open(index: Uint8Array, pin: &str, host_configuration: &str) -> Result<u32, JsValue> {
+    let _native = match crate::runtime_admission::admit(false) {
+        Ok(permit) => permit,
+        Err(error) => return Err(failure(error)),
+    };
+    let _memory = reserve(index.length() as usize, host_configuration.len())?;
+    if host_configuration.len() > 64 * 1024 {
+        return Err(failure("cem.schema_asset.limit"));
+    }
+    let config =
+        crate::command_host_config::decode_command_host_configuration_v1(Some(host_configuration))
+            .map_err(|_| failure("cem.schema_asset.policy"))?;
+    let pack = pack(&index.to_vec(), pin)?;
+    OWNER.with(|owner| {
+        let mut owner = owner.borrow_mut();
+        if owner.is_some() {
+            return Err(failure("cem.schema_asset.owner_busy"));
+        }
+        let id = NEXT_OWNER.with(|next| {
+            let id = next
+                .get()
+                .checked_add(1)
+                .ok_or_else(|| failure("cem.schema_asset.limit"))?;
+            next.set(id);
+            Ok::<_, JsValue>(id)
+        })?;
+        let (mut context, _) = super::command_service::fresh_runtime_context();
+        config.apply_to_context(&mut context);
+        *owner = Some((id, SchemaAssetSession::new(pack, context)));
+        Ok(id)
+    })
+}
+
+#[wasm_bindgen(js_name = "schemaAssetOwnerAdmitV1")]
+pub fn owner_admit(
+    owner_id: u32,
+    package_id: &str,
+    version: &str,
+    path: &str,
+    bytes: Uint8Array,
+) -> Result<(), JsValue> {
+    let _native = match crate::runtime_admission::admit(false) {
+        Ok(permit) => permit,
+        Err(error) => return Err(failure(error)),
+    };
+    let _memory = reserve(0, bytes.length() as usize)?;
+    if package_id.len() > 256 || version.len() > 64 || path.len() > 4096 {
+        return Err(failure("cem.schema_asset.identity"));
+    }
+    OWNER.with(|owner| {
+        let mut owner = owner.borrow_mut();
+        let session = owner
+            .as_mut()
+            .filter(|(id, _)| *id == owner_id)
+            .map(|(_, session)| session)
+            .ok_or_else(|| failure("cem.schema_asset.owner"))?;
+        let descriptor = session
+            .pack()
+            .source_descriptor(package_id, version, path)
+            .map_err(|e| failure(e.code))?;
+        if bytes.length() as usize != descriptor.byte_length {
+            return Err(failure("cem.schema_asset.limit"));
+        }
+        session
+            .admit(package_id, version, path, bytes.to_vec())
+            .map_err(|e| failure(e.code))
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct Selection {
+    package_id: String,
+    version: String,
+}
+
+#[wasm_bindgen(js_name = "schemaAssetOwnerActivateV1")]
+pub fn owner_activate(owner_id: u32, selection: &str) -> Result<String, JsValue> {
+    let _native = match crate::runtime_admission::admit(false) {
+        Ok(permit) => permit,
+        Err(error) => return Err(failure(error)),
+    };
+    let _memory = reserve(0, selection.len())?;
+    if selection.len() > 64 * 1024 {
+        return Err(failure("cem.schema_asset.limit"));
+    }
+    let selected: Vec<Selection> =
+        serde_json::from_str(selection).map_err(|_| failure("cem.schema_asset.identity"))?;
+    OWNER.with(|owner| {
+        let mut owner = owner.borrow_mut();
+        let session = owner
+            .as_mut()
+            .filter(|(id, _)| *id == owner_id)
+            .map(|(_, session)| session)
+            .ok_or_else(|| failure("cem.schema_asset.owner"))?;
+        let _compilation_memory = reserve(0, session.pack().admitted_bytes())?;
+        let identities: Vec<_> = selected
+            .iter()
+            .map(|p| (p.package_id.as_str(), p.version.as_str()))
+            .collect();
+        let diagnostics = session
+            .activate(&identities)
+            .map_err(|_| failure("cem.schema_asset.activation"))?;
+        let ready = !diagnostics.iter().any(|d| d.severity.is_hard_violation());
+        encode(
+            &serde_json::json!({"ready": ready, "diagnosticCount": diagnostics.len(),
+            "diagnosticCodes": diagnostics.iter().take(8).map(|d| d.code.chars().take(128).collect::<String>()).collect::<Vec<_>>(),
+            "indexDigest": session.pack().index_digest()}),
+        )
+    })
+}
+
+#[wasm_bindgen(js_name = "schemaAssetOwnerDisposeV1")]
+pub fn owner_dispose(owner_id: u32) -> Result<bool, JsValue> {
+    let _native = match crate::runtime_admission::admit(true) {
+        Ok(permit) => permit,
+        Err(error) => return Err(failure(error)),
+    };
+    OWNER.with(|owner| {
+        let mut owner = owner.borrow_mut();
+        if owner.as_ref().is_some_and(|(id, _)| *id == owner_id) {
+            owner.take();
+            return Ok(true);
+        }
+        Ok(false)
+    })
+}
 
 const BOOTSTRAP: &[u8] = include_bytes!("../../../schema/schema-assets-bootstrap-v1.json");
 
@@ -61,14 +213,20 @@ fn encode(value: &impl Serialize) -> Result<String, JsValue> {
 
 #[wasm_bindgen(js_name = "schemaAssetPackBootstrapV1")]
 pub fn bootstrap() -> Result<String, JsValue> {
-    let _native = crate::runtime_admission::admit(false).map_err(failure)?;
+    let _native = match crate::runtime_admission::admit(false) {
+        Ok(permit) => permit,
+        Err(error) => return Err(failure(error)),
+    };
     let _memory = reserve(BOOTSTRAP.len(), 0)?;
     encode(&pinned_bootstrap()?)
 }
 
 #[wasm_bindgen(js_name = "schemaAssetPackSummaryV1")]
 pub fn summary(index: Uint8Array, pin: &str) -> Result<String, JsValue> {
-    let _native = crate::runtime_admission::admit(false).map_err(failure)?;
+    let _native = match crate::runtime_admission::admit(false) {
+        Ok(permit) => permit,
+        Err(error) => return Err(failure(error)),
+    };
     let _memory = reserve(index.length() as usize, 0)?;
     let bytes = index.to_vec();
     let pack = pack(&bytes, pin)?;
@@ -108,7 +266,10 @@ pub fn import(
     path: &str,
     source: Uint8Array,
 ) -> Result<String, JsValue> {
-    let _native = crate::runtime_admission::admit(false).map_err(failure)?;
+    let _native = match crate::runtime_admission::admit(false) {
+        Ok(permit) => permit,
+        Err(error) => return Err(failure(error)),
+    };
     let _memory = reserve(index.length() as usize, source.length() as usize)?;
     if package_id.len() > 256 || version.len() > 64 || path.len() > 4096 {
         return Err(failure("cem.schema_asset.identity"));

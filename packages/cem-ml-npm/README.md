@@ -229,7 +229,7 @@ resource map or enable automatic recovery. It therefore claims no WASM size,
 resident-memory or checkpoint savings. Native package consumers now accept shared
 owned source text, and formatter/colorizer caches revalidate admission and use
 complete source identities. The
-remaining native activation, opt-in deployment and body-exclusion builds still
+remaining opt-in deployment and body-exclusion builds still
 precede any binary partition claim. The verifier records raw/gzip
 delivery, cold import time, allocator observations and linear-memory capacity
 separately under `dist/reports/cem-ml-npm/`. See the
@@ -244,13 +244,25 @@ selection, and native admission/import runs again for cached sources. Neither
 allowed for digest-named static files; semantic source MIME remains pinned in
 the native-authenticated index.
 
-`prepareFreshRuntime` accepts a distinct initialized heap and reimports retained
-original bytes without carrying native handles or fetching again. It prepares
-source readiness only; existing ownership, checkpoint, credential and publication
-gates still govern replacement. The production Studio worker understands an
+The optional ABI also provides `schemaAssetOwnerOpenV1`,
+`schemaAssetOwnerAdmitV1`, `schemaAssetOwnerActivateV1` and
+`schemaAssetOwnerDisposeV1`. One embedding-owned context per physical heap retains
+the admitted pack and atomically published native package bindings. Opening
+requires an explicit trusted command-host configuration; native exact replacement
+grants remain mandatory. Ordinary command/resolver contexts and CSV resource
+imports use that context. A nondiscardable `schema-package-owners` inventory root
+blocks retirement while live, and raw native admission closure permits only
+exact-owner cleanup. The shared loader exposes activation through the existing
+declarative HTTP resource contract; templates cannot supply replacement grants.
+
+`prepareFreshRuntime` accepts a distinct initialized heap, reimports retained
+original bytes and recompiles/reactivates previously active packages without
+carrying native handles or fetching again. Existing ownership, checkpoint,
+credential and publication gates still govern replacement; both owners require
+explicit cleanup. The production Studio worker understands an
 explicit optional `schema-assets` inventory group; default builds omit that
-group and continue using the complete embedded runtime. Persistent native
-package activation and ordinary command/render demand are separate next steps.
+group and continue using the complete embedded runtime. An opt-in Studio
+deployment profile and coordinated package-owner handoff are separate next steps.
 
 Run `yarn nx run cem-elements:verify:schema-assets --parallel=1` to build the
 optional assets/profile, verify native emission and admission, run shared-loader

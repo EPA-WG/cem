@@ -1594,8 +1594,8 @@ release only after fresh owners settle. See the
 schema-asset profile. It uses `openCemHttpResource`, the HTTP transport also used
 by declarative resources. Custom resolvers/openers use the existing
 `CemResourceResolutionRequest` / `CemHttpRequest` contracts. Source interpretation
-stays in native code; JSON is used only for the named catalog and scalar import
-receipts.
+stays in native code; JSON is used only for named catalog, import receipt and
+package-status control records.
 
 ```ts
 import { CemSchemaAssetPackLoader } from '@epa-wg/cem-elements/schema-assets';
@@ -1627,17 +1627,75 @@ source, 65,536 chunks per response and 32 MiB retained/pending byte capacity.
 Caller-owned result copies and native parsing allocations are separate from this transport capacity; native
 memory admission remains mandatory. Abort/dispose fences late completions and
 closes response iterators without waiting for uncooperative return handlers.
-`dispose()` drops retained bytes, native callbacks and the memory identity.
+`dispose()` drops retained bytes, native callbacks and the memory identity, and
+releases its persistent native owner if activation was requested.
+
+#### Persistent activation and declarative demand
+
+Supply `activationHostConfiguration` explicitly to enable `activatePackages`.
+This is trusted embedding setup using the existing native command-host
+configuration contract, including exact package/origin/manifest replacement
+grants. It must never be copied from an authored template, demand URL or project
+resource. Omission keeps the service acquisition-only; `{}` supplies no grants.
+For example, a host can grant replacement of the built-in CSV package with its
+exact pinned `schema-packages/csv/v1/package.cem` manifest. Then
+`await loader.activatePackages([{ packageId: 'csv', version: '1.0.0' }], signal)`
+fetches all that package's original bodies and atomically activates the checked
+native contract. Failed selections preserve the incumbent; repeated successful
+demand is idempotent. Publication is serialized with at most eight queued demands.
+
+Owned-pack admission validates manifest declarations and compiles the native
+schema contract. It does not run development examples or eagerly compile every
+formatter/colorizer; those examples are outside the emitted runtime pack. Full
+package `validate`/`check` retains its resource checks, and execution still
+requires the exact admitted artifact body with no embedded fallback. This is an
+explicit validation phase, without filtering diagnostic results to obtain readiness.
+
+Install `loadHttpResource: request => loader.loadResource(request)` on a shared
+`CemElementRuntime` host. An ordinary declarative resource can demand that package:
+
+```cem
+{http-request @slice=csvPackage
+    @url="./schema-assets/demand/csv/1.0.0"
+    @content-type="application/json"}
+```
+
+The absolute URL must match the loader's configured `baseUrl` plus
+`demand/<packageId>/<version>`. The endpoint accepts GET without query/fragment,
+authenticates the package against the native-pinned index and returns the named
+`cem-schema-package-status/1` JSON status with `state=ready`. Use the existing
+resource's `loaded` state to gate dependent controls/configurations. Ordinary
+URLs use the host transport. No new UI control or Studio-specific JavaScript is
+needed; native validation, not the URL or the status record, grants execution.
+
+The loader owns the sole persistent package context on its physical optional
+WASM heap. Install it on the same owned runtime that will execute the demanded
+commands or import resources; activation never silently retargets a worker or
+fallback heap. Ordinary command-service contexts, resolver contexts and CSV
+resource imports use that heap's published context. Import still produces the
+retained typed CEM tree, with checked source diagnostics and existing limits.
+Defaults retain their complete embedded catalog until explicitly opted in.
+
+`schema-package-owners` is a nondiscardable native inventory root. Raw admission
+closure refuses new owners, imports and activation; exact-owner cleanup remains
+available. A live owner blocks the existing empty-inventory retirement check.
+In-flight commands retain their native activity and cloned context through host
+callbacks. Neither status records nor source counts/bytes can authorize release
+or generation publication. Bind `current()` to the host's generation and
+admission/credential policy; a false fence refuses new demand.
 
 `deploymentUrls()` returns the complete immutable offline delivery list, including
 metadata sidecars. Those sidecars are inventories, not trust anchors.
 `prepareFreshRuntime({ native, current }, signal)` admits the retained index and
 reimports original bytes into a distinct initialized heap without network reads
-or native-handle transfer. Call it after old work drains and before dropping the
-old loader's bytes. Host currentness and the physical memory identity are checked
-at asynchronous/native boundaries. The returned loader does not retire a runtime,
-activate a schema, publish owners, serialize credentials or grant checkpoint
-authority. Existing credential refusal and coordinated recovery gates still
+or native-handle transfer. If packages were active, it compiles and activates
+them again under the same explicit host grants. Call it after old work drains
+and before dropping the old loader's bytes. The target's admission/currentness
+and physical memory identity are checked at asynchronous/native boundaries;
+old bytes can survive an old endpoint becoming stale. The returned loader does
+not retire the old runtime, publish a generation, serialize credentials or grant
+checkpoint authority. Both native owners remain inventory blockers until their
+host explicitly releases them. Existing credential refusal and coordinated recovery gates still
 apply; automatic recovery is unchanged.
 
 `yarn nx run cem-elements:verify:schema-assets --parallel=1` prepares the explicit

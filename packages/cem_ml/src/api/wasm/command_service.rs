@@ -63,6 +63,13 @@ pub fn register_command_runtime_factory(
     COMMAND_RUNTIME_FACTORY.with(|slot| slot.set(Some(factory)));
 }
 
+pub(super) fn fresh_runtime_context() -> (EngineContext, QueryResultExporterRegistry) {
+    COMMAND_RUNTIME_FACTORY.with(|slot| match slot.get() {
+        Some(factory) => factory(),
+        None => (EngineContext::default(), QueryResultExporterRegistry::new()),
+    })
+}
+
 /// Execute one command-service v1 request against JavaScript-owned async host
 /// capabilities. The returned promise always resolves to a JSON string holding
 /// either the canonical `CommandServiceResultV1` or `{ "error": ... }` for a
@@ -219,11 +226,11 @@ async fn execute_command_service(
             .map_err(|error| {
             WasmCommandServiceError::new("cem.command.host_configuration_invalid", error)
         })?;
-    let (mut context, mut query_exporters) =
-        COMMAND_RUNTIME_FACTORY.with(|slot| match slot.get() {
-            Some(factory) => factory(),
-            None => (EngineContext::default(), QueryResultExporterRegistry::new()),
-        });
+    let (mut context, mut query_exporters) = fresh_runtime_context();
+    #[cfg(feature = "schema-asset-packs")]
+    if let Some(published) = super::schema_asset_pack::active_context() {
+        context = published;
+    }
     host_configuration.apply_to_context(&mut context);
     let request = decode_command_service_request_v1(request_json.as_bytes())
         .map_err(|error| WasmCommandServiceError::new(error.code(), error.to_string()))?;

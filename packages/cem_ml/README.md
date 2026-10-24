@@ -121,9 +121,30 @@ Native parser readiness is separate from structural CEM-AST readiness:
 parser-only model. A CEM projection cannot stand in for validated CSV syntax.
 A refused replacement also preserves the actual default parser incumbent.
 
-Persistent WASM endpoints, shared declarative demand and coordinated generation
-handoff remain integration work. This native API does not enable automatic
-recovery, serialize native owners, or change credential/checkpoint admission.
+The optional WASM profile also exposes a persistent embedding-owned source
+session (`schemaAssetOwnerOpenV1`, `schemaAssetOwnerAdmitV1`,
+`schemaAssetOwnerActivateV1`, `schemaAssetOwnerDisposeV1`). One session owns the runtime's published package
+context; ordinary command and resolver contexts clone it, and CSV resource
+imports use its checked parser at the native import boundary. Opening requires
+explicit trusted command-host configuration; package requests cannot supply
+replacement grants. Failed activation preserves the incumbent, and repeated
+successful selections are idempotent. The `schema-package-owners` inventory root
+blocks retirement until exact-owner cleanup; asynchronous commands independently
+retain their native activity. Closed admission permits cleanup only.
+
+Owned immutable package admission checks declaration metadata and compiles its
+native schema contract separately from deployment-example execution and eager
+formatter compilation. Full package `validate`/`check` keeps its existing resource
+checks. Runtime artifact readers remain authoritative, including strict refusal
+of missing selected bodies. Adding admitted bodies republishes a fresh immutable
+source binding; unchanged stores reuse their existing publication identity.
+
+The shared optional loader exposes this through existing declarative HTTP
+resources and reimports/recompiles active packages on a distinct target heap.
+This API does not enable automatic recovery, publish a generation, serialize
+native owners, or change credential/checkpoint admission. Opt-in Studio
+deployment and coordinated generation publication remain separate integration
+work; default complete release artifacts remain intact.
 
 The `schema-asset-packs` feature adds stateless WASM probes, leaving the default
 ABI/catalog intact. The native producer and isolated offline/WASM verification

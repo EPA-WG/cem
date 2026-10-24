@@ -41,6 +41,10 @@ impl SchemaAssetActivation {
         self.packages.contains_key(package_id)
     }
 
+    pub(crate) fn references_pack(&self, pack: &Arc<SchemaAssetPack>) -> bool {
+        Arc::ptr_eq(&self.pack, pack)
+    }
+
     pub(crate) fn owns_path(&self, path: &str) -> bool {
         self.pack.index().packages.iter().any(|package| {
             self.owns_package(&package.package_id)

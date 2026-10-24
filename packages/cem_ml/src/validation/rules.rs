@@ -1514,10 +1514,20 @@ struct SchemaPackageCemtParseCacheKey {
     schema: Option<String>,
 }
 
-#[derive(Default)]
 struct SchemaPackageContractCache {
     resources: BTreeMap<SchemaPackageResourceCacheKey, Result<RuleResourceRead, String>>,
     cemt_parse: BTreeMap<SchemaPackageCemtParseCacheKey, TransformTemplateModuleParseResponse>,
+    read_resources: bool,
+}
+
+impl Default for SchemaPackageContractCache {
+    fn default() -> Self {
+        Self {
+            resources: BTreeMap::new(),
+            cemt_parse: BTreeMap::new(),
+            read_resources: true,
+        }
+    }
 }
 
 impl SchemaPackageContractCache {
@@ -1527,6 +1537,9 @@ impl SchemaPackageContractCache {
         path: &str,
         content_type_hint: Option<&str>,
     ) -> Option<Result<RuleResourceRead, String>> {
+        if !self.read_resources {
+            return None;
+        }
         if let Some(source_path) = resolve_schema_package_resource_path(ctx.source_uri, path) {
             let key = SchemaPackageResourceCacheKey {
                 uri: source_path.display().to_string(),
@@ -1597,6 +1610,16 @@ fn schema_package_contract_registry() -> &'static SchemaRegistry {
 }
 
 pub struct SchemaPackageConverterContractRule;
+pub(crate) struct SchemaPackageMetadataContractRule;
+
+impl SemanticRule for SchemaPackageMetadataContractRule {
+    fn descriptor(&self) -> &RuleDescriptor {
+        schema_package_converter_contract_descriptor()
+    }
+    fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        schema_package_contract_diagnostics(ctx, false)
+    }
+}
 
 impl SemanticRule for SchemaPackageConverterContractRule {
     fn descriptor(&self) -> &RuleDescriptor {
@@ -1604,29 +1627,36 @@ impl SemanticRule for SchemaPackageConverterContractRule {
     }
 
     fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
-        if !is_schema_package_manifest_document(ctx) {
-            return Vec::new();
-        }
-
-        let registry = schema_package_contract_registry();
-        let mut cache = SchemaPackageContractCache::default();
-        let mut out = Vec::new();
-        for node in ctx.document.iter() {
-            match element_local_name(node) {
-                Some("converter") => {
-                    validate_schema_package_converter(ctx, node, registry, &mut cache, &mut out)
-                }
-                Some("artifact") => {
-                    validate_schema_package_artifact(ctx, node, &mut cache, &mut out)
-                }
-                Some("example") => {
-                    validate_schema_package_example(ctx, node, registry, &mut cache, &mut out)
-                }
-                _ => {}
-            }
-        }
-        out
+        schema_package_contract_diagnostics(ctx, true)
     }
+}
+
+fn schema_package_contract_diagnostics(ctx: &RuleContext<'_>, read_resources: bool) -> Vec<Diagnostic> {
+    if !is_schema_package_manifest_document(ctx) {
+        return Vec::new();
+    }
+
+    let registry = schema_package_contract_registry();
+    let mut cache = SchemaPackageContractCache {
+        read_resources,
+        ..Default::default()
+    };
+    let mut out = Vec::new();
+    for node in ctx.document.iter() {
+        match element_local_name(node) {
+            Some("converter") => {
+                validate_schema_package_converter(ctx, node, registry, &mut cache, &mut out)
+            }
+            Some("artifact") => {
+                validate_schema_package_artifact(ctx, node, &mut cache, &mut out)
+            }
+            Some("example") => {
+                validate_schema_package_example(ctx, node, registry, &mut cache, &mut out)
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 fn validate_schema_package_converter(
