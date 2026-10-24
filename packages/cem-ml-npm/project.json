@@ -53,6 +53,46 @@
       ],
       "outputs": ["{projectRoot}/dist-stripped"]
     },
+    "build:schema-assets": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "build"
+      ],
+      "options": {
+        "commands": [
+          "node scripts/build-schema-assets.mjs",
+          "node scripts/build-schema-assets-wasm.mjs"
+        ],
+        "parallel": false,
+        "cwd": "{projectRoot}"
+      },
+      "inputs": [
+        "{projectRoot}/package.json",
+        "{projectRoot}/scripts/build.mjs",
+        "{workspaceRoot}/tools/scripts/cem-ql-wasm-factory.mjs",
+        "{workspaceRoot}/Cargo.lock",
+        "{workspaceRoot}/Cargo.toml",
+        "{workspaceRoot}/rust-toolchain.toml",
+        "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+        "{workspaceRoot}/packages/cem_ql/Cargo.toml",
+        "{workspaceRoot}/packages/cem_ql/src/**/*",
+        "{workspaceRoot}/packages/cem_ml_transform_cem_ql/Cargo.toml",
+        "{workspaceRoot}/packages/cem_ml_transform_cem_ql/src/**/*",
+        "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+        "{workspaceRoot}/packages/cem_ml/schema-packages/**/*",
+        "{projectRoot}/scripts/build-schema-assets*.mjs",
+        "{workspaceRoot}/packages/cem_ml/schema/schema-assets-bootstrap-v1.json",
+        {
+          "dependentTasksOutputFiles": "**/*",
+          "transitive": false
+        }
+      ],
+      "outputs": [
+        "{projectRoot}/dist-schema-assets",
+        "{projectRoot}/dist-schema-assets-wasm"
+      ]
+    },
     "lint": {
       "cache": true,
       "executor": "nx:run-commands",

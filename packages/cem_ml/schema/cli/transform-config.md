@@ -22,7 +22,7 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 | `join` | `mode` | `id`, `input`, `by`, `with:*` | `convert`, `transform`, `rewrite-importmap`, `export` |
 | `convert` | none | `id`, `input`, `content-type`, `contentType`, `schema`, `converter` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
 | `transform` | `src` | `id`, `input`, `with:*`, `content-type`, `contentType`, `schema`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
-| `rewrite-importmap` | `target-map` | `id`, `input`, `source-map`, `sourceMap`, `targetMap`, `mode`, `missing` | `export` |
+| `rewrite-importmap` | `target-map` | `id`, `input`, `source-map`, `sourceMap`, `authored-map`, `targetMap`, `mode`, `missing` | `export` |
 | `param` | `name`, `value` | none | none |
 | `export` | `out` | `id`, `content-type`, `contentType`, `schema`, `style-policy`, `stylePolicy` | none |
 
@@ -101,6 +101,12 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 - `rewrite-importmap @source-map` optionally validates the source `imports`
   entries before rewriting. Legacy browser import-map JSON remains validation
   only.
+- `rewrite-importmap @authored-map` optionally separates the exact HTML source
+  URL expectations from deployment asset selection. This document must declare
+  exactly the target import keys; its raw paths are checked against authored
+  HTML without resolving or loading them. `source-map` still selects and hashes
+  the deployment bytes, and the paired-map identity checks remain mandatory.
+  Omitting `authored-map` preserves the original source-map validation behavior.
 - When both maps declare `$schema` as module-map v1, v2, or v3, they use the
   dedicated `application/vnd.cem.module-map+json` contract and must declare
   matching keys. V1 retains string JavaScript `imports`; v2 adds typed

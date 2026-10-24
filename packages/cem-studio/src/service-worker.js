@@ -47,7 +47,9 @@ async function activateDeployment() {
     const existingCaches = await caches.keys();
     await Promise.all(
         existingCaches
-            .filter((name) => name.startsWith(`${CACHE_NAMESPACE}:`) && !currentCaches.has(name))
+            .filter((name) => name.startsWith(plan.cacheFamily)
+                && (plan.profile || !name.startsWith(`${CACHE_NAMESPACE}:profile:`))
+                && !currentCaches.has(name))
             .map((name) => caches.delete(name)),
     );
     await self.clients.claim();
@@ -97,11 +99,25 @@ async function loadDeploymentPlan() {
         throw new Error('CEM Studio cache inventory is invalid');
     }
 
+    let namespace = CACHE_NAMESPACE;
+    let cacheFamily = `${CACHE_NAMESPACE}:`;
+    const profile = inventory.deploymentProfile !== undefined || inventory.deploymentDigest !== undefined;
+    if (profile) {
+        if (typeof inventory.deploymentProfile !== 'string' || !/^[a-z0-9-]{1,32}$/.test(inventory.deploymentProfile)
+            || typeof inventory.deploymentDigest !== 'string' || !/^[a-f0-9]{64}$/.test(inventory.deploymentDigest)) {
+            throw new Error('CEM Studio deployment profile is invalid');
+        }
+        const scopeHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
+            new TextEncoder().encode(self.registration.scope))), byte => byte.toString(16).padStart(2, '0')).join('');
+        cacheFamily = `${CACHE_NAMESPACE}:profile:${scopeHash}:${inventory.deploymentProfile}:`;
+        namespace = `${cacheFamily}${inventory.deploymentDigest}`;
+    }
+
     const groups = [];
     for (const group of inventory.groups ?? []) {
         if (group?.id === 'shell' && Array.isArray(group.urls)) {
             groups.push({
-                cacheName: cacheName(inventory.commonVersion, group.id),
+                cacheName: cacheName(inventory.commonVersion, group.id, namespace),
                 urls: uniqueUrls(group.urls),
             });
         } else if (group?.id === 'runtime' && typeof group.moduleMap === 'string') {
@@ -114,7 +130,7 @@ async function loadDeploymentPlan() {
             const entries = [...Object.values(moduleMap.imports ?? {}), ...Object.values(moduleMap.resources ?? {})];
             const targets = entries.map((entry) => entry?.path).filter((path) => typeof path === 'string');
             groups.push({
-                cacheName: cacheName(inventory.commonVersion, group.id),
+                cacheName: cacheName(inventory.commonVersion, group.id, namespace),
                 urls: uniqueUrls([group.moduleMap, ...targets]),
             });
         } else if (group?.id === 'samples' && group.strategy === 'cache-first' && typeof group.catalog === 'string') {
@@ -132,7 +148,7 @@ async function loadDeploymentPlan() {
                 throw new Error('CEM Studio sample catalog is invalid');
             }
             groups.push({
-                cacheName: cacheName(inventory.commonVersion, group.id),
+                cacheName: cacheName(inventory.commonVersion, group.id, namespace),
                 urls: uniqueUrls([
                     catalogUrl,
                     ...catalog.cacheUrls.map((path) => new URL(path, catalogUrl).href),
@@ -188,7 +204,7 @@ async function loadDeploymentPlan() {
                 }
                 return new URL(path, base).href;
             });
-            groups.push({ cacheName: `${cacheName(inventory.commonVersion, group.id)}:${pack.indexSha256}`, urls });
+            groups.push({ cacheName: `${cacheName(inventory.commonVersion, group.id, namespace)}:${pack.indexSha256}`, urls });
         }
     }
     if (!groups.some(({ urls }) => urls.includes(SHELL_FALLBACK))) {
@@ -199,7 +215,7 @@ async function loadDeploymentPlan() {
             throw new Error(`CEM Studio cache inventory is missing the ${requiredGroup} group`);
         }
     }
-    return { groups };
+    return { groups, cacheFamily, profile };
 }
 
 async function schemaAssetControlBytes(response, capacity) {
@@ -230,6 +246,6 @@ function uniqueUrls(paths) {
     return [...new Set(paths.map((path) => new URL(path, self.registration.scope).href))];
 }
 
-function cacheName(version, group) {
-    return `${CACHE_NAMESPACE}:${version}:${group}`;
+function cacheName(version, group, namespace = CACHE_NAMESPACE) {
+    return `${namespace}:${version}:${group}`;
 }

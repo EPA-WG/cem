@@ -1341,7 +1341,20 @@ impl TransformGraphRequestLowerer<'_> {
                 }
                 (None, None) => {}
             }
-            let source_imports = source_map
+            let authored_map = if let Some(authored_map) = node.authored_map.as_deref() {
+                let authored = self.importmap_document(authored_map, &primary_variant.bindings, false)?;
+                if authored.imports.keys().ne(target_map.imports.keys()) {
+                    return Err(config_error(
+                        self.config_uri,
+                        "cem.module_map.authored_entries_mismatch",
+                        format!("rewrite-importmap node `{}` authored map must declare exactly the target import keys", node.id),
+                    ));
+                }
+                Some(authored)
+            } else {
+                source_map
+            };
+            let source_imports = authored_map
                 .map(|document| {
                     document
                         .imports
@@ -3772,6 +3785,96 @@ mod tests {
             changed.module_asset_manifest.hash,
             request.module_asset_manifest.hash
         );
+    }
+
+    #[test]
+    fn dedicated_module_maps_separate_authored_urls_from_profile_sources() {
+        let fixture = FixtureDir::new();
+        let graph_bytes = br#"{run | {import @id=page @src="page.html" @content-type="text/html" | {rewrite-importmap @id=modules @source-map="profile.json" @authored-map="authored.json" @target-map="target.json" | {export @id=html @out="dist/page.html" @content-type="text/html"}}}}"#;
+        let config_uri = fixture.write("graph.cem", graph_bytes);
+        fixture.write(
+            "page.html",
+            br#"<script type="importmap">{"imports":{"@pkg/runtime":"./original.js"}}</script>"#,
+        );
+        fixture.write("profile.json", br#"{"$schema":"https://cem.dev/ns/data/module-map/1","imports":{"@pkg/runtime":"./optional.js"}}"#);
+        fixture.write(
+            "authored.json",
+            br#"{"imports":{"@pkg/runtime":"./original.js"}}"#,
+        );
+        fixture.write("target.json", br#"{"$schema":"https://cem.dev/ns/data/module-map/1","imports":{"@pkg/runtime":"./vendor/runtime.js"}}"#);
+        let optional = fixture.write("optional.js", b"export const optional = true;");
+        let graph = graph(&config_uri, graph_bytes);
+        let context = EngineContext::default();
+        let provider = FilesystemTransformGraphResourceProvider::new(&context, &config_uri);
+        let request =
+            lower_transform_graph_request(&context, &graph, &provider, &config_uri, true).unwrap();
+        assert_eq!(
+            request.importmap_rewrites[0].source_imports["@pkg/runtime"],
+            "./original.js"
+        );
+        assert_eq!(request.module_asset_manifest.assets[0].source_uri, optional);
+        assert_eq!(
+            request.module_asset_manifest.assets[0].sha256,
+            crate::command_service::sha256_hex(b"export const optional = true;")
+        );
+        assert_eq!(
+            request.module_asset_manifest.assets[0].source_map_uri,
+            fixture.0.join("profile.json").to_string_lossy()
+        );
+        use crate::engine::CemMlEngine;
+        let response = crate::real::RealCemMlEngine::new()
+            .transform_graph(request.clone())
+            .unwrap();
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let html = response
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.export_id == "html")
+            .unwrap();
+        assert!(html
+            .primary
+            .as_str()
+            .unwrap()
+            .contains("./vendor/runtime.js"));
+        for (source, code) in [
+            (
+                br#"<script type="importmap">{"imports":{"@pkg/runtime":"./unexpected.js"}}</script>"#
+                    .as_slice(),
+                "cem.importmap.source_mismatch",
+            ),
+            (
+                br#"<script type="importmap">{"imports":{}}</script>"#.as_slice(),
+                "cem.importmap.source_missing",
+            ),
+        ] {
+            fixture.write("page.html", source);
+            let request =
+                lower_transform_graph_request(&context, &graph, &provider, &config_uri, true).unwrap();
+            let response = crate::real::RealCemMlEngine::new()
+                .transform_graph(request)
+                .unwrap();
+            assert!(
+                response
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == code),
+                "{:?}",
+                response.diagnostics
+            );
+        }
+        for incomplete in [
+            br#"{"imports":{}}"#.as_slice(),
+            br#"{"imports":{"@pkg/other":"./original.js"}}"#.as_slice(),
+        ] {
+            fixture.write("authored.json", incomplete);
+            let error = lower_transform_graph_request(&context, &graph, &provider, &config_uri, true)
+                .unwrap_err();
+            assert_eq!(error.code(), "cem.module_map.authored_entries_mismatch");
+        }
     }
 
     #[test]

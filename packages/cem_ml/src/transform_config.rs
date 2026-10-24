@@ -115,6 +115,7 @@ pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
             "input",
             "source-map",
             "sourceMap",
+            "authored-map",
             "targetMap",
             "mode",
             "missing",
@@ -189,6 +190,9 @@ pub struct TransformGraphNode {
     pub input_ref: Option<String>,
     #[serde(default)]
     pub source_map: Option<String>,
+    /// Exact import URLs expected in the authored HTML; source_map still selects deployment bytes.
+    #[serde(default)]
+    pub authored_map: Option<String>,
     #[serde(default)]
     pub target_map: Option<String>,
     #[serde(default)]
@@ -542,6 +546,7 @@ impl GraphLowerer<'_> {
             input_ref,
             source_map: attr_value(&attrs, "", "source-map")
                 .or_else(|| attr_value(&attrs, "", "sourceMap")),
+            authored_map: attr_value(&attrs, "", "authored-map"),
             target_map: attr_value(&attrs, "", "target-map")
                 .or_else(|| attr_value(&attrs, "", "targetMap")),
             rewrite_mode,

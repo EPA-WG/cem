@@ -3649,8 +3649,17 @@ metadata. JavaScript transports bytes and named catalog/control metadata; packag
 identity, source import and formatter/colorizer semantics stay native. See the
 [build and verification commands](https://github.com/EPA-WG/cem/blob/develop/packages/cem-ml-npm/README.md#optional-native-schema-asset-packs-prototype).
 
-The prototype deliberately retains default embedded sources and does not enroll
-the optional delivery tree in Studio's production service-worker map. Native
+The prototype deliberately retains embedded sources. Studio's opt-in
+`build:schema-assets` target now emits a separate `dist/schema-assets/` native
+deployment graph with the complete pack in its service-worker inventory. The
+ordinary `dist/static/` deployment remains complete and unchanged by that build.
+Profile cache names bind registration scope and deployment input digest; cleanup
+preserves the other profile's caches. Both rendering and command factories use
+the pinned optional binary, while initialization still creates an empty native
+owner inventory. The deployment is available without enabling automatic package
+activation or recovery. `verify:schema-assets` checks the emitted tree, both pins,
+cold offline Studio/worker commands and declarative demand in isolated storage.
+See the [Studio build instructions](../packages/cem-studio/README.md). Native
 package consumers now accept shared owned manifest/schema text; admitted packs
 produce the same consumer inputs without static lifetimes. Packed conversion
 readers remain authoritative and parsed formatter/colorizer options are keyed by

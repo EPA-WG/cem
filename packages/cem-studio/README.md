@@ -183,6 +183,32 @@ and WASM byte copied into the static deployment. JSON manifests and the SVG icon
 are explicit typed graph imports/exports. There is no post-graph production-copy
 step.
 
+An opt-in deployment includes the optional native schema-package ABI and the
+complete pinned source pack:
+
+```sh
+yarn nx run @epa-wg/cem-studio:build:schema-assets
+yarn nx run @epa-wg/cem-studio:verify:schema-assets
+```
+
+The native graph emits `dist/schema-assets/`; serve that directory with the same
+security headers as the ordinary deployment. `dist/static/` and the default npm
+package retain their complete embedded catalogs. Both command and rendering
+factories select the optional binary. Profile caches include the deployment
+input digest and registration scope, so installing either profile preserves the
+other profile's caches. The verifier uses isolated browser storage.
+
+Delivery alone does not activate a package. A trusted embedding host must bind
+`CemSchemaAssetPackLoader.loadResource` as the shared HTTP opener and grant any
+native package replacement explicitly; declarations may then demand
+`schema-assets/demand/<packageId>/<version>` through `http-request`. Factory
+allocations remain empty until admitted. Fresh source preparation reimports
+original bytes into distinct native owners; the existing coordinated publication
+and credential gates still govern replacement. Entered passwords/one-time codes
+block recovery until cleared. Automatic whole-Studio recovery stays disabled.
+Embedded-body exclusion and a package-owner recovery-group adapter remain later
+work; this profile makes no binary-size or memory-saving claim.
+
 Those JavaScript assets may own bootstrap, workers, persistence, and browser
 service adapters. Visible DOM composition and UI bindings belong to the
 canonical declarations and shared runtime.

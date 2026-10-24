@@ -856,6 +856,63 @@
                 }
             ],
             "outputs": []
+        },
+        "build:schema-assets": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "build",
+                {
+                    "projects": [
+                        "@epa-wg/cem-ml"
+                    ],
+                    "target": "build:schema-assets"
+                }
+            ],
+            "options": {
+                "command": "node scripts/build-schema-assets-profile.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/studio.cem",
+                "{projectRoot}/runtime/**/*",
+                "{projectRoot}/src/**/*",
+                "{projectRoot}/generated/feature-tour/**/*",
+                "{projectRoot}/scripts/build-schema-assets-profile.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ql-wasm-factory.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{projectRoot}/dist/schema-assets",
+                "{projectRoot}/generated/schema-assets",
+                "{projectRoot}/studio.schema-assets.generated.cem",
+                "{projectRoot}/generated/feature-tour/feature-tour.schema-assets.cem",
+                "{workspaceRoot}/dist/reports/cem-studio/schema-assets-{samples,build}.json"
+            ]
+        },
+        "verify:schema-assets": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "build:schema-assets"
+            ],
+            "options": {
+                "command": "node scripts/verify-schema-assets-profile.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-schema-assets-profile.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/schema-assets-profile.json"
+            ]
         }
     },
     "tags": [

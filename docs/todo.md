@@ -32,10 +32,10 @@ Completed [editor filename de-duplication](archive/todo-completed-compact-studio
 
 Completed [graph parameter-map authoring and Studio controls](archive/todo-completed-graph-parameters-2026-10-23.md) is archived.
 
-Continue Studio functionality with an opt-in Studio deployment profile for the
-implemented persistent WASM package activation and declarative demand.
-Follow with embedded-body exclusion; then measure download, cold latency and
-allocator/linear-memory headroom.
+Continue with the package-owner adapter and explicit host demand integration
+for coordinated Studio command/render groups. The opt-in deployment is complete;
+finish host admission/publication before excluding embedded bodies. Then measure
+download, cold latency and allocator/linear-memory headroom.
 
 Completed [shared popup surfaces and indicator clearance](archive/todo-completed-compact-studio-2026-10-23.md#shared-popup-surfaces-and-indicator-clearance) is archived.
 
@@ -51,24 +51,29 @@ The optional native schema-asset prototype and
 [owned package/formatter consumers](archive/todo-completed-owned-schema-inputs-2026-10-24.md)
 are complete; embedded bodies and the default complete release remain intact.
 The [shared acquisition and offline delivery contract](archive/todo-completed-schema-acquisition-2026-10-24.md)
-is implemented. Continue with persistent consumer activation and opt-in deployment
-before claiming binary, headroom or checkpoint savings. Prototype implementation,
+is implemented. Persistent consumer activation and opt-in deployment are complete;
+finish coordinated host integration and embedded-body exclusion before claiming
+binary, headroom or checkpoint savings. Prototype implementation,
 measurements and verification are in the
 [archived evidence](archive/todo-snapshot-2026-10-23.md#project-builds-and-artifact-previews).
 
-Completed [native owned-package activation](archive/todo-completed-native-package-activation-2026-10-24.md) covers atomic publication, source ownership, ordinary engine consumers and strict body admission. WASM endpoint/service wiring and declarative demand remain below.
+Completed [native owned-package activation](archive/todo-completed-native-package-activation-2026-10-24.md) covers atomic publication, source ownership, ordinary engine consumers and strict body admission. Completed WASM/service wiring and declarative demand are recorded below.
 
 Completed [native CSV parser contracts](archive/todo-completed-csv-parser-contracts-2026-10-24.md) enable owned CSV package activation and ordinary import/validation with checked fact bindings, original source ownership and separate structural-validation readiness.
 
 Completed [persistent WASM package activation and declarative demand](archive/todo-completed-persistent-wasm-packages-2026-10-24.md) covers native owner inventory, ordinary command/import contexts, explicit admission versus full resource-validation phases, existing HTTP-resource binding and distinct-heap recompilation. No native owners or retirement authority cross status/checkpoint records.
 
-- [ ] Add an opt-in Studio native deployment graph/profile for the optional WASM and complete emitted pack tree, using the implemented service-worker inventory group. Keep default complete deployment intact and bind source reimport to coordinated runtime publication.
+Completed [opt-in Studio schema-asset deployment](archive/todo-completed-studio-schema-profile-2026-10-24.md)
+covers native profile emission, authored URL expectations, both factory pins,
+complete offline delivery, cache isolation and independent source preparation.
+Explicit host admission and coordinated publication remain required; the normal
+bootstrap does not activate packages implicitly.
+
+- [ ] Add a package-owner adapter to coordinated generation-group handoff: install explicit shared demand bindings for Studio command/render groups, prepare/recompile a fresh owned context, release old owners only after the existing checkpoint/credential and embedding-ownership confirmation, and publish the target atomically with its command/render clients. Current explicit preparation grants no publication authority, and live owners correctly block retirement; keep automatic whole-Studio recovery disabled.
 
 - [ ] After shared pack-loading integration, exclude optional embedded source bodies in an opt-in WASM profile while retaining the default complete release; verify strict missing-source refusal and complete offline delivery.
 
 - [ ] Measure the resulting binary partition's raw/gzip download, cold command/editor latency and allocator/linear-memory headroom before considering a separate rare-command WASM ABI/heap; retain independent checkpoint and credential admission.
-
-- [ ] Add a package-owner adapter to coordinated generation-group handoff: prepare/recompile a fresh owned context, release old owners only after the existing checkpoint/credential and embedding-ownership confirmation, and publish the target atomically with its command/render clients. Current explicit preparation grants no publication authority, and live owners correctly block retirement; keep automatic whole-Studio recovery disabled.
 
 - [ ] Make full schema-package artifact/example validation prefer its supplied resource reader over filesystem reads for file-like canonical URIs. Preserve full validation's diagnostics and legacy filesystem behavior when no reader is supplied; keep this separate from immutable owned-pack admission and strict runtime artifact consumption.
 
