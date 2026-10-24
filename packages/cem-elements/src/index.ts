@@ -1,7 +1,7 @@
 export * from './lib/cem-elements.js';
 export * from './lib/repository.js';
 export { openCemHttpResource } from './lib/http-resource-transport.js';
-export { CemSchemaAssetPackLoader, CemSchemaAssetLoadError, type CemSchemaAssetPackOptions, type CemSchemaAssetRuntime,
+export { CemSchemaAssetPackRecoveryBinding, cemSchemaAssetRuntimeFromBinding, type CemSchemaAssetPackRecoveryOptions, type CemSchemaAssetNativeBinding, CemSchemaAssetPackLoader, CemSchemaAssetLoadError, type CemSchemaAssetPackOptions, type CemSchemaAssetRuntime,
     type CemSchemaAssetNativeRuntime, type CemSchemaAssetSourceIdentity, type CemSchemaAssetPackageIdentity, type CemLoadedSchemaAssetSource } from './lib/schema-asset-pack.js';
 export { CemCommittedCheckpointStore, type CemCommitReceipt, type CemCheckpointNativeRuntime, type CemCheckpointOwnerReceipt, type CemCheckpointSealer, type CemStoredCheckpoint, type CemCheckpointRetirementHandoff } from './lib/committed-checkpoint.js';
 export { mountCemView, type CemHostCommandRequest, type CemHostViewOptions, type CemHostView } from './lib/host-view.js';
@@ -57,7 +57,7 @@ export type { CemNativeDrain, CemRetiredRenderingGeneration } from './lib/intern
 
 export { isolateCemFallbackGeneration, type CemOwnedFallbackGeneration, type CemFallbackWasmOwnership, type CemFallbackRetirementConsent, type CemDisposedFallbackGeneration } from './lib/internal/runtime-support/native-runtime.js';
 
-export { CemNativeRecoveryScope, type CemNativeRecoveryEnrollment, type CemNativeRecoveryEndpoint, CemNativeGenerationGroup, type CemNativeGenerationParticipant, type CemNativeGenerationAdmission, type CemNativeGenerationBindingTicket } from './lib/internal/runtime-support/native-generation.js';
+export { resumeNativeGenerationBindings, CemNativeRecoveryScope, type CemNativeRecoveryEnrollment, type CemNativeRecoveryEndpoint, CemNativeGenerationGroup, type CemNativeGenerationParticipant, type CemNativeGenerationAdmission, type CemNativeGenerationBindingTicket } from './lib/internal/runtime-support/native-generation.js';
 export type { CemFreshFallbackGeneration, CemFallbackNativeEntrypoint, CemFallbackNativeCleanup } from './lib/internal/runtime-support/native-runtime.js';
 export type { CemFreshRenderingGeneration } from './lib/internal/runtime-support/processing-host-runtime.js';
 

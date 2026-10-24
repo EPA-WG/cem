@@ -13,7 +13,8 @@ const worker = await readFile(resolve(root, 'packages/cem-studio/src/service-wor
 const index = JSON.parse(await readFile(resolve(packRoot, 'index.json')));
 const selected = index.sources.find(source => source.packageId === 'csv' && source.path.endsWith('/formatters/compact.cemt'));
 assert.ok(selected);
-const runtimeFiles = ['schema-asset-pack.js', 'http-resource-transport.js', 'cem_ml_factory.js', 'cem_ml_bg.wasm'];
+const runtimeFiles = ['schema-asset-pack.js', 'http-resource-transport.js', 'cem_ml_factory.js', 'cem_ml_bg.wasm',
+    'internal/runtime-support/native-generation.js', 'internal/runtime-support/vendor/native-generation.js'];
 const groups = [
     { id: 'shell', urls: ['./index.html', './service-worker.js', './cache-inventory.json'] },
     { id: 'runtime', moduleMap: './module-map.json' },

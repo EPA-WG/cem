@@ -70,7 +70,7 @@ test('inspection reentrancy cannot supersede an in-flight group', async () => {
     const result = await nested; assert.equal(a.calls.length, 1); result.revoke();
 });
 test('a candidate from another registered heap and missing currentness refuse admission', async () => {
-    const identity = {}, other = registerNativeGeneration(identity, 'foreign', async () => {});
+    const identity = {}, other = registerNativeGeneration(identity, 'foreign', async () => { /* This fixture never allocates the foreign participant. */ });
     assert.ok(other);
     for (const [physical, current] of [[identity, () => true], [{}, () => false], [{}, () => { throw Error('probe failure'); }]]) {
         let gate, discarded = 0;
@@ -103,6 +103,7 @@ test('retained revoked admission handles release original and candidate memory i
     });
     const group = new CemNativeGenerationGroup([participant]);
     const receipt = completeNativeRetirement(participant, new Uint8Array([1])); original = undefined;
+    assert.equal(original, undefined);
     const admission = await group.allocate([receipt]);
     admission.revoke();
     // Forced test-only GC verifies reachability while all host handles stay
@@ -134,7 +135,7 @@ test('resume claims require an original live admission and retain private checkp
 
 test('currentness probes cannot reenter and claim the same admission twice', async () => {
     const { claimNativeGenerationAdmission } = await import('../runtime/native-generation.mjs');
-    let admission, probe = false, nestedRefused = false;
+    let probe = false, nestedRefused = false;
     const a = source(async () => ({ identity: {}, runtimeId: crypto.randomUUID(), runtime: {}, discard: () => undefined,
         current: () => {
             if (probe) {
@@ -143,7 +144,7 @@ test('currentness probes cannot reenter and claim the same admission twice', asy
             }
             return true;
         } }));
-    admission = await new CemNativeGenerationGroup([a.participant]).allocate([a.retire()]);
+    const admission = await new CemNativeGenerationGroup([a.participant]).allocate([a.retire()]);
     probe = true; claimNativeGenerationAdmission(admission);
     assert.equal(nestedRefused, true); admission.revoke();
 });
@@ -201,7 +202,7 @@ test('mixed semantic tickets cover every remaining physical generation and consu
 test('matching runtime labels never substitute a foreign physical binding participant', async () => {
     const { issueNativeGenerationBindingTicket, claimNativeGenerationBindings, claimNativeGenerationAdmission } = await import('../runtime/native-generation.mjs');
     const runtimeId = crypto.randomUUID();
-    const create = () => registerNativeGeneration({}, runtimeId, async () => ({ identity: {}, runtimeId: crypto.randomUUID(), runtime: {}, current: () => true, discard() {} }));
+    const create = () => registerNativeGeneration({}, runtimeId, async () => ({ identity: {}, runtimeId: crypto.randomUUID(), runtime: {}, current: () => true, discard() { /* No retained fixture owner. */ } }));
     const source = create(), foreign = create();
     assert.throws(() => issueNativeGenerationBindingTicket({ ...source }, () => true, async () => ({})), /binding/);
     assert.throws(() => issueNativeGenerationBindingTicket(runtimeId, () => true, async () => ({})), /binding/);
@@ -223,4 +224,101 @@ test('workspace receipt transport keeps the complete group bounded to 4 MiB', as
     assert.throws(() => completeNativeRetirement(c.participant, new Uint8Array(4 * 1024 * 1024 + 1)), /receipt/);
     const receipt = completeNativeRetirement(c.participant, new Uint8Array(4 * 1024 * 1024));
     const admitted = await single.allocate([receipt]); assert.equal(admitted.generations[0].checkpoint.byteLength, 4 * 1024 * 1024); admitted.revoke();
+});
+
+test('original generation resources require checked release and join complete binding claims', async () => {
+    const { registerNativeGenerationResource, releaseNativeGenerationResources, issueNativeGenerationBindingTicket,
+        claimNativeGenerationAdmission, claimNativeGenerationBindings } = await import('../runtime/native-generation.mjs');
+    let released = false, current = true, prepared = 0;
+    const a = source();
+    const enrollment = registerNativeGenerationResource(a.participant, () => ({ current: () => current,
+        release: () => { released = true; }, prepare: async () => { prepared++; return { owner: {}, current: () => true, discard() { /* No retained fixture owner. */ }, bind() { /* No separate fixture route. */ } }; } }), () => { /* No native owner in this control-only fixture. */ });
+    const group = new CemNativeGenerationGroup([a.participant]);
+    assert.throws(() => a.retire(), /resource/);
+    assert.throws(() => releaseNativeGenerationResources(a.participant, () => false), /resource/);
+    assert.equal(released, false);
+    releaseNativeGenerationResources(a.participant, () => true);
+    assert.equal(released, true);
+    const ticket = issueNativeGenerationBindingTicket(a.participant, () => true, async () => ({ owner: {}, current: () => true, discard() { /* No retained fixture owner. */ }, bind() { /* No separate fixture route. */ } }));
+    const admission = await group.allocate([a.retire()]);
+    const authority = claimNativeGenerationAdmission(admission);
+    const bindings = claimNativeGenerationBindings(authority, [ticket], []);
+    assert.equal(bindings.length, 2);
+    for (const binding of bindings) await binding.prepare({ generation: binding.generation, active: () => false, signal: new AbortController().signal, revoke: authority.revoke });
+    assert.equal(prepared, 1);
+    assert.throws(() => claimNativeGenerationBindings(authority, [ticket], []), /binding/);
+    current = false; enrollment.remove(); authority.revoke();
+});
+
+test('resource membership and source changes fence release and allocation', async () => {
+    const { registerNativeGenerationResource, releaseNativeGenerationResources } = await import('../runtime/native-generation.mjs');
+    let current = true, released = 0;
+    const a = source();
+    const registration = registerNativeGenerationResource(a.participant, () => ({ current: () => current,
+        release: () => { released++; }, prepare: async () => ({}) }), () => { /* No native owner in this control-only fixture. */ });
+    new CemNativeGenerationGroup([a.participant]);
+    current = false;
+    assert.throws(() => releaseNativeGenerationResources(a.participant, () => true), /resource/);
+    assert.equal(released, 0);
+    registration.remove();
+    assert.throws(() => a.retire(), /resource/);
+});
+
+test('failed resource staging revokes the complete fresh group without binding a host route', async () => {
+    const { registerNativeGenerationResource, releaseNativeGenerationResources, issueNativeGenerationBindingTicket, resumeNativeGenerationBindings } =
+        await import('../runtime/native-generation.mjs');
+    let discarded = 0, bound = 0;
+    const a = source();
+    registerNativeGenerationResource(a.participant, () => ({ current: () => true, release() { /* No native owner in this fixture. */ },
+        prepare: async context => {
+            assert.equal(context.active(), false);
+            return { owner: {}, current: () => false, discard: () => { discarded++; }, bind: () => { bound++; } };
+        } }), () => { /* Explicit source disposal is unused. */ });
+    const ticket = issueNativeGenerationBindingTicket(a.participant, () => true,
+        async () => ({ owner: {}, current: () => true, discard() { /* No retained fixture owner. */ }, bind: () => { bound++; } }));
+    const group = new CemNativeGenerationGroup([a.participant]);
+    releaseNativeGenerationResources(a.participant, () => true);
+    const admission = await group.allocate([a.retire()]);
+    await assert.rejects(resumeNativeGenerationBindings(admission, [ticket]), /binding-stale/);
+    assert.equal(bound, 0); assert.equal(discarded, 1); assert.ok(a.calls.includes('discard'));
+});
+
+test('late resource preparation is cleaned once after the shared deadline', async () => {
+    const { registerNativeGenerationResource, releaseNativeGenerationResources, issueNativeGenerationBindingTicket, resumeNativeGenerationBindings } =
+        await import('../runtime/native-generation.mjs');
+    let finish, discarded = 0, bound = 0;
+    const a = source();
+    registerNativeGenerationResource(a.participant, () => ({ current: () => true, release() { /* No native owner. */ },
+        prepare: async () => new Promise(resolve => { finish = resolve; }) }), () => { /* No source heap in this fixture. */ });
+    const group = new CemNativeGenerationGroup([a.participant]);
+    const ticket = issueNativeGenerationBindingTicket(a.participant, () => true, async () => { throw Error('must not prepare host'); });
+    releaseNativeGenerationResources(a.participant, () => true);
+    const admission = await group.allocate([a.retire()]);
+    await assert.rejects(resumeNativeGenerationBindings(admission, [ticket], 5), /timeout/);
+    finish({ owner: {}, current: () => true, discard: () => { discarded++; }, bind: () => { bound++; } });
+    await new Promise(done => setImmediate(done));
+    assert.equal(discarded, 1); assert.equal(bound, 0); assert.ok(a.calls.includes('discard'));
+});
+
+test('resource targets bind original participants to exact physical identities', async () => {
+    const { assertNativeGenerationResourceTarget } = await import('../runtime/native-generation.mjs');
+    const memory = {}, foreign = {}, participant = registerNativeGeneration(memory, 'target', async () => { throw Error('unused'); });
+    assertNativeGenerationResourceTarget(participant, 'target', memory);
+    assert.throws(() => assertNativeGenerationResourceTarget({ ...participant }, 'target', memory), /resource-target/);
+    assert.throws(() => assertNativeGenerationResourceTarget(participant, 'target', foreign), /resource-target/);
+    assert.throws(() => assertNativeGenerationResourceTarget(participant, 'other', memory), /resource-target/);
+});
+
+test('a busy resource capture leaves participants available for a new complete preparation', async () => {
+    const { registerNativeGenerationResource, releaseNativeGenerationResources } = await import('../runtime/native-generation.mjs');
+    const a = source(); let busy = true;
+    registerNativeGenerationResource(a.participant, () => {
+        if (busy) throw Error('busy');
+        return { current: () => true, release() { /* No native owner. */ }, prepare: async () => { throw Error('unused'); } };
+    }, () => { /* No native source heap. */ });
+    assert.throws(() => new CemNativeGenerationGroup([a.participant]), /busy/);
+    busy = false;
+    const group = new CemNativeGenerationGroup([a.participant]);
+    releaseNativeGenerationResources(a.participant, () => true);
+    const admission = await group.allocate([a.retire()]); admission.revoke();
 });

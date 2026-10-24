@@ -1763,3 +1763,36 @@ property-only credential changes. Hosts suspend status publication before
 quiescence/capture/retirement and release it after fresh-owner publication. The
 [component/observer contract](../packages/cem-components/docs/recovery-status-contract.md)
 documents codes, counts, lifecycle, accessibility and privacy limitations.
+
+
+### Optional native package resource handoff
+
+The shared generation registry can enroll original non-UI resources on an
+existing physical participant. It snapshots their source witnesses when the
+complete group is created, rejects changed membership or source state, and
+requires checked release before accepting a native retirement receipt. Resource
+registration and copied runtime labels grant no checkpoint or retirement
+permission. A weak physical identity map checks the exact source/target heap
+without retaining retired memories.
+
+`CemSchemaAssetPackRecoveryBinding` retains immutable original catalog bytes
+outside WASM. Its release callback runs inside an owned runtime's original
+checkpoint/embedding ownership confirmation; entered credentials, missing or
+stale handoffs and incomplete ownership block release. The native empty-inventory
+barrier remains mandatory. The source loader drops its native endpoint and
+memory references after exact-owner cleanup, preserving only replay bytes until
+they can be authenticated, reimported and recompiled on the fresh heap.
+
+Restoration participates in the existing complete binding claim, including
+mixed checkpoint-owner transactions. Every package and host route stages before
+publication; failure, stale witnesses, cancellation or deadline expiry revokes
+the entire fresh set. A stable package route binds alongside its host and
+re-enrolls on the fresh participant for subsequent handoffs. Explicit host close
+may discard its resources, but produces no retirement receipt. Native owners,
+grants and package bodies never enter checkpoint/status DTOs, and the existing
+4 MiB workspace checkpoint and five-second handoff limits remain intact.
+
+The owned browser invocation adapter is implemented. Worker-backed command and
+rendering/fallback adapters and whole-Studio demand adoption remain explicit
+follow-ups. Automatic whole-Studio recovery stays disabled; entered passwords or
+one-time codes continue to block recovery until the user clears them.

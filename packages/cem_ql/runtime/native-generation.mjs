@@ -10,6 +10,7 @@ state.authorityRecords ??= new WeakMap();
 state.bindingTickets ??= new WeakMap();
 state.bindingClaims ??= new WeakSet();
 state.coverages ??= new WeakMap();
+state.physicalParticipants ??= new WeakMap();
 const fail = code => { throw new Error(`cem.runtime.allocation.${code}`); };
 const object = value => typeof value === 'object' && value !== null;
 function slots(values) {
@@ -31,13 +32,59 @@ export function registerNativeGeneration(identity, runtimeId, allocate) {
     state.identities.add(identity);
     // Uniqueness is weakly held above. The physical owner releases memory;
     // a retained participant must not keep a disposed WASM memory alive.
-    state.participants.set(participant, { runtimeId, allocate, group: undefined, receipt: undefined, consumed: false });
+    const record = { runtimeId, allocate, group: undefined, receipt: undefined, consumed: false, resources: new Set(), resourceRevision: 0 };
+    state.participants.set(participant, record); state.physicalParticipants.set(identity, record);
     return participant;
+}
+/** Internal shared resource adapters, bound to an original physical participant.
+ * Registration/capture grants no checkpoint, credential or retirement authority. */
+export function registerNativeGenerationResource(participant, capture, dispose) {
+    const record = state.participants.get(participant);
+    if (!record || record.group || record.consumed || typeof capture !== 'function' || typeof dispose !== 'function' || (record.resources?.size ?? 0) >= 16) fail('resource');
+    record.resources ??= new Set(); record.resourceRevision ??= 0;
+    const resource = { capture, dispose };
+    record.resources.add(resource); record.resourceRevision++;
+    return Object.freeze({ remove: () => { if (record.resources.delete(resource)) record.resourceRevision++; } });
+}
+export function hasNativeGenerationResources(participant) {
+    return (state.participants.get(participant)?.resources?.size ?? 0) !== 0;
+}
+/** Explicit host shutdown only; never produces a retirement receipt. */
+export function discardNativeGenerationResources(participant) {
+    const record = state.participants.get(participant);
+    if (!record) fail('resource');
+    for (const resource of [...(record.resources ?? [])]) resource.dispose();
+    if (record.resources?.size) fail('resource-cleanup');
+}
+/** Internal original-capability check; a copied runtime label grants nothing. */
+export function assertNativeGenerationResourceTarget(participant, runtimeId, identity) {
+    const record = state.participants.get(participant);
+    if (!record || record.consumed || runtimeId !== undefined && record.runtimeId !== runtimeId
+        || !object(identity) || state.physicalParticipants.get(identity) !== record) fail('resource-target');
+}
+function resourcesCurrent(record) {
+    const snapshot = record.resourceSnapshot;
+    return !record.resources?.size && !snapshot || !!snapshot && snapshot.revision === record.resourceRevision
+        && snapshot.entries.every(entry => entry.current() === true) && snapshot.revision === record.resourceRevision;
+}
+/** Called only inside the existing original checkpoint/embedding cleanup gate.
+ * Synchronous cleanup never opens admission; any failure leaves retirement blocked. */
+export function releaseNativeGenerationResources(participant, current) {
+    const record = state.participants.get(participant);
+    if (!record) fail('resource');
+    if (!record.resources?.size && !record.resourceSnapshot) return;
+    if (!record.group || record.receipt || typeof current !== 'function' || current() !== true || !resourcesCurrent(record)) fail('resource');
+    for (const entry of record.resourceSnapshot.entries) {
+        if (current() !== true || !resourcesCurrent(record)) fail('resource-stale');
+        if (!entry.released) { if (entry.release() !== undefined) fail('resource'); entry.released = true; }
+        if (current() !== true || !resourcesCurrent(record)) fail('resource-stale');
+    }
 }
 /** Internal: called only after original ownership/census/handoff retirement. */
 export function completeNativeRetirement(participant, bytes) {
     const record = object(participant) && state.participants.get(participant);
     if (!record || record.receipt || !(bytes instanceof Uint8Array) || !(bytes.buffer instanceof ArrayBuffer) || bytes.byteLength < 1 || bytes.byteLength > 4 * 1024 * 1024) fail('receipt');
+    if (!resourcesCurrent(record) || record.resources?.size && !record.resourceSnapshot?.entries.every(entry => entry.released)) fail('resource');
     const checkpoint = new Uint8Array(bytes);
     const receipt = Object.freeze({ checkpoint: new Uint8Array(checkpoint), replacementAllowed: false });
     record.receipt = receipt; record.identity = undefined;
@@ -81,8 +128,16 @@ export function claimNativeGenerationBindings(authority, originals, renderingIds
         || authority.generations.some(generation => !ids.includes(generation.previousRuntimeId))) fail('coverage');
     if (!authority.current() || records.some(record => record.current() !== true)) fail('binding-stale');
     state.bindingClaims.add(authority);
-    const prepared = records.map(record => ({ generation: authority.generations[physical.indexOf(record.physical)],
-        current: record.current, prepare: record.prepare }));
+    const resources = physical.flatMap((record, index) => {
+        if (!resourcesCurrent(record)) fail('resource-stale');
+        return (record.resourceSnapshot?.entries ?? []).map(entry => {
+            if (!entry.released) fail('resource');
+            return { generation: authority.generations[index], current: entry.current, prepare: entry.prepare };
+        });
+    });
+    const prepared = [...resources, ...records.map(record => ({ generation: authority.generations[physical.indexOf(record.physical)],
+        current: record.current, prepare: record.prepare }))];
+    for (const record of physical) { record.resourceSnapshot = undefined; record.resources?.clear(); }
     for (const record of records) { record.used = true; record.prepare = undefined; record.current = () => false; }
     return prepared;
 }
@@ -104,12 +159,30 @@ export class CemNativeGenerationGroup {
         if (records.some(record => !record || record.group || record.consumed) || new Set(records).size !== records.length) fail('coverage');
         this.#records = records;
         for (const record of records) record.group = this;
+        try {
+            for (const record of records) if (record.resources?.size) {
+                const revision = record.resourceRevision;
+                const entries = [...record.resources].map(resource => {
+                    const snapshot = resource.capture();
+                    if (!snapshot || typeof snapshot.current !== 'function' || typeof snapshot.release !== 'function' || typeof snapshot.prepare !== 'function') fail('resource');
+                    return { current: snapshot.current, release: snapshot.release, prepare: snapshot.prepare, released: false };
+                });
+                record.resourceSnapshot = { revision, entries };
+                if (!resourcesCurrent(record)) fail('resource');
+            }
+        } catch (error) {
+            // Capture has no native cleanup authority. A transient busy resource
+            // must allow a new complete preparation after work settles.
+            for (const record of records) { if (record.group === this) record.group = undefined; record.resourceSnapshot = undefined; }
+            throw error;
+        }
     }
     async allocate(retirements, timeoutMs = 5000) {
         if (this.#state !== 'idle') fail('state');
         if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) fail('timeout-config');
         const guard = state.groupGuards.get(this) ?? (() => true);
         if (guard() !== true) fail('enrollment-stale');
+        if (this.#records.some(record => !resourcesCurrent(record))) fail('resource-stale');
         // Snapshot caller data before locking or allocating. Proxy reentrancy
         // must not replace an in-flight original group transaction.
         const entries = slots(retirements), receipts = entries.map(value => state.receipts.get(value));
@@ -163,6 +236,7 @@ export class CemNativeGenerationGroup {
             // assignment below admits the entire set with no await/user hook.
             for (const candidate of candidates) if (candidate.current() !== true) fail('stale');
             if (guard() !== true) fail('enrollment-stale');
+            if (this.#records.some(record => !resourcesCurrent(record))) fail('resource-stale');
             if (performance.now() >= deadline) fail('timeout');
             for (const record of this.#records) { record.consumed = true; record.allocate = undefined; }
             identities.clear();
@@ -255,4 +329,49 @@ export class CemNativeRecoveryScope {
         } finally { clearTimeout(timer); cancellation.abort(); this.#preparing = false; }
     }
     dispose() { this.#disposed = true; this.#revision++; this.#members.clear(); }
+}
+
+/** Complete host-only binding transaction; mixed rendering owners use the shared
+ * checkpoint-resume transaction instead. No effects run while preparations stage. */
+export async function resumeNativeGenerationBindings(admission, tickets, timeoutMs = 5000) {
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) fail('timeout-config');
+    const authority = claimNativeGenerationAdmission(admission), controller = new AbortController(), staged = [], discarded = new WeakSet();
+    const discard = prepared => {
+        if (!object(prepared) || discarded.has(prepared)) return;
+        discarded.add(prepared);
+        try { prepared.discard(); } catch { /* Fence every peer despite cleanup failure. */ }
+    };
+    let active = false, revoked = false, timer;
+    const dispose = () => {
+        active = false; revoked = true; controller.abort();
+        for (const prepared of staged.splice(0).reverse()) discard(prepared);
+    };
+    authority.onRevoke(dispose);
+    const deadline = performance.now() + timeoutMs;
+    try {
+        const bindings = claimNativeGenerationBindings(authority, tickets, []);
+        const current = () => !revoked && authority.current() && bindings.every(binding => binding.current() === true);
+        for (const binding of bindings) {
+            if (!current()) fail('binding-stale');
+            const pending = Promise.resolve().then(() => binding.prepare(Object.freeze({ generation: binding.generation,
+                active: () => active && !revoked && authority.current(), signal: controller.signal, revoke: authority.revoke })));
+            void pending.then(prepared => { if (revoked) discard(prepared) }, () => undefined);
+            const remaining = deadline - performance.now();
+            if (remaining <= 0) fail('timeout');
+            const prepared = await Promise.race([pending, new Promise((_, reject) => { timer = setTimeout(() => reject(Error('cem.runtime.allocation.timeout')), remaining); })]);
+            clearTimeout(timer); timer = undefined;
+            if (!prepared || !object(prepared.owner) || typeof prepared.current !== 'function' || typeof prepared.discard !== 'function' || typeof prepared.bind !== 'function') { discard(prepared); fail('binding'); }
+            staged.push({ owner: prepared.owner, current: prepared.current, discard: () => discard(prepared), bind: prepared.bind, bound: prepared.bound });
+            if (!current()) fail('binding-stale');
+        }
+        if (!current() || staged.some(prepared => prepared.current() !== true) || performance.now() >= deadline) fail('binding-stale');
+        active = true;
+        for (const prepared of staged) {
+            if (revoked || !authority.current()) fail('binding-stale');
+            prepared.bind();
+        }
+        for (const prepared of staged) prepared.bound?.();
+        return Object.freeze({ revoke: authority.revoke });
+    } catch (error) { authority.revoke(); throw error; }
+    finally { clearTimeout(timer); }
 }

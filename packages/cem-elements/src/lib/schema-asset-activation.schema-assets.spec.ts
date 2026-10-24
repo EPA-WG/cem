@@ -194,3 +194,84 @@ nativeCase('runs ordinary command-service validation with the persistent package
         expect(owners(native)).toBe(1);
     } finally { loader.dispose(); }
 });
+
+nativeCase('recompiles a captured package resource with the complete original binding group', async () => {
+    const { CemSchemaAssetPackRecoveryBinding } = await import('./schema-asset-pack.js');
+    const { registerNativeGeneration, releaseNativeGenerationResources, completeNativeRetirement,
+        CemNativeGenerationGroup, issueNativeGenerationBindingTicket, resumeNativeGenerationBindings } = await import('./internal/runtime-support/native-generation.js');
+    const native = freshNative(), target = freshNative();
+    const open = vi.fn(transport), loader = new CemSchemaAssetPackLoader({ baseUrl, runtime: { native, current: () => true }, loadHttpResource: open,
+        activationHostConfiguration: hostConfiguration });
+    await loader.activatePackages([csv]);
+    const participant = registerNativeGeneration(native.commandNativeMemoryIdentity(), 'source', async () => ({ identity: target.commandNativeMemoryIdentity(),
+        runtimeId: 'target', runtime: target, current: () => true, discard() { /* Native owner cleanup is asserted through the binding. */ } }));
+    const binding = new CemSchemaAssetPackRecoveryBinding({ loader, participant, current: () => true,
+        target: runtime => {
+            expect(runtime).toBe(target);
+            return { runtime: { native: target, current: () => true },
+                participant: registerNativeGeneration(target.commandNativeMemoryIdentity(), 'target', async () => { throw Error('unused'); }) };
+        } });
+    try {
+        const group = new CemNativeGenerationGroup([participant]);
+        const ticket = issueNativeGenerationBindingTicket(participant, () => true, async () => ({ owner: {}, current: () => true, discard() { /* Native owner cleanup is asserted through the binding. */ }, bind() { /* This fixture has no separate host route. */ } }));
+        expect(() => releaseNativeGenerationResources({ ...participant }, () => true)).toThrow('resource');
+        expect(() => releaseNativeGenerationResources(participant, () => false)).toThrow('resource');
+        expect(owners(native)).toBe(1);
+        native.closeCommandNativeAdmission();
+        releaseNativeGenerationResources(participant, () => true);
+        expect(owners(native)).toBe(0);
+        expect(census(native).blockingResources).toBe(0);
+        const calls = open.mock.calls.length;
+        const admission = await group.allocate([completeNativeRetirement(participant, new Uint8Array([1]))]);
+        const resumed = await resumeNativeGenerationBindings(admission, [ticket]);
+        expect(open.mock.calls.length).toBe(calls);
+        expect(owners(target)).toBe(1);
+        expect(census(target).replacementAllowed).toBe(false);
+        const source = (JSON.parse(readFileSync(join(pack, 'index.json'), 'utf8')) as { sources: Array<{ packageId: string; version: string; path: string }> }).sources.find(source => source.packageId === 'csv');
+        if (!source) throw Error('missing CSV fixture');
+        expect((await binding.loadSource(source)).sourceUri).toBe(source.path);
+        resumed.revoke();
+        expect(owners(target)).toBe(0);
+        expect(() => binding.loadSource(source)).toThrow('stale');
+    } finally { binding.dispose(); loader.dispose(); }
+});
+
+nativeCase('refuses changed source and credential witnesses without releasing a package owner', async () => {
+    const { CemSchemaAssetPackRecoveryBinding } = await import('./schema-asset-pack.js');
+    const { registerNativeGeneration, releaseNativeGenerationResources, CemNativeGenerationGroup } = await import('./internal/runtime-support/native-generation.js');
+    const native = freshNative(), loader = makeLoader(native);
+    await loader.activatePackages([csv]);
+    let allowed = true;
+    const participant = registerNativeGeneration(native.commandNativeMemoryIdentity(), crypto.randomUUID(), async () => { throw Error('unused'); });
+    const foreign = registerNativeGeneration({}, crypto.randomUUID(), async () => { throw Error('unused'); });
+    expect(() => new CemSchemaAssetPackRecoveryBinding({ loader, participant: foreign, current: () => true,
+        target: () => { throw Error('must not prepare'); } })).toThrow('resource-target');
+    const binding = new CemSchemaAssetPackRecoveryBinding({ loader, participant, current: () => allowed, target: () => { throw Error('must not prepare'); } });
+    try {
+        new CemNativeGenerationGroup([participant]);
+        allowed = false;
+        expect(() => releaseNativeGenerationResources(participant, () => true)).toThrow('resource');
+        expect(owners(native)).toBe(1);
+        allowed = true;
+        await loader.activatePackages([csv]);
+        expect(() => releaseNativeGenerationResources(participant, () => true)).toThrow('resource');
+        expect(owners(native)).toBe(1);
+    } finally { binding.dispose(); }
+});
+
+nativeCase('snapshots native methods and normalized transport policy across fresh preparation', async () => {
+    const native = freshNative(), target = freshNative(), methods = { ...native };
+    const policy = { timeoutMs: 30_000, maxResponseBytes: 16 * 1024 * 1024 };
+    const loader = new CemSchemaAssetPackLoader({ baseUrl, runtime: { native: methods, current: () => true }, policy,
+        loadHttpResource: transport, activationHostConfiguration: hostConfiguration });
+    let fresh: CemSchemaAssetPackLoader | undefined;
+    try {
+        await loader.activatePackages([csv]);
+        methods.schemaAssetPackBootstrapV1 = () => { throw Error('mutated control'); };
+        methods.schemaAssetOwnerDisposeV1 = () => { throw Error('mutated cleanup'); };
+        policy.timeoutMs = 0; policy.maxResponseBytes = 1;
+        fresh = await loader.prepareFreshRuntime({ native: target, current: () => true });
+        expect(owners(native)).toBe(1); expect(owners(target)).toBe(1);
+    } finally { fresh?.dispose(); loader.dispose(); }
+    expect(owners(native)).toBe(0); expect(owners(target)).toBe(0);
+});

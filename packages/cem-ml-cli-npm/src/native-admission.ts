@@ -244,7 +244,7 @@ export class CommandNativeClientCheckpoint {
         } finally { clearTimeout(timer); clearTimeout(abortTimer); this.#retiring = false; }
     }
 
-    async capture(send: () => Promise<unknown>, timeoutMs = 5000, ownership?: readonly CommandNativeEmbeddingOwnership[], coordination?: 'close' | CommandNativeDrain): Promise<CommandNativeDrain> {
+    async capture(send: (acknowledged: () => boolean) => Promise<unknown>, timeoutMs = 5000, ownership?: readonly CommandNativeEmbeddingOwnership[], coordination?: 'close' | CommandNativeDrain): Promise<CommandNativeDrain> {
         if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new RangeError('Invalid command drain timeout');
         if (this.#retiring) throw new CommandNativeAdmissionError('cem.command.retirement.pending');
         if (this.#uncertain) throw new CommandNativeAdmissionError('cem.command.checkpoint.blocked', 'Command checkpoint ownership is uncertain');
@@ -257,7 +257,9 @@ export class CommandNativeClientCheckpoint {
         this.#waiters++;
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
-            const value = await Promise.race([send(), new Promise<never>((_resolve, reject) => {
+            const acknowledged = () => !this.#uncertain && this.#callbacks === 0 && this.#idle()
+                && (ownershipAck === undefined || this.#owners.current(ownershipAck));
+            const value = await Promise.race([send(acknowledged), new Promise<never>((_resolve, reject) => {
                 timer = setTimeout(() => {
                     this.invalidate();
                     reject(new CommandNativeAdmissionError('cem.command.checkpoint.timeout', 'Command checkpoint acknowledgement timed out'));

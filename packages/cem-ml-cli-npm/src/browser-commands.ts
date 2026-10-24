@@ -4,3 +4,5 @@ export * from './browser-command.js';
 export * from './browser-invocation.js';
 
 export { createBrowserCommandInvocationBinding, BrowserCommandInvocationBinding, OwnedBrowserCommandInvocation } from './owned-browser-invocation.js';
+
+export { resumeNativeGenerationBindings } from './generation-lifecycle.js';

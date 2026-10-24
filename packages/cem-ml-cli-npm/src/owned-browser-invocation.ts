@@ -4,7 +4,7 @@ import type { ParsedCemMlCommand } from './command.js';
 import { buildCommandInvocationWith, projectCommandPresentationWith, type BrowserCommandInvocationOptions, type BrowserCommandInvocationResolver, type InvocationRuntime } from './invocation-core.js';
 import { CommandNativeAdmission, CommandNativeClientCheckpoint, type CommandNativeDrain } from './native-admission.js';
 import { parseCommandNativeInventory, type CommandNativeEmbeddingOwnership, type CommandNativeRetirementHandoff } from './native-embedding.js';
-import { registerNativeGeneration, completeNativeRetirement, claimNativeGenerationAdmission, issueNativeGenerationBindingTicket, type CemNativeGenerationBindingTicket, type CemNativeGenerationParticipant, type CemNativeGenerationAdmission, type CemNativeGenerationRetirement, type CemNativeRecoveryScope, type CemNativeRecoveryEnrollment } from './generation-lifecycle.js';
+import { registerNativeGeneration, completeNativeRetirement, hasNativeGenerationResources, discardNativeGenerationResources, releaseNativeGenerationResources, claimNativeGenerationAdmission, issueNativeGenerationBindingTicket, type CemNativeGenerationBindingTicket, type CemNativeGenerationParticipant, type CemNativeGenerationAdmission, type CemNativeGenerationRetirement, type CemNativeRecoveryScope, type CemNativeRecoveryEnrollment } from './generation-lifecycle.js';
 
 /** Pure native authoring only: no command execution, artifact handles or host writes.
  * Captured methods belong to this exact physical generation and never retarget. */
@@ -26,9 +26,9 @@ export class OwnedBrowserCommandInvocation {
         this.#admission = new CommandNativeAdmission(() => factory.call('runtimeMemoryStatus', []) as string);
         this.#checkpoint = new CommandNativeClientCheckpoint(() => this.#pending === 0, factory.memory());
         this.#runtime = Object.freeze({
-            authorTransformConfigV1: (json: string) => this.#call('authorTransformConfigV1', [json]),
-            buildCommandInvocationV1: (parsed: string, environment: string, resources: string) => this.#call('buildCommandInvocationV1', [parsed, environment, resources]),
-            projectCommandPresentationV1: (plan: string, result: string) => this.#call('projectCommandPresentationV1', [plan, result]),
+            authorTransformConfigV1: (json: string) => this.#call('authorTransformConfigV1', [json]) as string,
+            buildCommandInvocationV1: (parsed: string, environment: string, resources: string) => this.#call('buildCommandInvocationV1', [parsed, environment, resources]) as string,
+            projectCommandPresentationV1: (plan: string, result: string) => this.#call('projectCommandPresentationV1', [plan, result]) as string,
         });
     }
     static create(): Promise<OwnedBrowserCommandInvocation> { return OwnedBrowserCommandInvocation.#create(() => true); }
@@ -51,10 +51,10 @@ export class OwnedBrowserCommandInvocation {
         this.#checkpoint.assertExecution();
     }
     #changed(): void { this.#revision++; this.#checkpoint.changed(); }
-    #call(name: string, args: unknown[]): string {
+    #call(name: string, args: unknown[]): unknown {
         this.#open();
         const release = this.#admission.admit(); this.#changed();
-        try { return this.#factory.call(name, args) as string; }
+        try { return this.#factory.call(name, args); }
         catch (error) { this.#admission.invalidate(); throw error; }
         finally { release(); this.#changed(); }
     }
@@ -77,16 +77,45 @@ export class OwnedBrowserCommandInvocation {
                 current: () => !fresh.#closed, discard: () => fresh.close() };
         });
     }
+    /** Original restricted package ABI. No arbitrary native entrypoint or
+     * ownership permission is exposed; captured aliases remain generation-bound. */
+    nativeResourceBinding(): Readonly<{ current(): boolean; memory(): WebAssembly.Memory | undefined; call(name: string, args: unknown[]): unknown }> {
+        this.#open();
+        const names = new Set(['schemaAssetPackBootstrapV1', 'schemaAssetPackSummaryV1', 'schemaAssetPackImportV1',
+            'schemaAssetOwnerOpenV1', 'schemaAssetOwnerAdmitV1', 'schemaAssetOwnerActivateV1', 'schemaAssetOwnerDisposeV1']);
+        return Object.freeze({ current: () => !this.#closed && this.#gate() && this.#admission.closure === undefined && this.#factory.memory() !== undefined,
+            memory: () => this.#closed ? undefined : this.#factory.memory(), call: (name: string, args: unknown[]) => {
+                if (!names.has(name)) throw Error('cem.runtime.generation.entrypoint');
+                if (name === 'schemaAssetOwnerDisposeV1') {
+                    if (this.#closed) throw Error('cem.runtime.generation.retired');
+                    // Expected retirement cleanup is not new authoring activity.
+                    return this.#factory.call(name, args);
+                }
+                return this.#call(name, args);
+            } });
+    }
+    /** @internal A retired source still records whether complete resource binding is required. */
+    hasNativeResourceBindings(): boolean { return !!this.#participant && hasNativeGenerationResources(this.#participant); }
     recoveryWitness(): () => boolean {
         if (this.#closed || !this.#gate() || this.#pending) throw Error('cem.command.recovery.busy');
         const revision = this.#revision;
         // Retirement closes this generation; only new work invalidates the witness.
         return () => revision === this.#revision && this.#pending === 0;
     }
-    closeNativeAdmission(ownership: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000): Promise<CommandNativeDrain> {
+    closeNativeAdmission(ownership: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000,
+        handoff?: CommandNativeRetirementHandoff): Promise<CommandNativeDrain> {
         if (this.#closed || !this.#gate()) return Promise.reject(Error('cem.runtime.generation.retired'));
-        return this.#checkpoint.capture(async () => {
+        const participant = this.generationParticipant();
+        return this.#checkpoint.capture(async acknowledged => {
             this.#admission.close(); this.#factory.call('closeCommandNativeAdmission', []);
+            await this.#admission.drain(timeoutMs);
+            if (hasNativeGenerationResources(participant)) {
+                const current = () => acknowledged() && handoff?.current() === true && acknowledged();
+                if (!handoff || !current()) throw Error('cem.command.retirement.stale');
+                const bytes = handoff.retain();
+                if (!(bytes instanceof Uint8Array) || !(bytes.buffer instanceof ArrayBuffer) || !bytes.byteLength || bytes.byteLength > 1024 * 1024 || !current()) throw Error('cem.command.retirement.handoff');
+                releaseNativeGenerationResources(participant, current);
+            }
             const drain = this.#admission.checkpoint(await this.#admission.drain(timeoutMs));
             const inventory = parseCommandNativeInventory(this.#factory.call('commandNativeResourceInventory', []));
             return { ...drain, nativeInventory: inventory,
@@ -110,8 +139,9 @@ export class OwnedBrowserCommandInvocation {
     }
     close(): void {
         if (this.#closed) return;
-        this.#closed = true; this.#checkpoint.invalidate(); this.#admission.close();
-        this.#factory.dispose();
+        this.#checkpoint.invalidate(); this.#admission.close();
+        if (this.#participant) discardNativeGenerationResources(this.#participant);
+        this.#factory.dispose(); this.#closed = true;
     }
 }
 
@@ -175,6 +205,7 @@ export class BrowserCommandInvocationBinding {
     }
     /** One complete pure-authoring admission; never silently consume a mixed group. */
     resume(admission: CemNativeGenerationAdmission): void {
+        if (this.#runtime.hasNativeResourceBindings()) throw Error('cem.command.recovery.resources');
         const authority = claimNativeGenerationAdmission(admission);
         try {
             if (this.#closed || authority.generations.length !== 1) throw Error('cem.command.recovery.binding');

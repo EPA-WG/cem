@@ -32,9 +32,9 @@ Completed [editor filename de-duplication](archive/todo-completed-compact-studio
 
 Completed [graph parameter-map authoring and Studio controls](archive/todo-completed-graph-parameters-2026-10-23.md) is archived.
 
-Continue with the package-owner adapter and explicit host demand integration
-for coordinated Studio command/render groups. The opt-in deployment is complete;
-finish host admission/publication before excluding embedded bodies. Then measure
+Continue with command-service worker and rendering transport adapters for the
+implemented shared package-resource handoff, then adopt Studio demand bindings.
+Finish host admission/publication before excluding embedded bodies. Then measure
 download, cold latency and allocator/linear-memory headroom.
 
 Completed [shared popup surfaces and indicator clearance](archive/todo-completed-compact-studio-2026-10-23.md#shared-popup-surfaces-and-indicator-clearance) is archived.
@@ -69,7 +69,13 @@ complete offline delivery, cache isolation and independent source preparation.
 Explicit host admission and coordinated publication remain required; the normal
 bootstrap does not activate packages implicitly.
 
-- [ ] Add a package-owner adapter to coordinated generation-group handoff: install explicit shared demand bindings for Studio command/render groups, prepare/recompile a fresh owned context, release old owners only after the existing checkpoint/credential and embedding-ownership confirmation, and publish the target atomically with its command/render clients. Current explicit preparation grants no publication authority, and live owners correctly block retirement; keep automatic whole-Studio recovery disabled.
+Completed [shared package resource handoff and owned invocation transport](archive/todo-completed-package-resource-handoff-2026-10-24.md)
+covers original physical identities, checked release, fresh compilation, complete
+binding, policy/credential refusals, cleanup and consecutive offline handoffs.
+
+- [ ] Add command-service worker package transport to the shared handoff: acquire original bytes under the pinned pack contract, activate on the exact worker heap, release only under original checkpoint/embedding confirmation, and restore packages alongside command clients. Keep native owners/grants out of transferable status/checkpoint records and refuse missing/late/unknown work.
+
+- [ ] Add equivalent rendering worker and owned-fallback package adapters, then wire explicit shared demand bindings into Studio's command/render groups. Keep every native context on its own physical heap; require complete coordinated publication and entered-credential refusal. Preserve the default complete deployment and disabled automatic whole-Studio recovery.
 
 - [ ] After shared pack-loading integration, exclude optional embedded source bodies in an opt-in WASM profile while retaining the default complete release; verify strict missing-source refusal and complete offline delivery.
 

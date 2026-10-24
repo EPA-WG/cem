@@ -206,8 +206,10 @@ allocations remain empty until admitted. Fresh source preparation reimports
 original bytes into distinct native owners; the existing coordinated publication
 and credential gates still govern replacement. Entered passwords/one-time codes
 block recovery until cleared. Automatic whole-Studio recovery stays disabled.
-Embedded-body exclusion and a package-owner recovery-group adapter remain later
-work; this profile makes no binary-size or memory-saving claim.
+The shared package-owner adapter now has an owned invocation transport, verified
+through consecutive offline handoffs. Worker command/render transports and
+Studio-wide demand routing remain next, followed by embedded-body exclusion.
+This profile makes no binary-size or memory-saving claim.
 
 Those JavaScript assets may own bootstrap, workers, persistence, and browser
 service adapters. Visible DOM composition and UI bindings belong to the

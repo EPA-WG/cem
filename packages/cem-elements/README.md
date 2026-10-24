@@ -1698,6 +1698,40 @@ checkpoint authority. Both native owners remain inventory blockers until their
 host explicitly releases them. Existing credential refusal and coordinated recovery gates still
 apply; automatic recovery is unchanged.
 
+`CemSchemaAssetPackRecoveryBinding` adds an original generation-resource adapter
+and a stable `loadResource`/`loadSource` route. Register it on the same physical
+participant as its loader. Its trusted `target` callback resolves the fresh
+runtime's native binding and participant; both source and target identities must
+match the original physical registration. `cemSchemaAssetRuntimeFromBinding`
+adapts an owned host's restricted `nativeResourceBinding()` without exposing
+arbitrary native exports.
+
+Prepare the complete generation group and host resume tickets **before** closing
+admission. The owned invocation host's `closeNativeAdmission(owners, timeout,
+handoff)` checks its complete original embedding ownership and the current
+checkpoint handoff before releasing package ownership. Only immutable replay
+bytes remain outside WASM; old native/memory references are dropped. Native
+closure still requires an empty resource inventory. Source changes, entered
+credentials, unknown ownership or stale handoffs refuse this path.
+
+`resumeNativeGenerationBindings(admission, tickets)` handles a complete group of
+host bindings; mixed rendering owners use `resumeCemCheckpointOwners` with their
+original rendering tickets. Package restoration joins that transaction before
+any host route binds. It recompiles under the existing trusted grants, stages
+all routes inactive, then binds the complete set. Failure or revocation closes
+every fresh route and disposes its package owners. The legacy single invocation
+`resume` refuses attached resources so it cannot omit their restoration.
+
+The first concrete transport is the owned browser invocation runtime. Command
+service workers and rendering worker/fallback transports still require their
+own package adapters before Studio can adopt shared demand throughout its
+workspace. A package activated on one heap never supplies another heap's
+context. Ordinary reads retain their native admission policy; the recovery
+binding's separate `current` fence blocks recovery while credentials are entered.
+Automatic whole-Studio recovery remains disabled, and neither source bytes nor
+native grants/handles are added to checkpoint/status records. The loader retains
+its existing 32 MiB bound and normalized immutable transport policy.
+
 `yarn nx run cem-elements:verify:schema-assets --parallel=1` prepares the explicit
 optional profile and runs real native ABI integration tests plus an isolated
 production-service-worker offline fixture. Ordinary unit tests do not require

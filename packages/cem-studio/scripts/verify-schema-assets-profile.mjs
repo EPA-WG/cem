@@ -186,6 +186,7 @@ try {
     }, { selected, maps, pin });
     assert.equal(evidence.inventoryFiles, packFiles.length);
     assert.equal(evidence.retirementRefused, true);
+    const packageHandoff = await verifyOwnedPackageHandoff(page, maps);
     disconnected = false;
     for (const variant of ['invalid', 'orphan']) {
         const refused = await browser.newContext();
@@ -208,7 +209,7 @@ try {
     assert.deepEqual(await treeHashes(ordinary), baseline);
     const report = { schemaVersion: 1, status: 'passed', deploymentDigest: build.deploymentDigest,
         nativeErrors: graphReport.summary.errorCount + graphReport.summary.fatalCount, emittedPackFiles: packFiles.length, scopedCacheGroups: optionalNames.length,
-        defaultCacheIsolation: true, defaultOutputPreserved: true, coldOfflineStudio: true, command, ...evidence,
+        defaultCacheIsolation: true, defaultOutputPreserved: true, coldOfflineStudio: true, command, ...evidence, packageHandoff,
         automaticRecovery: false, packagePublication: 'explicit-host-admission', disconnectedRequests };
     const reportPath = resolve(workspace, 'dist/reports/cem-studio/schema-assets-profile.json');
     await mkdir(resolve(workspace, 'dist/reports/cem-studio'), { recursive: true });
@@ -255,4 +256,72 @@ async function versionCommand(page) {
             return { exitCode: result.exitCode, status: result.status, runtime: client.capability.runtime };
         } finally { await client.close(); }
     });
+}
+
+async function verifyOwnedPackageHandoff(page, maps) {
+    return page.evaluate(async maps => {
+        const { CemSchemaAssetPackLoader, CemSchemaAssetPackRecoveryBinding, cemSchemaAssetRuntimeFromBinding } =
+            await import(maps.resources['@epa-wg/cem-elements/dist/lib/schema-asset-pack.js'].path);
+        const { CemNativeRecoveryScope, resumeNativeGenerationBindings } = await import(maps.resources['@epa-wg/cem-elements/native-generation'].path);
+        const api = await import('@epa-wg/cem-ml-cli/browser-commands');
+        const ensure = (condition, message) => { if (!condition) throw Error(message); };
+        let credentialsEntered = false;
+        const scope = new CemNativeRecoveryScope();
+        const host = await api.createBrowserCommandInvocationBinding({ recoveryScope: scope, id: 'optional-package-authoring',
+            hostWitness: () => () => !credentialsEntered });
+        const initial = host.runtime, baseUrl = new URL('./schema-assets/', location.href).href;
+        const loader = new CemSchemaAssetPackLoader({ baseUrl, runtime: cemSchemaAssetRuntimeFromBinding(initial.nativeResourceBinding()),
+            activationHostConfiguration: JSON.stringify({ schemaPackageReplacementGrants: [{ packageId: 'csv', expectedOrigin: { kind: 'builtin' },
+                replacementManifestUri: 'schema-packages/csv/v1/package.cem' }] }) });
+        const packages = new CemSchemaAssetPackRecoveryBinding({ loader, participant: initial.generationParticipant(), current: () => !credentialsEntered,
+            target: runtime => {
+                if (!(runtime instanceof api.OwnedBrowserCommandInvocation)) throw Error('foreign package target');
+                return { runtime: cemSchemaAssetRuntimeFromBinding(runtime.nativeResourceBinding()), participant: runtime.generationParticipant() };
+            } });
+        const demandUrl = new URL('demand/csv/1.0.0', baseUrl).href;
+        const demand = () => packages.loadResource({ authoredUrl: demandUrl, resolvedUrl: demandUrl, baseUrl,
+            resolverIdentity: 'fixture', resourcePolicyStamp: 'fixture', contextIdentity: 'fixture:owned-invocation', method: 'GET', headers: {},
+            policy: { allowCrossOrigin: false, maxResponseBytes: 4096, timeoutMs: 30_000, redirect: 'error' }, signal: new AbortController().signal });
+        const edit = JSON.stringify({ source: '{run | {import @id=input @src=data.xml | {export @id=result @out=result.xml}}}',
+            edit: { node: 'result', attribute: 'out', value: 'changed.xml' } });
+        const baseline = host.authorTransformConfigV1(edit), identities = [initial.runtimeId], admissions = [];
+        try {
+            await demand();
+            credentialsEntered = true;
+            const blocked = await scope.prepare().then(() => false, () => true);
+            ensure(blocked, 'entered credentials did not block group preparation'); credentialsEntered = false;
+            for (let round = 0; round < 2; round++) {
+                const old = host.runtime, alias = old.nativeResourceBinding();
+                const owner = old.claimNativeEmbedding(), other = old.claimNativeEmbedding();
+                const omitted = await old.closeNativeAdmission([owner]).then(() => false, () => true);
+                ensure(omitted, 'incomplete embedding ownership released packages');
+                const plan = await scope.prepare(), ticket = host.prepareResume(), group = plan.createGenerationGroup();
+                const missingHandoff = await old.closeNativeAdmission([owner, other]).then(() => false, () => true);
+                ensure(missingHandoff, 'package cleanup accepted no checkpoint handoff');
+                const oversized = await old.closeNativeAdmission([owner, other], 5000, { current: plan.current,
+                    retain: () => new Uint8Array(1024 * 1024 + 1) }).then(() => false, () => true);
+                ensure(oversized, 'package cleanup widened the existing command handoff budget');
+                const handoff = { current: () => plan.current() && !credentialsEntered,
+                    retain: () => new TextEncoder().encode('Pure invocation: no retained document, artifact, credential or external effect.') };
+                const proof = await old.closeNativeAdmission([owner, other], 5000, handoff);
+                ensure(proof.embeddingOwners === 2 && proof.nativeInventory.blockingResources === 0, 'package cleanup bypassed empty native census');
+                const retired = await old.retireNativeGeneration(proof, [owner, other], handoff);
+                ensure(alias.current() === false && alias.memory() === undefined, 'old package binding retained its heap');
+                const admission = await group.allocate([retired]); admissions.push(admission);
+                const partial = (() => { try { host.resume(admission); return false; } catch (error) { return error.message === 'cem.command.recovery.resources'; } })();
+                ensure(partial, 'legacy resume silently omitted resource bindings');
+                await resumeNativeGenerationBindings(admission, [ticket]);
+                identities.push(host.runtime.runtimeId);
+                ensure(host.authorTransformConfigV1(edit) === baseline, 'native authoring changed after resource restore');
+                await demand();
+                if (round) { admissions[0].revoke(); ensure(host.authorTransformConfigV1(edit) === baseline, 'old revocation fenced renewed package routes'); }
+            }
+            ensure(new Set(identities).size === 3, 'package handoff reused a physical generation');
+            admissions.at(-1).revoke();
+            let fenced = false; try { await demand(); } catch { fenced = true; }
+            ensure(fenced, 'revoked package route remained live');
+            return { rounds: 2, distinctGenerations: identities.length, credentialRefusal: blocked,
+                completeOwnership: true, checkpointRequired: true, originalCommandBudget: true, legacyPartialResumeRefused: true, staleAliasesFenced: true, automaticRecovery: false };
+        } finally { packages.dispose(); loader.dispose(); host.close(); admissions.forEach(admission => admission.revoke()); scope.dispose(); }
+    }, maps);
 }
