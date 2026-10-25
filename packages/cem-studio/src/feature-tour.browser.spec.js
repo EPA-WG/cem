@@ -40,7 +40,7 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
-    for (const projectId of ['cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng']) {
+    for (const projectId of ['cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng', 'module-maps', 'portable-config']) {
         it(`runs ${projectId} authored native configurations and repairs original sources`, async () => {
             const { bundle, definition, decode } = await authoredProject(projectId);
             const validator = await createCemStudioBrowserValidator(); validators.push(validator);
@@ -77,6 +77,114 @@ describe('CEM Studio Feature Tour copies', () => {
             }
         }, 60_000);
     }
+
+    for (const projectId of ['module-maps', 'portable-config']) {
+        it(`builds ${projectId} native artifacts with owned identities and independent roots`, async () => {
+            const { bundle, definition, decode } = await authoredProject(projectId);
+            const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+            for (const configuration of definition.configurations.filter(item => item.kind === 'transformation-graph')) {
+                const entry = bundle.project.entries.find(item => item.id === configuration.id), command = JSON.parse(decode(entry.runConfigResourceId));
+                const project = `${projectId}-${configuration.id}-copy`, root = `studio://${project}/`;
+                const run = (edits = {}, id = project) => validator.runResourceCommand({ ...projectCommandOptions(bundle, entry, id, edits), argv: command.argv });
+                const baseline = await run();
+                expect(entry.entryArtifact).toBe(configuration.entryArtifact);
+                expect(baseline.outputs).toHaveLength(Object.keys(configuration.expectedGraphOutputs).length);
+                for (const [path, expected] of Object.entries(configuration.expectedGraphOutputs)) expect(baseline.outputs.find(item => item.uri.endsWith(`/${path}`)).bytes).toEqual(bundle.contents[expected]);
+                const product = baseline.result.result.value.value.value;
+                for (const artifact of product.artifacts) {
+                    const path = artifact.destination.slice(root.length);
+                    if (configuration.expectedUnmappedOutputs?.includes(path)) expect(artifact.outputSpans ?? []).toEqual([]);
+                    else for (const source of configuration.expectedProvenance ?? []) expect(JSON.stringify(artifact.outputSpans)).toContain(`/${source}`);
+                }
+                if (configuration.expectedNativeAssets) {
+                    const manifest = product.moduleAssetManifest;
+                    expect(manifest.hashScheme).toBe('sha256'); expect(manifest.hash).toBe(configuration.expectedNativeAssetHash);
+                    expect(manifest.assetCount).toBe(configuration.expectedNativeAssets.length); expect(manifest.assets).toHaveLength(manifest.assetCount);
+                    let changed = false;
+                    for (const expected of configuration.expectedNativeAssets) {
+                        const asset = manifest.assets.find(item => item.specifier === expected.specifier);
+                        const resource = id => bundle.project.resources.find(item => item.id === id);
+                        const source = bundle.contents[expected.source], output = baseline.outputs.find(item => item.uri === `${root}${expected.destination}`).bytes;
+                        expect(asset).toMatchObject({ target: expected.target, contentType: expected.contentType,
+                            sourceUri: `${root}${resource(expected.source).path}`, sourceMapUri: `${root}${resource(expected.sourceMap).path}`, destination: `${root}${expected.destination}`,
+                            sourceByteLength: source.byteLength, sourceSha256: await moduleAssetDigest(source), byteLength: output.byteLength, sha256: await moduleAssetDigest(output) });
+                        expect(output).toEqual(bundle.contents[expected.expectedOutput]);
+                        changed ||= asset.sourceSha256 !== asset.sha256 || asset.sourceByteLength !== asset.byteLength;
+                    }
+                    expect(manifest.contractVersion).toBe(changed ? 2 : 1);
+                    const first = configuration.expectedNativeAssets[0], source = bundle.project.resources.find(item => item.id === first.source);
+                    const scoped = projectCommandOptions(bundle, entry, project);
+                    await expect(validator.runResourceCommand({ ...scoped, argv: command.argv,
+                        dependencies: scoped.dependencies.filter(item => item.path !== `${root}${source.path}`),
+                    })).rejects.toThrow();
+                    if (configuration.id === 'build-v3') {
+                        const target = decode('target-v3').replace('./assets/metadata.json', './assets/catalog.json');
+                        expect(target).not.toBe(decode('target-v3'));
+                        const retargeted = await run({ 'target-v3': target });
+                        const text = path => new TextDecoder().decode(retargeted.outputs.find(item => item.uri === `${root}${path}`).bytes);
+                        expect(text('generated/v3/assets/app.js')).toContain('./catalog.json');
+                        expect(text(configuration.entryArtifact)).toContain('./assets/catalog.json');
+                        expect(retargeted.outputs.some(item => item.uri === `${root}generated/v3/assets/metadata.json`)).toBe(false);
+                        expect(retargeted.result.result.value.value.value.moduleAssetManifest.hash).not.toBe(manifest.hash);
+                        const metadata = decode('module-metadata').replace('Café modules', 'Saved modules'); expect(metadata).not.toBe(decode('module-metadata'));
+                        const edited = await run({ 'module-metadata': metadata });
+                        const copied = edited.outputs.find(item => item.uri === `${root}generated/v3/assets/metadata.json`);
+                        expect(copied.bytes).toEqual(new TextEncoder().encode(metadata));
+                        const identity = edited.result.result.value.value.value.moduleAssetManifest.assets.find(item => item.specifier === '@demo/metadata');
+                        expect(identity.sourceSha256).toBe(await moduleAssetDigest(copied.bytes)); expect(identity.sha256).toBe(identity.sourceSha256);
+                    }
+                }
+                if (projectId === 'portable-config') {
+                    const graph = decode('card-graph').replace('Dispatch board', 'Saved dispatch'); expect(graph).not.toBe(decode('card-graph'));
+                    const source = decode('card-source').replace('Café Noord', 'Café Haven'); expect(source).not.toBe(decode('card-source'));
+                    const changed = await run({ 'card-graph': graph, 'card-source': source });
+                    const html = new TextDecoder().decode(changed.outputs.find(item => item.uri === `${root}${configuration.entryArtifact}`).bytes);
+                    expect(html).toContain('Saved dispatch'); expect(html).toContain('Café Haven');
+                }
+                for (const refusal of configuration.expectedGraphRefusals ?? []) {
+                    const denied = await run({ [refusal.source]: decode(refusal.replacement) }).catch(error => error);
+                    expect(denied).toBeInstanceOf(Error); expect(denied.result).toBeUndefined(); expect(denied.message).toContain(refusal.code);
+                }
+                for (const [source, replacement] of configuration.expectedGraphFailures ?? []) await expect(run({ [source]: decode(replacement) })).rejects.toMatchObject({ result: { exitCode: 1 }, output: { available: false } });
+                const independent = await run({}, `${project}-independent`);
+                expect(independent.outputs.every(item => item.uri.startsWith(`studio://${project}-independent/`))).toBe(true);
+                for (const output of baseline.outputs) expect(independent.outputs.find(item => item.uri.endsWith(`/${output.uri.slice(root.length)}`)).bytes).toEqual(output.bytes);
+                if (configuration.expectedNativeAssets) expect(independent.result.result.value.value.value.moduleAssetManifest.hash).toBe(product.moduleAssetManifest.hash);
+            }
+        }, 60_000);
+    }
+
+    it('uses native portable control codecs and refuses invalid plans before reading missing inputs', async () => {
+        const { bundle, decode } = await authoredProject('portable-config');
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const project = 'portable-native-controls', entry = bundle.project.entries.find(item => item.id === 'run-check');
+        const command = JSON.parse(decode(entry.runConfigResourceId));
+        const options = projectCommandOptions(bundle, entry, project);
+        const before = await validator.previewResourceCommand({ ...options, operation: 'validate', argv: command.argv });
+        expect(before.semantic.inputs.normalized[0].resolvedUri).toBe(`studio://${project}/data/card.xml`);
+        const redirected = decode('card-check').replace('data/card.xml', 'data/alternate.xml'); expect(redirected).not.toBe(decode('card-check'));
+        const modified = projectCommandOptions(bundle, entry, project, { 'card-check': redirected });
+        const after = await validator.previewResourceCommand({ ...modified, operation: 'validate', argv: command.argv });
+        expect(after.semantic.inputs.normalized[0].resolvedUri).toBe(`studio://${project}/data/alternate.xml`);
+        expect((await validator.runResourceCommand({ ...modified, argv: command.argv })).result.exitCode).toBe(0);
+        const duplicate = projectCommandOptions(bundle, entry, project, { 'card-check': decode('invalid-run') });
+        const denied = await validator.runResourceCommand({ ...duplicate, argv: command.argv,
+            dependencies: duplicate.dependencies.filter(item => !item.path.endsWith('/data/card.xml')),
+        }).catch(error => error);
+        expect(denied).toBeInstanceOf(Error); expect(denied.result).toBeUndefined();
+        expect(denied).toMatchObject({ code: 'cem.run_config.input_uri_duplicate', exitCode: 2, message: 'input URI `data/card.xml` is declared more than once' });
+        const envelope = JSON.parse(decode('card-command')); envelope.argv = ['not-a-command'];
+        const bytes = new TextEncoder().encode(JSON.stringify(envelope));
+        const source = bundle.project.resources.find(item => item.id === 'card-command');
+        expect((await validator.validateResource({ bytes, uri: `studio://${project}/${source.path}`, contentType: source.contentType, schema: source.schema,
+            projectId: project, projectRootUri: `studio://${project}/`, resourceScheme: 'studio',
+        })).result.exitCode).toBe(0);
+        expect(() => validator.decodeResourceCommand(bytes)).toThrow();
+        const model = await validator.decodeProjectManifest(bundle.contents['project-cem']);
+        expect(model).toEqual(JSON.parse(decode('expected-json'))); expect(model.resources).toHaveLength(7);
+        for (const resource of model.resources) expect(resource.sha256).toBe(await moduleAssetDigest(bundle.contents[resource.id]));
+        expect(decode('card-check')).not.toBe(redirected);
+    }, 60_000);
 
     for (const projectId of ['cem-transform', 'xslt-transform']) {
         it(`builds ${projectId} explicit entry artifacts with native provenance and independent copies`, async () => {
@@ -1390,6 +1498,11 @@ function projectCommandOptions(bundle, entry, projectId, edits = {}) {
             const resource = bundle.project.resources.find(resource => resource.id === id);
             return { path: `studio://${projectId}/${resource.path}`, bytes: bytes(id), contentType: resource.contentType, schema: resource.schema };
         }) };
+}
+
+async function moduleAssetDigest(bytes) {
+    const value = await crypto.subtle.digest('SHA-256', bytes);
+    return [...new Uint8Array(value)].map(byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function createRepository() {

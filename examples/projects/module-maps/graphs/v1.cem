@@ -1,0 +1,9 @@
+@doc cem-ml 1
+{run |
+    {import @content-type=text/html @id=page @schema=https://cem.dev/ns/data/html/1
+        @src=../pages/v1.html |
+        {rewrite-importmap @id=modules @source-map=../maps/source-v1.json
+            @target-map=../maps/target-v1.json |
+            {export @content-type=text/html @id=html @out=../generated/v1/index.html
+                @schema=https://cem.dev/ns/data/html/1}
+}   }   }

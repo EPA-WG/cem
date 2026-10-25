@@ -14,6 +14,8 @@
     "./examples/login.cem-studio.json",
     "./examples/markdown-site.cem-studio.json",
     "./examples/mathml-formula.cem-studio.json",
+    "./examples/module-maps.cem-studio.json",
+    "./examples/portable-config.cem-studio.json",
     "./examples/relax-ng.cem-studio.json",
     "./examples/schema-examples.cem-studio.json",
     "./examples/scss-stylesheet.cem-studio.json",
@@ -309,6 +311,30 @@
       ],
       "archive": "./examples/mathml-formula.cem-studio.json",
       "sha256": "b69d9aabe1e54d04d9a0bca90ad1f95abf71696711f7ccd9fed5aa88b8abf418"
+    },
+    {
+      "id": "module-maps",
+      "name": "Module-map deployments",
+      "description": "Compare native v1/v2/v3 paired deployment maps, explicit resource copying and declared module-edge rewrites, with syntax/source controls, semantic planning refusals, native asset hashes and independent offline builds.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-schema-authoring",
+        "content-types-queries-transformations"
+      ],
+      "archive": "./examples/module-maps.cem-studio.json",
+      "sha256": "5529ac1d065d701711105a0874e96a187302e03f701403b757d2658c8a4a6906"
+    },
+    {
+      "id": "portable-config",
+      "name": "Portable configurations",
+      "description": "Author native CLI command and run configurations, round-trip portable Studio manifests, and import/export a real project with relative resources, explicit build output and native ownership checks.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-schema-authoring",
+        "content-types-queries-transformations"
+      ],
+      "archive": "./examples/portable-config.cem-studio.json",
+      "sha256": "43af5e2cfecff937f9e8243e9d0ce3d45de09a9ad5b98b623d8ba30acaae9aff"
     },
     {
       "id": "relax-ng",

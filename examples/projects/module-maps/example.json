@@ -1,0 +1,817 @@
+{
+  "id": "module-maps",
+  "name": "Module-map deployments",
+  "version": "1.0.0",
+  "description": "Compare native v1/v2/v3 paired deployment maps, explicit resource copying and declared module-edge rewrites, with syntax/source controls, semantic planning refusals, native asset hashes and independent offline builds.",
+  "collections": [
+    "content-types-schema-authoring",
+    "content-types-queries-transformations"
+  ],
+  "sources": [
+    {
+      "id": "source-v1",
+      "source": "examples/projects/module-maps/maps/source-v1.json",
+      "path": "maps/source-v1.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/1",
+      "role": "data"
+    },
+    {
+      "id": "target-v1",
+      "source": "examples/projects/module-maps/maps/target-v1.json",
+      "path": "maps/target-v1.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/1",
+      "role": "data"
+    },
+    {
+      "id": "page-v1",
+      "source": "examples/projects/module-maps/pages/v1.html",
+      "path": "pages/v1.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "graph-v1",
+      "source": "examples/projects/module-maps/graphs/v1.cem",
+      "path": "graphs/v1.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "invalid-contract-v1",
+      "source": "examples/projects/module-maps/failures/source-v1.json",
+      "path": "failures/source-v1.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-syntax-v1",
+      "source": "examples/projects/module-maps/failures/syntax-v1.json",
+      "path": "failures/syntax-v1.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/1",
+      "role": "data"
+    },
+    {
+      "id": "formatted-v1",
+      "source": "examples/projects/module-maps/expected/formatted-v1.json",
+      "path": "expected/formatted-v1.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-html-v1",
+      "source": "examples/projects/module-maps/expected/v1.html",
+      "path": "expected/v1.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "source-v2",
+      "source": "examples/projects/module-maps/maps/source-v2.json",
+      "path": "maps/source-v2.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/2",
+      "role": "data"
+    },
+    {
+      "id": "target-v2",
+      "source": "examples/projects/module-maps/maps/target-v2.json",
+      "path": "maps/target-v2.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/2",
+      "role": "data"
+    },
+    {
+      "id": "page-v2",
+      "source": "examples/projects/module-maps/pages/v2.html",
+      "path": "pages/v2.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "graph-v2",
+      "source": "examples/projects/module-maps/graphs/v2.cem",
+      "path": "graphs/v2.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "invalid-contract-v2",
+      "source": "examples/projects/module-maps/failures/source-v2.json",
+      "path": "failures/source-v2.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/2",
+      "role": "data"
+    },
+    {
+      "id": "invalid-syntax-v2",
+      "source": "examples/projects/module-maps/failures/syntax-v2.json",
+      "path": "failures/syntax-v2.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/2",
+      "role": "data"
+    },
+    {
+      "id": "formatted-v2",
+      "source": "examples/projects/module-maps/expected/formatted-v2.json",
+      "path": "expected/formatted-v2.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/2",
+      "role": "data"
+    },
+    {
+      "id": "expected-html-v2",
+      "source": "examples/projects/module-maps/expected/v2.html",
+      "path": "expected/v2.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "source-v3",
+      "source": "examples/projects/module-maps/maps/source-v3.json",
+      "path": "maps/source-v3.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/3",
+      "role": "data"
+    },
+    {
+      "id": "target-v3",
+      "source": "examples/projects/module-maps/maps/target-v3.json",
+      "path": "maps/target-v3.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/3",
+      "role": "data"
+    },
+    {
+      "id": "page-v3",
+      "source": "examples/projects/module-maps/pages/v3.html",
+      "path": "pages/v3.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "graph-v3",
+      "source": "examples/projects/module-maps/graphs/v3.cem",
+      "path": "graphs/v3.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "invalid-contract-v3",
+      "source": "examples/projects/module-maps/failures/source-v3.json",
+      "path": "failures/source-v3.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/3",
+      "role": "data"
+    },
+    {
+      "id": "invalid-syntax-v3",
+      "source": "examples/projects/module-maps/failures/syntax-v3.json",
+      "path": "failures/syntax-v3.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/3",
+      "role": "data"
+    },
+    {
+      "id": "formatted-v3",
+      "source": "examples/projects/module-maps/expected/formatted-v3.json",
+      "path": "expected/formatted-v3.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/3",
+      "role": "data"
+    },
+    {
+      "id": "expected-html-v3",
+      "source": "examples/projects/module-maps/expected/v3.html",
+      "path": "expected/v3.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "caption-module",
+      "source": "examples/projects/module-maps/modules/caption.js",
+      "path": "modules/caption.js",
+      "contentType": "text/javascript",
+      "role": "data"
+    },
+    {
+      "id": "app-module",
+      "source": "examples/projects/module-maps/modules/app.js",
+      "path": "modules/app.js",
+      "contentType": "text/javascript",
+      "role": "data"
+    },
+    {
+      "id": "module-metadata",
+      "source": "examples/projects/module-maps/modules/metadata.json",
+      "path": "modules/metadata.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "site-style",
+      "source": "examples/projects/module-maps/modules/site.css",
+      "path": "modules/site.css",
+      "contentType": "text/css",
+      "schema": "https://cem.dev/ns/data/css/1",
+      "role": "data"
+    },
+    {
+      "id": "xhtml-fragment",
+      "source": "examples/projects/module-maps/modules/fragment.xhtml",
+      "path": "modules/fragment.xhtml",
+      "contentType": "application/xhtml+xml",
+      "schema": "https://cem.dev/ns/data/xhtml/1",
+      "role": "data"
+    },
+    {
+      "id": "rewritten-app",
+      "source": "examples/projects/module-maps/expected/app.js",
+      "path": "expected/app.js",
+      "contentType": "text/javascript",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/module-maps/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "validate-v1",
+      "name": "Validate v1 JSON source syntax",
+      "kind": "validation",
+      "source": "source-v1",
+      "description": "Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "inspect-v1",
+      "name": "Inspect v1 source structure",
+      "kind": "inspection",
+      "source": "source-v1",
+      "description": "Inspect the generic imported CEM source structure and original ranges; this is not a typed module-map AST or an execution plan.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@schema=https://cem.dev/ns/cem-ml/1",
+        "imports",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "format-v1",
+      "name": "Format v1 map source",
+      "kind": "conversion",
+      "source": "source-v1",
+      "dependencies": [
+        "formatted-v1"
+      ],
+      "description": "Apply the native tabular JSON source formatter with exact expected bytes; formatting grants no deployment or read authority.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/1",
+        "--to-content-type",
+        "application/vnd.cem.module-map+json",
+        "--to-schema",
+        "https://cem.dev/ns/data/module-map/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "expectedOutput": "formatted-v1"
+    },
+    {
+      "id": "repair-v1",
+      "name": "Repair v1 JSON syntax",
+      "kind": "validation",
+      "source": "invalid-syntax-v1",
+      "description": "Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.json.parse_error",
+        "location": {
+          "line": 6,
+          "column": 1,
+          "byteOffset": 119
+        }
+      },
+      "repair": {
+        "find": "\"@demo/caption\": \"../modules/caption.js\"\n  }\n",
+        "replace": "\"@demo/caption\": \"../modules/caption.js\"\n  }\n}\n"
+      }
+    },
+    {
+      "id": "build-v1",
+      "name": "Build the v1 mapped deployment",
+      "kind": "transformation-graph",
+      "source": "graph-v1",
+      "dependencies": [
+        "caption-module",
+        "expected-html-v1",
+        "page-v1",
+        "source-v1",
+        "target-v1"
+      ],
+      "description": "Lower the real v1 paired-map contract, copy only declared resources and rewrite the authored HTML import map; the sandboxed preview never executes those modules.",
+      "entryArtifact": "generated/v1/index.html",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1"
+      ],
+      "expectedGraphOutputs": {
+        "generated/v1/index.html": "expected-html-v1",
+        "generated/v1/assets/caption.js": "caption-module"
+      },
+      "expectedUnmappedOutputs": [
+        "generated/v1/index.html",
+        "generated/v1/assets/caption.js"
+      ],
+      "expectedNativeAssets": [
+        {
+          "specifier": "@demo/caption",
+          "source": "caption-module",
+          "sourceMap": "source-v1",
+          "destination": "generated/v1/assets/caption.js",
+          "target": "./assets/caption.js",
+          "contentType": "text/javascript",
+          "expectedOutput": "caption-module"
+        }
+      ],
+      "expectedNativeAssetHash": "d7ea6404f152aa9cb257a78827a72856ffc58f889bd01c4f1e8b9830561fee70",
+      "expectedGraphRefusals": [
+        {
+          "source": "source-v1",
+          "replacement": "invalid-contract-v1",
+          "exitCode": 2,
+          "code": "cem.module_map.entries_mismatch"
+        }
+      ]
+    },
+    {
+      "id": "validate-v2",
+      "name": "Validate v2 JSON source syntax",
+      "kind": "validation",
+      "source": "source-v2",
+      "description": "Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/2",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "inspect-v2",
+      "name": "Inspect v2 source structure",
+      "kind": "inspection",
+      "source": "source-v2",
+      "description": "Inspect the generic imported CEM source structure and original ranges; this is not a typed module-map AST or an execution plan.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/2",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@schema=https://cem.dev/ns/cem-ml/1",
+        "imports",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "format-v2",
+      "name": "Format v2 map source",
+      "kind": "conversion",
+      "source": "source-v2",
+      "dependencies": [
+        "formatted-v2"
+      ],
+      "description": "Apply the native tabular JSON source formatter with exact expected bytes; formatting grants no deployment or read authority.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/2",
+        "--to-content-type",
+        "application/vnd.cem.module-map+json",
+        "--to-schema",
+        "https://cem.dev/ns/data/module-map/2",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "expectedOutput": "formatted-v2"
+    },
+    {
+      "id": "repair-v2",
+      "name": "Repair v2 JSON syntax",
+      "kind": "validation",
+      "source": "invalid-syntax-v2",
+      "description": "Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/2",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.json.parse_error",
+        "location": {
+          "line": 12,
+          "column": 1,
+          "byteOffset": 238
+        }
+      },
+      "repair": {
+        "find": "\"contentType\": \"text/css\"\n    }\n  }\n",
+        "replace": "\"contentType\": \"text/css\"\n    }\n  }\n}\n"
+      }
+    },
+    {
+      "id": "build-v2",
+      "name": "Build the v2 mapped deployment",
+      "kind": "transformation-graph",
+      "source": "graph-v2",
+      "dependencies": [
+        "caption-module",
+        "expected-html-v2",
+        "page-v2",
+        "site-style",
+        "source-v2",
+        "target-v2"
+      ],
+      "description": "Lower the real v2 paired-map contract, copy only declared resources and rewrite the authored HTML import map; the sandboxed preview never executes those modules.",
+      "entryArtifact": "generated/v2/index.html",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1"
+      ],
+      "expectedGraphOutputs": {
+        "generated/v2/index.html": "expected-html-v2",
+        "generated/v2/assets/caption.js": "caption-module",
+        "generated/v2/assets/site.css": "site-style"
+      },
+      "expectedUnmappedOutputs": [
+        "generated/v2/index.html",
+        "generated/v2/assets/caption.js",
+        "generated/v2/assets/site.css"
+      ],
+      "expectedNativeAssets": [
+        {
+          "specifier": "@demo/caption",
+          "source": "caption-module",
+          "sourceMap": "source-v2",
+          "destination": "generated/v2/assets/caption.js",
+          "target": "./assets/caption.js",
+          "contentType": "text/javascript",
+          "expectedOutput": "caption-module"
+        },
+        {
+          "specifier": "@demo/styles",
+          "source": "site-style",
+          "sourceMap": "source-v2",
+          "destination": "generated/v2/assets/site.css",
+          "target": "./assets/site.css",
+          "contentType": "text/css",
+          "expectedOutput": "site-style"
+        }
+      ],
+      "expectedNativeAssetHash": "ad0d057e7c86e0d0ef70088b717f5df3741e60b4a8f114577892bacc8af1974d",
+      "expectedGraphRefusals": [
+        {
+          "source": "source-v2",
+          "replacement": "invalid-contract-v2",
+          "exitCode": 2,
+          "code": "cem.module_map.resource_type_unsupported"
+        }
+      ]
+    },
+    {
+      "id": "validate-v3",
+      "name": "Validate v3 JSON source syntax",
+      "kind": "validation",
+      "source": "source-v3",
+      "description": "Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/3",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "inspect-v3",
+      "name": "Inspect v3 source structure",
+      "kind": "inspection",
+      "source": "source-v3",
+      "description": "Inspect the generic imported CEM source structure and original ranges; this is not a typed module-map AST or an execution plan.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/3",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@schema=https://cem.dev/ns/cem-ml/1",
+        "imports",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "format-v3",
+      "name": "Format v3 map source",
+      "kind": "conversion",
+      "source": "source-v3",
+      "dependencies": [
+        "formatted-v3"
+      ],
+      "description": "Apply the native tabular JSON source formatter with exact expected bytes; formatting grants no deployment or read authority.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/3",
+        "--to-content-type",
+        "application/vnd.cem.module-map+json",
+        "--to-schema",
+        "https://cem.dev/ns/data/module-map/3",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "expectedOutput": "formatted-v3"
+    },
+    {
+      "id": "repair-v3",
+      "name": "Repair v3 JSON syntax",
+      "kind": "validation",
+      "source": "invalid-syntax-v3",
+      "description": "Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/3",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.json.parse_error",
+        "location": {
+          "line": 22,
+          "column": 1,
+          "byteOffset": 503
+        }
+      },
+      "repair": {
+        "find": "\"contentType\": \"application/xhtml+xml\"\n    }\n  }\n",
+        "replace": "\"contentType\": \"application/xhtml+xml\"\n    }\n  }\n}\n"
+      }
+    },
+    {
+      "id": "build-v3",
+      "name": "Build the v3 mapped deployment",
+      "kind": "transformation-graph",
+      "source": "graph-v3",
+      "dependencies": [
+        "app-module",
+        "expected-html-v3",
+        "module-metadata",
+        "page-v3",
+        "rewritten-app",
+        "source-v3",
+        "target-v3",
+        "xhtml-fragment"
+      ],
+      "description": "Lower the real v3 paired-map contract, copy only declared resources and rewrite the authored HTML import map; the sandboxed preview never executes those modules.",
+      "entryArtifact": "generated/v3/index.html",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1"
+      ],
+      "expectedGraphOutputs": {
+        "generated/v3/index.html": "expected-html-v3",
+        "generated/v3/assets/app.js": "rewritten-app",
+        "generated/v3/content/fragment.xhtml": "xhtml-fragment",
+        "generated/v3/assets/metadata.json": "module-metadata"
+      },
+      "expectedUnmappedOutputs": [
+        "generated/v3/index.html",
+        "generated/v3/assets/app.js",
+        "generated/v3/content/fragment.xhtml",
+        "generated/v3/assets/metadata.json"
+      ],
+      "expectedNativeAssets": [
+        {
+          "specifier": "@demo/app",
+          "source": "app-module",
+          "sourceMap": "source-v3",
+          "destination": "generated/v3/assets/app.js",
+          "target": "./assets/app.js",
+          "contentType": "text/javascript",
+          "expectedOutput": "rewritten-app"
+        },
+        {
+          "specifier": "@demo/fragment",
+          "source": "xhtml-fragment",
+          "sourceMap": "source-v3",
+          "destination": "generated/v3/content/fragment.xhtml",
+          "target": "./content/fragment.xhtml",
+          "contentType": "application/xhtml+xml",
+          "expectedOutput": "xhtml-fragment"
+        },
+        {
+          "specifier": "@demo/metadata",
+          "source": "module-metadata",
+          "sourceMap": "source-v3",
+          "destination": "generated/v3/assets/metadata.json",
+          "target": "./assets/metadata.json",
+          "contentType": "application/json",
+          "expectedOutput": "module-metadata"
+        }
+      ],
+      "expectedNativeAssetHash": "dcd3701fe7b229a67a963e9088326fcbe918b197a06a29967dafc488e94b0af6",
+      "expectedGraphRefusals": [
+        {
+          "source": "source-v3",
+          "replacement": "invalid-contract-v3",
+          "exitCode": 2,
+          "code": "cem.module_map.schema_unsupported"
+        }
+      ]
+    },
+    {
+      "id": "validate-graph",
+      "name": "Validate the mapped deployment graph source",
+      "kind": "validation",
+      "source": "graph-v3",
+      "description": "Validate the graph source declaration independently from resolving maps, reading resources or executing its deployment.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "inspect-graph",
+      "name": "Inspect graph map references and exports",
+      "kind": "inspection",
+      "source": "graph-v3",
+      "description": "Inspect the native graph source tree and explicit map/export references without running module deployment.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--show",
+        "ast",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedText": [
+        "source-map",
+        "target-map",
+        "generated/v3/index.html"
+      ]
+    }
+  ]
+}

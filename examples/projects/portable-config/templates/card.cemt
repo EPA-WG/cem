@@ -1,0 +1,20 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+{param @name=input @required=true}
+{template @name=card @visibility=public @cem:whitespace=layout |
+    {param @name=heading @required=true}
+    {element @name=main @namespace=http://www.w3.org/1999/xhtml |
+        {element @name=h1 @namespace=http://www.w3.org/1999/xhtml |
+            {$ | heading}
+        }
+        {element @name=p @namespace=http://www.w3.org/1999/xhtml |
+            {$ | dom:text(seq:where(input.descendants, fn(node) => node.kind == "element" && node.name == "title"))}
+        }
+        {element @name=p @namespace=http://www.w3.org/1999/xhtml |
+            {$ | dom:text(seq:where(input.descendants, fn(node) => node.kind == "element" && node.name == "customer"))}
+        }
+        {element @name=p @namespace=http://www.w3.org/1999/xhtml |
+            {$ | dom:text(seq:where(input.descendants, fn(node) => node.kind == "element" && node.name == "status"))}
+}   }   }

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://cem.dev/ns/cli/command/1",
+  "schemaVersion": 1,
+  "commandSchemaVersion": 1,
+  "commonVersion": "0.1.0",
+  "binaryName": "cem-ml",
+  "argv": [
+    "validate",
+    "--config",
+    "authored/check.run.json",
+    "--config-content-type",
+    "application/json",
+    "--config-schema",
+    "https://cem.dev/ns/cli/run-config/1",
+    "--format",
+    "json",
+    "--no-color"
+  ]
+}

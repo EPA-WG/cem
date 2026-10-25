@@ -36,6 +36,10 @@ examples/projects/scss-stylesheet/expected/index.html whitespace=-blank-at-eol
 examples/projects/cem-transform/expected/index.html whitespace=-blank-at-eol
 examples/projects/xslt-transform/expected/index.html whitespace=-blank-at-eol
 examples/projects/json-schema/expected/formatted-note.schema.json whitespace=-blank-at-eol
+examples/projects/module-maps/expected/formatted-v1.json whitespace=-blank-at-eol
+examples/projects/module-maps/expected/formatted-v2.json whitespace=-blank-at-eol
+examples/projects/module-maps/expected/formatted-v3.json whitespace=-blank-at-eol
+examples/projects/portable-config/expected/index.html whitespace=-blank-at-eol
 
 # Preserve the missing-brace fixture's original EOF diagnostic position.
 examples/projects/cemql-orders/failures/invalid-expression.cem-ql whitespace=-blank-at-eof

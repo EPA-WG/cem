@@ -586,6 +586,7 @@
                 "{projectRoot}/runtime/**/*",
                 "{projectRoot}/scripts/build.mjs",
                 "{projectRoot}/scripts/verify-determinism.mjs",
+                "{projectRoot}/generated/feature-tour/**/*",
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
@@ -820,6 +821,8 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-module-map-project.mjs",
+                "{projectRoot}/scripts/verify-portable-config-project.mjs",
                 "{projectRoot}/scripts/verify-transformation-projects.mjs",
                 "{projectRoot}/scripts/verify-schema-authoring-projects.mjs",
                 "{projectRoot}/scripts/verify-xpath-project.mjs",
@@ -1163,6 +1166,32 @@
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/transformations-schemas.json"
+            ]
+        },
+        "verify:module-configs": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:determinism"
+            ],
+            "options": {
+                "command": "node scripts/verify-navigation.mjs --module-configs-only",
+                "cwd": "packages/cem-studio"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-module-map-project.mjs",
+                "{projectRoot}/scripts/verify-portable-config-project.mjs",
+                "{workspaceRoot}/examples/projects/module-maps/**/*",
+                "{workspaceRoot}/examples/projects/portable-config/**/*",
+                "{projectRoot}/dist/static/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/module-config-projects.json"
             ]
         }
     },

@@ -13,6 +13,8 @@ import { verifyStylesheetProjects } from './verify-stylesheet-projects.mjs';
 import { verifyDataQueryProjects } from './verify-data-query-projects.mjs';
 import { verifyTransformationProjects } from './verify-transformation-projects.mjs';
 import { verifySchemaAuthoringProjects } from './verify-schema-authoring-projects.mjs';
+import { verifyModuleMapProject } from './verify-module-map-project.mjs';
+import { verifyPortableConfigProject } from './verify-portable-config-project.mjs';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const csvOnly = process.argv.includes('--csv-only');
@@ -23,8 +25,9 @@ const svgMathmlOnly = process.argv.includes('--svg-mathml-only');
 const stylesheetsOnly = process.argv.includes('--stylesheets-only');
 const dataQueriesOnly = process.argv.includes('--data-queries-only');
 const transformationsSchemasOnly = process.argv.includes('--transformations-schemas-only');
+const moduleConfigsOnly = process.argv.includes('--module-configs-only');
 const schemaAssets = process.argv.includes('--schema-assets');
-if ([csvOnly, documentsOnly, markdownOnly, htmlCemOnly, svgMathmlOnly, stylesheetsOnly, dataQueriesOnly, transformationsSchemasOnly].filter(Boolean).length > 1) throw new Error('Select one project verification scope.');
+if ([csvOnly, documentsOnly, markdownOnly, htmlCemOnly, svgMathmlOnly, stylesheetsOnly, dataQueriesOnly, transformationsSchemasOnly, moduleConfigsOnly].filter(Boolean).length > 1) throw new Error('Select one project verification scope.');
 if (schemaAssets && !csvOnly) throw new Error('The optional profile replay requires --csv-only.');
 const server = await startStaticServer(resolve(projectRoot, schemaAssets ? 'dist/schema-assets' : 'dist/static'));
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
@@ -49,7 +52,22 @@ const submit = async (name, action) => { if (name) await page.getByRole('dialog'
 const heading = async () => assert.equal(await page.getByRole('heading', { level: 1 }).innerText(), await page.title());
 
 try {
-    if (transformationsSchemasOnly) {
+    if (moduleConfigsOnly) {
+        const portableContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+        const portablePage = await portableContext.newPage(); portablePage.setDefaultTimeout(30_000);
+        portablePage.on('pageerror', error => errors.push(error.message));
+        const [moduleMapProject, portableConfigProject] = await Promise.all([
+            verifyModuleMapProject({ page, context, url: server.url }),
+            verifyPortableConfigProject({ page: portablePage, context: portableContext, url: server.url }).catch(async error => {
+                await portablePage.screenshot({ path: '/tmp/cem-studio-portable-config-failure.png', fullPage: true }).catch(() => undefined);
+                throw error;
+            }),
+        ]);
+        assert.deepEqual(errors, []);
+        await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
+        await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/module-config-projects.json'), `${JSON.stringify({ schemaVersion: 1, moduleMapProject, portableConfigProject }, null, 2)}\n`);
+        console.log('Studio module maps and portable configurations: native deployments, identities, host import/export and independent offline workflows passed.');
+    } else if (transformationsSchemasOnly) {
         const transformationProjects = await verifyTransformationProjects({ page, context, url: server.url });
         const schemaAuthoringProjects = await verifySchemaAuthoringProjects({ page, context, url: server.url });
         assert.deepEqual(errors, []);
@@ -337,9 +355,11 @@ try {
     const dataQueryProjects = await verifyDataQueryProjects({ page, context, url: server.url });
     const transformationProjects = await verifyTransformationProjects({ page, context, url: server.url });
     const schemaAuthoringProjects = await verifySchemaAuthoringProjects({ page, context, url: server.url });
+    const moduleMapProject = await verifyModuleMapProject({ page, context, url: server.url });
+    const portableConfigProject = await verifyPortableConfigProject({ page, context, url: server.url });
     assert.deepEqual(errors, []);
     await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
-    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, csvInventory, xmlXhtmlProjects, htmlCemCard, svgMathmlProjects, stylesheetProjects, dataQueryProjects, transformationProjects, schemaAuthoringProjects, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
+    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, csvInventory, xmlXhtmlProjects, htmlCemCard, svgMathmlProjects, stylesheetProjects, dataQueryProjects, transformationProjects, schemaAuthoringProjects, moduleMapProject, portableConfigProject, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
     console.log('Studio navigation: nested catalog, contextual/legacy URLs, readonly originals, independent clones, drafts, themes, responsive layout and offline catalog/Supplier/Markdown site/JSON and YAML report/CSV inventory/XML and XHTML builds passed.');
     }
 } catch (error) {

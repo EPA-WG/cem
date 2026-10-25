@@ -1,0 +1,22 @@
+{
+  "$schema": "https://cem.dev/ns/data/module-map/3",
+  "imports": {
+    "@demo/app": {
+      "path": "./assets/app.js",
+      "contentType": "text/javascript",
+      "moduleImports": {
+        "@demo/metadata": "@demo/metadata"
+      }
+    },
+    "@demo/metadata": {
+      "path": "./assets/metadata.json",
+      "contentType": "application/json"
+    }
+  },
+  "resources": {
+    "@demo/fragment": {
+      "path": "./content/fragment.xhtml",
+      "contentType": "application/xhtml+xml"
+    }
+  }
+}

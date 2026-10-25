@@ -1,0 +1,1000 @@
+{
+  "archiveSchemaVersion": 1,
+  "project": {
+    "$schema": "https://cem.dev/ns/studio/project/1",
+    "schemaVersion": 1,
+    "id": "module-maps-seed",
+    "name": "Module-map deployments",
+    "description": "Compare native v1/v2/v3 paired deployment maps, explicit resource copying and declared module-edge rewrites, with syntax/source controls, semantic planning refusals, native asset hashes and independent offline builds.",
+    "rootUri": "studio://module-maps-seed/",
+    "revision": 1,
+    "createdAt": "2026-10-17T00:00:00Z",
+    "updatedAt": "2026-10-17T00:00:00Z",
+    "entries": [
+      {
+        "id": "validate-v1",
+        "kind": "validation",
+        "name": "Validate v1 JSON source syntax",
+        "description": "Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter.",
+        "resourceIds": [
+          "source-v1",
+          "command-validate-v1"
+        ],
+        "runConfigResourceId": "command-validate-v1",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "inspect-v1",
+        "kind": "inspection",
+        "name": "Inspect v1 source structure",
+        "description": "Inspect the generic imported CEM source structure and original ranges; this is not a typed module-map AST or an execution plan.",
+        "resourceIds": [
+          "source-v1",
+          "command-inspect-v1"
+        ],
+        "runConfigResourceId": "command-inspect-v1",
+        "tags": [
+          "inspect"
+        ]
+      },
+      {
+        "id": "format-v1",
+        "kind": "conversion",
+        "name": "Format v1 map source",
+        "description": "Apply the native tabular JSON source formatter with exact expected bytes; formatting grants no deployment or read authority.",
+        "resourceIds": [
+          "source-v1",
+          "command-format-v1",
+          "formatted-v1"
+        ],
+        "runConfigResourceId": "command-format-v1",
+        "tags": [
+          "convert"
+        ]
+      },
+      {
+        "id": "repair-v1",
+        "kind": "validation",
+        "name": "Repair v1 JSON syntax",
+        "description": "Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics.",
+        "resourceIds": [
+          "invalid-syntax-v1",
+          "command-repair-v1"
+        ],
+        "runConfigResourceId": "command-repair-v1",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "build-v1",
+        "kind": "transformation-graph",
+        "name": "Build the v1 mapped deployment",
+        "description": "Lower the real v1 paired-map contract, copy only declared resources and rewrite the authored HTML import map; the sandboxed preview never executes those modules.",
+        "resourceIds": [
+          "graph-v1",
+          "command-build-v1",
+          "caption-module",
+          "expected-html-v1",
+          "page-v1",
+          "source-v1",
+          "target-v1"
+        ],
+        "runConfigResourceId": "command-build-v1",
+        "entryArtifact": "generated/v1/index.html",
+        "tags": [
+          "transform"
+        ]
+      },
+      {
+        "id": "validate-v2",
+        "kind": "validation",
+        "name": "Validate v2 JSON source syntax",
+        "description": "Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter.",
+        "resourceIds": [
+          "source-v2",
+          "command-validate-v2"
+        ],
+        "runConfigResourceId": "command-validate-v2",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "inspect-v2",
+        "kind": "inspection",
+        "name": "Inspect v2 source structure",
+        "description": "Inspect the generic imported CEM source structure and original ranges; this is not a typed module-map AST or an execution plan.",
+        "resourceIds": [
+          "source-v2",
+          "command-inspect-v2"
+        ],
+        "runConfigResourceId": "command-inspect-v2",
+        "tags": [
+          "inspect"
+        ]
+      },
+      {
+        "id": "format-v2",
+        "kind": "conversion",
+        "name": "Format v2 map source",
+        "description": "Apply the native tabular JSON source formatter with exact expected bytes; formatting grants no deployment or read authority.",
+        "resourceIds": [
+          "source-v2",
+          "command-format-v2",
+          "formatted-v2"
+        ],
+        "runConfigResourceId": "command-format-v2",
+        "tags": [
+          "convert"
+        ]
+      },
+      {
+        "id": "repair-v2",
+        "kind": "validation",
+        "name": "Repair v2 JSON syntax",
+        "description": "Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics.",
+        "resourceIds": [
+          "invalid-syntax-v2",
+          "command-repair-v2"
+        ],
+        "runConfigResourceId": "command-repair-v2",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "build-v2",
+        "kind": "transformation-graph",
+        "name": "Build the v2 mapped deployment",
+        "description": "Lower the real v2 paired-map contract, copy only declared resources and rewrite the authored HTML import map; the sandboxed preview never executes those modules.",
+        "resourceIds": [
+          "graph-v2",
+          "command-build-v2",
+          "caption-module",
+          "expected-html-v2",
+          "page-v2",
+          "site-style",
+          "source-v2",
+          "target-v2"
+        ],
+        "runConfigResourceId": "command-build-v2",
+        "entryArtifact": "generated/v2/index.html",
+        "tags": [
+          "transform"
+        ]
+      },
+      {
+        "id": "validate-v3",
+        "kind": "validation",
+        "name": "Validate v3 JSON source syntax",
+        "description": "Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter.",
+        "resourceIds": [
+          "source-v3",
+          "command-validate-v3"
+        ],
+        "runConfigResourceId": "command-validate-v3",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "inspect-v3",
+        "kind": "inspection",
+        "name": "Inspect v3 source structure",
+        "description": "Inspect the generic imported CEM source structure and original ranges; this is not a typed module-map AST or an execution plan.",
+        "resourceIds": [
+          "source-v3",
+          "command-inspect-v3"
+        ],
+        "runConfigResourceId": "command-inspect-v3",
+        "tags": [
+          "inspect"
+        ]
+      },
+      {
+        "id": "format-v3",
+        "kind": "conversion",
+        "name": "Format v3 map source",
+        "description": "Apply the native tabular JSON source formatter with exact expected bytes; formatting grants no deployment or read authority.",
+        "resourceIds": [
+          "source-v3",
+          "command-format-v3",
+          "formatted-v3"
+        ],
+        "runConfigResourceId": "command-format-v3",
+        "tags": [
+          "convert"
+        ]
+      },
+      {
+        "id": "repair-v3",
+        "kind": "validation",
+        "name": "Repair v3 JSON syntax",
+        "description": "Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics.",
+        "resourceIds": [
+          "invalid-syntax-v3",
+          "command-repair-v3"
+        ],
+        "runConfigResourceId": "command-repair-v3",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "build-v3",
+        "kind": "transformation-graph",
+        "name": "Build the v3 mapped deployment",
+        "description": "Lower the real v3 paired-map contract, copy only declared resources and rewrite the authored HTML import map; the sandboxed preview never executes those modules.",
+        "resourceIds": [
+          "graph-v3",
+          "command-build-v3",
+          "app-module",
+          "expected-html-v3",
+          "module-metadata",
+          "page-v3",
+          "rewritten-app",
+          "source-v3",
+          "target-v3",
+          "xhtml-fragment"
+        ],
+        "runConfigResourceId": "command-build-v3",
+        "entryArtifact": "generated/v3/index.html",
+        "tags": [
+          "transform"
+        ]
+      },
+      {
+        "id": "validate-graph",
+        "kind": "validation",
+        "name": "Validate the mapped deployment graph source",
+        "description": "Validate the graph source declaration independently from resolving maps, reading resources or executing its deployment.",
+        "resourceIds": [
+          "graph-v3",
+          "command-validate-graph"
+        ],
+        "runConfigResourceId": "command-validate-graph",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "inspect-graph",
+        "kind": "inspection",
+        "name": "Inspect graph map references and exports",
+        "description": "Inspect the native graph source tree and explicit map/export references without running module deployment.",
+        "resourceIds": [
+          "graph-v3",
+          "command-inspect-graph"
+        ],
+        "runConfigResourceId": "command-inspect-graph",
+        "tags": [
+          "inspect"
+        ]
+      }
+    ],
+    "resources": [
+      {
+        "id": "source-v1",
+        "path": "maps/source-v1.json",
+        "referencePath": "maps/source-v1.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/1",
+        "revision": 1,
+        "sha256": "25b58a7ccb4f74a318d14b82889cf6fb320725f73879d151b05c6c5ff16d2e42"
+      },
+      {
+        "id": "target-v1",
+        "path": "maps/target-v1.json",
+        "referencePath": "maps/target-v1.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/1",
+        "revision": 1,
+        "sha256": "b795a4d375c5b10769e343fad3385dd4e56249df31d4eeb68d9766fbc6fb8580"
+      },
+      {
+        "id": "page-v1",
+        "path": "pages/v1.html",
+        "referencePath": "pages/v1.html",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/html",
+        "schema": "https://cem.dev/ns/data/html/1",
+        "revision": 1,
+        "sha256": "3a19c4447c071ad720610b56a2f07fe33562b22d0c60a88eafb522378a5c7587"
+      },
+      {
+        "id": "graph-v1",
+        "path": "graphs/v1.cem",
+        "referencePath": "graphs/v1.cem",
+        "role": "transform-config",
+        "sourceKind": "project-file",
+        "contentType": "application/cem",
+        "schema": "https://cem.dev/ns/cli/transform-config/1",
+        "revision": 1,
+        "sha256": "6be64fa79adf2ae31b36fa65f27ba10f3ab30b524114d942d21740a3b006a432"
+      },
+      {
+        "id": "invalid-contract-v1",
+        "path": "failures/source-v1.json",
+        "referencePath": "failures/source-v1.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/1",
+        "revision": 1,
+        "sha256": "b25df2d7bd5fb44e9a2eb892de20df69a4bd4f0448e8077d9c26a8bc4e4e77e2"
+      },
+      {
+        "id": "invalid-syntax-v1",
+        "path": "failures/syntax-v1.json",
+        "referencePath": "failures/syntax-v1.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/1",
+        "revision": 1,
+        "sha256": "27ca1757f0c79e0a13fe97e7696d8c966c2311b1bea1aed8e959b38eb8ba7a87"
+      },
+      {
+        "id": "formatted-v1",
+        "path": "expected/formatted-v1.json",
+        "referencePath": "expected/formatted-v1.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/1",
+        "revision": 1,
+        "sha256": "f963c70e98dae08b2b151f8f25bd0580fc756493ba2d73991b5cfe919388ede8"
+      },
+      {
+        "id": "expected-html-v1",
+        "path": "expected/v1.html",
+        "referencePath": "expected/v1.html",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/html",
+        "schema": "https://cem.dev/ns/data/html/1",
+        "revision": 1,
+        "sha256": "8e36940459f62e2071656451de649f58ddca7cd9f9a70e029cc9d5c232e09823"
+      },
+      {
+        "id": "source-v2",
+        "path": "maps/source-v2.json",
+        "referencePath": "maps/source-v2.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/2",
+        "revision": 1,
+        "sha256": "985e8197ad68eb5dc81183f81b08f5b575d58f2c64b4cc1ffcf4b6b22e532e20"
+      },
+      {
+        "id": "target-v2",
+        "path": "maps/target-v2.json",
+        "referencePath": "maps/target-v2.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/2",
+        "revision": 1,
+        "sha256": "147123b5e613a48803844f8e872c78b534d11609c973f49b4ece35e89e2f19ca"
+      },
+      {
+        "id": "page-v2",
+        "path": "pages/v2.html",
+        "referencePath": "pages/v2.html",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/html",
+        "schema": "https://cem.dev/ns/data/html/1",
+        "revision": 1,
+        "sha256": "275457439d97254cded498871d9d5a23aa9db2c8759e998d21742097dcc6e72f"
+      },
+      {
+        "id": "graph-v2",
+        "path": "graphs/v2.cem",
+        "referencePath": "graphs/v2.cem",
+        "role": "transform-config",
+        "sourceKind": "project-file",
+        "contentType": "application/cem",
+        "schema": "https://cem.dev/ns/cli/transform-config/1",
+        "revision": 1,
+        "sha256": "bb02b302d681b83efe1908a010f70da9ff865e853143554b97014a354087688c"
+      },
+      {
+        "id": "invalid-contract-v2",
+        "path": "failures/source-v2.json",
+        "referencePath": "failures/source-v2.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/2",
+        "revision": 1,
+        "sha256": "69dc207c65164c0df7b090b4bcc1ca53def9f9d34c4ffe48f48f572d6334f920"
+      },
+      {
+        "id": "invalid-syntax-v2",
+        "path": "failures/syntax-v2.json",
+        "referencePath": "failures/syntax-v2.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/2",
+        "revision": 1,
+        "sha256": "809cdd8acfa8c9973b1eac224c073bc4f9d205d12eb3218ac66929ddb874d428"
+      },
+      {
+        "id": "formatted-v2",
+        "path": "expected/formatted-v2.json",
+        "referencePath": "expected/formatted-v2.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/2",
+        "revision": 1,
+        "sha256": "5bafaf88874bcb7a8ee5570f52d5a98c74075383f2280f3515ec8ab82d8863ce"
+      },
+      {
+        "id": "expected-html-v2",
+        "path": "expected/v2.html",
+        "referencePath": "expected/v2.html",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/html",
+        "schema": "https://cem.dev/ns/data/html/1",
+        "revision": 1,
+        "sha256": "f5a65d9b9540f232ced5b3e32405252557c43146c9ddd4d73dc60987839bc549"
+      },
+      {
+        "id": "source-v3",
+        "path": "maps/source-v3.json",
+        "referencePath": "maps/source-v3.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/3",
+        "revision": 1,
+        "sha256": "9573060fe39a3a90da143b10feb37417daa39233cecf660f336c53f915d244d3"
+      },
+      {
+        "id": "target-v3",
+        "path": "maps/target-v3.json",
+        "referencePath": "maps/target-v3.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/3",
+        "revision": 1,
+        "sha256": "b7144125857a39765ab138ea830a817b19bbfc2d5613e0ed13e4363b62876d6d"
+      },
+      {
+        "id": "page-v3",
+        "path": "pages/v3.html",
+        "referencePath": "pages/v3.html",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/html",
+        "schema": "https://cem.dev/ns/data/html/1",
+        "revision": 1,
+        "sha256": "2869a99a8a89bffda2b088ec7de05d3cb55861e696066d71c31338ab336d2068"
+      },
+      {
+        "id": "graph-v3",
+        "path": "graphs/v3.cem",
+        "referencePath": "graphs/v3.cem",
+        "role": "transform-config",
+        "sourceKind": "project-file",
+        "contentType": "application/cem",
+        "schema": "https://cem.dev/ns/cli/transform-config/1",
+        "revision": 1,
+        "sha256": "e7aa9705f4bbfb7136e5df9f911953188fc87b1e3a596b5ecef8d4c83c4a245b"
+      },
+      {
+        "id": "invalid-contract-v3",
+        "path": "failures/source-v3.json",
+        "referencePath": "failures/source-v3.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/3",
+        "revision": 1,
+        "sha256": "67a46f13bcbd84fcec3278c77e3f8247828bfccac494479d77faec987251939a"
+      },
+      {
+        "id": "invalid-syntax-v3",
+        "path": "failures/syntax-v3.json",
+        "referencePath": "failures/syntax-v3.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/3",
+        "revision": 1,
+        "sha256": "76b14742e60f624aed0d70473f98e239609b4d8d10cbc96aaec84ae4f54c353a"
+      },
+      {
+        "id": "formatted-v3",
+        "path": "expected/formatted-v3.json",
+        "referencePath": "expected/formatted-v3.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.module-map+json",
+        "schema": "https://cem.dev/ns/data/module-map/3",
+        "revision": 1,
+        "sha256": "81ad8d038d607288ddfb33473e17aa55928c83b50109de281a83c50df7b8c015"
+      },
+      {
+        "id": "expected-html-v3",
+        "path": "expected/v3.html",
+        "referencePath": "expected/v3.html",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/html",
+        "schema": "https://cem.dev/ns/data/html/1",
+        "revision": 1,
+        "sha256": "fcb86f624f4cb7b8a737697ef4a82b672ec2fb1bcde35f175692907eda3adbc4"
+      },
+      {
+        "id": "caption-module",
+        "path": "modules/caption.js",
+        "referencePath": "modules/caption.js",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/javascript",
+        "revision": 1,
+        "sha256": "fe3e474febcdffd52653ca4d4447c01e2d8f7304f92f8ce0cdc0d8d8dde40ca3"
+      },
+      {
+        "id": "app-module",
+        "path": "modules/app.js",
+        "referencePath": "modules/app.js",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/javascript",
+        "revision": 1,
+        "sha256": "8aff9e0a0ced516dbba5f5841e25e295a8354a20c3027f9350d51d0ae6e6c716"
+      },
+      {
+        "id": "module-metadata",
+        "path": "modules/metadata.json",
+        "referencePath": "modules/metadata.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/data/json/1",
+        "revision": 1,
+        "sha256": "cde26db1a8f7094966ad9669ff1118f993dc4275848da6d48b9a61205723c5d7"
+      },
+      {
+        "id": "site-style",
+        "path": "modules/site.css",
+        "referencePath": "modules/site.css",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/css",
+        "schema": "https://cem.dev/ns/data/css/1",
+        "revision": 1,
+        "sha256": "cad55514b7d5906d0b8b963e78647af836fc9b5bb5f7e43e0590e38c811dd2b1"
+      },
+      {
+        "id": "xhtml-fragment",
+        "path": "modules/fragment.xhtml",
+        "referencePath": "modules/fragment.xhtml",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/xhtml+xml",
+        "schema": "https://cem.dev/ns/data/xhtml/1",
+        "revision": 1,
+        "sha256": "94cdf0e81722ee191cdc185af8901733f8dce29043848744d648a16e15a366ed"
+      },
+      {
+        "id": "rewritten-app",
+        "path": "expected/app.js",
+        "referencePath": "expected/app.js",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/javascript",
+        "revision": 1,
+        "sha256": "f9611ca821540225db8ad41f369902cc7d882c4b2effdcb29f4b6aef1842626f"
+      },
+      {
+        "id": "readme",
+        "path": "README.md",
+        "referencePath": "README.md",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/markdown",
+        "schema": "https://cem.dev/ns/data/markdown/1",
+        "revision": 1,
+        "sha256": "b2f594b17c122fd0ec72b3f6261f881ef46f4f54859520da11ecd555793a09d1"
+      },
+      {
+        "id": "command-validate-v1",
+        "path": "config/validate-v1.json",
+        "referencePath": "config/validate-v1.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "ed2dc25155097f4430265361973fdb1ffc4ce79a79913a94302149af82f4a7fa"
+      },
+      {
+        "id": "command-inspect-v1",
+        "path": "config/inspect-v1.json",
+        "referencePath": "config/inspect-v1.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "446b2041bc90ecd7388834482d0693bb941c8e920ac31d32dcdca220cbe14966"
+      },
+      {
+        "id": "command-format-v1",
+        "path": "config/format-v1.json",
+        "referencePath": "config/format-v1.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "b8ac052ad264ee1889ef2df1db6e243f5105372f07e96fcb03adc8d047469a74"
+      },
+      {
+        "id": "command-repair-v1",
+        "path": "config/repair-v1.json",
+        "referencePath": "config/repair-v1.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "49944381e39e8e2fb7bb93b16d9b6ff999c6497b47d9d8cf68517ee58ed6d00f"
+      },
+      {
+        "id": "command-build-v1",
+        "path": "config/build-v1.json",
+        "referencePath": "config/build-v1.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "2f07b2b0468bd6486ebd9b114a6d5da5d3e9280ea742be3ac2e3d6f33b784737"
+      },
+      {
+        "id": "command-validate-v2",
+        "path": "config/validate-v2.json",
+        "referencePath": "config/validate-v2.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "6e20752e0c65ce31894715cb46719781b8e5675b73ce92efcf156966f7929da9"
+      },
+      {
+        "id": "command-inspect-v2",
+        "path": "config/inspect-v2.json",
+        "referencePath": "config/inspect-v2.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "073a531e447c4202d3ba90525bed718017b655be4d3e534237afb6c80c26b539"
+      },
+      {
+        "id": "command-format-v2",
+        "path": "config/format-v2.json",
+        "referencePath": "config/format-v2.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "c0a67ac036c44230538b02e2efa8d4c4522ce356192cf0c3cc8a0e35d9ca8d47"
+      },
+      {
+        "id": "command-repair-v2",
+        "path": "config/repair-v2.json",
+        "referencePath": "config/repair-v2.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "d17fa1300e64dc8cb740f3aeb9f7e337cc393c6fb490fbb1782eba90762ad324"
+      },
+      {
+        "id": "command-build-v2",
+        "path": "config/build-v2.json",
+        "referencePath": "config/build-v2.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "152e8a3145c319101d08075a22ec7ff9f1e81891338bca8cb55861c42d58d2e0"
+      },
+      {
+        "id": "command-validate-v3",
+        "path": "config/validate-v3.json",
+        "referencePath": "config/validate-v3.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "cf908f6e443e255ff73ee060aedb785af27be11dfe9c4c209d9af1440e99a095"
+      },
+      {
+        "id": "command-inspect-v3",
+        "path": "config/inspect-v3.json",
+        "referencePath": "config/inspect-v3.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "48e142f41485f69036c3aabeddc7b3aedc823fae5a21faf0bce05acfc89db79c"
+      },
+      {
+        "id": "command-format-v3",
+        "path": "config/format-v3.json",
+        "referencePath": "config/format-v3.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "31239fb09903184d599a0dccde1e34b34201b747ab7c0c900cbaa8215a0728be"
+      },
+      {
+        "id": "command-repair-v3",
+        "path": "config/repair-v3.json",
+        "referencePath": "config/repair-v3.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "434c768762d2857a82b12f7832660dd2e46b7a7dfbe21bf5709601b3b21feb79"
+      },
+      {
+        "id": "command-build-v3",
+        "path": "config/build-v3.json",
+        "referencePath": "config/build-v3.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "3817381d3bbc38a800d1eaca6cd3cd78fac64506127737cae86ca027bd91d3de"
+      },
+      {
+        "id": "command-validate-graph",
+        "path": "config/validate-graph.json",
+        "referencePath": "config/validate-graph.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "ee57856c4a8184e31a4d006bac6708437d8ede47654eb1979c56d7c4992eef04"
+      },
+      {
+        "id": "command-inspect-graph",
+        "path": "config/inspect-graph.json",
+        "referencePath": "config/inspect-graph.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "e9fa8415a57372f538e28dcc0adb68320b298700cd09efb70e3e5d600bb3fab8"
+      }
+    ]
+  },
+  "contents": [
+    {
+      "resourceId": "app-module",
+      "base64": "aW1wb3J0IG1ldGFkYXRhIGZyb20gJ0BkZW1vL21ldGFkYXRhJyB3aXRoIHsgdHlwZTogJ2pzb24nIH07CmV4cG9ydCBkZWZhdWx0IG1ldGFkYXRhOwo="
+    },
+    {
+      "resourceId": "caption-module",
+      "base64": "ZXhwb3J0IGNvbnN0IGNhcHRpb24gPSAnQ2Fmw6kgbW9kdWxlJzsK"
+    },
+    {
+      "resourceId": "command-build-v1",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJ0cmFuc2Zvcm0iLAogICAgIi0tY29uZmlnIiwKICAgICJncmFwaHMvdjEuY2VtIiwKICAgICItLWNvbmZpZy1jb250ZW50LXR5cGUiLAogICAgImFwcGxpY2F0aW9uL2NlbSIsCiAgICAiLS1jb25maWctc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvY2xpL3RyYW5zZm9ybS1jb25maWcvMSIKICBdCn0K"
+    },
+    {
+      "resourceId": "command-build-v2",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJ0cmFuc2Zvcm0iLAogICAgIi0tY29uZmlnIiwKICAgICJncmFwaHMvdjIuY2VtIiwKICAgICItLWNvbmZpZy1jb250ZW50LXR5cGUiLAogICAgImFwcGxpY2F0aW9uL2NlbSIsCiAgICAiLS1jb25maWctc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvY2xpL3RyYW5zZm9ybS1jb25maWcvMSIKICBdCn0K"
+    },
+    {
+      "resourceId": "command-build-v3",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJ0cmFuc2Zvcm0iLAogICAgIi0tY29uZmlnIiwKICAgICJncmFwaHMvdjMuY2VtIiwKICAgICItLWNvbmZpZy1jb250ZW50LXR5cGUiLAogICAgImFwcGxpY2F0aW9uL2NlbSIsCiAgICAiLS1jb25maWctc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvY2xpL3RyYW5zZm9ybS1jb25maWcvMSIKICBdCn0K"
+    },
+    {
+      "resourceId": "command-format-v1",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJjb252ZXJ0IiwKICAgICJtYXBzL3NvdXJjZS12MS5qc29uIiwKICAgICItLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vdm5kLmNlbS5tb2R1bGUtbWFwK2pzb24iLAogICAgIi0tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9tb2R1bGUtbWFwLzEiLAogICAgIi0tdG8tY29udGVudC10eXBlIiwKICAgICJhcHBsaWNhdGlvbi92bmQuY2VtLm1vZHVsZS1tYXAranNvbiIsCiAgICAiLS10by1zY2hlbWEiLAogICAgImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMSIsCiAgICAiLS1jZW10LWZvcm1hdHRlci1wcm9maWxlIiwKICAgICJ0YWJ1bGFyIiwKICAgICItLW91dHB1dC1jb2xvci10eXBlIiwKICAgICJub25lIiwKICAgICItLW5vLWNvbG9yIgogIF0KfQo="
+    },
+    {
+      "resourceId": "command-format-v2",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJjb252ZXJ0IiwKICAgICJtYXBzL3NvdXJjZS12Mi5qc29uIiwKICAgICItLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vdm5kLmNlbS5tb2R1bGUtbWFwK2pzb24iLAogICAgIi0tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9tb2R1bGUtbWFwLzIiLAogICAgIi0tdG8tY29udGVudC10eXBlIiwKICAgICJhcHBsaWNhdGlvbi92bmQuY2VtLm1vZHVsZS1tYXAranNvbiIsCiAgICAiLS10by1zY2hlbWEiLAogICAgImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMiIsCiAgICAiLS1jZW10LWZvcm1hdHRlci1wcm9maWxlIiwKICAgICJ0YWJ1bGFyIiwKICAgICItLW91dHB1dC1jb2xvci10eXBlIiwKICAgICJub25lIiwKICAgICItLW5vLWNvbG9yIgogIF0KfQo="
+    },
+    {
+      "resourceId": "command-format-v3",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJjb252ZXJ0IiwKICAgICJtYXBzL3NvdXJjZS12My5qc29uIiwKICAgICItLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vdm5kLmNlbS5tb2R1bGUtbWFwK2pzb24iLAogICAgIi0tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9tb2R1bGUtbWFwLzMiLAogICAgIi0tdG8tY29udGVudC10eXBlIiwKICAgICJhcHBsaWNhdGlvbi92bmQuY2VtLm1vZHVsZS1tYXAranNvbiIsCiAgICAiLS10by1zY2hlbWEiLAogICAgImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMyIsCiAgICAiLS1jZW10LWZvcm1hdHRlci1wcm9maWxlIiwKICAgICJ0YWJ1bGFyIiwKICAgICItLW91dHB1dC1jb2xvci10eXBlIiwKICAgICJub25lIiwKICAgICItLW5vLWNvbG9yIgogIF0KfQo="
+    },
+    {
+      "resourceId": "command-inspect-graph",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJpbnNwZWN0IiwKICAgICJncmFwaHMvdjMuY2VtIiwKICAgICItLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vY2VtIiwKICAgICItLXNjaGVtYSIsCiAgICAiaHR0cHM6Ly9jZW0uZGV2L25zL2NsaS90cmFuc2Zvcm0tY29uZmlnLzEiLAogICAgIi0tc2hvdyIsCiAgICAiYXN0IiwKICAgICItLWZvcm1hdCIsCiAgICAianNvbiIsCiAgICAiLS1uby1jb2xvciIKICBdCn0K"
+    },
+    {
+      "resourceId": "command-inspect-v1",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJpbnNwZWN0IiwKICAgICJtYXBzL3NvdXJjZS12MS5qc29uIiwKICAgICItLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vdm5kLmNlbS5tb2R1bGUtbWFwK2pzb24iLAogICAgIi0tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9tb2R1bGUtbWFwLzEiLAogICAgIi0tc2hvdyIsCiAgICAiYXN0IiwKICAgICItLW5vLWNvbG9yIgogIF0KfQo="
+    },
+    {
+      "resourceId": "command-inspect-v2",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJpbnNwZWN0IiwKICAgICJtYXBzL3NvdXJjZS12Mi5qc29uIiwKICAgICItLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vdm5kLmNlbS5tb2R1bGUtbWFwK2pzb24iLAogICAgIi0tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9tb2R1bGUtbWFwLzIiLAogICAgIi0tc2hvdyIsCiAgICAiYXN0IiwKICAgICItLW5vLWNvbG9yIgogIF0KfQo="
+    },
+    {
+      "resourceId": "command-inspect-v3",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJpbnNwZWN0IiwKICAgICJtYXBzL3NvdXJjZS12My5qc29uIiwKICAgICItLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vdm5kLmNlbS5tb2R1bGUtbWFwK2pzb24iLAogICAgIi0tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9tb2R1bGUtbWFwLzMiLAogICAgIi0tc2hvdyIsCiAgICAiYXN0IiwKICAgICItLW5vLWNvbG9yIgogIF0KfQo="
+    },
+    {
+      "resourceId": "command-repair-v1",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZmFpbHVyZXMvc3ludGF4LXYxLmpzb24iLAogICAgICAicm9vdFNjb3BlIjogewogICAgICAgICJkZWZhdWx0Q29udGVudFR5cGUiOiAiYXBwbGljYXRpb24vdm5kLmNlbS5tb2R1bGUtbWFwK2pzb24iLAogICAgICAgICJzY2hlbWEiOiAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvbW9kdWxlLW1hcC8xIgogICAgICB9CiAgICB9CiAgXSwKICAib3V0cHV0cyI6IFtdLAogICJzY2hlbWFQYWNrYWdlcyI6IFtdLAogICJyZXNvbHZlcnMiOiBbXSwKICAic2NoZWR1bGVyIjoge30KfQo="
+    },
+    {
+      "resourceId": "command-repair-v2",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZmFpbHVyZXMvc3ludGF4LXYyLmpzb24iLAogICAgICAicm9vdFNjb3BlIjogewogICAgICAgICJkZWZhdWx0Q29udGVudFR5cGUiOiAiYXBwbGljYXRpb24vdm5kLmNlbS5tb2R1bGUtbWFwK2pzb24iLAogICAgICAgICJzY2hlbWEiOiAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvbW9kdWxlLW1hcC8yIgogICAgICB9CiAgICB9CiAgXSwKICAib3V0cHV0cyI6IFtdLAogICJzY2hlbWFQYWNrYWdlcyI6IFtdLAogICJyZXNvbHZlcnMiOiBbXSwKICAic2NoZWR1bGVyIjoge30KfQo="
+    },
+    {
+      "resourceId": "command-repair-v3",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZmFpbHVyZXMvc3ludGF4LXYzLmpzb24iLAogICAgICAicm9vdFNjb3BlIjogewogICAgICAgICJkZWZhdWx0Q29udGVudFR5cGUiOiAiYXBwbGljYXRpb24vdm5kLmNlbS5tb2R1bGUtbWFwK2pzb24iLAogICAgICAgICJzY2hlbWEiOiAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvbW9kdWxlLW1hcC8zIgogICAgICB9CiAgICB9CiAgXSwKICAib3V0cHV0cyI6IFtdLAogICJzY2hlbWFQYWNrYWdlcyI6IFtdLAogICJyZXNvbHZlcnMiOiBbXSwKICAic2NoZWR1bGVyIjoge30KfQo="
+    },
+    {
+      "resourceId": "command-validate-graph",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZ3JhcGhzL3YzLmNlbSIsCiAgICAgICJyb290U2NvcGUiOiB7CiAgICAgICAgImRlZmF1bHRDb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi9jZW0iLAogICAgICAgICJzY2hlbWEiOiAiaHR0cHM6Ly9jZW0uZGV2L25zL2NsaS90cmFuc2Zvcm0tY29uZmlnLzEiCiAgICAgIH0KICAgIH0KICBdLAogICJvdXRwdXRzIjogW10sCiAgInNjaGVtYVBhY2thZ2VzIjogW10sCiAgInJlc29sdmVycyI6IFtdLAogICJzY2hlZHVsZXIiOiB7fQp9Cg=="
+    },
+    {
+      "resourceId": "command-validate-v1",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAibWFwcy9zb3VyY2UtdjEuanNvbiIsCiAgICAgICJyb290U2NvcGUiOiB7CiAgICAgICAgImRlZmF1bHRDb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi92bmQuY2VtLm1vZHVsZS1tYXAranNvbiIsCiAgICAgICAgInNjaGVtYSI6ICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9tb2R1bGUtbWFwLzEiCiAgICAgIH0KICAgIH0KICBdLAogICJvdXRwdXRzIjogW10sCiAgInNjaGVtYVBhY2thZ2VzIjogW10sCiAgInJlc29sdmVycyI6IFtdLAogICJzY2hlZHVsZXIiOiB7fQp9Cg=="
+    },
+    {
+      "resourceId": "command-validate-v2",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAibWFwcy9zb3VyY2UtdjIuanNvbiIsCiAgICAgICJyb290U2NvcGUiOiB7CiAgICAgICAgImRlZmF1bHRDb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi92bmQuY2VtLm1vZHVsZS1tYXAranNvbiIsCiAgICAgICAgInNjaGVtYSI6ICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9tb2R1bGUtbWFwLzIiCiAgICAgIH0KICAgIH0KICBdLAogICJvdXRwdXRzIjogW10sCiAgInNjaGVtYVBhY2thZ2VzIjogW10sCiAgInJlc29sdmVycyI6IFtdLAogICJzY2hlZHVsZXIiOiB7fQp9Cg=="
+    },
+    {
+      "resourceId": "command-validate-v3",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAibWFwcy9zb3VyY2UtdjMuanNvbiIsCiAgICAgICJyb290U2NvcGUiOiB7CiAgICAgICAgImRlZmF1bHRDb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi92bmQuY2VtLm1vZHVsZS1tYXAranNvbiIsCiAgICAgICAgInNjaGVtYSI6ICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9tb2R1bGUtbWFwLzMiCiAgICAgIH0KICAgIH0KICBdLAogICJvdXRwdXRzIjogW10sCiAgInNjaGVtYVBhY2thZ2VzIjogW10sCiAgInJlc29sdmVycyI6IFtdLAogICJzY2hlZHVsZXIiOiB7fQp9Cg=="
+    },
+    {
+      "resourceId": "expected-html-v1",
+      "base64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj48aGVhZD48bWV0YSBjaGFyc2V0PSJ1dGYtOCI+PHRpdGxlPk1vZHVsZS1tYXAgZGVwbG95bWVudDwvdGl0bGU+CjxzY3JpcHQgdHlwZT0iaW1wb3J0bWFwIj4KICB7CiAgICAiaW1wb3J0cyI6IHsKICAgICAgIkBkZW1vL2NhcHRpb24iOiAiLi9hc3NldHMvY2FwdGlvbi5qcyIKICAgIH0KICB9Cjwvc2NyaXB0Pgo8L2hlYWQ+PGJvZHk+PG1haW4+PGgxPk1vZHVsZS1tYXAgZGVwbG95bWVudDwvaDE+PHA+VmVyc2lvbiAxIGtlZXBzIGV2ZXJ5IGNvcGllZCBkZXBlbmRlbmN5IGV4cGxpY2l0LjwvcD48cD5DYWbDqSBtb2R1bGVzIHJlbWFpbiBvd25lZCBwcm9qZWN0IHJlc291cmNlcy48L3A+PC9tYWluPjwvYm9keT48L2h0bWw+Cg=="
+    },
+    {
+      "resourceId": "expected-html-v2",
+      "base64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj48aGVhZD48bWV0YSBjaGFyc2V0PSJ1dGYtOCI+PHRpdGxlPk1vZHVsZS1tYXAgZGVwbG95bWVudDwvdGl0bGU+CjxzY3JpcHQgdHlwZT0iaW1wb3J0bWFwIj4KICB7CiAgICAiaW1wb3J0cyI6IHsKICAgICAgIkBkZW1vL2NhcHRpb24iOiAiLi9hc3NldHMvY2FwdGlvbi5qcyIKICAgIH0KICB9Cjwvc2NyaXB0Pgo8L2hlYWQ+PGJvZHk+PG1haW4+PGgxPk1vZHVsZS1tYXAgZGVwbG95bWVudDwvaDE+PHA+VmVyc2lvbiAyIGtlZXBzIGV2ZXJ5IGNvcGllZCBkZXBlbmRlbmN5IGV4cGxpY2l0LjwvcD48cD5DYWbDqSBtb2R1bGVzIHJlbWFpbiBvd25lZCBwcm9qZWN0IHJlc291cmNlcy48L3A+PC9tYWluPjwvYm9keT48L2h0bWw+Cg=="
+    },
+    {
+      "resourceId": "expected-html-v3",
+      "base64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj48aGVhZD48bWV0YSBjaGFyc2V0PSJ1dGYtOCI+PHRpdGxlPk1vZHVsZS1tYXAgZGVwbG95bWVudDwvdGl0bGU+CjxzY3JpcHQgdHlwZT0iaW1wb3J0bWFwIj4KICB7CiAgICAiaW1wb3J0cyI6IHsKICAgICAgIkBkZW1vL2FwcCI6ICIuL2Fzc2V0cy9hcHAuanMiLAogICAgICAiQGRlbW8vbWV0YWRhdGEiOiAiLi9hc3NldHMvbWV0YWRhdGEuanNvbiIKICAgIH0KICB9Cjwvc2NyaXB0Pgo8L2hlYWQ+PGJvZHk+PG1haW4+PGgxPk1vZHVsZS1tYXAgZGVwbG95bWVudDwvaDE+PHA+VmVyc2lvbiAzIGtlZXBzIGV2ZXJ5IGNvcGllZCBkZXBlbmRlbmN5IGV4cGxpY2l0LjwvcD48cD5DYWbDqSBtb2R1bGVzIHJlbWFpbiBvd25lZCBwcm9qZWN0IHJlc291cmNlcy48L3A+PC9tYWluPjwvYm9keT48L2h0bWw+Cg=="
+    },
+    {
+      "resourceId": "formatted-v1",
+      "base64": "eyAgICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMSIKLCAgICJpbXBvcnRzIjogCiAgICB7ICAgIkBkZW1vL2NhcHRpb24iOiAiLi4vbW9kdWxlcy9jYXB0aW9uLmpzIgp9ICAgfQo="
+    },
+    {
+      "resourceId": "formatted-v2",
+      "base64": "eyAgICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMiIKLCAgICJpbXBvcnRzIjogCiAgICB7ICAgIkBkZW1vL2NhcHRpb24iOiAiLi4vbW9kdWxlcy9jYXB0aW9uLmpzIgogICAgfQosICAgInJlc291cmNlcyI6IAogICAgeyAgICJAZGVtby9zdHlsZXMiOiAKICAgICAgICB7ICAgInBhdGgiOiAiLi4vbW9kdWxlcy9zaXRlLmNzcyIKICAgICAgICAsICAgImNvbnRlbnRUeXBlIjogInRleHQvY3NzIgp9ICAgfSAgIH0K"
+    },
+    {
+      "resourceId": "formatted-v3",
+      "base64": "eyAgICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMyIKLCAgICJpbXBvcnRzIjogCiAgICB7ICAgIkBkZW1vL2FwcCI6IAogICAgICAgIHsgICAicGF0aCI6ICIuLi9tb2R1bGVzL2FwcC5qcyIKICAgICAgICAsICAgImNvbnRlbnRUeXBlIjogInRleHQvamF2YXNjcmlwdCIKICAgICAgICAsICAgIm1vZHVsZUltcG9ydHMiOiAKICAgICAgICAgICAgeyAgICJAZGVtby9tZXRhZGF0YSI6ICJAZGVtby9tZXRhZGF0YSIKICAgICAgICB9ICAgfQogICAgLCAgICJAZGVtby9tZXRhZGF0YSI6IAogICAgICAgIHsgICAicGF0aCI6ICIuLi9tb2R1bGVzL21ldGFkYXRhLmpzb24iCiAgICAgICAgLCAgICJjb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi9qc29uIgogICAgfSAgIH0KLCAgICJyZXNvdXJjZXMiOiAKICAgIHsgICAiQGRlbW8vZnJhZ21lbnQiOiAKICAgICAgICB7ICAgInBhdGgiOiAiLi4vbW9kdWxlcy9mcmFnbWVudC54aHRtbCIKICAgICAgICAsICAgImNvbnRlbnRUeXBlIjogImFwcGxpY2F0aW9uL3hodG1sK3htbCIKfSAgIH0gICB9Cg=="
+    },
+    {
+      "resourceId": "graph-v1",
+      "base64": "QGRvYyBjZW0tbWwgMQp7cnVuIHwKICAgIHtpbXBvcnQgQGNvbnRlbnQtdHlwZT10ZXh0L2h0bWwgQGlkPXBhZ2UgQHNjaGVtYT1odHRwczovL2NlbS5kZXYvbnMvZGF0YS9odG1sLzEKICAgICAgICBAc3JjPS4uL3BhZ2VzL3YxLmh0bWwgfAogICAgICAgIHtyZXdyaXRlLWltcG9ydG1hcCBAaWQ9bW9kdWxlcyBAc291cmNlLW1hcD0uLi9tYXBzL3NvdXJjZS12MS5qc29uCiAgICAgICAgICAgIEB0YXJnZXQtbWFwPS4uL21hcHMvdGFyZ2V0LXYxLmpzb24gfAogICAgICAgICAgICB7ZXhwb3J0IEBjb250ZW50LXR5cGU9dGV4dC9odG1sIEBpZD1odG1sIEBvdXQ9Li4vZ2VuZXJhdGVkL3YxL2luZGV4Lmh0bWwKICAgICAgICAgICAgICAgIEBzY2hlbWE9aHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvaHRtbC8xfQp9ICAgfSAgIH0K"
+    },
+    {
+      "resourceId": "graph-v2",
+      "base64": "QGRvYyBjZW0tbWwgMQp7cnVuIHwKICAgIHtpbXBvcnQgQGNvbnRlbnQtdHlwZT10ZXh0L2h0bWwgQGlkPXBhZ2UgQHNjaGVtYT1odHRwczovL2NlbS5kZXYvbnMvZGF0YS9odG1sLzEKICAgICAgICBAc3JjPS4uL3BhZ2VzL3YyLmh0bWwgfAogICAgICAgIHtyZXdyaXRlLWltcG9ydG1hcCBAaWQ9bW9kdWxlcyBAc291cmNlLW1hcD0uLi9tYXBzL3NvdXJjZS12Mi5qc29uCiAgICAgICAgICAgIEB0YXJnZXQtbWFwPS4uL21hcHMvdGFyZ2V0LXYyLmpzb24gfAogICAgICAgICAgICB7ZXhwb3J0IEBjb250ZW50LXR5cGU9dGV4dC9odG1sIEBpZD1odG1sIEBvdXQ9Li4vZ2VuZXJhdGVkL3YyL2luZGV4Lmh0bWwKICAgICAgICAgICAgICAgIEBzY2hlbWE9aHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvaHRtbC8xfQp9ICAgfSAgIH0K"
+    },
+    {
+      "resourceId": "graph-v3",
+      "base64": "QGRvYyBjZW0tbWwgMQp7cnVuIHwKICAgIHtpbXBvcnQgQGNvbnRlbnQtdHlwZT10ZXh0L2h0bWwgQGlkPXBhZ2UgQHNjaGVtYT1odHRwczovL2NlbS5kZXYvbnMvZGF0YS9odG1sLzEKICAgICAgICBAc3JjPS4uL3BhZ2VzL3YzLmh0bWwgfAogICAgICAgIHtyZXdyaXRlLWltcG9ydG1hcCBAaWQ9bW9kdWxlcyBAc291cmNlLW1hcD0uLi9tYXBzL3NvdXJjZS12My5qc29uCiAgICAgICAgICAgIEB0YXJnZXQtbWFwPS4uL21hcHMvdGFyZ2V0LXYzLmpzb24gfAogICAgICAgICAgICB7ZXhwb3J0IEBjb250ZW50LXR5cGU9dGV4dC9odG1sIEBpZD1odG1sIEBvdXQ9Li4vZ2VuZXJhdGVkL3YzL2luZGV4Lmh0bWwKICAgICAgICAgICAgICAgIEBzY2hlbWE9aHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvaHRtbC8xfQp9ICAgfSAgIH0K"
+    },
+    {
+      "resourceId": "invalid-contract-v1",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMSIsCiAgImltcG9ydHMiOiB7CiAgICAiQGRlbW8vY2FwdGlvbi8iOiAiLi4vbW9kdWxlcy9jYXB0aW9uLmpzIgogIH0KfQo="
+    },
+    {
+      "resourceId": "invalid-contract-v2",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMiIsCiAgImltcG9ydHMiOiB7CiAgICAiQGRlbW8vY2FwdGlvbiI6ICIuLi9tb2R1bGVzL2NhcHRpb24uanMiCiAgfSwKICAicmVzb3VyY2VzIjogewogICAgIkBkZW1vL3N0eWxlcyI6IHsKICAgICAgInBhdGgiOiAiLi4vbW9kdWxlcy9zaXRlLmNzcyIsCiAgICAgICJjb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi9qc29uIgogICAgfQogIH0KfQo="
+    },
+    {
+      "resourceId": "invalid-contract-v3",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvOTkiLAogICJpbXBvcnRzIjogewogICAgIkBkZW1vL2FwcCI6IHsKICAgICAgInBhdGgiOiAiLi4vbW9kdWxlcy9hcHAuanMiLAogICAgICAiY29udGVudFR5cGUiOiAidGV4dC9qYXZhc2NyaXB0IiwKICAgICAgIm1vZHVsZUltcG9ydHMiOiB7CiAgICAgICAgIkBkZW1vL21ldGFkYXRhIjogIkBkZW1vL21ldGFkYXRhIgogICAgICB9CiAgICB9LAogICAgIkBkZW1vL21ldGFkYXRhIjogewogICAgICAicGF0aCI6ICIuLi9tb2R1bGVzL21ldGFkYXRhLmpzb24iLAogICAgICAiY29udGVudFR5cGUiOiAiYXBwbGljYXRpb24vanNvbiIKICAgIH0KICB9LAogICJyZXNvdXJjZXMiOiB7CiAgICAiQGRlbW8vZnJhZ21lbnQiOiB7CiAgICAgICJwYXRoIjogIi4uL21vZHVsZXMvZnJhZ21lbnQueGh0bWwiLAogICAgICAiY29udGVudFR5cGUiOiAiYXBwbGljYXRpb24veGh0bWwreG1sIgogICAgfQogIH0KfQo="
+    },
+    {
+      "resourceId": "invalid-syntax-v1",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMSIsCiAgImltcG9ydHMiOiB7CiAgICAiQGRlbW8vY2FwdGlvbiI6ICIuLi9tb2R1bGVzL2NhcHRpb24uanMiCiAgfQo="
+    },
+    {
+      "resourceId": "invalid-syntax-v2",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMiIsCiAgImltcG9ydHMiOiB7CiAgICAiQGRlbW8vY2FwdGlvbiI6ICIuLi9tb2R1bGVzL2NhcHRpb24uanMiCiAgfSwKICAicmVzb3VyY2VzIjogewogICAgIkBkZW1vL3N0eWxlcyI6IHsKICAgICAgInBhdGgiOiAiLi4vbW9kdWxlcy9zaXRlLmNzcyIsCiAgICAgICJjb250ZW50VHlwZSI6ICJ0ZXh0L2NzcyIKICAgIH0KICB9Cg=="
+    },
+    {
+      "resourceId": "invalid-syntax-v3",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMyIsCiAgImltcG9ydHMiOiB7CiAgICAiQGRlbW8vYXBwIjogewogICAgICAicGF0aCI6ICIuLi9tb2R1bGVzL2FwcC5qcyIsCiAgICAgICJjb250ZW50VHlwZSI6ICJ0ZXh0L2phdmFzY3JpcHQiLAogICAgICAibW9kdWxlSW1wb3J0cyI6IHsKICAgICAgICAiQGRlbW8vbWV0YWRhdGEiOiAiQGRlbW8vbWV0YWRhdGEiCiAgICAgIH0KICAgIH0sCiAgICAiQGRlbW8vbWV0YWRhdGEiOiB7CiAgICAgICJwYXRoIjogIi4uL21vZHVsZXMvbWV0YWRhdGEuanNvbiIsCiAgICAgICJjb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi9qc29uIgogICAgfQogIH0sCiAgInJlc291cmNlcyI6IHsKICAgICJAZGVtby9mcmFnbWVudCI6IHsKICAgICAgInBhdGgiOiAiLi4vbW9kdWxlcy9mcmFnbWVudC54aHRtbCIsCiAgICAgICJjb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi94aHRtbCt4bWwiCiAgICB9CiAgfQo="
+    },
+    {
+      "resourceId": "module-metadata",
+      "base64": "ewogICJjYXB0aW9uIjogIkNhZsOpIG1vZHVsZXMiLAogICJ2ZXJzaW9uIjogMwp9Cg=="
+    },
+    {
+      "resourceId": "page-v1",
+      "base64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj48aGVhZD48bWV0YSBjaGFyc2V0PSJ1dGYtOCI+PHRpdGxlPk1vZHVsZS1tYXAgZGVwbG95bWVudDwvdGl0bGU+CjxzY3JpcHQgdHlwZT0iaW1wb3J0bWFwIj57CiAgImltcG9ydHMiOiB7CiAgICAiQGRlbW8vY2FwdGlvbiI6ICIuLi9tb2R1bGVzL2NhcHRpb24uanMiCiAgfQp9PC9zY3JpcHQ+CjwvaGVhZD48Ym9keT48bWFpbj48aDE+TW9kdWxlLW1hcCBkZXBsb3ltZW50PC9oMT48cD5WZXJzaW9uIDEga2VlcHMgZXZlcnkgY29waWVkIGRlcGVuZGVuY3kgZXhwbGljaXQuPC9wPjxwPkNhZsOpIG1vZHVsZXMgcmVtYWluIG93bmVkIHByb2plY3QgcmVzb3VyY2VzLjwvcD48L21haW4+PC9ib2R5PjwvaHRtbD4K"
+    },
+    {
+      "resourceId": "page-v2",
+      "base64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj48aGVhZD48bWV0YSBjaGFyc2V0PSJ1dGYtOCI+PHRpdGxlPk1vZHVsZS1tYXAgZGVwbG95bWVudDwvdGl0bGU+CjxzY3JpcHQgdHlwZT0iaW1wb3J0bWFwIj57CiAgImltcG9ydHMiOiB7CiAgICAiQGRlbW8vY2FwdGlvbiI6ICIuLi9tb2R1bGVzL2NhcHRpb24uanMiCiAgfQp9PC9zY3JpcHQ+CjwvaGVhZD48Ym9keT48bWFpbj48aDE+TW9kdWxlLW1hcCBkZXBsb3ltZW50PC9oMT48cD5WZXJzaW9uIDIga2VlcHMgZXZlcnkgY29waWVkIGRlcGVuZGVuY3kgZXhwbGljaXQuPC9wPjxwPkNhZsOpIG1vZHVsZXMgcmVtYWluIG93bmVkIHByb2plY3QgcmVzb3VyY2VzLjwvcD48L21haW4+PC9ib2R5PjwvaHRtbD4K"
+    },
+    {
+      "resourceId": "page-v3",
+      "base64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj48aGVhZD48bWV0YSBjaGFyc2V0PSJ1dGYtOCI+PHRpdGxlPk1vZHVsZS1tYXAgZGVwbG95bWVudDwvdGl0bGU+CjxzY3JpcHQgdHlwZT0iaW1wb3J0bWFwIj57CiAgImltcG9ydHMiOiB7CiAgICAiQGRlbW8vYXBwIjogIi4uL21vZHVsZXMvYXBwLmpzIiwKICAgICJAZGVtby9tZXRhZGF0YSI6ICIuLi9tb2R1bGVzL21ldGFkYXRhLmpzb24iCiAgfQp9PC9zY3JpcHQ+CjwvaGVhZD48Ym9keT48bWFpbj48aDE+TW9kdWxlLW1hcCBkZXBsb3ltZW50PC9oMT48cD5WZXJzaW9uIDMga2VlcHMgZXZlcnkgY29waWVkIGRlcGVuZGVuY3kgZXhwbGljaXQuPC9wPjxwPkNhZsOpIG1vZHVsZXMgcmVtYWluIG93bmVkIHByb2plY3QgcmVzb3VyY2VzLjwvcD48L21haW4+PC9ib2R5PjwvaHRtbD4K"
+    },
+    {
+      "resourceId": "readme",
+      "base64": "IyBNb2R1bGUtbWFwIGRlcGxveW1lbnRzCgpPcGVuIHRoaXMgb3JkaW5hcnkgcHJvamVjdCBmcm9tICoqQ29udGVudCB0eXBlcyBhbmQgc2NoZW1hcyDihpIgU2NoZW1hIGF1dGhvcmluZyoqCm9yICoqUXVlcmllcyBhbmQgdHJhbnNmb3JtYXRpb25zKiosIHRoZW4gY2xvbmUgaXQgdG8gZWRpdC4gSXQgY29tcGFyZXMgdGhlIG5hdGl2ZQpwYWlyZWQgZGVwbG95bWVudC1tYXAgdmVyc2lvbnMgdXNpbmcgb3duZWQgZmlsZXMsIGV4cGxpY2l0IGdyYXBoIGRlcGVuZGVuY2llcyBhbmQKZXhhY3QgZXhwb3J0ZWQgYXJ0aWZhY3RzLiBTdHVkaW8gcmV1c2VzIGl0cyBzaGFyZWQgZWRpdG9yLCBjb21tYW5kcywgYXJ0aWZhY3QKdHJlZSwgc3RydWN0dXJlZCBkYXRhIHZpZXcgYW5kIHNhbmRib3hlZCBIVE1MIHByZXZpZXcuCgojIyBTb3VyY2UgY29udHJhY3RzIGFuZCBjb25maWd1cmF0aW9ucwoKRXZlcnkgdmVyc2lvbiB1c2VzIGBhcHBsaWNhdGlvbi92bmQuY2VtLm1vZHVsZS1tYXAranNvbmAgd2l0aCBpdHMgZXhwbGljaXQgc2NoZW1hOgoKfCBWZXJzaW9uIHwgU2NoZW1hIHwgRGVtb25zdHJhdGVkIGRlcGxveW1lbnQgY29udHJhY3QgfAp8IC0tLSB8IC0tLSB8IC0tLSB8CnwgdjEgfCBgaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvbW9kdWxlLW1hcC8xYCB8IEV4YWN0IGJhcmUgSmF2YVNjcmlwdCBpbXBvcnRzIGNvcGllZCB0byBhcHAtcmVsYXRpdmUgdGFyZ2V0cy4gfAp8IHYyIHwgYGh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMmAgfCBUaGUgc2FtZSBpbXBvcnQgY29udHJhY3QgcGx1cyBhbiBleHBsaWNpdCBDU1MgZGVwbG95bWVudCByZXNvdXJjZS4gVGhlIG5hdGl2ZSB2ZXJzaW9uIGFsc28gc3VwcG9ydHMgZGVjbGFyZWQgSlMvV0FTTSByZXNvdXJjZXMuIHwKfCB2MyB8IGBodHRwczovL2NlbS5kZXYvbnMvZGF0YS9tb2R1bGUtbWFwLzNgIHwgVHlwZWQgSlMvSlNPTiBpbXBvcnRzLCBhIGRlY2xhcmVkIGJhcmUgbW9kdWxlIGVkZ2UgcmV3cml0dGVuIHRvIGEgcmVsYXRpdmUgb3V0cHV0IFVSTCwgYW5kIGFuIG9wYXF1ZSBYSFRNTCByZXNvdXJjZS4gfAoKRm9yIGVhY2ggYE5gIGluIGAxYCwgYDJgLCBgM2A6CgotIGB2YWxpZGF0ZS12TmAgdmFsaWRhdGVzICoqSlNPTiBzb3VyY2Ugc3ludGF4KiouIFRoZSBuYXRpdmUgc291cmNlIGFkYXB0ZXIgY3VycmVudGx5CiAgZGVsZWdhdGVzIHRvIEpTT04gZXZlbiB3aXRoIGFuIGV4cGxpY2l0IG1vZHVsZS1tYXAgc2NoZW1hLiBJdCBkb2VzIG5vdCBlbmZvcmNlCiAgbWFwIHZlcnNpb24sIGFsbG93ZWQgcmVzb3VyY2UgdHlwZXMgb3IgbWF0Y2hpbmcgc291cmNlL2Rlc3RpbmF0aW9uIGtleXMuCi0gYGluc3BlY3Qtdk5gIHNob3dzIGEgZ2VuZXJpYyBpbXBvcnRlZCBDRU0gc291cmNlIHRyZWUgYW5kIG9yaWdpbmFsIHJhbmdlcywgbm90IGEKICB0eXBlZCBtb2R1bGUtbWFwIEFTVCBvciBhbiBleGVjdXRhYmxlIHBsYW4uCi0gYGZvcm1hdC12TmAgYXBwbGllcyB0aGUgbmF0aXZlIHRhYnVsYXIgSlNPTiBmb3JtYXR0ZXIgd2l0aCBhbiBleGFjdCBmaXh0dXJlLgotIGByZXBhaXItdk5gIHJlc3RvcmVzIGEgbWlzc2luZyBvdXRlciBvYmplY3QgYnJhY2UgYWZ0ZXIgYW4gb3JpZ2luYWwgbmF0aXZlIEpTT04KICBkaWFnbm9zdGljLiBJdHMgRU9GIGxvY2F0aW9ucyBhcmUgY2hlY2tlZCBpbmRlcGVuZGVudGx5IGZvciBhbGwgdGhyZWUgYnVmZmVycy4KLSBgYnVpbGQtdk5gIHBlcmZvcm1zIHJlYWwgbmF0aXZlIGdyYXBoIGxvd2VyaW5nIGFuZCBleGVjdXRpb24uIFRoaXMgaXMgd2hlcmUgdGhlCiAgcGFpcmVkIGRlcGxveW1lbnQgY29udHJhY3QgaXMgZW5mb3JjZWQuCgpgdmFsaWRhdGUtZ3JhcGhgIGFuZCBgaW5zcGVjdC1ncmFwaGAgY292ZXIgdGhlIHYzIGdyYXBoIHNvdXJjZSBzZXBhcmF0ZWx5IGZyb20KcmVhZGluZyBpdHMgbWFwcyBvciBydW5uaW5nIGRlcGxveW1lbnQuIFN0YW5kYWxvbmUgSlNPTi1mYW1pbHkgUGFyc2UgY3VycmVudGx5CmVtaXRzIGVtYmVkZGVkIENFTSB0b2tlbml6ZXIgZXJyb3JzIGRlc3BpdGUgZXhpdCB6ZXJvIGFuZCBpcyBub3QgYWR2ZXJ0aXNlZC4KCiMjIFJlbGF0aXZlIHBhdGhzLCBtYXBzIGFuZCBhcnRpZmFjdHMKCmBncmFwaHMvdk4uY2VtYCBleHBsaWNpdGx5IGltcG9ydHMgYC4uL3BhZ2VzL3ZOLmh0bWxgIGFuZCByZWZlcmVuY2VzIHRoZSBwYWlyZWQKYC4uL21hcHMvc291cmNlLXZOLmpzb25gIC8gYC4uL21hcHMvdGFyZ2V0LXZOLmpzb25gLiBTb3VyY2UgcmVzb3VyY2UgcGF0aHMgcmVzb2x2ZQpyZWxhdGl2ZSB0byB0aGUgc291cmNlIG1hcC4gVGhlIEhUTUwncyBhdXRob3JlZCBpbXBvcnQgdmFsdWVzIG1hdGNoIHRoYXQgbWFwLgpUYXJnZXQgVVJMcyBzdGFydCB3aXRoIGAuL2AgYW5kIHJlc29sdmUgYmVzaWRlIGBnZW5lcmF0ZWQvdk4vaW5kZXguaHRtbGAuCgotIHYxIGV4cG9ydHMgdGhlIEhUTUwgZW50cnkgYW5kIGBhc3NldHMvY2FwdGlvbi5qc2AuCi0gdjIgYWRkaXRpb25hbGx5IGV4cG9ydHMgdGhlIGRlY2xhcmVkIGBhc3NldHMvc2l0ZS5jc3NgIHJlc291cmNlLgotIHYzIGV4cG9ydHMgSFRNTCwgYGFzc2V0cy9hcHAuanNgLCBgYXNzZXRzL21ldGFkYXRhLmpzb25gIGFuZAogIGBjb250ZW50L2ZyYWdtZW50LnhodG1sYC4gSXRzIGV4YWN0IGBAZGVtby9tZXRhZGF0YWAgZWRnZSBiZWNvbWVzCiAgYC4vbWV0YWRhdGEuanNvbmAgaW4gdGhlIGRlcGxveWVkIGFwcCBtb2R1bGUuCgpUaGUgSmF2YVNjcmlwdCBmaXh0dXJlcyBvbmx5IGV4cG9ydCBkYXRhOyB0aGV5IGltcGxlbWVudCBubyBTdHVkaW8gb3IgY29tcG9uZW50ClVJIGJlaGF2aW9yLiBBc3NldHMgcmVtYWluIGV4cGxpY2l0IG9wYXF1ZSBwYXlsb2FkcyBleGNlcHQgdGhlIGJvdW5kZWQgdjMgZWRnZQpyZXdyaXRlLiBObyBwYWNrYWdlLWV4cG9ydCBzZWxlY3Rpb24sIGRpcmVjdG9yeSBzY2FubmluZywgdHJhbnNpdGl2ZSBpbXBvcnQKdHJhdmVyc2FsLCB1bmRlY2xhcmVkIGNvcHlpbmcgb3IgSmF2YVNjcmlwdCBleGVjdXRpb24gaXMgaW5mZXJyZWQuIFhIVE1MIGlzIGNvcGllZApieXRlLWZvci1ieXRlIHdpdGhvdXQgcmVnaXN0ZXJpbmcgY29tcG9uZW50cyBvciBkaXNjb3ZlcmluZyBkZXBlbmRlbmNpZXMuCgpUaGUgZXhwb3J0ZWQgSFRNTCByZXRhaW5zIGl0cyByZWFsIGJyb3dzZXIgaW1wb3J0IG1hcC4gU3R1ZGlvJ3MgZXhpc3RpbmcgYXJ0aWZhY3QKcHJldmlldyByZW1vdmVzIHNjcmlwdHMsIGluY2x1ZGluZyBpbXBvcnQgbWFwcywgYW5kIGtlZXBzIGl0cyBzYW5kYm94L0NTUC4gVGhlCnZpc2libGUgc3RhdGljIGJvZHkgaXMgYSBwcmV2aWV3IG9mIHRoZSBvdXRwdXQ7IGl0IGRvZXMgbm90IGV4ZWN1dGUgZGVwbG95ZWQKbW9kdWxlcy4gTm8gcHJldmlldyBwb2xpY3kgb3IgZXhlY3V0aW9uIGdyYW50IGlzIHdlYWtlbmVkIGZvciB0aGUgZXhhbXBsZS4KCiMjIE5hdGl2ZSBwcm92ZW5hbmNlIGFuZCBwdWJsaWNhdGlvbgoKVGhlc2UgcmV3cml0ZS1vbmx5IG91dHB1dHMgaGF2ZSAqKm5vIG91dHB1dCBzcGFucyBvciBgLm1hcGAgc2lkZWNhcnMqKi4gUHJvdmVuYW5jZQppcyB0aGUgcmVhbCBuYXRpdmUgYG1vZHVsZUFzc2V0TWFuaWZlc3RgOiBzcGVjaWZpZXIsIHNvdXJjZS1tYXAtZG9jdW1lbnQgVVJJLApzb3VyY2UgVVJJLCB0YXJnZXQsIG91dHB1dCBkZXN0aW5hdGlvbiwgY29udGVudCB0eXBlLCBzb3VyY2Uvb3V0cHV0IGJ5dGUgbGVuZ3RocwphbmQgU0hBLTI1Ni4gYHNvdXJjZU1hcFVyaWAgbmFtZXMgdGhlIGRlcGxveW1lbnQgSlNPTiBkb2N1bWVudCwgbm90IGEgZGVidWcgc2lkZWNhci4KVGhlIG5hdGl2ZSBhZ2dyZWdhdGUgaGFzaCBpcyBob3N0LW5ldXRyYWwgYW5kIHN0YWJsZSBmb3IgdW5jaGFuZ2VkIHJlc291cmNlcy4KVGhlIHYzIGFwcCdzIHNvdXJjZSBhbmQgb3V0cHV0IGhhc2hlcyBkaWZmZXIgYmVjYXVzZSBpdHMgZGVjbGFyZWQgZWRnZSBjaGFuZ2VzOwpvcGFxdWUgSlNPTiwgQ1NTLCBKUyBhbmQgWEhUTUwgY29waWVzIHJldGFpbiB0aGVpciBleGFjdCBzb3VyY2UgYnl0ZXMuCgpDTEkgaG9zdHMgY2FuIGluc3BlY3QgdGhpcyBtZXRhZGF0YSB3aXRoIGAtLXJlcG9ydC1qc29uIDxyZXBvcnQtZmlsZT5gOyB0aGF0Cmhvc3Qtb25seSByZXBvcnQgZGVzdGluYXRpb24gaXMgbm90IHBhcnQgb2YgdGhlIHBvcnRhYmxlIHByb2plY3QgY29tbWFuZC4gVGhlCnNoYXJlZCB3b3JrZXIgcHVibGlzaGVzIHRoZSBzYW1lIG5hdGl2ZSBtYW5pZmVzdCB3aXRoIGl0cyBncmFwaCByZXN1bHQuIE5vCmFwcGxpY2F0aW9uIGNvZGUgZmFicmljYXRlcyBjaGFyYWN0ZXIgbGluZWFnZSBvciBjb252ZXJ0cyBhbiBBU1QgdGhyb3VnaCBKU09OLgoKVGhlc2UgcGFpcmVkIGRlcGxveW1lbnQgbWFwcyBhcmUgZGlzdGluY3QgZnJvbSB0aGUgQ0xJIGlucHV0LXJvb3Qtc2NvcGUKYC0tbW9kdWxlLW1hcGAgYWxpYXMgb3B0aW9uLiBOZWl0aGVyIGtpbmQgZ3JhbnRzIGZpbGVzeXN0ZW0gb3IgbmV0d29yayBhY2Nlc3MuClRoZSBDTEkncyBsb2NhbCBmaWxlIHJlYWRlciBhbmQgZXhwbGljaXQgcmVzb2x2ZXItcmVhZCBtYXBzIGFyZSBob3N0IHBvbGljeTsKU3R1ZGlvIHN1cHBsaWVzIG9ubHkgdGhlIGRlY2xhcmVkIG93bmVkIHByb2plY3QgcmVzb3VyY2VzLiBNaXNzaW5nIG1hcC9yZXNvdXJjZQpvciByZXNvbHZlciBncmFudHMgcmVmdXNlIHBsYW5uaW5nIHJhdGhlciB0aGFuIGZldGNoaW5nIHVuZGVjbGFyZWQgZGVwZW5kZW5jaWVzLgoKIyMgRmFpbHVyZSwgcmVwYWlyIGFuZCBzYXZlZCBjb3BpZXMKClRoZSB0aHJlZSBgZmFpbHVyZXMvc3ludGF4LXZOLmpzb25gIGJ1ZmZlcnMgb21pdCB0aGUgb3V0ZXIgY2xvc2luZyBicmFjZS4gVGhlaXIKYHJlcGFpci12TmAgY29uZmlndXJhdGlvbnMgcmVwb3J0IGBjZW0uanNvbi5wYXJzZV9lcnJvcmA7IGFwcGVuZCBgfWAgYW5kIGEgbmV3bGluZQp0byByZXN0b3JlIHRoZSBleGFjdCB2YWxpZCBzb3VyY2UuIENhdGFsb2cgb3JpZ2luYWxzIHJlbWFpbiB1bmNoYW5nZWQuCgpUaGUgc2VwYXJhdGUgYGZhaWx1cmVzL3NvdXJjZS12Ti5qc29uYCBmaWxlcyBhcmUgc3ludGFjdGljYWxseSB2YWxpZCBidXQgdmlvbGF0ZQpyZWFsIGRlcGxveW1lbnQgY29udHJhY3RzLiBTb3VyY2Ugc3ludGF4IHZhbGlkYXRpb24gYWNjZXB0cyB0aGVtOyByZXBsYWNpbmcgYQpzYXZlZCBzb3VyY2UgbWFwIHdpdGggb25lIG1ha2VzIGBidWlsZC12TmAgZmFpbCBkdXJpbmcgbmF0aXZlIHBsYW5uaW5nOgoKLSB2MSByZXBvcnRzIGBjZW0ubW9kdWxlX21hcC5lbnRyaWVzX21pc21hdGNoYCBmb3IgdW5lcXVhbCBpbXBvcnQga2V5cy4KLSB2MiByZXBvcnRzIGBjZW0ubW9kdWxlX21hcC5yZXNvdXJjZV90eXBlX3Vuc3VwcG9ydGVkYCBmb3IgYSBKU09OIHJlc291cmNlLgotIHYzIHJlcG9ydHMgYGNlbS5tb2R1bGVfbWFwLnNjaGVtYV91bnN1cHBvcnRlZGAgZm9yIGl0cyB1bnN1cHBvcnRlZCBlbWJlZGRlZCB2ZXJzaW9uLgoKVGhlIENMSSBleGl0cyAyIHdpdGhvdXQgcHVibGlzaGluZyBhcnRpZmFjdHMuIFN0dWRpbyByZXRhaW5zIHRoZSBsYXN0IGdvb2QgYnVpbGQuClJlc3RvcmUgdGhlIHZhbGlkIHNvdXJjZSBtYXAgYW5kIHJlYnVpbGQuIFRoaXMgc2VwYXJhdGlvbiBkZW1vbnN0cmF0ZXMgd2h5IGEKc2NoZW1hIGlkZW50aXR5IG9yIHN1Y2Nlc3NmdWwgc3ludGF4IHZhbGlkYXRpb24gYWxvbmUgaXMgbm90IGV4ZWN1dGlvbiBzdXBwb3J0LgoKQ2hhbmdlIHRoZSB2MyB0YXJnZXQgbWFwJ3MgYC4vYXNzZXRzL21ldGFkYXRhLmpzb25gIHRvIGAuL2Fzc2V0cy9jYXRhbG9nLmpzb25gLgpOYXRpdmUgZGVwbG95bWVudCBjaGFuZ2VzIHRoZSBhcnRpZmFjdCBuYW1lLCBIVE1MIGltcG9ydCBtYXAgYW5kIHRoZSBhcHAgbW9kdWxlJ3MKcmVsYXRpdmUgZWRnZSB0byBgLi9jYXRhbG9nLmpzb25gLiBDaGFuZ2UgYENhZsOpIG1vZHVsZXNgIGluIGBtb2R1bGVzL21ldGFkYXRhLmpzb25gCnRvIHVwZGF0ZSB0aGUgZXhhY3QgSlNPTiBhcnRpZmFjdCBpbmRlcGVuZGVudGx5LiBBIHNlY29uZCBjbG9uZSBjYW4gY2hvb3NlIGFub3RoZXIKdGFyZ2V0IHdoaWxlIHRoZSBmaXJzdCBwcm9qZWN0IGFuZCByZWFkLW9ubHkgY2F0YWxvZyByZW1haW4gdW5jaGFuZ2VkLiBTYXZlZCBtYXBzLApyZXNvdXJjZXMsIHJlcGFpcnMgYW5kIG5hdGl2ZSByZWJ1aWxkcyB3b3JrIGFmdGVyIGFuIG9mZmxpbmUgcmVsb2FkLgoKRW50ZXJlZCBwYXNzd29yZHMgYW5kIG9uZS10aW1lIGNvZGVzIHN0aWxsIGJsb2NrIHJlY292ZXJ5IHVudGlsIGV4cGxpY2l0bHkKY2xlYXJlZC4gQXV0b21hdGljIHdob2xlLVN0dWRpbyByZWNvdmVyeSByZW1haW5zIGRpc2FibGVkLiBVc2VyIHByb2plY3RzIGFuZApkcmFmdHMgYXJlIG5vdCBjbGVhcmVkOyB0aGUgc2FtcGxlIGFkZHMgbm8gYXBwbGljYXRpb24gVUkgSmF2YVNjcmlwdCBvciBwYXJzZXIuCg=="
+    },
+    {
+      "resourceId": "rewritten-app",
+      "base64": "aW1wb3J0IG1ldGFkYXRhIGZyb20gJy4vbWV0YWRhdGEuanNvbicgd2l0aCB7IHR5cGU6ICdqc29uJyB9OwpleHBvcnQgZGVmYXVsdCBtZXRhZGF0YTsK"
+    },
+    {
+      "resourceId": "site-style",
+      "base64": "LyogRXhwbGljaXQgc3R5bGVzaGVldCByZXNvdXJjZTogY29waWVkIHdpdGhvdXQgZGVwZW5kZW5jeSBkaXNjb3ZlcnkuICovCg=="
+    },
+    {
+      "resourceId": "source-v1",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMSIsCiAgImltcG9ydHMiOiB7CiAgICAiQGRlbW8vY2FwdGlvbiI6ICIuLi9tb2R1bGVzL2NhcHRpb24uanMiCiAgfQp9Cg=="
+    },
+    {
+      "resourceId": "source-v2",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMiIsCiAgImltcG9ydHMiOiB7CiAgICAiQGRlbW8vY2FwdGlvbiI6ICIuLi9tb2R1bGVzL2NhcHRpb24uanMiCiAgfSwKICAicmVzb3VyY2VzIjogewogICAgIkBkZW1vL3N0eWxlcyI6IHsKICAgICAgInBhdGgiOiAiLi4vbW9kdWxlcy9zaXRlLmNzcyIsCiAgICAgICJjb250ZW50VHlwZSI6ICJ0ZXh0L2NzcyIKICAgIH0KICB9Cn0K"
+    },
+    {
+      "resourceId": "source-v3",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMyIsCiAgImltcG9ydHMiOiB7CiAgICAiQGRlbW8vYXBwIjogewogICAgICAicGF0aCI6ICIuLi9tb2R1bGVzL2FwcC5qcyIsCiAgICAgICJjb250ZW50VHlwZSI6ICJ0ZXh0L2phdmFzY3JpcHQiLAogICAgICAibW9kdWxlSW1wb3J0cyI6IHsKICAgICAgICAiQGRlbW8vbWV0YWRhdGEiOiAiQGRlbW8vbWV0YWRhdGEiCiAgICAgIH0KICAgIH0sCiAgICAiQGRlbW8vbWV0YWRhdGEiOiB7CiAgICAgICJwYXRoIjogIi4uL21vZHVsZXMvbWV0YWRhdGEuanNvbiIsCiAgICAgICJjb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi9qc29uIgogICAgfQogIH0sCiAgInJlc291cmNlcyI6IHsKICAgICJAZGVtby9mcmFnbWVudCI6IHsKICAgICAgInBhdGgiOiAiLi4vbW9kdWxlcy9mcmFnbWVudC54aHRtbCIsCiAgICAgICJjb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi94aHRtbCt4bWwiCiAgICB9CiAgfQp9Cg=="
+    },
+    {
+      "resourceId": "target-v1",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMSIsCiAgImltcG9ydHMiOiB7CiAgICAiQGRlbW8vY2FwdGlvbiI6ICIuL2Fzc2V0cy9jYXB0aW9uLmpzIgogIH0KfQo="
+    },
+    {
+      "resourceId": "target-v2",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMiIsCiAgImltcG9ydHMiOiB7CiAgICAiQGRlbW8vY2FwdGlvbiI6ICIuL2Fzc2V0cy9jYXB0aW9uLmpzIgogIH0sCiAgInJlc291cmNlcyI6IHsKICAgICJAZGVtby9zdHlsZXMiOiB7CiAgICAgICJwYXRoIjogIi4vYXNzZXRzL3NpdGUuY3NzIiwKICAgICAgImNvbnRlbnRUeXBlIjogInRleHQvY3NzIgogICAgfQogIH0KfQo="
+    },
+    {
+      "resourceId": "target-v3",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21vZHVsZS1tYXAvMyIsCiAgImltcG9ydHMiOiB7CiAgICAiQGRlbW8vYXBwIjogewogICAgICAicGF0aCI6ICIuL2Fzc2V0cy9hcHAuanMiLAogICAgICAiY29udGVudFR5cGUiOiAidGV4dC9qYXZhc2NyaXB0IiwKICAgICAgIm1vZHVsZUltcG9ydHMiOiB7CiAgICAgICAgIkBkZW1vL21ldGFkYXRhIjogIkBkZW1vL21ldGFkYXRhIgogICAgICB9CiAgICB9LAogICAgIkBkZW1vL21ldGFkYXRhIjogewogICAgICAicGF0aCI6ICIuL2Fzc2V0cy9tZXRhZGF0YS5qc29uIiwKICAgICAgImNvbnRlbnRUeXBlIjogImFwcGxpY2F0aW9uL2pzb24iCiAgICB9CiAgfSwKICAicmVzb3VyY2VzIjogewogICAgIkBkZW1vL2ZyYWdtZW50IjogewogICAgICAicGF0aCI6ICIuL2NvbnRlbnQvZnJhZ21lbnQueGh0bWwiLAogICAgICAiY29udGVudFR5cGUiOiAiYXBwbGljYXRpb24veGh0bWwreG1sIgogICAgfQogIH0KfQo="
+    },
+    {
+      "resourceId": "xhtml-fragment",
+      "base64": "PHNlY3Rpb24geG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiPjxoMj5EZWNsYXJlZCBYSFRNTCByZXNvdXJjZTwvaDI+PHA+Q2Fmw6kgYnl0ZXMgc3RheSBvd25lZC48L3A+PC9zZWN0aW9uPgo="
+    }
+  ]
+}

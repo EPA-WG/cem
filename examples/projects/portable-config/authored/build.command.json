@@ -1,0 +1,18 @@
+{
+  "$schema": "https://cem.dev/ns/cli/command/1",
+  "schemaVersion": 1,
+  "commandSchemaVersion": 1,
+  "commonVersion": "0.1.0",
+  "binaryName": "cem-ml",
+  "argv": [
+    "transform",
+    "--config",
+    "graphs/card.cem",
+    "--config-content-type",
+    "application/cem",
+    "--config-schema",
+    "https://cem.dev/ns/cli/transform-config/1",
+    "--scope-budget",
+    "queueSize=1024"
+  ]
+}

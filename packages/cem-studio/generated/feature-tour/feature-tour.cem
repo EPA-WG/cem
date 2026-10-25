@@ -59,6 +59,14 @@
     {export @id="project-mathml-formula-output" @out="../../dist/static/samples/examples/mathml-formula.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
 
+  {import @id="project-module-maps" @src="examples/module-maps.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-module-maps-output" @out="../../dist/static/samples/examples/module-maps.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
+  {import @id="project-portable-config" @src="examples/portable-config.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-portable-config-output" @out="../../dist/static/samples/examples/portable-config.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
   {import @id="project-relax-ng" @src="examples/relax-ng.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
     {export @id="project-relax-ng-output" @out="../../dist/static/samples/examples/relax-ng.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }

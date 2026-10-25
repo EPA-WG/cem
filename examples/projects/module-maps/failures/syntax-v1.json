@@ -1,0 +1,5 @@
+{
+  "$schema": "https://cem.dev/ns/data/module-map/1",
+  "imports": {
+    "@demo/caption": "../modules/caption.js"
+  }

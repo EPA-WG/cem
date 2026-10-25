@@ -1,0 +1,22 @@
+{
+  "inputs": [
+    {
+      "uri": "data/card.xml",
+      "rootScope": {
+        "defaultContentType": "application/xml",
+        "schema": "https://cem.dev/ns/data/xml/1"
+      }
+    },
+    {
+      "uri": "data/card.xml",
+      "rootScope": {
+        "defaultContentType": "application/xml",
+        "schema": "https://cem.dev/ns/data/xml/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

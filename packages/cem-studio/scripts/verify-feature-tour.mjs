@@ -151,7 +151,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.deepEqual(repair.resourceIds, ['login-invalid', 'command-validation-repair', 'login-schema-package', 'login-schema']);
         assert.ok(new TextDecoder().decode(bundle.contents.readme).includes('demo.login.method_required'));
         assert.deepEqual(JSON.parse(new TextDecoder().decode(bundle.contents[repair.runConfigResourceId])).schemaPackages, [{ uri: 'schemas/login-schema-package.cem' }]);
-    } else if (['json-yaml-report', 'csv-inventory', 'supplier-pipeline', 'xhtml-document', 'html-cem-card', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog', 'cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng'].includes(record.id)) {
+    } else if (['json-yaml-report', 'csv-inventory', 'supplier-pipeline', 'xhtml-document', 'html-cem-card', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog', 'cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng', 'module-maps', 'portable-config'].includes(record.id)) {
         const definition = authoredDefinitions.find(project => project.id === record.id);
         assert.deepEqual(record.collections, definition.collections);
         assert.equal(record.description, definition.description);
@@ -187,6 +187,8 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                     '--resolver-read-map', `${pathToFileURL(`${directory}/`).href}=${directory}`,
                     '--base-uri', pathToFileURL(`${directory}/styles/`).href]
                     : authoredArgs;
+                const moduleReport = configuration.expectedNativeAssets && resolve(directory, `native-${configuration.id}.report.json`);
+                if (moduleReport) args.push('--report-json', moduleReport);
                 const actual = runExpected(cli, args, directory, configuration.expectedExit ?? 0);
                 if (configuration.expectedSemanticContract) {
                     const expected = JSON.parse(new TextDecoder().decode(bundle.contents[configuration.expectedSemanticContract]));
@@ -218,7 +220,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                 }
                 if (configuration.expectedOutput) {
                     const expected = new TextDecoder().decode(bundle.contents[configuration.expectedOutput]);
-                    const exact = ['csv-inventory', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog', 'cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng'].includes(record.id);
+                    const exact = ['csv-inventory', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog', 'cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng', 'module-maps', 'portable-config'].includes(record.id);
                     assert.equal(exact ? actual : actual.trim(), exact ? expected : expected.trim(), `${configuration.id} output drifted`);
                 }
                 for (const text of configuration.expectedText ?? []) assert.ok(actual.includes(text), `${configuration.id} misses ${text}`);
@@ -266,11 +268,30 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                         assert.ok(Object.hasOwn(configuration.expectedGraphOutputs, path));
                         await assert.rejects(readFile(resolve(directory, `${path}.map`)), { code: 'ENOENT' });
                     }
+                    if (moduleReport) {
+                        const manifest = (await readJson(moduleReport)).reportAst.transformGraph.moduleAssetManifest;
+                        assert.equal(manifest.hashScheme, 'sha256'); assert.equal(manifest.hash, configuration.expectedNativeAssetHash);
+                        assert.equal(manifest.assetCount, configuration.expectedNativeAssets.length); assert.equal(manifest.assets.length, manifest.assetCount);
+                        const owned = (uri, path) => new URL(uri, pathToFileURL(`${directory}/`)).href === pathToFileURL(resolve(directory, path)).href;
+                        let changed = false;
+                        for (const expected of configuration.expectedNativeAssets) {
+                            const asset = manifest.assets.find(item => item.specifier === expected.specifier);
+                            const source = bundle.project.resources.find(item => item.id === expected.source), map = bundle.project.resources.find(item => item.id === expected.sourceMap);
+                            const output = await readFile(resolve(directory, expected.destination));
+                            assert.ok(asset); assert.equal(asset.target, expected.target); assert.equal(asset.contentType, expected.contentType);
+                            assert.ok(owned(asset.sourceUri, source.path)); assert.ok(owned(asset.sourceMapUri, map.path)); assert.ok(owned(asset.destination, expected.destination));
+                            assert.equal(asset.sourceByteLength, bundle.contents[source.id].byteLength); assert.equal(asset.sourceSha256, sha256(bundle.contents[source.id]));
+                            assert.equal(asset.byteLength, output.byteLength); assert.equal(asset.sha256, sha256(output));
+                            assert.deepEqual(new Uint8Array(output), bundle.contents[expected.expectedOutput]);
+                            changed ||= asset.sourceSha256 !== asset.sha256 || asset.sourceByteLength !== asset.byteLength;
+                        }
+                        assert.equal(manifest.contractVersion, changed ? 2 : 1);
+                    }
                     if (!configuration.expectedUnmappedOutputs?.includes(entry.entryArtifact)) {
                         const map = await readJson(resolve(directory, `${entry.entryArtifact}.map`));
                         assert.ok(map.outputSpans.length > 0);
                         for (const path of configuration.expectedProvenance ?? ['templates/view.cemt']) assert.ok(JSON.stringify(map).includes(`/${path}`));
-                    } else assert.ok(!configuration.expectedProvenance?.length, 'Unmapped JSON output must not claim template/input spans');
+                    } else assert.ok(!configuration.expectedProvenance?.length, 'Unmapped output must not claim template/input spans');
                     run(cli, args, directory);
                     for (const [path, expectedId] of Object.entries(configuration.expectedGraphOutputs)) {
                         const bytes = new Uint8Array(await readFile(resolve(directory, path)));
@@ -294,6 +315,19 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                             assert.deepEqual(bytes, baseline.get(path), `${path} repaired build drifted`);
                             if (record.id !== 'supplier-pipeline') assert.deepEqual(bytes, bundle.contents[expectedId], `${path} repaired output fixture drifted`);
                         }
+                    }
+                    for (const refusal of configuration.expectedGraphRefusals ?? []) {
+                        const source = bundle.project.resources.find(item => item.id === refusal.source);
+                        await rm(resolve(directory, 'generated'), { recursive: true, force: true });
+                        await writeFile(resolve(directory, source.path), bundle.contents[refusal.replacement]);
+                        const syntax = JSON.parse(run(cli, ['validate', source.path, '--content-type', source.contentType, '--schema', source.schema, '--format', 'json'], directory));
+                        assert.equal(syntax.summary.hardViolationCount, 0, 'Source syntax validation is separate from deployment planning');
+                        const denied = spawnSync(cli, args, { cwd: directory, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+                        if (denied.error) throw denied.error;
+                        assert.equal(denied.status, refusal.exitCode); assert.equal(denied.stdout, ''); assert.ok(denied.stderr.includes(refusal.code), denied.stderr);
+                        for (const path of Object.keys(configuration.expectedGraphOutputs)) await assert.rejects(readFile(resolve(directory, path)), { code: 'ENOENT' });
+                        await writeFile(resolve(directory, source.path), bundle.contents[refusal.source]); run(cli, args, directory);
+                        for (const [path, bytes] of baseline) assert.deepEqual(new Uint8Array(await readFile(resolve(directory, path))), bytes);
                     }
                 }
             }

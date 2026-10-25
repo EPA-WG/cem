@@ -1,0 +1,452 @@
+{
+  "id": "portable-config",
+  "name": "Portable configurations",
+  "version": "1.0.0",
+  "description": "Author native CLI command and run configurations, round-trip portable Studio manifests, and import/export a real project with relative resources, explicit build output and native ownership checks.",
+  "collections": [
+    "content-types-schema-authoring",
+    "content-types-queries-transformations"
+  ],
+  "sources": [
+    {
+      "id": "card-source",
+      "source": "examples/projects/portable-config/data/card.xml",
+      "path": "data/card.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "role": "data"
+    },
+    {
+      "id": "alternate-source",
+      "source": "examples/projects/portable-config/data/alternate.xml",
+      "path": "data/alternate.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "role": "data"
+    },
+    {
+      "id": "card-template",
+      "source": "examples/projects/portable-config/templates/card.cemt",
+      "path": "templates/card.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "card-graph",
+      "source": "examples/projects/portable-config/graphs/card.cem",
+      "path": "graphs/card.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "card-command",
+      "source": "examples/projects/portable-config/authored/build.command.json",
+      "path": "authored/build.command.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "role": "run-config"
+    },
+    {
+      "id": "card-check",
+      "source": "examples/projects/portable-config/authored/check.run.json",
+      "path": "authored/check.run.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "role": "run-config"
+    },
+    {
+      "id": "check-command",
+      "source": "examples/projects/portable-config/authored/check.command.json",
+      "path": "authored/check.command.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "role": "run-config"
+    },
+    {
+      "id": "project-json",
+      "source": "examples/projects/portable-config/project/card.project.json",
+      "path": "project/card.project.json",
+      "contentType": "application/vnd.cem.studio-project+json",
+      "schema": "https://cem.dev/ns/studio/project/1",
+      "role": "data"
+    },
+    {
+      "id": "project-cem",
+      "source": "examples/projects/portable-config/project/card.project.cem",
+      "path": "project/card.project.cem",
+      "contentType": "application/vnd.cem.studio-project+cem",
+      "schema": "https://cem.dev/ns/studio/project/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-command",
+      "source": "examples/projects/portable-config/failures/future.command.json",
+      "path": "failures/future.command.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-project",
+      "source": "examples/projects/portable-config/failures/future.project.json",
+      "path": "failures/future.project.json",
+      "contentType": "application/vnd.cem.studio-project+json",
+      "schema": "https://cem.dev/ns/studio/project/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-run",
+      "source": "examples/projects/portable-config/failures/duplicate.run.json",
+      "path": "failures/duplicate.run.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-card",
+      "source": "examples/projects/portable-config/failures/card.xml",
+      "path": "failures/card.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-html",
+      "source": "examples/projects/portable-config/expected/index.html",
+      "path": "expected/index.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-cem",
+      "source": "examples/projects/portable-config/expected/formatted.project.cem",
+      "path": "expected/formatted.project.cem",
+      "contentType": "application/vnd.cem.studio-project+cem",
+      "schema": "https://cem.dev/ns/studio/project/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-json",
+      "source": "examples/projects/portable-config/expected/roundtrip.project.json",
+      "path": "expected/roundtrip.project.json",
+      "contentType": "application/vnd.cem.studio-project+json",
+      "schema": "https://cem.dev/ns/studio/project/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/portable-config/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "validate-command",
+      "name": "Validate the authored CLI command envelope",
+      "kind": "validation",
+      "source": "card-command",
+      "description": "Validate literal argv storage, binary identity and supported command/common schema versions. Actual argv grammar is inspected by the shared native command inspector when the project executes it.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.cli-command+json",
+        "--schema",
+        "https://cem.dev/ns/cli/command/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "run-check",
+      "name": "Run and inspect the authored validation configuration",
+      "kind": "inspection",
+      "source": "card-check",
+      "dependencies": [
+        "card-source",
+        "alternate-source"
+      ],
+      "description": "Use the native run-config parser and normalized plan through validate --config, then validate only its explicitly configured project-relative XML input. This is execution, not a standalone run-config source adapter.",
+      "argv": [
+        "validate",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/json",
+        "--config-schema",
+        "https://cem.dev/ns/cli/run-config/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "validate-project-json",
+      "name": "Validate the portable JSON project manifest",
+      "kind": "validation",
+      "source": "project-json",
+      "description": "Validate native project IDs, resource references, relative paths, hashes and entry-artifact declarations without loading the resource bytes or granting execution.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.studio-project+json",
+        "--schema",
+        "https://cem.dev/ns/studio/project/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "validate-project-cem",
+      "name": "Validate the portable CEM project manifest",
+      "kind": "validation",
+      "source": "project-cem",
+      "description": "Validate the canonical CEM encoding of the same portable project using the native Studio project owner.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.studio-project+cem",
+        "--schema",
+        "https://cem.dev/ns/studio/project/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "inspect-project-cem",
+      "name": "Inspect project resources and configurations",
+      "kind": "inspection",
+      "source": "project-cem",
+      "description": "Inspect the generic imported CEM structure of the portable project source, including relative resource paths and explicit configuration references; this is not a typed project Parse export.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.studio-project+cem",
+        "--schema",
+        "https://cem.dev/ns/studio/project/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "dispatch-card",
+        "card-command",
+        "generated/index.html"
+      ]
+    },
+    {
+      "id": "json-to-cem",
+      "name": "Convert the JSON project to canonical CEM",
+      "kind": "conversion",
+      "source": "project-json",
+      "description": "Use the native Studio project codec to produce the canonical CEM control projection with stable IDs and relative reference paths.",
+      "dependencies": [
+        "expected-cem"
+      ],
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.studio-project+json",
+        "--schema",
+        "https://cem.dev/ns/studio/project/1",
+        "--to-content-type",
+        "application/vnd.cem.studio-project+cem",
+        "--to-schema",
+        "https://cem.dev/ns/studio/project/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "expectedOutput": "expected-cem"
+    },
+    {
+      "id": "cem-to-json",
+      "name": "Convert the CEM project to portable JSON",
+      "kind": "conversion",
+      "source": "project-cem",
+      "description": "Convert through the same native project model; normalized resource reference paths are preserved without serializing a parser AST.",
+      "dependencies": [
+        "expected-json"
+      ],
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.studio-project+cem",
+        "--schema",
+        "https://cem.dev/ns/studio/project/1",
+        "--to-content-type",
+        "application/vnd.cem.studio-project+json",
+        "--to-schema",
+        "https://cem.dev/ns/studio/project/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "expectedOutput": "expected-json"
+    },
+    {
+      "id": "format-project-cem",
+      "name": "Format the canonical CEM project source",
+      "kind": "conversion",
+      "source": "project-cem",
+      "description": "Apply the native tabular project writer with exact expected source bytes.",
+      "dependencies": [
+        "expected-cem"
+      ],
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.studio-project+cem",
+        "--schema",
+        "https://cem.dev/ns/studio/project/1",
+        "--to-content-type",
+        "application/vnd.cem.studio-project+cem",
+        "--to-schema",
+        "https://cem.dev/ns/studio/project/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "expectedOutput": "expected-cem"
+    },
+    {
+      "id": "repair-command",
+      "name": "Repair the forward CLI command version",
+      "kind": "validation",
+      "source": "invalid-command",
+      "description": "Restore command schemaVersion 1 after reviewing the native envelope diagnostic. This does not grant unknown argv syntax execution.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.cli-command+json",
+        "--schema",
+        "https://cem.dev/ns/cli/command/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.cli_command.schema_version_unsupported",
+        "location": {
+          "line": null,
+          "column": null,
+          "byteOffset": null
+        }
+      },
+      "expectedExit": 1,
+      "repair": {
+        "find": "\"schemaVersion\": 2",
+        "replace": "\"schemaVersion\": 1"
+      }
+    },
+    {
+      "id": "repair-project",
+      "name": "Repair the forward Studio project version",
+      "kind": "validation",
+      "source": "invalid-project",
+      "description": "Restore portable project schemaVersion 1. Native reference, path, hash and forbidden-state checks remain active.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.studio-project+json",
+        "--schema",
+        "https://cem.dev/ns/studio/project/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.studio_project.schema_version_unsupported",
+        "location": {
+          "line": null,
+          "column": null,
+          "byteOffset": null
+        }
+      },
+      "expectedExit": 1,
+      "repair": {
+        "find": "\"schemaVersion\": 2",
+        "replace": "\"schemaVersion\": 1"
+      }
+    },
+    {
+      "id": "build-card",
+      "name": "Build the portable dispatch card",
+      "kind": "transformation-graph",
+      "source": "card-graph",
+      "dependencies": [
+        "card-source",
+        "card-template",
+        "expected-html"
+      ],
+      "description": "Execute the project-relative graph with an explicit heading parameter and HTML entry. Native output spans identify the actual CEM template; source validation alone does not run this build.",
+      "entryArtifact": "generated/index.html",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedGraphOutputs": {
+        "generated/index.html": "expected-html"
+      },
+      "expectedProvenance": [
+        "templates/card.cemt"
+      ],
+      "expectedGraphFailures": [
+        [
+          "card-source",
+          "invalid-card"
+        ]
+      ]
+    }
+  ]
+}

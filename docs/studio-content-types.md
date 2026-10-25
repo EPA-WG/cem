@@ -134,8 +134,10 @@ artifacts; the mere presence of a manifest artifact is insufficient.
 | CEM schema/package | Native declaration/manifest validation and package loading. | CEM formatting/source inspection. | Explicitly supplied schemas/packages validate instances, as Login demonstrates. Admission and complete package resource validation are separate phases. |
 | JSON Schema | JSON parsing and Draft 2020-12 dialect source checks. | Native source formatting. JSON-family Parse/Inspect can emit CEM tokenizer errors despite exit zero, including structural inspection of `$defs`/`$ref`; those operations are omitted from this project's configurations. | Instance assertions, remote references and dynamic scope are unavailable. Do not label schema-source validation as validation of a JSON payload against that schema. |
 | Relax NG | Native XML/compact schema-source validation and Parse; compact grammar checks remain lexical. | Typed source Parse AST/events and native source formatting/coloring; Inspect shows generic imported CEM structure. Native Events retain source. Source DomJson/Json are unavailable. | No semantic grammar compiler or instance validator; include/external references are rejected. Do not label schema-source validation as validation of an XML instance. |
-| Module maps v1/v2/v3 | Native version-specific JSON control contract validation; v2/v3 require their explicit schema. | JSON source projections/formatting. | Resolver input for the corresponding version; validation is not a grant to read external resources. No implicit dependency discovery, npm export selection or undeclared copying. |
-| CLI command, Studio project | Explicit portable control contracts; Studio project supports CEM and JSON encodings. | Source inspection follows the chosen encoding. | Command execution and project import/build go through native grammar and repository services. Control documents are not executable just because generic JSON parsed. |
+| Module maps v1/v2/v3 | Standalone validation checks JSON syntax under the selected identity; v2/v3 require their explicit schema. Paired-map version/deployment semantics are enforced by native graph planning. | Native same-identity source formatting and generic imported-CEM structural Inspect where supported. Generic JSON Parse has the documented source-identity/diagnostic gap. | Native deployment rewriting uses declared source/destination pairs and version-specific resource kinds/edges. Source validation is not a read grant. No implicit dependency discovery, npm export selection or undeclared copying. |
+| CLI command | Native validation checks the versioned literal-argv resource envelope; the executing host's native codec checks actual argv grammar. | Studio's command/plan inspector uses native decoded controls. Generic source Parse/Inspect/format have routing/export gaps and are not advertised as supported command-source operations. | Authored commands use native grammar and bounded host resources. Source validation alone does not execute a command. |
+| CLI run configuration | Native CLI loading/normalization through `--config`; this is not a registered standalone source adapter. | Inspect the actual native normalized command/plan. Generic source Parse/Inspect/format are unavailable. | Native run configuration and host grants remain explicit; parsing a JSON document does not grant resource reads. |
+| Studio project | Explicit portable control contract with CEM and JSON encodings. | Native validation/formatting and cross-encoding conversion; CEM structural Inspect where supported. Generic source Parse/JSON Inspect retain the documented source-identity gaps. | Repository import/export and builds preserve captured resource identities. A valid manifest is not a grant to execute arbitrary resources. |
 | DOM/AST/events projections | Explicit native projection codecs; binary types are not text source. | Human-readable JSON inspection and source-origin views. | Consume/produce through the supported projection APIs. No automatic general format conversion or evaluation guarantee for all projection selectors. |
 | Runtime data island | Declared CEM runtime-state envelope validation. | CEM source inspection. | Shared runtime hydration/state contract; not a standalone data query language or a portable secret store. |
 
@@ -327,6 +329,34 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `relax-ng` | `invalid-xml` | `repair-xml-start` | Restore the local start/ref declaration after the original missing-start diagnostic. |
 | `relax-ng` | `invalid-compact` | `repair-compact-close` | Close the note pattern after reviewing its original opening-delimiter range. |
 | `relax-ng` | `external-reference` | `repair-reference-policy` | Replace an external reference with an inline pattern. The resolver policy stays reject-only; no remote or filesystem schema is loaded. |
+| `module-maps` | `source-v1` | `validate-v1` | Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter. |
+| `module-maps` | `source-v1` | `inspect-v1` | Inspect the generic imported CEM source structure and original ranges; this is not a typed module-map AST or an execution plan. |
+| `module-maps` | `source-v1` | `format-v1` | Apply the native tabular JSON source formatter with exact expected bytes; formatting grants no deployment or read authority. |
+| `module-maps` | `invalid-syntax-v1` | `repair-v1` | Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics. |
+| `module-maps` | `graph-v1` | `build-v1` | Lower the real v1 paired-map contract, copy only declared resources and rewrite the authored HTML import map; the sandboxed preview never executes those modules. |
+| `module-maps` | `source-v2` | `validate-v2` | Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter. |
+| `module-maps` | `source-v2` | `inspect-v2` | Inspect the generic imported CEM source structure and original ranges; this is not a typed module-map AST or an execution plan. |
+| `module-maps` | `source-v2` | `format-v2` | Apply the native tabular JSON source formatter with exact expected bytes; formatting grants no deployment or read authority. |
+| `module-maps` | `invalid-syntax-v2` | `repair-v2` | Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics. |
+| `module-maps` | `graph-v2` | `build-v2` | Lower the real v2 paired-map contract, copy only declared resources and rewrite the authored HTML import map; the sandboxed preview never executes those modules. |
+| `module-maps` | `source-v3` | `validate-v3` | Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter. |
+| `module-maps` | `source-v3` | `inspect-v3` | Inspect the generic imported CEM source structure and original ranges; this is not a typed module-map AST or an execution plan. |
+| `module-maps` | `source-v3` | `format-v3` | Apply the native tabular JSON source formatter with exact expected bytes; formatting grants no deployment or read authority. |
+| `module-maps` | `invalid-syntax-v3` | `repair-v3` | Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics. |
+| `module-maps` | `graph-v3` | `build-v3` | Lower the real v3 paired-map contract, copy only declared resources and rewrite the authored HTML import map; the sandboxed preview never executes those modules. |
+| `module-maps` | `graph-v3` | `validate-graph` | Validate the graph source declaration independently from resolving maps, reading resources or executing its deployment. |
+| `module-maps` | `graph-v3` | `inspect-graph` | Inspect the native graph source tree and explicit map/export references without running module deployment. |
+| `portable-config` | `card-command` | `validate-command` | Validate literal argv storage, binary identity and supported command/common schema versions. Actual argv grammar is inspected by the shared native command inspector when the project executes it. |
+| `portable-config` | `card-check` | `run-check` | Use the native run-config parser and normalized plan through validate --config, then validate only its explicitly configured project-relative XML input. This is execution, not a standalone run-config source adapter. |
+| `portable-config` | `project-json` | `validate-project-json` | Validate native project IDs, resource references, relative paths, hashes and entry-artifact declarations without loading the resource bytes or granting execution. |
+| `portable-config` | `project-cem` | `validate-project-cem` | Validate the canonical CEM encoding of the same portable project using the native Studio project owner. |
+| `portable-config` | `project-cem` | `inspect-project-cem` | Inspect the generic imported CEM structure of the portable project source, including relative resource paths and explicit configuration references; this is not a typed project Parse export. |
+| `portable-config` | `project-json` | `json-to-cem` | Use the native Studio project codec to produce the canonical CEM control projection with stable IDs and relative reference paths. |
+| `portable-config` | `project-cem` | `cem-to-json` | Convert through the same native project model; normalized resource reference paths are preserved without serializing a parser AST. |
+| `portable-config` | `project-cem` | `format-project-cem` | Apply the native tabular project writer with exact expected source bytes. |
+| `portable-config` | `invalid-command` | `repair-command` | Restore command schemaVersion 1 after reviewing the native envelope diagnostic. This does not grant unknown argv syntax execution. |
+| `portable-config` | `invalid-project` | `repair-project` | Restore portable project schemaVersion 1. Native reference, path, hash and forbidden-state checks remain active. |
+| `portable-config` | `card-graph` | `build-card` | Execute the project-relative graph with an explicit heading parameter and HTML entry. Native output spans identify the actual CEM template; source validation alone does not run this build. |
 <!-- existing-samples:end -->
 
 The Markdown article operations and complete site build use the same ordinary
@@ -455,6 +485,37 @@ MIME types after media-essence normalization. UTF-8, size and source-kind bounds
 remain enforced; compiled `+cem-bin` selectors stay read-only with exact downloads.
 Text editing does not grant parser execution, schema loading or resolver access.
 
+`module-maps` demonstrates actual v1/v2/v3 paired deployments, including relative
+map/resource paths, explicit CSS/JSON/XHTML assets and declared bare module edges.
+Standalone validation is JSON syntax validation. Version, key and resource-kind
+contracts are checked when the native graph is prepared, before publication.
+Opaque deployments have no output spans or sidecar maps. Their native
+`moduleAssetManifest` captures source/deployed bytes, lengths, SHA-256, target and
+owned URIs. Its hash contract versions 1/2 are independent of map schema versions
+1/2/3. The aggregate hash remains stable across unchanged project roots.
+
+The input-root-scope `--module-map` option is a separate unversioned schema-alias
+map, accepting string or `uri`/`src`/`path` targets under its alias objects. It does
+not execute the paired deployment contracts. Neither mechanism grants reads;
+Studio supplies only declared project resources and CLI hosts retain their own
+reader/grant policy. The static artifact preview strips scripts and keeps its
+sandbox; deployed JavaScript assets are payloads, not Studio UI behavior.
+
+`portable-config` separates a versioned CLI command envelope, its actual native
+argv parser, a real `validate --config` run plan and a portable Studio project
+model. The existing command inspector displays decoded argv and normalized
+inputs. Duplicate run inputs refuse preparation before input reads; that refusal
+does not masquerade as a completed engine command. Source version repairs use
+the registered command/project source validators. Unsupported generic control
+Parse/Inspect/format paths are omitted.
+
+Native Studio JSON/CEM conversion preserves logical resource paths, actual hashes
+and authored command references. The shared host provider imports the native
+manifest, creates an independent namespace, and exports/reimports its real source
+archive with revision guards. There is no invented CLI archive command or JSON
+AST execution handoff. Saved files and configurations travel in source exports;
+credentials, runtime bindings, selections and drafts are not embedded as host state.
+
 The following rows describe existing reuse and planned extensions, rather than
 additional routes. Category names are discovery metadata and do not affect
 runtime authority.
@@ -471,7 +532,7 @@ runtime authority.
 | Queries and transformations | CEM transformation and XSLT source/custom-element selectors | `cem-transform` and `xslt-transform` compare ordinary multi-step native builds, explicit HTML entries, source controls, parameter maps and provenance. XSLT execution requires the complete profile; custom-element mode is not a universal XSLT alias. |
 | Schema authoring | CEM schema and schema package | `cem-schema` separates schema/package authoring from valid/invalid note instances, with explicit namespace claims and required-field diagnostics. |
 | Schema authoring | JSON Schema and both Relax NG syntaxes | `json-schema` and `relax-ng` cover source validation, supported formatting/typed Parse, dialect/start/delimiter repairs and rejected external references. Their data examples validate syntax only. |
-| Schema authoring | Module maps v1/v2/v3, CLI command, Studio project encodings | New portable configuration/dependency-resolution project. Demonstrate supported versions, mapped/relative resources and validated run configs. |
+| Schema authoring | Module maps v1/v2/v3, CLI command, Studio project encodings | `module-maps` and `portable-config` cover real paired deployments, native asset identities, bounded reads, control codecs/plans, portable manifests, independent imports and guarded source archives. Source syntax/envelope checks stay separate from execution and read authority. |
 | Schema authoring | DOM/AST/events binary/JSON projections | Extend existing conversion sample with native codec inputs, human-readable inspection and source locations. Separate serialization from document parsing and execution. |
 | Data | UTF-8 `text/plain` loader input | Include a small text-resource use alongside configuration samples; explain the CEM-only projection and absence of a registered schema package. |
 
@@ -489,11 +550,16 @@ against the native-emitted registry, the capability list against runtime metadat
 and each existing sample reference against the generated ordinary project bundle.
 It also runs all manifest-selected source validations through the native CLI and
 checks deployed bytes and hashes. The `test:feature-tour` browser cases exercise
-the authored Login, Supplier, data-report, XHTML, Markdown, HTML/CEM card, SVG/MathML, CSS/SCSS/selector and CEM-QL/XPath data workflows;
+the authored Login, Supplier, data-report, XHTML, Markdown, HTML/CEM card,
+SVG/MathML, CSS/SCSS/selector, CEM-QL/XPath, transformation/schema-authoring,
+module-map and portable-control workflows;
 site preview/build browser acceptance also lives in `test:workbench`, with deployed
-article/site and offline checks in the navigation gate. These checks establish the
-covered operations; they do not turn untested aliases or planned workflows into
-supported commands.
+article/site and offline checks in the navigation gate. The scoped
+`verify:module-configs` gate checks actual native module asset identities,
+independent map edits and offline deployments, plus native project codecs,
+guarded provider import/export and saved run configurations. These checks
+establish the covered operations; they do not turn untested aliases or planned
+workflows into supported commands.
 
 When packages change, regenerate/check the native registry, update this audit,
 then run the existing Feature Tour and output gates. Keep sample definitions in

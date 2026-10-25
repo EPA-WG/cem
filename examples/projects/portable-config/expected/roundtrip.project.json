@@ -1,0 +1,117 @@
+{
+  "$schema": "https://cem.dev/ns/studio/project/1",
+  "schemaVersion": 1,
+  "id": "dispatch-card",
+  "name": "Portable dispatch card",
+  "description": "An ordinary project with project-relative command, graph and source resources.",
+  "rootUri": "studio://dispatch-card/",
+  "revision": 1,
+  "createdAt": "2026-10-25T00:00:00Z",
+  "updatedAt": "2026-10-25T00:00:00Z",
+  "entries": [
+    {
+      "id": "build-card",
+      "kind": "transformation-graph",
+      "name": "Build dispatch card",
+      "runConfigResourceId": "card-command",
+      "entryArtifact": "generated/index.html",
+      "resourceIds": [
+        "card-graph",
+        "card-command",
+        "card-source",
+        "card-template"
+      ]
+    },
+    {
+      "id": "run-check",
+      "kind": "inspection",
+      "name": "Run the authored validation configuration",
+      "runConfigResourceId": "check-command",
+      "resourceIds": [
+        "card-check",
+        "check-command",
+        "card-source",
+        "alternate-source"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "id": "card-source",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/card.xml",
+      "referencePath": "data/card.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "revision": 1,
+      "sha256": "686250703a9a2694eb860accb1307ade6e8be515a2769e4c7b9e4e6cbdac945e"
+    },
+    {
+      "id": "alternate-source",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "data/alternate.xml",
+      "referencePath": "data/alternate.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "revision": 1,
+      "sha256": "e4ad11c1c53991788840c5b9e377b0b6bb5e3ccd95620105974c2d82c047cb9d"
+    },
+    {
+      "id": "card-template",
+      "role": "template",
+      "sourceKind": "project-file",
+      "path": "templates/card.cemt",
+      "referencePath": "templates/card.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "revision": 1,
+      "sha256": "015c935e2d91ba6e923152c6cb4f157962a157ba3fb13d8083a924fb3048d207"
+    },
+    {
+      "id": "card-graph",
+      "role": "transform-config",
+      "sourceKind": "project-file",
+      "path": "graphs/card.cem",
+      "referencePath": "graphs/card.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "revision": 1,
+      "sha256": "a7e916f934aa09fe0f22d56087d66153583c1ef1983102a6a0c22c28ec1c2ce0"
+    },
+    {
+      "id": "card-command",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "authored/build.command.json",
+      "referencePath": "authored/build.command.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "revision": 1,
+      "sha256": "3d9891112fdaf3c1e152100d2083bf5c3e6d75a10dbcc85417e0786ab2ab72ec"
+    },
+    {
+      "id": "card-check",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "authored/check.run.json",
+      "referencePath": "authored/check.run.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "revision": 1,
+      "sha256": "42585e0864727a0efa1425131d10df11325f5c1143deb5b22efd256f47faf954"
+    },
+    {
+      "id": "check-command",
+      "role": "run-config",
+      "sourceKind": "project-file",
+      "path": "authored/check.command.json",
+      "referencePath": "authored/check.command.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "revision": 1,
+      "sha256": "1927559eb7b278e4292e23dd4aabc3e0f48330e5e84aafa097124f600880e51a"
+    }
+  ]
+}
