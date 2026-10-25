@@ -108,6 +108,13 @@ scenarios with explicit resource identities and pinned expected summaries.
 Their source/result, execution, expected-result, trace, graph, copy, and download
 surfaces are composed entirely from production CEM controls and remain available
 after an offline reload.
+
+The [content-type and schema inventory](../../docs/studio-content-types.md)
+records every registered identity/selector, actual operation boundaries, existing
+project configurations and the remaining functional sample workflows. The
+Feature Tour verifier checks its identities, browser capabilities and sample
+references against native metadata and ordinary project bundles.
+
 Deterministic search is available through the repository protocol; project-search
 UI belongs to the next milestone below. Storage status uses the CEM shell;
 persistence does not introduce application-local visible controls.

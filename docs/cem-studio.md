@@ -2337,10 +2337,16 @@ prompt.
 
 Cache inventory v2 separates versioned `shell`, `runtime`, and `samples`
 groups. The graph-emitted samples group contains the integrity-checked Feature
-Tour project, all 31 schema examples, and the five portable-operation
+Tour project, all registered schema examples, and the five portable-operation
 workbenches. Offline navigation returns the cached shell with the service-worker registration scope
 as its document base, preserving deep routes without assuming a root deployment.
 Mutable project content never enters these caches.
+
+The [content-type and schema inventory](studio-content-types.md) distinguishes
+source validation from instance validation, import, formatting, query and
+transformation support, and maps the registered packages to existing and planned
+ordinary sample projects. Its identity and configuration references are checked
+by the Feature Tour verifier.
 
 A waiting service worker does not call `skipWaiting()` on install. The shell's
 update coordinator blocks activation while engine requests are active, persists

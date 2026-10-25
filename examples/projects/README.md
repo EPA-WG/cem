@@ -4,6 +4,12 @@ Every directory containing `example.json` defines an ordinary portable Studio
 project. The generator discovers directories deterministically; adding an example
 does not require a Studio route or renderer.
 
+The [content-type and schema inventory](../../docs/studio-content-types.md) maps
+all registered package identities and selectors to existing validation resources,
+functional configurations and planned projects. Consult its operation limits
+before adding a sample: source validation, instance validation and execution
+are separate capabilities.
+
 - `id`, `name` and `version` identify the catalog template. Optional `collections`
   mark presentation or subject membership, such as `amsterdam-2026`.
 - `sources` declare stable resource IDs, repository source paths, project paths,

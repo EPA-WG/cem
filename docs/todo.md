@@ -133,7 +133,11 @@ projects where possible. Entries remain ordinary cloneable projects with resourc
 and configurations; collection folders are discovery metadata. Prioritize these
 functional samples before unrelated diagnostic/helper acceptance.
 
-- [ ] Audit native package manifests and browser command capabilities to inventory supported content types, aliases, schema identities and operations. Map each supported combination to an existing or new sample; distinguish import, validation, formatting, querying and transformation support, documenting unsupported operations explicitly.
+Completed [content-type/schema capability inventory and checked sample mappings](archive/todo-completed-content-type-inventory-2026-10-24.md)
+are archived. Use the [audited operation and sample map](studio-content-types.md)
+when adding the folders and functional projects below; registered aliases alone
+do not establish operation support.
+
 - [ ] Add the catalog subfolder and its category folders using the application data model and shared tree/folder listings. Preserve stable project/resource IDs, URL selection, read-only originals, independent saved clones and existing drafts.
 - [ ] Add JSON and YAML data projects: API payload inspection, configuration validation, selecting/filtering records and rendering a report through the native retained-tree pipeline.
 - [ ] Add a CSV project: importing spreadsheet/inventory data, header and quoting diagnostics, tabular preview and converting selected records into a report. Include an intentional malformed row and a documented repair.
@@ -144,7 +148,7 @@ functional samples before unrelated diagnostic/helper acceptance.
 - [ ] Add CSS, SCSS and CSS-selector projects: inspect/format a stylesheet, demonstrate supported variable/nesting transformations and select document elements. State native subset limits and include scoped-style examples where supported.
 - [ ] Add CEM-QL and XPath projects: standalone expressions, selecting/filtering/joining data, parameter maps and inspecting native results with source provenance.
 - [ ] Add CEM transformation and XSLT projects: transform a source document into HTML or data artifacts, compare supported approaches and inspect a multi-step transformation graph with explicit entry artifacts.
-- [ ] Add schema-authoring projects for native CEM schemas, JSON Schema and RELAX NG: define a small domain contract, validate passing/failing inputs and repair the reported violations. Expose supported schema subsets and declaration/reference behavior.
+- [ ] Add schema-authoring projects for native CEM schemas, JSON Schema and RELAX NG: define a small domain contract, validate passing/failing schema sources and repair the reported violations. Demonstrate CEM instance validation separately; JSON Schema and RELAX NG currently provide source validation rather than general instance validators. Expose supported schema subsets and declaration/reference behavior.
 - [ ] Add module-map and portable configuration projects: resolve relative and mapped resource dependencies, inspect a CLI command/run configuration and build a portable Studio project. Cover the supported schema versions without implying schema identity alone grants execution support.
 - [ ] Add native DOM/AST/event projection projects: explain import versus structural inspection, show source locations and compare projections using the shared CEM-ML presentation path. Include any additional supported schema families found by the inventory audit.
 - [ ] Give each project a README with its typical use, content types/schema identities, supported configurations, expected artifacts, provenance and deliberate failure/repair steps where applicable. Reuse shared table, editor and preview controls; add no sample-specific UI JavaScript.

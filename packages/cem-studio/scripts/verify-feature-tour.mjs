@@ -19,6 +19,20 @@ const catalog = await readJson(resolve(generatedRoot, 'catalog.json'));
 const project = await readJson(resolve(generatedRoot, 'feature-tour.project.json'));
 const sampleIndex = await readJson(resolve(projectRoot, 'dist/static/samples/index.json'));
 const featureTourBuild = await readJson(resolve(workspaceRoot, 'dist/reports/cem-studio/feature-tour-build.json'));
+const inventory = await readFile(resolve(workspaceRoot, 'docs/studio-content-types.md'), 'utf8');
+const registry = await readJson(resolve(workspaceRoot, 'packages/cem_ml/schema/schema-assets-registry-v1.json'));
+const runtime = await readJson(resolve(workspaceRoot, 'packages/cem-ml-npm/dist/cem-ml-runtime.json'));
+const documentedPackages = inventoryRows('native-identities').map(row => row.map(inlineCodes));
+assert.deepEqual(documentedPackages, registry.map(item => [
+    [item.packageId], [item.version], [item.schemaUri],
+    item.contentTypes.filter(type => type.primary).map(type => type.value),
+    item.contentTypes.filter(type => !type.primary).map(type => type.value),
+]), 'Studio identity inventory drifted from the native-emitted registry');
+assert.deepEqual(inventoryRows('browser-operations').map(row => row.map(cell => inlineCodes(cell)[0])),
+    runtime.capabilities.browser.operations.map(item => [item.operation, item.availability]),
+    'Studio browser operation inventory drifted from native capabilities');
+const documentedSamples = inventoryRows('existing-samples');
+const sampleBundles = new Map();
 
 assert.equal(catalog.selection, 'first-manifest-declared-pass-example-per-registered-package');
 assert.equal(catalog.packageCount, 32);
@@ -51,6 +65,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
     assert.equal(sha256(bytes), record.sha256);
     assert.deepEqual(bytes, await readFile(resolve(generatedRoot, record.archive.slice(2))));
     const bundle = parseCemStudioProjectBundle(bytes);
+    sampleBundles.set(record.id, bundle);
     assert.equal(bundle.project.resources.length, Object.keys(bundle.contents).length);
     assert.ok(bundle.project.entries.every(entry => !/^\d+\./.test(entry.name)), 'configurations are not tutorial steps');
     await mkdir(dirname(reportPath), { recursive: true });
@@ -203,6 +218,32 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         }
     }
 }
+for (const [projectCell, resourceCell, configurationCell] of documentedSamples) {
+    const projectId = inlineCodes(projectCell)[0];
+    const resourceId = inlineCodes(resourceCell)[0];
+    const configurationId = inlineCodes(configurationCell)[0];
+    const bundle = sampleBundles.get(projectId);
+    assert.ok(bundle, `Inventory references missing project ${projectId}`);
+    assert.ok(bundle.project.resources.some(resource => resource.id === resourceId),
+        `Inventory references missing resource ${projectId}/${resourceId}`);
+    const configuration = bundle.project.entries.find(entry => entry.id === configurationId);
+    assert.ok(configuration?.resourceIds.includes(resourceId),
+        `Inventory configuration ${projectId}/${configurationId} does not use ${resourceId}`);
+}
+assert.deepEqual(catalog.examples.map(example => example.packageId), registry.map(item => item.packageId));
+const schemaExamples = sampleBundles.get('schema-examples').project;
+for (const item of registry) {
+    const example = catalog.examples.find(example => example.packageId === item.packageId);
+    assert.equal(example.packageVersion, item.version);
+    assert.equal(example.schema, item.schemaUri);
+    const essence = example.contentType.split(';')[0].trim().toLowerCase();
+    assert.ok(item.contentTypes.some(type => type.value === essence));
+    assert.equal(example.resourceId, `example-${item.packageId}`);
+    assert.equal(example.runConfigResourceId, `run-${item.packageId}`);
+    const configuration = schemaExamples.entries.find(entry => entry.id === `validate-${item.packageId}`);
+    assert.equal(configuration?.runConfigResourceId, example.runConfigResourceId);
+    assert.ok(configuration.resourceIds.includes(example.resourceId));
+}
 assert.equal(featureTourBuild.summary.errorCount, 0);
 assert.equal(featureTourBuild.summary.fatalCount, 0);
 
@@ -277,6 +318,13 @@ const report = {
     workbenchCount: catalog.workbenchCount,
     workbenchResourceCount: catalog.workbenchResourceCount,
     nativeValidationBytes,
+    contentTypeInventory: {
+        packageCount: registry.length,
+        contentTypeClaims: registry.reduce((count, item) => count + item.contentTypes.length, 0),
+        distinctContentTypes: new Set(registry.flatMap(item => item.contentTypes.map(type => type.value))).size,
+        browserOperationCount: runtime.capabilities.browser.operations.length,
+        existingWorkflowCount: documentedSamples.length,
+    },
     graphAssembly: 'cem-ml-transform-graph',
 };
 await mkdir(dirname(reportPath), { recursive: true });
@@ -298,4 +346,20 @@ function sha256(bytes) {
 
 async function readJson(path) {
     return JSON.parse(await readFile(path, 'utf8'));
+}
+
+function inventoryRows(name) {
+    const start = `<!-- ${name}:start -->`;
+    const end = `<!-- ${name}:end -->`;
+    assert.equal(inventory.split(start).length, 2, `Inventory needs one ${name} table`);
+    assert.equal(inventory.split(end).length, 2, `Inventory needs one ${name} table end`);
+    const body = inventory.split(start)[1].split(end)[0];
+    const rows = body.trim().split('\n').map(line => line.trim().split('|').slice(1, -1).map(cell => cell.trim()));
+    assert.ok(rows.length > 2 && rows.every(row => row.length === rows[0].length),
+        `Inventory has malformed ${name} rows`);
+    return rows.slice(2);
+}
+
+function inlineCodes(cell) {
+    return [...cell.matchAll(/`([^`]+)`/g)].map(match => match[1]);
 }
