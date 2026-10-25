@@ -8,11 +8,10 @@ use crate::{
 
 pub(super) fn validate(document: &HtmlDocumentAst, max_values: usize) -> Result<(), String> {
     let catalog = HtmlSchemaContractCatalog::from_builtin();
-    if let Some(fact) = document
-        .facts
-        .iter()
-        .find(|fact| catalog.severity_for_fact(fact.kind).is_hard_violation())
-    {
+    if let Some(fact) = document.facts.iter().find(|fact| {
+        catalog.severity_for_fact(fact.kind).is_hard_violation()
+            && !document.defers_import_policy_fact(fact.kind)
+    }) {
         return Err(fact.message.clone());
     }
     let nodes = document.events.iter().try_fold(1usize, |count, event| {
@@ -150,4 +149,66 @@ pub(super) fn project(
     }
     // Imported HTML never evaluates expressions, applies styles or runs scripts.
     Ok((builder.ast, semantics))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::validation::html::{
+        html_document_ast_from_passive_projection, html_document_ast_from_source_bytes,
+        HtmlFactKind, HtmlSourceValidationRequest,
+    };
+
+    #[test]
+    fn passive_projection_preserves_facts_without_granting_authored_source_admission() {
+        let request = HtmlSourceValidationRequest {
+            bytes: b"<main><img src='../images/harbor.svg'><script src='https://example.test/no-fetch.js'>neverRun()</script></main>",
+            source_uri: "memory:generated.html",
+            content_type: Some("text/html"),
+        };
+        let (source, diagnostics) = html_document_ast_from_source_bytes(request);
+        assert!(diagnostics
+            .iter()
+            .any(|item| item.severity.is_hard_violation()));
+        let mut source = source.unwrap();
+        assert!(validate(&source, 4096).is_err());
+        // Source-map annotations are provenance, never an admission grant.
+        source.origin_spans = Some(crate::source_map::SourceMapIndex::new(vec![]));
+        assert!(validate(&source, 4096).is_err());
+
+        let (projection, diagnostics) = html_document_ast_from_passive_projection(request);
+        assert!(!diagnostics
+            .iter()
+            .any(|item| item.severity.is_hard_violation()));
+        let projection = projection.unwrap();
+        for kind in [
+            HtmlFactKind::ExternalResourceRejected,
+            HtmlFactKind::ScriptRejected,
+        ] {
+            assert!(projection.facts.iter().any(|fact| fact.kind == kind));
+        }
+        validate(&projection, 4096).unwrap();
+        validate(&projection.clone(), 4096).unwrap();
+        project(&projection).unwrap();
+        // Reparse of exported bytes starts as strict source again.
+        let reparsed = html_document_ast_from_source_bytes(request).0.unwrap();
+        assert!(validate(&reparsed, 4096).is_err());
+    }
+
+    #[test]
+    fn passive_projection_keeps_unrelated_hard_policy_and_structural_bounds() {
+        for source in [
+            "<img src='../image.svg' onload='neverRun()'>".to_owned(),
+            format!("{}{}", "<div>".repeat(66), "</div>".repeat(66)),
+            "<input>".repeat(4100),
+        ] {
+            let (projection, _) =
+                html_document_ast_from_passive_projection(HtmlSourceValidationRequest {
+                    bytes: source.as_bytes(),
+                    source_uri: "memory:bounded-projection.html",
+                    content_type: Some("text/html"),
+                });
+            assert!(validate(&projection.unwrap(), 4096).is_err());
+        }
+    }
 }

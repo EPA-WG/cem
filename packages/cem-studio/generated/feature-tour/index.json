@@ -195,14 +195,14 @@
     {
       "id": "markdown-site",
       "name": "Markdown site",
-      "description": "A portable folder-based site: Markdown metadata, shared CEM-ML layouts, navigation data and exact static assets, with editing, repair and provenance.",
-      "version": "1.0.0",
+      "description": "Inspect and query an article, repair typed YAML metadata and preview its HTML, then build a portable folder-based Markdown + CEM-ML site with exact static assets and source provenance.",
+      "version": "1.1.0",
       "collections": [
         "amsterdam-2026",
         "content-types-documents-ui"
       ],
       "archive": "./examples/markdown-site.cem-studio.json",
-      "sha256": "c4cbb3534c16063d3749014824e3627dd5dc04eeb22eb12bd7e340c0987e73e6"
+      "sha256": "0a4db9a79f713c2df966a39ff554e7528412a005896a428435f66c87ef199c20"
     },
     {
       "id": "supplier-pipeline",

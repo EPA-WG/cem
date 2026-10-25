@@ -997,6 +997,30 @@
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/xml-xhtml-projects.json"
             ]
+        },
+        "verify:markdown-site": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:determinism"
+            ],
+            "options": {
+                "command": "node scripts/verify-navigation.mjs --markdown-only",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-markdown-site.mjs",
+                "{workspaceRoot}/examples/projects/markdown-site/**/*",
+                "{projectRoot}/dist/static/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/markdown-site.json"
+            ]
         }
     },
     "tags": [

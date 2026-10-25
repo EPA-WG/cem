@@ -162,7 +162,11 @@ Completed [XML/XHTML workflows and query namespace context](archive/todo-complet
 cover Supplier validation/selection/repair, the ordinary XHTML document project,
 shared retained import, explicit query identities and saved/offline preview acceptance.
 
-- [ ] Add a Markdown project: article preview and a folder-based Markdown + CEM-ML site with metadata, relative links, CSS and images; reuse the existing site example and expose its source-to-artifact provenance.
+Completed [Markdown article/site workflows and passive native import](archive/todo-completed-markdown-site-2026-10-25.md)
+cover article inspection/query/preview, typed metadata repair, complete site assets,
+native source-range navigation and independent saved/offline copies. Authored HTML
+policy, shared declarative controls and credential privacy remain unchanged.
+
 - [ ] Add HTML and CEM-ML projects: semantic comparison, a minimal reusable declarative component and data-bound HTML generation. Reuse Login where appropriate; keep theme/storage keys independent from Studio and preserve credential privacy policy.
 - [ ] Add SVG and MathML projects: inspect and validate a vector diagram and a mathematical expression, then preview supported output using shared preview components.
 - [ ] Add CSS, SCSS and CSS-selector projects: inspect/format a stylesheet, demonstrate supported variable/nesting transformations and select document elements. State native subset limits and include scoped-style examples where supported.

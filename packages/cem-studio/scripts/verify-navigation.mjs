@@ -11,8 +11,9 @@ import { verifyXmlXhtmlProjects } from './verify-xml-xhtml-projects.mjs';
 const projectRoot = resolve(import.meta.dirname, '..');
 const csvOnly = process.argv.includes('--csv-only');
 const documentsOnly = process.argv.includes('--documents-only');
+const markdownOnly = process.argv.includes('--markdown-only');
 const schemaAssets = process.argv.includes('--schema-assets');
-if (csvOnly && documentsOnly) throw new Error('Select one project verification scope.');
+if ([csvOnly, documentsOnly, markdownOnly].filter(Boolean).length > 1) throw new Error('Select one project verification scope.');
 if (schemaAssets && !csvOnly) throw new Error('The optional profile replay requires --csv-only.');
 const server = await startStaticServer(resolve(projectRoot, schemaAssets ? 'dist/schema-assets' : 'dist/static'));
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
@@ -37,7 +38,13 @@ const submit = async (name, action) => { if (name) await page.getByRole('dialog'
 const heading = async () => assert.equal(await page.getByRole('heading', { level: 1 }).innerText(), await page.title());
 
 try {
-    if (documentsOnly) {
+    if (markdownOnly) {
+        const markdownSite = await verifyMarkdownSite({ page, context, url: server.url });
+        assert.deepEqual(errors, []);
+        await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
+        await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/markdown-site.json'), `${JSON.stringify({ schemaVersion: 1, markdownSite }, null, 2)}\n`);
+        console.log('Studio Markdown site: catalog, article commands, metadata repair, native source navigation, exact assets and offline saved builds passed.');
+    } else if (documentsOnly) {
         const xmlXhtmlProjects = await verifyXmlXhtmlProjects({ page, context, url: server.url });
         assert.deepEqual(errors, []);
         await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });

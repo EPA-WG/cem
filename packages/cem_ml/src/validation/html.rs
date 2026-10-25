@@ -27,6 +27,9 @@ pub struct HtmlSourceValidationRequest<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HtmlDocumentAst {
+    // Only native conversion routes may grant inert projection admission.
+    // Source identity/provenance and public source parsers never grant it.
+    import_profile: HtmlImportProfile,
     pub source: HtmlDocumentSource,
     /// Native conversion origins. None denotes authored HTML; Some(empty)
     /// denotes generated content with no admitted character mapping.
@@ -47,7 +50,21 @@ pub struct HtmlDocumentAst {
     pub recovery_count: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HtmlImportProfile {
+    Source,
+    PassiveProjection,
+}
+
 impl HtmlDocumentAst {
+    pub(crate) fn defers_import_policy_fact(&self, kind: HtmlFactKind) -> bool {
+        self.import_profile == HtmlImportProfile::PassiveProjection
+            && matches!(
+                kind,
+                HtmlFactKind::ExternalResourceRejected | HtmlFactKind::ScriptRejected
+            )
+    }
+
     pub fn source_map_for_range(&self, range: HtmlSourceRange) -> Option<SourceMapStack> {
         match &self.origin_spans {
             Some(spans) => spans.map_range(ByteRange::new(
@@ -919,6 +936,7 @@ pub fn html_document_ast_from_source_bytes(
         value: Some(normalized_encoding.clone()),
     });
     let ast = HtmlDocumentAst {
+        import_profile: HtmlImportProfile::Source,
         origin_spans: None,
         metadata: None,
         source: source_info,
@@ -943,6 +961,26 @@ pub fn html_document_ast_from_source_bytes(
         HtmlSchemaContractCatalog::from_builtin(),
     );
     (Some(ast), diagnostics)
+}
+
+/// Recover conversion output for non-executing native inspection/query only.
+/// Keep policy facts on the AST; this profile grants neither resource resolution
+/// nor script execution. Source validation, handlers and structural bounds stay
+/// subject to the ordinary hard-diagnostic policy.
+pub(crate) fn html_document_ast_from_passive_projection(
+    request: HtmlSourceValidationRequest<'_>,
+) -> (Option<HtmlDocumentAst>, Vec<Diagnostic>) {
+    let (mut document, mut diagnostics) = html_document_ast_from_source_bytes(request);
+    if let Some(document) = document.as_mut() {
+        document.import_profile = HtmlImportProfile::PassiveProjection;
+        diagnostics.retain(|diagnostic| {
+            !matches!(
+                diagnostic.code.as_str(),
+                "cem.html.external_resource_rejected" | "cem.html.script_rejected"
+            )
+        });
+    }
+    (document, diagnostics)
 }
 
 #[derive(Debug, Clone)]

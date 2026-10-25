@@ -241,6 +241,100 @@ describe('CEM Studio Feature Tour copies', () => {
         expect(decode('inventory-source')).toContain('SKU-C,Glass jars,0,2');
     }, 60_000);
 
+    it('runs packaged Markdown article inspection, preview, outline and metadata repair with original source coordinates', async () => {
+        const { bundle, definition, decode } = await authoredProject('markdown-site');
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        for (const configuration of definition.configurations.filter(item => item.kind !== 'transformation-graph')) {
+            const entry = bundle.project.entries.find(item => item.id === configuration.id);
+            const options = projectCommandOptions(bundle, entry, 'markdown-article-copy');
+            const command = JSON.parse(decode(entry.runConfigResourceId));
+            const run = overrides => command.argv
+                ? validator.executeAuthoredResourceCommand({ ...options, ...overrides, commandResource: bundle.contents[entry.runConfigResourceId] })
+                : validator.validateResource({ ...options, ...overrides });
+            const outcome = await run().catch(error => error);
+            if (!outcome.result) throw new Error(`Markdown ${configuration.id}: ${outcome.message}`, { cause: outcome });
+            expect(outcome.result.exitCode, JSON.stringify(outcome.result.diagnostics.items)).toBe(configuration.expectedExit ?? 0);
+            const expected = configuration.expectedValidation;
+            if (expected) {
+                const diagnostics = outcome.result.diagnostics.items;
+                expect(diagnostics.filter(item => item.severity === 'error')).toHaveLength(expected.errorCount);
+                expect(diagnostics.filter(item => item.severity === 'warning')).toHaveLength(expected.warningCount);
+                if (configuration.repair) {
+                    const source = bundle.project.resources.find(item => item.id === configuration.source);
+                    const diagnostic = diagnostics.find(item => item.code === expected.errorCode);
+                    expect(diagnostic).toMatchObject({ code: expected.errorCode, severity: 'error', uri: `studio://markdown-article-copy/${source.path}` });
+                    for (const [key, value] of Object.entries(expected.location ?? {})) expect(diagnostic[key] ?? null).toBe(value);
+                    const original = decode(configuration.source), repaired = original.replace(configuration.repair.find, configuration.repair.replace);
+                    expect(repaired).not.toBe(original);
+                    const result = await run({ bytes: new TextEncoder().encode(repaired) });
+                    expect(result.result.exitCode).toBe(0); expect(result.result.diagnostics.items).toEqual([]);
+                    expect(decode(configuration.source)).toBe(original);
+                }
+            }
+            if (configuration.expectedOutput) expect(outcome.output.text).toBe(decode(configuration.expectedOutput));
+            for (const text of configuration.expectedText ?? []) expect(outcome.output.text).toContain(text);
+            if (configuration.expectedSemanticContract) {
+                const report = JSON.parse(outcome.output.text);
+                const values = report.language === 'xpath' ? report.result.sequence.items.map(item => item.value.lexicalValue) : report.result.items.map(item => item.value);
+                expect(values).toEqual(JSON.parse(decode(configuration.expectedSemanticContract)));
+            }
+            if (configuration.id === 'preview-article') {
+                expect(outcome.output.text).not.toContain('title: Build a small site');
+                expect(outcome.output.text).toContain('>Build a small site</h1>');
+                const original = decode(configuration.source);
+                const edited = original.replace('The article stays an ordinary editable resource.', 'This saved article stays an ordinary editable resource.');
+                expect(edited).not.toBe(original);
+                const customized = await run({ bytes: new TextEncoder().encode(edited) });
+                expect(customized.output.text).toBe(decode(configuration.expectedOutput).replace('The article stays an ordinary editable resource.', 'This saved article stays an ordinary editable resource.'));
+                const independent = await validator.runResourceCommand({ ...projectCommandOptions(bundle, entry, 'markdown-article-independent'), argv: command.argv });
+                expect(independent.output.text).toBe(outcome.output.text);
+                expect(decode(configuration.source)).toBe(original);
+            }
+        }
+    }, 60_000);
+
+    it('builds the packaged Markdown folder site with exact assets, source origins and independent edits', async () => {
+        const { bundle, definition, decode } = await authoredProject('markdown-site');
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const entry = bundle.project.entries.find(item => item.id === 'build-site');
+        const configuration = definition.configurations.find(item => item.id === entry.id);
+        const command = JSON.parse(decode(entry.runConfigResourceId));
+        const run = (edits = {}, projectId = 'markdown-site-copy') => validator.runResourceCommand({
+            ...projectCommandOptions(bundle, entry, projectId, edits), argv: command.argv,
+        });
+        const baseline = await run(); expect(baseline.outputs).toHaveLength(7);
+        for (const [path, expected] of Object.entries(configuration.expectedGraphOutputs)) {
+            expect(baseline.outputs.find(item => item.uri === `studio://markdown-site-copy/${path}`).bytes, path).toEqual(bundle.contents[expected]);
+        }
+        const artifacts = outcome => outcome.result.result.value.value.value.artifacts;
+        const article = artifacts(baseline).find(item => item.destination.endsWith('/articles/first-build.html'));
+        const frames = article.outputSpans.flatMap(span => span.origin.frames);
+        expect(frames).toEqual(expect.arrayContaining([
+            expect.objectContaining({ transform: expect.objectContaining({ uri: 'studio://markdown-site-copy/content/articles/first-build.md' }) }),
+            expect.objectContaining({ transform: expect.objectContaining({ uri: 'studio://markdown-site-copy/layouts/partials/content.cemt' }) }),
+            expect.objectContaining({ transform: expect.objectContaining({ uri: 'studio://markdown-site-copy/layouts/partials/chrome.cemt' }) }),
+        ]));
+        const original = decode('content-articles-first-build-md');
+        const edited = await run({ 'content-articles-first-build-md': original.replaceAll('Build a small site', 'Only the saved site') });
+        const editedArticle = edited.outputs.find(item => item.uri.endsWith('/articles/first-build.html'));
+        expect(editedArticle.text).toContain('<title>Only the saved site</title>');
+        for (const output of baseline.outputs.filter(item => !item.uri.endsWith('/articles/first-build.html'))) {
+            expect(edited.outputs.find(item => item.uri === output.uri).bytes, output.uri).toEqual(output.bytes);
+        }
+        const failure = await run({ 'content-articles-first-build-md': decode('invalid-article-metadata') }).catch(error => error);
+        expect(failure).toMatchObject({ result: { exitCode: 1 }, output: { available: false, byteLength: 0, text: '' } });
+        expect(failure.outputs).toEqual([]);
+        expect(failure.result.diagnostics.items).toEqual(expect.arrayContaining([expect.objectContaining({
+            code: 'cem.markdown.front_matter_invalid', severity: 'error', uri: 'studio://markdown-site-copy/content/articles/first-build.md',
+        })]));
+        const repaired = await run();
+        expect(repaired.outputs.map(item => item.bytes)).toEqual(baseline.outputs.map(item => item.bytes));
+        const independent = await run({}, 'markdown-site-independent');
+        expect(independent.outputs.map(item => item.bytes)).toEqual(baseline.outputs.map(item => item.bytes));
+        expect(independent.outputs.every(item => item.uri.startsWith('studio://markdown-site-independent/'))).toBe(true);
+        expect(decode('content-articles-first-build-md')).toBe(original);
+    }, 60_000);
+
     it('runs ordinary XML and XHTML source configurations with namespace-aware queries and native repair', async () => {
         const validator = await createCemStudioBrowserValidator(); validators.push(validator);
         for (const id of ['supplier-pipeline', 'xhtml-document']) {
@@ -869,7 +963,7 @@ function projectCommandOptions(bundle, entry, projectId, edits = {}) {
     return { bytes: bytes(source.id), uri: `studio://${projectId}/${source.path}`, resourceScheme: 'studio', contentType: source.contentType, schema: source.schema,
         projectId, projectRootUri: `studio://${projectId}/`, dependencies: entry.resourceIds.slice(2).map(id => {
             const resource = bundle.project.resources.find(resource => resource.id === id);
-            return { path: `../${resource.path}`, bytes: bytes(id), contentType: resource.contentType, schema: resource.schema };
+            return { path: `studio://${projectId}/${resource.path}`, bytes: bytes(id), contentType: resource.contentType, schema: resource.schema };
         }) };
 }
 

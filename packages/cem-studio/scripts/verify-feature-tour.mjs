@@ -263,7 +263,8 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         const site = await readJson(resolve(workspaceRoot, 'examples/projects/markdown-site/example.json'));
         assert.deepEqual(record.collections, site.collections);
         assert.equal(record.description, site.description);
-        assert.equal(bundle.project.entries.length, 3);
+        assert.equal(record.version, site.version);
+        assert.equal(bundle.project.entries.length, site.configurations.length);
         for (const source of site.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
         const build = site.configurations.find(configuration => configuration.id === 'build-site');
         const entry = bundle.project.entries.find(entry => entry.id === build.id);
@@ -276,9 +277,37 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                 await mkdir(dirname(path), { recursive: true });
                 await writeFile(path, bundle.contents[resource.id]);
             }
-            for (const entry of bundle.project.entries) {
+            for (const configuration of site.configurations) {
+                const entry = bundle.project.entries.find(item => item.id === configuration.id);
+                const configResource = bundle.project.resources.find(resource => resource.id === entry.runConfigResourceId);
                 const command = JSON.parse(new TextDecoder().decode(bundle.contents[entry.runConfigResourceId]));
-                run(cli, command.argv ?? ['validate', '--config', bundle.project.resources.find(resource => resource.id === entry.runConfigResourceId).path], directory);
+                const args = command.argv ?? ['validate', '--config', configResource.path, '--format', 'json', '--no-color'];
+                const actual = runExpected(cli, args, directory, configuration.expectedExit ?? 0);
+                if (configuration.expectedOutput) {
+                    assert.equal(actual, new TextDecoder().decode(bundle.contents[configuration.expectedOutput]), `${configuration.id} article output drifted`);
+                }
+                for (const text of configuration.expectedText ?? []) assert.ok(actual.includes(text), `${configuration.id} misses ${text}`);
+                if (configuration.expectedSemanticContract) {
+                    const report = JSON.parse(actual);
+                    const values = report.language === 'xpath' ? report.result.sequence.items.map(item => item.value.lexicalValue) : report.result.items.map(item => item.value);
+                    assert.deepEqual(values, JSON.parse(new TextDecoder().decode(bundle.contents[configuration.expectedSemanticContract])));
+                }
+                if (configuration.expectedValidation) {
+                    const expected = configuration.expectedValidation, report = JSON.parse(actual);
+                    assert.equal(report.summary.errorCount, expected.errorCount); assert.equal(report.summary.warningCount, expected.warningCount);
+                    if (configuration.repair) {
+                        const source = bundle.project.resources.find(resource => resource.id === configuration.source);
+                        const diagnostic = report.diagnostics.find(item => item.code === expected.errorCode);
+                        assert.equal(diagnostic?.severity, 'error'); assert.ok(diagnostic.uri.endsWith(source.path));
+                        for (const [key, value] of Object.entries(expected.location ?? {})) assert.equal(diagnostic[key] ?? null, value);
+                        const original = new TextDecoder().decode(bundle.contents[source.id]);
+                        const repaired = original.replace(configuration.repair.find, configuration.repair.replace);
+                        assert.notEqual(repaired, original); await writeFile(resolve(directory, source.path), repaired);
+                        const repairedReport = JSON.parse(run(cli, args, directory));
+                        assert.equal(repairedReport.summary.errorCount, 0); assert.equal(repairedReport.summary.warningCount, 0); assert.equal(repairedReport.summary.fatalCount, 0);
+                        await writeFile(resolve(directory, source.path), bundle.contents[source.id]);
+                    }
+                }
             }
             const outputs = async () => Promise.all(Object.keys(build.expectedGraphOutputs).map(async path => [path, sha256(await readFile(resolve(directory, path)))]));
             const baseline = await outputs();

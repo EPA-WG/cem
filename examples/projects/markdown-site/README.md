@@ -1,7 +1,8 @@
 # Markdown site
 
-Open **Samples → Amsterdam 2026 → Markdown site** in the ordinary Studio
-workspace. Choose **Clone selected** to make an editable saved project. Each
+Open **Examples → Content types and schemas → Documents and UI → Markdown site**,
+or find the same project under **Amsterdam 2026**. Choose **Clone selected** to
+make an editable saved project. Each
 copy owns its resources and configurations independently of the catalog original.
 There is no dedicated site-example screen.
 
@@ -33,7 +34,60 @@ Studio's own theme. No JavaScript assembles or renders the site.
 - **Validate article metadata** validates the saved first article using its
   declared Markdown identity, including the opt-in YAML metadata contract.
 - **Preview Markdown article** converts that saved article body on its own.
+  Its exact HTML matches `expected/article-body.html`; front matter is omitted.
   The full build supplies the shared layout and assets.
+- **Inspect generated article structure** inspects the generated HTML tree, its
+  XHTML element names, attributes and retained source information. It is an HTML
+  projection of the Markdown body, not the Markdown parser's source AST.
+- **Query the generated article outline** runs `queries/article-outline.xpath`
+  over the same generated HTML using the explicit namespace binding
+  `h=http://www.w3.org/1999/xhtml`. Its four result strings match
+  `expected/article-outline.json`.
+- **Repair the article metadata type** validates
+  `failures/invalid-article.md`, a deliberately invalid resource outside the
+  site's `content/**/*.md` glob. It can be repaired independently without making
+  the ordinary site build fail.
+
+## Work with one article
+
+Choose **Preview Markdown article** and run the saved configuration to see the
+body without its site layout or YAML prefix. Its relative links and image URL
+are retained as authored references. This standalone artifact does not bundle
+the other pages, image, CSS or download; use **Build and preview site** to follow
+those references inside the admitted output tree. Shared preview controls keep
+the existing script and network policy.
+
+Run **Query the generated article outline**. The result is:
+
+```text
+heading=Build a small site
+images=1
+links=3
+image=../images/harbor.svg
+```
+
+The heading comes from `# Build a small site` in the body. Changing only the
+front-matter `title` changes the complete site's HTML title, while leaving this
+body outline unchanged. Metadata and page content are separate native inputs to
+the layout; a generated HTML query does not expose front matter as visible text.
+The `inspect-article` configuration likewise presents generated HTML structure.
+
+For the deliberate type failure, run **Repair the article metadata type**. The
+native validator reports `cem.markdown.front_matter_invalid` for `weight: heavy`
+at line 2, column 1, original byte offset 4. Replace it with `weight: 1`, save
+and rerun the same configuration. The error clears. All metadata contracts are
+opted into through the declared `front-matter=yaml` MIME parameter; removing
+that parameter gives ordinary Markdown interpretation rather than a metadata
+validation contract.
+
+Source validation checks Markdown's supported syntax, MIME parameters and
+declared metadata types. It does not establish application rules such as unique
+titles, publishing dates, sorting or link availability. Native Markdown
+formatter profiles currently preserve lexical content rather than reflowing
+paragraphs. See the [Markdown package](../../../packages/cem_ml/schema-packages/markdown/v1/README.md)
+for the supported parser, front-matter and conversion boundaries.
+
+## Build the complete folder site
 
 In an editable saved copy, expand **Build entry settings** to save another
 project-relative output path or clear the default. URL/selector choices take
@@ -41,7 +95,8 @@ precedence. A missing entry reports unavailable instead of opening another
 index document. Entry changes use native validation and project revision/undo
 guards, and travel with portable copies.
 
-`expected/` contains the baseline HTML for all four documents. The graph's
+`expected/` contains the baseline HTML for all four documents, the standalone
+article body and its query result. The graph's
 expected asset results are their original source bytes. Command configurations
 under `config/` are ordinary editable resources in each portable Studio bundle.
 
@@ -70,6 +125,17 @@ original Markdown resource or the shared layout/partial. Native writer-token
 ranges retain honest source boundaries, without inventing a character mapping
 for computed values or copied static assets.
 
+To navigate a generated range with the shared source controls, select the
+**Build and preview site** configuration, expand **Commands and results**, and
+run it with **Run configuration**. Open **Results → Provenance**, then choose
+an entry in **Source-map provenance**. Studio opens that source resource and
+selects its original range. The article's metadata title and body heading have
+separate origins; layout and partial instructions retain their own resource
+identities. Synthetic bytes and computed strings do not acquire arbitrary
+character-by-character lineage to the Markdown source. **Build project** runs
+the same graph for the project output panel; command results provide the source
+navigation controls.
+
 In the first article, replace `title: Build an edited site` (or the original
 title) with `title: [broken`. Save. Validation and Build report
 `cem.markdown.front_matter_invalid`; the failed run publishes no new artifact
@@ -85,3 +151,9 @@ another copy. HTML links and assets resolve inside the admitted build; active
 scripts and external network dependencies remain subject to the shared preview
 policy. A download link demonstrates a published asset; use Studio's exact
 artifact download control to save those bytes.
+
+Offline commands require their runtime and source packages to be cached. In the
+optional-package deployment, first run the Markdown-dependent workflow online
+to admit its package before reopening it offline. This project adds no theme or
+storage keys and contains no credential controls. Studio's existing rule still
+blocks recovery while an entered password or one-time code is present elsewhere.

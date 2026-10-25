@@ -121,7 +121,7 @@ artifacts; the mere presence of a manifest artifact is insufficient.
 | XML, XHTML | XML data import; selected schema validation is separate from XML well-formedness. XHTML has its own source contract. | XML/XHTML formatting and source projections. | Namespace-aware queries and template data. Generic XML import rejects DTDs and unresolved entities, despite the registry's DTD/external-entity selectors. |
 | HTML | Native HTML import and source validation. | Formatting/coloring and retained element inspection. | Element-tree CSS selectors, XPath/CEM-QL semantic queries, CEM rendering and preview. Browser HTML behavior alone does not prove native validation. |
 | CEM-ML | Native CEM parser/source validation; not a generic data-loader MIME. | Native formatting/coloring, DOM/AST/events and source ranges. | CEM templates and retained CEM queries. Explicit schema selects generic source versus template semantics. |
-| Markdown | Native source validation and Markdown-to-HTML conversion; not a generic data-loader MIME. | Native source formatting/coloring. Current Parse AST/events describe generated HTML. | Article/site HTML inputs to layouts; HTML projection is not a Markdown source AST. |
+| Markdown | Native source validation and Markdown-to-HTML conversion; opt-in YAML front matter has typed metadata checks. Not a generic data-loader MIME. | Native source formatting/coloring. Current Parse AST/events and the article Inspect workflow describe generated HTML. | Namespace-aware queries consume the generated body; site layouts receive metadata separately. An HTML projection is not a Markdown source AST. |
 | CSS | Native retained CSS import and stylesheet validation. | Typed CSS inspection and native formatter/colorizer pipeline. | Scoped stylesheet preparation. It is not a query language or a general Sass compiler. |
 | SCSS | Explicit MIME/schema selects passive source validation; generic import and filename inference are unavailable. | Parse AST/events inspect expanded typed CSS with SCSS origin frames. | Bounded resolver/context-owned expansion to plain CSS. Passive validation does not fetch modules or expand. Same-schema SCSS source export, source DomJson/Json and command HTML-colored CSS export are unavailable. |
 | SVG, MathML | XML syntax import and package-specific source validation are distinct steps. | Native XML-family formatting/projection; use supported vocabulary/subsets. | Shared media/HTML previews and document queries where an element tree is available. Static asset copying proves neither parsing nor complete SVG/MathML semantics. |
@@ -209,7 +209,12 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `xhtml-document` | `article-source` | `query-outline` | Namespace-aware XPath document outline, excluding foreign SVG title elements. |
 | `xhtml-document` | `article-invalid` | `repair-namespace` | Missing XHTML namespace diagnostic, saved source repair and revalidation. |
 | `xhtml-document` | `article-graph` | `build-html` | Retained XHTML input to a CEMT HTML artifact with explicit entry and template provenance. |
-| `markdown-site` | `data-site-json` | `build-site` | Site metadata, Markdown folder tree, layouts, relative CSS/images, explicit entry output and provenance. |
+| `markdown-site` | `graphs-build-cem` | `build-site` | Four Markdown pages, typed metadata, shared layouts/partials, relative CSS/images and byte-preserved assets, with an explicit entry artifact and original content/template provenance. |
+| `markdown-site` | `content-articles-first-build-md` | `validate-article` | Validate the saved article's explicit Markdown identity and opt-in YAML metadata types. |
+| `markdown-site` | `content-articles-first-build-md` | `preview-article` | Exact standalone body HTML, excluding front matter; site assets and shared layouts belong to the full build. |
+| `markdown-site` | `content-articles-first-build-md` | `inspect-article` | Inspect the generated HTML structure and retained source information, rather than the Markdown parser's source AST. |
+| `markdown-site` | `content-articles-first-build-md` | `query-article-outline` | XPath heading, image/link counts and image reference with an explicit XHTML namespace binding; metadata title does not become body text. |
+| `markdown-site` | `invalid-article-metadata` | `repair-article-metadata` | Native typed front-matter failure at original source coordinates; repair a string weight to an integer in a resource outside the site content glob. |
 | `login` | `login-html` | `semantics-html` | XPath query of the HTML semantic contract. |
 | `login` | `login-cem` | `semantics-cem-cemql` | CEM-QL query of the CEM semantic contract. |
 | `login` | `login-expression` | `expression-html` | Standalone expression evaluation. |
@@ -225,14 +230,24 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `schema-examples` | `operation-input` | `workbench-trace` | Parser/validation trace. |
 <!-- existing-samples:end -->
 
-These are planned functional projects or extensions, not additional routes. The
-category names below are discovery metadata; they do not affect runtime authority.
+The Markdown article operations and complete site build use the same ordinary
+project. Standalone inspection/query sees generated HTML; its offsets must not
+be presented as a lossless Markdown source AST. The full graph carries original
+Markdown metadata/body ranges and separate layout/partial origins into artifact
+provenance where the native operation establishes them. Shared command-result
+provenance controls open those source resources and ranges. Relative image/link
+references remain references in standalone HTML; the full site's artifact tree
+supplies the admitted pages and assets without granting ambient network access.
+
+The following rows describe existing reuse and planned extensions, rather than
+additional routes. Category names are discovery metadata and do not affect
+runtime authority.
 
 | Category | Families / selectors to cover | Reuse or planned workflow |
 | --- | --- | --- |
 | Data | JSON and YAML aliases; CSV | Reuse `json-yaml-report` and `csv-inventory` for imported data, explicit queries/formatting and reports. CSV covers header-mode/row-width warnings and quote failures with repair, compact interchange versus tabular review, and explicit count rules. Reuse Supplier for cross-source reconciliation. |
 | Data / Documents and UI | XML, XHTML and XML aliases | Reuse Supplier XML validation/namespace-aware selection and the `xhtml-document` query, repair and HTML graph. XML source validation does not establish domain instance rules; XHTML retains its own owner and source contract. Keep DTD/entity refusals visible. |
-| Documents and UI | Markdown | Reuse `markdown-site`; expose article conversion and complete site outputs. |
+| Documents and UI | Markdown | Reuse `markdown-site` for saved-article validation, generated-HTML inspection/query, exact standalone preview and metadata failure/repair; its folder graph publishes complete site outputs and content/layout provenance. |
 | Documents and UI | HTML, CEM-ML, native/element templates, runtime data island | Reuse Login and add a minimal declarative component project; explain template identity and live runtime bindings. |
 | Documents and UI | SVG and MathML variants | New diagram/formula project with native validation, inspection and shared preview; document supported vocabulary. |
 | Documents and UI | CSS and SCSS aliases | New stylesheet project with inspect/format, supported scoped CSS and bounded SCSS-to-CSS expansion. Include unavailable source-export/loader cases. |
@@ -258,9 +273,11 @@ against the native-emitted registry, the capability list against runtime metadat
 and each existing sample reference against the generated ordinary project bundle.
 It also runs all manifest-selected source validations through the native CLI and
 checks deployed bytes and hashes. The `test:feature-tour` browser cases exercise
-the authored Login, Supplier, data-report and XHTML workflows; site preview/build browser acceptance
-lives in `test:workbench`. These checks establish the covered operations; they do
-not turn untested aliases or planned workflows into supported commands.
+the authored Login, Supplier, data-report, XHTML and Markdown article workflows;
+site preview/build browser acceptance also lives in `test:workbench`, with deployed
+article/site and offline checks in the navigation gate. These checks establish the
+covered operations; they do not turn untested aliases or planned workflows into
+supported commands.
 
 When packages change, regenerate/check the native registry, update this audit,
 then run the existing Feature Tour and output gates. Keep sample definitions in

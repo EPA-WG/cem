@@ -1,0 +1,6 @@
+(
+    "heading=" || normalize-space(//h:h1),
+    "images=" || count(//h:img),
+    "links=" || count(//h:a),
+    "image=" || string(//h:img/@src)
+)

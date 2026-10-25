@@ -1,8 +1,8 @@
 {
   "id": "markdown-site",
   "name": "Markdown site",
-  "version": "1.0.0",
-  "description": "A portable folder-based site: Markdown metadata, shared CEM-ML layouts, navigation data and exact static assets, with editing, repair and provenance.",
+  "version": "1.1.0",
+  "description": "Inspect and query an article, repair typed YAML metadata and preview its HTML, then build a portable folder-based Markdown + CEM-ML site with exact static assets and source provenance.",
   "collections": [
     "amsterdam-2026",
     "content-types-documents-ui"
@@ -134,6 +134,38 @@
       "role": "data"
     },
     {
+      "id": "article-outline-query",
+      "source": "examples/projects/markdown-site/queries/article-outline.xpath",
+      "path": "queries/article-outline.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "role": "query"
+    },
+    {
+      "id": "expected-article-outline",
+      "source": "examples/projects/markdown-site/expected/article-outline.json",
+      "path": "expected/article-outline.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-article-body",
+      "source": "examples/projects/markdown-site/expected/article-body.html",
+      "path": "expected/article-body.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-article-metadata",
+      "source": "examples/projects/markdown-site/failures/invalid-article.md",
+      "path": "failures/invalid-article.md",
+      "contentType": "text/markdown; charset=utf-8; variant=CommonMark; front-matter=yaml",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    },
+    {
       "id": "readme",
       "source": "examples/projects/markdown-site/README.md",
       "path": "README.md",
@@ -193,15 +225,27 @@
       "source": "content-articles-first-build-md",
       "argv": [
         "validate",
-        "$source"
-      ]
+        "$source",
+        "--content-type",
+        "text/markdown; charset=utf-8; variant=CommonMark; front-matter=yaml",
+        "--schema",
+        "https://cem.dev/ns/data/markdown/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "description": "Validate saved Markdown source and opt-in YAML front matter, including typed weight metadata.",
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
     },
     {
       "id": "preview-article",
       "name": "Preview Markdown article",
       "kind": "conversion",
       "source": "content-articles-first-build-md",
-      "description": "Preview the saved Markdown body on its own. Use Build and preview site for the complete shared layout and assets.",
+      "description": "Convert the saved article body to exact HTML without front matter. Relative links and images are published as references; use the full site build for its assets and shared layout.",
       "argv": [
         "convert",
         "$source",
@@ -212,8 +256,103 @@
         "--to-content-type",
         "text/html",
         "--to-schema",
-        "https://cem.dev/ns/data/html/1"
+        "https://cem.dev/ns/data/html/1",
+        "--output-color-type",
+        "none"
+      ],
+      "dependencies": [
+        "expected-article-body"
+      ],
+      "expectedOutput": "expected-article-body"
+    },
+    {
+      "id": "inspect-article",
+      "name": "Inspect generated article structure",
+      "kind": "inspection",
+      "source": "content-articles-first-build-md",
+      "description": "Inspect the retained generated HTML projection of the saved Markdown body. This is not the Markdown parser source AST.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "text/markdown; charset=utf-8; variant=CommonMark; front-matter=yaml",
+        "--schema",
+        "https://cem.dev/ns/data/markdown/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "http://www.w3.org/1999/xhtml",
+        "Build a small site",
+        "../images/harbor.svg",
+        "@byte-offset="
       ]
+    },
+    {
+      "id": "query-article-outline",
+      "name": "Query the generated article outline",
+      "kind": "query",
+      "source": "content-articles-first-build-md",
+      "dependencies": [
+        "article-outline-query",
+        "expected-article-outline"
+      ],
+      "description": "Query the generated HTML heading, image/link counts and image reference through an explicit caller-bound XHTML prefix; metadata title remains a separate layout input.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "text/markdown; charset=utf-8; variant=CommonMark; front-matter=yaml",
+        "--schema",
+        "https://cem.dev/ns/data/markdown/1",
+        "--query-file",
+        "$article-outline-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--namespace",
+        "h=http://www.w3.org/1999/xhtml",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "expected-article-outline"
+    },
+    {
+      "id": "repair-article-metadata",
+      "name": "Repair the article metadata type",
+      "kind": "validation",
+      "source": "invalid-article-metadata",
+      "description": "An intentional weight string violates the opt-in native metadata contract. Inspect the original source range, replace it with an integer, save and revalidate.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "text/markdown; charset=utf-8; variant=CommonMark; front-matter=yaml",
+        "--schema",
+        "https://cem.dev/ns/data/markdown/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.markdown.front_matter_invalid",
+        "location": {
+          "line": 2,
+          "column": 1,
+          "byteOffset": 4
+        }
+      },
+      "repair": {
+        "find": "weight: heavy",
+        "replace": "weight: 1"
+      }
     }
   ]
 }

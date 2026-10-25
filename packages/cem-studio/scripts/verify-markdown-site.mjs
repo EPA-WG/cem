@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
 /** Ordinary navigator workflow in the delivery gate's isolated browser profile. */
 export async function verifyMarkdownSite({ page, context, url }) {
+    const definition = JSON.parse(await readFile(new URL('../../../examples/projects/markdown-site/example.json', import.meta.url), 'utf8'));
+    const fixtureText = id => readFile(new URL(`../../../${definition.sources.find(item => item.id === id).source}`, import.meta.url), 'utf8');
+    const expectedBody = await fixtureText('expected-article-body');
+    const expectedOutline = JSON.parse(await fixtureText('expected-article-outline'));
+    const repair = definition.configurations.find(item => item.id === 'repair-article-metadata');
     const ready = async () => { await page.waitForFunction(() => globalThis.__cemStudioApplication); await settle(); };
     const settle = () => page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
     const withProject = async operation => {
@@ -35,6 +41,8 @@ export async function verifyMarkdownSite({ page, context, url }) {
         const snapshot = globalThis.__cemStudioApplication.workbench.snapshot();
         const preview = snapshot.projectPreview;
         return { projectId: snapshot.navigation.selection.project, file: snapshot.navigation.selection.file,
+            commandStatus: snapshot.status, commandOutput: snapshot.projection?.output?.text,
+            commandDiagnostics: snapshot.projection?.diagnostics ?? snapshot.validation?.diagnostics,
             comparison: preview.comparison, pinId: preview.pinId, pinError: preview.pinError, pins: preview.pins, status: preview.attempt?.status, entryArtifact: preview.entryArtifact, entryError: preview.entryError?.message, diagnostics: preview.attempt?.diagnostics?.map(item => item.code),
             runId: preview.projection?.buildRun.id, artifact: preview.artifactPath,
             artifacts: preview.projection?.buildRun.artifacts.map(item => ({ path: item.path, sha256: item.sha256 })),
@@ -56,7 +64,51 @@ export async function verifyMarkdownSite({ page, context, url }) {
             await globalThis.__cemStudioApplication.workbench.openEntity(`project=${project}&file=${file}`);
         }, { project, file }); await settle();
     };
-    await page.goto(`${url}/?sample=markdown-site&build=build-site`); await ready();
+    const select = async route => {
+        await page.evaluate(route => globalThis.__cemStudioApplication.workbench.openEntity(new URLSearchParams(route).toString()), route); await settle();
+    };
+    const runConfiguration = async (project, configuration) => {
+        await select({ project, configuration, build: 'build-site' });
+        const button = page.getByRole('button', { name: 'Run configuration', exact: true });
+        if (!await button.isVisible()) {
+            await page.locator('cem-expansion[label="Commands and results"] > [part~=root] [part~=header]').first().click(); await settle();
+        }
+        await button.click(); await settle(); return state();
+    };
+    const validateConfiguration = async project => {
+        await select({ project, configuration: repair.id, build: 'build-site' });
+        const button = page.getByRole('button', { name: 'Validate persisted revision', exact: true });
+        if (!await button.isVisible()) {
+            await page.locator('cem-expansion[label="Editor details"] > [part~=root] [part~=header]').first().click(); await settle();
+        }
+        await button.click(); await settle(); return state();
+    };
+    const runArticleCommands = async (project, title = 'Build a small site', headingId = 'build-a-small-site') => {
+        const inspected = await runConfiguration(project, 'inspect-article');
+        assert.equal(inspected.commandStatus, 'projected', JSON.stringify(inspected));
+        const previewed = await runConfiguration(project, 'preview-article');
+        assert.equal(previewed.commandStatus, 'projected', JSON.stringify(previewed));
+        assert.equal(previewed.commandOutput, expectedBody.replaceAll('Build a small site', title).replace('id="build-a-small-site"', `id="${headingId}"`));
+        assert.ok(!previewed.commandOutput.includes('title: '), 'Standalone HTML omits YAML front matter');
+        const outline = await runConfiguration(project, 'query-article-outline');
+        assert.equal(outline.commandStatus, 'projected', JSON.stringify(outline));
+        const report = JSON.parse(outline.commandOutput);
+        const values = report.language === 'xpath' ? report.result.sequence.items.map(item => item.value.lexicalValue) : report.result.items.map(item => item.value);
+        assert.deepEqual(values, expectedOutline.map(value => typeof value === 'string' ? value.replaceAll('Build a small site', title) : value));
+    };
+    await page.goto(`${url}/?collection=content-types-documents-ui`); await ready();
+    const record = await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().navigation.children.find(item => item.route.sample === 'markdown-site'));
+    assert.ok(record?.description, 'Documents and UI exposes the ordinary Markdown site project');
+    await page.getByRole('list', { name: 'Folder contents' }).getByRole('button', { name: record.name, exact: true }).click(); await settle();
+    assert.equal(new URL(page.url()).searchParams.get('collection'), 'content-types-documents-ui');
+    const article = 'content-articles-first-build-md';
+    const readonlySource = page.locator('cem-source-editor[readonly] [role=textbox]');
+    await select({ collection: 'content-types-documents-ui', sample: 'markdown-site', file: article, build: 'build-site' });
+    const sampleArticle = await readonlySource.evaluate(element => element.value);
+    assert.equal(await readonlySource.getAttribute('aria-readonly'), 'true');
+    await select({ collection: 'content-types-documents-ui', sample: 'markdown-site', file: repair.source, build: 'build-site' });
+    const sampleInvalid = await readonlySource.evaluate(element => element.value);
+    await select({ collection: 'content-types-documents-ui', sample: 'markdown-site', build: 'build-site' });
     const sample = await build();
     console.log('[cem-studio:markdown-site] catalog build ready');
     assert.equal(sample.artifacts.length, 7); await viewReady('CEM field notes');
@@ -82,6 +134,50 @@ export async function verifyMarkdownSite({ page, context, url }) {
     await page.getByRole('dialog').getByRole('button', { name: 'Clone', exact: true }).click(); await settle();
     const projectId = (await state()).projectId;
     assert.ok(projectId);
+    await runArticleCommands(projectId);
+    const invalidMetadata = await validateConfiguration(projectId);
+    const metadataDiagnostic = invalidMetadata.commandDiagnostics?.find(item => item.code === repair.expectedValidation.errorCode);
+    const invalidResource = definition.sources.find(item => item.id === repair.source);
+    assert.ok(metadataDiagnostic, JSON.stringify(invalidMetadata));
+    assert.equal(metadataDiagnostic.severity, 'error'); assert.equal(metadataDiagnostic.uri, `studio://${projectId}/${invalidResource.path}`);
+    for (const [key, value] of Object.entries(repair.expectedValidation.location ?? {})) assert.equal(metadataDiagnostic[key] ?? null, value);
+    await open(projectId, repair.source);
+    assert.equal(await page.getByRole('textbox', { name: 'CEM source', exact: true }).evaluate(element => element.value), sampleInvalid);
+    const repairedMetadata = sampleInvalid.replace(repair.repair.find, repair.repair.replace);
+    assert.notEqual(repairedMetadata, sampleInvalid); await save(repairedMetadata);
+    assert.equal((await validateConfiguration(projectId)).commandStatus, 'valid');
+    // Follow an actual generated artifact's native source range through the shared Results control.
+    await runConfiguration(projectId, 'build-site');
+    const inspector = page.locator('cem-expansion[label="Commands and results"] > [part~=root] > [part~=heading] > [part~=header]');
+    if (await inspector.getAttribute('aria-expanded') === 'false') { await inspector.click(); await settle(); }
+    await page.getByRole('tab', { name: 'Results', exact: true }).click(); await settle();
+    await page.getByRole('combobox', { name: 'Output artifact', exact: true }).click();
+    await page.getByRole('option', { name: 'generated/articles/first-build.html', exact: true }).click(); await settle();
+    const origin = await page.evaluate(async projectId => {
+        const { workbench, repository } = globalThis.__cemStudioApplication, current = workbench.snapshot();
+        const frame = current.projection.provenance.map((frame, index) => ({ ...frame, index })).find(frame =>
+            frame.uri === `studio://${projectId}/content/articles/first-build.md` && frame.range?.len > 0 && frame.outputRange?.len > 0);
+        if (!frame) throw new Error('Markdown artifact has no selectable original source range');
+        const stored = (await repository.query({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation: 'export-project', parameters: { projectId } })).value;
+        const bytes = stored.contents['content-articles-first-build-md'];
+        return { ...frame, authored: new TextDecoder().decode(bytes.slice(frame.range.start, frame.range.start + frame.range.len)), sourceLength: bytes.byteLength };
+    }, projectId);
+    assert.ok(origin.outputUri.endsWith('/generated/articles/first-build.html'));
+    assert.ok(origin.range.start >= 0 && origin.range.start + origin.range.len <= origin.sourceLength);
+    await page.getByRole('tab', { name: 'Provenance', exact: true }).click(); await settle();
+    await page.getByRole('listbox', { name: 'Source-map provenance', exact: true }).selectOption(String(origin.index)); await settle();
+    const selectedOrigin = await page.evaluate(() => {
+        const current = globalThis.__cemStudioApplication.workbench.snapshot();
+        return { resourceId: current.resourceId, selection: current.selection, text: current.draft.slice(current.selection?.start, current.selection?.end), error: current.navigationError };
+    });
+    assert.equal(selectedOrigin.error, undefined); assert.equal(selectedOrigin.resourceId, article);
+    assert.equal(new URL(page.url()).searchParams.get('file'), article);
+    assert.equal(selectedOrigin.selection.kind, 'provenance'); assert.equal(selectedOrigin.selection.byteStart, origin.range.start);
+    assert.equal(selectedOrigin.text, origin.authored);
+    assert.deepEqual(await page.getByRole('textbox', { name: 'CEM source', exact: true }).evaluate(element => [element.selectionStart, element.selectionEnd]),
+        [selectedOrigin.selection.start, selectedOrigin.selection.end]);
+    await select({ project: projectId, build: 'build-site' });
+    console.log('[cem-studio:markdown-site] saved article commands, exact metadata repair and generated-to-source navigation passed');
     await click('Build entry settings');
     const setEntry = async value => { await page.getByRole('textbox', { name: 'Build entry artifact', exact: true }).fill(value); await click('Save build entry'); };
     await setEntry('../outside.html');
@@ -89,10 +185,10 @@ export async function verifyMarkdownSite({ page, context, url }) {
     assert.equal((await state()).entryArtifact, 'generated/index.html');
     await setEntry('generated/articles/first-build.html'); await build(); await viewReady('Build a small site');
     await setEntry('generated/index.html');
-    const article = 'content-articles-first-build-md';
     await open(projectId, article);
     const editor = page.getByRole('textbox', { name: 'CEM source', exact: true });
     const original = await editor.evaluate(element => element.value);
+    assert.equal(original, sampleArticle);
     await save(original.replaceAll('Build a small site', 'Build an edited site'));
     const edited = await build();
     assert.equal(edited.file, article);
@@ -214,7 +310,17 @@ export async function verifyMarkdownSite({ page, context, url }) {
         assert.equal((await state()).comparison, undefined);
         assert.equal((await state()).pinId, undefined); assert.equal((await state()).runId, current.runId);
         assert.deepEqual((await state()).artifacts, current.artifacts); assert.equal((await state()).pins.length, 0);
+        await runArticleCommands(portableId, 'Only the portable copy', 'only-the-portable-copy');
+        assert.equal((await validateConfiguration(portableId)).commandStatus, 'valid');
+        await open(portableId, repair.source);
+        assert.equal(await editor.evaluate(element => element.value), repairedMetadata, 'Saved metadata repair survives portable copying and offline reopening');
+        await select({ collection: 'content-types-documents-ui', sample: 'markdown-site', file: article, build: 'build-site' });
+        assert.equal(await readonlySource.evaluate(element => element.value), sampleArticle, 'Saved article changes never alter the catalog source');
+        await select({ collection: 'content-types-documents-ui', sample: 'markdown-site', file: repair.source, build: 'build-site' });
+        assert.equal(await readonlySource.evaluate(element => element.value), sampleInvalid, 'Saved metadata repairs never alter the catalog failure example');
     } finally { await context.setOffline(false); }
     console.log('[cem-studio:markdown-site] portable independent copy and offline rebuild passed');
-    return { outputs: 7, relativeNavigation: true, staticAssets: true, editRepair: true, sharedLayout: true, provenance: true, portableCopies: true, entryArtifact: true, pinnedSnapshots: true, buildComparison: true, offline: true };
+    return { outputs: 7, catalog: true, readonlyOriginals: true, articleCommands: true, exactArticlePreview: true, articleOutline: true,
+        savedMetadataRepair: true, sourceRangeNavigation: true, relativeNavigation: true, staticAssets: true, editRepair: true,
+        sharedLayout: true, provenance: true, portableCopies: true, entryArtifact: true, pinnedSnapshots: true, buildComparison: true, offline: true };
 }

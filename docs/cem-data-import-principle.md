@@ -151,6 +151,16 @@ artifact, and collection/source-map views expose transformation outputs. They
 are output-artifact inspection contracts, not external-document ingestion.
 Do not use these inspection views as substitutes for CEM data import.
 
+Native Markdown lowering and the typed HTML recovery converter explicitly mark
+their generated HTML as a passive projection before common retained-tree import.
+That private native profile retains resource/script policy facts but defers their
+rejection for non-executing inspection and queries; it grants no fetching or
+execution. Authored HTML source parsing remains strict, including a reparse of
+exported projection bytes. Event-handler policy and document/node/depth limits
+still apply. Source URIs, metadata and source-map annotations never confer this
+profile. Standalone Markdown inspection/query positions describe generated HTML;
+original Markdown metadata/body origins are carried by the explicit site graph.
+
 The CEM-QL JSON API files and function-companion manifests encode explicit
 control/value boundaries. `embedded.rs` parses a named waiver configuration.
 These are not external document import implementations. Browser template

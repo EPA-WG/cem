@@ -7,7 +7,7 @@ use cem_ml::{
         ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead, ResolvedWrite,
         ResolverDiagnostic, ResourceResolver,
     },
-    source_map::TransformKind,
+    source_map::{FrameSpan, TransformKind},
     transform_config::{
         parse_transform_graph_config, TransformGraphParseRequest, TRANSFORM_CONFIG_SCHEMA_URI,
     },
@@ -173,6 +173,79 @@ fn ordinary_site_matches_expected_outputs_and_preserves_content_and_partial_orig
     }
     let again = run(sources).unwrap();
     assert_eq!(publications(&result), publications(&again));
+}
+
+#[test]
+fn ordinary_site_keeps_metadata_title_and_body_heading_origins_independent() {
+    let mut sources = resources();
+    let path = "content/articles/first-build.md";
+    let source_uri = format!("{ROOT}{path}");
+    replace(
+        &mut sources,
+        path,
+        "title: Build a small site",
+        "title: Café publishing title",
+    );
+    let source = String::from_utf8(sources[&source_uri].bytes.clone()).unwrap();
+    let result = run(sources).unwrap();
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(result.artifacts.len(), 7);
+    let artifact = result
+        .artifacts
+        .iter()
+        .find(|artifact| {
+            artifact.destination.as_deref()
+                == Some("studio://markdown-site/generated/articles/first-build.html")
+        })
+        .unwrap();
+    let html = artifact.primary.as_str().unwrap();
+    assert!(html.contains("<title>Café publishing title</title>"));
+    assert!(html.contains("<h1 id=\"build-a-small-site\" tabindex=\"-1\">Build a small site</h1>"));
+
+    for (text, source_offset) in [
+        (
+            "Café publishing title",
+            source.find("Café publishing title").unwrap(),
+        ),
+        (
+            "Build a small site",
+            source.find("# Build a small site").unwrap() + 2,
+        ),
+    ] {
+        let output_offset = html.find(text).unwrap() as u64;
+        let source_offset = source_offset as u64;
+        let origins: Vec<_> = artifact
+            .output_spans
+            .iter()
+            .filter(|span| {
+                span.output_range.start <= output_offset
+                    && output_offset < span.output_range.start + span.output_range.len as u64
+            })
+            .map(|span| &span.origin)
+            .collect();
+        assert!(origins.iter().any(|origin| {
+            origin.frames.iter().any(|frame| {
+                matches!(&frame.transform, TransformKind::SourceBoundary { uri } if uri == &source_uri)
+                && matches!(&frame.span, FrameSpan::Single(range)
+                    if range.start <= source_offset
+                        && source_offset < range.start + range.len as u64)
+            })
+        }), "{text} must point to its own original Markdown bytes: {origins:?}");
+    }
+    for partial in ["chrome.cemt", "content.cemt"] {
+        let uri = format!("{ROOT}layouts/partials/{partial}");
+        assert!(artifact.output_spans.iter().any(|span| {
+            span.origin.frames.iter().any(|frame| {
+                matches!(&frame.transform, TransformKind::SourceBoundary { uri: source } if source == &uri)
+            })
+        }), "the shared partial keeps its own origin: {partial}");
+    }
+    assert!(!artifact.output_spans.iter().any(|span| {
+        span.origin.frames.iter().any(|frame| {
+            matches!(&frame.transform, TransformKind::SourceBoundary { uri }
+                if uri.ends_with(".md") && uri != &source_uri)
+        })
+    }));
 }
 
 fn publications(

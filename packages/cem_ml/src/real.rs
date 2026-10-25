@@ -130,7 +130,7 @@ use crate::validation::css::CssDocumentAst;
 use crate::validation::csv::CsvDocumentAst;
 use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::html::{
-    html_document_ast_from_source_bytes, HtmlDocumentAst, HtmlSourceValidationRequest,
+    html_document_ast_from_passive_projection, HtmlDocumentAst, HtmlSourceValidationRequest,
 };
 use crate::validation::json::{
     json_document_ast_from_source_bytes, JsonDocumentAst, JsonSourceValidationRequest, JsonValueAst,
@@ -3730,21 +3730,11 @@ fn convert_transform_graph_artifact(
             {
                 let source_uri = input.uri.as_deref().unwrap_or(&conversion.id);
                 let (document, mut parse_diagnostics) =
-                    html_document_ast_from_source_bytes(HtmlSourceValidationRequest {
+                    html_document_ast_from_passive_projection(HtmlSourceValidationRequest {
                         bytes: encoded.bytes.as_ref(),
                         source_uri,
                         content_type: source.content_type.as_deref(),
                     });
-                // A typed graph conversion only recovers generated HTML into a
-                // DOM projection; it does not dereference URLs. Preserve the
-                // resource attributes for a later deployment/export stage
-                // without treating this internal parse as a resource access.
-                parse_diagnostics.retain(|diagnostic| {
-                    !matches!(
-                        diagnostic.code.as_str(),
-                        "cem.html.external_resource_rejected" | "cem.html.script_rejected"
-                    )
-                });
                 diagnostics.append(&mut parse_diagnostics);
                 if has_hard_transform_diagnostic(diagnostics) {
                     return None;
@@ -8197,17 +8187,11 @@ fn markdown_document_ast_to_html_dom(
         return None;
     }
     let (parsed, mut html_diagnostics) =
-        html_document_ast_from_source_bytes(HtmlSourceValidationRequest {
+        html_document_ast_from_passive_projection(HtmlSourceValidationRequest {
             bytes: html.content.as_bytes(),
             source_uri,
             content_type: Some(HTML_CONTENT_TYPE),
         });
-    html_diagnostics.retain(|diagnostic| {
-        !matches!(
-            diagnostic.code.as_str(),
-            "cem.html.external_resource_rejected" | "cem.html.script_rejected"
-        )
-    });
     diagnostics.append(&mut html_diagnostics);
     if diagnostics
         .iter()
@@ -14999,6 +14983,30 @@ mod tests {
         assert_eq!(public.from_format, before.from_format);
         assert_eq!(public.adapter_id, before.adapter_id);
         assert_eq!(public.diagnostics, loaded.diagnostics);
+    }
+
+    #[test]
+    fn markdown_passive_projection_retains_resource_references_for_common_import() {
+        for destination in ["../images/harbor.svg", "https://example.test/harbor.svg"] {
+            let source = format!("# Article\n\n![Harbor]({destination})\n");
+            let input = identified_input(
+                source.as_bytes(),
+                "docs/article.md",
+                "text/markdown; charset=utf-8; variant=CommonMark",
+                MARKDOWN_SCHEMA_URI,
+            );
+            let loaded = load_document_input(&input, &ctx());
+            assert!(!loaded
+                .diagnostics
+                .iter()
+                .any(|item| item.severity.is_hard_violation()));
+            let native = loaded.ast_stream.expect("generated HTML lifecycle");
+            let retained = crate::import::retain_lifecycle(Arc::new(native));
+            assert!(
+                retained.is_ok(),
+                "passive image reference {destination}: {retained:?}"
+            );
+        }
     }
 
     #[test]
