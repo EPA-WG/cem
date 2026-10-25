@@ -1,5 +1,5 @@
 use crate::diagnostics::{Diagnostic, Severity};
-use crate::schema::document_model::compile_schema_document_model;
+use crate::schema::document_model::{compile_schema_document_model, SchemaDocumentModel};
 use crate::schema::package_sources::builtin_schema_package_source;
 use crate::schema::registry::{
     content_type_essence, RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_NAMESPACE_URI,
@@ -18,8 +18,11 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
+mod parser_contract;
+pub(crate) use parser_contract::compile_parser_contract;
+
 const RELAX_NG_PACKAGE_ID: &str = "relax-ng";
-const RELAX_NG_FACT_BEHAVIOR: &str = "relax-ng-report-fact";
+pub(crate) const RELAX_NG_FACT_BEHAVIOR: &str = "relax-ng-report-fact";
 
 #[derive(Debug, Clone, Copy)]
 pub struct RelaxNgSourceValidationRequest<'a> {
@@ -379,6 +382,10 @@ impl RelaxNgSchemaContractCatalog {
 
     pub fn from_schema_source(schema_source: &str) -> Self {
         let model = compile_schema_document_model(RELAX_NG_SCHEMA_URI, schema_source);
+        Self::from_document_model(&model)
+    }
+
+    pub(crate) fn from_document_model(model: &SchemaDocumentModel) -> Self {
         let fact_bindings = model
             .constraints
             .values()
@@ -422,6 +429,29 @@ pub fn validate_relax_ng_source_bytes(
 pub fn relax_ng_document_ast_from_source_bytes(
     request: RelaxNgSourceValidationRequest<'_>,
 ) -> (Option<RelaxNgDocumentAst>, Vec<Diagnostic>) {
+    if builtin_schema_package_source(RELAX_NG_PACKAGE_ID).is_none() {
+        return (
+            None,
+            vec![Diagnostic {
+                code: "cem.schema_asset.missing".into(),
+                severity: Severity::Error,
+                uri: Some(request.source_uri.into()),
+                message: "RELAX NG source requires an admitted original schema parser contract"
+                    .into(),
+                ..Default::default()
+            }],
+        );
+    }
+    relax_ng_document_ast_from_source_bytes_with_contracts(
+        request,
+        RelaxNgSchemaContractCatalog::from_builtin(),
+    )
+}
+
+pub(crate) fn relax_ng_document_ast_from_source_bytes_with_contracts(
+    request: RelaxNgSourceValidationRequest<'_>,
+    contracts: &RelaxNgSchemaContractCatalog,
+) -> (Option<RelaxNgDocumentAst>, Vec<Diagnostic>) {
     let syntax_kind = relax_ng_syntax_kind(request.content_type);
     let source = RelaxNgDocumentSource::from_request(request, syntax_kind);
     let line_ending = std::str::from_utf8(request.bytes)
@@ -449,8 +479,7 @@ pub fn relax_ng_document_ast_from_source_bytes(
         syntax_kind,
         facts: facts.clone(),
     };
-    let diagnostics =
-        validate_relax_ng_parse_report(&report, RelaxNgSchemaContractCatalog::from_builtin());
+    let diagnostics = validate_relax_ng_parse_report(&report, contracts);
     (
         Some(RelaxNgDocumentAst {
             source,

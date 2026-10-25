@@ -3676,7 +3676,8 @@ skip optional executable contracts until admission; artifact consumption require
 its exact admitted body. Advisory `schemaAssetEmbeddedSourcesV1` metadata and
 binary-body omission checks describe this build boundary, without granting
 admission or claiming download, allocator or checkpoint savings.
-Studio currently supplies trusted CSV grants. Its native command planner resolves
+Studio supplies exact trusted grants for CSV, Markdown, SCSS, XSLT and Relax NG
+from the optional deployment's explicit allowlist. Its native command planner resolves
 used project/resource inputs, output scopes and graph dependencies before a
 command or preview; shared preparation activates those requirements through the
 existing HTTP demand contract before execution. The shell has no unconditional
@@ -3684,9 +3685,26 @@ CSV startup request, so opening an HTML resource needs no optional package.
 Unrelated project resources do not demand their packages. Source snapshots,
 original physical runtimes and host witnesses remain checked throughout
 preparation and execution. Cancellation stops the caller while group-owned
-publication finishes before later work. Other
-excluded formats require corresponding trusted host integration before use;
-the ordinary complete deployment remains the general Studio release.
+publication finishes before later work. Package identities, demand URLs, project
+resources and status cannot extend those grants. SCSS selection uses its declared
+content type/schema, without guessing the schema from a filename. Markdown HTML
+conversion, XSLT/Relax NG source import/formatting and SCSS-to-CSS conversion use
+their existing native adapters and artifacts. SCSS source validation remains
+passive; Parse presents the expanded CSS AST/events with SCSS origin frames,
+without reparsing the original bytes as CEM. Source DOM/JSON projections,
+same-schema SCSS source export and HTML-colored CSS command output are
+unavailable. CSS expansion keeps its explicit
+resolver/execution policy, and Relax NG schema-source support does not imply
+arbitrary instance validation. In the optional profile, XSLT source parsing and
+formatting use admitted native contracts. XSLT/Relax NG Parse presents their
+native AST/events without generic CEM validation; source DOM/JSON projections
+refuse explicitly. Markdown retains its existing HTML Parse projections.
+Contextless XSLT bundle compilation
+refuses until the compiler can consume those contracts. Complete-profile bounded
+XSLT execution remains available. Markdown, SCSS, XSLT and Relax NG parser/report
+contracts use their retained original schema owners; pending/invalid models have
+no embedded fallback.
+The ordinary complete deployment remains the general Studio release.
 The shared `CemSchemaAssetPackLoader` now performs bounded acquisition through
 the ordinary HTTP transport, authenticates the index through the native-compiled
 pin and reimports retained original bytes on a distinct initialized heap. It

@@ -19,12 +19,22 @@ const maps = await json(resolve(output, 'module-map.json'));
 const index = await json(resolve(output, 'schema-assets/index.json'));
 const selected = index.sources.find(source => source.packageId === 'csv' && source.path.endsWith('/formatters/compact.cemt'));
 assert.ok(selected);
+const formats = await Promise.all([
+    { packageId: 'markdown', path: 'basic-document.md', contentType: 'text/markdown; variant=CommonMark', schema: 'https://cem.dev/ns/data/markdown/1', expected: 'CEM Markdown Example' },
+    { packageId: 'scss', path: 'basic.scss', contentType: 'text/x-scss', schema: 'https://cem.dev/ns/data/scss/1',
+        targetContentType: 'text/css', targetSchema: 'https://cem.dev/ns/data/css/1', expected: 'card' },
+    { packageId: 'xslt', path: 'basic-stylesheet.xsl', contentType: 'application/xslt+xml', schema: 'https://cem.dev/ns/transform/xslt/1', expected: 'stylesheet' },
+    { packageId: 'relax-ng', path: 'basic-schema.rng', contentType: 'application/relax-ng+xml', schema: 'https://cem.dev/ns/data/relax-ng/1', expected: 'grammar' },
+].map(async format => ({ ...format, source: await readFile(resolve(workspace, 'packages/cem_ml/schema-packages', format.packageId, 'v1/examples', format.path), 'utf8') })));
+const packageIds = ['csv', ...formats.map(format => format.packageId)];
 assert.equal(build.deploymentProfile, 'schema-assets');
 assert.equal(build.automaticRecovery, false);
 assert.equal(build.packagePublication, 'explicit-host-admission');
 assert.equal(build.embeddedBodies, 'bootstrap-only');
 assert.equal(build.embeddingProfile.externalBodies, true);
 assert.ok(build.embeddingProfile.externalPackages.includes('csv'));
+assert.deepEqual(build.schemaPackageHostConfiguration.schemaPackageReplacementGrants,
+    packageIds.map(packageId => ({ packageId, expectedOrigin: { kind: 'builtin' }, replacementManifestUri: `schema-packages/${packageId}/v1/package.cem` })));
 assert.equal((await json(resolve(ordinary, 'build.json'))).deploymentProfile, undefined);
 assert.equal((await json(resolve(ordinary, 'cache-inventory.json'))).groups.some(group => group.id === 'schema-assets'), false);
 const packFiles = await files(pack);
@@ -86,6 +96,7 @@ try {
     const page = await context.newPage();
     await openStudio(page, `${origin}/optional/index.html`);
     const studioDemand = await verifyStudioDemand(page);
+    const formatDemand = await verifyFormatDemands(context, `${origin}/optional/index.html`, formats);
     const outputPage = await context.newPage();
     await openStudio(outputPage, `${origin}/optional/index.html?sample=login&file=login-html`);
     const outputDrivenDemand = await verifyStudioDemand(outputPage, true);
@@ -132,6 +143,7 @@ try {
     await page.reload({ waitUntil: 'load' });
     await ready(page);
     const offlineStudioDemand = await verifyStudioDemand(page);
+    const offlineFormatDemand = await verifyFormatDemands(context, `${origin}/optional/index.html`, formats);
     const command = await versionCommand(page);
     assert.equal(command.exitCode, 0);
     assert.equal(command.runtime, 'wasm-browser-worker');
@@ -216,11 +228,11 @@ try {
     await loaderProbe.close();
     assert.equal(evidence.inventoryFiles, packFiles.length);
     assert.equal(evidence.retirementRefused, true);
-    const packageHandoff = await verifyOwnedPackageHandoff(page, maps);
-    const workerPackageHandoff = await verifyWorkerPackageHandoff(page, maps);
+    const packageHandoff = await verifyOwnedPackageHandoff(page, maps, packageIds);
+    const workerPackageHandoff = await verifyWorkerPackageHandoff(page, maps, formats);
     const renderingPackageHandoffs = {};
     for (const { mode, probe } of renderingProbes) {
-        renderingPackageHandoffs[mode] = await verifyRenderingPackageHandoff(probe, maps, mode);
+        renderingPackageHandoffs[mode] = await verifyRenderingPackageHandoff(probe, maps, mode, formats);
         await probe.close();
     }
     disconnected = false;
@@ -246,7 +258,7 @@ try {
     const report = { schemaVersion: 1, status: 'passed', deploymentDigest: build.deploymentDigest,
         nativeErrors: graphReport.summary.errorCount + graphReport.summary.fatalCount, emittedPackFiles: packFiles.length, scopedCacheGroups: optionalNames.length,
         defaultCacheIsolation: true, defaultOutputPreserved: true, coldOfflineStudio: true, studioDemand, outputDrivenDemand,
-        selectedCsvResourceDemand: true, offlineStudioDemand, command, ...evidence, packageHandoff, workerPackageHandoff, renderingPackageHandoffs,
+        selectedCsvResourceDemand: true, offlineStudioDemand, formatDemand, offlineFormatDemand, command, ...evidence, packageHandoff, workerPackageHandoff, renderingPackageHandoffs,
         automaticRecovery: false, packagePublication: 'explicit-host-admission', disconnectedRequests };
     const reportPath = resolve(workspace, 'dist/reports/cem-studio/schema-assets-profile.json');
     await mkdir(resolve(workspace, 'dist/reports/cem-studio'), { recursive: true });
@@ -299,6 +311,98 @@ async function verifyStudioDemand(page, outputFirst = false) {
         return { ...status, startup, outputFirst, nativeCommand: true, nativeInvalidCsvRefused: true, externalCsvFormatter: true };
     }, outputFirst);
 }
+async function verifyFormatDemands(context, url, formats) {
+    const evidence = {};
+    for (const format of formats) {
+        const page = await context.newPage(), packRequests = [];
+        page.on('request', request => { if (new URL(request.url()).pathname.includes('/schema-assets/')) packRequests.push(request.url()); });
+        try {
+            await openStudio(page, url);
+            assert.equal(packRequests.length, 0, `${format.packageId}: startup acquired optional assets before demand`);
+            evidence[format.packageId] = await page.evaluate(async format => {
+                const app = globalThis.__cemStudioApplication, startup = app.packageStatus();
+                const ensure = (condition, message) => { if (!condition) throw Error(`${format.packageId}: ${message}`); };
+                ensure(startup.state === 'idle' && startup.demandCount === 0 && startup.runtimeCount >= 4, 'unexpected startup publication');
+                const options = { bytes: new TextEncoder().encode(format.source), uri: format.path,
+                    contentType: format.contentType, schema: format.schema, projectId: 'format-demand' };
+                const commandUri = `studio://format-demand/${format.path}`;
+                console.info(`[format-demand:${format.packageId}] parse`);
+                const parsed = await app.validator.parseResource(options);
+                ensure(parsed.result.exitCode === 0 && parsed.output?.text.includes('@doc') && parsed.output.text.includes('{ast'),
+                    'native parsing did not produce its CEM AST presentation');
+                ensure(!parsed.result.diagnostics.items.some(diagnostic => ['error', 'fatal'].includes(diagnostic.severity)),
+                    'native parsing returned hard diagnostics despite its successful CLI presentation');
+                const expandsCss = format.packageId === 'scss';
+                console.info(`[format-demand:${format.packageId}] ${expandsCss ? 'CSS expansion' : 'format/color'}`);
+                const formatted = await app.validator.runResourceCommand({ ...options, argv: ['convert', commandUri,
+                    '--content-type', format.contentType, '--schema', format.schema,
+                    '--to-content-type', format.targetContentType ?? format.contentType, '--to-schema', format.targetSchema ?? format.schema,
+                    ...(expandsCss ? ['--output-color-type', 'none']
+                        : ['--cemt-formatter-profile', 'tabular', '--cemt-color-profile', 'html'])] });
+                ensure(formatted.result.exitCode === 0 && formatted.output?.text,
+                    expandsCss ? 'native SCSS-to-CSS expansion failed' : 'externally delivered formatter failed');
+                if (expandsCss) {
+                    ensure(formatted.output.text.includes('.card') && formatted.output.text.includes('.card__title')
+                        && formatted.output.text.includes('color:') && /font-weight:\s*700/.test(formatted.output.text),
+                        'native SCSS expansion lost its CSS rules');
+                } else {
+                    ensure(formatted.output.text.includes('<span'), 'externally delivered colorizer did not produce HTML syntax markup');
+                    // Native syntax output can be a pre or sibling span fragment.
+                    // Read under an inert XML root to compare decoded text without
+                    // applying HTML styles or triggering a multi-root parsererror.
+                    const syntax = new DOMParser().parseFromString(`<artifact>${formatted.output.text}</artifact>`, 'application/xml');
+                    ensure(!syntax.querySelector('parsererror') && syntax.documentElement.textContent.includes(format.expected),
+                        'formatted/colorized source lost its semantic text');
+                }
+                if (format.packageId === 'markdown') {
+                    console.info(`[format-demand:${format.packageId}] HTML conversion`);
+                    const html = await app.validator.runResourceCommand({ ...options, argv: ['convert', commandUri,
+                        '--content-type', format.contentType, '--schema', format.schema, '--to-content-type', 'text/html',
+                        '--to-schema', 'https://cem.dev/ns/data/html/1', '--output-color-type', 'none'] });
+                    ensure(html.result.exitCode === 0 && new DOMParser().parseFromString(html.output.text, 'text/html').querySelector('h1')?.textContent === format.expected,
+                        'native Markdown HTML conversion failed');
+                }
+                const status = app.packageStatus();
+                ensure(status.state === 'idle' && status.demandCount === 1 && status.runtimeCount === startup.runtimeCount,
+                    'demand did not publish to the complete original physical cohort');
+                return { startup, ...status, nativeParse: true,
+                    ...(expandsCss ? { nativeCssExpansion: true }
+                        : { externalFormatter: true, externalColorizer: true }),
+                    ...(format.packageId === 'markdown' && { nativeHtmlConversion: true }) };
+            }, format);
+            // A fresh physical cohort must prepare the selected resource itself,
+            // rather than borrowing the preceding command's active package.
+            await page.reload(); await ready(page);
+            assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.packageStatus().demandCount), 0);
+            await page.evaluate(packageId => globalThis.__cemStudioApplication.workbench.openEntity(`sample=schema-examples&file=example-${packageId}`), format.packageId);
+            await page.waitForFunction(() => {
+                const app = globalThis.__cemStudioApplication, navigation = app.workbench.snapshot().navigation;
+                return !navigation.busy && navigation.sourcePreview?.status !== 'pending' && app.packageStatus().state === 'idle';
+            }, undefined, { timeout: 30_000 });
+            evidence[format.packageId].selectedResource = await page.evaluate(async ({ format, originalRuntimeCount }) => {
+                const app = globalThis.__cemStudioApplication;
+                await app.workbenchView.whenSettled();
+                const selected = app.workbench.snapshot().navigation, status = app.packageStatus(), resourceId = `example-${format.packageId}`;
+                const ensure = (condition, message) => { if (!condition) throw Error(`${format.packageId}: ${message}`); };
+                ensure(selected.selection.sample === 'schema-examples' && selected.selection.file === resourceId && selected.content === 'sample-file',
+                    'selected example resource did not publish');
+                ensure(!selected.error && selected.status !== 'error' && selected.sourcePreview?.status !== 'error' && selected.sampleText.length > 0,
+                    'selected example source is unavailable');
+                ensure(new URL(location.href).searchParams.get('file') === resourceId, 'URL did not follow selected example resource');
+                ensure(status.state === 'idle' && status.demandCount === 1 && status.runtimeCount >= originalRuntimeCount,
+                    'selected example did not preserve complete package publication');
+                const editor = [...document.querySelectorAll('cem-source-editor[readonly]')].find(editor => editor.getAttribute('aria-label') === selected.path);
+                ensure(editor?.getAttribute('value') === selected.sampleText && editor.querySelector('[role=textbox]')?.textContent.includes(format.expected),
+                    'selected example editor did not present its admitted source');
+                return { id: resourceId, sourceAvailable: true, ...status };
+            }, { format, originalRuntimeCount: evidence[format.packageId].runtimeCount });
+            console.log(`Verified native ${format.packageId} demand, ${format.packageId === 'scss' ? 'CSS expansion' : 'formatter/colorizer'} and selected resource.`);
+        } catch (error) {
+            throw new Error(`${format.packageId}: ${error.message}; browser errors: ${JSON.stringify(errors)}`, { cause: error });
+        } finally { await page.close(); }
+    }
+    return evidence;
+}
 async function openStudio(page, url) {
     await page.goto(url);
     try { await ready(page); }
@@ -324,8 +428,8 @@ async function versionCommand(page) {
     });
 }
 
-async function verifyOwnedPackageHandoff(page, maps) {
-    return page.evaluate(async maps => {
+async function verifyOwnedPackageHandoff(page, maps, packageIds) {
+    return page.evaluate(async ({ maps, packageIds }) => {
         const { CemSchemaAssetPackLoader, CemSchemaAssetPackRecoveryBinding, cemSchemaAssetRuntimeFromBinding } =
             await import(maps.resources['@epa-wg/cem-elements/dist/lib/schema-asset-pack.js'].path);
         const { CemNativeRecoveryScope, resumeNativeGenerationBindings } = await import(maps.resources['@epa-wg/cem-elements/native-generation'].path);
@@ -337,25 +441,32 @@ async function verifyOwnedPackageHandoff(page, maps) {
             hostWitness: () => () => !credentialsEntered });
         const initial = host.runtime, baseUrl = new URL('./schema-assets/', location.href).href;
         const loader = new CemSchemaAssetPackLoader({ baseUrl, runtime: cemSchemaAssetRuntimeFromBinding(initial.nativeResourceBinding()),
-            activationHostConfiguration: JSON.stringify({ schemaPackageReplacementGrants: [{ packageId: 'csv', expectedOrigin: { kind: 'builtin' },
-                replacementManifestUri: 'schema-packages/csv/v1/package.cem' }] }) });
+            activationHostConfiguration: JSON.stringify({ schemaPackageReplacementGrants: packageIds.map(packageId => ({ packageId, expectedOrigin: { kind: 'builtin' },
+                replacementManifestUri: `schema-packages/${packageId}/v1/package.cem` })) }) });
         const packages = new CemSchemaAssetPackRecoveryBinding({ loader, participant: initial.generationParticipant(), current: () => !credentialsEntered,
             target: runtime => {
                 if (!(runtime instanceof api.OwnedBrowserCommandInvocation)) throw Error('foreign package target');
                 return { runtime: cemSchemaAssetRuntimeFromBinding(runtime.nativeResourceBinding()), participant: runtime.generationParticipant() };
             } });
-        const demandUrl = new URL('demand/csv/1.0.0', baseUrl).href;
-        const demand = () => packages.loadResource({ authoredUrl: demandUrl, resolvedUrl: demandUrl, baseUrl,
+        const demand = (packageId = 'csv') => {
+            const demandUrl = new URL(`demand/${packageId}/1.0.0`, baseUrl).href;
+            return packages.loadResource({ authoredUrl: demandUrl, resolvedUrl: demandUrl, baseUrl,
             resolverIdentity: 'fixture', resourcePolicyStamp: 'fixture', contextIdentity: 'fixture:owned-invocation', method: 'GET', headers: {},
             policy: { allowCrossOrigin: false, maxResponseBytes: 4096, timeoutMs: 30_000, redirect: 'error' }, signal: new AbortController().signal });
+        };
         const edit = JSON.stringify({ source: '{run | {import @id=input @src=data.xml | {export @id=result @out=result.xml}}}',
             edit: { node: 'result', attribute: 'out', value: 'changed.xml' } });
         const baseline = host.authorTransformConfigV1(edit), identities = [initial.runtimeId], admissions = [];
         try {
-            await demand();
-            credentialsEntered = true;
-            const blocked = await scope.prepare().then(() => false, () => true);
-            ensure(blocked, 'entered credentials did not block group preparation'); credentialsEntered = false;
+            const credentialRefusals = [];
+            for (const packageId of packageIds) {
+                credentialsEntered = true;
+                await demand(packageId);
+                ensure(host.authorTransformConfigV1(edit) === baseline, `${packageId}: credentials incorrectly fenced ordinary graph authoring`);
+                const blocked = await scope.prepare().then(() => false, () => true);
+                ensure(blocked, `${packageId}: entered credentials did not block group preparation`);
+                credentialRefusals.push(packageId); credentialsEntered = false;
+            }
             for (let round = 0; round < 2; round++) {
                 const old = host.runtime, alias = old.nativeResourceBinding();
                 const owner = old.claimNativeEmbedding(), other = old.claimNativeEmbedding();
@@ -386,15 +497,17 @@ async function verifyOwnedPackageHandoff(page, maps) {
             admissions.at(-1).revoke();
             let fenced = false; try { await demand(); } catch { fenced = true; }
             ensure(fenced, 'revoked package route remained live');
-            return { rounds: 2, distinctGenerations: identities.length, credentialRefusal: blocked,
+            return { rounds: 2, distinctGenerations: identities.length, credentialRefusal: true, credentialRefusals, activatedPackages: packageIds,
+                ordinaryWorkWithCredentials: true,
                 completeOwnership: true, checkpointRequired: true, originalCommandBudget: true, legacyPartialResumeRefused: true, staleAliasesFenced: true, automaticRecovery: false };
         } finally { packages.dispose(); loader.dispose(); host.close(); admissions.forEach(admission => admission.revoke()); scope.dispose(); }
-    }, maps);
+    }, { maps, packageIds });
 }
 
 
-async function verifyWorkerPackageHandoff(page, maps) {
-    return page.evaluate(async maps => {
+async function verifyWorkerPackageHandoff(page, maps, formats) {
+    return page.evaluate(async ({ maps, formats }) => {
+        const packageIds = ['csv', ...formats.map(format => format.packageId)];
         const { CemSchemaAssetPackLoader, CemSchemaAssetPackRecoveryBinding } =
             await import(maps.resources['@epa-wg/cem-elements/dist/lib/schema-asset-pack.js'].path);
         const { CemNativeRecoveryScope, resumeNativeGenerationBindings } = await import(maps.resources['@epa-wg/cem-elements/native-generation'].path);
@@ -404,20 +517,35 @@ async function verifyWorkerPackageHandoff(page, maps) {
         const bytes = new TextEncoder().encode('id,name\n1,"Ada\n'), uri = 'memory:worker-command.csv';
         const sha256 = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(byte => byte.toString(16).padStart(2, '0')).join('');
         const version = { revision: 1, sha256 }, project = { projectId: 'worker-package-fixture', revision: 1 }, resourceVersions = { [uri]: version };
+        const resources = {};
+        for (const format of formats) {
+            const source = new TextEncoder().encode(format.source), sourceUri = `memory:${format.path}`;
+            const sha256 = [...new Uint8Array(await crypto.subtle.digest('SHA-256', source))].map(byte => byte.toString(16).padStart(2, '0')).join('');
+            resourceVersions[sourceUri] = { revision: 1, sha256 };
+            resources[sourceUri] = { bytes: [...source], identity: { contentType: format.contentType, schema: format.schema } };
+        }
         const factory = createCemMlWasmGeneration(); await factory.initialize();
         let runPlan;
+        const parsePlans = {};
         try { runPlan = JSON.parse(factory.call('normalizeCommandRunPlanV1', [JSON.stringify({ configBytes: [...new TextEncoder().encode(JSON.stringify({
             inputs: [{ uri, rootScope: { defaultContentType: 'text/csv', schema: 'https://cem.dev/ns/data/csv/1' } }], outputs: [],
-        }))] })])); } finally { factory.dispose(); }
+        }))] })]));
+            for (const format of formats) parsePlans[format.packageId] = JSON.parse(factory.call('normalizeCommandRunPlanV1', [JSON.stringify({
+                configBytes: [...new TextEncoder().encode(JSON.stringify({ inputs: [{ uri: `memory:${format.path}`,
+                    rootScope: { defaultContentType: format.contentType, schema: format.schema } }], outputs: [] }))],
+            })]));
+        } finally { factory.dispose(); }
         const request = id => ({ protocolVersion: 1, requestId: id, project, resourceVersions,
             operation: { kind: 'validate', inputIds: ['input:0'], projection: 'text' }, runPlan, resources: {},
             policyStamp: { resolver: 'fixture', safety: 'fixture', budget: 'fixture' } });
         const forbidden = async () => { throw Error('unexpected publication'); };
         const hostCapabilities = { currentRevision: async () => ({ project, resourceVersions }),
-            readResource: async () => ({ version, bytes: [...bytes], identity: { contentType: 'text/csv', schema: 'https://cem.dev/ns/data/csv/1' } }),
+            readResource: async ({ uri: requested }) => requested === uri
+                ? { version, bytes: [...bytes], identity: { contentType: 'text/csv', schema: 'https://cem.dev/ns/data/csv/1' } }
+                : { version: resourceVersions[requested], ...resources[requested] },
             prepareWrite: forbidden, commitWrite: forbidden, rollbackWrite: async () => undefined };
-        const grants = { schemaPackageReplacementGrants: [{ packageId: 'csv', expectedOrigin: { kind: 'builtin' },
-            replacementManifestUri: 'schema-packages/csv/v1/package.cem' }] };
+        const grants = { schemaPackageReplacementGrants: packageIds.map(packageId => ({ packageId, expectedOrigin: { kind: 'builtin' },
+            replacementManifestUri: `schema-packages/${packageId}/v1/package.cem` })) };
         const ungranted = await api.createBrowserCommandServiceClient({ host: hostCapabilities, hostConfiguration: {} });
         const ungrantedLoader = new CemSchemaAssetPackLoader({ baseUrl: new URL('./schema-assets/', location.href).href,
             runtime: ungranted.packageResourceBinding(), activationHostConfiguration: JSON.stringify(grants) });
@@ -434,24 +562,50 @@ async function verifyWorkerPackageHandoff(page, maps) {
                 if (!(runtime instanceof api.BrowserCommandServiceClient)) throw Error('foreign worker target');
                 return { runtime: runtime.packageResourceBinding(), participant: runtime.generationParticipant() };
             } });
-        const demandUrl = new URL('demand/csv/1.0.0', baseUrl).href;
-        const demand = () => packages.loadResource({ authoredUrl: demandUrl, resolvedUrl: demandUrl, baseUrl,
+        const demand = (packageId = 'csv') => {
+            const demandUrl = new URL(`demand/${packageId}/1.0.0`, baseUrl).href;
+            return packages.loadResource({ authoredUrl: demandUrl, resolvedUrl: demandUrl, baseUrl,
             resolverIdentity: 'fixture', resourcePolicyStamp: 'fixture', contextIdentity: 'fixture:worker', method: 'GET', headers: {},
             policy: { allowCrossOrigin: false, maxResponseBytes: 4096, timeoutMs: 30_000, redirect: 'error' }, signal: new AbortController().signal });
+        };
         const identities = [initial.worker.runtimeInstanceId], admissions = [];
-        const validate = async id => {
+        const validateCsv = async id => {
             const handle = host.execute(request(id));
             const result = await handle.result();
             ensure(JSON.stringify(result).includes('cem.csv.unclosed_quote'), 'worker ignored persistent native CSV context');
             await handle.dispose();
         };
+        const parseFormat = async (format, id) => {
+            const sourceUri = `memory:${format.path}`;
+            const handle = host.execute({ ...request(`${id}-${format.packageId}`),
+                operation: { kind: 'parse', inputId: 'input:0', projection: 'ast', preserveSourceOffsets: true },
+                runPlan: parsePlans[format.packageId], resources: { [sourceUri]: resources[sourceUri] } });
+            try {
+                const result = await handle.result();
+                ensure(result.status === 'succeeded' && result.exitCode === 0,
+                    `${format.packageId}: worker did not retain its native package context: ${JSON.stringify({
+                        status: result.status, exitCode: result.exitCode,
+                        diagnostics: result.diagnostics.items.map(({ code, severity, message }) => ({ code, severity, message })),
+                    })}`);
+            } finally { await handle.dispose(); }
+        };
+        const validate = async id => {
+            await validateCsv(id);
+            for (const format of formats) await parseFormat(format, id);
+        };
         try {
-            await demand(); await validate('before-worker-handoff');
+            const credentialRefusals = [];
+            for (const packageId of packageIds) {
+                credentialsEntered = true;
+                await demand(packageId);
+                if (packageId === 'csv') await validateCsv('entered-credentials');
+                else await parseFormat(formats.find(format => format.packageId === packageId), 'entered-credentials');
+                ensure(await scope.prepare().then(() => false, () => true), `${packageId}: credentials did not block worker recovery`);
+                credentialRefusals.push(packageId); credentialsEntered = false;
+            }
+            await validate('before-worker-handoff');
             ensure((() => { try { new CemSchemaAssetPackLoader({ baseUrl, runtime: initial.packageResourceBinding() }); return false; }
                 catch (error) { return error.code === 'cem.schema_asset.owner_busy'; } })(), 'duplicate loader shared worker package ownership');
-            credentialsEntered = true;
-            ensure(await scope.prepare().then(() => false, () => true), 'credentials did not block worker recovery');
-            credentialsEntered = false;
             for (let round = 0; round < 2; round++) {
                 const old = host.runtime, alias = old.packageResourceBinding();
                 const first = old.claimNativeEmbedding(), second = old.claimNativeEmbedding();
@@ -505,23 +659,25 @@ async function verifyWorkerPackageHandoff(page, maps) {
             admissions.at(-1).revoke();
             ensure(await Promise.resolve().then(demand).then(() => false, () => true), 'revoked worker package demand remained live');
             return { rounds: 2, distinctWorkers: identities.length, offlineDemand: true, ordinaryCsvValidation: true,
-                credentialRefusal: true, completeOwnership: true, checkpointRequired: true, originalCommandBudget: true,
+                credentialRefusal: true, credentialRefusals, nativeParses: formats.map(format => format.packageId), ordinaryWorkWithCredentials: true,
+                completeOwnership: true, checkpointRequired: true, originalCommandBudget: true,
                 emptyNativeInventory: true, staleAliasesFenced: true, workerOwnedGrants: true, exclusiveLoader: true, lateAcknowledgmentRefused: true, automaticRecovery: false };
         } finally { packages.dispose(); loader.dispose(); await host.close(); admissions.forEach(admission => admission.revoke()); scope.dispose(); }
-    }, maps);
+    }, { maps, formats });
 }
 
 
-async function verifyRenderingPackageHandoff(page, maps, mode) {
-    return page.evaluate(async ({ maps, mode }) => {
+async function verifyRenderingPackageHandoff(page, maps, mode, formats) {
+    return page.evaluate(async ({ maps, mode, formats }) => {
+        const packageIds = ['csv', ...formats.map(format => format.packageId)];
         const { CemSchemaAssetPackLoader, CemSchemaAssetPackRecoveryBinding } =
             await import(maps.resources['@epa-wg/cem-elements/dist/lib/schema-asset-pack.js'].path);
         const { CemNativeGenerationGroup, issueNativeGenerationBindingTicket, resumeNativeGenerationBindings } =
             await import(maps.resources['@epa-wg/cem-elements/native-generation'].path);
         const domain = await import(maps.resources['@epa-wg/cem-elements/checkpoint-domain'].path);
         const native = await import(maps.resources['@epa-wg/cem-elements/cem-ql-render'].path.replace('cem-ql-render.js', 'native-runtime.js'));
-        const grants = JSON.stringify({ schemaPackageReplacementGrants: [{ packageId: 'csv', expectedOrigin: { kind: 'builtin' },
-            replacementManifestUri: 'schema-packages/csv/v1/package.cem' }] });
+        const grants = JSON.stringify({ schemaPackageReplacementGrants: packageIds.map(packageId => ({ packageId, expectedOrigin: { kind: 'builtin' },
+            replacementManifestUri: `schema-packages/${packageId}/v1/package.cem` })) });
         let activeRuntime = mode === 'fallback' ? native.isolateCemFallbackGeneration({ packageHostConfiguration: grants }) : undefined;
         await activeRuntime?.ready();
         const processing = await import(maps.resources['@epa-wg/cem-elements/processing-host-runtime'].path);
@@ -541,28 +697,44 @@ async function verifyRenderingPackageHandoff(page, maps, mode) {
         let credentialsEntered = false, revision = 0;
         const packages = new CemSchemaAssetPackRecoveryBinding({ loader, participant: initial.participant, current: () => !credentialsEntered,
             target: runtime => ({ runtime: runtime.packageResourceBinding(), participant: runtime.generationParticipant() }) });
-        const demandUrl = new URL('demand/csv/1.0.0', baseUrl).href;
-        const demand = () => packages.loadResource({ authoredUrl: demandUrl, resolvedUrl: demandUrl, baseUrl,
+        const demand = (packageId = 'csv') => {
+            const demandUrl = new URL(`demand/${packageId}/1.0.0`, baseUrl).href;
+            return packages.loadResource({ authoredUrl: demandUrl, resolvedUrl: demandUrl, baseUrl,
             resolverIdentity: 'fixture', resourcePolicyStamp: 'fixture', contextIdentity: `fixture:render-${mode}`, method: 'GET', headers: {},
             policy: { allowCrossOrigin: false, maxResponseBytes: 4096, timeoutMs: 30_000, redirect: 'error' }, signal: new AbortController().signal });
-        const consume = async id => {
+        };
+        // The rendering document API supports CSV data import. Markdown/SCSS
+        // are command-source formats; +xml imports would only prove XML parsing.
+        // Their exact activation and fresh replay still pass through the native
+        // owner, while command workers above exercise each source consumer.
+        const csv = { packageId: 'csv', path: 'fixture.csv', source: 'id,name\n1,Ada\n', contentType: 'text/csv' };
+        const consumeDocument = async (format, id) => {
             revision++;
             const host = hosts[0], handle = { documentKey: crypto.randomUUID(), instanceId: `render-${mode}`, scopePolicyStamp: 'fixture' };
-            const imported = await host.document({ action: 'retain', handle, bytes: new TextEncoder().encode('id,name\n1,Ada\n').buffer,
-                contentType: 'text/csv', sourceUri: `memory:${id}.csv` }).result;
-            ensure(imported.retained, 'ordinary native CSV import failed');
+            const imported = await host.document({ action: 'retain', handle, bytes: new TextEncoder().encode(format.source).buffer,
+                contentType: format.contentType, sourceUri: `memory:${id}/${format.path}` }).result;
+            ensure(imported.retained, `${format.packageId}: ordinary native import failed`);
             await host.document({ action: 'release', handle }).result;
-            const result = await host.compile({ language: 'cem-ml', producedTag: 'cem-pack-fixture', templateArtifactId: id,
+        };
+        const consume = async id => {
+            await consumeDocument(csv, id);
+            const result = await hosts[0].compile({ language: 'cem-ml', producedTag: 'cem-pack-fixture', templateArtifactId: id,
                 registrationIdentity: `fixture:${id}`, source: createCemProcessingTextSource('{p | Package rendering fixture}'),
                 sourceRef: { kind: 'inline', value: id }, resolverIdentity: location.href, scopePolicyStamp: 'fixture', sourceMapMode: 'dev' }).result;
             ensure(result.artifact, 'ordinary template compilation failed');
         };
         const identities = [domain.nativeCheckpointIdentity(hosts[0].checkpointClient)], admissions = [];
         try {
-            await demand(); await consume('before-render-handoff');
-            credentialsEntered = true;
-            ensure((() => { try { new CemNativeGenerationGroup([initial.participant]); return false; } catch { return true; } })(), 'entered credentials permitted group capture');
-            credentialsEntered = false;
+            const credentialRefusals = [];
+            for (const packageId of packageIds) {
+                credentialsEntered = true;
+                await demand(packageId);
+                await consumeDocument(csv, `entered-credentials-${packageId}`);
+                ensure((() => { try { new CemNativeGenerationGroup([initial.participant]); return false; } catch { return true; } })(),
+                    `${packageId}: entered credentials permitted group capture`);
+                credentialRefusals.push(packageId); credentialsEntered = false;
+            }
+            await consume('before-render-handoff');
             for (let round = 0; round < 2; round++) {
                 const old = hosts, before = revision, source = await processing.processingSchemaAssetBinding(old[0]);
                 const alias = source.runtime, embedding = mode === 'fallback' ? activeRuntime : undefined;
@@ -593,7 +765,8 @@ async function verifyRenderingPackageHandoff(page, maps, mode) {
                 await resumeNativeGenerationBindings(admission, [ticket]);
                 activeRuntime = admission.generations[0].runtime;
                 identities.push(domain.nativeCheckpointIdentity(hosts[0].checkpointClient));
-                await consume(`after-render-handoff-${round}`); await demand();
+                await consume(`after-render-handoff-${round}`);
+                for (const packageId of packageIds) await demand(packageId);
                 await Promise.all(old.map(host => host.dispose({ reason: 'runtime-disposed' }).result.catch(() => undefined)));
                 if (round) { admissions[0].revoke(); await consume('after-previous-revocation'); }
             }
@@ -601,12 +774,13 @@ async function verifyRenderingPackageHandoff(page, maps, mode) {
             admissions.at(-1).revoke();
             ensure(await Promise.resolve().then(demand).then(() => false, () => true), 'revoked package route remained active');
             return { rounds: 2, distinctGenerations: 3, offlineDemand: true, nativeCsvImport: true, nativeTemplateCompile: true,
-                credentialRefusal: true, completePeerCoverage: true, completeFallbackEmbedding: mode === 'fallback',
+                credentialRefusal: true, credentialRefusals, activatedPackages: packageIds, ordinaryWorkWithCredentials: true,
+                completePeerCoverage: true, completeFallbackEmbedding: mode === 'fallback',
                 originalRenderingBudget: true, staleAliasesFenced: true, automaticRecovery: false };
         } finally {
             packages.dispose(); loader.dispose(); admissions.forEach(admission => admission.revoke());
             await Promise.all(hosts.map(host => host.dispose({ reason: 'runtime-disposed' }).result.catch(() => undefined)));
             scopes.forEach(scope => scope.dispose());
         }
-    }, { maps, mode });
+    }, { maps, mode, formats });
 }

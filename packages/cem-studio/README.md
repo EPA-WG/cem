@@ -199,9 +199,9 @@ input digest and registration scope, so installing either profile preserves the
 other profile's caches. The verifier uses isolated browser storage.
 
 Delivery alone does not activate a package. The optional deployment explicitly
-binds `CemSchemaAssetDemandGroup` and supplies a trusted, exact built-in CSV
-replacement grant in its graph-emitted `build.json`. The shell no longer demands
-CSV unconditionally. Before a resource command or preview, the original native
+binds `CemSchemaAssetDemandGroup` and supplies trusted, exact built-in replacement
+grants for CSV, Markdown, SCSS, XSLT and Relax NG in its graph-emitted `build.json`.
+The shell has no unconditional package demand. Before a resource command or preview, the original native
 invocation host plans requirements from the submitted inputs, output identities
 and transformation graph. Shared `prepare` uses the existing named HTTP demand
 contract and waits for activation of every enrolled physical heap: graph
@@ -209,8 +209,10 @@ authoring/invocation, command worker, owned helper/fallback, and rendering worke
 HTML editor startup has no optional package demand. A JSON-to-CSV output demands
 CSV before conversion, as does a used CSV input. Unrelated project resources do
 not activate packages. Selected files prepare their native-declared requirements
-before navigation publishes them to shared importers. Other packages require
-additional trusted host grants; a project, URL or status cannot supply them.
+before navigation publishes them to shared importers. Grants are an explicit
+deployment allowlist; a project, URL, native identity catalog or status cannot
+add or replace them. SCSS requires its declared content type/schema; its filename
+does not imply a native package identity.
 
 The shared group serializes managed asynchronous native work with demand and
 fences ordinary work after partial/uncertain activation. Render and live-preview
@@ -231,13 +233,30 @@ block recovery until cleared. Automatic whole-Studio recovery stays disabled.
 The ordinary deployment retains its complete embedded catalog and does not
 create a demand group. The optional binary excludes original CSV, Markdown,
 SCSS, XSLT and Relax NG bodies while retaining bootstrap dependencies
-and complete package identities. Its current Studio host explicitly grants CSV;
-native project/resource requirements demand it on first use. The other excluded formats require further trusted host grants and
-declarative demand before use; their resource preparation remains unavailable
-in this experimental CSV-only host. Missing sources refuse execution, including when
-offline. The verifier checks admitted CSV import and formatter execution both
-online and from the complete offline cache. This experimental profile makes no
-binary-size or memory-saving claim.
+and complete package identities. Native project/resource requirements demand
+these packages on first use. Missing sources refuse execution, including when
+offline. The verifier checks native execution, selected-resource demand, complete
+physical publication and recovery credential refusal online and from the offline
+cache. Entered credentials do not disable ordinary editing or package demand.
+
+| Optional package | Supported acceptance scope |
+| --- | --- |
+| CSV | Native import, diagnostics and CSV formatting/conversion. |
+| Markdown | Native source import/formatting and HTML conversion. |
+| SCSS | Passive source validation, native plain-CSS expansion and Parse of the expanded CSS AST/events with SCSS origins; explicit resolver/execution policy applies. Same-schema SCSS source export and HTML-colored CSS command output are unavailable. |
+| XSLT | Native stylesheet source AST/events and formatting; source DOM/JSON projections and contextless bundle compilation are unavailable. The compiler still needs admitted-contract integration. |
+| Relax NG | Native XML/compact schema-source AST/events and formatting; source DOM/JSON projections and arbitrary instance validation are unavailable. |
+
+The native package documentation defines each supported subset. This experimental
+profile makes no binary-size or memory-saving claim; the complete deployment
+remains the default.
+
+Markdown, SCSS, XSLT and Relax NG source parsers compile their diagnostic contracts
+from the same retained original schema owners as native package admission.
+Unbound or invalid models cannot fall back to embedded catalogs. Contextless
+helpers return a missing-schema diagnostic when their embedded source is absent;
+XSLT module discovery uses the supplied native engine context. The complete
+deployment retains its existing bounded XSLT execution path.
 
 Measure prepared profiles with
 `yarn nx run @epa-wg/cem-studio:measure:schema-assets`. This uncached, serial target

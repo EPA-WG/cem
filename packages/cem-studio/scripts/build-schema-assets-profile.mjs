@@ -29,7 +29,12 @@ if (!glue.includes('schemaAssetOwnerActivateV1')) throw Error('Build the optiona
 const probe = createRequire(import.meta.url)(resolve(native, '../node/cem_ml.js'));
 const nativePin = JSON.parse(probe.schemaAssetPackBootstrapV1());
 const embeddingProfile = JSON.parse(probe.schemaAssetEmbeddedSourcesV1());
-if (embeddingProfile.externalBodies !== true || !embeddingProfile.externalPackages.includes('csv')) throw Error('Build the external-source optional WASM profile first');
+// Deployment-owned allowlist, independent of projects, demand URLs and status.
+// Native metadata checks this build input; it does not authorize new packages.
+const optionalPackageIds = ['csv', 'markdown', 'scss', 'xslt', 'relax-ng'];
+if (embeddingProfile.externalBodies !== true || !optionalPackageIds.every(id => embeddingProfile.externalPackages.includes(id))) {
+    throw Error('Build the external-source optional WASM profile first');
+}
 if (Object.keys(pin).some(key => nativePin[key] !== pin[key])
     || hash(await readFile(resolve(native, 'cem_ml_bg.wasm'))) !== hash(await readFile(resolve(native, '../node/cem_ml_bg.wasm')))) {
     throw Error('Optional runtime and emitted pack are not the same pinned deployment');
@@ -63,8 +68,9 @@ const build = await json(resolve(project, 'src/studio.build.json'));
 Object.assign(build, { buildIdentity: 'cem-studio-schema-assets-v1', deploymentProfile: 'schema-assets', deploymentDigest,
     schemaAssetBase: './schema-assets/', schemaAssetIndexDigest: pin.indexDigest, embeddedBodies: 'bootstrap-only', embeddingProfile,
     packagePublication: 'explicit-host-admission', automaticRecovery: false,
-    schemaPackageHostConfiguration: { rootQueueSize: 1024, schemaPackageReplacementGrants: [{ packageId: 'csv',
-        expectedOrigin: { kind: 'builtin' }, replacementManifestUri: 'schema-packages/csv/v1/package.cem' }] } });
+    schemaPackageHostConfiguration: { rootQueueSize: 1024,
+        schemaPackageReplacementGrants: optionalPackageIds.map(packageId => ({ packageId,
+            expectedOrigin: { kind: 'builtin' }, replacementManifestUri: `schema-packages/${packageId}/v1/package.cem` })) } });
 const inventory = await json(resolve(project, 'src/cache-inventory.json'));
 Object.assign(inventory, { deploymentProfile: 'schema-assets', deploymentDigest });
 inventory.groups.push({ id: 'schema-assets', strategy: 'cache-first', inventory: './schema-assets/integrity.json' });

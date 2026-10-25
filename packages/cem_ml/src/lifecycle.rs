@@ -253,9 +253,17 @@ impl LifecycleRegistry {
             .clone()
             .or_else(|| input.root_scope.format_identity_option())
             .unwrap_or_else(|| FormatIdentity::from(context));
+        // The XSLT adapter accepts its registered namespace as a schema alias,
+        // and namespace-only inputs. Resolve authority through the same native
+        // package without rewriting the retained input identity.
+        let schema_selector = identity.schema.as_deref().map(str::trim);
+        let model_schema = if schema_selector == Some(XSLT_NAMESPACE_URI)
+            || matches_namespace_without_content_type_or_schema(&identity, &[XSLT_NAMESPACE]) {
+            Some(XSLT_SCHEMA_URI)
+        } else { schema_selector };
         #[cfg(feature = "external-schema-assets")]
         if let Some(message) = crate::schema::package_sources::missing_external_source(
-            Some(context), identity.schema.as_deref(), identity.content_type.as_deref(),
+            Some(context), model_schema, identity.content_type.as_deref(),
         ) {
             return LoadedInput { bytes: input.bytes.clone(), from_format: input.from_format.unwrap_or(InputFormat::Cem),
                 ast_stream: None, adapter_id: None, diagnostics: vec![Diagnostic { uri: Some(input.uri.clone()),
@@ -273,11 +281,11 @@ impl LifecycleRegistry {
         if let [adapter] = matches.as_slice() {
             let models = &context.schema_document_models;
             let model = models.resolve_for_identity(
-                identity.schema.as_deref(),
+                model_schema,
                 identity.content_type.as_deref(),
                 Some(&context.schema_registry),
             ).or_else(|| models.inspect_for_identity(
-                identity.schema.as_deref(),
+                model_schema,
                 identity.content_type.as_deref(),
                 Some(&context.schema_registry),
             ));
@@ -285,8 +293,15 @@ impl LifecycleRegistry {
                 || crate::schema::parser_contracts::requires_parser_contract(&model.schema_uri)) {
                 if model.is_ready_for_validation()
                     && !model.compile_diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
+                    // Legacy fragments share the XSLT package authority, but
+                    // keep their existing explicit compatibility decoder.
+                    if adapter.id() == CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID {
+                        return if source_validation {
+                            adapter.validate_source_with_context(input, &identity, context)
+                        } else { adapter.load_with_context(input, &identity, context) };
+                    }
                     if let Some(loaded) = model.parser_contract.as_ref().unwrap()
-                        .load(input, &identity, adapter.id()) {
+                        .load(input, &identity, adapter.id(), context, source_validation) {
                         return loaded;
                     }
                 }
@@ -706,6 +721,50 @@ struct CssAdapter;
 
 struct ScssAdapter;
 
+/// Preserve the existing SCSS passive/source and context-owned expansion paths
+/// when a retained schema contract supplies their diagnostic fact bindings.
+pub(crate) fn load_scss_input_with_context(
+    input: &EngineInput,
+    identity: &FormatIdentity,
+    context: &EngineContext,
+    source_validation: bool,
+    bind_diagnostics: Option<&dyn Fn(&mut Vec<Diagnostic>)>,
+) -> LoadedInput {
+    let (stylesheet, mut diagnostics) = parse_scss_input(input, identity);
+    if let Some(bind) = bind_diagnostics { bind(&mut diagnostics); }
+    let document = if source_validation || diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
+        None
+    } else { stylesheet.and_then(|stylesheet| {
+        let resolver_policy_stamp = context.resolver_policy.cache_stamp();
+        let safety_policy = ScssSafetyPolicy::default();
+        let safety_policy_stamp = safety_policy.cache_stamp();
+        let load_paths = context.base_uri.clone().into_iter().collect::<Vec<_>>();
+        let mut result = evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
+            stylesheet: &stylesheet,
+            resolver_registry: &context.resolver_registry,
+            resolver_policy: &context.resolver_policy,
+            resolver_policy_stamp: &resolver_policy_stamp,
+            safety_policy: &safety_policy,
+            safety_policy_stamp: &safety_policy_stamp,
+            abort_signal: context.abort_signal(),
+            load_paths: &load_paths,
+            limits: ScssEvaluationLimits::default(),
+        });
+        if let Some(bind) = bind_diagnostics { bind(&mut result.diagnostics); }
+        diagnostics.extend(result.diagnostics);
+        result.document.inspect(|document| {
+            diagnostics.extend(validate_css_document_ast(document));
+        })
+    }) };
+    LoadedInput {
+        bytes: input.bytes.clone(),
+        from_format: input.from_format.unwrap_or(InputFormat::Cem),
+        ast_stream: document.map(LoadedInputAstStream::CssDocument),
+        diagnostics,
+        adapter_id: Some("scss"),
+    }
+}
+
 impl LifecycleAdapter for ScssAdapter {
     fn id(&self) -> &'static str {
         "scss"
@@ -725,51 +784,16 @@ impl LifecycleAdapter for ScssAdapter {
         identity: &FormatIdentity,
         context: &EngineContext,
     ) -> LoadedInput {
-        let (stylesheet, mut diagnostics) = parse_scss_input(input, identity);
-        let document = stylesheet.and_then(|stylesheet| {
-            let resolver_policy_stamp = context.resolver_policy.cache_stamp();
-            let safety_policy = ScssSafetyPolicy::default();
-            let safety_policy_stamp = safety_policy.cache_stamp();
-            let load_paths = context.base_uri.clone().into_iter().collect::<Vec<_>>();
-            let result = evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
-                stylesheet: &stylesheet,
-                resolver_registry: &context.resolver_registry,
-                resolver_policy: &context.resolver_policy,
-                resolver_policy_stamp: &resolver_policy_stamp,
-                safety_policy: &safety_policy,
-                safety_policy_stamp: &safety_policy_stamp,
-                abort_signal: context.abort_signal(),
-                load_paths: &load_paths,
-                limits: ScssEvaluationLimits::default(),
-            });
-            diagnostics.extend(result.diagnostics);
-            result.document.inspect(|document| {
-                diagnostics.extend(validate_css_document_ast(document));
-            })
-        });
-        LoadedInput {
-            bytes: input.bytes.clone(),
-            from_format: input.from_format.unwrap_or(InputFormat::Cem),
-            ast_stream: document.map(LoadedInputAstStream::CssDocument),
-            diagnostics,
-            adapter_id: Some(self.id()),
-        }
+        load_scss_input_with_context(input, identity, context, false, None)
     }
 
     fn validate_source_with_context(
         &self,
         input: &EngineInput,
         identity: &FormatIdentity,
-        _context: &EngineContext,
+        context: &EngineContext,
     ) -> LoadedInput {
-        let (_, diagnostics) = parse_scss_input(input, identity);
-        LoadedInput {
-            bytes: input.bytes.clone(),
-            from_format: input.from_format.unwrap_or(InputFormat::Cem),
-            ast_stream: None,
-            diagnostics,
-            adapter_id: Some(self.id()),
-        }
+        load_scss_input_with_context(input, identity, context, true, None)
     }
 }
 
@@ -1901,7 +1925,7 @@ fn yaml_lifecycle_adapter_diagnostics(
         .collect()
 }
 
-fn markdown_lifecycle_adapter_diagnostics(
+pub(crate) fn markdown_lifecycle_adapter_diagnostics(
     adapter_id: &'static str,
     diagnostics: Vec<Diagnostic>,
 ) -> Vec<Diagnostic> {

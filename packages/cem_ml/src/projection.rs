@@ -1376,6 +1376,7 @@ pub fn dom_json(doc: &CemDocument) -> Value {
 
 mod inspection;
 pub use inspection::{cem_document_inspection, cem_tree_inspection};
+pub(crate) use inspection::cem_tree_inspection_with_identity;
 
 #[derive(Clone)]
 pub struct CemTreeAstStream {

@@ -1,4 +1,6 @@
 mod front_matter;
+mod parser_contract;
+pub(crate) use parser_contract::compile_parser_contract;
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::schema::document_model::compile_schema_document_model;
@@ -543,7 +545,26 @@ pub fn validate_markdown_source_bytes(
 pub fn markdown_document_ast_from_source_bytes(
     request: MarkdownSourceValidationRequest<'_>,
 ) -> (Option<MarkdownDocumentAst>, Vec<Diagnostic>) {
-    let catalog = MarkdownDiagnosticCatalog::from_builtin();
+    let Some(catalog) = MarkdownDiagnosticCatalog::from_builtin() else {
+        return (
+            None,
+            vec![Diagnostic {
+                code: "cem.schema_asset.missing".into(),
+                severity: Severity::Error,
+                uri: Some(request.source_uri.into()),
+                message: "Markdown source requires an admitted original schema parser contract"
+                    .into(),
+                ..Default::default()
+            }],
+        );
+    };
+    markdown_document_ast_from_source_bytes_with_contracts(request, catalog)
+}
+
+fn markdown_document_ast_from_source_bytes_with_contracts(
+    request: MarkdownSourceValidationRequest<'_>,
+    catalog: &MarkdownDiagnosticCatalog,
+) -> (Option<MarkdownDocumentAst>, Vec<Diagnostic>) {
     let parameters = content_type_parameters(request.content_type);
     let mut encoding_facts = collect_markdown_encoding_facts(request, catalog);
     let variant_facts = collect_markdown_variant_facts(parameters.get("variant"), catalog);
@@ -1033,19 +1054,22 @@ struct MarkdownDiagnosticCatalog {
 }
 
 impl MarkdownDiagnosticCatalog {
-    fn from_builtin() -> &'static Self {
+    fn from_builtin() -> Option<&'static Self> {
         static CATALOG: OnceLock<MarkdownDiagnosticCatalog> = OnceLock::new();
-        CATALOG.get_or_init(|| {
-            let source = builtin_schema_package_source(MARKDOWN_PACKAGE_ID)
-                .expect("built-in Markdown package source must be registered");
+        let source = builtin_schema_package_source(MARKDOWN_PACKAGE_ID)?;
+        Some(CATALOG.get_or_init(|| {
             let model = compile_schema_document_model(MARKDOWN_SCHEMA_URI, source.schema_source);
-            let severities = model
-                .diagnostics
-                .into_iter()
-                .map(|(code, diagnostic)| (code, diagnostic.severity))
-                .collect();
-            MarkdownDiagnosticCatalog { severities }
-        })
+            Self::from_document_model(&model)
+        }))
+    }
+
+    fn from_document_model(model: &crate::schema::document_model::SchemaDocumentModel) -> Self {
+        let severities = model
+            .diagnostics
+            .iter()
+            .map(|(code, diagnostic)| (code.clone(), diagnostic.severity))
+            .collect();
+        MarkdownDiagnosticCatalog { severities }
     }
 
     fn severity(&self, code: &str, fallback: Severity) -> Severity {
@@ -1197,9 +1221,10 @@ mod tests {
                 &format!("text/markdown; charset=utf-8; front-matter={option}"),
             );
             assert!(
-                diagnostics.iter().any(
-                    |diagnostic| diagnostic.code == code && diagnostic.severity.is_hard_violation()
-                ),
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == code
+                        && diagnostic.severity.is_hard_violation()),
                 "{source}: {diagnostics:?}"
             );
         }
@@ -1257,8 +1282,10 @@ mod tests {
             "---\ntags: [a, 1]\n---\n# Body".into(),
             "---\ncustom: &a [*a]\n---\n# Body".into(),
         ] {
-            let (_, diagnostics) =
-                open_ast_with_content_type(&source, "text/markdown; charset=utf-8; front-matter=yaml");
+            let (_, diagnostics) = open_ast_with_content_type(
+                &source,
+                "text/markdown; charset=utf-8; front-matter=yaml",
+            );
             assert!(
                 diagnostics
                     .iter()

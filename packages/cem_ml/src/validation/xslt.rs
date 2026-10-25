@@ -1,5 +1,5 @@
 use crate::diagnostics::{Diagnostic, Severity};
-use crate::schema::document_model::compile_schema_document_model;
+use crate::schema::document_model::{compile_schema_document_model, SchemaDocumentModel};
 use crate::schema::package_sources::builtin_schema_package_source;
 use crate::schema::registry::{
     content_type_essence, XSLT_CONTENT_TYPE, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI,
@@ -21,8 +21,11 @@ use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
+mod parser_contract;
+pub(crate) use parser_contract::compile_parser_contract;
+
 const XSLT_PACKAGE_ID: &str = "xslt";
-const XSLT_FACT_BEHAVIOR: &str = "xslt-report-fact";
+pub(crate) const XSLT_FACT_BEHAVIOR: &str = "xslt-report-fact";
 const XSLT_ATTRIBUTE_VALUE_DEFAULT_GRAMMAR: &str = "xslt-attribute-value-default-grammar";
 const XSLT_XPATH_EXPRESSION_ATTRIBUTES: &str = "xslt-xpath-expression-attributes";
 const XSLT_PATTERN_ATTRIBUTES: &str = "xslt-pattern-attributes";
@@ -339,6 +342,10 @@ impl XsltSchemaContractCatalog {
 
     pub fn from_schema_source(schema_source: &str) -> Self {
         let model = compile_schema_document_model(XSLT_SCHEMA_URI, schema_source);
+        Self::from_document_model(&model)
+    }
+
+    pub(crate) fn from_document_model(model: &SchemaDocumentModel) -> Self {
         let fact_bindings = model
             .constraints
             .values()
@@ -445,6 +452,30 @@ pub fn xslt_stylesheet_ast_from_source_bytes_with_modules(
     request: XsltSourceValidationRequest<'_>,
     resolved_module_hrefs: &[&str],
 ) -> (Option<XsltStylesheetAst>, Vec<Diagnostic>) {
+    if builtin_schema_package_source(XSLT_PACKAGE_ID).is_none() {
+        return (
+            None,
+            vec![Diagnostic {
+                code: "cem.schema_asset.missing".into(),
+                severity: Severity::Error,
+                uri: Some(request.source_uri.into()),
+                message: "XSLT source requires an admitted original schema parser contract".into(),
+                ..Default::default()
+            }],
+        );
+    }
+    xslt_stylesheet_ast_from_source_bytes_with_modules_and_contracts(
+        request,
+        resolved_module_hrefs,
+        XsltSchemaContractCatalog::from_builtin(),
+    )
+}
+
+pub(crate) fn xslt_stylesheet_ast_from_source_bytes_with_modules_and_contracts(
+    request: XsltSourceValidationRequest<'_>,
+    resolved_module_hrefs: &[&str],
+    contracts: &XsltSchemaContractCatalog,
+) -> (Option<XsltStylesheetAst>, Vec<Diagnostic>) {
     let (xml_document, _) = xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
         bytes: request.bytes,
         source_uri: request.source_uri,
@@ -453,7 +484,6 @@ pub fn xslt_stylesheet_ast_from_source_bytes_with_modules(
     let Some(xml_document) = xml_document else {
         return (None, Vec::new());
     };
-    let contracts = XsltSchemaContractCatalog::from_builtin();
     let (version, mut facts) = xslt_facts(&xml_document, contracts, resolved_module_hrefs);
     let embedded = xslt_embedded_attribute_asts(&xml_document, contracts);
     facts.extend(embedded.facts);

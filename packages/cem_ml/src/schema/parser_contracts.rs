@@ -4,7 +4,7 @@
 use super::document_model::SchemaDocumentModel;
 use crate::{
     diagnostics::Diagnostic,
-    engine::{EngineInput, FormatIdentity},
+    engine::{EngineContext, EngineInput, FormatIdentity},
     lifecycle::LoadedInput,
     parser::{document::CemDocument, tree::RetainedCemTree},
 };
@@ -17,6 +17,17 @@ pub(crate) trait NativeParserContract: std::fmt::Debug + Send + Sync {
         identity: &FormatIdentity,
         adapter_id: &'static str,
     ) -> LoadedInput;
+
+    fn load_with_context(
+        &self,
+        input: &EngineInput,
+        identity: &FormatIdentity,
+        adapter_id: &'static str,
+        _context: &EngineContext,
+        _source_validation: bool,
+    ) -> LoadedInput {
+        self.load(input, identity, adapter_id)
+    }
 }
 
 /// In-process executable contract paired with its original native schema owner.
@@ -53,12 +64,17 @@ impl CompiledParserContract {
         input: &EngineInput,
         identity: &FormatIdentity,
         adapter_id: &'static str,
+        context: &EngineContext,
+        source_validation: bool,
     ) -> Option<LoadedInput> {
         self.is_ready().then(|| {
-            self.implementation
-                .as_ref()
-                .unwrap()
-                .load(input, identity, adapter_id)
+            self.implementation.as_ref().unwrap().load_with_context(
+                input,
+                identity,
+                adapter_id,
+                context,
+                source_validation,
+            )
         })
     }
 }
@@ -71,7 +87,14 @@ pub(crate) struct ParserContractCompilation {
 }
 
 pub(crate) fn requires_parser_contract(schema_uri: &str) -> bool {
-    schema_uri == crate::schema::registry::CSV_SCHEMA_URI
+    matches!(
+        schema_uri,
+        crate::schema::registry::CSV_SCHEMA_URI
+            | crate::schema::registry::MARKDOWN_SCHEMA_URI
+            | crate::schema::registry::XSLT_SCHEMA_URI
+            | crate::schema::registry::RELAX_NG_SCHEMA_URI
+            | crate::schema::registry::SCSS_SCHEMA_URI
+    )
 }
 
 /// Closed native provider catalog. Recognizing a name alone never grants an
@@ -83,16 +106,47 @@ pub(crate) fn compile_registered_parser_contract(
     if !requires_parser_contract(&model.schema_uri) {
         return ParserContractCompilation::default();
     }
+    let fact_behavior = match model.schema_uri.as_str() {
+        crate::schema::registry::CSV_SCHEMA_URI => {
+            Some(crate::validation::csv::CSV_PARSE_REPORT_BEHAVIOR)
+        }
+        crate::schema::registry::XSLT_SCHEMA_URI => {
+            Some(crate::validation::xslt::XSLT_FACT_BEHAVIOR)
+        }
+        crate::schema::registry::RELAX_NG_SCHEMA_URI => {
+            Some(crate::validation::relax_ng::RELAX_NG_FACT_BEHAVIOR)
+        }
+        crate::schema::registry::SCSS_SCHEMA_URI => {
+            Some(crate::validation::scss::SCSS_FACT_BEHAVIOR)
+        }
+        _ => None,
+    };
     let claimed_constraints = model
         .constraints
         .values()
         .filter(|constraint| {
-            constraint.behavior.as_deref()
-                == Some(crate::validation::csv::CSV_PARSE_REPORT_BEHAVIOR)
+            fact_behavior.is_some() && constraint.behavior.as_deref() == fact_behavior
         })
         .map(|constraint| constraint.kind.clone())
         .collect();
-    let (implementation, diagnostics) = crate::validation::csv::compile_parser_contract(model);
+    let (implementation, diagnostics) = match model.schema_uri.as_str() {
+        crate::schema::registry::CSV_SCHEMA_URI => {
+            crate::validation::csv::compile_parser_contract(model)
+        }
+        crate::schema::registry::MARKDOWN_SCHEMA_URI => {
+            crate::validation::markdown::compile_parser_contract(model)
+        }
+        crate::schema::registry::XSLT_SCHEMA_URI => {
+            crate::validation::xslt::compile_parser_contract(model)
+        }
+        crate::schema::registry::RELAX_NG_SCHEMA_URI => {
+            crate::validation::relax_ng::compile_parser_contract(model)
+        }
+        crate::schema::registry::SCSS_SCHEMA_URI => {
+            crate::validation::scss::compile_parser_contract(model)
+        }
+        _ => unreachable!("closed parser contract provider catalog"),
+    };
     ParserContractCompilation {
         claimed_constraints,
         contract: Some(Arc::new(CompiledParserContract {

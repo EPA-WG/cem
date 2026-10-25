@@ -316,6 +316,79 @@ mod tests {
     }
 
     #[test]
+    fn schema_asset_demand_optional_aliases_and_explicit_schema_precedence() {
+        for (content_type, schema, package_id) in [
+            (
+                "TEXT/MARKDOWN; charset=utf-8; variant=CommonMark",
+                "https://cem.dev/ns/data/markdown/1",
+                "markdown",
+            ),
+            (
+                "text/vnd.cem.scss; charset=utf-8",
+                "https://cem.dev/ns/data/scss/1",
+                "scss",
+            ),
+            ("text/x-scss", "https://cem.dev/ns/data/scss/1", "scss"),
+            ("text/xsl", "https://cem.dev/ns/transform/xslt/1", "xslt"),
+            (
+                "application/relax-ng-compact-syntax; charset=utf-8",
+                "https://cem.dev/ns/data/relax-ng/1",
+                "relax-ng",
+            ),
+        ] {
+            let inferred = request(
+                "parse",
+                "input.txt",
+                content_type,
+                &[("format", "ast")],
+                &[("input.txt", b"private source is not parsed while planning")],
+            );
+            assert_eq!(identities(&inferred), [format!("{package_id}@1.0.0")]);
+            // The explicit native schema wins even when MIME names another
+            // optional package. Demand must not admit both accidentally.
+            let explicit = request(
+                "parse",
+                "input.txt",
+                "text/csv",
+                &[("format", "ast"), ("schema", schema)],
+                &[("input.txt", b"private source is not parsed while planning")],
+            );
+            assert_eq!(identities(&explicit), [format!("{package_id}@1.0.0")]);
+        }
+    }
+
+    #[test]
+    fn schema_asset_demand_markdown_export_selection_uses_effective_native_target() {
+        let markdown = request(
+            "convert",
+            "input.json",
+            "application/json",
+            &[("to_format", "markdown")],
+            &[("input.json", b"[]")],
+        );
+        assert_eq!(identities(&markdown), ["markdown@1.0.0"]);
+        let overridden = request(
+            "convert",
+            "input.json",
+            "application/json",
+            &[
+                ("to_format", "markdown"),
+                ("to_content_type", "application/json"),
+            ],
+            &[("input.json", b"[]")],
+        );
+        assert!(identities(&overridden).is_empty());
+        let source = request(
+            "convert",
+            "input.md",
+            "text/markdown; charset=utf-8; variant=CommonMark",
+            &[("to_content_type", "text/html")],
+            &[("input.md", b"# Native article\n")],
+        );
+        assert_eq!(identities(&source), ["markdown@1.0.0"]);
+    }
+
+    #[test]
     fn schema_asset_demand_json_to_csv_and_duplicate_inputs_keep_only_identity() {
         let request = request(
             "convert",
@@ -475,6 +548,96 @@ mod tests {
             ],
         );
         assert!(identities(&request).is_empty());
+    }
+
+    #[test]
+    fn schema_asset_demand_graph_uses_inferred_documents_and_explicit_scss_identity() {
+        for (path, content_type, package_id) in [
+            ("article.md", "text/markdown", "markdown"),
+            ("article.markdown", "text/markdown", "markdown"),
+            ("view.xsl", "application/xslt+xml", "xslt"),
+            ("view.xslt", "application/xslt+xml", "xslt"),
+            ("schema.rng", "application/relax-ng+xml", "relax-ng"),
+            (
+                "schema.rnc",
+                "application/relax-ng-compact-syntax",
+                "relax-ng",
+            ),
+        ] {
+            let graph =
+                format!("{{run | {{import @src=\"{path}\" | {{export @out=\"out/{{file}}\"}}}}}}");
+            let inferred = request(
+                "transform",
+                "graph.cem",
+                "",
+                &[],
+                &[("graph.cem", graph.as_bytes()), (path, b"private document")],
+            );
+            assert_eq!(identities(&inferred), [format!("{package_id}@1.0.0")]);
+            let opaque_graph = format!(
+                "{{run | {{import @src=\"{path}\" @content-type=\"{content_type}\" @opaque=true | {{export @out=\"out/{{file}}\"}}}}}}"
+            );
+            let opaque = request(
+                "transform",
+                "graph.cem",
+                "",
+                &[],
+                &[
+                    ("graph.cem", opaque_graph.as_bytes()),
+                    (path, b"private document"),
+                ],
+            );
+            assert!(identities(&opaque).is_empty(), "{path}");
+        }
+        // SCSS is selected by its declared native identity; its extension is
+        // intentionally outside native path inference.
+        let graph = br#"{run | {import @src="style.scss" @content-type="text/x-scss" | {export @out="out.scss"}}}"#;
+        let declared = request(
+            "transform",
+            "graph.cem",
+            "",
+            &[],
+            &[("graph.cem", graph), ("style.scss", b"$private: red;")],
+        );
+        assert_eq!(identities(&declared), ["scss@1.0.0"]);
+        let graph = br#"{run | {import @src="style.scss" | {export @out="out.scss"}}}"#;
+        let undeclared = request(
+            "transform",
+            "graph.cem",
+            "",
+            &[],
+            &[("graph.cem", graph), ("style.scss", b"$private: red;")],
+        );
+        assert!(identities(&undeclared).is_empty());
+    }
+
+    #[test]
+    fn schema_asset_demand_graph_infers_xslt_template_without_importing_its_body() {
+        let graph = br#"{run | {import @id=data @src="data.json" @content-type="application/json" | {transform @src="view.xsl" | {export @out="out.html" @content-type="text/html"}}}}"#;
+        let request = request(
+            "transform",
+            "graph.cem",
+            "",
+            &[],
+            &[
+                ("graph.cem", graph),
+                ("data.json", b"{}"),
+                ("view.xsl", b"private template is not parsed while planning"),
+                ("unused.csv", b"private unrelated resource"),
+            ],
+        );
+        let plan = plan_command_schema_assets(&request).unwrap();
+        assert_eq!(
+            plan.packages,
+            [SchemaAssetDemandIdentity {
+                package_id: "xslt".into(),
+                version: "1.0.0".into(),
+            }]
+        );
+        assert_eq!(
+            serde_json::to_string(&plan).unwrap(),
+            r#"{"kind":"cem-schema-asset-demand-plan/1","packages":[{"packageId":"xslt","version":"1.0.0"}]}"#
+        );
     }
 
     #[test]

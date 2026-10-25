@@ -13,12 +13,21 @@ use std::sync::Arc;
 /// Present source CEM nodes as inert AST-vocabulary records, retaining the input
 /// owner through formatting/coloring/writing. This is not a new query document.
 pub fn cem_tree_inspection(owner: Arc<RetainedCemTree>) -> CemTreeAstStream {
+    cem_tree_inspection_with_identity(owner, CEM_ML_SCHEMA_URI, CEM_ML_CONTENT_TYPE)
+}
+
+/// Inspect an imported native owner under its source language identity.
+pub(crate) fn cem_tree_inspection_with_identity(
+    owner: Arc<RetainedCemTree>,
+    schema: &str,
+    content_type: &str,
+) -> CemTreeAstStream {
     let source = owner
         .node(0)
         .expect("retained document root")
         .source
         .clone();
-    let mut stream = inspection(owner.ast(), owner.source_uri(), &source, Some(&owner));
+    let mut stream = inspection(owner.ast(), owner.source_uri(), &source, Some(&owner), schema, content_type);
     stream.source_owner = Some(owner);
     stream
 }
@@ -31,7 +40,7 @@ pub fn cem_document_inspection(document: &CemDocument, source_uri: &str) -> CemT
         .map(ast_node_source_map)
         .cloned()
         .unwrap_or_default();
-    inspection(document, source_uri, &source, None)
+    inspection(document, source_uri, &source, None, CEM_ML_SCHEMA_URI, CEM_ML_CONTENT_TYPE)
 }
 
 fn inspection(
@@ -39,6 +48,8 @@ fn inspection(
     source_uri: &str,
     document_source: &SourceMapStack,
     owner: Option<&RetainedCemTree>,
+    schema: &str,
+    content_type: &str,
 ) -> CemTreeAstStream {
     let mut rows = Vec::new();
     // Iterative preorder preserves arena identity and sibling/attribute order
@@ -158,8 +169,8 @@ fn inspection(
     let root = projection_element(
         "ast",
         vec![
-            projection_attribute("schema", CEM_ML_SCHEMA_URI, document_source),
-            projection_attribute("content-type", CEM_ML_CONTENT_TYPE, document_source),
+            projection_attribute("schema", schema, document_source),
+            projection_attribute("content-type", content_type, document_source),
             projection_attribute("hash-scheme", "blake3", document_source),
             projection_attribute("source-id", source_uri, document_source),
         ],

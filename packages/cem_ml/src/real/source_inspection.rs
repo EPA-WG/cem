@@ -1,5 +1,186 @@
 //! Source-language adapters share the same presentation boundary as documents.
 use super::*;
+mod native_projection;
+
+/// Retain source-language lifecycle results instead of validating them as CEM.
+pub(super) fn native_lifecycle_parse(
+    input: &EngineInput,
+    context: &EngineContext,
+    loaded: &mut LoadedInput,
+    projection: ParseProjection,
+) -> Option<SourceInspection> {
+    let identity = effective_input_identity(input, context);
+    let schema = identity.schema.as_deref().map(str::trim);
+    let content_type = identity.content_type.as_deref().map(content_type_essence);
+    let has_hard_diagnostics = loaded
+        .diagnostics
+        .iter()
+        .any(|d| d.severity.is_hard_violation());
+    // A missing or refused owner must preserve its native diagnosis even when
+    // a generic MIME or whitespace-padded alias accompanied the selector.
+    // This recognition never admits or projects a successful unmatched input.
+    let native_schema = matches!(
+        schema,
+        Some(
+            CSS_SCHEMA_URI
+                | crate::schema::registry::SCSS_SCHEMA_URI
+                | XSLT_SCHEMA_URI
+                | crate::schema::registry::XSLT_NAMESPACE_URI
+                | RELAX_NG_SCHEMA_URI
+                | MARKDOWN_SCHEMA_URI
+        )
+    );
+    let native_mime = matches!(
+        content_type.as_deref(),
+        Some(
+            CSS_CONTENT_TYPE
+                | crate::schema::registry::SCSS_CONTENT_TYPE
+                | "text/x-scss"
+                | XSLT_CONTENT_TYPE
+                | crate::validation::xslt::XSLT_TEXT_CONTENT_TYPE
+                | crate::schema::registry::RELAX_NG_XML_CONTENT_TYPE
+                | crate::schema::registry::RELAX_NG_COMPACT_CONTENT_TYPE
+                | MARKDOWN_CONTENT_TYPE
+        )
+    );
+    let xslt_namespace = content_type
+        .as_deref()
+        .filter(|mime| !mime.is_empty())
+        .is_none()
+        && schema.filter(|schema| !schema.is_empty()).is_none()
+        && (identity.default_namespace.as_deref().map(str::trim)
+            == Some(crate::schema::registry::XSLT_NAMESPACE_URI)
+            || identity
+                .namespaces
+                .values()
+                .any(|uri| uri.trim() == crate::schema::registry::XSLT_NAMESPACE_URI));
+    let refused_source = has_hard_diagnostics
+        && (native_schema
+            || native_mime
+            || xslt_namespace
+            || loaded.adapter_id == Some("markdown"));
+    if !matches!(
+        loaded.ast_stream.as_ref(),
+        Some(
+            LoadedInputAstStream::CssDocument(_)
+                | LoadedInputAstStream::XsltStylesheet(_)
+                | LoadedInputAstStream::RelaxNgDocument(_)
+        )
+    ) && !matches!(
+        loaded.adapter_id,
+        Some("css" | "scss" | "xslt" | "relax-ng")
+    ) && !refused_source
+    {
+        return None;
+    }
+    let mut diagnostics = loaded.diagnostics.clone();
+    diagnostics.extend(root_scope_execution_diagnostics(
+        &input.uri,
+        &input.root_scope,
+        "input",
+    ));
+    project_diagnostics_for_source(&mut diagnostics, &input.bytes);
+    project_diagnostic_uris(&mut diagnostics, input, context);
+    let projected = if has_hard_diagnostics {
+        None
+    } else {
+        match loaded
+            .ast_stream
+            .take()
+            .map(|native| native_projection::project(native, projection))
+            .transpose()
+        {
+            Ok(stream) => stream.flatten(),
+            Err(message) => {
+                diagnostics.push(Diagnostic {
+                    uri: Some(input_uri(input, context)),
+                    code: "cem.source.projection_failed".into(),
+                    severity: Severity::Error,
+                    message,
+                    ..Default::default()
+                });
+                None
+            }
+        }
+    };
+    let (ast, events) = if projection == ParseProjection::Ast {
+        (projected, None)
+    } else {
+        (None, projected)
+    };
+    Some(SourceInspection {
+        identity,
+        ast,
+        events,
+        // Parse only consumes the requested typed projection, not offset records.
+        offsets: Vec::new(),
+        diagnostics,
+    })
+}
+
+#[cfg(all(test, feature = "external-schema-assets"))]
+#[test]
+fn missing_native_source_selectors_keep_admission_errors_without_cem_fallback() {
+    use crate::schema::registry::{SCSS_CONTENT_TYPE, XSLT_NAMESPACE_URI};
+    let identity = |schema: Option<&str>, content_type: Option<&str>| FormatIdentity {
+        schema: schema.map(str::to_owned),
+        content_type: content_type.map(str::to_owned),
+        ..Default::default()
+    };
+    let mut default_namespace = identity(None, None);
+    default_namespace.default_namespace = Some(format!(" {XSLT_NAMESPACE_URI} "));
+    let mut prefixed_namespace = identity(Some(" "), None);
+    prefixed_namespace
+        .namespaces
+        .insert("xsl".into(), format!(" {XSLT_NAMESPACE_URI} "));
+    let mut empty_mime_namespace = default_namespace.clone();
+    empty_mime_namespace.content_type = Some(" ".into());
+    for declared in [
+        identity(Some(XSLT_SCHEMA_URI), Some(XML_CONTENT_TYPE)),
+        identity(Some(RELAX_NG_SCHEMA_URI), Some(XML_CONTENT_TYPE)),
+        identity(Some(XSLT_NAMESPACE_URI), None),
+        default_namespace,
+        prefixed_namespace,
+        empty_mime_namespace,
+        identity(None, Some(SCSS_CONTENT_TYPE)),
+        identity(Some(MARKDOWN_SCHEMA_URI), Some(MARKDOWN_CONTENT_TYPE)),
+    ] {
+        let response = RealCemMlEngine
+            .parse(ParseRequest {
+                input: EngineInput {
+                    uri: "memory://unadmitted/source".into(),
+                    bytes: b"<source/>".to_vec(),
+                    identity: Some(declared.clone()),
+                    from_format: None,
+                    root_scope: Default::default(),
+                },
+                projection: ParseProjection::Ast,
+                fail_level: FailLevel::Validate,
+                preserve_source_offsets: true,
+                presentation_scope: None,
+                context: EngineContext::default(),
+            })
+            .unwrap();
+        assert!(
+            response
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "cem.schema_asset.missing" && d.severity.is_hard_violation()),
+            "{declared:?}: {:?}",
+            response.diagnostics
+        );
+        assert!(
+            !response
+                .diagnostics
+                .iter()
+                .any(|d| d.code.starts_with("cem.schema.")
+                    || d.code.starts_with("cem.tokenizer.")
+                    || d.code.starts_with("cem.lint.")),
+            "{declared:?}: {:?}",
+            response.diagnostics
+        );
+    }
+}
 
 pub(super) fn load(input: &EngineInput, context: &EngineContext) -> Option<SourceInspection> {
     let uri = input_uri(input, context);

@@ -11576,7 +11576,20 @@ impl CemMlEngine for RealCemMlEngine {
             project_diagnostic_uris(&mut source.diagnostics, &request.input, &request.context);
             return source_inspection::parse(&request, source);
         }
-        let loaded = load_document_input(&request.input, &request.context);
+        let mut loaded = load_document_input(&request.input, &request.context);
+        if let Some(mut source) = source_inspection::native_lifecycle_parse(
+            &request.input,
+            &request.context,
+            &mut loaded,
+            request.projection,
+        ) {
+            source.diagnostics.extend(parse_budget_diagnostics(
+                &request.input.root_scope,
+                started_at.elapsed().as_nanos(),
+            ));
+            project_diagnostic_uris(&mut source.diagnostics, &request.input, &request.context);
+            return source_inspection::parse(&request, source);
+        }
         let from_format = loaded.from_format;
         let run = run_pipeline_as_scoped_with_context_and_source_uri(
             &loaded.bytes,
@@ -22934,7 +22947,7 @@ mod tests {
         let req = ParseRequest {
             input: source,
             projection: ParseProjection::Events,
-            fail_level: FailLevel::Parse,
+            fail_level: FailLevel::Validate,
             preserve_source_offsets: false,
             presentation_scope: Some(ScopeConfig {
                 cemt_formatter_profile: Some("tabular".to_owned()),
@@ -22945,6 +22958,11 @@ mod tests {
         };
 
         let resp = RealCemMlEngine::new().parse(req).unwrap();
+        assert!(
+            !resp.diagnostics.iter().any(|d| d.severity.is_hard_violation()),
+            "{:?}",
+            resp.diagnostics
+        );
         let primary = resp
             .primary_bytes
             .as_ref()

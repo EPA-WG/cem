@@ -33,8 +33,9 @@ Completed [editor filename de-duplication](archive/todo-completed-compact-studio
 Completed [graph parameter-map authoring and Studio controls](archive/todo-completed-graph-parameters-2026-10-23.md) is archived.
 
 Shared package transports, project/resource-driven Studio demand, opt-in
-embedded-body exclusion and isolated profile measurements are complete. Continue
-with editor responsiveness, then broaden trusted optional-format adoption.
+embedded-body exclusion, isolated profile measurements, editor responsiveness and
+trusted optional-format adoption are complete. Prioritize the functional
+content-type and schema samples below.
 
 Completed [shared popup surfaces and indicator clearance](archive/todo-completed-compact-studio-2026-10-23.md#shared-popup-surfaces-and-indicator-clearance) is archived.
 
@@ -116,21 +117,12 @@ parent payloads, inserted/replaced owners and disposal. Both original desktop
 editor cases and all 140 Studio workbench/navigation/recovery tests pass with
 unchanged deadlines, focus/selection/scroll assertions and credential policy.
 
-- [ ] Extend the opt-in Studio host's trusted grants and declarative project demand beyond CSV to Markdown, SCSS, XSLT and Relax NG before general adoption. Keep grants outside project/URL/status data and verify offline execution, complete runtime publication and credential refusal for each format.
-
-- [ ] Make full schema-package artifact/example validation prefer its supplied resource reader over filesystem reads for file-like canonical URIs. Preserve full validation's diagnostics and legacy filesystem behavior when no reader is supplied; keep this separate from immutable owned-pack admission and strict runtime artifact consumption.
-
-- [ ] Diagnose the three existing linked package preparation source-map failures at `schema_package_lifecycle/attribute_datatypes.rs:473`: pretyped handoff, callback context/publication guards and checked preparation replacement retain an additional `SourceBoundary` frame. All three reproduce on unchanged `eca54d20`; preserve source provenance and intended assertions when resolving the mismatch. The broader cohort passes 46/49 cases; see the [CSV contract verification](archive/todo-completed-csv-parser-contracts-2026-10-24.md#verification).
-
-- [ ] Diagnose the intermittent worker-static-change fresh-allocation timeout in StaticPreviewRefusals observed in the frozen 111-case credential-policy cohort (110 pass); the unchanged isolated case passes. Preserve the original five-second allocation deadline and static-presentation refusal assertions.
-
-- [ ] Repair standalone runtime typecheck preparation for the transitive CLI generated schema: retain or restore the exact native-generated TypeScript input through the CLI build/cache contract, so `tsc --build --emitDeclarationOnly` works without explicit schema preparation. Keep this separate from semantic editor/widget recovery.
-
-- [ ] Stabilize concurrent release-verifier scheduling around the existing 30-second cold Login source-paint case; retain its assertions and deadline. The unchanged complete release passes with `--parallel=1`.
-
-- [ ] Repair the existing native conversion baselines independently of recovery: `cross_surface_conversion_rules::cem_fixture_preserves_anonymous_scope_expression_avt_comments_and_rich_content` loses the expected `{.busy}` value in both default and stripped tests, and stripped CLI `convert_cemt_profile_ambiguity_reports_and_explicit_selectors_resolve` expects raw CEM where the current renderer returns a `<pre>` wrapper. Preserve the intended native semantics and assertions when resolving the mismatch.
-
-- [ ] Investigate the existing stripped WASM binary-size gate: current stripped output is 27,264,508 bytes versus 27,033,499 default bytes, despite the stripped capability contract rejecting debug control. Establish actual debugger-code omission and the correct size baseline without weakening the gate to hide retention.
+Completed [optional Studio format demand and owned source Parse](archive/todo-completed-optional-format-demand-2026-10-24.md)
+covers trusted grants for Markdown, SCSS, XSLT and Relax NG, retained native parser
+contracts, strict typed-source Parse, source provenance and online/offline
+activation/recovery acceptance. The default retains its complete embedded catalog
+and the credential policy stays unchanged; the optional profile's supported
+operation limits stay explicit.
 
 ## Studio samples: supported content types and schemas
 
@@ -138,9 +130,8 @@ Add an Examples subfolder named **Content types and schemas**, organized into
 Data, Documents and UI, Queries and transformations, and Schema authoring.
 Reuse the existing manifest-generated **Schema examples** resources and authored
 projects where possible. Entries remain ordinary cloneable projects with resources
-and configurations; collection folders are discovery metadata. Keep the current
-package-activation work first, then prioritize these functional samples before
-unrelated diagnostic/helper acceptance.
+and configurations; collection folders are discovery metadata. Prioritize these
+functional samples before unrelated diagnostic/helper acceptance.
 
 - [ ] Audit native package manifests and browser command capabilities to inventory supported content types, aliases, schema identities and operations. Map each supported combination to an existing or new sample; distinguish import, validation, formatting, querying and transformation support, documenting unsupported operations explicitly.
 - [ ] Add the catalog subfolder and its category folders using the application data model and shared tree/folder listings. Preserve stable project/resource IDs, URL selection, read-only originals, independent saved clones and existing drafts.
@@ -158,6 +149,27 @@ unrelated diagnostic/helper acceptance.
 - [ ] Add native DOM/AST/event projection projects: explain import versus structural inspection, show source locations and compare projections using the shared CEM-ML presentation path. Include any additional supported schema families found by the inventory audit.
 - [ ] Give each project a README with its typical use, content types/schema identities, supported configurations, expected artifacts, provenance and deliberate failure/repair steps where applicable. Reuse shared table, editor and preview controls; add no sample-specific UI JavaScript.
 - [ ] Add native fixtures for each sample's authored configurations, expected artifacts and intentional diagnostics, plus Studio catalog/navigation/clone/build/preview and offline-inventory coverage. Preserve saved projects/drafts and test that original examples remain unchanged after editing clones.
+
+## Native and release follow-ups
+
+These remain explicit follow-ups after the functional Studio sample catalog.
+Keep the original admission, provenance, privacy and verification bounds.
+
+- [ ] Pass the admitted original XSLT parser contract into CEM-QL bundle compilation, import discovery and name resolution. Preserve contextless optional-profile missing-schema refusal and complete-profile bounded execution; cover original-owned grammar/diagnostic rules, module limits, fresh runtime replay and source provenance before enabling optional-profile executable XSLT graphs.
+
+- [ ] Make full schema-package artifact/example validation prefer its supplied resource reader over filesystem reads for file-like canonical URIs. Preserve full validation's diagnostics and legacy filesystem behavior when no reader is supplied; keep this separate from immutable owned-pack admission and strict runtime artifact consumption.
+
+- [ ] Diagnose the three existing linked package preparation source-map failures at `schema_package_lifecycle/attribute_datatypes.rs:473`: pretyped handoff, callback context/publication guards and checked preparation replacement retain an additional `SourceBoundary` frame. All three reproduce on unchanged `eca54d20`; preserve source provenance and intended assertions when resolving the mismatch. The broader cohort passes 46/49 cases; see the [CSV contract verification](archive/todo-completed-csv-parser-contracts-2026-10-24.md#verification).
+
+- [ ] Diagnose the intermittent worker-static-change fresh-allocation timeout in StaticPreviewRefusals observed in the frozen 111-case credential-policy cohort (110 pass); the unchanged isolated case passes. Preserve the original five-second allocation deadline and static-presentation refusal assertions.
+
+- [ ] Repair standalone runtime typecheck preparation for the transitive CLI generated schema: retain or restore the exact native-generated TypeScript input through the CLI build/cache contract, so `tsc --build --emitDeclarationOnly` works without explicit schema preparation. Keep this separate from semantic editor/widget recovery.
+
+- [ ] Stabilize concurrent release-verifier scheduling around the existing 30-second cold Login source-paint case; retain its assertions and deadline. The unchanged complete release passes with `--parallel=1`.
+
+- [ ] Repair the existing native conversion baselines independently of recovery: `cross_surface_conversion_rules::cem_fixture_preserves_anonymous_scope_expression_avt_comments_and_rich_content` loses the expected `{.busy}` value in both default and stripped tests, and stripped CLI `convert_cemt_profile_ambiguity_reports_and_explicit_selectors_resolve` expects raw CEM where the current renderer returns a `<pre>` wrapper. Preserve the intended native semantics and assertions when resolving the mismatch.
+
+- [ ] Investigate the existing stripped WASM binary-size gate: current stripped output is 27,264,508 bytes versus 27,033,499 default bytes, despite the stripped capability contract rejecting debug control. Establish actual debugger-code omission and the correct size baseline without weakening the gate to hide retention.
 
 ## Amsterdam presentation samples: active Studio priority
 

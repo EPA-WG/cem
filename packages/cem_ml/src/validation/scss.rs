@@ -28,6 +28,12 @@ use std::collections::BTreeMap;
 pub use crate::source_map::ScssOriginKind;
 
 const SCSS_ALIAS_CONTENT_TYPE: &str = "text/x-scss";
+pub(crate) const SCSS_FACT_BEHAVIOR: &str = "scss-report-fact";
+mod parser_contract;
+pub(crate) use parser_contract::compile_parser_contract;
+
+#[cfg(test)]
+mod owned_package_tests;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ScssSourceRequest<'a> {
