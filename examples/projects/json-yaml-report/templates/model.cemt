@@ -1,0 +1,29 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+{param @name=input @required=true}
+{param @name=config @required=true}
+{template @name=main @visibility=public @cem:whitespace=layout |
+    {cem:variable @name=settings
+        @select='seq:where(config.descendants, fn(node) => node.kind == "element" && node.namespace == "cem:generic-data" && node.name == "property")'}
+    {cem:variable @name=status
+        @select='dom:text(seq:where(settings, fn(field) => dom:text(dom:attribute(field, "name")) == "status"))'}
+    {cem:variable @name=records
+        @select='seq:where(input.descendants, fn(node) => node.kind == "element" && node.namespace == "cem:generic-data" && node.name == "object" && seq:any(node.children, fn(field) => dom:text(dom:attribute(field, "name")) == "status"))'}
+    {cem:variable @name=selected
+        @select='seq:where(records, fn(row) => dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == "status")) == status)'}
+    {element @name=array @namespace=cem:generic-data |
+        {cem:for-each @as=row @select=selected |
+            {element @name=object @namespace=cem:generic-data |
+                {cem:for-each @as=name @select='("id", "name", "status")' |
+                    {element @name=property @namespace=cem:generic-data |
+                        {attribute @name=name @value="{$name}"}
+                        {element @name=string @namespace=cem:generic-data |
+                            {$ | dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == name))}
+                }   }   }
+                {element @name=property @namespace=cem:generic-data |
+                    {attribute @name=name @value=requests}
+                    {element @name=number @namespace=cem:generic-data |
+                        {$ | dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == "requests"))}
+}   }   }   }   }   }

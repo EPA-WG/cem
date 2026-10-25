@@ -293,10 +293,8 @@ try {
     assert.equal(featureTour.projectId, 'feature-tour');
     assert.equal(featureTour.exampleCount, 32);
     assert.equal(featureTour.validatedCount, featureTour.exampleCount);
-    assert.equal(featureTour.cachedSampleResponses, featureTour.cacheUrlCount + 5);
-    assert.equal(featureTour.exampleProjectCached, true);
-    assert.equal(featureTour.supplierProjectCached, true);
-    assert.equal(featureTour.markdownSiteCached, true);
+    assert.equal(featureTour.cachedSampleResponses, featureTour.cacheUrlCount + featureTour.projectIds.length + 1);
+    assert.deepEqual(featureTour.cachedProjectIds, featureTour.projectIds);
 
     const workbench = await exerciseWorkbench(page);
     assert.equal(workbench.status, 'invalid');
@@ -1916,6 +1914,9 @@ async function validateFeatureTour(page, initialStatus) {
             validatedCount += 1;
         }
         const sampleCache = await caches.open('cem-studio:0.1.0:samples');
+        const sampleIndex = await (await sampleCache.match(new URL('./samples/index.json', document.baseURI))).json();
+        const cachedProjects = await Promise.all(sampleIndex.projects.map(async project =>
+            await sampleCache.match(new URL(`./samples/${project.archive.slice(2)}`, document.baseURI)) ? project.id : undefined));
         return {
             initialStatus: startupStatus,
             status: globalThis.__cemStudioFixture.featureTour.status,
@@ -1926,9 +1927,8 @@ async function validateFeatureTour(page, initialStatus) {
             cacheUrlCount: catalog.cacheUrlCount,
             validatedCount,
             cachedSampleResponses: (await sampleCache.keys()).length,
-            exampleProjectCached: Boolean(await sampleCache.match(new URL('./samples/examples/login.cem-studio.json', document.baseURI))),
-            supplierProjectCached: Boolean(await sampleCache.match(new URL('./samples/examples/supplier-pipeline.cem-studio.json', document.baseURI))),
-            markdownSiteCached: Boolean(await sampleCache.match(new URL('./samples/examples/markdown-site.cem-studio.json', document.baseURI))),
+            projectIds: sampleIndex.projects.map(project => project.id),
+            cachedProjectIds: cachedProjects.filter(Boolean),
         };
     }, initialStatus);
 }

@@ -123,6 +123,13 @@ entry while sharing one integrity-checked archive. Bare sample/file bookmarks,
 Amsterdam and the legacy Schema examples folder remain valid. Selection survives
 folder collapse; saved clones and drafts are independent of read-only originals.
 
+The Data category includes [JSON and YAML report](../../examples/projects/json-yaml-report/README.md):
+a JSON API payload plus YAML settings, explicit source inspection/validation/
+formatting/query configurations and a native graph with an HTML entry artifact
+and selected-record JSON/YAML outputs. Shared source, data-table and artifact
+previews handle the project without application-specific UI code. Syntax failures
+and documented repairs run through the same native configurations as saved copies.
+
 Deterministic search is available through the repository protocol; project-search
 UI belongs to the next milestone below. Storage status uses the CEM shell;
 persistence does not introduce application-local visible controls.

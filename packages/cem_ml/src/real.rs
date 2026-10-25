@@ -3461,7 +3461,7 @@ fn load_transform_data_artifact(
     context: &EngineContext,
     artifact_id: impl Into<String>,
     opaque: bool,
-) -> (TransformTemplateDataArtifact, Vec<Diagnostic>) {
+) -> (Option<TransformTemplateDataArtifact>, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
     let mut scope_diagnostics =
         root_scope_metadata_diagnostics(&input.uri, &input.root_scope, "input");
@@ -3481,10 +3481,18 @@ fn load_transform_data_artifact(
                 .expect("opaque graph resource identity must match its encoding"),
             )),
         };
-        return (artifact, diagnostics);
+        return (Some(artifact), diagnostics);
     }
     let mut loaded = load_source_input_through_lifecycle(input, context);
     diagnostics.append(&mut loaded.diagnostics);
+    // A failed structured import has no data artifact. In particular, JSON
+    // source failures must not enter an encoded-text fallback or reach a native
+    // template as a partially parsed owner.
+    if has_hard_transform_diagnostic(&diagnostics) {
+        project_diagnostics_for_source(&mut diagnostics, &loaded.bytes);
+        project_diagnostic_uris(&mut diagnostics, input, context);
+        return (None, diagnostics);
+    }
     let body = if let Some(ast_stream) = loaded.ast_stream.take() {
         TransformArtifactBody::Lifecycle(Arc::new(ast_stream))
     } else if loaded.adapter_id == Some("cem-ml") {
@@ -3508,23 +3516,33 @@ fn load_transform_data_artifact(
             })
             .map(|_| TransformEncoding::Binary)
             .unwrap_or(TransformEncoding::Text);
-        TransformArtifactBody::Encoded(Arc::new(
-            TransformEncodedArtifact::new(identity, encoding, loaded.bytes.clone())
-                .expect("non-JSON lifecycle fallback encoding must be valid"),
-        ))
+        match TransformEncodedArtifact::new(identity, encoding, loaded.bytes.clone()) {
+            Ok(encoded) => TransformArtifactBody::Encoded(Arc::new(encoded)),
+            Err(error) => {
+                diagnostics.push(Diagnostic {
+                    uri: Some(input_uri(input, context)),
+                    code: "cem.transform_runtime.input_representation_unsupported".to_owned(),
+                    severity: Severity::Error,
+                    message: error.to_string(),
+                    ..Diagnostic::default()
+                });
+                project_diagnostics_for_source(&mut diagnostics, &loaded.bytes);
+                project_diagnostic_uris(&mut diagnostics, input, context);
+                return (None, diagnostics);
+            }
+        }
     };
     project_diagnostics_for_source(&mut diagnostics, &loaded.bytes);
     project_diagnostic_uris(&mut diagnostics, input, context);
 
-    (
-        TransformTemplateDataArtifact {
+    let artifact =
+        (!has_hard_transform_diagnostic(&diagnostics)).then(|| TransformTemplateDataArtifact {
             artifact_id: artifact_id.into(),
             uri: Some(input_uri(input, context)),
             identity: input.identity.clone(),
             body,
-        },
-        diagnostics,
-    )
+        });
+    (artifact, diagnostics)
 }
 
 fn collect_transform_graph_join(
@@ -13167,7 +13185,7 @@ impl CemMlEngine for RealCemMlEngine {
             let (artifact, mut data_diagnostics) =
                 load_transform_data_artifact(&request.data, &request.context, "data", false);
             diagnostics.append(&mut data_diagnostics);
-            primary_input = Some(artifact);
+            primary_input = artifact;
         });
         request.context.ensure_active()?;
 
@@ -13369,6 +13387,7 @@ impl CemMlEngine for RealCemMlEngine {
                         TransformEncoding::Text,
                         import.input.bytes.clone(),
                     )
+                    .map(Some)
                     .expect("raw graph import text encoding must be valid")
                 } else {
                     let (artifact, mut import_diagnostics) = load_transform_data_artifact(
@@ -13379,6 +13398,9 @@ impl CemMlEngine for RealCemMlEngine {
                     );
                     diagnostics.append(&mut import_diagnostics);
                     artifact
+                };
+                let Some(artifact) = artifact else {
+                    return;
                 };
                 artifacts.insert(import.id.clone(), Arc::new(artifact));
                 artifact_metadata.insert(
@@ -15099,6 +15121,143 @@ mod tests {
             .all(|diagnostic| diagnostic.code != "cem.converter.cemt_fallback"));
     }
 
+    fn malformed_transform_data_inputs() -> Vec<(EngineInput, &'static str)> {
+        vec![
+            (
+                identified_input(
+                    br#"{"records" []}"#,
+                    "memory:malformed.json",
+                    JSON_CONTENT_TYPE,
+                    JSON_VALUE_SCHEMA_URI,
+                ),
+                "cem.json.parse_error",
+            ),
+            (
+                identified_input(
+                    b"status: [active\n",
+                    "memory:malformed.yaml",
+                    YAML_CONTENT_TYPE,
+                    YAML_SCHEMA_URI,
+                ),
+                "cem.yaml.parse_error",
+            ),
+            (
+                identified_input(
+                    b"<records><record></records>",
+                    "memory:malformed.xml",
+                    XML_CONTENT_TYPE,
+                    XML_SCHEMA_URI,
+                ),
+                "cem.xml.parse_error",
+            ),
+        ]
+    }
+
+    #[test]
+    fn transform_graph_rejects_malformed_structured_data_without_output() {
+        for (input, code) in malformed_transform_data_inputs() {
+            let uri = input.uri.clone();
+            let target = input.identity.clone();
+            let response = RealCemMlEngine::new()
+                .transform_graph(TransformGraphRequest {
+                    imports: vec![TransformGraphImport {
+                        id: "data".to_owned(),
+                        input,
+                        opaque: false,
+                        scheduler_scope_id: 1,
+                    }],
+                    joins: Vec::new(),
+                    conversions: Vec::new(),
+                    stages: Vec::new(),
+                    importmap_rewrites: Vec::new(),
+                    exports: vec![TransformGraphExport {
+                        id: "result".to_owned(),
+                        input: "data".to_owned(),
+                        destination: Some("result.data".to_owned()),
+                        target,
+                        target_scope: ScopeConfig::default(),
+                        style_policy: TransformGraphStylePolicy::default(),
+                        scheduler_scope_id: 2,
+                    }],
+                    edges: Vec::new(),
+                    module_asset_manifest: TransformGraphModuleAssetManifest::default(),
+                    preserve_source_offsets: true,
+                    context: ctx(),
+                    execution_policy: TransformExecutionPolicy::default(),
+                })
+                .expect("invalid source must be returned as native diagnostics");
+            assert!(response.artifacts.is_empty(), "{uri}: {response:?}");
+            let diagnostic = response
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == code)
+                .unwrap_or_else(|| panic!("{uri}: {:?}", response.diagnostics));
+            assert_eq!(diagnostic.uri.as_deref(), Some(uri.as_str()));
+            assert!(diagnostic.severity.is_hard_violation());
+            assert!(diagnostic.line.is_some());
+            assert!(diagnostic.byte_offset.is_some());
+            assert!(!response
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.starts_with("cem.tokenizer.")));
+        }
+    }
+
+    #[test]
+    fn transform_rejects_malformed_structured_data_before_template_execution() {
+        for (data, code) in malformed_transform_data_inputs() {
+            let uri = data.uri.clone();
+            let response = RealCemMlEngine::new()
+                .transform(TransformRequest {
+                    data,
+                    template: TemplateInput {
+                        uri: "memory:never-executed.xpath".to_owned(),
+                        bytes: b"/records".to_vec(),
+                        identity: Some(FormatIdentity {
+                            content_type: Some(XPATH_CONTENT_TYPE.to_owned()),
+                            schema: Some(XPATH_SCHEMA_URI.to_owned()),
+                            ..FormatIdentity::default()
+                        }),
+                        root_scope: ScopeConfig::default(),
+                    },
+                    template_kind: TransformTemplateKind::XPath,
+                    template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                    params: BTreeMap::new(),
+                    preserve_source_offsets: true,
+                    context: ctx(),
+                    target: None,
+                    target_scope: ScopeConfig::default(),
+                    scheduler_scope_ids: TransformSchedulerScopeIds {
+                        data_load: 1,
+                        template_load: 2,
+                        execution: 3,
+                        output: 4,
+                    },
+                    execution_policy: TransformExecutionPolicy {
+                        runtime_phase: TransformRuntimePhase::XPath,
+                        ..TransformExecutionPolicy::default()
+                    },
+                })
+                .expect("invalid source must be returned as native diagnostics");
+            assert_eq!(response.primary, Value::Null, "{uri}");
+            assert!(response.source_map.is_none(), "{uri}");
+            assert!(response.output_spans.is_empty(), "{uri}");
+            assert!(
+                response.diagnostics.iter().any(|diagnostic| {
+                    diagnostic.code == code
+                        && diagnostic.uri.as_deref() == Some(uri.as_str())
+                        && diagnostic.severity.is_hard_violation()
+                }),
+                "{uri}: {:?}",
+                response.diagnostics
+            );
+            assert!(!response
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.starts_with("cem.tokenizer.")));
+        }
+    }
+
     #[test]
     fn transform_data_load_retains_lossless_json_lifecycle_body() {
         let source = br#"{"n": 1.00e+2, "n": 2}"#;
@@ -15110,6 +15269,7 @@ mod tests {
         );
 
         let (artifact, diagnostics) = load_transform_data_artifact(&input, &ctx(), "data", false);
+        let artifact = artifact.expect("valid native data artifact");
 
         assert!(!diagnostics
             .iter()
@@ -15587,6 +15747,7 @@ mod tests {
         );
 
         let (artifact, diagnostics) = load_transform_data_artifact(&input, &ctx(), "data", false);
+        let artifact = artifact.expect("valid native data artifact");
 
         assert!(!diagnostics
             .iter()
@@ -15700,6 +15861,8 @@ mod tests {
             load_transform_data_artifact(&first_input, &ctx(), "first", false);
         let (second, second_diagnostics) =
             load_transform_data_artifact(&second_input, &ctx(), "second", false);
+        let first = first.expect("valid first native data artifact");
+        let second = second.expect("valid second native data artifact");
         assert!(first_diagnostics
             .iter()
             .chain(&second_diagnostics)
@@ -16312,6 +16475,7 @@ mod tests {
 
         let (artifact, diagnostics) =
             load_transform_data_artifact(&input, &EngineContext::default(), "opaque-json", true);
+        let artifact = artifact.expect("opaque data artifact bypasses source validation");
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         let TransformArtifactBody::Encoded(encoded) = &artifact.body else {
             panic!("opaque import must retain an encoded artifact");

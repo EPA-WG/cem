@@ -256,15 +256,15 @@ assert.deepEqual(
 assert.equal(runtimeMetadata.commonVersion, packageMetadata.version);
 assert.equal(themeMetadata.version, packageMetadata.dependencies['@epa-wg/cem-theme']);
 assert.equal(sampleIndex.commonVersion, packageMetadata.version);
-assert.equal(sampleIndex.projects.length, 4);
+const generatedSamples = await readJson(resolve(projectRoot, 'generated/feature-tour/index.json'));
+assert.deepEqual(sampleIndex.projects, generatedSamples.projects);
 assert.equal(sampleIndex.projects[0].id, 'schema-examples');
-assert.equal(sampleIndex.projects[1].id, 'login');
-assert.equal(sampleIndex.projects[1].archive, './examples/login.cem-studio.json');
-assert.ok(sampleIndex.cacheUrls.includes(sampleIndex.projects[1].archive));
-assert.equal(sampleIndex.projects[2].id, 'markdown-site');
-assert.equal(sampleIndex.projects[3].id, 'supplier-pipeline');
-assert.ok(sampleIndex.cacheUrls.includes(sampleIndex.projects[3].archive));
-assert.ok(sampleIndex.cacheUrls.includes(sampleIndex.projects[2].archive));
+for (const record of sampleIndex.projects) {
+    assert.equal(record.archive, `./examples/${record.id}.cem-studio.json`);
+    assert.ok(sampleIndex.cacheUrls.includes(record.archive));
+    const archive = await readFile(resolve(outputRoot, 'samples', record.archive));
+    assert.equal(sha256(archive), record.sha256, `${record.id} deployed archive hash drifted`);
+}
 assert.equal(featureTourCatalog.commonVersion, packageMetadata.version);
 // The tour includes one passing example per canonical runtime schema package.
 assert.ok(runtimeMetadata.schemaPackages.manifestCount > 0);

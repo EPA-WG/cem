@@ -1,0 +1,16 @@
+{   "records": 
+    [   {   "id": "API-101"
+        ,   "name": "Harbor weather"
+        ,   "status": "active"
+        ,   "requests": 120
+        }
+    ,   {   "id": "API-102"
+        ,   "name": "Canal alerts"
+        ,   "status": "paused"
+        ,   "requests": 7
+        }
+    ,   {   "id": "API-103"
+        ,   "name": "Museum hours"
+        ,   "status": "active"
+        ,   "requests": 42
+}   ]   }

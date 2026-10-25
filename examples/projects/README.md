@@ -52,3 +52,10 @@ The [Markdown site](markdown-site/README.md) demonstrates a folder-based build
 with four Markdown documents, shared CEM-ML layouts/partials, explicit site data
 and static assets. Its validation, body-preview and complete-site configurations
 use the same portable project format and Studio workspace as Login and Supplier.
+
+The [JSON and YAML report](json-yaml-report/README.md) combines a fictional API
+payload with YAML report settings. Its ordinary configurations inspect imported
+data, validate source syntax, format both languages, filter records through native
+CEM-QL and build HTML/JSON/YAML artifacts. Malformed sources have explicit repair
+steps. Source validation is separate from validating application instances against
+an authored schema; no general JSON Schema instance validator is implied.

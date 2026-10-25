@@ -1,0 +1,7 @@
+// Configuration inspection is distinct from YAML source validation.
+{
+    let fields = seq:where(dom:descendants(input), fn(node) =>
+        node.kind == "element" && node.namespace == "cem:generic-data" && node.name == "property");
+    seq:map(fields, fn(field) =>
+        str:concat((dom:text(dom:attribute(field, "name")), "=", dom:text(field))))
+}

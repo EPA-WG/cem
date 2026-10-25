@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { parseCemStudioProjectBundle } from '../src/file-system-provider.js';
@@ -55,7 +55,11 @@ assert.equal(
     catalog.projectResourceCount,
     catalog.exampleCount * 2 + catalog.dependencyCount + catalog.workbenchResourceCount,
 );
-assert.deepEqual(sampleIndex.projects.map(project => project.id), ['schema-examples', 'login', 'markdown-site', 'supplier-pipeline']);
+const authoredRoot = resolve(workspaceRoot, 'examples/projects');
+const authoredDefinitions = await Promise.all((await readdir(authoredRoot, { withFileTypes: true }))
+    .filter(item => item.isDirectory()).sort((left, right) => left.name.localeCompare(right.name))
+    .map(item => readJson(resolve(authoredRoot, item.name, 'example.json'))));
+assert.deepEqual(sampleIndex.projects.map(project => project.id), ['schema-examples', ...authoredDefinitions.map(project => project.id)]);
 assert.equal(sampleIndex.cacheUrls.length, catalog.cacheUrlCount + sampleIndex.projects.length + 1);
 assert.deepEqual(sampleIndex.collections, await readJson(resolve(workspaceRoot, 'examples/projects/collections.json')));
 const categoryIds = ['content-types-data', 'content-types-documents-ui', 'content-types-queries-transformations', 'content-types-schema-authoring'];
@@ -146,6 +150,85 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.deepEqual(repair.resourceIds, ['login-invalid', 'command-validation-repair', 'login-schema-package', 'login-schema']);
         assert.ok(new TextDecoder().decode(bundle.contents.readme).includes('demo.login.method_required'));
         assert.deepEqual(JSON.parse(new TextDecoder().decode(bundle.contents[repair.runConfigResourceId])).schemaPackages, [{ uri: 'schemas/login-schema-package.cem' }]);
+    } else if (record.id === 'json-yaml-report') {
+        const definition = authoredDefinitions.find(project => project.id === record.id);
+        assert.deepEqual(record.collections, definition.collections);
+        assert.equal(record.version, definition.version);
+        assert.equal(bundle.project.entries.length, definition.configurations.length);
+        for (const source of definition.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
+        const directory = await mkdtemp(resolve(tmpdir(), 'cem-studio-json-yaml-'));
+        try {
+            for (const resource of bundle.project.resources) {
+                const path = resolve(directory, resource.path);
+                await mkdir(dirname(path), { recursive: true });
+                await writeFile(path, bundle.contents[resource.id]);
+            }
+            for (const configuration of definition.configurations) {
+                const entry = bundle.project.entries.find(entry => entry.id === configuration.id);
+                const configResource = bundle.project.resources.find(resource => resource.id === entry.runConfigResourceId);
+                const command = JSON.parse(new TextDecoder().decode(bundle.contents[configResource.id]));
+                const args = command.argv ?? ['validate', '--config', configResource.path, '--format', 'json', '--no-color'];
+                const actual = runExpected(cli, args, directory, configuration.expectedExit ?? 0);
+                if (configuration.expectedSemanticContract) {
+                    const expected = JSON.parse(new TextDecoder().decode(bundle.contents[configuration.expectedSemanticContract]));
+                    assert.deepEqual(JSON.parse(actual).result.items.map(item => item.value), expected, `${configuration.id} semantic result drifted`);
+                }
+                if (configuration.expectedOutput) {
+                    assert.equal(actual.trim(), new TextDecoder().decode(bundle.contents[configuration.expectedOutput]).trim(), `${configuration.id} output drifted`);
+                }
+                for (const text of configuration.expectedText ?? []) assert.ok(actual.includes(text), `${configuration.id} misses ${text}`);
+                if (configuration.expectedValidation) {
+                    const report = JSON.parse(actual);
+                    const expected = configuration.expectedValidation;
+                    assert.equal(report.summary.errorCount, expected.errorCount);
+                    assert.equal(report.summary.warningCount, expected.warningCount);
+                    if (configuration.repair) {
+                        const diagnostic = report.diagnostics.find(item => item.code === expected.errorCode);
+                        assert.ok(diagnostic && diagnostic.severity === 'error');
+                        assert.ok(diagnostic.line > 0 && diagnostic.column > 0 && diagnostic.byteOffset >= 0, `${configuration.id} needs native source coordinates`);
+                        const source = bundle.project.resources.find(resource => resource.id === configuration.source);
+                        const original = new TextDecoder().decode(bundle.contents[source.id]);
+                        const repaired = original.replace(configuration.repair.find, configuration.repair.replace);
+                        assert.notEqual(repaired, original, `${configuration.id} repair must change the invalid source`);
+                        await writeFile(resolve(directory, source.path), repaired);
+                        const repairedReport = JSON.parse(run(cli, args, directory));
+                        assert.equal(repairedReport.summary.errorCount, 0);
+                        assert.equal(repairedReport.summary.fatalCount, 0);
+                        await writeFile(resolve(directory, source.path), bundle.contents[source.id]);
+                    }
+                }
+                if (configuration.expectedGraphOutputs) {
+                    assert.equal(entry.entryArtifact, 'generated/report.html');
+                    for (const [path, expectedId] of Object.entries(configuration.expectedGraphOutputs)) {
+                        const actual = await readFile(resolve(directory, path), 'utf8');
+                        const expected = new TextDecoder().decode(bundle.contents[expectedId]);
+                        if (path.endsWith('.json')) assert.deepEqual(JSON.parse(actual), JSON.parse(expected));
+                        else assert.equal(actual.trim(), expected.trim());
+                    }
+                    const map = await readJson(resolve(directory, 'generated/report.html.map'));
+                    assert.ok(map.outputSpans.length > 0);
+                    assert.ok(JSON.stringify(map).includes('/templates/view.cemt'));
+                    run(cli, args, directory);
+                    for (const [path, expectedId] of Object.entries(configuration.expectedGraphOutputs)) {
+                        assert.deepEqual(new Uint8Array(await readFile(resolve(directory, path))), bundle.contents[expectedId], `${path} repeated build drifted`);
+                    }
+                    for (const [sourceId, invalidId] of [['api-payload', 'invalid-payload'], ['report-settings', 'invalid-settings']]) {
+                        const source = bundle.project.resources.find(resource => resource.id === sourceId);
+                        await rm(resolve(directory, 'generated'), { recursive: true, force: true });
+                        await writeFile(resolve(directory, source.path), bundle.contents[invalidId]);
+                        assert.equal(runExpected(cli, args, directory, 1).trim(), '', `${invalidId} must not publish output`);
+                        for (const path of Object.keys(configuration.expectedGraphOutputs)) {
+                            await assert.rejects(readFile(resolve(directory, path)), { code: 'ENOENT' });
+                        }
+                        await writeFile(resolve(directory, source.path), bundle.contents[sourceId]);
+                        run(cli, args, directory);
+                        for (const [path, expectedId] of Object.entries(configuration.expectedGraphOutputs)) {
+                            assert.deepEqual(new Uint8Array(await readFile(resolve(directory, path))), bundle.contents[expectedId], `${path} repaired build drifted`);
+                        }
+                    }
+                }
+            }
+        } finally { await rm(directory, { recursive: true, force: true }); }
     } else if (record.id === 'supplier-pipeline') {
         const supplier = await readJson(resolve(workspaceRoot, 'examples/projects/supplier-pipeline/example.json'));
         assert.deepEqual(record.collections, supplier.collections);
@@ -338,10 +421,14 @@ await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 console.log(`Verified Feature Tour seed and ${catalog.exampleCount} native schema-package examples.`);
 
 function run(command, args, cwd) {
+    return runExpected(command, args, cwd, 0);
+}
+
+function runExpected(command, args, cwd, expectedStatus) {
     const result = spawnSync(command, args, { cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
     if (result.error) throw result.error;
-    if (result.status !== 0) {
-        throw new Error(`${command} ${args.join(' ')} failed (${result.status}):\n${result.stderr || result.stdout}`);
+    if (result.status !== expectedStatus) {
+        throw new Error(`${command} ${args.join(' ')} exited ${result.status}, expected ${expectedStatus}:\n${result.stderr || result.stdout}`);
     }
     return result.stdout;
 }

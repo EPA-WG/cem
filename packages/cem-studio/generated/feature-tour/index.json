@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "commonVersion": "0.1.0",
   "cacheUrls": [
+    "./examples/json-yaml-report.cem-studio.json",
     "./examples/login.cem-studio.json",
     "./examples/markdown-site.cem-studio.json",
     "./examples/schema-examples.cem-studio.json",
@@ -150,6 +151,18 @@
       ],
       "archive": "./examples/schema-examples.cem-studio.json",
       "sha256": "979219ffd4605401e583480eb8066707c3453a2d895598e0f0145bbeca529f8a"
+    },
+    {
+      "id": "json-yaml-report",
+      "name": "JSON and YAML report",
+      "description": "Inspect a JSON API payload and YAML configuration through retained native trees, filter service records and generate HTML, JSON and YAML reports with syntax failure and repair.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-data",
+        "content-types-queries-transformations"
+      ],
+      "archive": "./examples/json-yaml-report.cem-studio.json",
+      "sha256": "80dd8ee7515ed39df30c4cda8b52aaab232ed0d19f252c8bc1afd757245011c8"
     },
     {
       "id": "login",

@@ -1,0 +1,21 @@
+@doc cem-ml 1
+{run |
+    {import @content-type=application/json @id=payload @schema=https://cem.dev/ns/data/json/1
+        @src=../data/payload.json}
+    {import @content-type=application/yaml @id=settings @schema=https://cem.dev/ns/data/yaml/1
+        @src=../data/settings.yaml}
+    {transform @content-type=application/cem @entrypoint=main @id=report @input=payload
+        @schema=https://cem.dev/ns/cem-ml/1 @src=../templates/model.cemt
+        @template-content-type="application/vnd.cem.template+cem"
+        @template-schema=https://cem.dev/ns/template/cem-native/1 @with:config=settings |
+        {transform @entrypoint=main @id=view @src=../templates/view.cemt
+            @template-content-type="application/vnd.cem.template+cem"
+            @template-schema=https://cem.dev/ns/template/cem-native/1 @with:config=settings |
+            {export @content-type=text/html @id=web @out=../generated/report.html
+                @schema=https://cem.dev/ns/data/html/1}
+        }
+        {export @content-type=application/json @id=json @out=../generated/report.json
+            @schema=https://cem.dev/ns/data/json/1}
+        {export @content-type=application/yaml @id=yaml @out=../generated/report.yaml
+            @schema=https://cem.dev/ns/data/yaml/1}
+}   }

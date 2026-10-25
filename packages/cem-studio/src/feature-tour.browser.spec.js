@@ -57,6 +57,84 @@ describe('CEM Studio Feature Tour copies', () => {
         expect(outcome.admission.project.revision).toBe(7);
     }, 60_000);
 
+    it('runs the packaged JSON/YAML source, formatting and query configurations with native syntax repair', async () => {
+        const { bundle, definition, decode } = await jsonYamlProject();
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        for (const configuration of definition.configurations.filter(configuration => configuration.kind !== 'transformation-graph')) {
+            const entry = bundle.project.entries.find(entry => entry.id === configuration.id);
+            const options = projectCommandOptions(bundle, entry, 'data-source-copy');
+            const original = decode(configuration.source);
+            if (configuration.kind === 'validation') {
+                if (configuration.expectedExit === 1) {
+                    await expect(validator.validateResource(options)).rejects.toMatchObject({ result: { exitCode: 1, diagnostics: { items: expect.arrayContaining([
+                        expect.objectContaining({ code: configuration.expectedValidation.errorCode, severity: 'error' }),
+                    ]) } } });
+                    const repaired = original.replace(configuration.repair.find, configuration.repair.replace);
+                    expect(repaired).not.toBe(original);
+                    expect((await validator.validateResource({ ...options, bytes: new TextEncoder().encode(repaired) })).result.exitCode).toBe(0);
+                    expect(decode(configuration.source)).toBe(original);
+                } else expect((await validator.validateResource(options)).result.exitCode).toBe(0);
+                continue;
+            }
+            const command = JSON.parse(decode(entry.runConfigResourceId));
+            const outcome = await validator.runResourceCommand({ ...options, argv: command.argv });
+            expect(outcome.result.exitCode).toBe(0);
+            expect(outcome.output.text.length).toBeGreaterThan(0);
+            expect(outcome.output.text).not.toContain('\u001b[');
+            if (configuration.expectedSemanticContract) {
+                expect(JSON.parse(outcome.output.text).result.items.map(item => item.value)).toEqual(JSON.parse(decode(configuration.expectedSemanticContract)));
+            }
+            for (const text of configuration.expectedText ?? []) expect(outcome.output.text).toContain(text);
+            if (configuration.expectedOutput) expect(outcome.output.text.trim()).toBe(decode(configuration.expectedOutput).trim());
+            if (configuration.kind === 'conversion') {
+                expect((await validator.validateResource({ ...options, bytes: outcome.output.bytes })).result.exitCode).toBe(0);
+                if (options.contentType === 'application/json') expect(JSON.parse(outcome.output.text)).toEqual(JSON.parse(original));
+            }
+        }
+    }, 60_000);
+
+    it('builds the packaged JSON/YAML report from independent saved inputs with edits, provenance and failure/repair', async () => {
+        const { bundle, decode } = await jsonYamlProject();
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const entry = bundle.project.entries.find(entry => entry.id === 'build-report');
+        expect(entry.entryArtifact).toBe('generated/report.html');
+        const command = JSON.parse(decode(entry.runConfigResourceId));
+        const run = (edits = {}, projectId = 'data-report-copy') => validator.runResourceCommand({
+            ...projectCommandOptions(bundle, entry, projectId, edits), argv: command.argv,
+        });
+        const artifacts = outcome => outcome.result.result.value.value.value.artifacts;
+        const report = outcome => artifacts(outcome).find(artifact => artifact.destination.endsWith('/report.json')).primary;
+        const baseline = await run();
+        expect(artifacts(baseline)).toHaveLength(3);
+        expect(report(baseline)).toEqual(JSON.parse(decode('expected-json')));
+        expect(baseline.output.text.trim()).toBe(decode('expected-html').trim());
+        expect(artifacts(baseline).find(artifact => artifact.destination.endsWith('/report.yaml')).primary.trim()).toBe(decode('expected-yaml').trim());
+        expect(artifacts(baseline).flatMap(artifact => artifact.outputSpans ?? []).flatMap(span => span.origin.frames))
+            .toEqual(expect.arrayContaining([expect.objectContaining({ transform: expect.objectContaining({ uri: 'studio://data-report-copy/templates/view.cemt' }) })]));
+        const allActive = await run({ 'api-payload': decode('api-payload').replace('"status": "paused"', '"status": "active"') });
+        expect(JSON.stringify(report(allActive))).toContain('API-102');
+        const paused = await run({ 'report-settings': decode('report-settings').replace('status: active', 'status: paused') });
+        expect(JSON.stringify(report(paused))).toContain('API-102');
+        expect(JSON.stringify(report(paused))).not.toContain('API-101');
+        for (const [target, invalid, code] of [['api-payload', 'invalid-payload', 'cem.json.parse_error'], ['report-settings', 'invalid-settings', 'cem.yaml.parse_error']]) {
+            const failure = await run({ [target]: decode(invalid) }).catch(error => error);
+            expect(failure).toMatchObject({ result: { exitCode: 1 }, output: { available: false, byteLength: 0, text: '' } });
+            expect(failure.outputs).toEqual([]);
+            const source = bundle.project.resources.find(resource => resource.id === target);
+            const diagnostic = failure.result.diagnostics.items.find(item => item.code === code);
+            expect(diagnostic).toMatchObject({ code, severity: 'error', uri: `studio://data-report-copy/${source.path}` });
+            expect(diagnostic.line).toBeGreaterThan(0); expect(diagnostic.column).toBeGreaterThan(0);
+            expect(diagnostic.byteOffset).toBeGreaterThanOrEqual(0);
+            expect(diagnostic.byteOffset).toBeLessThanOrEqual(bundle.contents[invalid].byteLength);
+            expect(report(await run())).toEqual(report(baseline));
+        }
+        const independent = await run({}, 'data-report-independent');
+        expect(report(independent)).toEqual(report(baseline));
+        expect(artifacts(independent).every(artifact => artifact.destination.startsWith('studio://data-report-independent/'))).toBe(true);
+        expect(decode('api-payload')).toContain('"status": "paused"');
+        expect(decode('report-settings')).toContain('status: active');
+    }, 60_000);
+
     it('runs the packaged supplier pipeline with native multi-format output, edits, failure/repair and isolated copies', async () => {
         const response = await fetch(new URL('../generated/feature-tour/examples/supplier-pipeline.cem-studio.json', import.meta.url));
         expect(response.ok).toBe(true);
@@ -554,6 +632,26 @@ describe('CEM Studio Feature Tour copies', () => {
         expect(await exportedText(repository, 'feature-tour-2')).toBe('newer seed');
     });
 });
+
+async function jsonYamlProject() {
+    const [archive, definition] = await Promise.all([
+        fetch(new URL('../generated/feature-tour/examples/json-yaml-report.cem-studio.json', import.meta.url)),
+        fetch(new URL('../../../examples/projects/json-yaml-report/example.json', import.meta.url)),
+    ]);
+    expect(archive.ok && definition.ok).toBe(true);
+    const bundle = parseCemStudioProjectBundle(new Uint8Array(await archive.arrayBuffer()));
+    return { bundle, definition: await definition.json(), decode: id => new TextDecoder().decode(bundle.contents[id]) };
+}
+
+function projectCommandOptions(bundle, entry, projectId, edits = {}) {
+    const source = bundle.project.resources.find(resource => resource.id === entry.resourceIds[0]);
+    const bytes = id => Object.hasOwn(edits, id) ? new TextEncoder().encode(edits[id]) : bundle.contents[id];
+    return { bytes: bytes(source.id), uri: `studio://${projectId}/${source.path}`, resourceScheme: 'studio', contentType: source.contentType, schema: source.schema,
+        projectId, projectRootUri: `studio://${projectId}/`, dependencies: entry.resourceIds.slice(2).map(id => {
+            const resource = bundle.project.resources.find(resource => resource.id === id);
+            return { path: `../${resource.path}`, bytes: bytes(id), contentType: resource.contentType, schema: resource.schema };
+        }) };
+}
 
 function createRepository() {
     const repository = createCemStudioProjectRepository({

@@ -1,0 +1,449 @@
+{
+  "id": "json-yaml-report",
+  "name": "JSON and YAML report",
+  "version": "1.0.0",
+  "description": "Inspect a JSON API payload and YAML configuration through retained native trees, filter service records and generate HTML, JSON and YAML reports with syntax failure and repair.",
+  "collections": [
+    "content-types-data",
+    "content-types-queries-transformations"
+  ],
+  "sources": [
+    {
+      "id": "api-payload",
+      "source": "examples/projects/json-yaml-report/data/payload.json",
+      "path": "data/payload.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "report-settings",
+      "source": "examples/projects/json-yaml-report/data/settings.yaml",
+      "path": "data/settings.yaml",
+      "contentType": "application/yaml",
+      "schema": "https://cem.dev/ns/data/yaml/1",
+      "role": "data"
+    },
+    {
+      "id": "select-records",
+      "source": "examples/projects/json-yaml-report/queries/select-records.cem-ql",
+      "path": "queries/select-records.cem-ql",
+      "contentType": "application/vnd.cem.query-expression+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1#expression",
+      "role": "query"
+    },
+    {
+      "id": "inspect-settings",
+      "source": "examples/projects/json-yaml-report/queries/inspect-settings.cem-ql",
+      "path": "queries/inspect-settings.cem-ql",
+      "contentType": "application/vnd.cem.query-expression+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1#expression",
+      "role": "query"
+    },
+    {
+      "id": "report-model",
+      "source": "examples/projects/json-yaml-report/templates/model.cemt",
+      "path": "templates/model.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "report-view",
+      "source": "examples/projects/json-yaml-report/templates/view.cemt",
+      "path": "templates/view.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "report-graph",
+      "source": "examples/projects/json-yaml-report/graphs/report.cem",
+      "path": "graphs/report.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "invalid-payload",
+      "source": "examples/projects/json-yaml-report/data/payload-invalid.json",
+      "path": "data/payload-invalid.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-settings",
+      "source": "examples/projects/json-yaml-report/data/settings-invalid.yaml",
+      "path": "data/settings-invalid.yaml",
+      "contentType": "application/yaml",
+      "schema": "https://cem.dev/ns/data/yaml/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-html",
+      "source": "examples/projects/json-yaml-report/expected/report.html",
+      "path": "expected/report.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-json",
+      "source": "examples/projects/json-yaml-report/expected/report.json",
+      "path": "expected/report.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-yaml",
+      "source": "examples/projects/json-yaml-report/expected/report.yaml",
+      "path": "expected/report.yaml",
+      "contentType": "application/yaml",
+      "schema": "https://cem.dev/ns/data/yaml/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-selection",
+      "source": "examples/projects/json-yaml-report/expected/selection.json",
+      "path": "expected/selection.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-settings",
+      "source": "examples/projects/json-yaml-report/expected/settings.json",
+      "path": "expected/settings.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-formatted-json",
+      "source": "examples/projects/json-yaml-report/expected/formatted.json",
+      "path": "expected/formatted.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-formatted-yaml",
+      "source": "examples/projects/json-yaml-report/expected/formatted.yaml",
+      "path": "expected/formatted.yaml",
+      "contentType": "application/yaml",
+      "schema": "https://cem.dev/ns/data/yaml/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/json-yaml-report/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "inspect-json",
+      "name": "Inspect imported JSON tree",
+      "kind": "inspection",
+      "source": "api-payload",
+      "description": "Inspect the retained generic-data CEM tree and original source offsets, rather than a format-specific source AST.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/data/json/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "https://cem.dev/ns/projection/ast/1",
+        "@namespace=cem:generic-data",
+        "@byte-offset=",
+        "@value=API-101 @byte-offset=29",
+        "@value=\"Harbor weather\" @byte-offset=48"
+      ]
+    },
+    {
+      "id": "validate-json",
+      "name": "Validate JSON source",
+      "kind": "validation",
+      "source": "api-payload",
+      "description": "Validate native source syntax; this is not an authored application-schema instance check.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/data/json/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "format-json",
+      "name": "Format JSON source",
+      "kind": "conversion",
+      "source": "api-payload",
+      "dependencies": [
+        "expected-formatted-json"
+      ],
+      "description": "Format saved source with the native package tabular profile without overwriting it.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/data/json/1",
+        "--to-content-type",
+        "application/json",
+        "--to-schema",
+        "https://cem.dev/ns/data/json/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedOutput": "expected-formatted-json"
+    },
+    {
+      "id": "query-json",
+      "name": "Select active API record IDs",
+      "kind": "query",
+      "source": "api-payload",
+      "dependencies": [
+        "select-records",
+        "expected-selection"
+      ],
+      "description": "Select active record IDs using the saved standalone CEM-QL expression.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/data/json/1",
+        "--query-file",
+        "$select-records",
+        "--query-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "expected-selection"
+    },
+    {
+      "id": "inspect-yaml",
+      "name": "Inspect imported YAML tree",
+      "kind": "inspection",
+      "source": "report-settings",
+      "description": "Inspect the retained generic-data CEM tree and original source offsets, rather than a format-specific source AST.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/yaml",
+        "--schema",
+        "https://cem.dev/ns/data/yaml/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "https://cem.dev/ns/projection/ast/1",
+        "@namespace=cem:generic-data",
+        "@byte-offset=",
+        "@value=\"Active service report\" @byte-offset=7",
+        "@value=active @byte-offset=37"
+      ]
+    },
+    {
+      "id": "validate-yaml",
+      "name": "Validate YAML source",
+      "kind": "validation",
+      "source": "report-settings",
+      "description": "Validate native source syntax; this is not an authored application-schema instance check.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/yaml",
+        "--schema",
+        "https://cem.dev/ns/data/yaml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "format-yaml",
+      "name": "Format YAML source",
+      "kind": "conversion",
+      "source": "report-settings",
+      "dependencies": [
+        "expected-formatted-yaml"
+      ],
+      "description": "Format saved source with the native package tabular profile without overwriting it.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/yaml",
+        "--schema",
+        "https://cem.dev/ns/data/yaml/1",
+        "--to-content-type",
+        "application/yaml",
+        "--to-schema",
+        "https://cem.dev/ns/data/yaml/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedOutput": "expected-formatted-yaml"
+    },
+    {
+      "id": "query-yaml",
+      "name": "Inspect report settings",
+      "kind": "query",
+      "source": "report-settings",
+      "dependencies": [
+        "inspect-settings",
+        "expected-settings"
+      ],
+      "description": "Read title and status through the same retained generic-data projection as JSON.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/yaml",
+        "--schema",
+        "https://cem.dev/ns/data/yaml/1",
+        "--query-file",
+        "$inspect-settings",
+        "--query-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "expected-settings"
+    },
+    {
+      "id": "invalid-json",
+      "name": "Repair malformed JSON",
+      "kind": "validation",
+      "source": "invalid-payload",
+      "description": "Run to see the intentional native source diagnostic; README documents the exact repair.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/data/json/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.json.parse_error"
+      },
+      "repair": {
+        "find": "\"records\" [",
+        "replace": "\"records\": ["
+      }
+    },
+    {
+      "id": "invalid-yaml",
+      "name": "Repair malformed YAML",
+      "kind": "validation",
+      "source": "invalid-settings",
+      "description": "Run to see the intentional native source diagnostic; README documents the exact repair.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/yaml",
+        "--schema",
+        "https://cem.dev/ns/data/yaml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.yaml.parse_error"
+      },
+      "repair": {
+        "find": "status: [active",
+        "replace": "status: active"
+      }
+    },
+    {
+      "id": "build-report",
+      "name": "Build and preview report",
+      "kind": "transformation-graph",
+      "source": "report-graph",
+      "dependencies": [
+        "api-payload",
+        "report-settings",
+        "report-model",
+        "report-view",
+        "expected-html",
+        "expected-json",
+        "expected-yaml"
+      ],
+      "description": "Filter saved JSON records using saved YAML settings; publish an HTML view and typed JSON/YAML arrays. Preview generated/report.html or a data table.",
+      "entryArtifact": "generated/report.html",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedGraphOutputs": {
+        "generated/report.html": "expected-html",
+        "generated/report.json": "expected-json",
+        "generated/report.yaml": "expected-yaml"
+      }
+    }
+  ]
+}

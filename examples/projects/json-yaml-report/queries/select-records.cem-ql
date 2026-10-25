@@ -1,0 +1,10 @@
+// Inspect the API response through the shared retained generic-data tree.
+{
+    let records = seq:where(dom:descendants(input), fn(node) =>
+        node.kind == "element" && node.namespace == "cem:generic-data" && node.name == "object"
+        && seq:any(node.children, fn(field) => dom:text(dom:attribute(field, "name")) == "status"));
+    let active = seq:where(records, fn(row) =>
+        dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == "status")) == "active");
+    seq:map(active, fn(row) =>
+        dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == "id")))
+}

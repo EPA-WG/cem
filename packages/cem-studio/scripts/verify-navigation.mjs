@@ -4,6 +4,7 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 import { verifyMarkdownSite } from './verify-markdown-site.mjs';
+import { verifyDataProjects } from './verify-data-projects.mjs';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const server = await startStaticServer(resolve(projectRoot, 'dist/static'));
@@ -253,10 +254,11 @@ try {
     assert.equal(await readonlySource.evaluate(element => element.value), sampleText);
     await context.setOffline(false);
     const markdownSite = await verifyMarkdownSite({ page, context, url: server.url });
+    const dataProjects = await verifyDataProjects({ page, context, url: server.url });
     assert.deepEqual(errors, []);
     await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
-    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
-    console.log('Studio navigation: nested catalog, contextual/legacy URLs, readonly originals, independent clones, drafts, themes, responsive layout and offline catalog/Supplier/Markdown site builds passed.');
+    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
+    console.log('Studio navigation: nested catalog, contextual/legacy URLs, readonly originals, independent clones, drafts, themes, responsive layout and offline catalog/Supplier/Markdown site/JSON and YAML report builds passed.');
 } catch (error) {
     const failure = await state().catch(() => ({}));
     console.error('Navigation failure:', JSON.stringify({ selection: failure.selection, title: failure.title, error: failure.error, status: failure.status }));

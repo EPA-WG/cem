@@ -11,6 +11,10 @@
     {export @id="project-schema-examples-output" @out="../../dist/static/samples/examples/schema-examples.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
 
+  {import @id="project-json-yaml-report" @src="examples/json-yaml-report.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-json-yaml-report-output" @out="../../dist/static/samples/examples/json-yaml-report.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
   {import @id="project-login" @src="examples/login.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
     {export @id="project-login-output" @out="../../dist/static/samples/examples/login.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }

@@ -178,6 +178,14 @@ resource IDs and configuration IDs, independently of display labels or folders.
 <!-- existing-samples:start -->
 | Project | Resource | Configuration | Demonstrated use |
 | --- | --- | --- | --- |
+| `json-yaml-report` | `api-payload` | `inspect-json` | Inspect the imported generic CEM data projection of an API payload. |
+| `json-yaml-report` | `api-payload` | `query-json` | Filter records through a retained native CEM-QL expression. |
+| `json-yaml-report` | `report-settings` | `validate-yaml` | Validate configuration source syntax, separately from application rules. |
+| `json-yaml-report` | `report-settings` | `format-yaml` | Native same-schema YAML formatting. |
+| `json-yaml-report` | `report-settings` | `query-yaml` | Inspect configured report title and status through native CEM-QL. |
+| `json-yaml-report` | `report-graph` | `build-report` | JSON + YAML inputs, configured HTML report and selected-record JSON/YAML exports. |
+| `json-yaml-report` | `invalid-payload` | `invalid-json` | Intentional JSON source failure with an explicit repair. |
+| `json-yaml-report` | `invalid-settings` | `invalid-yaml` | Intentional YAML source failure with an explicit repair. |
 | `supplier-pipeline` | `supplier-stock` | `stock-source` | CSV source inspection. |
 | `supplier-pipeline` | `supplier-catalog` | `catalog-source` | XML catalog source inspection. |
 | `supplier-pipeline` | `supplier-reconcile` | `availability` | CSV + XML reconciliation, HTML/JSON/YAML outputs, provenance and deliberate repair. |
@@ -202,7 +210,7 @@ category names below are discovery metadata; they do not affect runtime authorit
 
 | Category | Families / selectors to cover | Reuse or planned workflow |
 | --- | --- | --- |
-| Data | JSON and YAML aliases; CSV | New payload/configuration report project and inventory/table project. Include query/format configs, quoting/header failures and repair; reuse Supplier outputs. |
+| Data | JSON and YAML aliases; CSV | Reuse `json-yaml-report` for API payload/configuration inspection, queries, formatting, syntax failure/repair and configured reports. Add the CSV inventory/table project with quoting/header failures and repair; reuse Supplier outputs. |
 | Data | XML, XHTML and XML aliases | Extend Supplier with namespaces and selected instance validation; add XHTML operations. Keep DTD/entity refusals visible. |
 | Documents and UI | Markdown | Reuse `markdown-site`; expose article conversion and complete site outputs. |
 | Documents and UI | HTML, CEM-ML, native/element templates, runtime data island | Reuse Login and add a minimal declarative component project; explain template identity and live runtime bindings. |

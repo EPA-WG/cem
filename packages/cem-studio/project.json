@@ -192,6 +192,7 @@
             "inputs": [
                 "{projectRoot}/src/feature-tour.js",
                 "{projectRoot}/src/feature-tour.browser.spec.js",
+                "{projectRoot}/generated/feature-tour/examples/*.cem-studio.json",
                 "{projectRoot}/src/repository.js",
                 "{projectRoot}/src/build-snapshots.js",
                 "{projectRoot}/src/build-snapshots.d.ts",
@@ -818,6 +819,7 @@
             "inputs": [
                 "{projectRoot}/scripts/verify-navigation.mjs",
                 "{projectRoot}/scripts/verify-markdown-site.mjs",
+                "{projectRoot}/scripts/verify-data-projects.mjs",
                 "{projectRoot}/dist/static/**/*",
                 {
                     "dependentTasksOutputFiles": "**/*",

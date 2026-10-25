@@ -2360,6 +2360,19 @@ highlighting its first membership. Amsterdam and `?collection=examples` remain
 available. Catalog metadata cannot grant package activation or execution, and
 saved clones/drafts remain independent from the original archives.
 
+The **Data** folder includes the ordinary **JSON and YAML report** project. A
+fictional saved JSON API payload and YAML report settings feed a native retained
+tree pipeline: standalone CEM-QL expressions inspect/filter inputs, and native
+templates build an HTML table plus selected-record JSON and YAML arrays. Explicit
+inspect, source-validation, formatting and build configurations remain project
+resources; no dedicated screen or application parser is introduced. JSON output
+uses the shared data-table preview; the HTML entry uses the shared artifact view.
+The [project README](../examples/projects/json-yaml-report/README.md) documents
+malformed sources, exact repairs, editable/offline copies and the distinction
+between source validation and application-schema instance validation. Graph
+input identities and HTML template source maps are shown separately, without
+promising a field-level origin for each rendered value.
+
 A waiting service worker does not call `skipWaiting()` on install. The shell's
 update coordinator blocks activation while engine requests are active, persists
 dirty state first, and keeps the current worker active if persistence fails.

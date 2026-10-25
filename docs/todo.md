@@ -142,7 +142,11 @@ Completed [nested catalog folders and contextual project discovery](archive/todo
 are archived. Content types and schemas now reuses existing ordinary projects;
 continue with the missing functional workflows below.
 
-- [ ] Add JSON and YAML data projects: API payload inspection, configuration validation, selecting/filtering records and rendering a report through the native retained-tree pipeline.
+Completed [JSON/YAML report workflows and shared import repair](archive/todo-completed-json-yaml-report-2026-10-24.md)
+cover native configurations, three report artifacts, intentional syntax failure
+and repair, shared previews, independent saved copies and offline rebuilding.
+Source validation remains distinct from application-schema instance validation.
+
 - [ ] Add a CSV project: importing spreadsheet/inventory data, header and quoting diagnostics, tabular preview and converting selected records into a report. Include an intentional malformed row and a documented repair.
 - [ ] Add XML and XHTML projects: importing a supplier catalog, namespace-aware selection, validation and template-driven HTML output; cross-reference the Supplier-pipeline example rather than duplicate it.
 - [ ] Add a Markdown project: article preview and a folder-based Markdown + CEM-ML site with metadata, relative links, CSS and images; reuse the existing site example and expose its source-to-artifact provenance.
@@ -161,6 +165,10 @@ continue with the missing functional workflows below.
 
 These remain explicit follow-ups after the functional Studio sample catalog.
 Keep the original admission, provenance, privacy and verification bounds.
+
+- [ ] Repair JSON/YAML source Parse identity and diagnostics: JSON `parse --format ast` currently exits successfully with CEM bare-brace tokenizer errors, while clean `inspect --show ast` presents an imported CEM generic-data tree. Distinguish source-format metadata from projection identity and retain original source start offsets; do not replace native parsing with application JavaScript.
+
+- [ ] Exclude generated schema-asset WASM glue from Studio's authored-source lint scope. The broad package lint currently reports 238 errors and five warnings in generated `cem_ql.js` / `cem_ql_factory.js`; linting Studio `src` and `scripts` passes. Preserve lint rules for authored code.
 
 - [ ] Pass the admitted original XSLT parser contract into CEM-QL bundle compilation, import discovery and name resolution. Preserve contextless optional-profile missing-schema refusal and complete-profile bounded execution; cover original-owned grammar/diagnostic rules, module limits, fresh runtime replay and source provenance before enabling optional-profile executable XSLT graphs.
 
