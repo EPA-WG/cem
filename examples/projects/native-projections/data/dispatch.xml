@@ -1,0 +1,5 @@
+<article xmlns="http://www.w3.org/1999/xhtml" id="dispatch">
+  <!-- lexical XML stays with the imported owner -->
+  <h1>Amsterdam dispatch</h1>
+  <p class="destination"><![CDATA[Café Noord]]></p>
+</article>

@@ -77,6 +77,9 @@ export interface CemStudioNavigationState {
     readonly status: string;
     readonly content: 'folder' | 'project' | 'file' | 'sample-file' | 'output-file' | 'output-folder';
     readonly sampleText: string;
+    readonly sampleTextAvailable: boolean;
+    readonly sampleAvailable: boolean;
+    readonly sampleReason?: string;
     readonly contentType: string;
     readonly sourceId: string;
     readonly count: number;

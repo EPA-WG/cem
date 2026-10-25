@@ -141,7 +141,7 @@ import {
     type CemRepositoryStatus,
 } from './repository.js';
 import { CEM_FORM_CONTROL_CAPABILITY, cemFormControlCheckpoint, getCemEditorProvider } from './form-control-capability.js';
-import { CEM_PLAINTEXT_EDITOR_CAPABILITY, cemPlaintextEditorEventValue, cemPlaintextEditorCheckpoint, prepareCemPlaintextEditorResume } from './plaintext-editor-capability.js';
+import { CEM_PLAINTEXT_EDITOR_CAPABILITY, cemPlaintextEditorEventValue, cemPlaintextEditorDuplicateNativeInput, cemPlaintextEditorCheckpoint, prepareCemPlaintextEditorResume } from './plaintext-editor-capability.js';
 import { equalCheckpointState, cemRetainedFormCheckpoint, prepareCemRetainedFormResume, prepareCemRetainedWidgetResume } from './checkpoint-form-resume.js';
 import { prepareCemReferenceResume } from './checkpoint-reference-resume.js';
 import { CEM_NAVIGATION_LANDMARK_CAPABILITY, cemNavigationLandmarkCheckpoint } from './navigation-landmark-capability.js';
@@ -3683,6 +3683,11 @@ export class CemElementRuntime {
             published(receipt);
         };
         const input = (event?: Event) => {
+            // One browser multiline insertion can emit repeated trusted input
+            // notifications for its already complete owned plaintext surface.
+            // Admit its first value at every owner; later identical fragments
+            // do not create additional checkpoint epochs or renders.
+            if (event && cemPlaintextEditorDuplicateNativeInput(event)) return;
             // setSelectionRange queues a trusted notification. A capture may
             // already include that exact selection before the task is delivered.
             // Do not turn its late acknowledgment into a new render/input epoch.

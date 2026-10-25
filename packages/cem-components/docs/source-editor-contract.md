@@ -40,10 +40,20 @@ composition during unrelated renders. An accepted replacement changes the
 source; a replacement received during composition waits until composition ends.
 A retained value slice survives reconnection and serialized resumption.
 
+One native multiline insertion can produce repeated browser `input` fragments
+after its complete text is already installed. The shared capability publishes
+the first notification synchronously and suppresses identical fragments within
+that edit. Separate edits, composition commits and explicitly dispatched
+synthetic input remain observable, including repeated same-value edits. This
+does not replace the browser editing surface or its native undo history.
+
 Trailing source newlines remain exact. The browser's final caret placeholder
 (a terminal BR, or a sentinel LF after a BR during paste) is excluded from the
 admitted value. Unrelated renders compare that normalized value and leave the
 native editing subtree intact, preserving caret and undo history.
+External source ending in a newline receives a disposable caret placeholder so
+native Select All and paste can replace the authored final newline too. Literal
+LF/CRLF stays in the source; the placeholder does not become document data.
 
 `label` supplies visible fallback text and the default accessible name. The
 `label` slot replaces visible fallback markup; `aria-label` names the textbox

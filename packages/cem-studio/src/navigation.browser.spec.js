@@ -13,9 +13,11 @@ const services = [];
 afterEach(() => { for (const service of services.splice(0)) service.dispose(); });
 
 async function fixture(url = 'https://studio.test/?project=demo&file=article', readOnly = false, { ambiguousSource = false, alternateBuild = false, plaintextSource = false, tabularSource = false, validator,
-    sampleCollections = ['nested'], collections = [{ id: 'nested', name: 'Nested examples' }] } = {}) {
+    sampleCollections = ['nested'], collections = [{ id: 'nested', name: 'Nested examples' }], binarySource = false, sourceBytes, missingSource = false } = {}) {
     const encoder = new TextEncoder();
-    const sourceResource = plaintextSource
+    const sourceResource = binarySource
+        ? { id: 'article', path: 'projection.cem-bin', contentType: 'application/vnd.cem.ast+cem-bin', schema: 'https://cem.dev/ns/projection/ast/1' }
+        : plaintextSource
         ? { id: 'article', path: 'geometry.txt', contentType: 'text/plain' }
         : tabularSource ? { id: 'article', path: 'content/article.csv', contentType: 'text/csv', schema: 'https://cem.dev/ns/data/csv/1' }
             : { id: 'article', path: 'content/article.md', contentType: 'text/markdown', schema: 'https://cem.dev/ns/data/markdown/1' };
@@ -26,7 +28,7 @@ async function fixture(url = 'https://studio.test/?project=demo&file=article', r
     ], entries: [{ id: 'build', name: 'Build site', kind: 'transformation-graph', runConfigResourceId: 'command', entryArtifact: 'generated/index.html' },
         ...(alternateBuild ? [{ id: 'alternate', name: 'Alternate build', kind: 'transformation-graph', runConfigResourceId: 'command', entryArtifact: 'generated/index.html' }] : [])] };
     const sourceText = tabularSource ? 'id,name\n1,Ada\n' : '# Article';
-    const bundle = { project, contents: { article: encoder.encode(sourceText), other: encoder.encode('# Other'), command: encoder.encode('{}') } };
+    const bundle = { project, contents: { ...(missingSource ? {} : { article: sourceBytes ?? (binarySource ? new Uint8Array([67, 69, 77, 0, 255]) : encoder.encode(sourceText)) }), other: encoder.encode('# Other'), command: encoder.encode('{}') } };
     const repository = { async query({ operation }) {
         if (operation === 'list-projects') return { value: [project] };
         if (operation === 'get-project') return { value: project };
@@ -178,6 +180,37 @@ describe('Studio compact navigation service', () => {
         expect(service.snapshot().navigation).toMatchObject({ selection: { file: 'article' }, content: 'sample-file',
             contentType: 'text/csv', sourcePreview: { contentType: 'text/csv', text: 'id,name\n1,Ada\n' } });
         expect(browser.location.searchParams.get('file')).toBe('article');
+    });
+
+    it('keeps catalog binary resources out of text preparation and downloads their exact owned bytes', async () => {
+        const prepareResource = vi.fn(async () => undefined);
+        const { service } = await fixture('https://studio.test/?sample=demo&file=article', false, { binarySource: true, validator: { prepareResource } });
+        expect(service.snapshot().navigation).toMatchObject({ content: 'sample-file', sampleTextAvailable: false, sampleText: '' });
+        expect(service.snapshot().navigation.sourcePreview).toBeUndefined(); expect(prepareResource).not.toHaveBeenCalled();
+        const root = document.createElement('main'); document.body.append(root);
+        const downloads = [], view = await mountCemStudioFeatureTourWorkbench({ root, workbench: service, download: async value => { downloads.push(value); } });
+        onTestFinished(() => { view.dispose(); root.remove(); }); await view.whenSettled();
+        const picker = root.querySelector('cem-studio-project-picker');
+        expect(picker.querySelector('cem-source-editor')).toBeNull();
+        const button = [...picker.querySelectorAll('button')].find(button => button.textContent.trim() === 'Download resource');
+        expect(button).toBeDefined(); button.click(); await view.whenSettled();
+        expect(downloads).toHaveLength(1);
+        expect(downloads[0]).toMatchObject({ filename: 'projection.cem-bin', contentType: 'application/vnd.cem.ast+cem-bin' });
+        expect(downloads[0].bytes).toEqual(new Uint8Array([67, 69, 77, 0, 255]));
+    });
+
+    for (const missing of [false, true]) it(`guards catalog text availability for ${missing ? 'unavailable bytes' : 'invalid UTF-8 beyond the preview prefix'}`, async () => {
+        const bytes = new Uint8Array(300_000).fill(65); bytes[bytes.length - 1] = 255;
+        const prepareResource = vi.fn(async () => undefined);
+        const { service } = await fixture('https://studio.test/?sample=demo&file=article', false, {
+            plaintextSource: true, sourceBytes: bytes, missingSource: missing, validator: { prepareResource },
+        });
+        expect(service.snapshot().navigation).toMatchObject({ content: 'sample-file', sampleTextAvailable: false, sampleAvailable: !missing, sampleText: '' });
+        expect(service.snapshot().navigation.error).toBeUndefined(); expect(service.snapshot().navigation.sourcePreview).toBeUndefined();
+        expect(prepareResource).not.toHaveBeenCalled();
+        const save = vi.fn(async () => undefined);
+        if (missing) { await expect(service.downloadSource(save)).rejects.toThrow('No owned sample resource bytes'); expect(save).not.toHaveBeenCalled(); }
+        else { await service.downloadSource(save); expect(save.mock.calls[0][0].bytes).toEqual(bytes); }
     });
 
     it('keeps section openness and per-tree selection/expansion independent across publications and collapse', async () => {

@@ -116,6 +116,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
     }
     const sourceDescriptor = (nextOpened = opened, route = selection, state = base) => {
         const resource = route.file && nextOpened?.project.resources.find(item => item.id === route.file);
+        if (route.sample && typeof nextOpened?.text !== 'string') return undefined;
         // Read-only/unavailable records have no admitted UTF-8 text. Empty
         // editor placeholders must not become fabricated data or HTML input.
         if (!route.sample && (state.editable === false || state.resourceAvailable === false
@@ -193,7 +194,9 @@ export async function createCemStudioNavigation({ workbench, repository, example
             canDelete: !selection.selection && Boolean(selection.project) && ['project', 'file'].includes(selected.kind),
             createKind: selection.project ? 'file' : 'project',
             content: selected.kind === 'project' ? 'project' : selected.kind === 'output-file' ? 'output-file' : selected.kind === 'output-folder' ? 'output-folder' : selected.kind === 'file' || selected.kind === 'configuration' ? (selection.sample ? 'sample-file' : 'file') : 'folder',
-            sampleText: opened?.text ?? '', contentType: opened?.resource?.contentType ?? 'text/plain',
+            sampleText: opened?.text ?? '', sampleTextAvailable: typeof opened?.text === 'string',
+            sampleAvailable: Boolean(opened?.resource && opened.bundle?.contents[opened.resource.id] !== undefined),
+            sampleReason: opened?.textReason, contentType: opened?.resource?.contentType ?? 'text/plain',
             sourceId: JSON.stringify(['sample', selection.sample, opened?.resource?.id ?? selected.key]),
             status: busy ? 'opening' : error ? 'error' : base.dirty ? 'dirty' : selection.sample ? 'sample' : !selection.project || base.status === 'empty' ? 'ready' : base.status,
         };
@@ -274,7 +277,17 @@ export async function createCemStudioNavigation({ workbench, repository, example
                     if (!resource) throw new Error('The requested sample file is unavailable.');
                     const bytes = bundle.contents[resource.id];
                     nextOpened.resource = resource;
-                    nextOpened.text = new TextDecoder('utf-8', { fatal: true }).decode(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes ?? []));
+                    nextOpened.text = undefined;
+                    if (bytes === undefined) nextOpened.textReason = 'Resource bytes are unavailable.';
+                    else {
+                        const source = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+                        const preview = createCemStudioPreview({ bytes: source, contentType: resource.contentType });
+                        nextOpened.textReason = preview.reason;
+                        if (preview.kind !== 'download') {
+                            try { nextOpened.text = new TextDecoder('utf-8', { fatal: true }).decode(source); }
+                            catch { nextOpened.textReason = 'The resource is not valid UTF-8; download its exact bytes.'; }
+                        }
+                    }
                 }
                 if (route.configuration) {
                     const entry = bundle.project.entries.find(item => item.id === route.configuration);
@@ -356,6 +369,14 @@ export async function createCemStudioNavigation({ workbench, repository, example
         cancelProjectPreview() { preview.cancel(); },
         copyPreview(writeText) { return preview.copy(writeText); },
         downloadPreview(save) { return preview.download(save); },
+        async downloadSource(save) {
+            if (!selection.sample) return workbench.downloadSource(save);
+            const resource = opened?.resource, value = resource && opened.bundle?.contents[resource.id];
+            if (value === undefined) throw new Error('No owned sample resource bytes are available');
+            if (typeof save !== 'function') throw new Error('Resource download is unavailable in this browser.');
+            const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+            await save({ filename: resource.path?.split('/').at(-1) ?? resource.id, contentType: resource.contentType, bytes: bytes.slice() });
+        },
         async selectWorkbench(id) {
             const target = JSON.parse(id);
             await navigate({ project: target.projectId, ...(target.resourceId ? { file: target.resourceId } : {}), ...(target.entryId ? { configuration: target.entryId } : {}) }, 'push', true);

@@ -61,6 +61,47 @@ export const NativeEditing = meta.story({
     },
 });
 
+export const NativeBulkPublication = meta.story({
+    parameters: { docs: { description: { story: 'Browser-runner-only: one multiline native insertion publishes its final source once while preserving the native surface, focus, caret and undo. Explicit synthetic input remains observable.' } } },
+    render: () => '<cem-source-editor value="initial" highlight="off"></cem-source-editor>',
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
+        const host = canvasElement.querySelector('cem-source-editor') as Editor;
+        await whenCemRendered(host);
+        const control = editor(host), changes: string[] = [];
+        host.addEventListener('input', () => changes.push(host.value));
+        for (const lines of [16, 994]) {
+            host.setAttribute('value', `initial ${lines}`); await whenCemRendered(host);
+            changes.length = 0;
+            const source = Array.from({ length: lines }, (_, index) => `"row${index}": "Café dispatch"`).join('\n');
+            await userEvent.fill(control, source);
+            expect(host.value).toBe(source);
+            expect(changes).toEqual([source]);
+            expect(editor(host)).toBe(control); expect(document.activeElement).toBe(control);
+            expect([control.selectionStart, control.selectionEnd]).toEqual([source.length, source.length]);
+            const markup = control.innerHTML;
+            host.setAttribute('label', 'Updated status'); await whenCemRendered(host);
+            expect(control.innerHTML).toBe(markup); expect(editor(host)).toBe(control);
+            expect(document.activeElement).toBe(control);
+            changes.length = 0;
+            await userEvent.fill(control, source);
+            expect(changes).toEqual([source]);
+            await userEvent.keyboard('!');
+            expect(host.value).toBe(`${source}!`); expect(changes.at(-1)).toBe(`${source}!`);
+            await userEvent.keyboard('{Control>}z{/Control}');
+            expect(host.value).toBe(source);
+            await userEvent.keyboard('{Control>}y{/Control}');
+            expect(host.value).toBe(`${source}!`);
+        }
+        changes.length = 0;
+        host.value = 'Programmatic value';
+        control.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        control.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        expect(changes).toEqual(['Programmatic value', 'Programmatic value']);
+    },
+});
+
 export const TrailingNewlines = meta.story({
     parameters: { docs: { description: { story: 'Browser-runner-only: terminal caret placeholders must not enter source values after Enter, paste or rendering updates.' } } },
     render: () => '<cem-source-editor value="one"></cem-source-editor>',
@@ -99,6 +140,44 @@ export const TrailingNewlines = meta.story({
         await userEvent.keyboard('{Backspace}'); expect(host.value).toBe('');
         host.value = 'literal\n\n'; host.setAttribute('label', 'Literal newlines'); await whenCemRendered(host);
         expect(host.value).toBe('literal\n\n');
+    },
+});
+
+export const NativeWholeSourceReplacement = meta.story({
+    parameters: { docs: { description: { story: 'Browser-runner-only: terminal source line endings remain selectable during whole-source clipboard replacement, including raw CRLF values and readonly rendering. Native undo restores the original source.' } } },
+    render: () => '<cem-source-editor value="" highlight="off"></cem-source-editor>',
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
+        const host = canvasElement.querySelector('cem-source-editor') as Editor;
+        await whenCemRendered(host);
+        const control = editor(host), clipboard = document.createElement('textarea');
+        canvasElement.append(clipboard);
+        try {
+            for (const source of ['Café\n', 'Café\n\n', '\n', '\n\n', 'Café\r\n', 'Café\r\n\r\n']) {
+                host.setAttribute('readonly', ''); host.value = source;
+                await whenCemRendered(host);
+                expect(host.value).toBe(source); expect(control.textContent).toBe(source);
+                control.focus(); control.setSelectionRange(0, source.length);
+                expect([control.selectionStart, control.selectionEnd]).toEqual([0, source.length]);
+                host.setAttribute('label', `Source ${JSON.stringify(source)}`); await whenCemRendered(host);
+                expect(host.value).toBe(source); expect(control.textContent).toBe(source);
+                expect(editor(host)).toBe(control);
+                host.removeAttribute('readonly'); await whenCemRendered(host);
+                const replacement = 'Replacement Café\n';
+                clipboard.value = replacement; clipboard.focus(); clipboard.select(); await userEvent.copy();
+                control.focus(); await userEvent.keyboard('{Control>}a{/Control}');
+                expect([control.selectionStart, control.selectionEnd]).toEqual([0, source.length]);
+                await userEvent.paste();
+                expect(host.value, control.innerHTML).toBe(replacement);
+                expect(editor(host)).toBe(control); expect(document.activeElement).toBe(control);
+                const markup = control.innerHTML;
+                host.setAttribute('label', 'Replacement retained'); await whenCemRendered(host);
+                expect(control.innerHTML).toBe(markup);
+                await userEvent.keyboard('{Control>}z{/Control}'); expect(host.value, control.innerHTML).toBe(source);
+                await userEvent.keyboard('{Control>}y{/Control}'); expect(host.value, control.innerHTML).toBe(replacement);
+            }
+        } finally { clipboard.remove(); }
     },
 });
 
@@ -186,11 +265,12 @@ export const LosslessColoring = meta.story({
             await runtime.whenRenderSettled(host);
             const control = editor(host), source = '\t<p title="é😀">unfinished<\r\n\n';
             host.value = source;
-            const text = control.firstChild;
+            const text = control.firstChild, markup = control.innerHTML;
             control.focus(); control.setSelectionRange(11, 14, 'backward');
             await waitFor(() => expect(paintedRanges(host).length).toBeGreaterThan(0));
             expect(host.value).toBe(source); expect(control.textContent).toBe(source);
-            expect(control.firstChild).toBe(text); expect(control.children).toHaveLength(0);
+            expect(control.firstChild).toBe(text); expect(control.innerHTML).toBe(markup);
+            expect(control.childNodes).toHaveLength(2); expect(control.lastChild?.nodeName).toBe('BR');
             expect([control.selectionStart, control.selectionEnd, control.selectionDirection]).toEqual([11, 14, 'backward']);
             expect(host.querySelector('p')).toBeNull();
             host.setAttribute('label', 'Status update'); await runtime.whenRenderSettled(host);
@@ -202,9 +282,11 @@ export const LosslessColoring = meta.story({
             for (const type of ['text/css', 'text/cem-ml']) {
                 host.setAttribute('content-type', type);
                 host.value = type === 'text/css' ? '\t.card { color: red; /* incomplete é😀\n\n' : '\t{p @title="é😀" | unfinished\n\n';
+                const markup = control.innerHTML;
                 await runtime.whenRenderSettled(host);
                 await waitFor(() => expect(paintedRanges(host).length).toBeGreaterThan(0));
-                expect(control.textContent).toBe(host.value); expect(control.children).toHaveLength(0);
+                expect(control.textContent).toBe(host.value); expect(control.innerHTML).toBe(markup);
+                expect(control.childNodes).toHaveLength(2); expect(control.lastChild?.nodeName).toBe('BR');
             }
             host.setAttribute('content-type', 'application/json'); host.value = '{"plain":true}';
             await runtime.whenRenderSettled(host);

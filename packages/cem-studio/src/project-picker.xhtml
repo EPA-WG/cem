@@ -30,6 +30,10 @@
     {cem-action @variant=contextual @host-command=download-preview @disabled={if nav.outputAvailable { null } else { true }} | Download artifact}
    }
    {cem:choose |
+    {cem:when @test='nav.content == "sample-file" &amp;&amp; !nav.sampleTextAvailable' |
+     {cem-alert @tone=info @label={nav.sampleReason ?? "Text preview is unavailable. Download the exact resource bytes."}}
+     {cem-action @variant=contextual @host-command=download-source @disabled={if nav.sampleAvailable { null } else { true }} | Download resource}
+    }
     {cem:when @test='nav.content == "output-file" &amp;&amp; !nav.outputTextAvailable' |
      {cem-alert @tone=info @label={nav.outputReason ?? "Text preview is unavailable. Download the exact artifact bytes."}}
     }

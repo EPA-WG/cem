@@ -1,0 +1,8 @@
+@doc cem-ml 1
+@ns h = "http://www.w3.org/1999/xhtml"
+@default h
+
+{article @id=dispatch |
+    {h1 | Amsterdam dispatch}
+    {p @class=destination | Café Noord}
+}

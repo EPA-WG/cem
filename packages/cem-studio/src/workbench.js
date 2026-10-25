@@ -1292,9 +1292,10 @@ export async function createCemStudioWorkbench(options) {
     async function downloadProjection(save) {
         const projection = state.projection;
         if (!projection?.output || projection.output.available === false) throw new Error('CEM Studio has no operation output to download');
-        const extension = ({ 'text/html': 'html', 'application/xhtml+xml': 'xhtml', 'image/svg+xml': 'svg',
+        const outputType = projection.output.contentType?.split(';')[0].trim();
+        const extension = outputType?.endsWith('+cem-bin') ? 'cem-bin' : ({ 'text/html': 'html', 'application/xhtml+xml': 'xhtml', 'image/svg+xml': 'svg',
             'application/json': 'json', 'application/yaml': 'yaml', 'text/plain': 'txt', 'text/css': 'css',
-            'application/octet-stream': 'bin' })[projection.output.contentType?.split(';')[0].trim()] ?? 'cem';
+            'application/octet-stream': 'bin' })[outputType] ?? 'cem';
         const artifact = projection.buildRun.artifacts.find(artifact => artifact.id === projection.selectedArtifactId);
         const filename = artifact?.path && !artifact.uri.startsWith('cem-stdio:') ? artifact.path.split('/').pop()
             : `${projection.kind}-${String(projection.mode).replace(/[^a-z0-9-]+/gi, '-')}.${extension}`;
@@ -1896,6 +1897,7 @@ export async function mountCemStudioWorkbench({
             'home-open': ({ fields }) => perform(() => workbench.selectWorkbench(fields.project?.[0])),
             'open-entity': ({ value }) => perform(() => workbench.openEntity(value)),
             'download-preview': () => perform(() => workbench.downloadPreview(download)),
+            'download-source': () => perform(() => workbench.downloadSource(download)),
         },
     });
     const controlCommands = {
@@ -2778,6 +2780,7 @@ function workbenchListingNavigation(navigation, project) {
     return navigation && { selected: { name: navigation.selected.name, description: navigation.selected.description },
         children: navigation.children, content: navigation.content, path: navigation.path,
         sampleText: navigation.content === 'output-file' ? bounded?.text ?? bounded?.source ?? '' : navigation.sampleText,
+        sampleTextAvailable: navigation.sampleTextAvailable, sampleAvailable: navigation.sampleAvailable, sampleReason: navigation.sampleReason,
         outputAvailable: Boolean(output), outputTextAvailable: typeof bounded?.text === 'string' || typeof bounded?.source === 'string', outputTruncated: Boolean(bounded?.truncated), outputReason: bounded?.reason,
         contentType: navigation.content === 'output-file' ? project?.selectedOutput?.contentType ?? 'text/plain' : navigation.contentType,
         sourceId: navigation.content === 'output-file' ? JSON.stringify(['output', project?.projection?.buildRun.id, project?.selectedArtifact?.path]) : navigation.sourceId, action: navigation.action, error: navigation.error };

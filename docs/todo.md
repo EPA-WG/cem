@@ -207,7 +207,15 @@ codecs and guarded source archives. Saved edits, independent imports/copies and
 offline rebuilds pass with shared controls. Native source-operation limits,
 read authority, saved projects/drafts and credential privacy remain explicit.
 
-- [ ] Add native DOM/AST/event projection projects: explain import versus structural inspection, show source locations and compare projections using the shared CEM-ML presentation path. Include any additional supported schema families found by the inventory audit.
+Completed [native DOM/AST/event projection projects and shared validation](archive/todo-completed-native-projection-projects-2026-10-25.md)
+cover 15 resources and 19 configurations, native CEM-ML inspection, exact explicit
+exports, original source ranges and four diagnostic repairs. Shared native
+validation, catalog byte admission and editor publication/terminal-newline fixes
+pass worker, deployed, saved-copy and offline checks. Native diagnostic selection
+uses admitted source buffers; missing inspection-provenance publication, AST JSON
+compatibility and binary input/replay remain explicit native follow-ups.
+Credential privacy and existing saved projects/drafts are preserved.
+
 - [ ] Give each project a README with its typical use, content types/schema identities, supported configurations, expected artifacts, provenance and deliberate failure/repair steps where applicable. Reuse shared table, editor and preview controls; add no sample-specific UI JavaScript.
 - [ ] Add native fixtures for each sample's authored configurations, expected artifacts and intentional diagnostics, plus Studio catalog/navigation/clone/build/preview and offline-inventory coverage. Preserve saved projects/drafts and test that original examples remain unchanged after editing clones.
 
@@ -237,6 +245,18 @@ Keep the original admission, provenance, privacy and verification bounds.
 - [ ] Expose typed native source operations for CLI command/run-config and Studio control encodings without duplicating their grammar in JavaScript. CLI command envelope validation works, but generic Parse/Inspect/format still route to unsupported or erroneous source paths; run configs currently have only their real CLI loader/normalizer, not a registered standalone source adapter. Studio source conversion and CEM structural Inspect work; generic JSON/CEM Parse and JSON Inspect retain source-identity gaps. Add failing native source/exit-status fixtures before enabling these operations; preserve existing native command/plan inspection and preparation refusals.
 
 - [ ] Enforce the selected module-map version's semantic source contract during standalone validation. Explicit v1/v2/v3 identities currently delegate to JSON syntax checks; invalid keys, resource kinds and embedded versions refuse only during graph planning. Add native diagnostic/location fixtures before changing that boundary, preserve bounded read grants, and keep paired deployment maps separate from input-root-scope alias maps.
+
+- [ ] Reconcile native AST debug JSON export with the registered AST JSON source contract. The writer exports an array while the v1 validator requires a document object; do not wrap or reinterpret the exported AST in application JavaScript. Add native writer/validator compatibility fixtures before claiming a round trip.
+
+- [ ] Publish owned native Parse/Inspect presentation provenance through the common command result. Their typed retained owner and coordinate presentation survive, but `PrimaryBytes` and command publication omit named source-map references/output spans. Include explicit Convert primary-artifact span publication and admitted URI boundaries; its embedded numeric source IDs do not supply those endpoints. Preserve actual source identities and native ranges; add native/worker/Studio selection fixtures before exposing fine artifact-source navigation. Do not reconstruct links from serialized AST fields or numeric source IDs. Keep any explicitly admitted whole-input boundary distinct from fine token lineage.
+
+- [ ] Complete native DOM/AST/event projection input adapters and binary payload validation. Their registered validators currently check JSON shape or binary headers, while generic lifecycle conversion adapters are output-only. Preserve original owners, schema/kind/MIME refusals and bounded chunks; add native payload-integrity/replay fixtures before enabling decoder or hash-integrity claims.
+
+- [ ] Design explicit owned native command execution for read-only binary Studio resources. Binary sources currently remain non-editable and non-runnable with exact downloads; preserve that admission boundary until the shared command service and declarative controls can validate an owned binary configuration without treating binary bytes as text or granting execution implicitly.
+
+- [ ] Apply the catalog file text-admission policy to direct configuration URLs. That older branch still decodes missing bytes as empty text and invalid UTF-8 with replacement characters. Add missing/invalid configuration-resource fixtures, preserve exact-byte downloads and refuse fabricated source preparation; reuse the owned file transport policy without parsing configurations in JavaScript.
+
+- [ ] Investigate Chromium/CDP multiline `insertText` performance separately from native bulk paste. The deployed 24,585-character projection source takes about 29.3 seconds through driver fill (1,987 DOM/input fragments), while native paste takes 93 ms and one text node. Both containment experiments fail to improve the existing timeout. Preserve native undo, source text and shared editor ownership; do not introduce DOM-replacement or timeout workarounds.
 
 - [ ] Separate constructed XML document URI from source provenance URI. `uri_accessors_share_native_metadata_and_enforce_optional_node_arguments` expects `data:document_uri(data:parse("<r/>", "xml"))` to be empty, while the unchanged pre-CSV-fix runtime returns `data:parse/source`. Preserve original source locations and the existing assertion when repairing the accessor.
 

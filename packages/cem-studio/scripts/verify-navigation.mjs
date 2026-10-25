@@ -15,6 +15,7 @@ import { verifyTransformationProjects } from './verify-transformation-projects.m
 import { verifySchemaAuthoringProjects } from './verify-schema-authoring-projects.mjs';
 import { verifyModuleMapProject } from './verify-module-map-project.mjs';
 import { verifyPortableConfigProject } from './verify-portable-config-project.mjs';
+import { verifyNativeProjectionProject } from './verify-native-projection-project.mjs';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const csvOnly = process.argv.includes('--csv-only');
@@ -26,8 +27,9 @@ const stylesheetsOnly = process.argv.includes('--stylesheets-only');
 const dataQueriesOnly = process.argv.includes('--data-queries-only');
 const transformationsSchemasOnly = process.argv.includes('--transformations-schemas-only');
 const moduleConfigsOnly = process.argv.includes('--module-configs-only');
+const nativeProjectionsOnly = process.argv.includes('--native-projections-only');
 const schemaAssets = process.argv.includes('--schema-assets');
-if ([csvOnly, documentsOnly, markdownOnly, htmlCemOnly, svgMathmlOnly, stylesheetsOnly, dataQueriesOnly, transformationsSchemasOnly, moduleConfigsOnly].filter(Boolean).length > 1) throw new Error('Select one project verification scope.');
+if ([csvOnly, documentsOnly, markdownOnly, htmlCemOnly, svgMathmlOnly, stylesheetsOnly, dataQueriesOnly, transformationsSchemasOnly, moduleConfigsOnly, nativeProjectionsOnly].filter(Boolean).length > 1) throw new Error('Select one project verification scope.');
 if (schemaAssets && !csvOnly) throw new Error('The optional profile replay requires --csv-only.');
 const server = await startStaticServer(resolve(projectRoot, schemaAssets ? 'dist/schema-assets' : 'dist/static'));
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
@@ -52,7 +54,13 @@ const submit = async (name, action) => { if (name) await page.getByRole('dialog'
 const heading = async () => assert.equal(await page.getByRole('heading', { level: 1 }).innerText(), await page.title());
 
 try {
-    if (moduleConfigsOnly) {
+    if (nativeProjectionsOnly) {
+        const nativeProjectionProject = await verifyNativeProjectionProject({ page, context, url: server.url });
+        assert.deepEqual(errors, []);
+        await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
+        await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/native-projection-projects.json'), `${JSON.stringify({ schemaVersion: 1, nativeProjectionProject }, null, 2)}\n`);
+        console.log('Studio native projections: owned source views, explicit codec exports, repairs and independent offline workflows passed.');
+    } else if (moduleConfigsOnly) {
         const portableContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
         const portablePage = await portableContext.newPage(); portablePage.setDefaultTimeout(30_000);
         portablePage.on('pageerror', error => errors.push(error.message));
@@ -357,15 +365,21 @@ try {
     const schemaAuthoringProjects = await verifySchemaAuthoringProjects({ page, context, url: server.url });
     const moduleMapProject = await verifyModuleMapProject({ page, context, url: server.url });
     const portableConfigProject = await verifyPortableConfigProject({ page, context, url: server.url });
+    const nativeProjectionProject = await verifyNativeProjectionProject({ page, context, url: server.url });
     assert.deepEqual(errors, []);
     await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
-    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, csvInventory, xmlXhtmlProjects, htmlCemCard, svgMathmlProjects, stylesheetProjects, dataQueryProjects, transformationProjects, schemaAuthoringProjects, moduleMapProject, portableConfigProject, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
+    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, csvInventory, xmlXhtmlProjects, htmlCemCard, svgMathmlProjects, stylesheetProjects, dataQueryProjects, transformationProjects, schemaAuthoringProjects, moduleMapProject, portableConfigProject, nativeProjectionProject, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
     console.log('Studio navigation: nested catalog, contextual/legacy URLs, readonly originals, independent clones, drafts, themes, responsive layout and offline catalog/Supplier/Markdown site/JSON and YAML report/CSV inventory/XML and XHTML builds passed.');
     }
 } catch (error) {
-    const failure = await state().catch(() => ({}));
+    console.error('Studio navigation verification failed:', error);
+    let timer;
+    const failure = await Promise.race([
+        state().catch(() => ({})),
+        new Promise(resolveFailure => { timer = setTimeout(() => resolveFailure({}), 5_000); }),
+    ]).finally(() => clearTimeout(timer));
     console.error('Navigation failure:', JSON.stringify({ selection: failure.selection, title: failure.title, error: failure.error, status: failure.status }));
-    await page.screenshot({ path: '/tmp/cem-studio-navigation-failure.png', fullPage: true }).catch(() => undefined);
+    await page.screenshot({ path: '/tmp/cem-studio-navigation-failure.png', fullPage: true, timeout: 5_000 }).catch(() => undefined);
     throw error;
 } finally { await browser.close(); await server.close(); }
 

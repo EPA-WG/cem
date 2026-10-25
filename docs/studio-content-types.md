@@ -138,7 +138,7 @@ artifacts; the mere presence of a manifest artifact is insufficient.
 | CLI command | Native validation checks the versioned literal-argv resource envelope; the executing host's native codec checks actual argv grammar. | Studio's command/plan inspector uses native decoded controls. Generic source Parse/Inspect/format have routing/export gaps and are not advertised as supported command-source operations. | Authored commands use native grammar and bounded host resources. Source validation alone does not execute a command. |
 | CLI run configuration | Native CLI loading/normalization through `--config`; this is not a registered standalone source adapter. | Inspect the actual native normalized command/plan. Generic source Parse/Inspect/format are unavailable. | Native run configuration and host grants remain explicit; parsing a JSON document does not grant resource reads. |
 | Studio project | Explicit portable control contract with CEM and JSON encodings. | Native validation/formatting and cross-encoding conversion; CEM structural Inspect where supported. Generic source Parse/JSON Inspect retain the documented source-identity gaps. | Repository import/export and builds preserve captured resource identities. A valid manifest is not a grant to execute arbitrary resources. |
-| DOM/AST/events projections | Explicit native projection codecs; binary types are not text source. | Human-readable JSON inspection and source-origin views. | Consume/produce through the supported projection APIs. No automatic general format conversion or evaluation guarantee for all projection selectors. |
+| DOM/AST/events projections | Registered JSON shape and binary-header validation; projection input adapters remain output-only. | Original CEM Parse AST/events and retained imported-tree Inspect default to native CEM-ML; JSON/binary exports require explicit targets. | DOM/events JSON exports validate; parser AST JSON exports an array while its registered validator requires an object. Binary validation does not establish payload integrity or safe replay. Numeric fields in imported JSON do not grant source ownership. |
 | Runtime data island | Declared CEM runtime-state envelope validation. | CEM source inspection. | Shared runtime hydration/state contract; not a standalone data query language or a portable secret store. |
 
 The generic retained-document
@@ -357,6 +357,25 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `portable-config` | `invalid-command` | `repair-command` | Restore command schemaVersion 1 after reviewing the native envelope diagnostic. This does not grant unknown argv syntax execution. |
 | `portable-config` | `invalid-project` | `repair-project` | Restore portable project schemaVersion 1. Native reference, path, hash and forbidden-state checks remain active. |
 | `portable-config` | `card-graph` | `build-card` | Execute the project-relative graph with an explicit heading parameter and HTML entry. Native output spans identify the actual CEM template; source validation alone does not run this build. |
+| `native-projections` | `cem-source` | `validate-source` | Validate the original source before creating projections; this is not validation of an exported AST or DOM record. |
+| `native-projections` | `xml-source` | `validate-xml` | Check XML well-formedness independently from importing its retained structural view. |
+| `native-projections` | `cem-source` | `parse-ast` | Present the original native source nodes and source-frame ranges as CEM-ML text. No JSON AST handoff is used. |
+| `native-projections` | `cem-source` | `parse-events` | Present the original native source ordered lexical events, trivia and byte ranges as CEM-ML text. No JSON AST handoff is used. |
+| `native-projections` | `xml-source` | `inspect-xml` | Inspect the shared imported CEM tree, retaining XML namespace, comments, CDATA and original byte/line positions. This differs from parsing a serialized projection artifact. |
+| `native-projections` | `plain-source` | `inspect-text` | Inspect native text/plain import as one retained text node with its original buffer. This family has no registered schema package or generic source-validation claim. |
+| `native-projections` | `cem-source` | `export-dom-json` | Request a named JSON debug export from the original native source. The exported byteRange/sourceMap fields are data; revalidating them does not restore the original source owner. |
+| `native-projections` | `cem-source` | `export-dom-binary` | Request exact native binary projection bytes from the original source for download. Studio does not execute configurations whose input is a binary projection. |
+| `native-projections` | `cem-source` | `export-ast-json` | Request a named JSON debug export from the original native source. The native AST array export currently differs from the registered document-object validator; no AST JSON round trip is claimed. |
+| `native-projections` | `cem-source` | `export-ast-binary` | Request exact native binary projection bytes from the original source for download. Studio does not execute configurations whose input is a binary projection. |
+| `native-projections` | `cem-source` | `export-events-json` | Request a named JSON debug export from the original native source. The exported byteRange/sourceMap fields are data; revalidating them does not restore the original source owner. |
+| `native-projections` | `cem-source` | `export-events-binary` | Request exact native binary projection bytes from the original source for download. Studio does not execute configurations whose input is a binary projection. |
+| `native-projections` | `dom-json` | `validate-dom-json` | Validate the native JSON debug export using the registered projection source validator. This checks its supported shape and grants no decoded runtime import or source ownership. |
+| `native-projections` | `invalid-dom` | `repair-dom-json` | Restore the supported document root kind after the original native projection-shape diagnostic. Native JSON projection diagnostics currently have null text coordinates. |
+| `native-projections` | `ast-json` | `validate-ast-json` | Validate the separate authored document-object AST fixture using the registered projection source validator. This checks its supported shape and grants no decoded runtime import or source ownership. |
+| `native-projections` | `invalid-ast` | `repair-ast-json` | Restore the supported document root kind after the original native projection-shape diagnostic. Native JSON projection diagnostics currently have null text coordinates. |
+| `native-projections` | `events-json` | `validate-events-json` | Validate the native JSON debug export using the registered projection source validator. This checks its supported shape and grants no decoded runtime import or source ownership. |
+| `native-projections` | `invalid-events` | `repair-events-json` | Restore the supported open event kind after the original native projection-shape diagnostic. Native JSON projection diagnostics currently have null text coordinates. |
+| `native-projections` | `invalid-source` | `repair-source` | Review all three original native unclosed-scope diagnostics, including the tokenizer EOF byte/UTF-16 boundary, then restore the missing outer closing brace. |
 <!-- existing-samples:end -->
 
 The Markdown article operations and complete site build use the same ordinary
@@ -516,6 +535,34 @@ archive with revision guards. There is no invented CLI archive command or JSON
 AST execution handoff. Saved files and configurations travel in source exports;
 credentials, runtime bindings, selections and drafts are not embedded as host state.
 
+`native-projections` compares parser-owned CEM AST/events with retained XML
+inspection and a plain-text loader input. Human-facing views default to typed
+CEM-ML presentation. Six explicit JSON/binary exports have exact native CLI
+fixtures. Binary bytes match across hosts; shared worker JSON publication uses
+compact serialization of the same full value rather than the CLI's indentation.
+Same-host repeat/offline results remain byte-stable. Sealed native chunk replay
+remains a typed engine operation. No JSON AST
+parse/serialize/reparse step supplies evaluation or rendering. Original UTF-8
+ranges remain distinct from numeric fields inside imported projection JSON.
+Parse/Inspect retains those coordinates in its CEM-ML presentation but currently
+publishes no owned artifact-source references to the Provenance panel. This
+project follows actual native diagnostic ranges through the shared Diagnostics
+selector; it never manufactures links from inspection data fields.
+
+DOM/events JSON exports pass their registered shape validators. The native AST
+debug writer emits an array, but the AST JSON validator accepts a document
+object; its authored valid-object fixture is separate from the unchanged native
+export. Projection input adapters remain output-only, and binary validators
+currently check headers rather than payload/chunk integrity. Unsupported
+projection-source Inspect/conversion/replay configurations are omitted.
+
+Catalog and saved binary sources use the shared preview admission policy, remain
+non-editable/non-runnable and download exact owned bytes. Catalog file transport
+does not decode or prepare them as text. Binary exports from admitted text source
+remain explicit downloadable operation results. Four original source/shape
+repairs, saved Unicode edits, independent copies and offline checks use existing
+shared editors, command controls, source navigation and result viewers.
+
 The following rows describe existing reuse and planned extensions, rather than
 additional routes. Category names are discovery metadata and do not affect
 runtime authority.
@@ -533,8 +580,8 @@ runtime authority.
 | Schema authoring | CEM schema and schema package | `cem-schema` separates schema/package authoring from valid/invalid note instances, with explicit namespace claims and required-field diagnostics. |
 | Schema authoring | JSON Schema and both Relax NG syntaxes | `json-schema` and `relax-ng` cover source validation, supported formatting/typed Parse, dialect/start/delimiter repairs and rejected external references. Their data examples validate syntax only. |
 | Schema authoring | Module maps v1/v2/v3, CLI command, Studio project encodings | `module-maps` and `portable-config` cover real paired deployments, native asset identities, bounded reads, control codecs/plans, portable manifests, independent imports and guarded source archives. Source syntax/envelope checks stay separate from execution and read authority. |
-| Schema authoring | DOM/AST/events binary/JSON projections | Extend existing conversion sample with native codec inputs, human-readable inspection and source locations. Separate serialization from document parsing and execution. |
-| Data | UTF-8 `text/plain` loader input | Include a small text-resource use alongside configuration samples; explain the CEM-only projection and absence of a registered schema package. |
+| Schema authoring | DOM/AST/events binary/JSON projections | `native-projections` compares original CEM Parse, retained XML inspection, explicit JSON/binary exports, source ranges and registered shape validation. Binary source downloads stay read-only; codec/AST-shape limits remain explicit. |
+| Data | UTF-8 `text/plain` loader input | `native-projections` inspects one owned plain-text resource through CEM-ML. It has no registered schema package, standalone validation or general formatter claim. |
 
 Each future project needs a README, explicit configurations, expected artifacts,
 source provenance and failure/repair where applicable. UI stays in shared
@@ -552,12 +599,14 @@ It also runs all manifest-selected source validations through the native CLI and
 checks deployed bytes and hashes. The `test:feature-tour` browser cases exercise
 the authored Login, Supplier, data-report, XHTML, Markdown, HTML/CEM card,
 SVG/MathML, CSS/SCSS/selector, CEM-QL/XPath, transformation/schema-authoring,
-module-map and portable-control workflows;
+module-map, portable-control and native-projection workflows;
 site preview/build browser acceptance also lives in `test:workbench`, with deployed
 article/site and offline checks in the navigation gate. The scoped
 `verify:module-configs` gate checks actual native module asset identities,
 independent map edits and offline deployments, plus native project codecs,
-guarded provider import/export and saved run configurations. These checks
+guarded provider import/export and saved run configurations. The scoped
+`verify:native-projections` gate checks original-source views/ranges, exact binary
+downloads, projection-source guards, repairs and independent offline copies. These checks
 establish the covered operations; they do not turn untested aliases or planned
 workflows into supported commands.
 

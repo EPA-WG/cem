@@ -6,6 +6,7 @@
 //! replaces `NotImplementedEngine` in `cem-ml-cli/src/main.rs`.
 
 mod source_inspection;
+mod projection_source_validation;
 #[cfg(not(target_arch = "wasm32"))]
 mod validation_resources;
 
@@ -3349,6 +3350,7 @@ fn registered_source_validation<'a>(
             .source_validation_stages
             .iter()
             .find_map(|stage| stage.validate(input))
+            .or_else(|| projection_source_validation::validate(input, context))
         {
             handled.push(index);
             diagnostics.append(&mut source_diagnostics);

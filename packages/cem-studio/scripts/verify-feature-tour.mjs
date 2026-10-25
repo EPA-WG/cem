@@ -151,7 +151,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.deepEqual(repair.resourceIds, ['login-invalid', 'command-validation-repair', 'login-schema-package', 'login-schema']);
         assert.ok(new TextDecoder().decode(bundle.contents.readme).includes('demo.login.method_required'));
         assert.deepEqual(JSON.parse(new TextDecoder().decode(bundle.contents[repair.runConfigResourceId])).schemaPackages, [{ uri: 'schemas/login-schema-package.cem' }]);
-    } else if (['json-yaml-report', 'csv-inventory', 'supplier-pipeline', 'xhtml-document', 'html-cem-card', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog', 'cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng', 'module-maps', 'portable-config'].includes(record.id)) {
+    } else if (['json-yaml-report', 'csv-inventory', 'supplier-pipeline', 'xhtml-document', 'html-cem-card', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog', 'cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng', 'module-maps', 'portable-config', 'native-projections'].includes(record.id)) {
         const definition = authoredDefinitions.find(project => project.id === record.id);
         assert.deepEqual(record.collections, definition.collections);
         assert.equal(record.description, definition.description);
@@ -189,6 +189,11 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                     : authoredArgs;
                 const moduleReport = configuration.expectedNativeAssets && resolve(directory, `native-${configuration.id}.report.json`);
                 if (moduleReport) args.push('--report-json', moduleReport);
+                if (configuration.expectedOutputBytes) {
+                    assert.deepEqual(new Uint8Array(runExpected(cli, args, directory, configuration.expectedExit ?? 0, null)),
+                        bundle.contents[configuration.expectedOutputBytes], `${configuration.id} binary output drifted`);
+                    continue;
+                }
                 const actual = runExpected(cli, args, directory, configuration.expectedExit ?? 0);
                 if (configuration.expectedSemanticContract) {
                     const expected = JSON.parse(new TextDecoder().decode(bundle.contents[configuration.expectedSemanticContract]));
@@ -220,7 +225,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                 }
                 if (configuration.expectedOutput) {
                     const expected = new TextDecoder().decode(bundle.contents[configuration.expectedOutput]);
-                    const exact = ['csv-inventory', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog', 'cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng', 'module-maps', 'portable-config'].includes(record.id);
+                    const exact = ['csv-inventory', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog', 'cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng', 'module-maps', 'portable-config', 'native-projections'].includes(record.id);
                     assert.equal(exact ? actual : actual.trim(), exact ? expected : expected.trim(), `${configuration.id} output drifted`);
                 }
                 for (const text of configuration.expectedText ?? []) assert.ok(actual.includes(text), `${configuration.id} misses ${text}`);
@@ -524,8 +529,8 @@ function run(command, args, cwd) {
     return runExpected(command, args, cwd, 0);
 }
 
-function runExpected(command, args, cwd, expectedStatus) {
-    const result = spawnSync(command, args, { cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+function runExpected(command, args, cwd, expectedStatus, encoding = 'utf8') {
+    const result = spawnSync(command, args, { cwd, encoding, maxBuffer: 16 * 1024 * 1024 });
     if (result.error) throw result.error;
     if (result.status !== expectedStatus) {
         throw new Error(`${command} ${args.join(' ')} exited ${result.status}, expected ${expectedStatus}:\n${result.stderr || result.stdout}`);

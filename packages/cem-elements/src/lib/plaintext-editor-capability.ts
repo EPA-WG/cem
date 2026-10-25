@@ -17,13 +17,30 @@ interface EditorState {
     paintAbort?: AbortController;
     paintTimer?: ReturnType<typeof setTimeout>;
     paint?: { registry: HighlightRegistry; name: string; highlight: Highlight; range: Range }[];
+    nativeInput?: { value?: string; expiry?: ReturnType<typeof setTimeout> };
 }
 const states = new WeakMap<HTMLElement, EditorState>();
 const controls = new WeakMap<EventTarget, EditorState>();
+const nativeInputs = new WeakMap<Event, boolean>();
 
 /** Only an admitted plaintext editor supplies a scalar value to declarative bindings. */
 export function cemPlaintextEditorEventValue(target: EventTarget | null): string | undefined {
     return target ? controls.get(target)?.value : undefined;
+}
+
+/** Share one native edit admission across every ancestor checkpoint owner. */
+export function cemPlaintextEditorDuplicateNativeInput(event: Event): boolean {
+    if (event.type !== 'input' || !event.isTrusted) return false;
+    const known = nativeInputs.get(event);
+    if (known !== undefined) return known;
+    const state = event.target ? controls.get(event.target) : undefined, batch = state?.nativeInput;
+    if (!state?.control?.isConnected || !batch || state.host.hasAttribute('disabled') || state.host.hasAttribute('readonly')) return false;
+    const value = readControl(state.control), duplicate = batch.value === value;
+    batch.value = value;
+    // An ancestor must not consume the first notification before the editor's
+    // own input handler sees it. Every listener classifies the same Event alike.
+    nativeInputs.set(event, duplicate);
+    return duplicate;
 }
 
 /** Composition and deferred external values are not committed editor state. */
@@ -80,18 +97,34 @@ export const CEM_PLAINTEXT_EDITOR_CAPABILITY: CemProducedElementBehavior = {
         host.ownerDocument.addEventListener('selectionchange', () => { selection(state); }, { signal: abort.signal });
         host.addEventListener('beforeinput', event => {
             if (!owns(event)) return;
-            if (!editable()) event.preventDefault(); else cancelPaint(state);
+            if (!editable()) event.preventDefault(); else {
+                cancelPaint(state);
+                if (event.isTrusted) {
+                    clearNativeInput(state);
+                    const batch: NonNullable<EditorState['nativeInput']> = {}; state.nativeInput = batch;
+                    batch.expiry = setTimeout(() => { if (state.nativeInput === batch) state.nativeInput = undefined; }, 0);
+                }
+            }
         }, options);
         host.addEventListener('input', event => {
             if (!owns(event)) return;
             if (!editable()) { event.stopImmediatePropagation(); writeControl(state); return; }
-            state.value = readControl(state.control!);
-            state.context.setSlices({ value: state.value }, { render: false });
+            // Chromium can report one trusted input per fragment after a single
+            // multiline insertion has already installed its complete DOM. Keep
+            // the first native notification; unchanged fragments in this edit
+            // must not republish the same source through host commands.
+            if (cemPlaintextEditorDuplicateNativeInput(event)) { event.stopImmediatePropagation(); schedulePaint(host, state); return; }
+            const value = readControl(state.control!);
+            if (state.value !== value) {
+                state.value = value;
+                state.context.setSlices({ value }, { render: false });
+            }
             schedulePaint(host, state);
         }, options);
-        host.addEventListener('compositionstart', event => { if (owns(event)) { state.composing = true; cancelPaint(state); } }, options);
+        host.addEventListener('compositionstart', event => { if (owns(event)) { clearNativeInput(state); state.composing = true; cancelPaint(state); } }, options);
         host.addEventListener('compositionend', event => {
             if (!owns(event)) return;
+            clearNativeInput(state);
             state.composing = false;
             // A final native input can follow compositionend. Admit a queued
             // external value only after that browser edit has completed.
@@ -137,12 +170,17 @@ export const CEM_PLAINTEXT_EDITOR_CAPABILITY: CemProducedElementBehavior = {
     disconnected(host) {
         const state = states.get(host)!;
         cancelPaint(state);
+        clearNativeInput(state);
         state.abort?.abort(); state.abort = undefined;
         state.composing = false; state.deferred = undefined;
         if (state.control) controls.delete(state.control);
         state.control = undefined;
     },
 };
+
+function clearNativeInput(state: EditorState): void {
+    clearTimeout(state.nativeInput?.expiry); state.nativeInput = undefined;
+}
 
 function installValue(element: HTMLElement, state: EditorState): void {
     Object.defineProperties(element, {
@@ -166,12 +204,18 @@ function writeControl(state: EditorState): void {
     if (control && readControl(control) !== state.value) {
         // Source always enters as text, never authored HTML.
         control.textContent = state.value;
+        // Chromium otherwise treats a terminal LF as an invisible final line:
+        // native Select All and paste leave that source character behind.
+        // Match its native caret placeholder without adding a source newline.
+        if (state.value.endsWith('\n')) control.append(control.ownerDocument.createElement('br'));
         state.selection = [0, 0, 'none'];
     }
 }
 
 function readControl(control: HTMLElement): string {
-    if ([...control.childNodes].every(node => node.nodeType === 3)) return control.textContent ?? '';
+    // An external value plus its terminal caret BR still contains exact source
+    // text. innerText would normalize raw CRLF before the user edits anything.
+    if ([...control.childNodes].every(node => node.nodeType === 3 || node === control.lastChild && node.nodeName === 'BR')) return control.textContent ?? '';
     const text = control.innerText;
     let last: ChildNode | null = control.lastChild;
     while (last?.lastChild) last = last.lastChild;

@@ -15,6 +15,7 @@
     "./examples/markdown-site.cem-studio.json",
     "./examples/mathml-formula.cem-studio.json",
     "./examples/module-maps.cem-studio.json",
+    "./examples/native-projections.cem-studio.json",
     "./examples/portable-config.cem-studio.json",
     "./examples/relax-ng.cem-studio.json",
     "./examples/schema-examples.cem-studio.json",
@@ -323,6 +324,18 @@
       ],
       "archive": "./examples/module-maps.cem-studio.json",
       "sha256": "5529ac1d065d701711105a0874e96a187302e03f701403b757d2658c8a4a6906"
+    },
+    {
+      "id": "native-projections",
+      "name": "Native DOM, AST and events",
+      "description": "Compare native source AST/event presentations, retained XML/plain-text inspection and explicit DOM/AST/event JSON or binary exports, with original ranges, shape repairs and clear import/ownership boundaries.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-schema-authoring",
+        "content-types-queries-transformations"
+      ],
+      "archive": "./examples/native-projections.cem-studio.json",
+      "sha256": "90994b04267d3f8d3f5cf5967e0399c2bc56b1719a642873fc5c43ad2c5afb0a"
     },
     {
       "id": "portable-config",

@@ -398,6 +398,43 @@ export const SharedSourceEditorPortableState: Story = {
         }
     },
 };
+export const NativeMultilineEditorCheckpointAdmission: Story = {
+    render: () => '<section aria-label="Native multiline editor checkpoint admission"></section>',
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent: nativeUserEvent } = await import('vitest/browser');
+        await init(); const root = canvasElement.querySelector('section')!;
+        const parsed = new DOMParser().parseFromString(sourceEditorDeclaration, 'application/xml');
+        const sourceTemplate = parsed.querySelector('template') as HTMLTemplateElement;
+        const template = sourceTemplate.content?.textContent || sourceTemplate.textContent!;
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const parent = await f.create('{p | Parent editor owner}'); await f.runtime.whenRenderSettled(parent);
+                const instance = await f.create(template, 'cem-ml', parent, undefined, 'plaintext-editor');
+                await f.runtime.whenRenderSettled(instance);
+                const control = instance.querySelector<HTMLElement>('[contenteditable]')!;
+                control.focus();
+                await f.runtime.whenRenderSettled(parent); await f.runtime.whenRenderSettled(instance);
+                await waitFor(async () => f.coordinator.capture());
+                const before = f.coordinator.lastCommitted()!.receipt.owners;
+                const text = Array.from({ length: 16 }, (_, index) => `Line ${index} Café`).join('\n');
+                await nativeUserEvent.fill(control, text);
+                await f.runtime.whenRenderSettled(parent); await f.runtime.whenRenderSettled(instance);
+                await waitFor(async () => f.coordinator.capture());
+                const after = f.coordinator.lastCommitted()!.receipt.owners;
+                expect(before).toHaveLength(2); expect(after).toHaveLength(2);
+                for (const owner of after) {
+                    const previous = before.find(item => item.instanceId === owner.instanceId)!;
+                    expect(owner.acceptedEventSequence - previous.acceptedEventSequence).toBe(2);
+                }
+                expect((instance as HTMLElement & { value: string }).value).toBe(text);
+                expect(instance.querySelector('[contenteditable]')).toBe(control);
+                expect(document.activeElement).toBe(control);
+            } finally { f.dispose(); }
+        }
+    },
+};
 export const HostCommandJournalRecordsOutcomesWithoutReplay: Story = {
     render: () => '<section aria-label="Host command checkpoint journal"></section>',
     play: async ({ canvasElement }) => {

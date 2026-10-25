@@ -1,0 +1,641 @@
+{
+  "id": "native-projections",
+  "name": "Native DOM, AST and events",
+  "version": "1.0.0",
+  "description": "Compare native source AST/event presentations, retained XML/plain-text inspection and explicit DOM/AST/event JSON or binary exports, with original ranges, shape repairs and clear import/ownership boundaries.",
+  "collections": [
+    "content-types-schema-authoring",
+    "content-types-queries-transformations"
+  ],
+  "sources": [
+    {
+      "id": "cem-source",
+      "source": "examples/projects/native-projections/data/dispatch.cem",
+      "path": "data/dispatch.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cem-ml/1",
+      "role": "data"
+    },
+    {
+      "id": "xml-source",
+      "source": "examples/projects/native-projections/data/dispatch.xml",
+      "path": "data/dispatch.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "role": "data"
+    },
+    {
+      "id": "plain-source",
+      "source": "examples/projects/native-projections/data/projection-notes.txt",
+      "path": "data/projection-notes.txt",
+      "contentType": "text/plain",
+      "role": "data"
+    },
+    {
+      "id": "dom-json",
+      "source": "examples/projects/native-projections/projections/dispatch.dom.json",
+      "path": "projections/dispatch.dom.json",
+      "contentType": "application/vnd.cem.dom+json",
+      "schema": "https://cem.dev/ns/projection/dom/1",
+      "role": "data"
+    },
+    {
+      "id": "ast-export",
+      "source": "examples/projects/native-projections/projections/dispatch.ast.json",
+      "path": "projections/dispatch.ast.json",
+      "contentType": "application/vnd.cem.ast+json",
+      "schema": "https://cem.dev/ns/projection/ast/1",
+      "role": "data"
+    },
+    {
+      "id": "events-json",
+      "source": "examples/projects/native-projections/projections/dispatch.events.json",
+      "path": "projections/dispatch.events.json",
+      "contentType": "application/vnd.cem.events+json",
+      "schema": "https://cem.dev/ns/projection/events/1",
+      "role": "data"
+    },
+    {
+      "id": "ast-json",
+      "source": "examples/projects/native-projections/projections/authored.ast.json",
+      "path": "projections/authored.ast.json",
+      "contentType": "application/vnd.cem.ast+json",
+      "schema": "https://cem.dev/ns/projection/ast/1",
+      "role": "data"
+    },
+    {
+      "id": "dom-binary",
+      "source": "examples/projects/native-projections/projections/dispatch.dom.cem-bin",
+      "path": "projections/dispatch.dom.cem-bin",
+      "contentType": "application/vnd.cem.dom+cem-bin",
+      "schema": "https://cem.dev/ns/projection/dom/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-dom",
+      "source": "examples/projects/native-projections/failures/invalid.dom.json",
+      "path": "failures/invalid.dom.json",
+      "contentType": "application/vnd.cem.dom+json",
+      "schema": "https://cem.dev/ns/projection/dom/1",
+      "role": "data"
+    },
+    {
+      "id": "ast-binary",
+      "source": "examples/projects/native-projections/projections/dispatch.ast.cem-bin",
+      "path": "projections/dispatch.ast.cem-bin",
+      "contentType": "application/vnd.cem.ast+cem-bin",
+      "schema": "https://cem.dev/ns/projection/ast/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-ast",
+      "source": "examples/projects/native-projections/failures/invalid.ast.json",
+      "path": "failures/invalid.ast.json",
+      "contentType": "application/vnd.cem.ast+json",
+      "schema": "https://cem.dev/ns/projection/ast/1",
+      "role": "data"
+    },
+    {
+      "id": "events-binary",
+      "source": "examples/projects/native-projections/projections/dispatch.events.cem-bin",
+      "path": "projections/dispatch.events.cem-bin",
+      "contentType": "application/vnd.cem.events+cem-bin",
+      "schema": "https://cem.dev/ns/projection/events/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-events",
+      "source": "examples/projects/native-projections/failures/invalid.events.json",
+      "path": "failures/invalid.events.json",
+      "contentType": "application/vnd.cem.events+json",
+      "schema": "https://cem.dev/ns/projection/events/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-source",
+      "source": "examples/projects/native-projections/failures/unclosed.cem",
+      "path": "failures/unclosed.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cem-ml/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/native-projections/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "validate-source",
+      "name": "Validate original CEM-ML source",
+      "kind": "validation",
+      "source": "cem-source",
+      "description": "Validate the original source before creating projections; this is not validation of an exported AST or DOM record.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "validate-xml",
+      "name": "Validate original XML source",
+      "kind": "validation",
+      "source": "xml-source",
+      "description": "Check XML well-formedness independently from importing its retained structural view.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "parse-ast",
+      "name": "Parse original CEM AST",
+      "kind": "inspection",
+      "source": "cem-source",
+      "description": "Present the original native source nodes and source-frame ranges as CEM-ML text. No JSON AST handoff is used.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "https://cem.dev/ns/projection/ast/1",
+        "@source-id=",
+        "data/dispatch.cem",
+        "@byte-offset=",
+        "Café Noord",
+        "@name=article"
+      ]
+    },
+    {
+      "id": "parse-events",
+      "name": "Parse original CEM EVENTS",
+      "kind": "inspection",
+      "source": "cem-source",
+      "description": "Present the original native source ordered lexical events, trivia and byte ranges as CEM-ML text. No JSON AST handoff is used.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--format",
+        "events",
+        "--no-color"
+      ],
+      "expectedText": [
+        "https://cem.dev/ns/projection/events/1",
+        "@source-id=",
+        "data/dispatch.cem",
+        "@byte-offset=",
+        "Café Noord",
+        "@kind=trivia",
+        "@sequence=28",
+        "@byte-offset=147",
+        "@byte-length=11"
+      ]
+    },
+    {
+      "id": "inspect-xml",
+      "name": "Inspect retained XML structure",
+      "kind": "inspection",
+      "source": "xml-source",
+      "description": "Inspect the shared imported CEM tree, retaining XML namespace, comments, CDATA and original byte/line positions. This differs from parsing a serialized projection artifact.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "data/dispatch.xml",
+        "http://www.w3.org/1999/xhtml",
+        "@kind=comment",
+        "@kind=cdata",
+        "Café Noord",
+        "@byte-offset=169",
+        "@byte-length=23",
+        "@line=4"
+      ]
+    },
+    {
+      "id": "inspect-text",
+      "name": "Inspect an owned plain-text resource",
+      "kind": "inspection",
+      "source": "plain-source",
+      "description": "Inspect native text/plain import as one retained text node with its original buffer. This family has no registered schema package or generic source-validation claim.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "text/plain",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "data/projection-notes.txt",
+        "@kind=text",
+        "Projection records describe structure.",
+        "Café Noord",
+        "@byte-offset=0",
+        "@byte-length=129"
+      ]
+    },
+    {
+      "id": "export-dom-json",
+      "name": "Export explicit DOM JSON",
+      "kind": "conversion",
+      "source": "cem-source",
+      "description": "Request a named JSON debug export from the original native source. The exported byteRange/sourceMap fields are data; revalidating them does not restore the original source owner.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/vnd.cem.dom+json",
+        "--to-schema",
+        "https://cem.dev/ns/projection/dom/1",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "dependencies": [
+        "dom-json"
+      ],
+      "expectedOutput": "dom-json",
+      "expectedOutputMode": "json-value"
+    },
+    {
+      "id": "export-dom-binary",
+      "name": "Export native DOM binary bytes",
+      "kind": "conversion",
+      "source": "cem-source",
+      "description": "Request exact native binary projection bytes from the original source for download. Studio does not execute configurations whose input is a binary projection.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/vnd.cem.dom+cem-bin",
+        "--to-schema",
+        "https://cem.dev/ns/projection/dom/1",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "dependencies": [
+        "dom-binary"
+      ],
+      "expectedOutputBytes": "dom-binary"
+    },
+    {
+      "id": "export-ast-json",
+      "name": "Export explicit AST JSON",
+      "kind": "conversion",
+      "source": "cem-source",
+      "description": "Request a named JSON debug export from the original native source. The native AST array export currently differs from the registered document-object validator; no AST JSON round trip is claimed.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/vnd.cem.ast+json",
+        "--to-schema",
+        "https://cem.dev/ns/projection/ast/1",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "dependencies": [
+        "ast-export"
+      ],
+      "expectedOutput": "ast-export",
+      "expectedOutputMode": "json-value"
+    },
+    {
+      "id": "export-ast-binary",
+      "name": "Export native AST binary bytes",
+      "kind": "conversion",
+      "source": "cem-source",
+      "description": "Request exact native binary projection bytes from the original source for download. Studio does not execute configurations whose input is a binary projection.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/vnd.cem.ast+cem-bin",
+        "--to-schema",
+        "https://cem.dev/ns/projection/ast/1",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "dependencies": [
+        "ast-binary"
+      ],
+      "expectedOutputBytes": "ast-binary"
+    },
+    {
+      "id": "export-events-json",
+      "name": "Export explicit EVENTS JSON",
+      "kind": "conversion",
+      "source": "cem-source",
+      "description": "Request a named JSON debug export from the original native source. The exported byteRange/sourceMap fields are data; revalidating them does not restore the original source owner.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/vnd.cem.events+json",
+        "--to-schema",
+        "https://cem.dev/ns/projection/events/1",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "dependencies": [
+        "events-json"
+      ],
+      "expectedOutput": "events-json",
+      "expectedOutputMode": "json-value"
+    },
+    {
+      "id": "export-events-binary",
+      "name": "Export native EVENTS binary bytes",
+      "kind": "conversion",
+      "source": "cem-source",
+      "description": "Request exact native binary projection bytes from the original source for download. Studio does not execute configurations whose input is a binary projection.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/vnd.cem.events+cem-bin",
+        "--to-schema",
+        "https://cem.dev/ns/projection/events/1",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "dependencies": [
+        "events-binary"
+      ],
+      "expectedOutputBytes": "events-binary"
+    },
+    {
+      "id": "validate-dom-json",
+      "name": "Validate DOM JSON source shape",
+      "kind": "validation",
+      "source": "dom-json",
+      "description": "Validate the native JSON debug export using the registered projection source validator. This checks its supported shape and grants no decoded runtime import or source ownership.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.dom+json",
+        "--schema",
+        "https://cem.dev/ns/projection/dom/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "repair-dom-json",
+      "name": "Repair the DOM JSON kind",
+      "kind": "validation",
+      "source": "invalid-dom",
+      "description": "Restore the supported document root kind after the original native projection-shape diagnostic. Native JSON projection diagnostics currently have null text coordinates.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.dom+json",
+        "--schema",
+        "https://cem.dev/ns/projection/dom/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.projection.dom.json_shape",
+        "location": {
+          "line": null,
+          "column": null,
+          "byteOffset": null
+        }
+      },
+      "expectedExit": 1,
+      "repair": {
+        "find": "\"kind\": \"unknown\"",
+        "replace": "\"kind\": \"document\""
+      }
+    },
+    {
+      "id": "validate-ast-json",
+      "name": "Validate AST JSON source shape",
+      "kind": "validation",
+      "source": "ast-json",
+      "description": "Validate the separate authored document-object AST fixture using the registered projection source validator. This checks its supported shape and grants no decoded runtime import or source ownership.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.ast+json",
+        "--schema",
+        "https://cem.dev/ns/projection/ast/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "repair-ast-json",
+      "name": "Repair the AST JSON kind",
+      "kind": "validation",
+      "source": "invalid-ast",
+      "description": "Restore the supported document root kind after the original native projection-shape diagnostic. Native JSON projection diagnostics currently have null text coordinates.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.ast+json",
+        "--schema",
+        "https://cem.dev/ns/projection/ast/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.projection.ast.json_shape",
+        "location": {
+          "line": null,
+          "column": null,
+          "byteOffset": null
+        }
+      },
+      "expectedExit": 1,
+      "repair": {
+        "find": "\"kind\": \"unknown\"",
+        "replace": "\"kind\": \"document\""
+      }
+    },
+    {
+      "id": "validate-events-json",
+      "name": "Validate EVENTS JSON source shape",
+      "kind": "validation",
+      "source": "events-json",
+      "description": "Validate the native JSON debug export using the registered projection source validator. This checks its supported shape and grants no decoded runtime import or source ownership.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.events+json",
+        "--schema",
+        "https://cem.dev/ns/projection/events/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "repair-events-json",
+      "name": "Repair the EVENTS JSON kind",
+      "kind": "validation",
+      "source": "invalid-events",
+      "description": "Restore the supported open event kind after the original native projection-shape diagnostic. Native JSON projection diagnostics currently have null text coordinates.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.events+json",
+        "--schema",
+        "https://cem.dev/ns/projection/events/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.projection.events.json_shape",
+        "location": {
+          "line": null,
+          "column": null,
+          "byteOffset": null
+        }
+      },
+      "expectedExit": 1,
+      "repair": {
+        "find": "\"kind\": \"unknown\"",
+        "replace": "\"kind\": \"open\""
+      }
+    },
+    {
+      "id": "repair-source",
+      "name": "Repair the original CEM closing brace",
+      "kind": "validation",
+      "source": "invalid-source",
+      "description": "Review all three original native unclosed-scope diagnostics, including the tokenizer EOF byte/UTF-16 boundary, then restore the missing outer closing brace.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 3,
+        "warningCount": 0,
+        "errorCode": "cem.tokenizer.unterminated_node",
+        "location": {
+          "line": 8,
+          "column": 1,
+          "byteOffset": 160
+        }
+      },
+      "expectedExit": 1,
+      "repair": {
+        "find": "{p @class=destination | Café Noord}\n",
+        "replace": "{p @class=destination | Café Noord}\n}\n"
+      }
+    }
+  ]
+}

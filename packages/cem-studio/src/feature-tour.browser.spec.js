@@ -7,6 +7,7 @@ import {
     installCemStudioFeatureTour,
 } from './feature-tour.js';
 import { CEM_STUDIO_REPOSITORY_ID, createCemStudioProjectRepository } from './repository.js';
+import { createCemStudioProjectWorkbench } from './workbench.js';
 let invalidLogin, loginSchema, loginPackage, loginHtml, loginCem, semanticsQuery, semanticsContract, semanticsCemql, viewTemplate, viewExpected, viewGraph;
 beforeAll(async () => {
     [invalidLogin, loginSchema, loginPackage, loginHtml, loginCem, semanticsQuery, semanticsContract, semanticsCemql, viewTemplate, viewExpected, viewGraph] = await Promise.all([
@@ -40,7 +41,7 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
-    for (const projectId of ['cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng', 'module-maps', 'portable-config']) {
+    for (const projectId of ['cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng', 'module-maps', 'portable-config', 'native-projections']) {
         it(`runs ${projectId} authored native configurations and repairs original sources`, async () => {
             const { bundle, definition, decode } = await authoredProject(projectId);
             const validator = await createCemStudioBrowserValidator(); validators.push(validator);
@@ -55,7 +56,11 @@ describe('CEM Studio Feature Tour copies', () => {
                 if (!outcome.result) throw new Error(`${projectId}/${configuration.id}: ${outcome.message}`, { cause: outcome });
                 expect(outcome.result.exitCode, JSON.stringify(outcome.result.diagnostics.items)).toBe(configuration.expectedExit ?? 0);
                 if ((configuration.expectedExit ?? 0) === 0) expect(outcome.result.diagnostics.items.filter(item => ['error', 'fatal'].includes(item.severity))).toEqual([]);
-                if (configuration.expectedOutput) expect(outcome.output.text).toBe(decode(configuration.expectedOutput));
+                if (configuration.expectedOutput) {
+                    if (configuration.expectedOutputMode === 'json-value') expect(JSON.parse(outcome.output.text)).toEqual(JSON.parse(decode(configuration.expectedOutput)));
+                    else expect(outcome.output.text).toBe(decode(configuration.expectedOutput));
+                }
+                if (configuration.expectedOutputBytes) expect(outcome.output.bytes).toEqual(bundle.contents[configuration.expectedOutputBytes]);
                 for (const text of configuration.expectedText ?? []) expect(outcome.output.text).toContain(text);
                 const expected = configuration.expectedValidation;
                 if (expected) {
@@ -77,6 +82,62 @@ describe('CEM Studio Feature Tour copies', () => {
             }
         }, 60_000);
     }
+
+    it('preserves native projection byte exports, original UTF-8 ranges and read-only binary admission', async () => {
+        const { bundle, decode } = await authoredProject('native-projections');
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const repository = createRepository();
+        await repository.execute({ protocolVersion: 1, repository: CEM_STUDIO_REPOSITORY_ID, operation: 'import-project', requestRevision: 1, parameters: { bundle } });
+        const run = async id => {
+            const entry = bundle.project.entries.find(item => item.id === id);
+            return validator.executeAuthoredResourceCommand({ ...projectCommandOptions(bundle, entry, 'projection-boundaries'), commandResource: bundle.contents[entry.runConfigResourceId] });
+        };
+        const events = JSON.parse((await run('export-events-json')).output.text);
+        const text = events.find(item => item.kind === 'value' && item.value === 'Café Noord');
+        expect(text.byteRange).toEqual({ start: 147, len: 11 });
+        expect(new TextDecoder().decode(bundle.contents['cem-source'].slice(text.byteRange.start, text.byteRange.start + text.byteRange.len))).toBe('Café Noord');
+        for (const id of ['parse-ast', 'parse-events', 'inspect-xml', 'inspect-text']) {
+            const outcome = await run(id);
+            expect(outcome.output.contentType).toBe('application/cem'); expect(outcome.output.text).not.toContain('\u001b[');
+            expect(outcome.output.text).toContain('studio://projection-boundaries/');
+        }
+        for (const family of ['dom', 'ast', 'events']) {
+            const resource = bundle.project.resources.find(item => item.id === `${family}-binary`);
+            const native = await run(`export-${family}-binary`);
+            expect(native.output.bytes).toEqual(bundle.contents[resource.id]);
+            expect(native.output.contentType).toBe(resource.contentType);
+            const validation = { bytes: native.output.bytes, uri: `studio://projection-boundaries/${resource.path}`,
+                contentType: resource.contentType, schema: resource.schema, resourceScheme: 'studio', projectId: 'projection-boundaries', projectRootUri: 'studio://projection-boundaries/' };
+            expect((await validator.validateResource(validation)).result.exitCode).toBe(0);
+            const corrupt = native.output.bytes.slice(); corrupt[0] = 0;
+            await expect(validator.validateResource({ ...validation, bytes: corrupt })).rejects.toMatchObject({
+                result: { exitCode: 1, diagnostics: { items: expect.arrayContaining([expect.objectContaining({ code: `cem.projection.${family}.binary_magic` })]) } },
+            });
+            const readonly = await createCemStudioProjectWorkbench({ repository, validator, selection: { projectId: bundle.project.id, resourceId: resource.id } });
+            try {
+                expect(readonly.snapshot()).toMatchObject({ status: 'read-only', editable: false, runnable: false });
+                let downloaded; await readonly.downloadSource(async value => { downloaded = value; });
+                expect(downloaded.bytes).toEqual(native.output.bytes); expect(downloaded.contentType).toBe(resource.contentType);
+            } finally { readonly.dispose(); }
+            const workbench = await createCemStudioProjectWorkbench({ repository, validator, selection: { projectId: bundle.project.id, entryId: `export-${family}-binary` } });
+            try {
+                await workbench.runPersistedOperation(); expect(workbench.snapshot().projection.preview.kind).toBe('download');
+                await expect(workbench.copyProjection(async () => { throw new Error('Binary output must never reach the text clipboard'); })).rejects.toThrow();
+                let downloaded; await workbench.downloadProjection(async value => { downloaded = value; });
+                expect(downloaded.bytes).toEqual(native.output.bytes); expect(downloaded.filename).toMatch(/\.cem-bin$/);
+            } finally { workbench.dispose(); }
+        }
+        for (const family of ['dom', 'events']) {
+            const resource = bundle.project.resources.find(item => item.id === `${family}-json`);
+            expect((await validator.validateResource({ bytes: bundle.contents[resource.id], uri: `studio://projection-boundaries/${resource.path}`,
+                contentType: resource.contentType, schema: resource.schema, resourceScheme: 'studio', projectId: 'projection-boundaries', projectRootUri: 'studio://projection-boundaries/' })).result.exitCode).toBe(0);
+        }
+        const ast = bundle.project.resources.find(item => item.id === 'ast-export'); expect(Array.isArray(JSON.parse(decode(ast.id)))).toBe(true);
+        await expect(validator.validateResource({ bytes: bundle.contents[ast.id], uri: `studio://projection-boundaries/${ast.path}`, contentType: ast.contentType,
+            schema: ast.schema, resourceScheme: 'studio', projectId: 'projection-boundaries', projectRootUri: 'studio://projection-boundaries/' })).rejects.toMatchObject({
+            result: { exitCode: 1, diagnostics: { items: expect.arrayContaining([expect.objectContaining({ code: 'cem.projection.ast.json_shape' })]) } },
+        });
+    }, 60_000);
 
     for (const projectId of ['module-maps', 'portable-config']) {
         it(`builds ${projectId} native artifacts with owned identities and independent roots`, async () => {

@@ -1,0 +1,3 @@
+Projection records describe structure.
+Café Noord is ordinary UTF-8 text.
+A byteRange field alone does not own a source buffer.

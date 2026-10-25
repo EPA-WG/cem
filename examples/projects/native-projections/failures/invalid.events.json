@@ -1,0 +1,272 @@
+[
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 0
+    },
+    "kind": "unknown",
+    "name": "@doc"
+  },
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 0
+    },
+    "kind": "value",
+    "value": "cem-ml 1"
+  },
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 0
+    },
+    "kind": "close",
+    "name": "@doc"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 13
+    },
+    "data": "\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 38,
+      "start": 14
+    },
+    "kind": "open",
+    "name": "@ns"
+  },
+  {
+    "byteRange": {
+      "len": 38,
+      "start": 14
+    },
+    "kind": "value",
+    "value": "h = \"http://www.w3.org/1999/xhtml\""
+  },
+  {
+    "byteRange": {
+      "len": 38,
+      "start": 14
+    },
+    "kind": "close",
+    "name": "@ns"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 52
+    },
+    "data": "\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 10,
+      "start": 53
+    },
+    "kind": "open",
+    "name": "@default"
+  },
+  {
+    "byteRange": {
+      "len": 10,
+      "start": 53
+    },
+    "kind": "value",
+    "value": "h"
+  },
+  {
+    "byteRange": {
+      "len": 10,
+      "start": 53
+    },
+    "kind": "close",
+    "name": "@default"
+  },
+  {
+    "byteRange": {
+      "len": 2,
+      "start": 63
+    },
+    "data": "\n\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 8,
+      "start": 65
+    },
+    "kind": "open",
+    "name": "article"
+  },
+  {
+    "byteRange": {
+      "len": 2,
+      "start": 75
+    },
+    "kind": "name",
+    "name": "id"
+  },
+  {
+    "byteRange": {
+      "len": 8,
+      "start": 78
+    },
+    "kind": "value",
+    "value": "dispatch"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 87
+    },
+    "kind": "separator"
+  },
+  {
+    "byteRange": {
+      "len": 5,
+      "start": 88
+    },
+    "data": "\n    ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 3,
+      "start": 93
+    },
+    "kind": "open",
+    "name": "h1"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 97
+    },
+    "kind": "separator"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 98
+    },
+    "data": " ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 18,
+      "start": 99
+    },
+    "kind": "value",
+    "value": "Amsterdam dispatch"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 117
+    },
+    "kind": "close",
+    "name": "h1"
+  },
+  {
+    "byteRange": {
+      "len": 5,
+      "start": 118
+    },
+    "data": "\n    ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 2,
+      "start": 123
+    },
+    "kind": "open",
+    "name": "p"
+  },
+  {
+    "byteRange": {
+      "len": 5,
+      "start": 127
+    },
+    "kind": "name",
+    "name": "class"
+  },
+  {
+    "byteRange": {
+      "len": 11,
+      "start": 133
+    },
+    "kind": "value",
+    "value": "destination"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 145
+    },
+    "kind": "separator"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 146
+    },
+    "data": " ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 11,
+      "start": 147
+    },
+    "kind": "value",
+    "value": "Café Noord"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 158
+    },
+    "kind": "close",
+    "name": "p"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 159
+    },
+    "data": "\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 160
+    },
+    "kind": "close",
+    "name": "article"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 161
+    },
+    "data": "\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  }
+]

@@ -821,6 +821,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-native-projection-project.mjs",
                 "{projectRoot}/scripts/verify-module-map-project.mjs",
                 "{projectRoot}/scripts/verify-portable-config-project.mjs",
                 "{projectRoot}/scripts/verify-transformation-projects.mjs",
@@ -1192,6 +1193,30 @@
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/module-config-projects.json"
+            ]
+        },
+        "verify:native-projections": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:determinism"
+            ],
+            "options": {
+                "command": "node scripts/verify-navigation.mjs --native-projections-only",
+                "cwd": "packages/cem-studio"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-native-projection-project.mjs",
+                "{workspaceRoot}/examples/projects/native-projections/**/*",
+                "{projectRoot}/dist/static/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/native-projection-projects.json"
             ]
         }
     },
