@@ -130,10 +130,10 @@ artifacts; the mere presence of a manifest artifact is insufficient.
 | CEM-QL | Query modules and standalone expressions have explicit native source handling. | Native Parse/Inspect, formatting/coloring, source ranges. | Native-items query/evaluation, parameters and template integration. Module, expression and binary artifact selectors have distinct contracts. |
 | CEM native/element templates | CEM source plus the selected template contract; element declarations run through shared `cem-elements`. | CEM-native formatting/inspection. | Native templates render data; element templates also bind declarative browser state. Source validation alone does not execute browser bindings. |
 | CEM transformation | CEM configuration source validation. | CEM formatting/source projections. | Authored direct/graph execution, dependency resolution, parameters, artifacts and provenance. Run/transform config schemas remain explicit. |
-| XSLT | Native stylesheet-source validation/Parse, separate from generic XML import. | Native AST/events, source formatting/coloring. Source DomJson/Json are unavailable. | Complete deployment has bounded native XSLT execution. Optional-body deployment supports owned source operations but executable bundle compilation still needs parser-contract handoff; do not advertise optional executable graphs yet. |
+| XSLT | Native stylesheet-source validation/Parse, separate from generic XML import. | Parse exposes typed source AST/events; Inspect exposes the generic imported CEM structure. Native source formatting/coloring; source DomJson/Json are unavailable. | Complete deployment has bounded native XSLT execution. Optional-body deployment supports owned source operations but executable bundle compilation still needs parser-contract handoff; do not advertise optional executable graphs yet. |
 | CEM schema/package | Native declaration/manifest validation and package loading. | CEM formatting/source inspection. | Explicitly supplied schemas/packages validate instances, as Login demonstrates. Admission and complete package resource validation are separate phases. |
-| JSON Schema | JSON parsing and Draft 2020-12 dialect source checks. | JSON-family source inspection/formatting. | Instance assertions, remote references and dynamic scope are unavailable. Do not label schema-source validation as validation of a JSON payload against that schema. |
-| Relax NG | Native XML/compact schema-source validation and Parse; compact grammar checks remain lexical. | Source formatting/coloring, AST/events; native Events retain source. Source DomJson/Json are unavailable. | No semantic grammar compiler or instance validator; include/external references are rejected. Do not label schema-source validation as validation of an XML instance. |
+| JSON Schema | JSON parsing and Draft 2020-12 dialect source checks. | Native source formatting. JSON-family Parse/Inspect can emit CEM tokenizer errors despite exit zero, including structural inspection of `$defs`/`$ref`; those operations are omitted from this project's configurations. | Instance assertions, remote references and dynamic scope are unavailable. Do not label schema-source validation as validation of a JSON payload against that schema. |
+| Relax NG | Native XML/compact schema-source validation and Parse; compact grammar checks remain lexical. | Typed source Parse AST/events and native source formatting/coloring; Inspect shows generic imported CEM structure. Native Events retain source. Source DomJson/Json are unavailable. | No semantic grammar compiler or instance validator; include/external references are rejected. Do not label schema-source validation as validation of an XML instance. |
 | Module maps v1/v2/v3 | Native version-specific JSON control contract validation; v2/v3 require their explicit schema. | JSON source projections/formatting. | Resolver input for the corresponding version; validation is not a grant to read external resources. No implicit dependency discovery, npm export selection or undeclared copying. |
 | CLI command, Studio project | Explicit portable control contracts; Studio project supports CEM and JSON encodings. | Source inspection follows the chosen encoding. | Command execution and project import/build go through native grammar and repository services. Control documents are not executable just because generic JSON parsed. |
 | DOM/AST/events projections | Explicit native projection codecs; binary types are not text source. | Human-readable JSON inspection and source-origin views. | Consume/produce through the supported projection APIs. No automatic general format conversion or evaluation guarantee for all projection selectors. |
@@ -291,6 +291,42 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `xpath-catalog` | `catalog-source` | `query-parameters` | Build a native XPath map from the XML selection attributes, then filter and join through native map lookups. These are owned data parameters, not external variable bindings. |
 | `xpath-catalog` | `catalog-source` | `inspect-parameters` | Export the typed native map, integer, strings and array with their real query-origin frames. Computed items do not claim arbitrary data-source character lineage. |
 | `xpath-catalog` | `invalid-query` | `repair-query` | Close the missing predicate delimiter and revalidate the same saved source. Its independent failure copy does not affect normal query inputs. |
+| `cem-transform` | `report-template` | `validate-template` | Validate the declared template identity independently of graph execution or the output data contract. |
+| `cem-transform` | `report-template` | `inspect-template` | Inspect the native source tree and original template ranges; this does not execute the template. |
+| `cem-transform` | `report-template` | `format-template` | Apply the native tabular source formatter and compare its exact source bytes. |
+| `cem-transform` | `report-graph` | `validate-graph` | Validate graph declarations, source/template identities, parameters and export definitions without claiming a successful build. |
+| `cem-transform` | `report-graph` | `inspect-graph` | Inspect the native graph source tree: orders import, filtered report model, HTML view, parameters and explicit exports. |
+| `cem-transform` | `invalid-template` | `repair-template` | Review the original native source diagnostic, restore the required declaration and revalidate the saved copy. |
+| `cem-transform` | `report-graph` | `build-report` | Filter original orders into a native report model, then render the model through the shared CEM-native template runtime. The explicit HTML entry drives project preview. |
+| `xslt-transform` | `report-template` | `validate-template` | Validate the declared template identity independently of graph execution or the output data contract. |
+| `xslt-transform` | `report-template` | `inspect-template` | Inspect the native source tree and original template ranges; this does not execute the template. |
+| `xslt-transform` | `report-template` | `format-template` | Apply the native tabular source formatter and compare its exact source bytes. |
+| `xslt-transform` | `report-graph` | `validate-graph` | Validate graph declarations, source/template identities, parameters and export definitions without claiming a successful build. |
+| `xslt-transform` | `report-graph` | `inspect-graph` | Inspect the native graph source tree: orders import, filtered report model, HTML view, parameters and explicit exports. |
+| `xslt-transform` | `invalid-template` | `repair-template` | Review the original native source diagnostic, restore the required declaration and revalidate the saved copy. |
+| `xslt-transform` | `orders-source` | `transform-html` | Run the named native XSLT page template on the original retained XML with declared minimum/heading parameters. This is the bounded native adapter, never browser XSLTProcessor. |
+| `xslt-transform` | `report-graph` | `build-report` | Filter original orders into a native report model, then render the model through the shared CEM-native template runtime. The explicit HTML entry drives project preview. |
+| `cem-schema` | `note-schema` | `validate-schema` | Validate native schema declarations, attribute types, field contracts and diagnostic bindings without validating an instance. |
+| `cem-schema` | `note-schema` | `inspect-schema` | Inspect the imported native CEM schema source and its original ranges; this is a source projection rather than application JSON. |
+| `cem-schema` | `note-schema` | `format-schema` | Apply the native tabular formatter with exact expected bytes. |
+| `cem-schema` | `note-package` | `validate-package` | Validate the local schema source declaration, namespace claim and content-type metadata. Metadata alone grants no executable adapter. |
+| `cem-schema` | `note-instance` | `validate-instance` | Load the project-owned package and apply its required-id contract to a separately selected instance. |
+| `cem-schema` | `invalid-schema` | `repair-schema` | Restore the required schema namespace declaration after reviewing the original native diagnostic. |
+| `cem-schema` | `invalid-instance` | `repair-instance` | Apply the loaded domain contract, then add the missing id to the separate instance source. |
+| `json-schema` | `note-schema` | `validate-schema` | Validate JSON parsing and the supported dialect declaration; keyword assertions and reference traversal are not instance validation. |
+| `json-schema` | `note-schema` | `format-schema` | Format the typed native JSON Schema source through its package-owned tabular writer. |
+| `json-schema` | `note-data` | `validate-data-syntax` | Validate the example as ordinary JSON syntax. This configuration deliberately does not load or apply the authored JSON Schema. |
+| `json-schema` | `invalid-dialect` | `repair-dialect` | Replace the unsupported Draft 7 dialect with the currently admitted Draft 2020-12 identity. |
+| `relax-ng` | `xml-schema` | `validate-xml` | Validate the typed XML vocabulary, start pattern and local declaration syntax without compiling an instance validator. |
+| `relax-ng` | `xml-schema` | `parse-xml` | Review typed RELAX NG XML elements, original namespace, source URI and UTF-8 ranges. |
+| `relax-ng` | `xml-schema` | `format-xml` | Apply the lexical-lossless native XML formatter; tabular currently preserves all source lexemes. |
+| `relax-ng` | `compact-schema` | `validate-compact` | Validate native lexical tokens, delimiters, namespace/start declarations and reference policy. Complete grammar compilation is not claimed. |
+| `relax-ng` | `compact-schema` | `parse-compact` | Review lossless native compact tokens and original byte ranges. |
+| `relax-ng` | `compact-schema` | `format-compact` | Apply the lexical-lossless native compact formatter with an exact source-preserving fixture. |
+| `relax-ng` | `note-data` | `validate-data-syntax` | Validate this file as ordinary XML, separately from the authored RELAX NG schema. Instance validation is unavailable. |
+| `relax-ng` | `invalid-xml` | `repair-xml-start` | Restore the local start/ref declaration after the original missing-start diagnostic. |
+| `relax-ng` | `invalid-compact` | `repair-compact-close` | Close the note pattern after reviewing its original opening-delimiter range. |
+| `relax-ng` | `external-reference` | `repair-reference-policy` | Replace an external reference with an inline pattern. The resolver policy stays reject-only; no remote or filesystem schema is loaded. |
 <!-- existing-samples:end -->
 
 The Markdown article operations and complete site build use the same ordinary
@@ -392,6 +428,33 @@ than the active data file. Ambiguous or unknown query identities refuse navigati
 compiled query artifacts never receive fabricated text ranges on their binary
 buffers. Existing ownership, revision, draft and UTF-8 guards remain effective.
 
+The ordinary `cem-transform` and `xslt-transform` projects use the same XML order
+data and expose explicit HTML entry artifacts. The CEM graph also exports an
+application JSON report.
+The first graph uses CEM templates for both stages; the second uses XSLT for the
+report and CEM for the HTML page. Intermediate results remain native CEM-tree
+values. Declaring them as XML would encode text rather than create a new retained
+XML owner, and the current XPath/XSLT input adapter does not accept those
+constructed sequences. No serialized AST handoff or application-side reimport is
+used. JSON report exports retain the previously documented unmapped and
+cross-host whitespace limits; HTML artifacts carry native output spans.
+
+The schema-authoring projects separate three contracts. `cem-schema` defines a
+note vocabulary, required-id field contract and diagnostic, and supplies its
+schema through a local package with an explicit namespace claim. Its schema
+sources and its valid/invalid instances have separate configurations.
+`json-schema` authors Draft 2020-12 source with local `$defs`/`$ref` declarations;
+validation checks source/dialect support without traversing references or
+applying instance assertions. `relax-ng` authors XML and compact source, showing
+typed Parse, lexical-lossless formatting, local declarations and rejected
+external references. Its compact checks remain lexical. Their example JSON/XML
+data configurations validate syntax only and do not load the authored schemas.
+
+The shared source editor admits owned XSLT, JSON Schema and both RELAX NG text
+MIME types after media-essence normalization. UTF-8, size and source-kind bounds
+remain enforced; compiled `+cem-bin` selectors stay read-only with exact downloads.
+Text editing does not grant parser execution, schema loading or resolver access.
+
 The following rows describe existing reuse and planned extensions, rather than
 additional routes. Category names are discovery metadata and do not affect
 runtime authority.
@@ -405,9 +468,9 @@ runtime authority.
 | Documents and UI | SVG and MathML variants | `svg-diagram` and `mathml-formula` cover native retained inspection/query/formatting, validation/repair, HTML artifacts, original provenance and bounded actual vector/presentation-math rendering. Content MathML is validated separately without an algebra or presentation claim. |
 | Documents and UI | CSS and SCSS aliases | `css-stylesheet` and `scss-stylesheet` cover native inspection, validation/repair, exact CSS output, scoped styles, owned-module expansion, native HTML/CSS graphs and shared previews. Keep unavailable SCSS source-export/loader cases explicit. |
 | Queries and transformations | CSS selectors, XPath source aliases, CEM-QL modules/expressions | `css-selector`, `xpath-catalog` and `cemql-orders` cover native selections, namespace context, joins, input-derived/native parameter maps, typed results and original selected-node ranges. CEM-QL source/module operations retain their explicit identities; XPath source-command limits remain visible. |
-| Queries and transformations | CEM transformation and XSLT source/custom-element selectors | Reuse existing CEM graphs; add a complete-profile bounded XSLT graph and explicit optional-profile refusal. Do not treat custom-element mode as a universal XSLT alias. |
-| Schema authoring | CEM schema and schema package | Extend Login's failure/repair package with declarations, references and explicit instance inputs. |
-| Schema authoring | JSON Schema and both Relax NG syntaxes | Add schema-source inspect/format/validation projects. Show instance validation only where independently supported; document unsupported drafts/patterns rather than promise arbitrary validators. |
+| Queries and transformations | CEM transformation and XSLT source/custom-element selectors | `cem-transform` and `xslt-transform` compare ordinary multi-step native builds, explicit HTML entries, source controls, parameter maps and provenance. XSLT execution requires the complete profile; custom-element mode is not a universal XSLT alias. |
+| Schema authoring | CEM schema and schema package | `cem-schema` separates schema/package authoring from valid/invalid note instances, with explicit namespace claims and required-field diagnostics. |
+| Schema authoring | JSON Schema and both Relax NG syntaxes | `json-schema` and `relax-ng` cover source validation, supported formatting/typed Parse, dialect/start/delimiter repairs and rejected external references. Their data examples validate syntax only. |
 | Schema authoring | Module maps v1/v2/v3, CLI command, Studio project encodings | New portable configuration/dependency-resolution project. Demonstrate supported versions, mapped/relative resources and validated run configs. |
 | Schema authoring | DOM/AST/events binary/JSON projections | Extend existing conversion sample with native codec inputs, human-readable inspection and source locations. Separate serialization from document parsing and execution. |
 | Data | UTF-8 `text/plain` loader input | Include a small text-resource use alongside configuration samples; explain the CEM-only projection and absence of a registered schema package. |

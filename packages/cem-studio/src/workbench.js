@@ -51,7 +51,8 @@ export async function createCemStudioProjectWorkbench({ repository, validator, s
     let text;
     const mediaType = resource?.contentType?.split(';')[0].trim().toLowerCase();
     const supported = available && ['inline', 'project-file'].includes(resource.sourceKind)
-        && (mediaType.startsWith('text/') || mediaType.startsWith('application/vnd.cem.') || ['application/cem', 'application/json', 'application/xml', 'application/yaml', 'application/xhtml+xml', 'image/svg+xml', 'application/mathml+xml', 'application/mathml-presentation+xml', 'application/mathml-content+xml'].includes(mediaType))
+        && !mediaType.endsWith('+cem-bin')
+        && (mediaType.startsWith('text/') || mediaType.startsWith('application/vnd.cem.') || ['application/cem', 'application/json', 'application/xml', 'application/yaml', 'application/xhtml+xml', 'image/svg+xml', 'application/mathml+xml', 'application/mathml-presentation+xml', 'application/mathml-content+xml', 'application/xslt+xml', 'application/schema+json', 'application/relax-ng+xml', 'application/relax-ng-compact-syntax'].includes(mediaType))
         && bytes.byteLength <= CEM_STUDIO_LIMITS.sourceBytes;
     if (supported) {
         try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { /* binary stays read-only */ }

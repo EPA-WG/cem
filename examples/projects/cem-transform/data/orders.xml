@@ -1,0 +1,5 @@
+<orders>
+  <order id="O-101" customer="Café Noord" status="ready" total="48">Tea</order>
+  <order id="O-102" customer="Harbor Books" status="draft" total="20">Coffee</order>
+  <order id="O-103" customer="Harbor Books" status="ready" total="36">Cocoa</order>
+</orders>

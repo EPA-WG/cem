@@ -1,0 +1,330 @@
+{
+  "id": "xslt-transform",
+  "name": "XSLT transformation",
+  "version": "1.0.0",
+  "description": "Compare bounded native XSLT with CEM templates: validate and repair stylesheet source, transform owned XML directly, and build an explicit two-stage HTML report with native provenance.",
+  "collections": [
+    "content-types-queries-transformations"
+  ],
+  "sources": [
+    {
+      "id": "orders-source",
+      "source": "examples/projects/xslt-transform/data/orders.xml",
+      "path": "data/orders.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "role": "data"
+    },
+    {
+      "id": "report-template",
+      "source": "examples/projects/xslt-transform/templates/report.xsl",
+      "path": "templates/report.xsl",
+      "contentType": "application/xslt+xml",
+      "schema": "https://cem.dev/ns/transform/xslt/1",
+      "role": "template"
+    },
+    {
+      "id": "page-template",
+      "source": "examples/projects/xslt-transform/templates/page.cemt",
+      "path": "templates/page.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "page-xslt",
+      "source": "examples/projects/xslt-transform/templates/page.xsl",
+      "path": "templates/page.xsl",
+      "contentType": "application/xslt+xml",
+      "schema": "https://cem.dev/ns/transform/xslt/1",
+      "role": "template"
+    },
+    {
+      "id": "report-graph",
+      "source": "examples/projects/xslt-transform/graphs/report.cem",
+      "path": "graphs/report.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "invalid-template",
+      "source": "examples/projects/xslt-transform/failures/report.xsl",
+      "path": "failures/report.xsl",
+      "contentType": "application/xslt+xml",
+      "schema": "https://cem.dev/ns/transform/xslt/1",
+      "role": "template"
+    },
+    {
+      "id": "invalid-orders",
+      "source": "examples/projects/xslt-transform/failures/orders.xml",
+      "path": "failures/orders.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-html",
+      "source": "examples/projects/xslt-transform/expected/index.html",
+      "path": "expected/index.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-direct",
+      "source": "examples/projects/xslt-transform/expected/direct.html",
+      "path": "expected/direct.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-format",
+      "source": "examples/projects/xslt-transform/expected/formatted-report.xsl",
+      "path": "expected/formatted-report.xsl",
+      "contentType": "application/xslt+xml",
+      "schema": "https://cem.dev/ns/transform/xslt/1",
+      "role": "template"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/xslt-transform/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "validate-template",
+      "name": "Validate the report template source",
+      "kind": "validation",
+      "source": "report-template",
+      "description": "Validate the declared template identity independently of graph execution or the output data contract.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/xslt+xml",
+        "--schema",
+        "https://cem.dev/ns/transform/xslt/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "inspect-template",
+      "name": "Inspect original template structure",
+      "kind": "inspection",
+      "source": "report-template",
+      "description": "Inspect the native source tree and original template ranges; this does not execute the template.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/xslt+xml",
+        "--schema",
+        "https://cem.dev/ns/transform/xslt/1",
+        "--show",
+        "ast",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedText": [
+        "minimum",
+        "report"
+      ]
+    },
+    {
+      "id": "format-template",
+      "name": "Format the report template",
+      "kind": "conversion",
+      "source": "report-template",
+      "dependencies": [
+        "expected-format"
+      ],
+      "description": "Apply the native tabular source formatter and compare its exact source bytes.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/xslt+xml",
+        "--schema",
+        "https://cem.dev/ns/transform/xslt/1",
+        "--to-content-type",
+        "application/xslt+xml",
+        "--to-schema",
+        "https://cem.dev/ns/transform/xslt/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedOutput": "expected-format"
+    },
+    {
+      "id": "validate-graph",
+      "name": "Validate the explicit transformation graph",
+      "kind": "validation",
+      "source": "report-graph",
+      "description": "Validate graph declarations, source/template identities, parameters and export definitions without claiming a successful build.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "inspect-graph",
+      "name": "Inspect graph stages and export declarations",
+      "kind": "inspection",
+      "source": "report-graph",
+      "description": "Inspect the native graph source tree: orders import, filtered report model, HTML view, parameters and explicit exports.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--show",
+        "ast",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedText": [
+        "minimum",
+        "page-html"
+      ]
+    },
+    {
+      "id": "repair-template",
+      "name": "Repair the template source contract",
+      "kind": "validation",
+      "source": "invalid-template",
+      "description": "Review the original native source diagnostic, restore the required declaration and revalidate the saved copy.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/xslt+xml",
+        "--schema",
+        "https://cem.dev/ns/transform/xslt/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.xslt.version_missing",
+        "location": {
+          "line": 1,
+          "column": 1,
+          "byteOffset": 0
+        }
+      },
+      "repair": {
+        "find": "<xsl:stylesheet xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\">",
+        "replace": "<xsl:stylesheet xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\" version=\"3.0\">"
+      }
+    },
+    {
+      "id": "transform-html",
+      "name": "Transform the original XML with XSLT",
+      "kind": "transformation",
+      "source": "orders-source",
+      "dependencies": [
+        "page-xslt",
+        "expected-direct"
+      ],
+      "description": "Run the named native XSLT page template on the original retained XML with declared minimum/heading parameters. This is the bounded native adapter, never browser XSLTProcessor.",
+      "argv": [
+        "transform",
+        "$source",
+        "--data-content-type",
+        "application/xml",
+        "--data-schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--template",
+        "$page-xslt",
+        "--template-content-type",
+        "application/xslt+xml",
+        "--template-schema",
+        "https://cem.dev/ns/transform/xslt/1",
+        "--template-entrypoint",
+        "page",
+        "--param",
+        "minimum=30",
+        "--param",
+        "heading=Ready orders",
+        "--to-content-type",
+        "text/html",
+        "--to-schema",
+        "https://cem.dev/ns/data/html/1",
+        "--output-color-type",
+        "none",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedOutput": "expected-direct"
+    },
+    {
+      "id": "build-report",
+      "name": "Build the two-stage order report",
+      "kind": "transformation-graph",
+      "source": "report-graph",
+      "dependencies": [
+        "orders-source",
+        "report-template",
+        "page-template",
+        "expected-html"
+      ],
+      "description": "Filter original orders into a native report model, then render the model through the shared CEM-native template runtime. The explicit HTML entry drives project preview.",
+      "entryArtifact": "generated/index.html",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedGraphOutputs": {
+        "generated/index.html": "expected-html"
+      },
+      "expectedProvenance": [
+        "templates/page.cemt"
+      ],
+      "expectedGraphFailures": [
+        [
+          "orders-source",
+          "invalid-orders"
+        ]
+      ]
+    }
+  ]
+}

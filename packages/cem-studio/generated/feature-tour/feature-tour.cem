@@ -11,6 +11,14 @@
     {export @id="project-schema-examples-output" @out="../../dist/static/samples/examples/schema-examples.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
 
+  {import @id="project-cem-schema" @src="examples/cem-schema.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-cem-schema-output" @out="../../dist/static/samples/examples/cem-schema.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
+  {import @id="project-cem-transform" @src="examples/cem-transform.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-cem-transform-output" @out="../../dist/static/samples/examples/cem-transform.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
   {import @id="project-cemql-orders" @src="examples/cemql-orders.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
     {export @id="project-cemql-orders-output" @out="../../dist/static/samples/examples/cemql-orders.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
@@ -31,6 +39,10 @@
     {export @id="project-html-cem-card-output" @out="../../dist/static/samples/examples/html-cem-card.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
 
+  {import @id="project-json-schema" @src="examples/json-schema.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-json-schema-output" @out="../../dist/static/samples/examples/json-schema.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
   {import @id="project-json-yaml-report" @src="examples/json-yaml-report.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
     {export @id="project-json-yaml-report-output" @out="../../dist/static/samples/examples/json-yaml-report.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
@@ -45,6 +57,10 @@
 
   {import @id="project-mathml-formula" @src="examples/mathml-formula.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
     {export @id="project-mathml-formula-output" @out="../../dist/static/samples/examples/mathml-formula.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
+  {import @id="project-relax-ng" @src="examples/relax-ng.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-relax-ng-output" @out="../../dist/static/samples/examples/relax-ng.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
 
   {import @id="project-scss-stylesheet" @src="examples/scss-stylesheet.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
@@ -65,6 +81,10 @@
 
   {import @id="project-xpath-catalog" @src="examples/xpath-catalog.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
     {export @id="project-xpath-catalog-output" @out="../../dist/static/samples/examples/xpath-catalog.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
+  {import @id="project-xslt-transform" @src="examples/xslt-transform.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-xslt-transform-output" @out="../../dist/static/samples/examples/xslt-transform.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
 
   {import @id="feature-tour-catalog" @src="catalog.json" @content-type="application/json" @opaque=true |

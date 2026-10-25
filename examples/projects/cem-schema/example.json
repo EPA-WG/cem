@@ -1,0 +1,264 @@
+{
+  "id": "cem-schema",
+  "name": "CEM schema authoring",
+  "version": "1.0.0",
+  "description": "Define a project-owned note schema and package, inspect and format native declarations, distinguish source validation from instance validation, and repair both contracts.",
+  "collections": [
+    "content-types-schema-authoring"
+  ],
+  "sources": [
+    {
+      "id": "note-schema",
+      "source": "examples/projects/cem-schema/schemas/note.cem",
+      "path": "schemas/note.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/schema/1",
+      "role": "schema"
+    },
+    {
+      "id": "note-package",
+      "source": "examples/projects/cem-schema/schemas/package.cem",
+      "path": "schemas/package.cem",
+      "contentType": "application/vnd.cem.schema-package+cem",
+      "schema": "https://cem.dev/ns/schema-package/1",
+      "role": "schema"
+    },
+    {
+      "id": "note-instance",
+      "source": "examples/projects/cem-schema/data/note.cem",
+      "path": "data/note.cem",
+      "contentType": "application/cem",
+      "schema": "urn:example:note",
+      "role": "data"
+    },
+    {
+      "id": "invalid-schema",
+      "source": "examples/projects/cem-schema/failures/missing-namespace.cem",
+      "path": "failures/missing-namespace.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/schema/1",
+      "role": "schema"
+    },
+    {
+      "id": "invalid-instance",
+      "source": "examples/projects/cem-schema/failures/missing-id.cem",
+      "path": "failures/missing-id.cem",
+      "contentType": "application/cem",
+      "schema": "urn:example:note",
+      "role": "data"
+    },
+    {
+      "id": "formatted-schema",
+      "source": "examples/projects/cem-schema/expected/formatted-schema.cem",
+      "path": "expected/formatted-schema.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/schema/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/cem-schema/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "validate-schema",
+      "name": "Validate the CEM schema source",
+      "kind": "validation",
+      "source": "note-schema",
+      "description": "Validate native schema declarations, attribute types, field contracts and diagnostic bindings without validating an instance.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/schema/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "inspect-schema",
+      "name": "Inspect the native CEM schema structure",
+      "kind": "inspection",
+      "source": "note-schema",
+      "description": "Inspect the imported native CEM schema source and its original ranges; this is a source projection rather than application JSON.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/schema/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "note-id",
+        "urn:example:note",
+        "required-fields"
+      ]
+    },
+    {
+      "id": "format-schema",
+      "name": "Format the CEM schema source",
+      "kind": "conversion",
+      "source": "note-schema",
+      "description": "Apply the native tabular formatter with exact expected bytes.",
+      "dependencies": [
+        "formatted-schema"
+      ],
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/schema/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/schema/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "expectedOutput": "formatted-schema"
+    },
+    {
+      "id": "validate-package",
+      "name": "Validate the project-owned schema package",
+      "kind": "validation",
+      "source": "note-package",
+      "description": "Validate the local schema source declaration, namespace claim and content-type metadata. Metadata alone grants no executable adapter.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.schema-package+cem",
+        "--schema",
+        "https://cem.dev/ns/schema-package/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "validate-instance",
+      "name": "Validate a note using the owned CEM schema",
+      "kind": "validation",
+      "source": "note-instance",
+      "description": "Load the project-owned package and apply its required-id contract to a separately selected instance.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "urn:example:note",
+        "--schema-package",
+        "$note-package",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      },
+      "dependencies": [
+        "note-package",
+        "note-schema"
+      ]
+    },
+    {
+      "id": "repair-schema",
+      "name": "Repair the missing schema namespace",
+      "kind": "validation",
+      "source": "invalid-schema",
+      "description": "Restore the required schema namespace declaration after reviewing the original native diagnostic.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/schema/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.schema_model.missing_required_attribute",
+        "location": {
+          "line": 1,
+          "column": 1,
+          "byteOffset": 0
+        }
+      },
+      "expectedExit": 1,
+      "repair": {
+        "find": "@name=note",
+        "replace": "@name=note @namespace=urn:example:note"
+      }
+    },
+    {
+      "id": "repair-instance",
+      "name": "Repair the missing note id",
+      "kind": "validation",
+      "source": "invalid-instance",
+      "description": "Apply the loaded domain contract, then add the missing id to the separate instance source.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "urn:example:note",
+        "--schema-package",
+        "$note-package",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "example.note.id_required",
+        "location": {
+          "line": 1,
+          "column": 1,
+          "byteOffset": 0
+        }
+      },
+      "expectedExit": 1,
+      "repair": {
+        "find": "{note |",
+        "replace": "{note @id=welcome |"
+      },
+      "dependencies": [
+        "note-package",
+        "note-schema"
+      ]
+    }
+  ]
+}

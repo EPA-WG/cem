@@ -1,0 +1,8 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+{package @id=note-authoring @version=1.0.0 |
+    {schema @source=note.cem @uri=urn:example:note}
+    {namespace @prefix=note @uri=urn:example:note}
+    {content-type @primary=true @value="application/vnd.example.note+cem"}
+}

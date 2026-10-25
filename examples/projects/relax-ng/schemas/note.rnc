@@ -1,0 +1,7 @@
+default namespace = ""
+start = note
+note = element note {
+  attribute id { text },
+  element title { text },
+  element body { text }
+}

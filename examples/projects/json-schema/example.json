@@ -1,0 +1,158 @@
+{
+  "id": "json-schema",
+  "name": "JSON Schema source authoring",
+  "version": "1.0.0",
+  "description": "Author Draft 2020-12 declarations with local definitions and reference syntax, format native schema source and repair an unsupported dialect without claiming instance validation.",
+  "collections": [
+    "content-types-schema-authoring"
+  ],
+  "sources": [
+    {
+      "id": "note-schema",
+      "source": "examples/projects/json-schema/schemas/note.schema.json",
+      "path": "schemas/note.schema.json",
+      "contentType": "application/schema+json",
+      "schema": "https://cem.dev/ns/data/json-schema/1",
+      "role": "schema"
+    },
+    {
+      "id": "note-data",
+      "source": "examples/projects/json-schema/data/note.json",
+      "path": "data/note.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-dialect",
+      "source": "examples/projects/json-schema/failures/unsupported-dialect.schema.json",
+      "path": "failures/unsupported-dialect.schema.json",
+      "contentType": "application/schema+json",
+      "schema": "https://cem.dev/ns/data/json-schema/1",
+      "role": "schema"
+    },
+    {
+      "id": "formatted-schema",
+      "source": "examples/projects/json-schema/expected/formatted-note.schema.json",
+      "path": "expected/formatted-note.schema.json",
+      "contentType": "application/schema+json",
+      "schema": "https://cem.dev/ns/data/json-schema/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/json-schema/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "validate-schema",
+      "name": "Validate Draft 2020-12 schema source",
+      "kind": "validation",
+      "source": "note-schema",
+      "description": "Validate JSON parsing and the supported dialect declaration; keyword assertions and reference traversal are not instance validation.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/schema+json",
+        "--schema",
+        "https://cem.dev/ns/data/json-schema/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "format-schema",
+      "name": "Format the JSON Schema source",
+      "kind": "conversion",
+      "source": "note-schema",
+      "description": "Format the typed native JSON Schema source through its package-owned tabular writer.",
+      "dependencies": [
+        "formatted-schema"
+      ],
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/schema+json",
+        "--schema",
+        "https://cem.dev/ns/data/json-schema/1",
+        "--to-content-type",
+        "application/schema+json",
+        "--to-schema",
+        "https://cem.dev/ns/data/json-schema/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "expectedOutput": "formatted-schema"
+    },
+    {
+      "id": "validate-data-syntax",
+      "name": "Validate example JSON syntax only",
+      "kind": "validation",
+      "source": "note-data",
+      "description": "Validate the example as ordinary JSON syntax. This configuration deliberately does not load or apply the authored JSON Schema.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/data/json/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "repair-dialect",
+      "name": "Repair the unsupported JSON Schema dialect",
+      "kind": "validation",
+      "source": "invalid-dialect",
+      "description": "Replace the unsupported Draft 7 dialect with the currently admitted Draft 2020-12 identity.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/schema+json",
+        "--schema",
+        "https://cem.dev/ns/data/json-schema/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.json_schema.unsupported_dialect",
+        "location": {
+          "line": 2,
+          "column": 14,
+          "byteOffset": 15
+        }
+      },
+      "expectedExit": 1,
+      "repair": {
+        "find": "http://json-schema.org/draft-07/schema#",
+        "replace": "https://json-schema.org/draft/2020-12/schema"
+      }
+    }
+  ]
+}

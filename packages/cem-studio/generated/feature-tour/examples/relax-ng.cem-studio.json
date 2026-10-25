@@ -1,0 +1,447 @@
+{
+  "archiveSchemaVersion": 1,
+  "project": {
+    "$schema": "https://cem.dev/ns/studio/project/1",
+    "schemaVersion": 1,
+    "id": "relax-ng-seed",
+    "name": "RELAX NG source authoring",
+    "description": "Compare typed XML and compact schema source, inspect native lexical ranges, preserve formatting and repair start/delimiter/reference-policy errors without claiming instance validation.",
+    "rootUri": "studio://relax-ng-seed/",
+    "revision": 1,
+    "createdAt": "2026-10-17T00:00:00Z",
+    "updatedAt": "2026-10-17T00:00:00Z",
+    "entries": [
+      {
+        "id": "validate-xml",
+        "kind": "validation",
+        "name": "Validate RELAX NG XML source",
+        "description": "Validate the typed XML vocabulary, start pattern and local declaration syntax without compiling an instance validator.",
+        "resourceIds": [
+          "xml-schema",
+          "command-validate-xml"
+        ],
+        "runConfigResourceId": "command-validate-xml",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "parse-xml",
+        "kind": "inspection",
+        "name": "Parse the typed RELAX NG XML source",
+        "description": "Review typed RELAX NG XML elements, original namespace, source URI and UTF-8 ranges.",
+        "resourceIds": [
+          "xml-schema",
+          "command-parse-xml"
+        ],
+        "runConfigResourceId": "command-parse-xml",
+        "tags": [
+          "parse"
+        ]
+      },
+      {
+        "id": "format-xml",
+        "kind": "conversion",
+        "name": "Format RELAX NG XML source",
+        "description": "Apply the lexical-lossless native XML formatter; tabular currently preserves all source lexemes.",
+        "resourceIds": [
+          "xml-schema",
+          "command-format-xml",
+          "formatted-xml"
+        ],
+        "runConfigResourceId": "command-format-xml",
+        "tags": [
+          "convert"
+        ]
+      },
+      {
+        "id": "validate-compact",
+        "kind": "validation",
+        "name": "Validate RELAX NG compact source",
+        "description": "Validate native lexical tokens, delimiters, namespace/start declarations and reference policy. Complete grammar compilation is not claimed.",
+        "resourceIds": [
+          "compact-schema",
+          "command-validate-compact"
+        ],
+        "runConfigResourceId": "command-validate-compact",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "parse-compact",
+        "kind": "inspection",
+        "name": "Parse the typed RELAX NG compact source",
+        "description": "Review lossless native compact tokens and original byte ranges.",
+        "resourceIds": [
+          "compact-schema",
+          "command-parse-compact"
+        ],
+        "runConfigResourceId": "command-parse-compact",
+        "tags": [
+          "parse"
+        ]
+      },
+      {
+        "id": "format-compact",
+        "kind": "conversion",
+        "name": "Format RELAX NG compact source",
+        "description": "Apply the lexical-lossless native compact formatter with an exact source-preserving fixture.",
+        "resourceIds": [
+          "compact-schema",
+          "command-format-compact",
+          "formatted-compact"
+        ],
+        "runConfigResourceId": "command-format-compact",
+        "tags": [
+          "convert"
+        ]
+      },
+      {
+        "id": "validate-data-syntax",
+        "kind": "validation",
+        "name": "Validate example XML syntax only",
+        "description": "Validate this file as ordinary XML, separately from the authored RELAX NG schema. Instance validation is unavailable.",
+        "resourceIds": [
+          "note-data",
+          "command-validate-data-syntax"
+        ],
+        "runConfigResourceId": "command-validate-data-syntax",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "repair-xml-start",
+        "kind": "validation",
+        "name": "Repair the missing XML start pattern",
+        "description": "Restore the local start/ref declaration after the original missing-start diagnostic.",
+        "resourceIds": [
+          "invalid-xml",
+          "command-repair-xml-start"
+        ],
+        "runConfigResourceId": "command-repair-xml-start",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "repair-compact-close",
+        "kind": "validation",
+        "name": "Repair the unclosed compact pattern",
+        "description": "Close the note pattern after reviewing its original opening-delimiter range.",
+        "resourceIds": [
+          "invalid-compact",
+          "command-repair-compact-close"
+        ],
+        "runConfigResourceId": "command-repair-compact-close",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "repair-reference-policy",
+        "kind": "validation",
+        "name": "Replace the rejected external reference",
+        "description": "Replace an external reference with an inline pattern. The resolver policy stays reject-only; no remote or filesystem schema is loaded.",
+        "resourceIds": [
+          "external-reference",
+          "command-repair-reference-policy"
+        ],
+        "runConfigResourceId": "command-repair-reference-policy",
+        "tags": [
+          "validate"
+        ]
+      }
+    ],
+    "resources": [
+      {
+        "id": "xml-schema",
+        "path": "schemas/note.rng",
+        "referencePath": "schemas/note.rng",
+        "role": "schema",
+        "sourceKind": "project-file",
+        "contentType": "application/relax-ng+xml",
+        "schema": "https://cem.dev/ns/data/relax-ng/1",
+        "revision": 1,
+        "sha256": "816f1064e82f81c89ad58c84187fdbc16eed9af49904163298e81ad15d1285fe"
+      },
+      {
+        "id": "compact-schema",
+        "path": "schemas/note.rnc",
+        "referencePath": "schemas/note.rnc",
+        "role": "schema",
+        "sourceKind": "project-file",
+        "contentType": "application/relax-ng-compact-syntax",
+        "schema": "https://cem.dev/ns/data/relax-ng/1",
+        "revision": 1,
+        "sha256": "be4c7d830f4aa39f7dd47c78f8fd753f1530385f7b6d71fcfd8735f3c0c6d6dc"
+      },
+      {
+        "id": "note-data",
+        "path": "data/note.xml",
+        "referencePath": "data/note.xml",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/xml",
+        "schema": "https://cem.dev/ns/data/xml/1",
+        "revision": 1,
+        "sha256": "161bff09b5c92f6d99d916a1459ecd072e8c493bede41d22dc8068c5c8eac288"
+      },
+      {
+        "id": "invalid-xml",
+        "path": "failures/missing-start.rng",
+        "referencePath": "failures/missing-start.rng",
+        "role": "schema",
+        "sourceKind": "project-file",
+        "contentType": "application/relax-ng+xml",
+        "schema": "https://cem.dev/ns/data/relax-ng/1",
+        "revision": 1,
+        "sha256": "386d55cffe84b7f041aaee60eb73fbd5ef0906a9bdbf8a741ca75a08781f3f9a"
+      },
+      {
+        "id": "invalid-compact",
+        "path": "failures/unclosed-note.rnc",
+        "referencePath": "failures/unclosed-note.rnc",
+        "role": "schema",
+        "sourceKind": "project-file",
+        "contentType": "application/relax-ng-compact-syntax",
+        "schema": "https://cem.dev/ns/data/relax-ng/1",
+        "revision": 1,
+        "sha256": "dcdde0c3a10fbda78c060a50433686941be080adebdfd281b3a5aa96009a58e0"
+      },
+      {
+        "id": "external-reference",
+        "path": "failures/external-reference.rnc",
+        "referencePath": "failures/external-reference.rnc",
+        "role": "schema",
+        "sourceKind": "project-file",
+        "contentType": "application/relax-ng-compact-syntax",
+        "schema": "https://cem.dev/ns/data/relax-ng/1",
+        "revision": 1,
+        "sha256": "63e4b20032217d101f505f567da444e1f24b977d30342fb178acd722440c8135"
+      },
+      {
+        "id": "formatted-xml",
+        "path": "expected/formatted-note.rng",
+        "referencePath": "expected/formatted-note.rng",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/relax-ng+xml",
+        "schema": "https://cem.dev/ns/data/relax-ng/1",
+        "revision": 1,
+        "sha256": "816f1064e82f81c89ad58c84187fdbc16eed9af49904163298e81ad15d1285fe"
+      },
+      {
+        "id": "formatted-compact",
+        "path": "expected/formatted-note.rnc",
+        "referencePath": "expected/formatted-note.rnc",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/relax-ng-compact-syntax",
+        "schema": "https://cem.dev/ns/data/relax-ng/1",
+        "revision": 1,
+        "sha256": "be4c7d830f4aa39f7dd47c78f8fd753f1530385f7b6d71fcfd8735f3c0c6d6dc"
+      },
+      {
+        "id": "readme",
+        "path": "README.md",
+        "referencePath": "README.md",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/markdown; charset=utf-8",
+        "schema": "https://cem.dev/ns/data/markdown/1",
+        "revision": 1,
+        "sha256": "97876277f575087c7346d92bf2892e3c06071b7a0a54266b9bb8d6775de119c9"
+      },
+      {
+        "id": "command-validate-xml",
+        "path": "config/validate-xml.json",
+        "referencePath": "config/validate-xml.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "f8fad4f78f3a861fc01ae5e760420fefc61a4770cf7e06e6b99483519ccc34d1"
+      },
+      {
+        "id": "command-parse-xml",
+        "path": "config/parse-xml.json",
+        "referencePath": "config/parse-xml.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "b8e1f4e96311c3ab78898ab79f009f62ad47fb06251b12a9e80e223f721eeae2"
+      },
+      {
+        "id": "command-format-xml",
+        "path": "config/format-xml.json",
+        "referencePath": "config/format-xml.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "e572902adf58ec823eb3271ceb1acf1da6ad56d58a8628c17a3443a34b9a9b67"
+      },
+      {
+        "id": "command-validate-compact",
+        "path": "config/validate-compact.json",
+        "referencePath": "config/validate-compact.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "77fc341406cf06b2f3ae91313d73d1c8abd36d270aff24d3f7f9da252bde2306"
+      },
+      {
+        "id": "command-parse-compact",
+        "path": "config/parse-compact.json",
+        "referencePath": "config/parse-compact.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "20d8fd63f15e2a5661ccca20838a07fb8b1ed2dfb1a40ea6a0de949133fcc857"
+      },
+      {
+        "id": "command-format-compact",
+        "path": "config/format-compact.json",
+        "referencePath": "config/format-compact.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "54c89088add2fd902f3d7a59d95692c6d8e71be2a72df3c82e11090ada1a8f31"
+      },
+      {
+        "id": "command-validate-data-syntax",
+        "path": "config/validate-data-syntax.json",
+        "referencePath": "config/validate-data-syntax.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "4a1cff3a92959f22c4d80d777c8b2718a6e7155ec9511a3e7c6b762a8e9fd61a"
+      },
+      {
+        "id": "command-repair-xml-start",
+        "path": "config/repair-xml-start.json",
+        "referencePath": "config/repair-xml-start.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "c634dcb9a118f8449c2b9ca9db1d668997ae9ea893ebd19ee5ba24273876569f"
+      },
+      {
+        "id": "command-repair-compact-close",
+        "path": "config/repair-compact-close.json",
+        "referencePath": "config/repair-compact-close.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "c3521a6c2cf72ad2afe83317aecfa1ab2a8b4caf20fe1eb96244be0345e6473a"
+      },
+      {
+        "id": "command-repair-reference-policy",
+        "path": "config/repair-reference-policy.json",
+        "referencePath": "config/repair-reference-policy.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "e057ccea7c7101dbd7fd262fcd68503b7f46ceb17626b7c9886fac093eb70aef"
+      }
+    ]
+  },
+  "contents": [
+    {
+      "resourceId": "command-format-compact",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJjb252ZXJ0IiwKICAgICJzY2hlbWFzL25vdGUucm5jIiwKICAgICItLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vcmVsYXgtbmctY29tcGFjdC1zeW50YXgiLAogICAgIi0tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9yZWxheC1uZy8xIiwKICAgICItLXRvLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vcmVsYXgtbmctY29tcGFjdC1zeW50YXgiLAogICAgIi0tdG8tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9yZWxheC1uZy8xIiwKICAgICItLWNlbXQtZm9ybWF0dGVyLXByb2ZpbGUiLAogICAgInRhYnVsYXIiLAogICAgIi0tb3V0cHV0LWNvbG9yLXR5cGUiLAogICAgIm5vbmUiLAogICAgIi0tbm8tY29sb3IiCiAgXQp9Cg=="
+    },
+    {
+      "resourceId": "command-format-xml",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJjb252ZXJ0IiwKICAgICJzY2hlbWFzL25vdGUucm5nIiwKICAgICItLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vcmVsYXgtbmcreG1sIiwKICAgICItLXNjaGVtYSIsCiAgICAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvcmVsYXgtbmcvMSIsCiAgICAiLS10by1jb250ZW50LXR5cGUiLAogICAgImFwcGxpY2F0aW9uL3JlbGF4LW5nK3htbCIsCiAgICAiLS10by1zY2hlbWEiLAogICAgImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL3JlbGF4LW5nLzEiLAogICAgIi0tY2VtdC1mb3JtYXR0ZXItcHJvZmlsZSIsCiAgICAidGFidWxhciIsCiAgICAiLS1vdXRwdXQtY29sb3ItdHlwZSIsCiAgICAibm9uZSIsCiAgICAiLS1uby1jb2xvciIKICBdCn0K"
+    },
+    {
+      "resourceId": "command-parse-compact",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJwYXJzZSIsCiAgICAic2NoZW1hcy9ub3RlLnJuYyIsCiAgICAiLS1jb250ZW50LXR5cGUiLAogICAgImFwcGxpY2F0aW9uL3JlbGF4LW5nLWNvbXBhY3Qtc3ludGF4IiwKICAgICItLXNjaGVtYSIsCiAgICAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvcmVsYXgtbmcvMSIsCiAgICAiLS1mb3JtYXQiLAogICAgImFzdCIsCiAgICAiLS1uby1jb2xvciIKICBdCn0K"
+    },
+    {
+      "resourceId": "command-parse-xml",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJwYXJzZSIsCiAgICAic2NoZW1hcy9ub3RlLnJuZyIsCiAgICAiLS1jb250ZW50LXR5cGUiLAogICAgImFwcGxpY2F0aW9uL3JlbGF4LW5nK3htbCIsCiAgICAiLS1zY2hlbWEiLAogICAgImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL3JlbGF4LW5nLzEiLAogICAgIi0tZm9ybWF0IiwKICAgICJhc3QiLAogICAgIi0tbm8tY29sb3IiCiAgXQp9Cg=="
+    },
+    {
+      "resourceId": "command-repair-compact-close",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZmFpbHVyZXMvdW5jbG9zZWQtbm90ZS5ybmMiLAogICAgICAicm9vdFNjb3BlIjogewogICAgICAgICJkZWZhdWx0Q29udGVudFR5cGUiOiAiYXBwbGljYXRpb24vcmVsYXgtbmctY29tcGFjdC1zeW50YXgiLAogICAgICAgICJzY2hlbWEiOiAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvcmVsYXgtbmcvMSIKICAgICAgfQogICAgfQogIF0sCiAgIm91dHB1dHMiOiBbXSwKICAic2NoZW1hUGFja2FnZXMiOiBbXSwKICAicmVzb2x2ZXJzIjogW10sCiAgInNjaGVkdWxlciI6IHt9Cn0K"
+    },
+    {
+      "resourceId": "command-repair-reference-policy",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZmFpbHVyZXMvZXh0ZXJuYWwtcmVmZXJlbmNlLnJuYyIsCiAgICAgICJyb290U2NvcGUiOiB7CiAgICAgICAgImRlZmF1bHRDb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi9yZWxheC1uZy1jb21wYWN0LXN5bnRheCIsCiAgICAgICAgInNjaGVtYSI6ICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9yZWxheC1uZy8xIgogICAgICB9CiAgICB9CiAgXSwKICAib3V0cHV0cyI6IFtdLAogICJzY2hlbWFQYWNrYWdlcyI6IFtdLAogICJyZXNvbHZlcnMiOiBbXSwKICAic2NoZWR1bGVyIjoge30KfQo="
+    },
+    {
+      "resourceId": "command-repair-xml-start",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZmFpbHVyZXMvbWlzc2luZy1zdGFydC5ybmciLAogICAgICAicm9vdFNjb3BlIjogewogICAgICAgICJkZWZhdWx0Q29udGVudFR5cGUiOiAiYXBwbGljYXRpb24vcmVsYXgtbmcreG1sIiwKICAgICAgICAic2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL3JlbGF4LW5nLzEiCiAgICAgIH0KICAgIH0KICBdLAogICJvdXRwdXRzIjogW10sCiAgInNjaGVtYVBhY2thZ2VzIjogW10sCiAgInJlc29sdmVycyI6IFtdLAogICJzY2hlZHVsZXIiOiB7fQp9Cg=="
+    },
+    {
+      "resourceId": "command-validate-compact",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAic2NoZW1hcy9ub3RlLnJuYyIsCiAgICAgICJyb290U2NvcGUiOiB7CiAgICAgICAgImRlZmF1bHRDb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi9yZWxheC1uZy1jb21wYWN0LXN5bnRheCIsCiAgICAgICAgInNjaGVtYSI6ICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9yZWxheC1uZy8xIgogICAgICB9CiAgICB9CiAgXSwKICAib3V0cHV0cyI6IFtdLAogICJzY2hlbWFQYWNrYWdlcyI6IFtdLAogICJyZXNvbHZlcnMiOiBbXSwKICAic2NoZWR1bGVyIjoge30KfQo="
+    },
+    {
+      "resourceId": "command-validate-data-syntax",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZGF0YS9ub3RlLnhtbCIsCiAgICAgICJyb290U2NvcGUiOiB7CiAgICAgICAgImRlZmF1bHRDb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi94bWwiLAogICAgICAgICJzY2hlbWEiOiAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEveG1sLzEiCiAgICAgIH0KICAgIH0KICBdLAogICJvdXRwdXRzIjogW10sCiAgInNjaGVtYVBhY2thZ2VzIjogW10sCiAgInJlc29sdmVycyI6IFtdLAogICJzY2hlZHVsZXIiOiB7fQp9Cg=="
+    },
+    {
+      "resourceId": "command-validate-xml",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAic2NoZW1hcy9ub3RlLnJuZyIsCiAgICAgICJyb290U2NvcGUiOiB7CiAgICAgICAgImRlZmF1bHRDb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi9yZWxheC1uZyt4bWwiLAogICAgICAgICJzY2hlbWEiOiAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvcmVsYXgtbmcvMSIKICAgICAgfQogICAgfQogIF0sCiAgIm91dHB1dHMiOiBbXSwKICAic2NoZW1hUGFja2FnZXMiOiBbXSwKICAicmVzb2x2ZXJzIjogW10sCiAgInNjaGVkdWxlciI6IHt9Cn0K"
+    },
+    {
+      "resourceId": "compact-schema",
+      "base64": "ZGVmYXVsdCBuYW1lc3BhY2UgPSAiIgpzdGFydCA9IG5vdGUKbm90ZSA9IGVsZW1lbnQgbm90ZSB7CiAgYXR0cmlidXRlIGlkIHsgdGV4dCB9LAogIGVsZW1lbnQgdGl0bGUgeyB0ZXh0IH0sCiAgZWxlbWVudCBib2R5IHsgdGV4dCB9Cn0K"
+    },
+    {
+      "resourceId": "external-reference",
+      "base64": "c3RhcnQgPSBleHRlcm5hbCAicmVtb3RlLnJuYyIK"
+    },
+    {
+      "resourceId": "formatted-compact",
+      "base64": "ZGVmYXVsdCBuYW1lc3BhY2UgPSAiIgpzdGFydCA9IG5vdGUKbm90ZSA9IGVsZW1lbnQgbm90ZSB7CiAgYXR0cmlidXRlIGlkIHsgdGV4dCB9LAogIGVsZW1lbnQgdGl0bGUgeyB0ZXh0IH0sCiAgZWxlbWVudCBib2R5IHsgdGV4dCB9Cn0K"
+    },
+    {
+      "resourceId": "formatted-xml",
+      "base64": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPGdyYW1tYXIgeG1sbnM9Imh0dHA6Ly9yZWxheG5nLm9yZy9ucy9zdHJ1Y3R1cmUvMS4wIj4KICA8c3RhcnQ+PHJlZiBuYW1lPSJub3RlIi8+PC9zdGFydD4KICA8ZGVmaW5lIG5hbWU9Im5vdGUiPgogICAgPGVsZW1lbnQgbmFtZT0ibm90ZSI+CiAgICAgIDxhdHRyaWJ1dGUgbmFtZT0iaWQiPjx0ZXh0Lz48L2F0dHJpYnV0ZT4KICAgICAgPGVsZW1lbnQgbmFtZT0idGl0bGUiPjx0ZXh0Lz48L2VsZW1lbnQ+CiAgICAgIDxlbGVtZW50IG5hbWU9ImJvZHkiPjx0ZXh0Lz48L2VsZW1lbnQ+CiAgICA8L2VsZW1lbnQ+CiAgPC9kZWZpbmU+CjwvZ3JhbW1hcj4K"
+    },
+    {
+      "resourceId": "invalid-compact",
+      "base64": "ZGVmYXVsdCBuYW1lc3BhY2UgPSAiIgpzdGFydCA9IG5vdGUKbm90ZSA9IGVsZW1lbnQgbm90ZSB7CiAgYXR0cmlidXRlIGlkIHsgdGV4dCB9LAogIGVsZW1lbnQgdGl0bGUgeyB0ZXh0IH0sCiAgZWxlbWVudCBib2R5IHsgdGV4dCB9Cg=="
+    },
+    {
+      "resourceId": "invalid-xml",
+      "base64": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPGdyYW1tYXIgeG1sbnM9Imh0dHA6Ly9yZWxheG5nLm9yZy9ucy9zdHJ1Y3R1cmUvMS4wIj4KICA8ZGVmaW5lIG5hbWU9Im5vdGUiPgogICAgPGVsZW1lbnQgbmFtZT0ibm90ZSI+CiAgICAgIDxhdHRyaWJ1dGUgbmFtZT0iaWQiPjx0ZXh0Lz48L2F0dHJpYnV0ZT4KICAgICAgPGVsZW1lbnQgbmFtZT0idGl0bGUiPjx0ZXh0Lz48L2VsZW1lbnQ+CiAgICAgIDxlbGVtZW50IG5hbWU9ImJvZHkiPjx0ZXh0Lz48L2VsZW1lbnQ+CiAgICA8L2VsZW1lbnQ+CiAgPC9kZWZpbmU+CjwvZ3JhbW1hcj4K"
+    },
+    {
+      "resourceId": "note-data",
+      "base64": "PG5vdGUgaWQ9IndlbGNvbWUiPjx0aXRsZT5DYWbDqSBub3RlczwvdGl0bGU+PGJvZHk+RGF0YSBzeW50YXggdmFsaWRhdGlvbiBpcyBzZXBhcmF0ZSBmcm9tIHNjaGVtYSBpbnN0YW5jZSB2YWxpZGF0aW9uLjwvYm9keT48L25vdGU+Cg=="
+    },
+    {
+      "resourceId": "readme",
+      "base64": "IyBSRUxBWCBORyBzb3VyY2UgYXV0aG9yaW5nCgpUaGlzIG9yZGluYXJ5IHByb2plY3QgY29tcGFyZXMgWE1MIGFuZCBjb21wYWN0IFJFTEFYIE5HIHNvdXJjZSBmb3IgYSBzbWFsbCBub3RlCmNvbnRyYWN0LiBPcGVuICoqQ29udGVudCB0eXBlcyBhbmQgc2NoZW1hcyDihpIgU2NoZW1hIGF1dGhvcmluZyoqLCBjbG9uZSB0aGUKcmVhZC1vbmx5IGV4YW1wbGUsIGFuZCB1c2UgdGhlIHNoYXJlZCBlZGl0b3IgYW5kIG5hdGl2ZSBjb21tYW5kIGNvbnRyb2xzLgoKIyMgQ29uZmlndXJhdGlvbnMKCnwgQ29uZmlndXJhdGlvbiB8IFB1cnBvc2UgfAp8IC0tLSB8IC0tLSB8CnwgYHZhbGlkYXRlLXhtbGAgfCBWYWxpZGF0ZSB0aGUgdHlwZWQgUkVMQVggTkcgWE1MIHZvY2FidWxhcnksIHN0YXJ0IHBhdHRlcm4gYW5kIGRlY2xhcmF0aW9uIHN5bnRheC4gfAp8IGBwYXJzZS14bWxgIHwgSW5zcGVjdCB0aGUgdHlwZWQgWE1MIHNvdXJjZSBwcm9qZWN0aW9uIHdpdGggb3JpZ2luYWwgVVJJLCBuYW1lc3BhY2UgYW5kIFVURi04IHJhbmdlcy4gfAp8IGBmb3JtYXQteG1sYCB8IEFwcGx5IG5hdGl2ZSBsZXhpY2FsLWxvc3NsZXNzIGZvcm1hdHRpbmcgYW5kIGNvbXBhcmUgZXhhY3QgWE1MIHNvdXJjZSBieXRlcy4gfAp8IGB2YWxpZGF0ZS1jb21wYWN0YCB8IENoZWNrIG5hdGl2ZSBjb21wYWN0IGxleGljYWwgdG9rZW5zLCBkZWxpbWl0ZXJzLCBuYW1lc3BhY2Uvc3RhcnQgZGVjbGFyYXRpb25zIGFuZCByZWZlcmVuY2UgcG9saWN5LiB8CnwgYHBhcnNlLWNvbXBhY3RgIHwgSW5zcGVjdCBsb3NzbGVzcyB0eXBlZCBjb21wYWN0IHRva2VucyBhbmQgdGhlaXIgb3JpZ2luYWwgYnl0ZSByYW5nZXMuIHwKfCBgZm9ybWF0LWNvbXBhY3RgIHwgQXBwbHkgbmF0aXZlIGxleGljYWwtbG9zc2xlc3MgZm9ybWF0dGluZyBhbmQgY29tcGFyZSBleGFjdCBjb21wYWN0IHNvdXJjZSBieXRlcy4gfAp8IGB2YWxpZGF0ZS1kYXRhLXN5bnRheGAgfCBWYWxpZGF0ZSB0aGUgZXhhbXBsZSBub3RlIGFzIG9yZGluYXJ5IFhNTCBzeW50YXggb25seS4gfAp8IGByZXBhaXIteG1sLXN0YXJ0YCB8IFJlc3RvcmUgdGhlIG1pc3NpbmcgWE1MIHN0YXJ0L3JlZiBkZWNsYXJhdGlvbi4gfAp8IGByZXBhaXItY29tcGFjdC1jbG9zZWAgfCBDbG9zZSB0aGUgdW5jbG9zZWQgY29tcGFjdCBlbGVtZW50IHBhdHRlcm4uIHwKfCBgcmVwYWlyLXJlZmVyZW5jZS1wb2xpY3lgIHwgUmVwbGFjZSBhIHJlamVjdGVkIGV4dGVybmFsIHJlZmVyZW5jZSB3aXRoIGFuIGlubGluZSBwYXR0ZXJuLiB8CgpCb3RoIHN5bnRheGVzIHVzZSBgaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvcmVsYXgtbmcvMWAuIFhNTCB1c2VzCmBhcHBsaWNhdGlvbi9yZWxheC1uZyt4bWxgIGFuZCB0aGUgc3RydWN0dXJlIG5hbWVzcGFjZQpgaHR0cDovL3JlbGF4bmcub3JnL25zL3N0cnVjdHVyZS8xLjBgOyBjb21wYWN0IHVzZXMKYGFwcGxpY2F0aW9uL3JlbGF4LW5nLWNvbXBhY3Qtc3ludGF4YC4gVGhleSBhcmUgZGlzdGluY3QgbmF0aXZlIGlucHV0cy4gR2VuZXJpYyBYTUwKYW5kIENFTSBhbGlhc2VzIGRvIG5vdCByZXBsYWNlIHRoZWlyIHR5cGVkIHNvdXJjZSBjb250cmFjdHMuCgpUaGUgWE1MIHNvdXJjZSBoYXMgYSBsb2NhbCBgZGVmaW5lYCBhbmQgYHJlZmA7IGNvbXBhY3QgaGFzIGNvcnJlc3BvbmRpbmcgbG9jYWwKbmFtZSBkZWNsYXJhdGlvbnMuIFRoZWlyIHByZXNlcnZhdGlvbiBkZW1vbnN0cmF0ZXMgc291cmNlIHN5bnRheCwgbm90IGNvbXBsZXRlCnJlZmVyZW5jZSByZXNvbHV0aW9uIG9yIGdyYW1tYXIgY29tcGlsYXRpb24uIFRoZSBjb21wYWN0IHBhcnNlciBpcyBhIGxvc3NsZXNzCmxleGljYWwgbW9kZWwgd2l0aCBkZWxpbWl0ZXIsIHN0cmluZywgc3RhcnQsIG5hbWVzcGFjZSwga2V5d29yZCBhbmQgcmVmZXJlbmNlCnBvbGljeSBjaGVja3MuIEl0IGlzIG5vdCBhIGNvbXBsZXRlIFJFTEFYIE5HIGdyYW1tYXIgY29tcGlsZXIuIE5laXRoZXIgc3ludGF4CnByb3ZpZGVzIGdlbmVyYWwgaW5zdGFuY2UgdmFsaWRhdGlvbiBpbiB0aGlzIHJlbGVhc2UuCgpgZGF0YS9ub3RlLnhtbGAgdXNlcyBvcmRpbmFyeSBYTUwgc3ludGF4IHZhbGlkYXRpb24uIEl0IGRvZXMgbm90IGxvYWQgdGhlIGF1dGhvcmVkClJFTEFYIE5HIHNjaGVtYSBhbmQgZG9lcyBub3QgZXN0YWJsaXNoIGluc3RhbmNlIGNvbmZvcm1hbmNlLiBTb3VyY2UgdmFsaWRhdGlvbgphbmQgYnJvd3Nlci9lZGl0b3IgcHJlc2VudGF0aW9uIHJlbWFpbiBzZXBhcmF0ZSBmcm9tIGFueSBmdXR1cmUgaW5zdGFuY2UgZW5naW5lLgoKIyMgRm9ybWF0dGluZywgZmFpbHVyZSBhbmQgcmVwYWlyCgpBbGwgbmF0aXZlIGZvcm1hdHRlciBwcm9maWxlcyBjdXJyZW50bHkgcHJlc2VydmUgc291cmNlIGxleGVtZXMgYW5kIGFwcGVuZCBhCmZpbmFsIG5ld2xpbmUgaWYgYWJzZW50LiBUaGUgdGFidWxhciBjb25maWd1cmF0aW9ucyBjb21wYXJlCmBleHBlY3RlZC9mb3JtYXR0ZWQtbm90ZS5ybmdgIGFuZCBgZXhwZWN0ZWQvZm9ybWF0dGVkLW5vdGUucm5jYDsgdGhleSBkbyBub3QKcHJvbWlzZSByZWZsb3cgb3IgY3Jvc3Mtc3ludGF4IGNvbnZlcnNpb24uIFRoZSB0eXBlZCBQYXJzZSB2aWV3cyByZXRhaW4gb3JpZ2luYWwKbmF0aXZlIHNvdXJjZSByYW5nZXMuIEdlbmVyaWMgSW5zcGVjdCBpcyBub3QgYWR2ZXJ0aXNlZCBhcyBhIHR5cGVkIFJORyB2aWV3LgoKVGhlIG1pc3NpbmcgWE1MIHN0YXJ0IGNhc2UgcmVwb3J0cyBgY2VtLnJlbGF4X25nLm1pc3Npbmdfc3RhcnRgIGF0IGJ1ZmZlciBzdGFydC4KUmVzdG9yZSBgPHN0YXJ0PjxyZWYgbmFtZT0ibm90ZSIvPjwvc3RhcnQ+YCBhZnRlciB0aGUgZ3JhbW1hciBvcGVuaW5nIGxpbmUuClRoZSB1bmNsb3NlZCBjb21wYWN0IGNhc2UgcmVwb3J0cyBgY2VtLnJlbGF4X25nLmNvbXBhY3RfcGFyc2VfZXJyb3JgIGF0IGl0cwpvcmlnaW5hbCBvcGVuaW5nIGJyYWNlIChsaW5lIDMsIGNvbHVtbiAyMSwgYnl0ZSA1NikuIEFkZCB0aGUgZmluYWwgY2xvc2luZyBicmFjZS4KQm90aCByZXBhaXJlZCBidWZmZXJzIGV4YWN0bHkgbWF0Y2ggdGhlaXIgaW5kZXBlbmRlbnRseSB2YWxpZCBzY2hlbWEgc291cmNlcy4KClRoZSBleHRlcm5hbC1yZWZlcmVuY2UgZmFpbHVyZSByZXBvcnRzIGBjZW0ucmVsYXhfbmcuZXh0ZXJuYWxfcmVmX3JlamVjdGVkYAoobGluZSAxLCBjb2x1bW4gOSwgYnl0ZSA4KS4gUmVwbGFjZSBgc3RhcnQgPSBleHRlcm5hbCAicmVtb3RlLnJuYyJgIHdpdGgKYHN0YXJ0ID0gZWxlbWVudCBub3RlIHsgdGV4dCB9YC4gSW5jbHVkZXMgYW5kIGV4dGVybmFsIHJlZmVyZW5jZXMgcmVtYWluCnJlamVjdC1vbmx5IGluIGJvdGggc3ludGF4ZXM6IG5vIG5ldHdvcmsgb3IgZmlsZXN5c3RlbSBzY2hlbWEgcmVzb2x2ZXIgaXMgY2FsbGVkLgpFbmFibGluZyB0aGVtIHJlcXVpcmVzIGEgc2VwYXJhdGUgYm91bmRlZCByZXNvbHZlciBwb2xpY3ksIG5vdCBhIHNhbXBsZS1sb2NhbApmYWxsYmFjay4KCkVkaXQgc2F2ZWQgWE1MIGFuZCBjb21wYWN0IHNjaGVtYSBlbGVtZW50IG5hbWVzIGluZGVwZW5kZW50bHksIHZhbGlkYXRlIGFuZCBmb3JtYXQKdGhlbSBhZ2Fpbi4gVGhpcyB0ZXN0cyBzb3VyY2UgcmV2aXNpb25zIHdpdGhvdXQgcHJldGVuZGluZyB0byB2YWxpZGF0ZSB0aGUgZXhhbXBsZQpYTUwgaW5zdGFuY2UuIEEgc2Vjb25kIHByb2plY3QgY2xvbmUgY2FuIGtlZXAgZGlmZmVyZW50IGRlY2xhcmF0aW9ucywgcmVwYWlycyBhbmQKZGF0YS4gT2ZmbGluZSByZXJ1bnMgdXNlIHRoZSBzYXZlZCBieXRlcyBhbmQgbmF0aXZlIGFkYXB0ZXJzOyByZWFkLW9ubHkgZXhhbXBsZXMsCnVzZXIgcHJvamVjdHMgYW5kIGRyYWZ0cyByZW1haW4gdW5jaGFuZ2VkLiBDcmVkZW50aWFsIHByaXZhY3kgaXMgcHJlc2VydmVkIGFuZAphdXRvbWF0aWMgd2hvbGUtU3R1ZGlvIHJlY292ZXJ5IHJlbWFpbnMgZGlzYWJsZWQuCg=="
+    },
+    {
+      "resourceId": "xml-schema",
+      "base64": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPGdyYW1tYXIgeG1sbnM9Imh0dHA6Ly9yZWxheG5nLm9yZy9ucy9zdHJ1Y3R1cmUvMS4wIj4KICA8c3RhcnQ+PHJlZiBuYW1lPSJub3RlIi8+PC9zdGFydD4KICA8ZGVmaW5lIG5hbWU9Im5vdGUiPgogICAgPGVsZW1lbnQgbmFtZT0ibm90ZSI+CiAgICAgIDxhdHRyaWJ1dGUgbmFtZT0iaWQiPjx0ZXh0Lz48L2F0dHJpYnV0ZT4KICAgICAgPGVsZW1lbnQgbmFtZT0idGl0bGUiPjx0ZXh0Lz48L2VsZW1lbnQ+CiAgICAgIDxlbGVtZW50IG5hbWU9ImJvZHkiPjx0ZXh0Lz48L2VsZW1lbnQ+CiAgICA8L2VsZW1lbnQ+CiAgPC9kZWZpbmU+CjwvZ3JhbW1hcj4K"
+    }
+  ]
+}

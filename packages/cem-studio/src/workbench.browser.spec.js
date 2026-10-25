@@ -41,6 +41,22 @@ afterEach(async () => {
     document.body.replaceChildren();
 });
 
+const schemaSourceAdmissionCases = [
+    { mediaType: 'application/xslt+xml', normalizedType: ' Application/XSLT+XML ; charset="UTF-8"',
+        schema: 'https://cem.dev/ns/transform/xslt/1', path: 'templates/note.xsl',
+        source: '<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template name="note"><p>Café note</p></xsl:template></xsl:stylesheet>\n' },
+    { mediaType: 'application/schema+json', normalizedType: 'APPLICATION/SCHEMA+JSON; charset=utf-8',
+        schema: 'https://cem.dev/ns/data/json-schema/1', path: 'schemas/note.schema.json',
+        source: '{"$schema":"https://json-schema.org/draft/2020-12/schema","title":"Café note","type":"object"}\n' },
+    { mediaType: 'application/relax-ng+xml', normalizedType: 'application/relax-ng+xml; charset=UTF-8',
+        schema: 'https://cem.dev/ns/data/relax-ng/1', path: 'schemas/note.rng',
+        source: '<grammar xmlns="http://relaxng.org/ns/structure/1.0"><!-- Café note --><start><element name="note"><text/></element></start></grammar>\n' },
+    { mediaType: 'application/relax-ng-compact-syntax', normalizedType: ' Application/Relax-NG-Compact-Syntax ; charset="UTF-8"',
+        schema: 'https://cem.dev/ns/data/relax-ng/1', path: 'schemas/note.rnc',
+        source: '# Café note\nstart = element note { text }\n' },
+];
+
+
 describe('CEM Studio Feature Tour workbench', () => {
     it.each([
         ['login', 'login-html', 'text/html'],
@@ -3304,6 +3320,65 @@ describe('Project-owned workbench loading', () => {
         } finally { await validator.close(); }
     }, 30000);
 
+    it.each(schemaSourceAdmissionCases.flatMap(item => [
+        [item.mediaType, item], [item.normalizedType, item],
+    ]))('SchemaSourceAdmission saves and reopens native schema/template source for %s', async (contentType, item) => {
+        const bytes = new TextEncoder().encode(item.source);
+        const repository = await schemaSourceAdmissionRepository(contentType, bytes, item);
+        const validator = await createCemStudioBrowserValidator();
+        try {
+            const file = await createCemStudioProjectWorkbench({ repository, validator,
+                selection: { projectId: 'schema-source-admission', resourceId: 'source' } }); workbenches.push(file);
+            expect(file.snapshot()).toMatchObject({ status: 'loaded', editable: true, runnable: false,
+                contentType, persistedText: item.source, draft: item.source });
+            const edited = item.source.replace('Café note', 'Saved note'); expect(edited).not.toBe(item.source);
+            file.updateDraft(edited); await file.saveSource();
+            expect(file.snapshot()).toMatchObject({ dirty: false, persistedText: edited });
+            await expect(file.runPersistedOperation()).rejects.toThrow(/persisted executable command/);
+            const configuration = await createCemStudioProjectWorkbench({ repository, validator,
+                selection: { projectId: 'schema-source-admission', entryId: 'validate-source' } }); workbenches.push(configuration);
+            expect(configuration.snapshot()).toMatchObject({ editable: true, runnable: true, resourceId: 'source', contentType, persistedText: edited });
+            await configuration.runPersistedOperation();
+            expect(configuration.snapshot()).toMatchObject({ status: 'projected', projection: { kind: 'validate', exitCode: 0, stale: false } });
+            expect(configuration.snapshot().projection.diagnostics).toEqual([]);
+            expect(configuration.snapshot().projection.sourceByteLength).toBe(new TextEncoder().encode(edited).byteLength);
+            expect(configuration.snapshot().projection.revision.resourceRevision).toBe(configuration.snapshot().resourceRevision);
+            const exported = (await repository.query(request('export-project', { projectId: 'schema-source-admission' }))).value;
+            const storedBytes = new Uint8Array(exported.contents.source);
+            expect(storedBytes).toEqual(new TextEncoder().encode(edited));
+            let downloaded; await configuration.downloadSource(async value => { downloaded = value; });
+            expect(downloaded.contentType).toBe(contentType); expect(downloaded.bytes).toEqual(storedBytes);
+        } finally { await validator.close(); }
+    }, 30_000);
+
+    it.each(schemaSourceAdmissionCases.flatMap(item => [
+        [item.mediaType, 'invalid UTF-8', new Uint8Array([0x3c, 0xff, 0x3e]), item],
+        [item.mediaType, 'oversized UTF-8', new Uint8Array(CEM_STUDIO_LIMITS.sourceBytes + 1).fill(0x61), item],
+        [item.mediaType, 'cached URL source', new TextEncoder().encode(item.source), { ...item, sourceKind: 'url' }],
+    ]).concat([
+        ...['ast', 'dom', 'events', 'query-artifact', 'xpath-artifact', 'xslt-bundle'].map(name => [
+            `application/vnd.cem.${name}+cem-bin`, 'compiled/binary selector with UTF-8-compatible bytes', new TextEncoder().encode('CEM binary bytes'), schemaSourceAdmissionCases[0],
+        ]),
+        [' Application/Vnd.Cem.Query-Artifact+Cem-Bin ; version=1', 'normalized compiled selector', new TextEncoder().encode('CEM binary bytes'), schemaSourceAdmissionCases[0]],
+        ['application/octet-stream', 'unknown binary media', new TextEncoder().encode('UTF-8 is insufficient'), schemaSourceAdmissionCases[0]],
+        ['image/png', 'image media', new TextEncoder().encode('UTF-8 is insufficient'), schemaSourceAdmissionCases[0]],
+    ]))('SchemaSourceAdmission refuses editing but retains exact downloads for %s: %s', async (contentType, _reason, bytes, item) => {
+        const repository = await schemaSourceAdmissionRepository(contentType, bytes, item);
+        const validator = validatorFor(validResult());
+        for (const selection of [{ projectId: 'schema-source-admission', resourceId: 'source' },
+            { projectId: 'schema-source-admission', entryId: 'validate-source', resourceId: 'source' }]) {
+            const workbench = await createCemStudioProjectWorkbench({ repository, validator, selection }); workbenches.push(workbench);
+            expect(workbench.snapshot()).toMatchObject({ status: 'read-only', editable: false, runnable: false,
+                contentType, byteLength: bytes.byteLength, draft: '', persistedText: '' });
+            expect(workbench.updateDraft).toBeUndefined(); expect(workbench.runPersistedOperation).toBeUndefined();
+            let downloaded; await workbench.downloadSource(async value => { downloaded = value; });
+            expect(downloaded.contentType).toBe(contentType); expect(downloaded.bytes.byteLength).toBe(bytes.byteLength);
+            expect(await digest(downloaded.bytes)).toBe(await digest(bytes));
+        }
+        expect(validator.previewResourceCommand).not.toHaveBeenCalled();
+        expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
+    });
+
     it.each([
         ['Application/MathML+XML; charset=utf-8', '<mi>x</mi>'],
         [' application/mathml-presentation+xml ; charset="UTF-8"', '<mi>x</mi>'],
@@ -4345,6 +4420,26 @@ async function repositoryWithSource(content) {
             },
         }),
     );
+    return repository;
+}
+
+
+async function schemaSourceAdmissionRepository(contentType, bytes, item) {
+    const repository = await repositoryWithSource('fixture seed');
+    const bundle = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+    bundle.project.id = 'schema-source-admission'; bundle.project.rootUri = 'studio://schema-source-admission/';
+    const resource = bundle.project.resources.find(item => item.id === 'source');
+    Object.assign(resource, { path: item.path, referencePath: item.path, contentType, schema: item.schema, sourceKind: item.sourceKind ?? 'project-file', sha256: await digest(bytes) });
+    if (resource.sourceKind === 'url') resource.url = 'https://example.test/schema-source';
+    const commandBytes = new TextEncoder().encode(JSON.stringify({ $schema: 'https://cem.dev/ns/cli/command/1',
+        schemaVersion: 1, commandSchemaVersion: 1, commonVersion: '0.1.0', binaryName: 'cem-ml',
+        argv: ['validate', resource.path, '--content-type', item.mediaType, '--schema', item.schema, '--format', 'json', '--no-color'] }));
+    const command = bundle.project.resources.find(item => item.id === 'run-cem-ml');
+    Object.assign(command, { schema: 'https://cem.dev/ns/cli/command/1', sha256: await digest(commandBytes) });
+    bundle.project.entries = [{ id: 'validate-source', name: 'Validate schema source', kind: 'validation',
+        resourceIds: ['source', 'run-cem-ml'], runConfigResourceId: 'run-cem-ml' }];
+    bundle.contents = { source: bytes, 'run-cem-ml': commandBytes };
+    await repository.execute(request('import-project', { bundle }));
     return repository;
 }
 

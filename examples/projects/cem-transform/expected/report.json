@@ -1,0 +1,14 @@
+[
+  {
+    "customer": "Café Noord",
+    "id": "O-101",
+    "label": "Tea",
+    "total": "48"
+  },
+  {
+    "customer": "Harbor Books",
+    "id": "O-103",
+    "label": "Cocoa",
+    "total": "36"
+  }
+]

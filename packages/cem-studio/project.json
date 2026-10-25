@@ -820,6 +820,8 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-transformation-projects.mjs",
+                "{projectRoot}/scripts/verify-schema-authoring-projects.mjs",
                 "{projectRoot}/scripts/verify-xpath-project.mjs",
                 "{projectRoot}/scripts/verify-cemql-project.mjs",
                 "{projectRoot}/scripts/verify-data-query-projects.mjs",
@@ -1132,6 +1134,35 @@
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/data-query-projects.json"
+            ]
+        },
+        "verify:transformations-schemas": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:determinism"
+            ],
+            "options": {
+                "command": "node scripts/verify-navigation.mjs --transformations-schemas-only",
+                "cwd": "packages/cem-studio"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-transformation-projects.mjs",
+                "{projectRoot}/scripts/verify-schema-authoring-projects.mjs",
+                "{workspaceRoot}/examples/projects/cem-transform/**/*",
+                "{workspaceRoot}/examples/projects/xslt-transform/**/*",
+                "{workspaceRoot}/examples/projects/cem-schema/**/*",
+                "{workspaceRoot}/examples/projects/json-schema/**/*",
+                "{workspaceRoot}/examples/projects/relax-ng/**/*",
+                "{projectRoot}/dist/static/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/transformations-schemas.json"
             ]
         }
     },

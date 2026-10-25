@@ -151,7 +151,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.deepEqual(repair.resourceIds, ['login-invalid', 'command-validation-repair', 'login-schema-package', 'login-schema']);
         assert.ok(new TextDecoder().decode(bundle.contents.readme).includes('demo.login.method_required'));
         assert.deepEqual(JSON.parse(new TextDecoder().decode(bundle.contents[repair.runConfigResourceId])).schemaPackages, [{ uri: 'schemas/login-schema-package.cem' }]);
-    } else if (['json-yaml-report', 'csv-inventory', 'supplier-pipeline', 'xhtml-document', 'html-cem-card', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog'].includes(record.id)) {
+    } else if (['json-yaml-report', 'csv-inventory', 'supplier-pipeline', 'xhtml-document', 'html-cem-card', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog', 'cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng'].includes(record.id)) {
         const definition = authoredDefinitions.find(project => project.id === record.id);
         assert.deepEqual(record.collections, definition.collections);
         assert.equal(record.description, definition.description);
@@ -218,7 +218,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                 }
                 if (configuration.expectedOutput) {
                     const expected = new TextDecoder().decode(bundle.contents[configuration.expectedOutput]);
-                    const exact = ['csv-inventory', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog'].includes(record.id);
+                    const exact = ['csv-inventory', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog', 'cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng'].includes(record.id);
                     assert.equal(exact ? actual : actual.trim(), exact ? expected : expected.trim(), `${configuration.id} output drifted`);
                 }
                 for (const text of configuration.expectedText ?? []) assert.ok(actual.includes(text), `${configuration.id} misses ${text}`);

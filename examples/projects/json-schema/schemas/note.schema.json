@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.test/schemas/note",
+  "title": "Note",
+  "type": "object",
+  "required": [
+    "id",
+    "title"
+  ],
+  "$defs": {
+    "label": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "title": {
+      "$ref": "#/$defs/label"
+    },
+    "body": {
+      "type": "string"
+    }
+  }
+}

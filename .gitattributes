@@ -33,9 +33,16 @@ examples/projects/svg-diagram/expected/diagram.html whitespace=-blank-at-eol
 examples/projects/mathml-formula/expected/formula.html whitespace=-blank-at-eol
 examples/projects/css-stylesheet/expected/cards.html whitespace=-blank-at-eol
 examples/projects/scss-stylesheet/expected/index.html whitespace=-blank-at-eol
+examples/projects/cem-transform/expected/index.html whitespace=-blank-at-eol
+examples/projects/xslt-transform/expected/index.html whitespace=-blank-at-eol
+examples/projects/json-schema/expected/formatted-note.schema.json whitespace=-blank-at-eol
 
 # Preserve the missing-brace fixture's original EOF diagnostic position.
 examples/projects/cemql-orders/failures/invalid-expression.cem-ql whitespace=-blank-at-eof
+
+# Preserve original malformed XML input bytes used by failed-build fixtures.
+examples/projects/cem-transform/failures/orders.xml whitespace=-blank-at-eof
+examples/projects/xslt-transform/failures/orders.xml whitespace=-blank-at-eof
 
 # Binary files
 *.png binary

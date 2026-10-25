@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0">
+  <define name="note">
+    <element name="note">
+      <attribute name="id"><text/></attribute>
+      <element name="title"><text/></element>
+      <element name="body"><text/></element>
+    </element>
+  </define>
+</grammar>

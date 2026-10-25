@@ -1,0 +1,27 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+{param @name=input @required=true}
+{template @name=report @visibility=public @cem:whitespace=layout |
+    {param @name=minimum @required=true}
+    {cem:variable @name=orders
+        @select='seq:where(input.descendants, fn(node) => node.kind == "element" && node.name == "order")'}
+    {cem:variable @name=ready
+        @select='seq:where(orders, fn(node) => dom:text(dom:attribute(node, "status")) == "ready")'}
+    {cem:variable @name=selected
+        @select='seq:where(ready, fn(node) => num:integer(dom:text(dom:attribute(node, "total"))) >= num:integer(minimum))'}
+    {element @name=array @namespace=cem:generic-data |
+        {cem:for-each @as=order @select=selected |
+            {element @name=object @namespace=cem:generic-data |
+                {cem:for-each @as=field @select='("id", "customer", "total")' |
+                    {element @name=property @namespace=cem:generic-data |
+                        {attribute @name=name @value="{$field}"}
+                        {element @name=string @namespace=cem:generic-data |
+                            {$ | dom:text(dom:attribute(order, field))}
+                }   }   }
+                {element @name=property @namespace=cem:generic-data |
+                    {attribute @name=name @value=label}
+                    {element @name=string @namespace=cem:generic-data |
+                        {$ | dom:text(order)}
+}   }   }   }   }   }

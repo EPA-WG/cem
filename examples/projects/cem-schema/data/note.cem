@@ -1,0 +1,7 @@
+@doc cem-ml 1
+@ns note = "urn:example:note"
+@default note
+{note @id=welcome |
+    {title | Café notes}
+    {body | A small project-owned domain contract.}
+}

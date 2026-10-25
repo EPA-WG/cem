@@ -1,0 +1,25 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+{param @name=input @required=true}
+{template @name=page @visibility=public @cem:whitespace=layout |
+    {param @name=heading @required=true}
+    {cem:variable @name=items
+        @select='seq:where(seq:flat_map(input, fn(root) => root.children), fn(node) => node.kind == "element" && node.name == "item")'}
+    {element @name=main @namespace=http://www.w3.org/1999/xhtml |
+        {element @name=h1 @namespace=http://www.w3.org/1999/xhtml |
+            {$ | heading}
+        }
+        {element @name=ul @namespace=http://www.w3.org/1999/xhtml |
+            {cem:for-each @as=item @select=items |
+                {element @name=li @namespace=http://www.w3.org/1999/xhtml |
+                    {attribute @name=data-order
+                        @value='{$str:normalize_space(dom:text(dom:attribute(item, "id")))}'}
+                    {$ | str:normalize_space(dom:text(item))}
+                    ``` — ```
+                    {$ | str:normalize_space(dom:text(dom:attribute(item, "customer")))}
+                    ``` (```
+                    {$ | str:normalize_space(dom:text(dom:attribute(item, "total")))}
+                    ```)```
+}   }   }   }   }

@@ -1,0 +1,26 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+{schema @name=note @version=1.0.0 |
+    {uses |
+        {use @as=schema @schema=https://cem.dev/ns/schema/1}
+    }
+    {content-types |
+        {content-type @primary=true @value="application/vnd.example.note+cem"}
+    }
+    {elements |
+        {element @children="title body" @name=note @optional-attributes=id}
+        {element @children="*" @name=title}
+        {element @children="*" @name=body}
+    }
+    {attributes |
+        {attribute @name=id @type=schema:string}
+    }
+    {field-contracts |
+        {field-contract @behavior=schema:required-fields @check-kind=required-fields
+            @diagnostic=example.note.id_required @name=note-id @required-attributes=id @target=note}
+    }
+    {diagnostics |
+        {diagnostic @behavior=schema:required-fields @code=example.note.id_required
+            @message="A note must declare its id" @severity=error}
+}   }

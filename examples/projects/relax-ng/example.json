@@ -1,0 +1,354 @@
+{
+  "id": "relax-ng",
+  "name": "RELAX NG source authoring",
+  "version": "1.0.0",
+  "description": "Compare typed XML and compact schema source, inspect native lexical ranges, preserve formatting and repair start/delimiter/reference-policy errors without claiming instance validation.",
+  "collections": [
+    "content-types-schema-authoring"
+  ],
+  "sources": [
+    {
+      "id": "xml-schema",
+      "source": "examples/projects/relax-ng/schemas/note.rng",
+      "path": "schemas/note.rng",
+      "contentType": "application/relax-ng+xml",
+      "schema": "https://cem.dev/ns/data/relax-ng/1",
+      "role": "schema"
+    },
+    {
+      "id": "compact-schema",
+      "source": "examples/projects/relax-ng/schemas/note.rnc",
+      "path": "schemas/note.rnc",
+      "contentType": "application/relax-ng-compact-syntax",
+      "schema": "https://cem.dev/ns/data/relax-ng/1",
+      "role": "schema"
+    },
+    {
+      "id": "note-data",
+      "source": "examples/projects/relax-ng/data/note.xml",
+      "path": "data/note.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-xml",
+      "source": "examples/projects/relax-ng/failures/missing-start.rng",
+      "path": "failures/missing-start.rng",
+      "contentType": "application/relax-ng+xml",
+      "schema": "https://cem.dev/ns/data/relax-ng/1",
+      "role": "schema"
+    },
+    {
+      "id": "invalid-compact",
+      "source": "examples/projects/relax-ng/failures/unclosed-note.rnc",
+      "path": "failures/unclosed-note.rnc",
+      "contentType": "application/relax-ng-compact-syntax",
+      "schema": "https://cem.dev/ns/data/relax-ng/1",
+      "role": "schema"
+    },
+    {
+      "id": "external-reference",
+      "source": "examples/projects/relax-ng/failures/external-reference.rnc",
+      "path": "failures/external-reference.rnc",
+      "contentType": "application/relax-ng-compact-syntax",
+      "schema": "https://cem.dev/ns/data/relax-ng/1",
+      "role": "schema"
+    },
+    {
+      "id": "formatted-xml",
+      "source": "examples/projects/relax-ng/expected/formatted-note.rng",
+      "path": "expected/formatted-note.rng",
+      "contentType": "application/relax-ng+xml",
+      "schema": "https://cem.dev/ns/data/relax-ng/1",
+      "role": "data"
+    },
+    {
+      "id": "formatted-compact",
+      "source": "examples/projects/relax-ng/expected/formatted-note.rnc",
+      "path": "expected/formatted-note.rnc",
+      "contentType": "application/relax-ng-compact-syntax",
+      "schema": "https://cem.dev/ns/data/relax-ng/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/relax-ng/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "validate-xml",
+      "name": "Validate RELAX NG XML source",
+      "kind": "validation",
+      "source": "xml-schema",
+      "description": "Validate the typed XML vocabulary, start pattern and local declaration syntax without compiling an instance validator.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/relax-ng+xml",
+        "--schema",
+        "https://cem.dev/ns/data/relax-ng/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "parse-xml",
+      "name": "Parse the typed RELAX NG XML source",
+      "kind": "inspection",
+      "source": "xml-schema",
+      "description": "Review typed RELAX NG XML elements, original namespace, source URI and UTF-8 ranges.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/relax-ng+xml",
+        "--schema",
+        "https://cem.dev/ns/data/relax-ng/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@schema=https://cem.dev/ns/data/relax-ng/1",
+        "@name=grammar",
+        "@name=ref",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "format-xml",
+      "name": "Format RELAX NG XML source",
+      "kind": "conversion",
+      "source": "xml-schema",
+      "description": "Apply the lexical-lossless native XML formatter; tabular currently preserves all source lexemes.",
+      "dependencies": [
+        "formatted-xml"
+      ],
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/relax-ng+xml",
+        "--schema",
+        "https://cem.dev/ns/data/relax-ng/1",
+        "--to-content-type",
+        "application/relax-ng+xml",
+        "--to-schema",
+        "https://cem.dev/ns/data/relax-ng/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "expectedOutput": "formatted-xml"
+    },
+    {
+      "id": "validate-compact",
+      "name": "Validate RELAX NG compact source",
+      "kind": "validation",
+      "source": "compact-schema",
+      "description": "Validate native lexical tokens, delimiters, namespace/start declarations and reference policy. Complete grammar compilation is not claimed.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/relax-ng-compact-syntax",
+        "--schema",
+        "https://cem.dev/ns/data/relax-ng/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "parse-compact",
+      "name": "Parse the typed RELAX NG compact source",
+      "kind": "inspection",
+      "source": "compact-schema",
+      "description": "Review lossless native compact tokens and original byte ranges.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/relax-ng-compact-syntax",
+        "--schema",
+        "https://cem.dev/ns/data/relax-ng/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@schema=https://cem.dev/ns/data/relax-ng/1",
+        "@kind=relax-ng-compact-document",
+        "@role=syntax.keyword",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "format-compact",
+      "name": "Format RELAX NG compact source",
+      "kind": "conversion",
+      "source": "compact-schema",
+      "description": "Apply the lexical-lossless native compact formatter with an exact source-preserving fixture.",
+      "dependencies": [
+        "formatted-compact"
+      ],
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/relax-ng-compact-syntax",
+        "--schema",
+        "https://cem.dev/ns/data/relax-ng/1",
+        "--to-content-type",
+        "application/relax-ng-compact-syntax",
+        "--to-schema",
+        "https://cem.dev/ns/data/relax-ng/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "expectedOutput": "formatted-compact"
+    },
+    {
+      "id": "validate-data-syntax",
+      "name": "Validate example XML syntax only",
+      "kind": "validation",
+      "source": "note-data",
+      "description": "Validate this file as ordinary XML, separately from the authored RELAX NG schema. Instance validation is unavailable.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "repair-xml-start",
+      "name": "Repair the missing XML start pattern",
+      "kind": "validation",
+      "source": "invalid-xml",
+      "description": "Restore the local start/ref declaration after the original missing-start diagnostic.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/relax-ng+xml",
+        "--schema",
+        "https://cem.dev/ns/data/relax-ng/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.relax_ng.missing_start",
+        "location": {
+          "line": 1,
+          "column": 1,
+          "byteOffset": 0
+        }
+      },
+      "expectedExit": 1,
+      "repair": {
+        "find": "<grammar xmlns=\"http://relaxng.org/ns/structure/1.0\">\n",
+        "replace": "<grammar xmlns=\"http://relaxng.org/ns/structure/1.0\">\n  <start><ref name=\"note\"/></start>\n"
+      }
+    },
+    {
+      "id": "repair-compact-close",
+      "name": "Repair the unclosed compact pattern",
+      "kind": "validation",
+      "source": "invalid-compact",
+      "description": "Close the note pattern after reviewing its original opening-delimiter range.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/relax-ng-compact-syntax",
+        "--schema",
+        "https://cem.dev/ns/data/relax-ng/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.relax_ng.compact_parse_error",
+        "location": {
+          "line": 3,
+          "column": 21,
+          "byteOffset": 56
+        }
+      },
+      "expectedExit": 1,
+      "repair": {
+        "find": "  element body { text }\n",
+        "replace": "  element body { text }\n}\n"
+      }
+    },
+    {
+      "id": "repair-reference-policy",
+      "name": "Replace the rejected external reference",
+      "kind": "validation",
+      "source": "external-reference",
+      "description": "Replace an external reference with an inline pattern. The resolver policy stays reject-only; no remote or filesystem schema is loaded.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/relax-ng-compact-syntax",
+        "--schema",
+        "https://cem.dev/ns/data/relax-ng/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.relax_ng.external_ref_rejected",
+        "location": {
+          "line": 1,
+          "column": 9,
+          "byteOffset": 8
+        }
+      },
+      "expectedExit": 1,
+      "repair": {
+        "find": "start = external \"remote.rnc\"\n",
+        "replace": "start = element note { text }\n"
+      }
+    }
+  ]
+}

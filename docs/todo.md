@@ -192,8 +192,14 @@ table artifacts. Saved edits, independent copies and offline runs pass through
 shared controls. Unknown query identities refuse navigation; resolver authority,
 saved projects/drafts and credential privacy remain unchanged.
 
-- [ ] Add CEM transformation and XSLT projects: transform a source document into HTML or data artifacts, compare supported approaches and inspect a multi-step transformation graph with explicit entry artifacts.
-- [ ] Add schema-authoring projects for native CEM schemas, JSON Schema and RELAX NG: define a small domain contract, validate passing/failing schema sources and repair the reported violations. Demonstrate CEM instance validation separately; JSON Schema and RELAX NG currently provide source validation rather than general instance validators. Expose supported schema subsets and declaration/reference behavior.
+Completed [CEM/XSLT transformations and schema-authoring projects](archive/todo-completed-transformation-schema-projects-2026-10-25.md)
+cover five ordinary projects, native multi-step HTML/JSON artifacts and provenance,
+CEM schema/package instance validation, JSON Schema/RELAX NG source authoring and
+eight diagnostic repairs. Shared source editing now admits their registered text
+types while compiled binaries remain read-only. Saved edits, independent copies
+and offline runs pass; source/instance limits, resolver authority, saved drafts
+and credential privacy remain explicit and unchanged.
+
 - [ ] Add module-map and portable configuration projects: resolve relative and mapped resource dependencies, inspect a CLI command/run configuration and build a portable Studio project. Cover the supported schema versions without implying schema identity alone grants execution support.
 - [ ] Add native DOM/AST/event projection projects: explain import versus structural inspection, show source locations and compare projections using the shared CEM-ML presentation path. Include any additional supported schema families found by the inventory audit.
 - [ ] Give each project a README with its typical use, content types/schema identities, supported configurations, expected artifacts, provenance and deliberate failure/repair steps where applicable. Reuse shared table, editor and preview controls; add no sample-specific UI JavaScript.
@@ -220,13 +226,15 @@ Keep the original admission, provenance, privacy and verification bounds.
 
 - [ ] Adopt the existing element-template source identity for remaining live-view examples such as Login. Its current generic CEM Parse reports hard unknown runtime-binding diagnostics despite exiting successfully; the new card sample uses the correct template identity. Verify source validation, editor behavior, live rendering, saved/offline copies and credential/recovery contracts before changing existing example metadata; preserve diagnostic severity and old saved-project identities.
 
-- [ ] Repair JSON/YAML source Parse identity and diagnostics: JSON `parse --format ast` currently exits successfully with CEM bare-brace tokenizer errors, while clean `inspect --show ast` presents an imported CEM generic-data tree. Distinguish source-format metadata from projection identity and retain original source start offsets; do not replace native parsing with application JavaScript.
+- [ ] Repair JSON/YAML source Parse identity and diagnostics: JSON `parse --format ast` currently exits successfully with CEM bare-brace tokenizer errors, while clean simple-data `inspect --show ast` presents an imported CEM generic-data tree. JSON Schema structural Inspect with `$defs`/`$ref` also emits embedded CEM tokenizer errors despite exit zero. Add source-identity and hard-diagnostic fixtures for these cases before enabling their sample operations. Distinguish source-format metadata from projection identity and retain original source start offsets; do not replace native parsing with application JavaScript.
 
 - [ ] Separate constructed XML document URI from source provenance URI. `uri_accessors_share_native_metadata_and_enforce_optional_node_arguments` expects `data:document_uri(data:parse("<r/>", "xml"))` to be empty, while the unchanged pre-CSV-fix runtime returns `data:parse/source`. Preserve original source locations and the existing assertion when repairing the accessor.
 
 - [ ] Exclude generated schema-asset WASM glue from Studio's authored-source lint scope. The broad package lint currently reports 238 errors and five warnings in generated `cem_ql.js` / `cem_ql_factory.js`; linting Studio `src` and `scripts` passes. Preserve lint rules for authored code.
 
 - [ ] Pass the admitted original XSLT parser contract into CEM-QL bundle compilation, import discovery and name resolution. Preserve contextless optional-profile missing-schema refusal and complete-profile bounded execution; cover original-owned grammar/diagnostic rules, module limits, fresh runtime replay and source provenance before enabling optional-profile executable XSLT graphs.
+
+- [ ] Define an owned native XDM handoff for constructed CEM-tree results consumed by a downstream XPath/XSLT stage. Current XSLT input admission requires imported native nodes; XML encoding produces text rather than a retained source owner. Add native graph and provenance fixtures before admitting constructed values or an explicit native reimport stage; do not introduce serialized AST or JavaScript parser workarounds. The transformation examples use the supported XSLT-to-CEM stage order.
 
 - [ ] Make full schema-package artifact/example validation prefer its supplied resource reader over filesystem reads for file-like canonical URIs. Preserve full validation's diagnostics and legacy filesystem behavior when no reader is supplied; keep this separate from immutable owned-pack admission and strict runtime artifact consumption.
 

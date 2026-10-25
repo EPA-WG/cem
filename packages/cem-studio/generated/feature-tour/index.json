@@ -2,15 +2,19 @@
   "schemaVersion": 1,
   "commonVersion": "0.1.0",
   "cacheUrls": [
+    "./examples/cem-schema.cem-studio.json",
+    "./examples/cem-transform.cem-studio.json",
     "./examples/cemql-orders.cem-studio.json",
     "./examples/css-selector.cem-studio.json",
     "./examples/css-stylesheet.cem-studio.json",
     "./examples/csv-inventory.cem-studio.json",
     "./examples/html-cem-card.cem-studio.json",
+    "./examples/json-schema.cem-studio.json",
     "./examples/json-yaml-report.cem-studio.json",
     "./examples/login.cem-studio.json",
     "./examples/markdown-site.cem-studio.json",
     "./examples/mathml-formula.cem-studio.json",
+    "./examples/relax-ng.cem-studio.json",
     "./examples/schema-examples.cem-studio.json",
     "./examples/scss-stylesheet.cem-studio.json",
     "./examples/starter.cem-studio.json",
@@ -18,6 +22,7 @@
     "./examples/svg-diagram.cem-studio.json",
     "./examples/xhtml-document.cem-studio.json",
     "./examples/xpath-catalog.cem-studio.json",
+    "./examples/xslt-transform.cem-studio.json",
     "./feature-tour/catalog.json",
     "./feature-tour/feature-tour.project.json",
     "./feature-tour/resources/cem-ast-projection-basic-ast.cem-bin",
@@ -163,6 +168,28 @@
       "sha256": "979219ffd4605401e583480eb8066707c3453a2d895598e0f0145bbeca529f8a"
     },
     {
+      "id": "cem-schema",
+      "name": "CEM schema authoring",
+      "description": "Define a project-owned note schema and package, inspect and format native declarations, distinguish source validation from instance validation, and repair both contracts.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-schema-authoring"
+      ],
+      "archive": "./examples/cem-schema.cem-studio.json",
+      "sha256": "51eaa8e0d99279a9ea88c7760508e6048c940c49cefdb8c63e6e73bf186e31b3"
+    },
+    {
+      "id": "cem-transform",
+      "name": "CEM transformation",
+      "description": "Transform owned XML into an application-data report and HTML through declared CEM-native templates, graph parameters and explicit entry artifacts; inspect source contracts and repair a template declaration.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-queries-transformations"
+      ],
+      "archive": "./examples/cem-transform.cem-studio.json",
+      "sha256": "2dfe3982e4dc9debc37f847e8f0bdd1ecf3f6903aa694298d8a45063ac36d0cc"
+    },
+    {
       "id": "cemql-orders",
       "name": "CEM-QL order queries",
       "description": "Filter and join owned order/customer records with native CEM-QL expressions and modules, inspect original source ranges, repair query syntax and build JSON tables from declared parameter maps.",
@@ -223,6 +250,17 @@
       "sha256": "770429b4824bc8663b55cac9c578faa7311172d2f337bcc2ad69cec4e7cbe8c1"
     },
     {
+      "id": "json-schema",
+      "name": "JSON Schema source authoring",
+      "description": "Author Draft 2020-12 declarations with local definitions and reference syntax, format native schema source and repair an unsupported dialect without claiming instance validation.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-schema-authoring"
+      ],
+      "archive": "./examples/json-schema.cem-studio.json",
+      "sha256": "540d02bc2e58ec209182479720343e0b9dd043057e3316e32e5fbe5d99b6c949"
+    },
+    {
       "id": "json-yaml-report",
       "name": "JSON and YAML report",
       "description": "Inspect a JSON API payload and YAML configuration through retained native trees, filter service records and generate HTML, JSON and YAML reports with syntax failure and repair.",
@@ -271,6 +309,17 @@
       ],
       "archive": "./examples/mathml-formula.cem-studio.json",
       "sha256": "b69d9aabe1e54d04d9a0bca90ad1f95abf71696711f7ccd9fed5aa88b8abf418"
+    },
+    {
+      "id": "relax-ng",
+      "name": "RELAX NG source authoring",
+      "description": "Compare typed XML and compact schema source, inspect native lexical ranges, preserve formatting and repair start/delimiter/reference-policy errors without claiming instance validation.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-schema-authoring"
+      ],
+      "archive": "./examples/relax-ng.cem-studio.json",
+      "sha256": "80bd54c6df9690ed15612227e657404fa3c720044d9177eb03efea8c8d89cd11"
     },
     {
       "id": "scss-stylesheet",
@@ -332,6 +381,17 @@
       ],
       "archive": "./examples/xpath-catalog.cem-studio.json",
       "sha256": "4eb4753bcb8566be0a5c8227cb2d24ee1c4b00621d87a389a08b9bb2d5e04e7b"
+    },
+    {
+      "id": "xslt-transform",
+      "name": "XSLT transformation",
+      "description": "Compare bounded native XSLT with CEM templates: validate and repair stylesheet source, transform owned XML directly, and build an explicit two-stage HTML report with native provenance.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-queries-transformations"
+      ],
+      "archive": "./examples/xslt-transform.cem-studio.json",
+      "sha256": "5814012145de0537bdc3221d0d746a7dab3fc596c2a101cdcc7bcd86c76dfdd7"
     }
   ]
 }

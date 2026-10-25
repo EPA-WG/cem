@@ -1,0 +1,18 @@
+@doc cem-ml 1
+{run |
+    {import @content-type=application/xml @id=orders @schema=https://cem.dev/ns/data/xml/1
+        @src=../data/orders.xml |
+        {transform @content-type=application/cem @entrypoint=report @id=report
+            @schema=https://cem.dev/ns/cem-ml/1 @src=../templates/report.cemt
+            @template-content-type="application/vnd.cem.template+cem"
+            @template-schema=https://cem.dev/ns/template/cem-native/1 |
+            {param @name=minimum @value=30}
+            {export @content-type=application/json @id=report-json @out=../generated/report.json
+                @schema=https://cem.dev/ns/data/json/1}
+            {transform @entrypoint=page @id=page @src=../templates/page.cemt
+                @template-content-type="application/vnd.cem.template+cem"
+                @template-schema=https://cem.dev/ns/template/cem-native/1 |
+                {param @name=heading @value="Ready orders"}
+                {export @content-type=text/html @id=page-html @out=../generated/index.html
+                    @schema=https://cem.dev/ns/data/html/1}
+}   }   }   }

@@ -1,0 +1,287 @@
+{
+  "id": "cem-transform",
+  "name": "CEM transformation",
+  "version": "1.0.0",
+  "description": "Transform owned XML into an application-data report and HTML through declared CEM-native templates, graph parameters and explicit entry artifacts; inspect source contracts and repair a template declaration.",
+  "collections": [
+    "content-types-queries-transformations"
+  ],
+  "sources": [
+    {
+      "id": "orders-source",
+      "source": "examples/projects/cem-transform/data/orders.xml",
+      "path": "data/orders.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "role": "data"
+    },
+    {
+      "id": "report-template",
+      "source": "examples/projects/cem-transform/templates/report.cemt",
+      "path": "templates/report.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "page-template",
+      "source": "examples/projects/cem-transform/templates/page.cemt",
+      "path": "templates/page.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "report-graph",
+      "source": "examples/projects/cem-transform/graphs/report.cem",
+      "path": "graphs/report.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "invalid-template",
+      "source": "examples/projects/cem-transform/failures/report.cemt",
+      "path": "failures/report.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "invalid-orders",
+      "source": "examples/projects/cem-transform/failures/orders.xml",
+      "path": "failures/orders.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-html",
+      "source": "examples/projects/cem-transform/expected/index.html",
+      "path": "expected/index.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-report",
+      "source": "examples/projects/cem-transform/expected/report.json",
+      "path": "expected/report.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-format",
+      "source": "examples/projects/cem-transform/expected/formatted-report.cemt",
+      "path": "expected/formatted-report.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/cem-transform/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "validate-template",
+      "name": "Validate the report template source",
+      "kind": "validation",
+      "source": "report-template",
+      "description": "Validate the declared template identity independently of graph execution or the output data contract.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.template+cem",
+        "--schema",
+        "https://cem.dev/ns/template/cem-native/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "inspect-template",
+      "name": "Inspect original template structure",
+      "kind": "inspection",
+      "source": "report-template",
+      "description": "Inspect the native source tree and original template ranges; this does not execute the template.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.template+cem",
+        "--schema",
+        "https://cem.dev/ns/template/cem-native/1",
+        "--show",
+        "ast",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedText": [
+        "minimum",
+        "report"
+      ]
+    },
+    {
+      "id": "format-template",
+      "name": "Format the report template",
+      "kind": "conversion",
+      "source": "report-template",
+      "dependencies": [
+        "expected-format"
+      ],
+      "description": "Apply the native tabular source formatter and compare its exact source bytes.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.template+cem",
+        "--schema",
+        "https://cem.dev/ns/template/cem-native/1",
+        "--to-content-type",
+        "application/vnd.cem.template+cem",
+        "--to-schema",
+        "https://cem.dev/ns/template/cem-native/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedOutput": "expected-format"
+    },
+    {
+      "id": "validate-graph",
+      "name": "Validate the explicit transformation graph",
+      "kind": "validation",
+      "source": "report-graph",
+      "description": "Validate graph declarations, source/template identities, parameters and export definitions without claiming a successful build.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "inspect-graph",
+      "name": "Inspect graph stages and export declarations",
+      "kind": "inspection",
+      "source": "report-graph",
+      "description": "Inspect the native graph source tree: orders import, filtered report model, HTML view, parameters and explicit exports.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--show",
+        "ast",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedText": [
+        "minimum",
+        "page-html"
+      ]
+    },
+    {
+      "id": "repair-template",
+      "name": "Repair the template source contract",
+      "kind": "validation",
+      "source": "invalid-template",
+      "description": "Review the original native source diagnostic, restore the required declaration and revalidate the saved copy.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.template+cem",
+        "--schema",
+        "https://cem.dev/ns/template/cem-native/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.schema_model.invalid_attribute_type",
+        "location": {
+          "line": 1,
+          "column": 1,
+          "byteOffset": 0
+        }
+      },
+      "repair": {
+        "find": "@required=maybe",
+        "replace": "@required=true"
+      }
+    },
+    {
+      "id": "build-report",
+      "name": "Build the two-stage order report",
+      "kind": "transformation-graph",
+      "source": "report-graph",
+      "dependencies": [
+        "orders-source",
+        "report-template",
+        "page-template",
+        "expected-html",
+        "expected-report"
+      ],
+      "description": "Filter original orders into a native report model, then render the model through the shared CEM-native template runtime. The explicit HTML entry drives project preview.",
+      "entryArtifact": "generated/index.html",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedGraphOutputs": {
+        "generated/index.html": "expected-html",
+        "generated/report.json": "expected-report"
+      },
+      "expectedProvenance": [
+        "templates/page.cemt"
+      ],
+      "expectedGraphFailures": [
+        [
+          "orders-source",
+          "invalid-orders"
+        ]
+      ],
+      "expectedUnmappedOutputs": [
+        "generated/report.json"
+      ]
+    }
+  ]
+}
