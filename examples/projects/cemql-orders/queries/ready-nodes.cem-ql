@@ -1,0 +1,10 @@
+// Café order filtering reads the retained JSON tree; no JSON AST handoff.
+{
+    let objects = seq:where(dom:descendants(input), fn(node) =>
+        node.kind == "element" && node.namespace == "cem:generic-data" && node.name == "object");
+    let orders = seq:where(objects, fn(row) =>
+        seq:any(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == "orderId"));
+    let selected = seq:where(orders, fn(row) =>
+        dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == "status")) == "ready");
+    selected
+}

@@ -1,0 +1,11 @@
+let $options := map {
+    'minimum-stock': xs:integer(/Q{urn:example:catalog}catalog/Q{urn:example:catalog}selection/@minimum-stock),
+    'region': string(/Q{urn:example:catalog}catalog/Q{urn:example:catalog}selection/@region)
+}
+return (
+    'minimum-stock=' || $options?minimum-stock,
+    'region=' || $options?region,
+    for $product in /Q{urn:example:catalog}catalog/Q{urn:example:catalog}products/Q{urn:example:catalog}product[@stock >= $options?minimum-stock],
+        $supplier in /Q{urn:example:catalog}catalog/Q{urn:example:catalog}suppliers/Q{urn:example:catalog}supplier[@id = $product/@supplier and @region = $options?region]
+    return string($product/@sku) || ':' || normalize-space($product/Q{urn:example:catalog}name) || ':' || normalize-space($supplier/Q{urn:example:catalog}name)
+)

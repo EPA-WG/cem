@@ -1,0 +1,13 @@
+@doc cem-ml 1
+{run |
+    {import @content-type=application/json @id=orders @schema=https://cem.dev/ns/data/json/1
+        @src=../data/orders.json |
+        {transform @content-type=application/cem @entrypoint=main @id=report
+            @schema=https://cem.dev/ns/cem-ml/1 @src=../templates/report.cemt
+            @template-content-type="application/vnd.cem.template+cem"
+            @template-schema=https://cem.dev/ns/template/cem-native/1 |
+            {param @name=status @value=ready}
+            {param @name=minimum @value=30}
+            {export @content-type=application/json @id=json @out=../generated/ready-orders.json
+                @schema=https://cem.dev/ns/data/json/1}
+}   }   }

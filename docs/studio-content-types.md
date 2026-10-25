@@ -1,6 +1,6 @@
 # Studio content types and schema inventory
 
-Audited 2026-10-24. This is the implementation map for the **Content types and
+Audited 2026-10-25. This is the implementation map for the **Content types and
 schemas** sample collection in [the active checklist](todo.md#studio-samples-supported-content-types-and-schemas).
 The collection is available under **Examples → Content types and schemas**, with
 Data, Documents and UI, Queries and transformations, and Schema authoring folders.
@@ -126,7 +126,7 @@ artifacts; the mere presence of a manifest artifact is insufficient.
 | SCSS | Explicit MIME/schema selects passive source validation; generic import and filename inference are unavailable. | Parse AST/events inspect expanded typed CSS with SCSS origin frames. | Bounded resolver/context-owned expansion to plain CSS. Passive validation does not fetch modules or expand. Same-schema SCSS source export, source DomJson/Json and command HTML-colored CSS export are unavailable. |
 | SVG, MathML | Dedicated family import retains the original XML-backed owner, namespace, source positions and profile policy. SVG and all three MathML MIME identities resolve before generic `+xml`. | Native same-schema formatting and default CEM-ML inspection. Explicit JSON inspection retains the existing compatibility projection. | Shared native queries/templates and bounded inline artifact previews. Complete vocabulary/geometry/algebra validation is not implied; browser admission is independent of source validation. |
 | CSS selector | Source/expression validation; not data. | Registered source profiles; command source conversion is currently unavailable, and Inspect AST is a generic text envelope. | Explicit canonical MIME or schema selects element-tree query dispatch; supplied MIME/schema must agree. No general-purpose transformation language. |
-| XPath | Expression validation and native query compilation; not generic data. | Native expression formatting/coloring and inspection. | XPath/XDM-tree query or direct transformation. Binary artifacts and JSON results are not XPath source text. Supported native subset applies. |
+| XPath | Expression validation and native query compilation; not generic data. | Native typed query results and registered source-profile assets; command source Parse/Inspect/format are not admitted as typed XPath source operations yet. | XPath/XDM-tree query or direct transformation. Binary artifacts and JSON results are not XPath source text. Supported native subset applies. |
 | CEM-QL | Query modules and standalone expressions have explicit native source handling. | Native Parse/Inspect, formatting/coloring, source ranges. | Native-items query/evaluation, parameters and template integration. Module, expression and binary artifact selectors have distinct contracts. |
 | CEM native/element templates | CEM source plus the selected template contract; element declarations run through shared `cem-elements`. | CEM-native formatting/inspection. | Native templates render data; element templates also bind declarative browser state. Source validation alone does not execute browser bindings. |
 | CEM transformation | CEM configuration source validation. | CEM formatting/source projections. | Authored direct/graph execution, dependency resolution, parameters, artifacts and provenance. Run/transform config schemas remain explicit. |
@@ -270,6 +270,27 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `scss-stylesheet` | `scss-source` | `expand-css` | Use native variables, a namespaced local mixin and nested selectors; serialize the resulting typed CSS using its own output pipeline. |
 | `scss-stylesheet` | `invalid-scss` | `repair-scss-syntax` | Restore the opening block brace and revalidate the same saved source before attempting expansion. |
 | `scss-stylesheet` | `scss-graph` | `build-html` | Build a validated HTML source through an explicit CEMT wrapper plus native SCSS-to-CSS output; publish both artifacts with an explicit HTML entry. |
+| `cemql-orders` | `order-data` | `inspect-data` | Inspect native generic-data nodes and original JSON source positions without using a serialized AST as query input. |
+| `cemql-orders` | `filter-expression` | `inspect-expression` | Inspect typed native expression structure with original query URI and UTF-8 token/node ranges. |
+| `cemql-orders` | `filter-expression` | `parse-expression-events` | Review native lossless expression token events, including the Unicode comment and original byte positions. |
+| `cemql-orders` | `filter-expression` | `validate-expression` | Validate input-bound standalone syntax separately from execution or application data rules. |
+| `cemql-orders` | `filter-expression` | `format-expression` | Apply the native source-preserving tabular query formatter with an exact expected byte fixture. |
+| `cemql-orders` | `order-data` | `query-filter` | Select three ready orders and return typed order, units and total fields; the unjoined record remains in this filter result. |
+| `cemql-orders` | `order-module` | `validate-module` | Check the explicit module URI, local declarations and root expression; no external library loading is enabled. |
+| `cemql-orders` | `order-module` | `format-module` | Apply the native source-preserving tabular formatter while retaining module identity and local functions. |
+| `cemql-orders` | `order-data` | `query-join` | Inner-join ready orders totaling at least thirty to their owned customer records; exclude the unmatched customer ID and retain integer result types. |
+| `cemql-orders` | `order-data` | `query-source-nodes` | Return retained native ready-order nodes with original JSON source boundaries; runtime-local opaque identities are never compared or persisted as portable addresses. |
+| `cemql-orders` | `invalid-expression` | `repair-expression` | Restore the final block brace after reviewing the two native parse diagnostics at original source positions. |
+| `cemql-orders` | `parameter-model` | `validate-parameter-template` | Validate native template parameter declarations and their CEM-QL map/expression slots without inventing unbound host-expression globals. |
+| `cemql-orders` | `ready-graph` | `report-ready` | Bind declared status/minimum parameters, construct a native CEM-QL options record and publish an application JSON table through the native generic-data writer. |
+| `cemql-orders` | `draft-graph` | `report-draft` | Bind declared status/minimum parameters, construct a native CEM-QL options record and publish an application JSON table through the native generic-data writer. |
+| `xpath-catalog` | `filter-query` | `validate-filter` | Validate standalone XPath grammar, explicit namespace names and supported source policy without running a document query. |
+| `xpath-catalog` | `catalog-source` | `query-filter` | Use namespace-qualified paths, native numeric comparison and a simple map to report products with stock at least four. |
+| `xpath-catalog` | `catalog-source` | `query-nodes` | Export genuine retained product nodes with stable native identities, original input URI, original opening-element ranges and source maps. |
+| `xpath-catalog` | `catalog-source` | `query-join` | Evaluate dependent for bindings over the same original XML owner, joining supplier IDs with an explicit static namespace binding. |
+| `xpath-catalog` | `catalog-source` | `query-parameters` | Build a native XPath map from the XML selection attributes, then filter and join through native map lookups. These are owned data parameters, not external variable bindings. |
+| `xpath-catalog` | `catalog-source` | `inspect-parameters` | Export the typed native map, integer, strings and array with their real query-origin frames. Computed items do not claim arbitrary data-source character lineage. |
+| `xpath-catalog` | `invalid-query` | `repair-query` | Close the missing predicate delimiter and revalidate the same saved source. Its independent failure copy does not affect normal query inputs. |
 <!-- existing-samples:end -->
 
 The Markdown article operations and complete site build use the same ordinary
@@ -334,6 +355,43 @@ selector syntax trees, and registered selector formatters do not currently imply
 working command source export. The schema's unsupported-feature, host-capability
 and work-budget boundaries remain unchanged.
 
+The CEM-QL order project uses one owned JSON source for expression filtering,
+local-module inner joins and original imported-node selection. Query record
+fixtures retain complete native typed items rather than projecting them into
+untyped application records. Native imported-node identities contain runtime-local
+addresses and must not become portable identifiers or expected-output fixtures;
+only their native representation, original source URI and byte ranges are checked.
+Computed records do not acquire invented input field lineage.
+
+Its parameter reports use declared CEMT parameters and a native CEM-QL record/map
+inside the template. Explicit graph parameters select ready/draft orders and a
+minimum total, and the graph exports ordinary JSON table entries. No query CLI
+external-parameter option is implied. These JSON writer outputs currently have
+no output spans or sidecar maps; the absence is checked explicitly. Selected
+native nodes and query source maps demonstrate the supported provenance paths.
+The CLI serializes these abstract JSON primaries with indentation; the shared
+worker currently uses compact JSON. Cross-host report acceptance compares the
+complete JSON value, while explicit CEM-QL source formatting retains exact byte
+fixtures and repeated builds within each host remain byte-stable.
+
+The XPath catalog project filters products, joins suppliers and constructs/looks
+up native maps and arrays from an owned XML selection/options subtree. This is
+data-driven parameter authoring, not an external XPath variable-binding grant.
+Query namespace bindings work; standalone source validation currently omits caller
+prefix bindings, so its independently validated source uses explicit EQNames.
+Standalone XPath Parse/Inspect/format still have native routing/export gaps and
+are excluded from the project's advertised operations. The result inspector is
+an actual native query returning typed map/array items, never a replacement tree.
+Selected XPath nodes retain original XML URI/ranges; computed scalars/maps carry
+query origins without arbitrary input character mappings.
+
+Shared command publication attaches an original-buffer boundary to text-query
+source maps while preserving their existing fine ranges and raw result exports.
+Studio resolves those ranges against explicit native source identities, rather
+than the active data file. Ambiguous or unknown query identities refuse navigation;
+compiled query artifacts never receive fabricated text ranges on their binary
+buffers. Existing ownership, revision, draft and UTF-8 guards remain effective.
+
 The following rows describe existing reuse and planned extensions, rather than
 additional routes. Category names are discovery metadata and do not affect
 runtime authority.
@@ -346,7 +404,7 @@ runtime authority.
 | Documents and UI | HTML, CEM-ML, native/element templates, runtime data island | Reuse Login and `html-cem-card` for semantic comparisons, shared card declarations/slots, local slice bindings and data-to-HTML generation. Keep project declaration authority and automatic DCE compilation limits explicit. |
 | Documents and UI | SVG and MathML variants | `svg-diagram` and `mathml-formula` cover native retained inspection/query/formatting, validation/repair, HTML artifacts, original provenance and bounded actual vector/presentation-math rendering. Content MathML is validated separately without an algebra or presentation claim. |
 | Documents and UI | CSS and SCSS aliases | `css-stylesheet` and `scss-stylesheet` cover native inspection, validation/repair, exact CSS output, scoped styles, owned-module expansion, native HTML/CSS graphs and shared previews. Keep unavailable SCSS source-export/loader cases explicit. |
-| Queries and transformations | CSS selectors, XPath source aliases, CEM-QL modules/expressions | `css-selector` demonstrates explicit native HTML/XML matching, namespace context, ordered/deduplicated native identities and source ranges. Reuse Login semantic comparisons/expressions and add parameter maps and joins/filtering. Treat compiled artifacts/results as separate inputs/outputs. |
+| Queries and transformations | CSS selectors, XPath source aliases, CEM-QL modules/expressions | `css-selector`, `xpath-catalog` and `cemql-orders` cover native selections, namespace context, joins, input-derived/native parameter maps, typed results and original selected-node ranges. CEM-QL source/module operations retain their explicit identities; XPath source-command limits remain visible. |
 | Queries and transformations | CEM transformation and XSLT source/custom-element selectors | Reuse existing CEM graphs; add a complete-profile bounded XSLT graph and explicit optional-profile refusal. Do not treat custom-element mode as a universal XSLT alias. |
 | Schema authoring | CEM schema and schema package | Extend Login's failure/repair package with declarations, references and explicit instance inputs. |
 | Schema authoring | JSON Schema and both Relax NG syntaxes | Add schema-source inspect/format/validation projects. Show instance validation only where independently supported; document unsupported drafts/patterns rather than promise arbitrary validators. |
@@ -368,7 +426,7 @@ against the native-emitted registry, the capability list against runtime metadat
 and each existing sample reference against the generated ordinary project bundle.
 It also runs all manifest-selected source validations through the native CLI and
 checks deployed bytes and hashes. The `test:feature-tour` browser cases exercise
-the authored Login, Supplier, data-report, XHTML, Markdown, HTML/CEM card, SVG/MathML and CSS/SCSS/selector workflows;
+the authored Login, Supplier, data-report, XHTML, Markdown, HTML/CEM card, SVG/MathML, CSS/SCSS/selector and CEM-QL/XPath data workflows;
 site preview/build browser acceptance also lives in `test:workbench`, with deployed
 article/site and offline checks in the navigation gate. These checks establish the
 covered operations; they do not turn untested aliases or planned workflows into

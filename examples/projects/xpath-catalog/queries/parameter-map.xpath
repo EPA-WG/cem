@@ -1,0 +1,12 @@
+let $options := map {
+    'minimum-stock': xs:integer(/Q{urn:example:catalog}catalog/Q{urn:example:catalog}selection/@minimum-stock),
+    'region': string(/Q{urn:example:catalog}catalog/Q{urn:example:catalog}selection/@region)
+}
+return map {
+    'minimum-stock': $options?minimum-stock,
+    'region': $options?region,
+    'available-skus': array {
+        /Q{urn:example:catalog}catalog/Q{urn:example:catalog}products/Q{urn:example:catalog}product[@stock >= $options?minimum-stock]
+        ! string(@sku)
+    }
+}

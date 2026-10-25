@@ -1,0 +1,68 @@
+[
+  {
+    "fields": {
+      "customer": [
+        {
+          "kind": "atomic",
+          "type": "string",
+          "value": "Café Noord"
+        }
+      ],
+      "order": [
+        {
+          "kind": "atomic",
+          "type": "string",
+          "value": "O-101"
+        }
+      ],
+      "total": [
+        {
+          "kind": "atomic",
+          "type": "integer",
+          "value": 48
+        }
+      ],
+      "units": [
+        {
+          "kind": "atomic",
+          "type": "integer",
+          "value": 3
+        }
+      ]
+    },
+    "kind": "record"
+  },
+  {
+    "fields": {
+      "customer": [
+        {
+          "kind": "atomic",
+          "type": "string",
+          "value": "Harbor Books"
+        }
+      ],
+      "order": [
+        {
+          "kind": "atomic",
+          "type": "string",
+          "value": "O-103"
+        }
+      ],
+      "total": [
+        {
+          "kind": "atomic",
+          "type": "integer",
+          "value": 32
+        }
+      ],
+      "units": [
+        {
+          "kind": "atomic",
+          "type": "integer",
+          "value": 2
+        }
+      ]
+    },
+    "kind": "record"
+  }
+]

@@ -1,0 +1,42 @@
+{
+  "customers": [
+    {
+      "customerId": "C-1",
+      "name": "Café Noord"
+    },
+    {
+      "customerId": "C-2",
+      "name": "Harbor Books"
+    }
+  ],
+  "orders" [
+    {
+      "orderId": "O-101",
+      "customerId": "C-1",
+      "status": "ready",
+      "units": 3,
+      "total": 48
+    },
+    {
+      "orderId": "O-102",
+      "customerId": "C-2",
+      "status": "draft",
+      "units": 1,
+      "total": 12
+    },
+    {
+      "orderId": "O-103",
+      "customerId": "C-2",
+      "status": "ready",
+      "units": 2,
+      "total": 32
+    },
+    {
+      "orderId": "O-104",
+      "customerId": "C-missing",
+      "status": "ready",
+      "units": 4,
+      "total": 99
+    }
+  ]
+}

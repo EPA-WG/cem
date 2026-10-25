@@ -1,0 +1,3 @@
+for $product in /c:catalog/c:products/c:product,
+    $supplier in /c:catalog/c:suppliers/c:supplier[@id = $product/@supplier]
+return string($product/@sku) || ':' || normalize-space($supplier/c:name) || ':' || string($supplier/@region)

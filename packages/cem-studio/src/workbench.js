@@ -297,6 +297,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
         navigationError = undefined;
         try {
             if (!frame) throw new RangeError(`provenance frame ${index} is unavailable`);
+            if (frame.requiresSourceIdentity && !frame.uri) throw new Error('Query source identity is unavailable or ambiguous. Rerun the configuration before following it.');
             if (!frame.uri) {
                 session.activeWorkbench().navigateProvenance(index);
                 return snapshot();
@@ -1696,6 +1697,7 @@ export async function createCemStudioWorkbench(options) {
     function navigateProvenance(index) {
         const frame = (state.projection?.provenance ?? state.validation?.provenance)?.[index];
         if (!frame) throw new RangeError(`provenance frame ${index} is unavailable`);
+        if (frame.requiresSourceIdentity && !frame.uri) throw new Error('Query source identity is unavailable or ambiguous. Rerun the configuration before following it.');
         if (frame.uri && frame.uri !== resourceUri(example.referenceUri ?? example.path, projectId)) {
             throw new Error('Open this provenance source through the project workspace.');
         }
@@ -2193,20 +2195,20 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
         .slice(0, CEM_STUDIO_LIMITS.structuredRows)
         .map((diagnostic) => normalizeDiagnostic(diagnostic));
     const provenance = [];
-    diagnostics.forEach((diagnostic, diagnosticIndex) => {
-        diagnostic.sourceMap?.frames?.forEach((frame, frameIndex) => {
+    const appendFrames = (frames, owner) => {
+        const sourceUris = kind === 'query' ? queryFrameSourceUris(frames) : undefined;
+        frames.forEach((frame, frameIndex) => {
             if (provenance.length < CEM_STUDIO_LIMITS.structuredRows) {
-                provenance.push(normalizeFrame(frame, { diagnosticIndex, frameIndex }));
+                provenance.push(normalizeFrame(frame, { ...owner, frameIndex }, sourceUris));
             }
         });
+    };
+    diagnostics.forEach((diagnostic, diagnosticIndex) => {
+        appendFrames(diagnostic.sourceMap?.frames ?? [], { diagnosticIndex });
     });
     for (const reference of result?.sourceMaps?.items ?? []) {
         const stack = reference.sourceMap?.storage === 'inline' ? reference.sourceMap.value : undefined;
-        stack?.frames?.forEach((frame, frameIndex) => {
-            if (provenance.length < CEM_STUDIO_LIMITS.structuredRows) {
-                provenance.push(normalizeFrame(frame, { sourceMapId: reference.sourceMapId, frameIndex }));
-            }
-        });
+        appendFrames(stack?.frames ?? [], { sourceMapId: reference.sourceMapId });
     }
     const summary = summarizePortableOperation(kind, mode, result);
     const expectedMatches = expected === undefined ? undefined : matchesExpectedSummary(summary, expected);
@@ -2367,11 +2369,27 @@ function frameSourceUri(frame) {
     return undefined;
 }
 
-function normalizeFrame(frame, owner) {
+function queryFrameSourceUris(frames) {
+    const sources = new Map();
+    for (const frame of frames) {
+        const id = frame?.source_id, uri = frameSourceUri(frame);
+        if (!Number.isSafeInteger(id) || id < 0 || !['SourceBoundary', 'ScssOrigin'].includes(frame?.transform?.kind)) continue;
+        // A source ID is local to this native stack, never a cross-reference key.
+        // Keep collisions unresolved rather than choosing an enclosing filename.
+        if (typeof uri !== 'string' || !uri) sources.set(id, null);
+        else if (!sources.has(id)) sources.set(id, uri);
+        else if (sources.get(id) !== uri) sources.set(id, null);
+    }
+    return sources;
+}
+
+function normalizeFrame(frame, owner, querySourceUris) {
+    const uri = frameSourceUri(frame) || querySourceUris?.get(frame?.source_id) || undefined;
     return Object.freeze({
         ...owner,
         sourceId: frame?.source_id,
-        uri: frameSourceUri(frame),
+        uri,
+        ...(querySourceUris && !uri ? { requiresSourceIdentity: true } : {}),
         transform: frame?.transform?.kind ?? 'Unknown',
         ...(frame?.transform?.kind === 'ScssOrigin' ? { originKind: frame.transform.origin_kind,
             ...(frame.transform.name === undefined ? {} : { name: frame.transform.name }) } : {}),

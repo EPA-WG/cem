@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "commonVersion": "0.1.0",
   "cacheUrls": [
+    "./examples/cemql-orders.cem-studio.json",
     "./examples/css-selector.cem-studio.json",
     "./examples/css-stylesheet.cem-studio.json",
     "./examples/csv-inventory.cem-studio.json",
@@ -16,6 +17,7 @@
     "./examples/supplier-pipeline.cem-studio.json",
     "./examples/svg-diagram.cem-studio.json",
     "./examples/xhtml-document.cem-studio.json",
+    "./examples/xpath-catalog.cem-studio.json",
     "./feature-tour/catalog.json",
     "./feature-tour/feature-tour.project.json",
     "./feature-tour/resources/cem-ast-projection-basic-ast.cem-bin",
@@ -159,6 +161,18 @@
       ],
       "archive": "./examples/schema-examples.cem-studio.json",
       "sha256": "979219ffd4605401e583480eb8066707c3453a2d895598e0f0145bbeca529f8a"
+    },
+    {
+      "id": "cemql-orders",
+      "name": "CEM-QL order queries",
+      "description": "Filter and join owned order/customer records with native CEM-QL expressions and modules, inspect original source ranges, repair query syntax and build JSON tables from declared parameter maps.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-data",
+        "content-types-queries-transformations"
+      ],
+      "archive": "./examples/cemql-orders.cem-studio.json",
+      "sha256": "d7dac91954b5d125c9f57a017b4285eec80e3e3a11c37c28c9564a73365cca47"
     },
     {
       "id": "css-selector",
@@ -306,6 +320,18 @@
       ],
       "archive": "./examples/xhtml-document.cem-studio.json",
       "sha256": "8f3c8e1d2a28c93d880de780f04e80223ac4f71ec5bc65f2f63fea4d46137925"
+    },
+    {
+      "id": "xpath-catalog",
+      "name": "XPath catalog queries",
+      "description": "Filter namespaced product data, join suppliers, inspect retained nodes and native map/array results, change owned selection parameters and repair XPath source.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-queries-transformations",
+        "content-types-data"
+      ],
+      "archive": "./examples/xpath-catalog.cem-studio.json",
+      "sha256": "4eb4753bcb8566be0a5c8227cb2d24ee1c4b00621d87a389a08b9bb2d5e04e7b"
     }
   ]
 }

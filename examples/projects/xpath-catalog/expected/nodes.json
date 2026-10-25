@@ -1,0 +1,30 @@
+[
+  {
+    "kind": "node",
+    "nodeId": "cem:node:27",
+    "nodeKind": "element",
+    "expandedName": "{urn:example:catalog}product",
+    "sourceRange": {
+      "byteLength": 47,
+      "start": {
+        "byteOffset": 320,
+        "column": 5,
+        "line": 9
+      }
+    }
+  },
+  {
+    "kind": "node",
+    "nodeId": "cem:node:45",
+    "nodeKind": "element",
+    "expandedName": "{urn:example:catalog}product",
+    "sourceRange": {
+      "byteLength": 49,
+      "start": {
+        "byteOffset": 532,
+        "column": 5,
+        "line": 11
+      }
+    }
+  }
+]

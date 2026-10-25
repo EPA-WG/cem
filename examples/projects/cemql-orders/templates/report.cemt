@@ -1,0 +1,47 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+{param @name=input @required=true}
+{template @name=main @visibility=public @cem:whitespace=layout |
+    {param @name=status @required=true}
+    {param @name=minimum @required=true}
+    {cem:variable @name=options @select="({status: status, minimum: num:integer(minimum)})"}
+    {cem:variable @name=objects
+        @select='seq:where(input.descendants, fn(node) => node.kind == "element" && node.namespace == "cem:generic-data" && node.name == "object")'}
+    {cem:variable @name=customers
+        @select='seq:where(objects, fn(row) => seq:any(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == "name"))'}
+    {cem:variable @name=orders
+        @select='seq:where(objects, fn(row) => seq:any(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == "orderId"))'}
+    {cem:variable @name=byStatus
+        @select='seq:where(orders, fn(order) => dom:text(seq:where(order.children, fn(field) => dom:text(dom:attribute(field, "name")) == "status")) == options.status)'}
+    {cem:variable @name=byMinimum
+        @select='seq:where(byStatus, fn(order) => num:integer(dom:text(seq:where(order.children, fn(field) => dom:text(dom:attribute(field, "name")) == "total"))) >= options.minimum)'}
+    {cem:variable @name=selected
+        @select='seq:where(byMinimum, fn(order) => {
+        let customerId = dom:text(seq:where(order.children, fn(field) => dom:text(dom:attribute(field, "name")) == "customerId"));
+        seq:any(customers, fn(customer) => dom:text(seq:where(customer.children, fn(field) => dom:text(dom:attribute(field, "name")) == "customerId")) == customerId)
+    })'}
+    {element @name=array @namespace=cem:generic-data |
+        {cem:for-each @as=order @select=selected |
+            {cem:variable @name=customerId
+                @select='dom:text(seq:where(order.children, fn(field) => dom:text(dom:attribute(field, "name")) == "customerId"))'}
+            {cem:variable @name=customer
+                @select='seq:first(seq:where(customers, fn(row) => dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == "customerId")) == customerId))'}
+            {element @name=object @namespace=cem:generic-data |
+                {element @name=property @namespace=cem:generic-data |
+                    {attribute @name=name @value=order}
+                    {element @name=string @namespace=cem:generic-data |
+                        {$ | dom:text(seq:where(order.children, fn(field) => dom:text(dom:attribute(field, "name")) == "orderId"))}
+                }   }
+                {element @name=property @namespace=cem:generic-data |
+                    {attribute @name=name @value=customer}
+                    {element @name=string @namespace=cem:generic-data |
+                        {$ | dom:text(seq:where(customer.children, fn(field) => dom:text(dom:attribute(field, "name")) == "name"))}
+                }   }
+                {cem:for-each @as=name @select='("units", "total")' |
+                    {element @name=property @namespace=cem:generic-data |
+                        {attribute @name=name @value="{$name}"}
+                        {element @name=number @namespace=cem:generic-data |
+                            {$ | dom:text(seq:where(order.children, fn(field) => dom:text(dom:attribute(field, "name")) == name))}
+}   }   }   }   }   }   }

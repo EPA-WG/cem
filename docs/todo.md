@@ -185,7 +185,13 @@ module/variable/nesting expansion, native HTML/XML selection and source repairs.
 Saved edits, independent copies and offline reruns pass with shared controls and
 unchanged resolver authority, source guards and credential policy.
 
-- [ ] Add CEM-QL and XPath projects: standalone expressions, selecting/filtering/joining data, parameter maps and inspecting native results with source provenance.
+Completed [CEM-QL and XPath data projects and original query-source provenance](archive/todo-completed-data-query-projects-2026-10-25.md)
+cover typed filtering/joins, declared and data-derived parameter maps, native
+selected-node ranges, source operations where supported, exact repairs and JSON
+table artifacts. Saved edits, independent copies and offline runs pass through
+shared controls. Unknown query identities refuse navigation; resolver authority,
+saved projects/drafts and credential privacy remain unchanged.
+
 - [ ] Add CEM transformation and XSLT projects: transform a source document into HTML or data artifacts, compare supported approaches and inspect a multi-step transformation graph with explicit entry artifacts.
 - [ ] Add schema-authoring projects for native CEM schemas, JSON Schema and RELAX NG: define a small domain contract, validate passing/failing schema sources and repair the reported violations. Demonstrate CEM instance validation separately; JSON Schema and RELAX NG currently provide source validation rather than general instance validators. Expose supported schema subsets and declaration/reference behavior.
 - [ ] Add module-map and portable configuration projects: resolve relative and mapped resource dependencies, inspect a CLI command/run configuration and build a portable Studio project. Cover the supported schema versions without implying schema identity alone grants execution support.
@@ -199,6 +205,12 @@ These remain explicit follow-ups after the functional Studio sample catalog.
 Keep the original admission, provenance, privacy and verification bounds.
 
 - [ ] Wire registered CSS-selector formatter/colorizer assets into native command source export. Same-identity conversion currently reports `cem.lifecycle.target_adapter_unsupported` and a JSON fallback despite exit zero. Preserve native selector ownership and exact ranges; add failing export and diagnostic/exit-status fixtures before claiming command formatting support.
+
+- [ ] Route standalone XPath Parse, Inspect and source export through the typed XPath owner. EQName source is currently interpreted as CEM by generic source operations, and same-schema conversion refuses the target adapter. Preserve query execution, exact source bytes and hard diagnostics; add native round-trip and exit-status regressions before enabling these source operations.
+
+- [ ] Pass caller namespace bindings into standalone XPath source validation. The CLI's `--namespace` bindings reach native query execution but are currently omitted by the source loader. Keep missing/unbound-prefix diagnostics; add native static-context tests before changing validation. Current standalone sample validation uses explicit EQNames.
+
+- [ ] Define a shared byte-format policy for abstract JSON graph primaries. Native CLI currently serializes them with indentation while common worker publication uses compact JSON; both preserve the same JSON value. Preserve explicit native writer bytes and add cross-host fixtures before promising exact byte parity for these fallback outputs.
 
 - [ ] Repair namespaced SCSS mixin default-argument lexical binding. The native module probe leaves `padding: $space` unresolved when a namespaced mixin's default references its module variable. The stylesheet project supplies an explicit argument; retain the limited Sass conformance claim and add native module-scope regressions before changing evaluation.
 

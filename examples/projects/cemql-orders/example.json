@@ -1,0 +1,542 @@
+{
+  "id": "cemql-orders",
+  "name": "CEM-QL order queries",
+  "version": "1.0.0",
+  "description": "Filter and join owned order/customer records with native CEM-QL expressions and modules, inspect original source ranges, repair query syntax and build JSON tables from declared parameter maps.",
+  "collections": [
+    "content-types-data",
+    "content-types-queries-transformations"
+  ],
+  "sources": [
+    {
+      "id": "order-data",
+      "source": "examples/projects/cemql-orders/data/orders.json",
+      "path": "data/orders.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "filter-expression",
+      "source": "examples/projects/cemql-orders/queries/ready-orders.cem-ql",
+      "path": "queries/ready-orders.cem-ql",
+      "contentType": "application/vnd.cem.query-expression+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1#expression",
+      "role": "query"
+    },
+    {
+      "id": "order-module",
+      "source": "examples/projects/cemql-orders/queries/customer-orders.cemql",
+      "path": "queries/customer-orders.cemql",
+      "contentType": "application/vnd.cem.query+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1",
+      "role": "query"
+    },
+    {
+      "id": "native-node-query",
+      "source": "examples/projects/cemql-orders/queries/ready-nodes.cem-ql",
+      "path": "queries/ready-nodes.cem-ql",
+      "contentType": "application/vnd.cem.query-expression+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1#expression",
+      "role": "query"
+    },
+    {
+      "id": "parameter-model",
+      "source": "examples/projects/cemql-orders/templates/report.cemt",
+      "path": "templates/report.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "ready-graph",
+      "source": "examples/projects/cemql-orders/graphs/ready.cem",
+      "path": "graphs/ready.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "draft-graph",
+      "source": "examples/projects/cemql-orders/graphs/draft.cem",
+      "path": "graphs/draft.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "invalid-expression",
+      "source": "examples/projects/cemql-orders/failures/invalid-expression.cem-ql",
+      "path": "failures/invalid-expression.cem-ql",
+      "contentType": "application/vnd.cem.query-expression+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1#expression",
+      "role": "query"
+    },
+    {
+      "id": "invalid-data",
+      "source": "examples/projects/cemql-orders/failures/invalid-data.json",
+      "path": "failures/invalid-data.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-filter",
+      "source": "examples/projects/cemql-orders/expected/filter-items.json",
+      "path": "expected/filter-items.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-join",
+      "source": "examples/projects/cemql-orders/expected/join-items.json",
+      "path": "expected/join-items.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-native-ranges",
+      "source": "examples/projects/cemql-orders/expected/native-ranges.json",
+      "path": "expected/native-ranges.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-format-expression",
+      "source": "examples/projects/cemql-orders/expected/formatted-expression.cem-ql",
+      "path": "expected/formatted-expression.cem-ql",
+      "contentType": "application/vnd.cem.query-expression+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1#expression",
+      "role": "query"
+    },
+    {
+      "id": "expected-format-module",
+      "source": "examples/projects/cemql-orders/expected/formatted-module.cemql",
+      "path": "expected/formatted-module.cemql",
+      "contentType": "application/vnd.cem.query+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1",
+      "role": "query"
+    },
+    {
+      "id": "expected-ready-report",
+      "source": "examples/projects/cemql-orders/expected/ready-report.json",
+      "path": "expected/ready-report.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-draft-report",
+      "source": "examples/projects/cemql-orders/expected/draft-report.json",
+      "path": "expected/draft-report.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/cemql-orders/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "inspect-data",
+      "name": "Inspect retained order data",
+      "kind": "inspection",
+      "source": "order-data",
+      "description": "Inspect native generic-data nodes and original JSON source positions without using a serialized AST as query input.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/data/json/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "cem:generic-data",
+        "Café Noord",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "inspect-expression",
+      "name": "Inspect standalone CEM-QL syntax",
+      "kind": "inspection",
+      "source": "filter-expression",
+      "description": "Inspect typed native expression structure with original query URI and UTF-8 token/node ranges.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "@kind=let",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "parse-expression-events",
+      "name": "Parse standalone CEM-QL events",
+      "kind": "inspection",
+      "source": "filter-expression",
+      "description": "Review native lossless expression token events, including the Unicode comment and original byte positions.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--format",
+        "events",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@name=LineComment",
+        "Café order filtering",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "validate-expression",
+      "name": "Validate the filter expression",
+      "kind": "validation",
+      "source": "filter-expression",
+      "description": "Validate input-bound standalone syntax separately from execution or application data rules.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "format-expression",
+      "name": "Format the standalone expression",
+      "kind": "conversion",
+      "source": "filter-expression",
+      "description": "Apply the native source-preserving tabular query formatter with an exact expected byte fixture.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--to-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--to-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "dependencies": [
+        "expected-format-expression"
+      ],
+      "expectedOutput": "expected-format-expression"
+    },
+    {
+      "id": "query-filter",
+      "name": "Filter ready order records",
+      "kind": "query",
+      "source": "order-data",
+      "description": "Select three ready orders and return typed order, units and total fields; the unjoined record remains in this filter result.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/data/json/1",
+        "--query-file",
+        "$filter-expression",
+        "--query-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "dependencies": [
+        "filter-expression",
+        "expected-filter"
+      ],
+      "expectedNativeItems": "expected-filter"
+    },
+    {
+      "id": "validate-module",
+      "name": "Validate the local query module",
+      "kind": "validation",
+      "source": "order-module",
+      "description": "Check the explicit module URI, local declarations and root expression; no external library loading is enabled.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query+cem-ql",
+        "--schema",
+        "https://cem.dev/ns/query/cem-ql/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "format-module",
+      "name": "Format the query module",
+      "kind": "conversion",
+      "source": "order-module",
+      "description": "Apply the native source-preserving tabular formatter while retaining module identity and local functions.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query+cem-ql",
+        "--schema",
+        "https://cem.dev/ns/query/cem-ql/1",
+        "--to-content-type",
+        "application/vnd.cem.query+cem-ql",
+        "--to-schema",
+        "https://cem.dev/ns/query/cem-ql/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "dependencies": [
+        "expected-format-module"
+      ],
+      "expectedOutput": "expected-format-module"
+    },
+    {
+      "id": "query-join",
+      "name": "Join orders to customers",
+      "kind": "query",
+      "source": "order-data",
+      "description": "Inner-join ready orders totaling at least thirty to their owned customer records; exclude the unmatched customer ID and retain integer result types.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/data/json/1",
+        "--query-file",
+        "$order-module",
+        "--query-content-type",
+        "application/vnd.cem.query+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "dependencies": [
+        "order-module",
+        "expected-join"
+      ],
+      "expectedNativeItems": "expected-join"
+    },
+    {
+      "id": "query-source-nodes",
+      "name": "Select native order nodes and source ranges",
+      "kind": "query",
+      "source": "order-data",
+      "description": "Return retained native ready-order nodes with original JSON source boundaries; runtime-local opaque identities are never compared or persisted as portable addresses.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/data/json/1",
+        "--query-file",
+        "$native-node-query",
+        "--query-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "dependencies": [
+        "native-node-query",
+        "expected-native-ranges"
+      ],
+      "expectedNativeRanges": "expected-native-ranges",
+      "expectedText": [
+        "cem.ql.imported-cem-ast",
+        "SourceBoundary",
+        "application/json"
+      ]
+    },
+    {
+      "id": "repair-expression",
+      "name": "Repair the missing CEM-QL closing brace",
+      "kind": "validation",
+      "source": "invalid-expression",
+      "description": "Restore the final block brace after reviewing the two native parse diagnostics at original source positions.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 2,
+        "warningCount": 0,
+        "errorCode": "cem.ql.parse_error",
+        "location": {
+          "line": 15,
+          "column": 1,
+          "byteOffset": 965
+        }
+      },
+      "repair": {
+        "find": "    })\n\n",
+        "replace": "    })\n}\n"
+      }
+    },
+    {
+      "id": "validate-parameter-template",
+      "name": "Validate the declared parameter model",
+      "kind": "validation",
+      "source": "parameter-model",
+      "description": "Validate native template parameter declarations and their CEM-QL map/expression slots without inventing unbound host-expression globals.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.template+cem",
+        "--schema",
+        "https://cem.dev/ns/template/cem-native/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "report-ready",
+      "name": "Build ready orders from a parameter map",
+      "kind": "transformation-graph",
+      "source": "ready-graph",
+      "description": "Bind declared status/minimum parameters, construct a native CEM-QL options record and publish an application JSON table through the native generic-data writer.",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "dependencies": [
+        "order-data",
+        "parameter-model",
+        "expected-ready-report"
+      ],
+      "entryArtifact": "generated/ready-orders.json",
+      "expectedGraphOutputs": {
+        "generated/ready-orders.json": "expected-ready-report"
+      },
+      "expectedGraphFailures": [
+        [
+          "order-data",
+          "invalid-data"
+        ]
+      ],
+      "expectedUnmappedOutputs": [
+        "generated/ready-orders.json"
+      ]
+    },
+    {
+      "id": "report-draft",
+      "name": "Build draft orders from a parameter map",
+      "kind": "transformation-graph",
+      "source": "draft-graph",
+      "description": "Bind declared status/minimum parameters, construct a native CEM-QL options record and publish an application JSON table through the native generic-data writer.",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "dependencies": [
+        "order-data",
+        "parameter-model",
+        "expected-draft-report"
+      ],
+      "entryArtifact": "generated/draft-orders.json",
+      "expectedGraphOutputs": {
+        "generated/draft-orders.json": "expected-draft-report"
+      },
+      "expectedGraphFailures": [
+        [
+          "order-data",
+          "invalid-data"
+        ]
+      ],
+      "expectedUnmappedOutputs": [
+        "generated/draft-orders.json"
+      ]
+    }
+  ]
+}

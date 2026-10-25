@@ -820,6 +820,9 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-xpath-project.mjs",
+                "{projectRoot}/scripts/verify-cemql-project.mjs",
+                "{projectRoot}/scripts/verify-data-query-projects.mjs",
                 "{projectRoot}/scripts/verify-selector-project.mjs",
                 "{projectRoot}/scripts/verify-stylesheet-projects.mjs",
                 "{projectRoot}/scripts/verify-markdown-site.mjs",
@@ -1102,6 +1105,33 @@
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/stylesheet-projects.json"
+            ]
+        },
+        "verify:data-queries": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:determinism"
+            ],
+            "options": {
+                "command": "node scripts/verify-navigation.mjs --data-queries-only",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-data-query-projects.mjs",
+                "{projectRoot}/scripts/verify-cemql-project.mjs",
+                "{projectRoot}/scripts/verify-xpath-project.mjs",
+                "{workspaceRoot}/examples/projects/cemql-orders/**/*",
+                "{workspaceRoot}/examples/projects/xpath-catalog/**/*",
+                "{projectRoot}/dist/static/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/data-query-projects.json"
             ]
         }
     },

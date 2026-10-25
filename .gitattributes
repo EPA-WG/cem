@@ -34,6 +34,9 @@ examples/projects/mathml-formula/expected/formula.html whitespace=-blank-at-eol
 examples/projects/css-stylesheet/expected/cards.html whitespace=-blank-at-eol
 examples/projects/scss-stylesheet/expected/index.html whitespace=-blank-at-eol
 
+# Preserve the missing-brace fixture's original EOF diagnostic position.
+examples/projects/cemql-orders/failures/invalid-expression.cem-ql whitespace=-blank-at-eof
+
 # Binary files
 *.png binary
 *.jpg binary

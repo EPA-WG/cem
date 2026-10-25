@@ -1,0 +1,3 @@
+(: Select namespace-qualified products without a host prefix binding. :)
+/Q{urn:example:catalog}catalog/Q{urn:example:catalog}products/Q{urn:example:catalog}product[@stock >= 4]
+! (string(@sku) || ':' || normalize-space(Q{urn:example:catalog}name))

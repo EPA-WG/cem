@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog xmlns="urn:example:catalog">
+  <selection minimum-stock="4" region="west"/>
+  <suppliers>
+    <supplier id="north" region="north"><name>North Co</name></supplier>
+    <supplier id="harbor" region="west"><name>Café Harbor</name></supplier>
+  </suppliers>
+  <products>
+    <product sku="tea" supplier="harbor" stock="7"><name>Green tea</name><price>4.50</price></product>
+    <product sku="coffee" supplier="north" stock="2"><name>Harbor coffee</name><price>8.25</price></product>
+    <product sku="cocoa" supplier="harbor" stock="4"><name>Cocoa</name><price>6.00</price></product>
+  </products>
+</catalog>

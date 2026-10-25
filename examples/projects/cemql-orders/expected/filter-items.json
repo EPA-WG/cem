@@ -1,0 +1,80 @@
+[
+  {
+    "fields": {
+      "order": [
+        {
+          "kind": "atomic",
+          "type": "string",
+          "value": "O-101"
+        }
+      ],
+      "total": [
+        {
+          "kind": "atomic",
+          "type": "integer",
+          "value": 48
+        }
+      ],
+      "units": [
+        {
+          "kind": "atomic",
+          "type": "integer",
+          "value": 3
+        }
+      ]
+    },
+    "kind": "record"
+  },
+  {
+    "fields": {
+      "order": [
+        {
+          "kind": "atomic",
+          "type": "string",
+          "value": "O-103"
+        }
+      ],
+      "total": [
+        {
+          "kind": "atomic",
+          "type": "integer",
+          "value": 32
+        }
+      ],
+      "units": [
+        {
+          "kind": "atomic",
+          "type": "integer",
+          "value": 2
+        }
+      ]
+    },
+    "kind": "record"
+  },
+  {
+    "fields": {
+      "order": [
+        {
+          "kind": "atomic",
+          "type": "string",
+          "value": "O-104"
+        }
+      ],
+      "total": [
+        {
+          "kind": "atomic",
+          "type": "integer",
+          "value": 99
+        }
+      ],
+      "units": [
+        {
+          "kind": "atomic",
+          "type": "integer",
+          "value": 4
+        }
+      ]
+    },
+    "kind": "record"
+  }
+]

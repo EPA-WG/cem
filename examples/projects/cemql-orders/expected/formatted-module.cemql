@@ -1,0 +1,24 @@
+module "https://cem.dev/examples/projects/cemql-orders/queries/customer-orders"
+
+// Local functions read native generic-data nodes, not JavaScript records.
+declare function local:field(row, name) {
+    dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == name))
+}
+
+declare function local:rows(marker) {
+    seq:where(dom:descendants(input), fn(node) =>
+        node.kind == "element" && node.namespace == "cem:generic-data" && node.name == "object"
+        && seq:any(node.children, fn(field) => dom:text(dom:attribute(field, "name")) == marker))
+}
+
+{
+    let customers = local:rows("name");
+    let selected = seq:where(local:rows("orderId"), fn(order) =>
+        local:field(order, "status") == "ready" && num:integer(local:field(order, "total")) >= 30
+        && seq:any(customers, fn(customer) => local:field(customer, "customerId") == local:field(order, "customerId")));
+    seq:map(selected, fn(order) => {
+        let customer = seq:first(seq:where(customers, fn(row) => local:field(row, "customerId") == local:field(order, "customerId")));
+        {order: local:field(order, "orderId"), customer: local:field(customer, "name"),
+            units: num:integer(local:field(order, "units")), total: num:integer(local:field(order, "total"))}
+    })
+}

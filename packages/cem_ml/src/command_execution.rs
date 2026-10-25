@@ -43,7 +43,8 @@ use crate::report::{Report, ReportOptionsSnapshot};
 use crate::report_projection::project_report_v1;
 use crate::resolver::ResolvePurpose;
 use crate::run_config::{NormalizedOutput, NormalizedRunPlan};
-use crate::source_map::SourceMapStack;
+use crate::source::{ByteRange, SourceId};
+use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 
 const EXIT_OK: u8 = 0;
 const EXIT_HARD_FAILURE: u8 = 1;
@@ -609,6 +610,9 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
             )?)
         }
         PreparedPortableOperationV1::Query(query) => {
+            let query_uri = query.request.query.uri.clone();
+            let query_byte_length = query.request.query.bytes.len();
+            let original_text_query = query_source_is_explicit_text(&query.request.query.identity);
             let response = if query.ready_names {
                 crate::query::run_query_with_ready_names(query.request, None)
             } else {
@@ -642,10 +646,28 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
                 Value::String(String::from_utf8_lossy(&encoded.bytes).into_owned())
             };
             let items = encoded_output_items(plan, &encoded.content_type, &encoded.bytes);
-            let source_maps = vec![source_map_reference(
-                "query-source-map",
-                response.result.source_map.clone(),
-            )];
+            // This reference describes the original query buffer, never DATA.
+            // Keep native fine ranges and the raw exported result unchanged;
+            // only the common ownership metadata gains its explicit boundary.
+            let mut source_map = response.result.source_map.clone();
+            if original_text_query {
+                let boundary = SourceMapFrame {
+                    source_id: source_map
+                        .frames
+                        .first()
+                        .map(|frame| frame.source_id)
+                        .unwrap_or(SourceId(0)),
+                    span: FrameSpan::Single(ByteRange::new(
+                        0,
+                        u32::try_from(query_byte_length).unwrap_or(u32::MAX),
+                    )),
+                    transform: TransformKind::SourceBoundary { uri: query_uri },
+                };
+                if !source_map.frames.contains(&boundary) {
+                    source_map.frames.push(boundary);
+                }
+            }
+            let source_maps = vec![source_map_reference("query-source-map", source_map)];
             Ok(product(
                 PortableOperationResultV1::Query(CommandQueryResultV1 {
                     language: response.language,
@@ -973,6 +995,27 @@ fn report_for(plan: &NormalizedRunPlan, diagnostics: Vec<Diagnostic>) -> Report 
             content_type: identity.and_then(|identity| identity.content_type.clone()),
             base_uri: identity.and_then(|identity| identity.base_uri.clone()),
         },
+    )
+}
+
+fn query_source_is_explicit_text(identity: &FormatIdentity) -> bool {
+    let Some(content_type) = identity.content_type.as_deref() else {
+        return false;
+    };
+    matches!(
+        content_type
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_ascii_lowercase()
+            .as_str(),
+        "application/vnd.cem.query-expression+css-selector"
+            | "application/vnd.cem.xpath"
+            | "text/xpath"
+            | "application/vnd.cem.query+cem-ql"
+            | "text/cem-ql"
+            | "application/vnd.cem.query-expression+cem-ql"
     )
 }
 
@@ -1908,6 +1951,135 @@ mod tests {
             panic!("expected command result terminal outcome")
         };
         result
+    }
+
+    fn assert_query_source_map_boundary(query_uri: &str, ready_names: bool) {
+        let control = OperationControl::new(AbortSignal::new());
+        let source = "/* café: original query buffer */ div\n"
+            .as_bytes()
+            .to_vec();
+        let query_request = || QueryRunRequest {
+            data: input(),
+            query: QuerySource {
+                uri: query_uri.to_owned(),
+                bytes: source.clone(),
+                identity: FormatIdentity {
+                    content_type: Some(CSS_SELECTOR_CONTENT_TYPE.to_owned()),
+                    schema: Some(CSS_SELECTOR_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                },
+            },
+            context: fixture_context(&control),
+            context_item: None,
+            bindings: BTreeMap::new(),
+            limits: None,
+        };
+        let native = if ready_names {
+            crate::query::run_query_with_ready_names(query_request(), None)
+        } else {
+            run_query(query_request())
+        }
+        .expect("native selector query");
+        let original_map = native.result.source_map.clone();
+        assert!(!original_map.frames.is_empty());
+        let mut exporters = QueryResultExporterRegistry::new();
+        register_css_selector_query_exporters(&mut exporters);
+        let product = execute_operation(
+            &FixtureEngine::default(),
+            &fixture_request(false),
+            PreparedPortableOperationV1::Query(Box::new(PreparedCommandQueryV1 {
+                ready_names,
+                request: query_request(),
+                output: QueryExportFormat::Json,
+            })),
+            &exporters,
+            CommandServiceLimitsV1::default(),
+        )
+        .unwrap_or_else(|_| panic!("common query execution"));
+        assert_eq!(product.source_maps.len(), 1);
+        let reference = &product.source_maps[0];
+        assert_eq!(reference.source_map_id, "query-source-map");
+        let CommandPayloadV1::Inline { value: published } = &reference.source_map else {
+            panic!("query map stays inline")
+        };
+        assert_eq!(
+            published.frames.len(),
+            original_map.frames.len() + 1,
+            "the result map must add original query identity without discarding fine native frames"
+        );
+        assert_eq!(
+            &published.frames[..original_map.frames.len()],
+            original_map.frames.as_slice()
+        );
+        let boundary = published.frames.last().unwrap();
+        assert!(
+            matches!(&boundary.transform, crate::source_map::TransformKind::SourceBoundary { uri } if uri == query_uri && uri != DATA_URI)
+        );
+        assert_eq!(boundary.source_id, original_map.frames[0].source_id);
+        assert_eq!(
+            boundary.span,
+            crate::source_map::FrameSpan::Single(crate::source::ByteRange {
+                start: 0,
+                len: source.len() as u32,
+            })
+        );
+        let PortableOperationResultV1::Query(result) = product.operation_result else {
+            panic!("typed query result")
+        };
+        let raw = if let Some(text) = result.output.as_str() {
+            serde_json::from_str::<Value>(text).expect("explicit native JSON query export")
+        } else {
+            result.output
+        };
+        assert_eq!(
+            raw["sourceMap"],
+            serde_json::to_value(original_map).unwrap(),
+            "common ownership metadata must not rewrite the raw native result export"
+        );
+    }
+
+    #[test]
+    fn query_source_map_named_boundary_preserves_native_query_ranges() {
+        assert_query_source_map_boundary("studio://execution/queries/original.css-selector", false);
+    }
+
+    #[test]
+    fn query_source_map_inline_boundary_names_the_owned_original_buffer() {
+        assert_query_source_map_boundary("cem+inline://query/source.css-selector", true);
+    }
+
+    #[test]
+    fn query_source_map_compiled_artifacts_never_claim_binary_buffer_ranges_as_source() {
+        for content_type in [
+            "application/vnd.cem.xpath-artifact+cem-bin",
+            "application/vnd.cem.query-artifact+cem-bin",
+            "cem-ql/1",
+            "cem-ql/module",
+            "application/octet-stream",
+        ] {
+            assert!(!query_source_is_explicit_text(&FormatIdentity {
+                content_type: Some(content_type.to_owned()),
+                schema: Some("https://cem.dev/ns/query/xpath/1".to_owned()),
+                ..FormatIdentity::default()
+            }));
+        }
+        assert!(!query_source_is_explicit_text(&FormatIdentity {
+            schema: Some("https://cem.dev/ns/query/xpath/1".to_owned()),
+            ..FormatIdentity::default()
+        }));
+        for content_type in [
+            "APPLICATION/VND.CEM.XPATH; charset=utf-8",
+            "text/xpath",
+            "application/vnd.cem.query+cem-ql",
+            "text/cem-ql",
+            "application/vnd.cem.query-expression+cem-ql",
+            CSS_SELECTOR_CONTENT_TYPE,
+        ] {
+            assert!(query_source_is_explicit_text(&FormatIdentity {
+                content_type: Some(content_type.to_owned()),
+                ..FormatIdentity::default()
+            }));
+        }
     }
 
     #[test]

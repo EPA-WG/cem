@@ -2464,6 +2464,180 @@ describe('Project-owned workbench loading', () => {
         return { source, repository, session, workbench };
     }
 
+    async function queryProvenanceFixture({ frames, stacks, diagnosticFrames, range = { start: 9, len: 11 } } = {}) {
+        const source = '// café\n{p | target}', uri = 'studio://alpha/queries/report.xpath';
+        const repository = await fixture('query-seed', false, true, source, 'queries/report.xpath');
+        const bundle = (await repository.query(request('export-project', { projectId: 'query-seed' }))).value;
+        bundle.project.id = 'alpha'; bundle.project.name = 'alpha'; bundle.project.rootUri = 'studio://alpha/';
+        const query = bundle.project.resources.find(resource => resource.id === 'extra');
+        Object.assign(query, { role: 'query', contentType: 'application/vnd.cem.xpath', schema: 'https://cem.dev/ns/query/xpath/1' });
+        const command = bundle.project.resources.find(resource => resource.id === 'run-cem-ml');
+        const commandBytes = new TextEncoder().encode(JSON.stringify({ $schema: 'https://cem.dev/ns/cli/command/1', schemaVersion: 1,
+            commandSchemaVersion: 1, commonVersion: '0.1.0', binaryName: 'cem-ml',
+            argv: ['query', 'data/cem-ml/basic.cem', '--query-file', 'queries/report.xpath', '--query-content-type', 'application/vnd.cem.xpath', '--output', 'json'] }));
+        Object.assign(command, { schema: 'https://cem.dev/ns/cli/command/1', sha256: await digest(commandBytes) });
+        bundle.contents[command.id] = commandBytes;
+        bundle.project.entries = [{ id: 'query-origin', kind: 'query', name: 'Query origins',
+            resourceIds: ['source', 'extra', command.id], runConfigResourceId: command.id }];
+        await repository.execute(request('import-project', { bundle }));
+        const fine = { source_id: 7, span: { kind: 'Single', ranges: range },
+            transform: { kind: 'ContentTypeTransform', content_type: 'application/vnd.cem.xpath' } };
+        const boundary = { source_id: 7, span: { kind: 'Single', ranges: { start: 0, len: new TextEncoder().encode(source).byteLength } },
+            transform: { kind: 'SourceBoundary', uri } };
+        const originalStacks = stacks ?? [frames ?? [fine, boundary]];
+        const validator = validatorFor(validResult());
+        validator.decodeResourceCommand = vi.fn(() => ({ commandPath: ['query'], options: {}, positionals: { input: 'data/cem-ml/basic.cem' } }));
+        validator.executeAuthoredResourceCommand.mockImplementation(async () => {
+            const outcome = projectionOutcome('query', 'query');
+            outcome.parsed = { commandPath: ['query'], options: { query_content_type: 'application/vnd.cem.xpath' }, positionals: { input: 'data/cem-ml/basic.cem' } };
+            outcome.result.sourceMaps.items = originalStacks.map((frames, index) => ({ sourceMapId: `query-stack-${index}`,
+                sourceMap: { storage: 'inline', value: { frames } } }));
+            outcome.result.sourceMaps.originalCount = originalStacks.length;
+            if (diagnosticFrames) outcome.result.diagnostics.items = [{ severity: 'warning', code: 'query.fixture.origin',
+                message: 'Native query origin fixture', sourceMap: { frames: diagnosticFrames } }];
+            outcome.result.diagnostics.originalCount = diagnosticFrames ? 1 : 0;
+            return outcome;
+        });
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
+        workbenches.push(session);
+        await session.select({ projectId: 'alpha', entryId: 'query-origin', resourceId: 'source' });
+        const base = await createCemStudioSessionWorkbench({ repository, session });
+        const workbench = await createCemStudioNavigation({ workbench: base, repository }); workbenches.push(workbench);
+        await workbench.openEntity('project=alpha&configuration=query-origin'); await workbench.runPersistedOperation();
+        return { source, uri, repository, session, workbench, originalStacks, fine, boundary };
+    }
+
+    it('binds QueryIdentity fine query frames to their explicit source without changing native ranges or indices', async () => {
+        const { source, uri, session, workbench, originalStacks } = await queryProvenanceFixture();
+        expect(workbench.snapshot().projection.provenance[0]).toMatchObject({ sourceId: 7, uri, transform: 'ContentTypeTransform',
+            range: { start: 9, len: 11 }, sourceMapId: 'query-stack-0', frameIndex: 0 });
+        expect(originalStacks[0][0].transform).toEqual({ kind: 'ContentTypeTransform', content_type: 'application/vnd.cem.xpath' });
+        await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().navigationError).toBeUndefined();
+        expect(session.snapshot().selection.resourceId).toBe('extra');
+        expect(workbench.snapshot().path).toBe('queries/report.xpath');
+        const selected = workbench.snapshot().selection;
+        expect(selected).toMatchObject({ byteStart: 9, byteLength: 11 });
+        expect(source.slice(selected.start, selected.end)).toBe('{p | target');
+    });
+
+    it.each(['missing', 'different-id', 'ambiguous'])('refuses QueryIdentity input fallback for a query frame with %s source identity', async reason => {
+        const frame = { source_id: 7, span: { kind: 'Single', ranges: { start: 1, len: 3 } }, transform: { kind: 'Query' } };
+        const named = (source_id, uri) => ({ source_id, span: frame.span, transform: { kind: 'SourceBoundary', uri } });
+        const frames = [frame, ...(reason === 'missing' ? [] : reason === 'different-id'
+            ? [named(8, 'studio://alpha/queries/report.xpath')]
+            : [named(7, 'studio://alpha/queries/report.xpath'), named(7, 'studio://alpha/data/cem-ml/basic.cem')])];
+        const { session, workbench } = await queryProvenanceFixture({ frames });
+        expect(workbench.snapshot().projection.provenance[0]).toMatchObject({ requiresSourceIdentity: true, uri: undefined });
+        expect(() => session.activeWorkbench().navigateProvenance(0)).toThrow(/source identity/i);
+        await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().navigationError.message).toMatch(/source identity/i);
+        expect(session.snapshot().selection.entryId).toBe('query-origin'); expect(workbench.snapshot().resourceId).toBe('source');
+        expect(workbench.snapshot().selection).toBeUndefined();
+    });
+
+    it('keeps QueryIdentity bindings within one source-map stack and native source-ID domain', async () => {
+        const fine = { source_id: 7, span: { kind: 'Single', ranges: { start: 9, len: 11 } }, transform: { kind: 'Query' } };
+        const named = (source_id, uri) => ({ source_id, span: { kind: 'Single', ranges: { start: 0, len: 1 } }, transform: { kind: 'SourceBoundary', uri } });
+        const uri = 'studio://alpha/queries/report.xpath';
+        const { workbench } = await queryProvenanceFixture({ stacks: [[fine, named(7, uri), named(7, uri), named(8, 'studio://else/other.xpath')], [fine]] });
+        const frames = workbench.snapshot().projection.provenance;
+        expect(frames[0]).toMatchObject({ uri, sourceId: 7, range: { start: 9, len: 11 } });
+        expect(frames[4]).toMatchObject({ uri: undefined, requiresSourceIdentity: true, sourceMapId: 'query-stack-1', frameIndex: 0 });
+    });
+
+    it.each(['', 123])('refuses QueryIdentity inheritance across a known source witness with invalid URI %j', async invalidUri => {
+        const fine = { source_id: 7, span: { kind: 'Single', ranges: { start: 9, len: 11 } }, transform: { kind: 'Query' } };
+        const uri = 'studio://alpha/queries/report.xpath';
+        const { session, workbench } = await queryProvenanceFixture({ frames: [fine,
+            { ...fine, transform: { kind: 'SourceBoundary', uri: invalidUri } }, { ...fine, transform: { kind: 'SourceBoundary', uri } }] });
+        expect(workbench.snapshot().projection.provenance[0]).toMatchObject({ uri: undefined, requiresSourceIdentity: true });
+        expect(workbench.snapshot().projection.provenance[2].uri).toBe(uri);
+        await workbench.navigateProvenance(0); expect(workbench.snapshot().navigationError.message).toMatch(/source identity/i);
+        expect(session.snapshot().selection.entryId).toBe('query-origin'); expect(workbench.snapshot().resourceId).toBe('source');
+    });
+
+    it('honors direct QueryIdentity frame URIs even when sibling source IDs are ambiguous', async () => {
+        const uri = 'studio://alpha/queries/report.xpath';
+        const named = uri => ({ source_id: 7, span: { kind: 'Single', ranges: { start: 9, len: 11 } }, transform: { kind: 'SourceBoundary', uri } });
+        const { session, workbench } = await queryProvenanceFixture({ frames: [named(uri), named('studio://other/source.xpath')] });
+        expect(workbench.snapshot().projection.provenance[0].uri).toBe(uri);
+        await workbench.navigateProvenance(0); expect(workbench.snapshot().navigationError).toBeUndefined();
+        expect(session.snapshot().selection.resourceId).toBe('extra');
+    });
+
+    it('binds QueryIdentity diagnostic stacks independently from published source-map references', async () => {
+        const fine = { source_id: 7, span: { kind: 'Single', ranges: { start: 9, len: 11 } }, transform: { kind: 'Query' } };
+        const named = uri => ({ source_id: 7, span: fine.span, transform: { kind: 'SourceBoundary', uri } });
+        const uri = 'studio://alpha/queries/report.xpath';
+        const { session, workbench } = await queryProvenanceFixture({ diagnosticFrames: [fine, named(uri)],
+            stacks: [[fine, named('studio://alpha/data/cem-ml/basic.cem')]] });
+        const frames = workbench.snapshot().projection.provenance;
+        expect(frames[0]).toMatchObject({ uri, diagnosticIndex: 0, frameIndex: 0 });
+        expect(frames[2]).toMatchObject({ uri: 'studio://alpha/data/cem-ml/basic.cem', sourceMapId: 'query-stack-0' });
+        await workbench.navigateProvenance(0); expect(workbench.snapshot().navigationError).toBeUndefined();
+        expect(session.snapshot().selection.resourceId).toBe('extra');
+    });
+
+    it.each(['studio://other/queries/report.xpath', 'cem-query://inline/expression'])('refuses unowned QueryIdentity source %s', async uri => {
+        const fine = { source_id: 7, span: { kind: 'Single', ranges: { start: 1, len: 3 } }, transform: { kind: 'Query' } };
+        const { session, workbench } = await queryProvenanceFixture({ frames: [fine, { ...fine, transform: { kind: 'SourceBoundary', uri } }] });
+        expect(workbench.snapshot().projection.provenance[0].uri).toBe(uri);
+        await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().navigationError.message).toContain('not an available resource');
+        expect(session.snapshot().selection.entryId).toBe('query-origin'); expect(workbench.snapshot().resourceId).toBe('source');
+    });
+
+    it.each(['cancel', 'discard', 'save'])('preserves QueryIdentity draft transitions: %s', async decision => {
+        const { session, workbench } = await queryProvenanceFixture();
+        workbench.updateDraft('retained source draft'); await workbench.navigateProvenance(0);
+        expect(session.snapshot().transition.stage).toBe('source');
+        await workbench.resolveNavigation(decision);
+        if (decision === 'cancel') {
+            expect(session.snapshot().selection.entryId).toBe('query-origin'); expect(workbench.snapshot().resourceId).toBe('source'); expect(workbench.snapshot().draft).toBe('retained source draft');
+        } else {
+            expect(session.snapshot().selection.resourceId).toBe('extra');
+            if (decision === 'discard') expect(workbench.snapshot().selection).toMatchObject({ kind: 'provenance', byteStart: 9, byteLength: 11 });
+            else { expect(workbench.snapshot().selection).toBeUndefined(); expect(workbench.snapshot().navigationError.message).toContain('stale'); }
+        }
+    });
+
+    it('preserves QueryIdentity captured revision refusal', async () => {
+        const { repository, session, workbench } = await queryProvenanceFixture();
+        await repository.execute(request('save-resource', { projectId: 'alpha', resourceId: 'extra', expectedProjectRevision: 1, expectedResourceRevision: 1, content: 'changed' }));
+        await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().navigationError.message).toContain('stale'); expect(session.snapshot().selection.entryId).toBe('query-origin'); expect(workbench.snapshot().resourceId).toBe('source');
+        await workbench.refreshNavigation();
+    });
+
+    it.each([{ start: 100, len: 2 }, { start: 6, len: 1 }, { start: 9, len: -1 }])('preserves QueryIdentity original UTF-8 bounds: %j', async range => {
+        const { workbench } = await queryProvenanceFixture({ range }); await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().selection).toBeUndefined(); expect(workbench.snapshot().navigationError.message).toMatch(/outside|UTF-8/);
+    });
+
+    it('preserves the QueryIdentity row cap while resolving a boundary beyond the presentation limit', async () => {
+        const fine = { source_id: 7, span: { kind: 'Single', ranges: { start: 9, len: 11 } }, transform: { kind: 'Query' } };
+        const uri = 'studio://alpha/queries/report.xpath';
+        const frames = [...Array.from({ length: CEM_STUDIO_LIMITS.structuredRows + 5 }, () => fine), { ...fine, transform: { kind: 'SourceBoundary', uri } }];
+        const { workbench } = await queryProvenanceFixture({ frames });
+        expect(workbench.snapshot().projection.provenance).toHaveLength(CEM_STUDIO_LIMITS.structuredRows);
+        expect(workbench.snapshot().projection.provenance.every(frame => frame.uri === uri)).toBe(true);
+        expect(frames[0].transform).toEqual({ kind: 'Query' });
+    });
+
+    it.each(['parse', 'inspect'])('preserves legacy %s provenance input fallback outside QueryIdentity mode', async kind => {
+        const repository = await repositoryWithSource('legacy source text'); const validator = validatorFor(validResult());
+        const outcome = projectionOutcome(kind, 'ast');
+        outcome.result.sourceMaps.items.push({ sourceMapId: 'legacy-input', sourceMap: { storage: 'inline', value: { frames: [
+            { source_id: 1, span: { kind: 'Single', ranges: { start: 1, len: 3 } }, transform: { kind: 'CemTokenizer' } },
+        ] } } });
+        if (kind === 'parse') validator.parseResource.mockResolvedValue(outcome); else validator.inspectResource.mockResolvedValue(outcome);
+        const workbench = await createWorkbench(repository, validator);
+        if (kind === 'parse') await workbench.parsePersisted('ast'); else await workbench.inspectPersisted('ast');
+        expect(workbench.snapshot().projection.provenance[0].requiresSourceIdentity).toBeUndefined();
+        workbench.navigateProvenance(0); expect(workbench.snapshot().selection).toMatchObject({ byteStart: 1, byteLength: 3 });
+    });
+
     it('preserves ScssOrigin module frames from a real native CSS graph without changing their kind or ranges', async () => {
         const response = await fetch(new URL('../generated/feature-tour/examples/scss-stylesheet.cem-studio.json', import.meta.url));
         expect(response.ok).toBe(true);

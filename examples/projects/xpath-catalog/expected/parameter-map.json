@@ -1,0 +1,191 @@
+[
+  {
+    "entries": [
+      {
+        "key": {
+          "lexicalValue": "minimum-stock",
+          "typeName": "xs:string"
+        },
+        "value": {
+          "items": [
+            {
+              "kind": "atomic",
+              "sourceMap": {
+                "frames": [
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 89,
+                        "start": 43
+                      }
+                    },
+                    "transform": {
+                      "content_type": "application/vnd.cem.xpath",
+                      "kind": "ContentTypeTransform"
+                    }
+                  }
+                ]
+              },
+              "value": {
+                "lexicalValue": "4",
+                "typeName": "xs:integer"
+              }
+            }
+          ],
+          "sequenceType": "xs:integer"
+        }
+      },
+      {
+        "key": {
+          "lexicalValue": "region",
+          "typeName": "xs:string"
+        },
+        "value": {
+          "items": [
+            {
+              "kind": "atomic",
+              "sourceMap": {
+                "frames": [
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 78,
+                        "start": 148
+                      }
+                    },
+                    "transform": {
+                      "content_type": "application/vnd.cem.xpath",
+                      "kind": "ContentTypeTransform"
+                    }
+                  }
+                ]
+              },
+              "value": {
+                "lexicalValue": "west",
+                "typeName": "xs:string"
+              }
+            }
+          ],
+          "sequenceType": "xs:string"
+        }
+      },
+      {
+        "key": {
+          "lexicalValue": "available-skus",
+          "typeName": "xs:string"
+        },
+        "value": {
+          "items": [
+            {
+              "kind": "array",
+              "members": [
+                {
+                  "items": [
+                    {
+                      "kind": "atomic",
+                      "sourceMap": {
+                        "frames": [
+                          {
+                            "source_id": 1,
+                            "span": {
+                              "kind": "Single",
+                              "ranges": {
+                                "len": 12,
+                                "start": 492
+                              }
+                            },
+                            "transform": {
+                              "content_type": "application/vnd.cem.xpath",
+                              "kind": "ContentTypeTransform"
+                            }
+                          }
+                        ]
+                      },
+                      "value": {
+                        "lexicalValue": "tea",
+                        "typeName": "xs:string"
+                      }
+                    }
+                  ],
+                  "sequenceType": "xs:string"
+                },
+                {
+                  "items": [
+                    {
+                      "kind": "atomic",
+                      "sourceMap": {
+                        "frames": [
+                          {
+                            "source_id": 1,
+                            "span": {
+                              "kind": "Single",
+                              "ranges": {
+                                "len": 12,
+                                "start": 492
+                              }
+                            },
+                            "transform": {
+                              "content_type": "application/vnd.cem.xpath",
+                              "kind": "ContentTypeTransform"
+                            }
+                          }
+                        ]
+                      },
+                      "value": {
+                        "lexicalValue": "cocoa",
+                        "typeName": "xs:string"
+                      }
+                    }
+                  ],
+                  "sequenceType": "xs:string"
+                }
+              ],
+              "sourceMap": {
+                "frames": [
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 170,
+                        "start": 340
+                      }
+                    },
+                    "transform": {
+                      "content_type": "application/vnd.cem.xpath",
+                      "kind": "ContentTypeTransform"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "sequenceType": "array(*)"
+        }
+      }
+    ],
+    "kind": "map",
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "len": 276,
+              "start": 236
+            }
+          },
+          "transform": {
+            "content_type": "application/vnd.cem.xpath",
+            "kind": "ContentTypeTransform"
+          }
+        }
+      ]
+    }
+  }
+]

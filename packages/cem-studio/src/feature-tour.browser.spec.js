@@ -40,6 +40,88 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
+    for (const projectId of ['cemql-orders', 'xpath-catalog']) {
+        it(`runs ${projectId} native source operations, typed query results, original ranges and repair`, async () => {
+            const { bundle, definition, decode } = await authoredProject(projectId);
+            const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+            for (const configuration of definition.configurations.filter(item => item.kind !== 'transformation-graph')) {
+                const entry = bundle.project.entries.find(item => item.id === configuration.id);
+                const options = projectCommandOptions(bundle, entry, `${projectId}-commands-copy`);
+                const commandResource = bundle.contents[entry.runConfigResourceId], command = JSON.parse(decode(entry.runConfigResourceId));
+                const run = overrides => command.argv
+                    ? validator.executeAuthoredResourceCommand({ ...options, ...overrides, commandResource })
+                    : validator.validateResource({ ...options, ...overrides });
+                const outcome = await run().catch(error => error);
+                if (!outcome.result) throw new Error(`${projectId}/${configuration.id}: ${outcome.message}`, { cause: outcome });
+                expect(outcome.result.exitCode, JSON.stringify(outcome.result.diagnostics.items)).toBe(configuration.expectedExit ?? 0);
+                if ((configuration.expectedExit ?? 0) === 0) expect(outcome.result.diagnostics.items.filter(item => ['error', 'fatal'].includes(item.severity))).toEqual([]);
+                if (configuration.expectedOutput) expect(outcome.output.text).toBe(decode(configuration.expectedOutput));
+                for (const text of configuration.expectedText ?? []) expect(outcome.output.text).toContain(text);
+                const resultFixture = configuration.expectedNativeItems ?? configuration.expectedNativeNodes ?? configuration.expectedNativeRanges ?? configuration.expectedSemanticContract;
+                if (resultFixture) {
+                    const report = JSON.parse(outcome.output.text), items = report.language === 'xpath' ? report.result.sequence.items : report.result.items;
+                    if (configuration.expectedNativeItems) expect(items).toEqual(JSON.parse(decode(resultFixture)));
+                    if (configuration.expectedSemanticContract) expect(items.map(item => item.value.lexicalValue)).toEqual(JSON.parse(decode(resultFixture)));
+                    const source = bundle.project.resources.find(item => item.id === configuration.source);
+                    if (configuration.expectedNativeNodes) {
+                        expect(items.map(({ kind, nodeId, nodeKind, expandedName, sourceRange }) => ({ kind, nodeId, nodeKind, expandedName, sourceRange }))).toEqual(JSON.parse(decode(resultFixture)));
+                        for (const item of items) expect(item.sourceUri).toBe(`studio://${projectId}-commands-copy/${source.path}`);
+                    }
+                    if (configuration.expectedNativeRanges) expect(items.map(item => {
+                        expect(item.kind).toBe('native'); expect(item.representation).toBe('cem.ql.imported-cem-ast');
+                        const frame = item.sourceMap.frames.find(frame => frame.transform.kind === 'SourceBoundary');
+                        expect(frame.transform.uri).toBe(`studio://${projectId}-commands-copy/${source.path}`); return frame.span.ranges;
+                    })).toEqual(JSON.parse(decode(resultFixture)));
+                    const boundary = outcome.result.sourceMaps.items.flatMap(reference => reference.sourceMap?.value?.frames ?? []).find(frame => frame.transform.kind === 'SourceBoundary');
+                    const querySource = bundle.project.resources.find(item => configuration.dependencies?.includes(item.id) && item.role === 'query');
+                    expect(boundary?.transform.uri).toBe(`studio://${projectId}-commands-copy/${querySource.path}`);
+                    expect(boundary.span.ranges).toEqual({ start: 0, len: bundle.contents[querySource.id].byteLength });
+                }
+                const expected = configuration.expectedValidation;
+                if (expected) {
+                    expect(outcome.result.diagnostics.items.filter(item => item.severity === 'error')).toHaveLength(expected.errorCount);
+                    expect(outcome.result.diagnostics.items.filter(item => item.severity === 'warning')).toHaveLength(expected.warningCount);
+                    if (configuration.repair) {
+                        const source = bundle.project.resources.find(item => item.id === configuration.source);
+                        const diagnostic = outcome.result.diagnostics.items.find(item => item.code === expected.errorCode);
+                        expect(diagnostic).toMatchObject({ severity: 'error', uri: `studio://${projectId}-commands-copy/${source.path}` });
+                        for (const [key, value] of Object.entries(expected.location)) expect(diagnostic[key] ?? null).toBe(value);
+                        const original = decode(configuration.source), repaired = original.replace(configuration.repair.find, configuration.repair.replace);
+                        expect(repaired).not.toBe(original); const fixed = await run({ bytes: new TextEncoder().encode(repaired) });
+                        expect(fixed.result.exitCode).toBe(0); expect(fixed.result.diagnostics.items).toEqual([]); expect(decode(configuration.source)).toBe(original);
+                    }
+                }
+            }
+        }, 60_000);
+    }
+
+    it('builds CEM-QL parameter maps as ordinary JSON tables with independent graph/data revisions', async () => {
+        const projectId = 'cemql-orders', { bundle, definition, decode } = await authoredProject(projectId);
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        for (const configuration of definition.configurations.filter(item => item.kind === 'transformation-graph')) {
+            const entry = bundle.project.entries.find(item => item.id === configuration.id), command = JSON.parse(decode(entry.runConfigResourceId));
+            const run = (edits = {}, id = `${projectId}-build-copy`) => validator.runResourceCommand({ ...projectCommandOptions(bundle, entry, id, edits), argv: command.argv });
+            const baseline = await run(); expect(entry.entryArtifact).toBe(configuration.entryArtifact);
+            expect(baseline.outputs).toHaveLength(Object.keys(configuration.expectedGraphOutputs).length);
+            for (const [path, expected] of Object.entries(configuration.expectedGraphOutputs)) {
+                const bytes = baseline.outputs.find(item => item.uri.endsWith(`/${path}`)).bytes;
+                // Generic-data JSON exports retain an abstract JSON primary;
+                // CLI and worker hosts currently choose different whitespace.
+                expect(JSON.parse(new TextDecoder().decode(bytes))).toEqual(JSON.parse(decode(expected)));
+            }
+            for (const artifact of baseline.result.result.value.value.value.artifacts) expect(artifact.outputSpans ?? []).toEqual([]);
+            const original = decode(configuration.source);
+            if (configuration.id === 'report-ready') {
+                const edited = original.replace('@name=minimum @value=30', '@name=minimum @value=45'); expect(edited).not.toBe(original);
+                const customized = await run({ [configuration.source]: edited }); expect(JSON.parse(customized.output.text)).toHaveLength(1);
+            }
+            for (const [sourceId, invalidId] of configuration.expectedGraphFailures ?? []) await expect(run({ [sourceId]: decode(invalidId) })).rejects.toMatchObject({ result: { exitCode: 1 }, output: { available: false } });
+            const independent = await run({}, `${projectId}-independent`);
+            expect(independent.outputs.every(item => item.uri.startsWith(`studio://${projectId}-independent/`))).toBe(true);
+            expect(independent.output.text).toBe(baseline.output.text); expect(decode(configuration.source)).toBe(original);
+        }
+    }, 60_000);
+
     for (const projectId of ['css-stylesheet', 'css-selector', 'scss-stylesheet']) {
         it(`runs the ${projectId} native configurations with exact outputs and source repair`, async () => {
             const { bundle, definition, decode } = await authoredProject(projectId);

@@ -1,0 +1,320 @@
+{
+  "id": "xpath-catalog",
+  "name": "XPath catalog queries",
+  "version": "1.0.0",
+  "description": "Filter namespaced product data, join suppliers, inspect retained nodes and native map/array results, change owned selection parameters and repair XPath source.",
+  "collections": [
+    "content-types-queries-transformations",
+    "content-types-data"
+  ],
+  "sources": [
+    {
+      "id": "catalog-source",
+      "source": "examples/projects/xpath-catalog/data/catalog.xml",
+      "path": "data/catalog.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "role": "data"
+    },
+    {
+      "id": "filter-query",
+      "source": "examples/projects/xpath-catalog/queries/available.xpath",
+      "path": "queries/available.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "role": "query"
+    },
+    {
+      "id": "node-query",
+      "source": "examples/projects/xpath-catalog/queries/available-nodes.xpath",
+      "path": "queries/available-nodes.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "role": "query"
+    },
+    {
+      "id": "join-query",
+      "source": "examples/projects/xpath-catalog/queries/supplier-join.xpath",
+      "path": "queries/supplier-join.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "role": "query"
+    },
+    {
+      "id": "parameter-query",
+      "source": "examples/projects/xpath-catalog/queries/parameter-report.xpath",
+      "path": "queries/parameter-report.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "role": "query"
+    },
+    {
+      "id": "map-query",
+      "source": "examples/projects/xpath-catalog/queries/parameter-map.xpath",
+      "path": "queries/parameter-map.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "role": "query"
+    },
+    {
+      "id": "invalid-query",
+      "source": "examples/projects/xpath-catalog/failures/unclosed-predicate.xpath",
+      "path": "failures/unclosed-predicate.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "role": "query"
+    },
+    {
+      "id": "filter-summary",
+      "source": "examples/projects/xpath-catalog/expected/available.json",
+      "path": "expected/available.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "node-summary",
+      "source": "examples/projects/xpath-catalog/expected/nodes.json",
+      "path": "expected/nodes.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "join-summary",
+      "source": "examples/projects/xpath-catalog/expected/supplier-join.json",
+      "path": "expected/supplier-join.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "parameter-summary",
+      "source": "examples/projects/xpath-catalog/expected/parameter-report.json",
+      "path": "expected/parameter-report.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "map-summary",
+      "source": "examples/projects/xpath-catalog/expected/parameter-map.json",
+      "path": "expected/parameter-map.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/xpath-catalog/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "validate-filter",
+      "name": "Validate the expanded-name XPath source",
+      "kind": "validation",
+      "source": "filter-query",
+      "description": "Validate standalone XPath grammar, explicit namespace names and supported source policy without running a document query.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.xpath",
+        "--schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "query-filter",
+      "name": "Filter available products",
+      "kind": "query",
+      "source": "catalog-source",
+      "description": "Use namespace-qualified paths, native numeric comparison and a simple map to report products with stock at least four.",
+      "dependencies": [
+        "filter-query",
+        "filter-summary"
+      ],
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--query-file",
+        "$filter-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "filter-summary"
+    },
+    {
+      "id": "query-nodes",
+      "name": "Inspect selected native product nodes",
+      "kind": "query",
+      "source": "catalog-source",
+      "description": "Export genuine retained product nodes with stable native identities, original input URI, original opening-element ranges and source maps.",
+      "dependencies": [
+        "node-query",
+        "node-summary"
+      ],
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--query-file",
+        "$node-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--output",
+        "json"
+      ],
+      "expectedNativeNodes": "node-summary"
+    },
+    {
+      "id": "query-join",
+      "name": "Join products to their suppliers",
+      "kind": "query",
+      "source": "catalog-source",
+      "description": "Evaluate dependent for bindings over the same original XML owner, joining supplier IDs with an explicit static namespace binding.",
+      "dependencies": [
+        "join-query",
+        "join-summary"
+      ],
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--query-file",
+        "$join-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--namespace",
+        "c=urn:example:catalog",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "join-summary"
+    },
+    {
+      "id": "query-parameters",
+      "name": "Apply the saved selection parameter map",
+      "kind": "query",
+      "source": "catalog-source",
+      "description": "Build a native XPath map from the XML selection attributes, then filter and join through native map lookups. These are owned data parameters, not external variable bindings.",
+      "dependencies": [
+        "parameter-query",
+        "parameter-summary"
+      ],
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--query-file",
+        "$parameter-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "parameter-summary"
+    },
+    {
+      "id": "inspect-parameters",
+      "name": "Inspect the native map and array result",
+      "kind": "query",
+      "source": "catalog-source",
+      "description": "Export the typed native map, integer, strings and array with their real query-origin frames. Computed items do not claim arbitrary data-source character lineage.",
+      "dependencies": [
+        "map-query",
+        "map-summary"
+      ],
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--query-file",
+        "$map-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--output",
+        "json"
+      ],
+      "expectedNativeItems": "map-summary",
+      "expectedText": [
+        "\"kind\": \"map\"",
+        "\"kind\": \"array\"",
+        "\"lexicalValue\": \"minimum-stock\""
+      ]
+    },
+    {
+      "id": "repair-query",
+      "name": "Repair the unclosed XPath predicate",
+      "kind": "validation",
+      "source": "invalid-query",
+      "description": "Close the missing predicate delimiter and revalidate the same saved source. Its independent failure copy does not affect normal query inputs.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.xpath",
+        "--schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 2,
+        "warningCount": 0,
+        "errorCode": "cem.xpath.unclosed_delimiter",
+        "location": {
+          "line": 1,
+          "column": 92,
+          "byteOffset": 91
+        }
+      },
+      "repair": {
+        "find": "@stock >= 4\n",
+        "replace": "@stock >= 4]\n"
+      }
+    }
+  ]
+}

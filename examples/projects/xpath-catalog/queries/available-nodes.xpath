@@ -1,0 +1,1 @@
+/Q{urn:example:catalog}catalog/Q{urn:example:catalog}products/Q{urn:example:catalog}product[@stock >= 4]

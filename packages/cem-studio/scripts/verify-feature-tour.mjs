@@ -151,7 +151,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.deepEqual(repair.resourceIds, ['login-invalid', 'command-validation-repair', 'login-schema-package', 'login-schema']);
         assert.ok(new TextDecoder().decode(bundle.contents.readme).includes('demo.login.method_required'));
         assert.deepEqual(JSON.parse(new TextDecoder().decode(bundle.contents[repair.runConfigResourceId])).schemaPackages, [{ uri: 'schemas/login-schema-package.cem' }]);
-    } else if (['json-yaml-report', 'csv-inventory', 'supplier-pipeline', 'xhtml-document', 'html-cem-card', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet'].includes(record.id)) {
+    } else if (['json-yaml-report', 'csv-inventory', 'supplier-pipeline', 'xhtml-document', 'html-cem-card', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog'].includes(record.id)) {
         const definition = authoredDefinitions.find(project => project.id === record.id);
         assert.deepEqual(record.collections, definition.collections);
         assert.equal(record.description, definition.description);
@@ -196,9 +196,29 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                         : report.language === 'xpath' ? report.result.sequence.items.map(item => item.value.lexicalValue) : report.result.items.map(item => item.value);
                     assert.deepEqual(values, expected, `${configuration.id} semantic result drifted`);
                 }
+                if (configuration.expectedNativeItems || configuration.expectedNativeNodes || configuration.expectedNativeRanges) {
+                    const report = JSON.parse(actual);
+                    const items = report.language === 'xpath' ? report.result.sequence.items : report.result.items;
+                    const fixture = id => JSON.parse(new TextDecoder().decode(bundle.contents[id]));
+                    const ownedSource = (uri, source) => typeof uri === 'string'
+                        && new URL(uri, pathToFileURL(`${directory}/`)).href === pathToFileURL(resolve(directory, source.path)).href;
+                    if (configuration.expectedNativeItems) assert.deepEqual(items, fixture(configuration.expectedNativeItems));
+                    if (configuration.expectedNativeNodes) {
+                        assert.deepEqual(items.map(({ kind, nodeId, nodeKind, expandedName, sourceRange }) => ({ kind, nodeId, nodeKind, expandedName, sourceRange })), fixture(configuration.expectedNativeNodes));
+                        for (const item of items) assert.ok(ownedSource(item.sourceUri, bundle.project.resources.find(resource => resource.id === configuration.source)));
+                    }
+                    if (configuration.expectedNativeRanges) {
+                        const source = bundle.project.resources.find(resource => resource.id === configuration.source);
+                        assert.deepEqual(items.map(item => {
+                            assert.equal(item.kind, 'native'); assert.equal(item.representation, 'cem.ql.imported-cem-ast');
+                            const frame = item.sourceMap.frames.find(frame => frame.transform.kind === 'SourceBoundary');
+                            assert.ok(ownedSource(frame.transform.uri, source)); return frame.span.ranges;
+                        }), fixture(configuration.expectedNativeRanges));
+                    }
+                }
                 if (configuration.expectedOutput) {
                     const expected = new TextDecoder().decode(bundle.contents[configuration.expectedOutput]);
-                    const exact = ['csv-inventory', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet'].includes(record.id);
+                    const exact = ['csv-inventory', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog'].includes(record.id);
                     assert.equal(exact ? actual : actual.trim(), exact ? expected : expected.trim(), `${configuration.id} output drifted`);
                 }
                 for (const text of configuration.expectedText ?? []) assert.ok(actual.includes(text), `${configuration.id} misses ${text}`);
@@ -242,9 +262,15 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                         else assert.equal(actual.trim(), expected.trim());
                         if (record.id !== 'supplier-pipeline') assert.deepEqual(bytes, bundle.contents[expectedId], `${path} output fixture drifted`);
                     }
-                    const map = await readJson(resolve(directory, `${entry.entryArtifact}.map`));
-                    assert.ok(map.outputSpans.length > 0);
-                    for (const path of configuration.expectedProvenance ?? ['templates/view.cemt']) assert.ok(JSON.stringify(map).includes(`/${path}`));
+                    for (const path of configuration.expectedUnmappedOutputs ?? []) {
+                        assert.ok(Object.hasOwn(configuration.expectedGraphOutputs, path));
+                        await assert.rejects(readFile(resolve(directory, `${path}.map`)), { code: 'ENOENT' });
+                    }
+                    if (!configuration.expectedUnmappedOutputs?.includes(entry.entryArtifact)) {
+                        const map = await readJson(resolve(directory, `${entry.entryArtifact}.map`));
+                        assert.ok(map.outputSpans.length > 0);
+                        for (const path of configuration.expectedProvenance ?? ['templates/view.cemt']) assert.ok(JSON.stringify(map).includes(`/${path}`));
+                    } else assert.ok(!configuration.expectedProvenance?.length, 'Unmapped JSON output must not claim template/input spans');
                     run(cli, args, directory);
                     for (const [path, expectedId] of Object.entries(configuration.expectedGraphOutputs)) {
                         const bytes = new Uint8Array(await readFile(resolve(directory, path)));
