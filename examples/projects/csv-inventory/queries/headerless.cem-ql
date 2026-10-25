@@ -1,0 +1,7 @@
+// Declared header=absent preserves every row as an array of string cells.
+{
+    let rows = seq:where(dom:descendants(input), fn(node) =>
+        node.kind == "element" && node.namespace == "cem:generic-data" && node.name == "array"
+        && seq:any(node.children, fn(cell) => cell.kind == "element" && cell.name == "string"));
+    seq:map(rows, fn(row) => dom:text(seq:first(row.children)))
+}

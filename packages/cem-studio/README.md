@@ -130,6 +130,12 @@ and selected-record JSON/YAML outputs. Shared source, data-table and artifact
 previews handle the project without application-specific UI code. Syntax failures
 and documented repairs run through the same native configurations as saved copies.
 
+[CSV inventory](../../examples/projects/csv-inventory/README.md) adds a native
+spreadsheet workflow with declared header policy, quoting and row-width
+diagnostics, formatting, filtering and an HTML/JSON report. Header-policy repair
+edits an ordinary saved run configuration. Shared tables, source editors and
+artifact previews handle its outputs; native warning/error severities are retained.
+
 Deterministic search is available through the repository protocol; project-search
 UI belongs to the next milestone below. Storage status uses the CEM shell;
 persistence does not introduce application-local visible controls.
@@ -211,6 +217,7 @@ complete pinned source pack:
 ```sh
 yarn nx run @epa-wg/cem-studio:build:schema-assets
 yarn nx run @epa-wg/cem-studio:verify:schema-assets
+yarn nx run @epa-wg/cem-studio:verify:csv-schema-assets
 ```
 
 The native graph emits `dist/schema-assets/`; serve that directory with the same
@@ -219,6 +226,9 @@ package retain their complete embedded catalogs. Both command and rendering
 factories select the optional binary. Profile caches include the deployment
 input digest and registration scope, so installing either profile preserves the
 other profile's caches. The verifier uses isolated browser storage.
+The focused CSV target verifies shared previews, saved header-policy repair and
+offline rebuilding against the optional deployment. It hashes that deployment
+and writes its own report independently of the full default navigation gate.
 
 Delivery alone does not activate a package. The optional deployment explicitly
 binds `CemSchemaAssetDemandGroup` and supplies trusted, exact built-in replacement

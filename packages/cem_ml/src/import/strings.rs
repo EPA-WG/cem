@@ -77,7 +77,7 @@ pub struct ImportStringRequest<'a> {
     pub profile: ImportStringProfile,
 }
 
-fn parsed<T>((document, diagnostics): (Option<T>, Vec<Diagnostic>)) -> Result<T, ImportFailure> {
+pub(super) fn parsed<T>((document, diagnostics): (Option<T>, Vec<Diagnostic>)) -> Result<T, ImportFailure> {
     if let Some(first) = diagnostics.iter().find(|d| d.severity.is_hard_violation()) {
         let kind = if first.code == "cem.json.resource_limit" {
             ImportFailureKind::Limit
@@ -96,6 +96,14 @@ fn parsed<T>((document, diagnostics): (Option<T>, Vec<Diagnostic>)) -> Result<T,
 
 pub fn import_string(
     request: ImportStringRequest<'_>,
+) -> Result<Arc<RetainedCemTree>, ImportFailure> {
+    let context = runtime_import_context();
+    import_string_with_context(request, context.as_ref())
+}
+
+pub(super) fn import_string_with_context(
+    request: ImportStringRequest<'_>,
+    context: Option<&crate::engine::EngineContext>,
 ) -> Result<Arc<RetainedCemTree>, ImportFailure> {
     use ImportFailureKind::*;
     if request.source.len() > MAX_BYTES {
@@ -151,15 +159,18 @@ pub fn import_string(
                 options.max_values.min(MAX_VALUES),
             ))?)
         }
-        ImportStringProfile::Csv | ImportStringProfile::CsvWithOptions(_) => LoadedInputAstStream::CsvDocument(parsed(
-            csv::csv_document_ast_from_source_bytes(csv::CsvSourceValidationRequest {
-                bytes,
-                source_uri,
-                content_type: Some(if matches!(request.profile,
-                    ImportStringProfile::CsvWithOptions(CsvImportOptions { header: CsvHeader::Present })
-                ) { "text/csv;header=present" } else { "text/csv;header=absent" }),
-            }),
-        )?),
+        ImportStringProfile::Csv | ImportStringProfile::CsvWithOptions(_) => {
+            let content_type = if matches!(request.profile,
+                ImportStringProfile::CsvWithOptions(CsvImportOptions { header: CsvHeader::Present })
+            ) { "text/csv;header=present" } else { "text/csv;header=absent" };
+            if let Some(native) = load_context_data(bytes, content_type, source_uri, context)? {
+                native
+            } else {
+                LoadedInputAstStream::CsvDocument(parsed(csv::csv_document_ast_from_source_bytes(
+                    csv::CsvSourceValidationRequest { bytes, source_uri, content_type: Some(content_type) },
+                ))?)
+            }
+        }
         ImportStringProfile::Yaml => LoadedInputAstStream::YamlDocument(parsed(
             yaml::yaml_document_ast_from_source_bytes(yaml::YamlSourceValidationRequest {
                 bytes,

@@ -1,0 +1,5 @@
+sku,name,quantity,reorder_level
+SKU-A,"Café cups, set",3,5
+SKU-B,"Tea ""travel"" pot",8,4
+SKU-C,Glass jars,0,2
+SKU-D,Serving trays,12,6

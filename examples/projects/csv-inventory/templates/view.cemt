@@ -1,0 +1,30 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+{param @name=input @required=true}
+{template @name=main @visibility=public @cem:whitespace=layout |
+    {cem:variable @name=rows
+        @select='seq:where(seq:flat_map(seq:where(input, fn(root) => root.kind == "element" && root.name == "array" && root.namespace == "cem:generic-data"), fn(root) => root.children), fn(node) => node.kind == "element" && node.namespace == "cem:generic-data" && node.name == "object")'}
+    {element @name=section @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=aria-label @value="Inventory report"}
+        {element @name=h1 @namespace=http://www.w3.org/1999/xhtml | Low-stock inventory}
+        {element @name=p @namespace=http://www.w3.org/1999/xhtml | Rows below their reorder level need replenishment. Invalid counts are flagged for repair.}
+        {element @name=table @namespace=http://www.w3.org/1999/xhtml |
+            {element @name=caption @namespace=http://www.w3.org/1999/xhtml | Inventory requiring attention}
+            {element @name=thead @namespace=http://www.w3.org/1999/xhtml |
+                {element @name=tr @namespace=http://www.w3.org/1999/xhtml |
+                    {cem:for-each @as=heading
+                        @select='("SKU", "Name", "Quantity", "Reorder level", "Status")' |
+                        {element @name=th @namespace=http://www.w3.org/1999/xhtml |
+                            {attribute @name=scope @value=col}
+                            {$ | heading}
+            }   }   }   }
+            {element @name=tbody @namespace=http://www.w3.org/1999/xhtml |
+                {cem:for-each @as=row @select=rows |
+                    {element @name=tr @namespace=http://www.w3.org/1999/xhtml |
+                        {cem:for-each @as=name
+                            @select='("sku", "name", "quantity", "reorder_level", "status")' |
+                            {element @name=td @namespace=http://www.w3.org/1999/xhtml |
+                                {$ | dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == name))}
+}   }   }   }   }   }   }   }

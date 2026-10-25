@@ -21,6 +21,15 @@ are separate capabilities.
   Optional `entryArtifact` sets a named build's project-relative preview output;
   it is copied into the portable configuration, independently of input resources.
 
+Direct source-validation arguments generate a native run configuration. An
+explicit `validate --config $source` instead keeps the versioned command envelope
+and executes the authored run-configuration resource with its declared inputs.
+Editing that resource can repair validation policy, such as CSV's header mode;
+validating the configuration's own source is a separate operation.
+Native invocation resolves its relative input and schema-package addresses from
+the project working directory, preserving declared addresses and effective
+identities in the plan. Resource loading remains limited to admitted resources.
+
 [collections.json](collections.json) defines discovery folders with stable `id`,
 `name`, `description` and optional `parentId`. The **Content types and schemas**
 folder contains Data, Documents and UI, Queries and transformations, and Schema
@@ -59,3 +68,10 @@ data, validate source syntax, format both languages, filter records through nati
 CEM-QL and build HTML/JSON/YAML artifacts. Malformed sources have explicit repair
 steps. Source validation is separate from validating application instances against
 an authored schema; no general JSON Schema instance validator is implied.
+
+The [CSV inventory](csv-inventory/README.md) covers spreadsheet-style imports,
+explicit header policy, quoted fields, native queries and an HTML/JSON inventory
+report. Its configurations preserve native header/row-width warnings and hard
+quoting errors, with repairs in ordinary source or configuration resources.
+Compact CSV formatting preserves interchange values; tabular formatting is a
+review presentation. Inventory number conversion is an explicit template rule.

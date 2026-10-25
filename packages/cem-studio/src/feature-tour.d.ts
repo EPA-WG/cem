@@ -16,7 +16,7 @@ export interface CemStudioFeatureTourSeed {
 
 export type CemStudioParseProjection = 'ast' | 'events';
 export type CemStudioInspectView = 'summary' | 'ast' | 'events' | 'diagnostics' | 'source-offsets' | 'tree';
-export type CemStudioPortableOperation = 'parse' | 'inspect' | 'convert' | 'query' | 'transform' | 'trace';
+export type CemStudioPortableOperation = 'validate' | 'parse' | 'inspect' | 'convert' | 'query' | 'transform' | 'trace';
 
 export interface CemStudioResourceCommandOptions {
     readonly bytes: Uint8Array | ArrayBuffer;
@@ -75,7 +75,7 @@ export interface CemStudioResourceCommandPreview {
 
 export interface CemStudioResourceCommandPreviewOptions extends CemStudioResourceCommandOptions {
     readonly commandResource?: Uint8Array;
-    readonly operation?: CemStudioPortableOperation | 'validate';
+    readonly operation?: CemStudioPortableOperation;
     readonly projection?: CemStudioParseProjection;
     readonly view?: CemStudioInspectView;
     readonly text?: string;

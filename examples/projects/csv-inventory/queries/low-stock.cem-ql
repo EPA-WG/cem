@@ -1,0 +1,14 @@
+// CSV cells remain strings. Compare only canonical non-negative integers.
+{
+    let rows = seq:where(dom:descendants(input), fn(node) =>
+        node.kind == "element" && node.namespace == "cem:generic-data" && node.name == "object");
+    let selected = seq:where(rows, fn(row) => {
+        let quantityText = dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == "quantity"));
+        let reorderText = dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == "reorder_level"));
+        let quantity = num:integer(quantityText);
+        let reorder = num:integer(reorderText);
+        str:concat((quantity,)) == quantityText && quantity >= 0
+            && str:concat((reorder,)) == reorderText && reorder >= 0 && quantity < reorder
+    });
+    seq:map(selected, fn(row) => dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == "sku")))
+}

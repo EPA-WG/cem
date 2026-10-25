@@ -147,7 +147,12 @@ cover native configurations, three report artifacts, intentional syntax failure
 and repair, shared previews, independent saved copies and offline rebuilding.
 Source validation remains distinct from application-schema instance validation.
 
-- [ ] Add a CSV project: importing spreadsheet/inventory data, header and quoting diagnostics, tabular preview and converting selected records into a report. Include an intentional malformed row and a documented repair.
+Completed [CSV inventory, portable validation configurations and owned string imports](archive/todo-completed-csv-inventory-2026-10-24.md)
+cover native header/quote diagnostics and repairs, typed HTML/JSON reports, shared
+previews, independent saved copies and offline saved header-policy execution.
+Both default and optional deployments pass the CSV workflow; standard header-mode
+and row-width diagnostics retain their warning severity.
+
 - [ ] Add XML and XHTML projects: importing a supplier catalog, namespace-aware selection, validation and template-driven HTML output; cross-reference the Supplier-pipeline example rather than duplicate it.
 - [ ] Add a Markdown project: article preview and a folder-based Markdown + CEM-ML site with metadata, relative links, CSS and images; reuse the existing site example and expose its source-to-artifact provenance.
 - [ ] Add HTML and CEM-ML projects: semantic comparison, a minimal reusable declarative component and data-bound HTML generation. Reuse Login where appropriate; keep theme/storage keys independent from Studio and preserve credential privacy policy.
@@ -167,6 +172,8 @@ These remain explicit follow-ups after the functional Studio sample catalog.
 Keep the original admission, provenance, privacy and verification bounds.
 
 - [ ] Repair JSON/YAML source Parse identity and diagnostics: JSON `parse --format ast` currently exits successfully with CEM bare-brace tokenizer errors, while clean `inspect --show ast` presents an imported CEM generic-data tree. Distinguish source-format metadata from projection identity and retain original source start offsets; do not replace native parsing with application JavaScript.
+
+- [ ] Separate constructed XML document URI from source provenance URI. `uri_accessors_share_native_metadata_and_enforce_optional_node_arguments` expects `data:document_uri(data:parse("<r/>", "xml"))` to be empty, while the unchanged pre-CSV-fix runtime returns `data:parse/source`. Preserve original source locations and the existing assertion when repairing the accessor.
 
 - [ ] Exclude generated schema-asset WASM glue from Studio's authored-source lint scope. The broad package lint currently reports 238 errors and five warnings in generated `cem_ql.js` / `cem_ql_factory.js`; linting Studio `src` and `scripts` passes. Preserve lint rules for authored code.
 

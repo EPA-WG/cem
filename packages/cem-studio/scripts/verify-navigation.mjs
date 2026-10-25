@@ -5,9 +5,13 @@ import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 import { verifyMarkdownSite } from './verify-markdown-site.mjs';
 import { verifyDataProjects } from './verify-data-projects.mjs';
+import { verifyCsvInventory } from './verify-csv-inventory.mjs';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-const server = await startStaticServer(resolve(projectRoot, 'dist/static'));
+const csvOnly = process.argv.includes('--csv-only');
+const schemaAssets = process.argv.includes('--schema-assets');
+if (schemaAssets && !csvOnly) throw new Error('The optional profile replay requires --csv-only.');
+const server = await startStaticServer(resolve(projectRoot, schemaAssets ? 'dist/schema-assets' : 'dist/static'));
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 const page = await context.newPage();
@@ -30,6 +34,18 @@ const submit = async (name, action) => { if (name) await page.getByRole('dialog'
 const heading = async () => assert.equal(await page.getByRole('heading', { level: 1 }).innerText(), await page.title());
 
 try {
+    if (csvOnly) {
+        const csvInventory = await verifyCsvInventory({ page, context, url: server.url });
+        assert.deepEqual(errors, []);
+        const packages = await page.evaluate(() => globalThis.__cemStudioApplication.packageStatus());
+        if (schemaAssets) {
+            assert.equal(packages.state, 'idle'); assert.equal(packages.demandCount, 1); assert.ok(packages.runtimeCount >= 4);
+        }
+        const report = resolve(projectRoot, `../../dist/reports/cem-studio/csv-inventory-${schemaAssets ? 'schema-assets' : 'default'}.json`);
+        await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
+        await writeFile(report, `${JSON.stringify({ schemaVersion: 1, deploymentProfile: schemaAssets ? 'schema-assets' : 'default', csvInventory, packages }, null, 2)}\n`);
+        console.log(`Studio CSV inventory: ${schemaAssets ? 'optional schema-assets' : 'default'} deployment source policies, saved edits and offline reports passed.`);
+    } else {
     await page.goto(server.url); await ready();
     assert.equal((await state()).selection.key, 'samples'); await heading();
     const categories = ['Data', 'Documents and UI', 'Queries and transformations', 'Schema authoring'];
@@ -255,10 +271,12 @@ try {
     await context.setOffline(false);
     const markdownSite = await verifyMarkdownSite({ page, context, url: server.url });
     const dataProjects = await verifyDataProjects({ page, context, url: server.url });
+    const csvInventory = await verifyCsvInventory({ page, context, url: server.url });
     assert.deepEqual(errors, []);
     await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
-    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
-    console.log('Studio navigation: nested catalog, contextual/legacy URLs, readonly originals, independent clones, drafts, themes, responsive layout and offline catalog/Supplier/Markdown site/JSON and YAML report builds passed.');
+    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, csvInventory, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
+    console.log('Studio navigation: nested catalog, contextual/legacy URLs, readonly originals, independent clones, drafts, themes, responsive layout and offline catalog/Supplier/Markdown site/JSON and YAML report/CSV inventory builds passed.');
+    }
 } catch (error) {
     const failure = await state().catch(() => ({}));
     console.error('Navigation failure:', JSON.stringify({ selection: failure.selection, title: failure.title, error: failure.error, status: failure.status }));

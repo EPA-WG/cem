@@ -1,0 +1,515 @@
+{
+  "id": "csv-inventory",
+  "name": "CSV inventory",
+  "version": "1.0.0",
+  "description": "Inspect quoted spreadsheet cells and declared headers, diagnose and repair CSV source, and report low stock with native typed counts and HTML/JSON artifacts.",
+  "collections": [
+    "content-types-data",
+    "content-types-queries-transformations"
+  ],
+  "sources": [
+    {
+      "id": "inventory-source",
+      "source": "examples/projects/csv-inventory/data/inventory.csv",
+      "path": "data/inventory.csv",
+      "contentType": "text/csv;charset=utf-8;header=present",
+      "schema": "https://cem.dev/ns/data/csv/1",
+      "role": "data"
+    },
+    {
+      "id": "headerless-source",
+      "source": "examples/projects/csv-inventory/data/inventory-headerless.csv",
+      "path": "data/inventory-headerless.csv",
+      "contentType": "text/csv;charset=utf-8;header=absent",
+      "schema": "https://cem.dev/ns/data/csv/1",
+      "role": "data"
+    },
+    {
+      "id": "low-stock-query",
+      "source": "examples/projects/csv-inventory/queries/low-stock.cem-ql",
+      "path": "queries/low-stock.cem-ql",
+      "contentType": "application/vnd.cem.query-expression+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1#expression",
+      "role": "query"
+    },
+    {
+      "id": "headerless-query",
+      "source": "examples/projects/csv-inventory/queries/headerless.cem-ql",
+      "path": "queries/headerless.cem-ql",
+      "contentType": "application/vnd.cem.query-expression+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1#expression",
+      "role": "query"
+    },
+    {
+      "id": "inventory-model",
+      "source": "examples/projects/csv-inventory/templates/model.cemt",
+      "path": "templates/model.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "inventory-view",
+      "source": "examples/projects/csv-inventory/templates/view.cemt",
+      "path": "templates/view.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "inventory-graph",
+      "source": "examples/projects/csv-inventory/graphs/inventory.cem",
+      "path": "graphs/inventory.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "invalid-header-policy",
+      "source": "examples/projects/csv-inventory/config/header-policy.json",
+      "path": "config/header-policy.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "role": "run-config"
+    },
+    {
+      "id": "unclosed-quote",
+      "source": "examples/projects/csv-inventory/data/unclosed-quote.csv",
+      "path": "data/unclosed-quote.csv",
+      "contentType": "text/csv;charset=utf-8;header=present",
+      "schema": "https://cem.dev/ns/data/csv/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-escape",
+      "source": "examples/projects/csv-inventory/data/invalid-escape.csv",
+      "path": "data/invalid-escape.csv",
+      "contentType": "text/csv;charset=utf-8;header=present",
+      "schema": "https://cem.dev/ns/data/csv/1",
+      "role": "data"
+    },
+    {
+      "id": "ragged-rows",
+      "source": "examples/projects/csv-inventory/data/ragged-rows.csv",
+      "path": "data/ragged-rows.csv",
+      "contentType": "text/csv;charset=utf-8;header=present",
+      "schema": "https://cem.dev/ns/data/csv/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-html",
+      "source": "examples/projects/csv-inventory/expected/low-stock.html",
+      "path": "expected/low-stock.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-json",
+      "source": "examples/projects/csv-inventory/expected/low-stock.json",
+      "path": "expected/low-stock.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-selection",
+      "source": "examples/projects/csv-inventory/expected/selection.json",
+      "path": "expected/selection.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-headerless",
+      "source": "examples/projects/csv-inventory/expected/headerless.json",
+      "path": "expected/headerless.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-compact",
+      "source": "examples/projects/csv-inventory/expected/compact.csv",
+      "path": "expected/compact.csv",
+      "contentType": "text/csv;charset=utf-8;header=present",
+      "schema": "https://cem.dev/ns/data/csv/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-tabular",
+      "source": "examples/projects/csv-inventory/expected/tabular.csv",
+      "path": "expected/tabular.csv",
+      "contentType": "text/csv;charset=utf-8;header=present",
+      "schema": "https://cem.dev/ns/data/csv/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/csv-inventory/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "inspect-csv",
+      "name": "Inspect imported inventory tree",
+      "kind": "inspection",
+      "source": "inventory-source",
+      "description": "Inspect retained string cells, header-derived mapping keys and original source start offsets.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "text/csv;charset=utf-8;header=present",
+        "--schema",
+        "https://cem.dev/ns/data/csv/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@namespace=cem:generic-data",
+        "@value=SKU-A @byte-offset=32",
+        "@value=\"Caf\u00e9 cups, set\" @byte-offset=38",
+        "@name=string @byte-offset=56"
+      ]
+    },
+    {
+      "id": "validate-csv",
+      "name": "Validate inventory CSV source",
+      "kind": "validation",
+      "source": "inventory-source",
+      "description": "Validate CSV source syntax and declared dialect, separately from inventory count rules.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "text/csv;charset=utf-8;header=present",
+        "--schema",
+        "https://cem.dev/ns/data/csv/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "format-csv",
+      "name": "Format CSV for interchange",
+      "kind": "conversion",
+      "source": "inventory-source",
+      "dependencies": [
+        "expected-compact"
+      ],
+      "description": "Native compact CSV preserves exact cell values and applies required quoting; LF is the default record separator.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "text/csv;charset=utf-8;header=present",
+        "--schema",
+        "https://cem.dev/ns/data/csv/1",
+        "--to-content-type",
+        "text/csv;charset=utf-8;header=present",
+        "--to-schema",
+        "https://cem.dev/ns/data/csv/1",
+        "--cemt-formatter-profile",
+        "compact",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedOutput": "expected-compact"
+    },
+    {
+      "id": "review-csv",
+      "name": "Review aligned CSV",
+      "kind": "conversion",
+      "source": "inventory-source",
+      "dependencies": [
+        "expected-tabular"
+      ],
+      "description": "Native tabular formatting is a visual review presentation, not an import-safe interchange contract.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "text/csv;charset=utf-8;header=present",
+        "--schema",
+        "https://cem.dev/ns/data/csv/1",
+        "--to-content-type",
+        "text/csv;charset=utf-8;header=present",
+        "--to-schema",
+        "https://cem.dev/ns/data/csv/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedOutput": "expected-tabular"
+    },
+    {
+      "id": "query-low-stock",
+      "name": "Select low-stock SKUs",
+      "kind": "query",
+      "source": "inventory-source",
+      "dependencies": [
+        "low-stock-query",
+        "expected-selection"
+      ],
+      "description": "Compare canonical non-negative integer counts explicitly after native string-cell import; select SKU-A and SKU-C.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "text/csv;charset=utf-8;header=present",
+        "--schema",
+        "https://cem.dev/ns/data/csv/1",
+        "--query-file",
+        "$low-stock-query",
+        "--query-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "expected-selection"
+    },
+    {
+      "id": "inspect-headerless",
+      "name": "Inspect declared headerless rows",
+      "kind": "inspection",
+      "source": "headerless-source",
+      "description": "Declared header=absent keeps every record as an array of string cells instead of deriving object keys from its first row.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "text/csv;charset=utf-8;header=absent",
+        "--schema",
+        "https://cem.dev/ns/data/csv/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@namespace=cem:generic-data",
+        "@name=array",
+        "@value=SKU-A @byte-offset=0",
+        "@value=\"Caf\u00e9 cups, set\" @byte-offset=6"
+      ]
+    },
+    {
+      "id": "query-headerless",
+      "name": "Read headerless SKU cells",
+      "kind": "query",
+      "source": "headerless-source",
+      "dependencies": [
+        "headerless-query",
+        "expected-headerless"
+      ],
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "text/csv;charset=utf-8;header=absent",
+        "--schema",
+        "https://cem.dev/ns/data/csv/1",
+        "--query-file",
+        "$headerless-query",
+        "--query-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "expected-headerless"
+    },
+    {
+      "id": "repair-header-policy",
+      "name": "Repair declared header policy",
+      "kind": "validation",
+      "source": "invalid-header-policy",
+      "dependencies": [
+        "inventory-source"
+      ],
+      "description": "Execute the authored native validation configuration. header=maybe is an advisory metadata warning; edit this config to header=present and run again.",
+      "argv": [
+        "validate",
+        "--config",
+        "$source",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 1,
+        "warningCode": "cem.csv.invalid_header_parameter",
+        "source": "inventory-source",
+        "location": {
+          "line": null,
+          "column": null,
+          "byteOffset": null
+        }
+      },
+      "repair": {
+        "find": "header=maybe",
+        "replace": "header=present"
+      }
+    },
+    {
+      "id": "repair-unclosed-quote",
+      "name": "Repair an unclosed quoted field",
+      "kind": "validation",
+      "source": "unclosed-quote",
+      "description": "Intentional native CSV syntax error; README documents the exact source repair.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "text/csv;charset=utf-8;header=present",
+        "--schema",
+        "https://cem.dev/ns/data/csv/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "location": {
+          "line": 2,
+          "column": 21,
+          "byteOffset": 52
+        },
+        "errorCode": "cem.csv.unclosed_quote"
+      },
+      "repair": {
+        "find": "3,\"5",
+        "replace": "3,\"5\""
+      }
+    },
+    {
+      "id": "repair-invalid-escape",
+      "name": "Repair an unescaped field quote",
+      "kind": "validation",
+      "source": "invalid-escape",
+      "description": "Intentional native CSV syntax error; README documents the exact source repair.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "text/csv;charset=utf-8;header=present",
+        "--schema",
+        "https://cem.dev/ns/data/csv/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "location": {
+          "line": 2,
+          "column": 11,
+          "byteOffset": 42
+        },
+        "errorCode": "cem.csv.invalid_quote_escape"
+      },
+      "repair": {
+        "find": "Tea \"travel pot",
+        "replace": "\"Tea \"\"travel\"\" pot\""
+      }
+    },
+    {
+      "id": "repair-ragged-rows",
+      "name": "Repair an incomplete inventory row",
+      "kind": "validation",
+      "source": "ragged-rows",
+      "description": "Native CSV reports row-width drift as an advisory warning, not a syntax failure; repair the missing cell in the ordinary source editor.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "text/csv;charset=utf-8;header=present",
+        "--schema",
+        "https://cem.dev/ns/data/csv/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 0,
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 1,
+        "location": {
+          "line": 2,
+          "column": null,
+          "byteOffset": 32
+        },
+        "warningCode": "cem.csv.inconsistent_field_count"
+      },
+      "repair": {
+        "find": "SKU-A,\"Caf\u00e9 cups, set\",3",
+        "replace": "SKU-A,\"Caf\u00e9 cups, set\",3,5"
+      }
+    },
+    {
+      "id": "build-inventory",
+      "name": "Build low-stock inventory",
+      "kind": "transformation-graph",
+      "source": "inventory-graph",
+      "dependencies": [
+        "inventory-source",
+        "inventory-model",
+        "inventory-view",
+        "expected-html",
+        "expected-json"
+      ],
+      "description": "Publish an HTML table and typed JSON records for low stock. Flag invalid count text explicitly rather than silently coercing it. Select generated/low-stock.html to preview.",
+      "entryArtifact": "generated/low-stock.html",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedGraphOutputs": {
+        "generated/low-stock.html": "expected-html",
+        "generated/low-stock.json": "expected-json"
+      },
+      "expectedGraphFailures": [
+        [
+          "inventory-source",
+          "unclosed-quote"
+        ],
+        [
+          "inventory-source",
+          "invalid-escape"
+        ]
+      ]
+    }
+  ]
+}

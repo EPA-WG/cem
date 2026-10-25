@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    {
+      "uri": "data/inventory.csv",
+      "rootScope": {
+        "defaultContentType": "text/csv;charset=utf-8;header=maybe",
+        "schema": "https://cem.dev/ns/data/csv/1"
+      }
+    }
+  ],
+  "outputs": [],
+  "schemaPackages": [],
+  "resolvers": [],
+  "scheduler": {}
+}

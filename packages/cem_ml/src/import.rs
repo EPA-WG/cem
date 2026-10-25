@@ -31,6 +31,8 @@ pub use lexical_scopes::{
 pub(crate) use css::annotate_retained_css_roles;
 mod strings;
 mod string_options;
+#[cfg(test)]
+mod tests;
 pub use string_options::{resolve_string_import, ImportStringConfig, ImportStringOption};
 pub use crate::validation::json_xml::{JsonXmlDuplicates, JsonXmlProjectionOptions};
 pub use strings::{
@@ -464,13 +466,6 @@ fn checked<T>((document, diagnostics): (Option<T>, Vec<Diagnostic>)) -> Result<T
     document.ok_or_else(|| "No document was produced.".into())
 }
 
-fn parse(source: &str, format: &str, source_uri: &str) -> Result<LoadedInputAstStream, String> {
-    if source.len() > MAX_BYTES {
-        return Err("Source exceeds the 32 KiB import limit.".into());
-    }
-    parse_bytes(source.as_bytes(), format, source_uri, MAX_VALUES)
-}
-
 fn parse_bytes(
     bytes: &[u8],
     content_type: &str,
@@ -570,11 +565,65 @@ pub fn import_data_bytes(
     projection: &str,
     source_uri: &str,
 ) -> Result<Arc<RetainedCemTree>, String> {
-    #[cfg(all(target_arch = "wasm32", feature = "schema-asset-packs"))]
-    let context = crate::api::wasm::schema_asset_context();
-    #[cfg(not(all(target_arch = "wasm32", feature = "schema-asset-packs")))]
-    let context = None;
+    let context = runtime_import_context();
     import_data_bytes_with_context(bytes, content_type, projection, source_uri, context.as_ref())
+}
+
+fn runtime_import_context() -> Option<crate::engine::EngineContext> {
+    #[cfg(all(target_arch = "wasm32", feature = "schema-asset-packs"))]
+    { crate::api::wasm::schema_asset_context() }
+    #[cfg(not(all(target_arch = "wasm32", feature = "schema-asset-packs")))]
+    { None }
+}
+
+/// Select an explicitly owned parser before any compatibility decoder. All
+/// byte and string boundaries share this decision; callers retain their own
+/// size, value and projection limits.
+fn load_context_data(
+    bytes: &[u8],
+    content_type: &str,
+    source_uri: &str,
+    context: Option<&crate::engine::EngineContext>,
+) -> Result<Option<LoadedInputAstStream>, ImportFailure> {
+    #[cfg(feature = "external-schema-assets")]
+    if let Some(message) = crate::schema::package_sources::missing_external_source(
+        context, None, Some(content_type),
+    ) {
+        return Err(ImportFailure {
+            kind: ImportFailureKind::Unsupported,
+            message: message.clone(),
+            diagnostics: vec![Diagnostic {
+                uri: Some(source_uri.into()),
+                code: "cem.schema_asset.missing".into(),
+                severity: crate::diagnostics::Severity::Error,
+                message,
+                ..Default::default()
+            }],
+        });
+    }
+    let Some(context) = context else { return Ok(None) };
+    let model = context.schema_document_models.resolve_for_identity(
+        None, Some(content_type), Some(&context.schema_registry),
+    ).or_else(|| context.schema_document_models.inspect_for_identity(
+        None, Some(content_type), Some(&context.schema_registry),
+    ));
+    if !model.is_some_and(|model| model.parser_contract.is_some()
+        || crate::schema::parser_contracts::requires_parser_contract(&model.schema_uri)) {
+        return Ok(None);
+    }
+    let loaded = crate::lifecycle::LifecycleRegistry::with_builtin_adapters().load(
+        &crate::engine::EngineInput {
+            uri: source_uri.into(), bytes: bytes.to_vec(), from_format: None,
+            identity: Some(crate::engine::FormatIdentity { content_type: Some(content_type.into()), ..Default::default() }),
+            root_scope: Default::default(),
+        }, context,
+    );
+    strings::parsed((loaded.ast_stream, loaded.diagnostics)).map(Some).map_err(|mut failure| {
+        if let Some(diagnostic) = failure.diagnostics.iter().find(|d| d.severity.is_hard_violation()) {
+            failure.message = format!("{}: {}", diagnostic.code, diagnostic.message);
+        }
+        failure
+    })
 }
 
 /// The same import boundary with an explicitly owned package context. A selected
@@ -629,28 +678,9 @@ pub fn import_data_bytes_with_context(
         return RetainedCemTree::new(builder.ast, source_uri, text, builder.semantics, None);
     }
     let (_, normalized) = import_content_type(content_type)?;
-    #[cfg(feature = "external-schema-assets")]
-    if let Some(message) = crate::schema::package_sources::missing_external_source(context, None, Some(&normalized)) {
-        return Err(message);
-    }
-    let model = context.and_then(|ctx| ctx.schema_document_models.resolve_for_identity(
-        None, Some(&normalized), Some(&ctx.schema_registry),
-    ).or_else(|| ctx.schema_document_models.inspect_for_identity(
-        None, Some(&normalized), Some(&ctx.schema_registry),
-    )));
-    let native = if model.is_some_and(|model| model.parser_contract.is_some()
-        || crate::schema::parser_contracts::requires_parser_contract(&model.schema_uri)) {
-        let loaded = crate::lifecycle::LifecycleRegistry::with_builtin_adapters().load(
-            &crate::engine::EngineInput {
-                uri: source_uri.into(), bytes: bytes.to_vec(), from_format: None,
-                identity: Some(crate::engine::FormatIdentity { content_type: Some(normalized.clone()), ..Default::default() }),
-                root_scope: Default::default(),
-            }, context.unwrap(),
-        );
-        if let Some(diagnostic) = loaded.diagnostics.iter().find(|d| d.severity.is_hard_violation()) {
-            return Err(format!("{}: {}", diagnostic.code, diagnostic.message));
-        }
-        loaded.ast_stream.ok_or("Owned native parser did not produce an AST")?
+    let native = if let Some(native) = load_context_data(bytes, &normalized, source_uri, context)
+        .map_err(|failure| failure.to_string())? {
+        native
     } else { parse_bytes(bytes, content_type, source_uri, MAX_DOCUMENT_VALUES)? };
     let native = Arc::new(native);
     project_native(
@@ -676,7 +706,26 @@ pub fn import_data(
     projection: &str,
     source_uri: &str,
 ) -> Result<Arc<RetainedCemTree>, String> {
-    let native = Arc::new(parse(source, format, source_uri)?);
+    let context = runtime_import_context();
+    import_data_with_context(source, format, projection, source_uri, context.as_ref())
+}
+
+fn import_data_with_context(
+    source: &str,
+    format: &str,
+    projection: &str,
+    source_uri: &str,
+    context: Option<&crate::engine::EngineContext>,
+) -> Result<Arc<RetainedCemTree>, String> {
+    if source.len() > MAX_BYTES {
+        return Err("Source exceeds the 32 KiB import limit.".into());
+    }
+    let (_, normalized) = import_content_type(format)?;
+    let native = if let Some(native) = load_context_data(source.as_bytes(), &normalized, source_uri, context)
+        .map_err(|failure| failure.to_string())? {
+        native
+    } else { parse_bytes(source.as_bytes(), format, source_uri, MAX_VALUES)? };
+    let native = Arc::new(native);
     project_native(
         native, source, projection, source_uri, format, source.len(),
         Some(source_fingerprint(

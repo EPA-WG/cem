@@ -394,7 +394,7 @@ fn command_run_plan(
     let config_base_uri = option_string(parsed, "config")
         .filter(|_| command != "transform")
         .map(|uri| resolve_host_uri(&environment.cwd, &uri));
-    let plan = run_config::parse_normalized_run_plan(NormalizedRunPlanRequest {
+    let mut plan = run_config::parse_normalized_run_plan(NormalizedRunPlanRequest {
         config_bytes,
         config_identity: FormatIdentity {
             content_type: Some("application/json".to_owned()),
@@ -429,6 +429,24 @@ fn command_run_plan(
             message: diagnostic.message.clone(),
             exit_code: EXIT_USAGE,
         });
+    }
+
+    // Run-config input/package addresses are authored relative to the host
+    // working directory. Bind only their runtime addresses here; the common
+    // filesystem normalizer and captured authored configuration stay unchanged.
+    for input in &mut plan.inputs {
+        let uri = resolve_host_uri(
+            &environment.cwd,
+            input.resolved_uri.as_deref().unwrap_or(&input.declared_uri),
+        );
+        input.resolved_uri = (uri != input.declared_uri).then_some(uri);
+    }
+    for package in &mut plan.schema_packages {
+        let uri = resolve_host_uri(
+            &environment.cwd,
+            package.resolved_uri.as_deref().unwrap_or(&package.declared_uri),
+        );
+        package.resolved_uri = (uri != package.declared_uri).then_some(uri);
     }
 
     let report_routes = report_routes(parsed, environment, command)?;
@@ -1710,6 +1728,190 @@ mod tests {
         );
     }
 
+    #[test]
+    fn authored_config_resources_bind_to_invocation_cwd_and_keep_declared_policy() {
+        let config_bytes = br#"{
+            "inputs": [{"uri": "data/../data/inventory.csv", "rootScope": {
+                "defaultContentType": "text/csv;header=maybe",
+                "schema": "https://cem.dev/ns/data/csv/1",
+                "baseUri": "memory://owned/input-base/",
+                "moduleMap": "memory://owned/input.module-map.json"
+            }}],
+            "schemaPackages": [{"uri": "schemas/teaching.cem", "rootScope": {
+                "baseUri": "memory://owned/package-base/"
+            }}]
+        }"#;
+        let mut command = parsed("validate");
+        command.options.insert(
+            "config".into(),
+            ParsedCommandValueV1::String("config/check.json".into()),
+        );
+        for cwd in [
+            "studio://project-one/",
+            "studio://project-two",
+            "memory://samples/work/",
+            "/workspace",
+        ] {
+            let mut environment = environment();
+            environment.cwd = cwd.into();
+            let config_uri = resolve_host_uri(cwd, "config/check.json");
+            let input_uri = resolve_host_uri(cwd, "data/inventory.csv");
+            let package_uri = resolve_host_uri(cwd, "schemas/teaching.cem");
+            let mut resources = CommandUriMapV1::from(BTreeMap::from([(
+                config_uri.clone(),
+                VirtualResourceV1 {
+                    bytes: config_bytes.to_vec(),
+                    identity: None,
+                },
+            )]));
+            let first = build_command_invocation_v1(
+                command.clone(),
+                environment.clone(),
+                resources.clone(),
+            );
+            let CommandInvocationBuildResponseV1::NeedsResources { requirements } = first else {
+                panic!("expected explicit config-owned resource requirements: {first:?}");
+            };
+            assert_eq!(requirements.len(), 3, "{cwd}: {requirements:?}");
+            assert!(requirements
+                .iter()
+                .any(|requirement| requirement.uri == input_uri));
+            assert!(requirements
+                .iter()
+                .any(|requirement| requirement.uri == package_uri));
+            let input = requirements
+                .iter()
+                .find(|requirement| requirement.uri == input_uri)
+                .unwrap();
+            assert_eq!(
+                input
+                    .identity
+                    .as_ref()
+                    .and_then(|identity| identity.content_type.as_deref()),
+                Some("text/csv;header=maybe")
+            );
+            for requirement in requirements {
+                resources.insert(
+                    requirement.uri,
+                    VirtualResourceV1 {
+                        bytes: b"sku,quantity\nSKU-A,3\n".to_vec(),
+                        identity: requirement.identity,
+                    },
+                );
+            }
+            let ready = build_command_invocation_v1(command.clone(), environment, resources);
+            let CommandInvocationBuildResponseV1::Ready { invocation } = ready else {
+                panic!("expected project-owned invocation: {ready:?}");
+            };
+            let plan = invocation.request.run_plan.plan().unwrap();
+            assert_eq!(plan.inputs[0].declared_uri, "data/../data/inventory.csv");
+            assert_eq!(
+                plan.inputs[0].resolved_uri.as_deref(),
+                Some(input_uri.as_str())
+            );
+            assert_eq!(plan.schema_packages[0].declared_uri, "schemas/teaching.cem");
+            assert_eq!(
+                plan.schema_packages[0].resolved_uri.as_deref(),
+                Some(package_uri.as_str())
+            );
+            assert_eq!(
+                plan.inputs[0].identity.content_type.as_deref(),
+                Some("text/csv;header=maybe")
+            );
+            assert_eq!(plan.inputs[0].identity, plan.inputs[0].root_scope.identity);
+            assert_eq!(
+                plan.inputs[0].identity.base_uri.as_deref(),
+                Some("memory://owned/input-base/")
+            );
+            assert_eq!(
+                plan.schema_packages[0].identity.base_uri.as_deref(),
+                Some("memory://owned/package-base/")
+            );
+            let module_map = plan.inputs[0].root_scope.module_map.as_ref().unwrap();
+            assert_eq!(
+                module_map.declared_uri,
+                "memory://owned/input.module-map.json"
+            );
+            assert!(module_map.resolved_uri.is_none());
+            assert_eq!(
+                plan.effective_config.inputs[0].uri,
+                "data/../data/inventory.csv"
+            );
+            assert_eq!(
+                plan.effective_config.schema_packages[0].uri,
+                "schemas/teaching.cem"
+            );
+            assert_eq!(
+                plan.effective_config.inputs[0]
+                    .root_scope
+                    .default_content_type
+                    .as_deref(),
+                Some("text/csv;header=maybe")
+            );
+            assert!(plan.authored_sources.iter().any(|source| {
+                source.declared_uri.as_deref() == Some(config_uri.as_str())
+                    && source.identity.base_uri.as_deref() == Some(config_uri.as_str())
+            }));
+            assert_eq!(
+                invocation.request.resources.get(&config_uri).unwrap().bytes,
+                config_bytes
+            );
+            assert_eq!(invocation.request.resources.len(), 4);
+        }
+    }
+
+    #[test]
+    fn authored_config_explicit_resource_addresses_keep_their_own_roots() {
+        let mut command = parsed("validate");
+        command.options.insert(
+            "config".into(),
+            ParsedCommandValueV1::String("config/check.json".into()),
+        );
+        for (declared, expected) in [
+            (
+                "file:///shared/inventory.csv",
+                "file:///shared/inventory.csv",
+            ),
+            (
+                "/shared/../shared/inventory.csv",
+                "file:///shared/inventory.csv",
+            ),
+            (
+                "studio://other/inventory.csv",
+                "studio://other/inventory.csv",
+            ),
+            (
+                "memory://samples/inventory.csv",
+                "memory://samples/inventory.csv",
+            ),
+        ] {
+            let mut environment = environment();
+            environment.cwd = "studio://project-one/".into();
+            let config_uri = "studio://project-one/config/check.json";
+            let config_bytes = serde_json::to_vec(&serde_json::json!({
+                "inputs": [{ "uri": declared, "rootScope": { "defaultContentType": "text/csv;header=present" } }],
+                "schemaPackages": [{ "uri": declared }]
+            })).unwrap();
+            let resources = CommandUriMapV1::from(BTreeMap::from([(
+                config_uri.to_owned(),
+                VirtualResourceV1 {
+                    bytes: config_bytes,
+                    identity: None,
+                },
+            )]));
+            let response = build_command_invocation_v1(command.clone(), environment, resources);
+            let CommandInvocationBuildResponseV1::NeedsResources { requirements } = response else {
+                panic!("missing external address must remain an explicit read requirement: {response:?}");
+            };
+            assert!(
+                requirements
+                    .iter()
+                    .all(|requirement| requirement.uri == expected),
+                "{declared}: {requirements:?}"
+            );
+            assert!(!requirements.is_empty());
+        }
+    }
     #[test]
     fn parse_lowering_requests_then_owns_the_canonical_snapshot() {
         let mut command = parsed("parse");

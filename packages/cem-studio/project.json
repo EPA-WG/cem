@@ -820,6 +820,7 @@
                 "{projectRoot}/scripts/verify-navigation.mjs",
                 "{projectRoot}/scripts/verify-markdown-site.mjs",
                 "{projectRoot}/scripts/verify-data-projects.mjs",
+                "{projectRoot}/scripts/verify-csv-inventory.mjs",
                 "{projectRoot}/dist/static/**/*",
                 {
                     "dependentTasksOutputFiles": "**/*",
@@ -828,6 +829,29 @@
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/navigation.json"
+            ]
+        },
+        "verify:csv-schema-assets": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "build:schema-assets"
+            ],
+            "options": {
+                "command": "node scripts/verify-navigation.mjs --csv-only --schema-assets",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-csv-inventory.mjs",
+                "{projectRoot}/dist/schema-assets/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/csv-inventory-schema-assets.json"
             ]
         },
         "serve-preview": {

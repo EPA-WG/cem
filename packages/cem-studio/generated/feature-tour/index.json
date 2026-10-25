@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "commonVersion": "0.1.0",
   "cacheUrls": [
+    "./examples/csv-inventory.cem-studio.json",
     "./examples/json-yaml-report.cem-studio.json",
     "./examples/login.cem-studio.json",
     "./examples/markdown-site.cem-studio.json",
@@ -151,6 +152,18 @@
       ],
       "archive": "./examples/schema-examples.cem-studio.json",
       "sha256": "979219ffd4605401e583480eb8066707c3453a2d895598e0f0145bbeca529f8a"
+    },
+    {
+      "id": "csv-inventory",
+      "name": "CSV inventory",
+      "description": "Inspect quoted spreadsheet cells and declared headers, diagnose and repair CSV source, and report low stock with native typed counts and HTML/JSON artifacts.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-data",
+        "content-types-queries-transformations"
+      ],
+      "archive": "./examples/csv-inventory.cem-studio.json",
+      "sha256": "aef223a313fc9f92e342601db5a9f3076536998e1c10c73ace6d3ec3e1432fa0"
     },
     {
       "id": "json-yaml-report",

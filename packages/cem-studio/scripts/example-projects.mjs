@@ -36,7 +36,7 @@ async function createExampleProject(workspaceRoot, commonVersion, definition) {
             if (!resource) throw new Error(`Example configuration ${configuration.id} has no dependency ${id}`);
             return resource;
         });
-        const validation = configuration.argv[0] === 'validate';
+        const validation = configuration.argv[0] === 'validate' && !configuration.argv.includes('--config');
         // These are versioned authored argv documents, never lowered run plans.
         // Native fixtures execute the same argv; browser acceptance checks the codec.
         const bytes = json(validation ? {

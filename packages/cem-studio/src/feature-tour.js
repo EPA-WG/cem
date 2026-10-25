@@ -16,7 +16,7 @@ export const CEM_STUDIO_PROJECT_CONTENT_TYPE = 'application/vnd.cem.studio-proje
 export const CEM_STUDIO_PROJECT_SCHEMA = 'https://cem.dev/ns/studio/project/1';
 
 const ARTIFACT_READ_BYTES = 1024 * 1024;
-const PORTABLE_STUDIO_OPERATIONS = new Set(['parse', 'inspect', 'convert', 'query', 'transform', 'trace']);
+const PORTABLE_STUDIO_OPERATIONS = new Set(['validate', 'parse', 'inspect', 'convert', 'query', 'transform', 'trace']);
 
 /** Create one reusable real CEM-ML browser command validator.
  * @param {{recoveryScope?: import('@epa-wg/cem-elements').CemNativeRecoveryScope, packageDemand?: import('@epa-wg/cem-elements').CemSchemaAssetDemandGroup, packageHostConfiguration?: object}} [options] */
@@ -250,8 +250,10 @@ export async function createCemStudioBrowserValidator({ recoveryScope, packageDe
             },
         );
         const resources = { ...invocation.request.resources };
-        const packageIdentities = new Map((invocation.request.runPlan?.schemaPackages ?? [])
-            .map(resource => [resource.resolvedUri ?? resource.declaredUri, resource.identity]));
+        const scopedIdentities = new Map([
+            ...(invocation.request.runPlan?.inputs ?? []),
+            ...(invocation.request.runPlan?.schemaPackages ?? []),
+        ].map(resource => [resource.resolvedUri ?? resource.declaredUri, resource.identity]));
         if (requireResourceSet && !resources[inputResourceUri]) {
             throw new Error(`CEM-ML ${operation} omitted input ${inputResourceUri}`);
         }
@@ -265,9 +267,9 @@ export async function createCemStudioBrowserValidator({ recoveryScope, packageDe
             }
             resources[dependencyUri] = {
                 ...resource,
-                // Package identity comes from its explicit normalized scope;
+                // Explicit native input/package scopes own effective identity;
                 // other dependencies use their declared project identities.
-                identity: packageIdentities.get(dependencyUri) ?? {
+                identity: scopedIdentities.get(dependencyUri) ?? {
                     contentType: dependency.contentType,
                     schema: dependency.schema,
                     baseUri: dependencyUri,

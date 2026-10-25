@@ -47,6 +47,11 @@ the explicit `urn:cem:import` CSV/YAML functions. The string profile owns BOMs,
 XML declaration handling, JSON codepoint/duplicate/escape policy and URI metadata.
 Typed import failures preserve categories and diagnostics; XPath maps them to
 standard function errors without decoding documents or reading error prose.
+CSV byte and string imports share parser selection at this boundary. An admitted
+context supplies its original parser contract; an optional runtime without the
+required CSV source reports a source-admission refusal. This includes CEM-QL
+`data:read` and `data:parse`. String imports retain their separate 32 KiB and
+4096-value limits. Package acquisition and admission remain host-owned.
 See the [bounded parsing and recovery profile](xslt-runtime-lowering.md#standard-parsing-and-recovery).
 `parser::tree::RetainedCemTree` preserves source-oriented CEM nodes and provides
 a format-independent semantic view. CEM-QL retains that capability; named XPath

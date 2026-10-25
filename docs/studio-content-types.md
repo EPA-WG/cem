@@ -178,6 +178,16 @@ resource IDs and configuration IDs, independently of display labels or folders.
 <!-- existing-samples:start -->
 | Project | Resource | Configuration | Demonstrated use |
 | --- | --- | --- | --- |
+| `csv-inventory` | `inventory-source` | `inspect-csv` | Inspect imported cell values and original source locations through the generic CEM data projection. |
+| `csv-inventory` | `inventory-source` | `format-csv` | Compact CSV interchange formatting without changing cell values. |
+| `csv-inventory` | `inventory-source` | `review-csv` | Tabular review presentation, separate from interchange bytes. |
+| `csv-inventory` | `inventory-source` | `query-low-stock` | Filter inventory through the imported generic-data tree and explicit numeric rules. |
+| `csv-inventory` | `headerless-source` | `query-headerless` | Explicit `header=absent` keeps the first row and uses positional cells. |
+| `csv-inventory` | `invalid-header-policy` | `repair-header-policy` | Native header-mode warning; repair the authored run configuration and rerun it. |
+| `csv-inventory` | `unclosed-quote` | `repair-unclosed-quote` | Hard native quote-closure failure with exact repair. |
+| `csv-inventory` | `invalid-escape` | `repair-invalid-escape` | Hard native quote-escaping failure with exact repair. |
+| `csv-inventory` | `ragged-rows` | `repair-ragged-rows` | Native row-width warning and source repair, retaining advisory severity. |
+| `csv-inventory` | `inventory-graph` | `build-inventory` | Typed low-stock HTML/JSON report with template origins and captured inputs. |
 | `json-yaml-report` | `api-payload` | `inspect-json` | Inspect the imported generic CEM data projection of an API payload. |
 | `json-yaml-report` | `api-payload` | `query-json` | Filter records through a retained native CEM-QL expression. |
 | `json-yaml-report` | `report-settings` | `validate-yaml` | Validate configuration source syntax, separately from application rules. |
@@ -210,7 +220,7 @@ category names below are discovery metadata; they do not affect runtime authorit
 
 | Category | Families / selectors to cover | Reuse or planned workflow |
 | --- | --- | --- |
-| Data | JSON and YAML aliases; CSV | Reuse `json-yaml-report` for API payload/configuration inspection, queries, formatting, syntax failure/repair and configured reports. Add the CSV inventory/table project with quoting/header failures and repair; reuse Supplier outputs. |
+| Data | JSON and YAML aliases; CSV | Reuse `json-yaml-report` and `csv-inventory` for imported data, explicit queries/formatting and reports. CSV covers header-mode/row-width warnings and quote failures with repair, compact interchange versus tabular review, and explicit count rules. Reuse Supplier for cross-source reconciliation. |
 | Data | XML, XHTML and XML aliases | Extend Supplier with namespaces and selected instance validation; add XHTML operations. Keep DTD/entity refusals visible. |
 | Documents and UI | Markdown | Reuse `markdown-site`; expose article conversion and complete site outputs. |
 | Documents and UI | HTML, CEM-ML, native/element templates, runtime data island | Reuse Login and add a minimal declarative component project; explain template identity and live runtime bindings. |

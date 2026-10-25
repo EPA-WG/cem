@@ -25,6 +25,7 @@ packages/cem_ml/schema-packages/cem-ql/v1/examples/line-ending-crlf.cemql -text 
 packages/cem_ml/schema-packages/cem-ql/v1/examples/invalid-utf8.cemql -text -diff
 
 # Preserve trailing spaces emitted by native byte-exact output fixtures.
+examples/projects/csv-inventory/expected/low-stock.html whitespace=-blank-at-eol
 examples/projects/json-yaml-report/expected/formatted.json whitespace=-blank-at-eol
 examples/projects/json-yaml-report/expected/report.html whitespace=-blank-at-eol
 

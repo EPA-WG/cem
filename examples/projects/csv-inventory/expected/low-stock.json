@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Café cups, set",
+    "quantity": 3,
+    "reorder_level": 5,
+    "sku": "SKU-A",
+    "status": "low-stock"
+  },
+  {
+    "name": "Glass jars",
+    "quantity": 0,
+    "reorder_level": 2,
+    "sku": "SKU-C",
+    "status": "low-stock"
+  }
+]

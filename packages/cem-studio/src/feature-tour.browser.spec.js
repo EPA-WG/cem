@@ -135,6 +135,112 @@ describe('CEM Studio Feature Tour copies', () => {
         expect(decode('report-settings')).toContain('status: active');
     }, 60_000);
 
+    it('runs the packaged CSV configurations with native quoting, header policy, row-width warnings and exact repairs', async () => {
+        const { bundle, definition, decode } = await csvInventoryProject();
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        for (const configuration of definition.configurations.filter(configuration => configuration.kind !== 'transformation-graph')) {
+            const entry = bundle.project.entries.find(entry => entry.id === configuration.id);
+            const options = projectCommandOptions(bundle, entry, 'inventory-commands-copy');
+            const command = JSON.parse(decode(entry.runConfigResourceId));
+            const run = overrides => command.argv
+                ? validator.executeAuthoredResourceCommand({ ...options, ...overrides, commandResource: bundle.contents[entry.runConfigResourceId] })
+                : validator.validateResource({ ...options, ...overrides });
+            const outcome = await run().catch(error => error);
+            if (!outcome.result) throw new Error(`CSV configuration ${configuration.id}: ${outcome.message}`, { cause: outcome });
+            expect(outcome.result.exitCode).toBe(configuration.expectedExit ?? 0);
+            const expected = configuration.expectedValidation;
+            if (expected) {
+                const diagnostics = outcome.result.diagnostics.items;
+                expect(diagnostics.filter(item => item.severity === 'error')).toHaveLength(expected.errorCount);
+                expect(diagnostics.filter(item => item.severity === 'warning')).toHaveLength(expected.warningCount);
+                if (configuration.repair) {
+                    const code = expected.errorCode ?? expected.warningCode;
+                    const source = bundle.project.resources.find(resource => resource.id === (expected.source ?? configuration.source));
+                    const diagnostic = diagnostics.find(item => item.code === code);
+                    expect(diagnostic).toMatchObject({ code, severity: expected.errorCode ? 'error' : 'warning',
+                        uri: `studio://inventory-commands-copy/${source.path}` });
+                    for (const [key, value] of Object.entries(expected.location)) expect(diagnostic[key] ?? null).toBe(value);
+                    const original = decode(configuration.source);
+                    const repaired = original.replace(configuration.repair.find, configuration.repair.replace);
+                    expect(repaired).not.toBe(original);
+                    const repair = await run({ bytes: new TextEncoder().encode(repaired) });
+                    expect(repair.result.exitCode).toBe(0);
+                    expect(repair.result.diagnostics.items).toEqual([]);
+                    expect(decode(configuration.source)).toBe(original);
+                }
+            }
+            if (configuration.expectedSemanticContract) {
+                expect(JSON.parse(outcome.output.text).result.items.map(item => item.value)).toEqual(JSON.parse(decode(configuration.expectedSemanticContract)));
+            }
+            for (const text of configuration.expectedText ?? []) expect(outcome.output.text).toContain(text);
+            if (configuration.expectedOutput) expect(outcome.output.text).toBe(decode(configuration.expectedOutput));
+            if (configuration.kind === 'conversion') {
+                if (configuration.id === 'format-csv') expect((await validator.validateResource({ ...options, bytes: outcome.output.bytes })).result.exitCode).toBe(0);
+                expect(outcome.output.text).not.toContain('\u001b[');
+            }
+            if (configuration.id === 'repair-header-policy') {
+                expect(command.argv[0]).toBe('validate'); expect(command.argv).toContain('--config');
+                const preview = await validator.previewResourceCommand({ ...options, commandResource: bundle.contents[entry.runConfigResourceId] });
+                const input = preview.semantic.inputs.normalized.find(input => input.resolvedUri === 'studio://inventory-commands-copy/data/inventory.csv');
+                expect(input.identity.contentType).toContain('header=maybe');
+                await expect(run({ dependencies: [] })).rejects.toMatchObject({ code: 'cem.browser_command.resolve', exitCode: 6 });
+            }
+        }
+    }, 60_000);
+
+    it('builds the packaged CSV inventory report with selected records, native provenance, independent copies and repair', async () => {
+        const { bundle, definition, decode } = await csvInventoryProject();
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const entry = bundle.project.entries.find(entry => entry.id === 'build-inventory');
+        expect(entry.entryArtifact).toBe('generated/low-stock.html');
+        const command = JSON.parse(decode(entry.runConfigResourceId));
+        const run = (edits = {}, projectId = 'inventory-report-copy') => validator.runResourceCommand({
+            ...projectCommandOptions(bundle, entry, projectId, edits), argv: command.argv,
+        });
+        const artifacts = outcome => outcome.result.result.value.value.value.artifacts;
+        const report = outcome => artifacts(outcome).find(artifact => artifact.destination.endsWith('/low-stock.json')).primary;
+        const baseline = await run();
+        expect(artifacts(baseline)).toHaveLength(2);
+        expect(report(baseline)).toEqual(JSON.parse(decode('expected-json')));
+        expect(baseline.output.text.trim()).toBe(decode('expected-html').trim());
+        expect(artifacts(baseline).flatMap(artifact => artifact.outputSpans ?? []).flatMap(span => span.origin.frames))
+            .toEqual(expect.arrayContaining([expect.objectContaining({ transform: expect.objectContaining({ uri: 'studio://inventory-report-copy/templates/view.cemt' }) })]));
+        expect(report(await run())).toEqual(report(baseline));
+        const edited = await run({ 'inventory-source': decode('inventory-source').replace('SKU-C,Glass jars,0,2', 'SKU-C,Glass jars,4,2') });
+        expect(JSON.stringify(report(edited))).not.toContain('SKU-C');
+        expect(JSON.stringify(report(edited))).toContain('SKU-A');
+        const quoted = await run({ 'inventory-source': decode('inventory-source').replace('SKU-B,"Tea ""travel"" pot",8,4', 'SKU-B,"Tea ""travel"" pot",2,4') });
+        expect(report(quoted)).toEqual(expect.arrayContaining([expect.objectContaining({ sku: 'SKU-B', name: 'Tea "travel" pot', quantity: 2 })]));
+        const queryEntry = bundle.project.entries.find(entry => entry.id === 'query-low-stock');
+        const queryCommand = JSON.parse(decode(queryEntry.runConfigResourceId));
+        for (const quantity of ['many', '03', '-1', '3.5']) {
+            const csv = decode('inventory-source').replace('SKU-A,"Café cups, set",3,5', `SKU-A,"Café cups, set",${quantity},5`);
+            expect(csv).not.toBe(decode('inventory-source'));
+            const invalidCount = await run({ 'inventory-source': csv });
+            expect(report(invalidCount)).toEqual(expect.arrayContaining([expect.objectContaining({
+                sku: 'SKU-A', quantity, reorder_level: '5', status: 'invalid-count',
+            })]));
+            const selected = await validator.runResourceCommand({ ...projectCommandOptions(bundle, queryEntry, 'inventory-report-copy', { 'inventory-source': csv }), argv: queryCommand.argv });
+            expect(JSON.parse(selected.output.text).result.items.map(item => item.value)).toEqual(['SKU-C']);
+        }
+        for (const [invalid, code] of [['unclosed-quote', 'cem.csv.unclosed_quote'], ['invalid-escape', 'cem.csv.invalid_quote_escape']]) {
+            const failure = await run({ 'inventory-source': decode(invalid) }).catch(error => error);
+            expect(failure).toMatchObject({ result: { exitCode: 1 }, output: { available: false, byteLength: 0, text: '' } });
+            expect(failure.outputs).toEqual([]);
+            expect(failure.result.diagnostics.items).toEqual(expect.arrayContaining([expect.objectContaining({
+                code, severity: 'error', uri: 'studio://inventory-report-copy/data/inventory.csv',
+            })]));
+            const diagnostic = failure.result.diagnostics.items.find(item => item.code === code);
+            const expected = definition.configurations.find(configuration => configuration.source === invalid).expectedValidation;
+            for (const [key, value] of Object.entries(expected.location)) expect(diagnostic[key] ?? null).toBe(value);
+            expect(report(await run())).toEqual(report(baseline));
+        }
+        const independent = await run({}, 'inventory-report-independent');
+        expect(report(independent)).toEqual(report(baseline));
+        expect(artifacts(independent).every(artifact => artifact.destination.startsWith('studio://inventory-report-independent/'))).toBe(true);
+        expect(decode('inventory-source')).toContain('SKU-C,Glass jars,0,2');
+    }, 60_000);
+
     it('runs the packaged supplier pipeline with native multi-format output, edits, failure/repair and isolated copies', async () => {
         const response = await fetch(new URL('../generated/feature-tour/examples/supplier-pipeline.cem-studio.json', import.meta.url));
         expect(response.ok).toBe(true);
@@ -637,6 +743,16 @@ async function jsonYamlProject() {
     const [archive, definition] = await Promise.all([
         fetch(new URL('../generated/feature-tour/examples/json-yaml-report.cem-studio.json', import.meta.url)),
         fetch(new URL('../../../examples/projects/json-yaml-report/example.json', import.meta.url)),
+    ]);
+    expect(archive.ok && definition.ok).toBe(true);
+    const bundle = parseCemStudioProjectBundle(new Uint8Array(await archive.arrayBuffer()));
+    return { bundle, definition: await definition.json(), decode: id => new TextDecoder().decode(bundle.contents[id]) };
+}
+
+async function csvInventoryProject() {
+    const [archive, definition] = await Promise.all([
+        fetch(new URL('../generated/feature-tour/examples/csv-inventory.cem-studio.json', import.meta.url)),
+        fetch(new URL('../../../examples/projects/csv-inventory/example.json', import.meta.url)),
     ]);
     expect(archive.ok && definition.ok).toBe(true);
     const bundle = parseCemStudioProjectBundle(new Uint8Array(await archive.arrayBuffer()));

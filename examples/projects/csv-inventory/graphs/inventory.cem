@@ -1,0 +1,17 @@
+@doc cem-ml 1
+{run |
+    {import @content-type="text/csv;charset=utf-8;header=present" @id=inventory
+        @schema=https://cem.dev/ns/data/csv/1 @src=../data/inventory.csv |
+        {transform @content-type=application/cem @entrypoint=main @id=low-stock
+            @schema=https://cem.dev/ns/cem-ml/1 @src=../templates/model.cemt
+            @template-content-type="application/vnd.cem.template+cem"
+            @template-schema=https://cem.dev/ns/template/cem-native/1 |
+            {transform @entrypoint=main @id=view @src=../templates/view.cemt
+                @template-content-type="application/vnd.cem.template+cem"
+                @template-schema=https://cem.dev/ns/template/cem-native/1 |
+                {export @content-type=text/html @id=web @out=../generated/low-stock.html
+                    @schema=https://cem.dev/ns/data/html/1}
+            }
+            {export @content-type=application/json @id=json @out=../generated/low-stock.json
+                @schema=https://cem.dev/ns/data/json/1}
+}   }   }

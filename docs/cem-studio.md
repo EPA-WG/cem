@@ -2373,6 +2373,16 @@ between source validation and application-schema instance validation. Graph
 input identities and HTML template source maps are shown separately, without
 promising a field-level origin for each rendered value.
 
+The **CSV inventory** project in Data uses the same workspace for spreadsheet
+source inspection, validation, compact interchange formatting, tabular review,
+querying and an HTML/JSON report. Its authored validation configuration makes
+header policy editable as a normal resource. Header-mode and row-width warnings
+remain warnings; quoting errors stop import and publication. The
+[project README](../examples/projects/csv-inventory/README.md) gives exact repairs
+and distinguishes CSV syntax from inventory rules. Native templates explicitly
+interpret count strings. No application parser, CSV serializer or dedicated
+sample screen is introduced; shared source, table and HTML previews remain in use.
+
 A waiting service worker does not call `skipWaiting()` on install. The shell's
 update coordinator blocks activation while engine requests are active, persists
 dirty state first, and keeps the current worker active if persistence fails.

@@ -1,0 +1,45 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+{param @name=input @required=true}
+{template @name=main @visibility=public @cem:whitespace=layout |
+    {cem:variable @name=rows
+        @select='seq:where(input.descendants, fn(node) => node.kind == "element" && node.namespace == "cem:generic-data" && node.name == "object")'}
+    {element @name=array @namespace=cem:generic-data |
+        {cem:for-each @as=row @select=rows |
+            {cem:variable @name=quantityText
+                @select='dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == "quantity"))'}
+            {cem:variable @name=reorderText
+                @select='dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == "reorder_level"))'}
+            {cem:variable @name=quantity @select="num:integer(quantityText)"}
+            {cem:variable @name=reorder @select="num:integer(reorderText)"}
+            {cem:variable @name=valid
+                @select="str:concat((quantity,)) == quantityText && quantity >= 0 && str:concat((reorder,)) == reorderText && reorder >= 0"}
+            {cem:variable @name=status @select='if valid { "low-stock" } else { "invalid-count" }'}
+            {cem:if @test="!valid || quantity < reorder" |
+                {element @name=object @namespace=cem:generic-data |
+                    {cem:for-each @as=name @select='("sku", "name")' |
+                        {element @name=property @namespace=cem:generic-data |
+                            {attribute @name=name @value="{$name}"}
+                            {element @name=string @namespace=cem:generic-data |
+                                {$ | dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == name))}
+                    }   }   }
+                    {cem:for-each @as=name @select='("quantity", "reorder_level")' |
+                        {cem:variable @name=text
+                            @select='dom:text(seq:where(row.children, fn(field) => dom:text(dom:attribute(field, "name")) == name))'}
+                        {element @name=property @namespace=cem:generic-data |
+                            {attribute @name=name @value="{$name}"}
+                            {cem:if @test=valid |
+                                {element @name=number @namespace=cem:generic-data |
+                                    {$ | text}
+                            }   }
+                            {cem:if @test="!valid" |
+                                {element @name=string @namespace=cem:generic-data |
+                                    {$ | text}
+                    }   }   }   }
+                    {element @name=property @namespace=cem:generic-data |
+                        {attribute @name=name @value=status}
+                        {element @name=string @namespace=cem:generic-data |
+                            {$ | status}
+}   }   }   }   }   }   }
