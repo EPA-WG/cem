@@ -43,6 +43,11 @@ Completed [immediate persisted theme updates](archive/todo-completed-compact-stu
 
 ## Project builds and artifact previews
 
+Completed [Studio accordion delivery check](archive/todo-completed-compact-studio-2026-10-23.md#studio-accordion-delivery-check-2026-10-24)
+confirms the layout source is unchanged, restores the stopped local preview, and
+verifies styled accordion/collapse behavior across a stale-worker reload with
+saved projects and unsaved drafts retained.
+
 Completed [canonical source viewer repair](archive/todo-completed-canonical-source-2026-10-24.md) covers explicit XHTML endpoints, source/package viewer checks and the complete nine-gallery compact Studio gate.
 
 Completed [gallery lifecycle and checkpoint-limit repairs](archive/todo-completed-gallery-imports-2026-10-24.md) covers delayed connection callbacks, inventory refusal versus physical retirement, and the targeted source/package import gate.

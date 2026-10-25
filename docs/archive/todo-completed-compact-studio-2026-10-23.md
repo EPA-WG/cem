@@ -257,3 +257,40 @@ navigation or reload, with Storage method interception deliberately removed.
 All page theme attributes updated; the gallery's switch and computed palettes
 also matched each selection. This resolves the earlier Studio contrast-transition
 failure recorded above.
+
+
+## Studio accordion delivery check 2026-10-24
+
+- [x] Investigate the reported IDE layout rollback against Git history, current
+  declarations and deployed bytes. Projects, Structure and Output files still
+  use the shared full-height `cem-accordion`; the navigation/layout/center and
+  shared workspace/accordion/expansion sources are unchanged from compact-layout
+  commit `bfe2bc3e` through `7ddb93e7`. Source and deployed declarations match.
+- [x] Restore local preview availability on `http://localhost:8080/`. No server
+  was listening when inspected. Restart the existing fingerprinted preview
+  handler from the current build; verify its current base URL and Windows-side
+  loopback HTTP 200 response. Do not unregister service workers or clear caches,
+  IndexedDB, saved projects or drafts.
+- [x] Strengthen the existing `verify:preview-reload` fixture. Replace its obsolete
+  `layout=browser` assertion with the actual project IDE contract: three grid
+  regions, a full-height flex-column accordion, three compact visible headers,
+  scrollable bodies and installed declaration-owned scoped CSS. Physically
+  collapse/reopen Structure and verify pane redistribution, selected file/tree
+  value, editor DOM owner, bookmark, recovered dirty draft and persisted bytes.
+- [x] Run the reload scenario under an older cache-first controlling worker,
+  retaining a deliberately stale bootstrap entry. A changed preview fingerprint
+  loads the current IDE while the stale cache entry remains intact. No app UI
+  behavior or component styling workaround is introduced.
+
+`yarn nx run @epa-wg/cem-studio:verify:preview-reload --parallel=1` passes all
+24 scheduled tasks (22 from valid cache). Scoped script lint, syntax and Git
+whitespace checks also pass. A fresh isolated browser measures approximately
+19.2px headers/tree rows with zero vertical control padding, independent open
+panes and functional disclosure. Existing responsive breakpoints still stack
+navigation below 840px; the desktop three-region layout starts at 1200px.
+
+No authored layout rollback was found. A stopped preview can leave an installed
+tab using cached files, but the reported tab's exact cached bytes and viewport
+were not directly inspected. The current deployment and stale-worker reload
+path are verified; refresh the original Studio URL to load the current preview.
+The shared component and credential/privacy policies remain unchanged.
