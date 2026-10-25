@@ -19,6 +19,7 @@ const seed = Object.freeze({
 });
 
 const runtime = await readJson(runtimeMetadataPath);
+const collections = await readJson(resolve(workspaceRoot, 'examples/projects/collections.json'));
 const browserCapability = runtime.capabilities?.browser;
 const validateCapability = browserCapability?.operations?.find(({ operation }) => operation === 'validate');
 if (validateCapability?.availability !== 'available') {
@@ -493,7 +494,8 @@ for (const configuration of workbenches) {
 }
 const schemaArchive = serializeCemStudioProjectBundle({ project: schemaProject, contents: schemaContents });
 const exampleProjects = [{ archive: schemaArchive, record: { id: 'schema-examples', name: schemaProject.name,
-    version: '2.0.0', collections: [], archive: './examples/schema-examples.cem-studio.json', sha256: sha256(schemaArchive) } },
+    description: schemaProject.description, version: '2.0.0', collections: ['content-types-schema-authoring', 'examples'],
+    archive: './examples/schema-examples.cem-studio.json', sha256: sha256(schemaArchive) } },
     ...await createExampleProjects(workspaceRoot, runtime.commonVersion)];
 const starterBytes = Buffer.from('@doc cem-ml 1\n{main | My project}\n');
 const starterProject = { ...project, id: 'starter', name: 'CEM-ML project', description: 'An editable CEM-ML project.',
@@ -520,7 +522,7 @@ const index = {
     schemaVersion: 1,
     commonVersion: runtime.commonVersion,
     cacheUrls: sampleCacheUrls,
-    collections: [{ id: 'amsterdam-2026', name: 'Amsterdam 2026' }],
+    collections,
     starter,
     projects: exampleProjects.map(example => example.record),
 };

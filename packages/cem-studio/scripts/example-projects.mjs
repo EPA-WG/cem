@@ -59,6 +59,7 @@ async function createExampleProject(workspaceRoot, commonVersion, definition) {
         id: `${definition.id}-seed`, name: definition.name, description: definition.description,
         rootUri: `studio://${definition.id}-seed/`, revision: 1, createdAt: timestamp, updatedAt: timestamp, entries, resources };
     const archive = serializeCemStudioProjectBundle({ project, contents });
-    return { archive, record: { id: definition.id, name: definition.name, version: definition.version, collections: definition.collections ?? [],
+    return { archive, record: { id: definition.id, name: definition.name, description: definition.description,
+        version: definition.version, collections: definition.collections ?? [],
         archive: `./examples/${definition.id}.cem-studio.json`, sha256: digest(archive) } };
 }

@@ -148,8 +148,34 @@ export interface CemStudioExampleProject {
     load(): Promise<{ project: Readonly<Record<string, unknown>>; contents: Record<string, Uint8Array> }>;
 }
 
+export interface CemStudioExampleCollection {
+    readonly id: string;
+    readonly name: string;
+    readonly description?: string;
+    readonly parentId?: string;
+}
+
+export interface CemStudioExampleProjectMetadata {
+    readonly id: string;
+    readonly name: string;
+    readonly description?: string;
+    readonly version: string;
+    readonly collections?: readonly string[];
+    readonly archive: string;
+    readonly sha256: string;
+}
+
+export interface CemStudioExampleCatalog extends Readonly<Record<string, unknown>> {
+    readonly schemaVersion: 1;
+    readonly commonVersion: string;
+    /** Omitted only for legacy catalogs with implicit flat collection names. */
+    readonly collections?: readonly CemStudioExampleCollection[];
+    readonly projects: readonly CemStudioExampleProjectMetadata[];
+    readonly starter: CemStudioExampleProjectMetadata;
+}
+
 export declare function loadCemStudioExampleProjects(options: {
     baseUrl: string | URL;
     commonVersion: string;
     fetch?: typeof globalThis.fetch;
-}): Promise<{ catalog: Record<string, unknown>; examples: readonly CemStudioExampleProject[]; starter: CemStudioExampleProject }>;
+}): Promise<{ readonly catalog: CemStudioExampleCatalog; readonly examples: readonly CemStudioExampleProject[]; readonly starter: CemStudioExampleProject }>;

@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "description": "XML products and CSV stock reconciled through explicit native domain rules into JSON, YAML and HTML, with failure/repair and source provenance.",
   "collections": [
-    "amsterdam-2026"
+    "amsterdam-2026",
+    "content-types-data",
+    "content-types-queries-transformations"
   ],
   "sources": [
     {

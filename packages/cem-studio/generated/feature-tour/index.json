@@ -92,8 +92,43 @@
   ],
   "collections": [
     {
+      "id": "content-types-and-schemas",
+      "name": "Content types and schemas",
+      "description": "Explore supported data, document, query, transformation and schema workflows."
+    },
+    {
+      "id": "content-types-data",
+      "parentId": "content-types-and-schemas",
+      "name": "Data",
+      "description": "Inspect, validate, query and transform structured data."
+    },
+    {
+      "id": "content-types-documents-ui",
+      "parentId": "content-types-and-schemas",
+      "name": "Documents and UI",
+      "description": "Render documents, websites and declarative user interfaces."
+    },
+    {
+      "id": "content-types-queries-transformations",
+      "parentId": "content-types-and-schemas",
+      "name": "Queries and transformations",
+      "description": "Select data, evaluate expressions and build artifacts with explicit provenance."
+    },
+    {
+      "id": "content-types-schema-authoring",
+      "parentId": "content-types-and-schemas",
+      "name": "Schema authoring",
+      "description": "Inspect schema sources, author native contracts and repair diagnostics within supported subsets."
+    },
+    {
       "id": "amsterdam-2026",
-      "name": "Amsterdam 2026"
+      "name": "Amsterdam 2026",
+      "description": "Login, Supplier and Markdown site projects for the Amsterdam presentation."
+    },
+    {
+      "id": "examples",
+      "name": "Schema examples",
+      "description": "All registered schema-package source-validation examples and portable command configurations."
     }
   ],
   "starter": {
@@ -107,17 +142,25 @@
     {
       "id": "schema-examples",
       "name": "Schema examples",
+      "description": "Schema package examples and portable command configurations.",
       "version": "2.0.0",
-      "collections": [],
+      "collections": [
+        "content-types-schema-authoring",
+        "examples"
+      ],
       "archive": "./examples/schema-examples.cem-studio.json",
       "sha256": "979219ffd4605401e583480eb8066707c3453a2d895598e0f0145bbeca529f8a"
     },
     {
       "id": "login",
       "name": "Login",
+      "description": "Login sources, module and standalone queries, formatting, validation, native templates, a transformation graph with source provenance and an interactive light-DOM view.",
       "version": "2.8.0",
       "collections": [
-        "amsterdam-2026"
+        "amsterdam-2026",
+        "content-types-documents-ui",
+        "content-types-queries-transformations",
+        "content-types-schema-authoring"
       ],
       "archive": "./examples/login.cem-studio.json",
       "sha256": "5dbf238b4ddde24fab490cbcc4379d3b1720bae609fd0061a0726a3d6970951a"
@@ -125,9 +168,11 @@
     {
       "id": "markdown-site",
       "name": "Markdown site",
+      "description": "A portable folder-based site: Markdown metadata, shared CEM-ML layouts, navigation data and exact static assets, with editing, repair and provenance.",
       "version": "1.0.0",
       "collections": [
-        "amsterdam-2026"
+        "amsterdam-2026",
+        "content-types-documents-ui"
       ],
       "archive": "./examples/markdown-site.cem-studio.json",
       "sha256": "c4cbb3534c16063d3749014824e3627dd5dc04eeb22eb12bd7e340c0987e73e6"
@@ -135,9 +180,12 @@
     {
       "id": "supplier-pipeline",
       "name": "Supplier pipeline",
+      "description": "XML products and CSV stock reconciled through explicit native domain rules into JSON, YAML and HTML, with failure/repair and source provenance.",
       "version": "1.0.0",
       "collections": [
-        "amsterdam-2026"
+        "amsterdam-2026",
+        "content-types-data",
+        "content-types-queries-transformations"
       ],
       "archive": "./examples/supplier-pipeline.cem-studio.json",
       "sha256": "72a709c20b45f5d775d379572e002ea09d973a47e6dca4fe5fac9a37a3774bd3"

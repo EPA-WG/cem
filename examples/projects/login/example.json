@@ -124,7 +124,10 @@
     }
   ],
   "collections": [
-    "amsterdam-2026"
+    "amsterdam-2026",
+    "content-types-documents-ui",
+    "content-types-queries-transformations",
+    "content-types-schema-authoring"
   ],
   "configurations": [
     {

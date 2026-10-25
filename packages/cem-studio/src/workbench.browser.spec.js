@@ -2688,7 +2688,7 @@ describe('Project-owned workbench loading', () => {
 
     it('models default samples, project folders and read-only sample files without creating saved projects', async () => {
         const { repository, workbench, browser, examples } = await navigatorFixture();
-        expect(workbench.snapshot().navigation).toMatchObject({ title: 'Examples - CEM Studio', selection: { key: 'samples' }, count: 1, countKind: 'folder', content: 'folder' });
+        expect(workbench.snapshot().navigation).toMatchObject({ title: 'Examples - CEM Studio', selection: { key: 'samples' }, count: 2, countKind: 'folder', content: 'folder' });
         expect(workbench.snapshot().navigation.children[0]).toMatchObject({ name: 'Amsterdam', description: 'Presentation examples', icon: 'folder' });
         const before = (await repository.query(request('list-projects', {}))).value;
         await workbench.openEntity('collection=amsterdam');
@@ -2740,7 +2740,7 @@ describe('Project-owned workbench loading', () => {
         const count = actions.querySelector('[aria-live="polite"]');
         const buttons = [...actions.querySelectorAll('cem-icon-button')];
         expect(actions.firstElementChild).toBe(count);
-        expect(count.textContent.trim()).toBe('1 folder');
+        expect(count.textContent.trim()).toBe('2 folders');
         expect(buttons.every(button => button.getAttribute('variant') === 'contextual')).toBe(true);
         expect(getComputedStyle(actions).columnGap).toBe('8px');
         for (let index = 1; index < buttons.length; index++) {

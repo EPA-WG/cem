@@ -329,7 +329,7 @@ export declare function createCemStudioProjectWorkbench(options: {
 export declare function createCemStudioSessionWorkbench(options: {
     repository: CemStudioIndexedDbRepository;
     session: import('./project-session.js').CemStudioProjectSession;
-    home?: { collections?: readonly { id: string; name: string }[]; starter: { project: Record<string, unknown>; contents: Record<string, Uint8Array> }; provider: { importFallback(input: { archive: Uint8Array; mode: 'create' }): Promise<{ project: unknown }> }; selectImport(): Promise<Uint8Array>; examples?: readonly { id: string; name: string; collections?: readonly string[]; load(): Promise<{ project: Record<string, unknown>; contents: Record<string, Uint8Array> }> }[] };
+    home?: { collections?: readonly import('./file-system-provider.js').CemStudioExampleCollection[]; starter: { project: Record<string, unknown>; contents: Record<string, Uint8Array> }; provider: { importFallback(input: { archive: Uint8Array; mode: 'create' }): Promise<{ project: unknown }> }; selectImport(): Promise<Uint8Array>; examples?: readonly { id: string; name: string; collections?: readonly string[]; load(): Promise<{ project: Record<string, unknown>; contents: Record<string, Uint8Array> }> }[] };
 }): Promise<CemStudioFeatureTourWorkbench & {
     editStructure(edit: import('./repository.js').CemStudioStructureEdit | { kind: 'undo' | 'redo' }): Promise<CemStudioWorkbenchState>;
     clearDraftRecovery(): CemStudioWorkbenchState;

@@ -1,0 +1,41 @@
+[
+  {
+    "id": "content-types-and-schemas",
+    "name": "Content types and schemas",
+    "description": "Explore supported data, document, query, transformation and schema workflows."
+  },
+  {
+    "id": "content-types-data",
+    "parentId": "content-types-and-schemas",
+    "name": "Data",
+    "description": "Inspect, validate, query and transform structured data."
+  },
+  {
+    "id": "content-types-documents-ui",
+    "parentId": "content-types-and-schemas",
+    "name": "Documents and UI",
+    "description": "Render documents, websites and declarative user interfaces."
+  },
+  {
+    "id": "content-types-queries-transformations",
+    "parentId": "content-types-and-schemas",
+    "name": "Queries and transformations",
+    "description": "Select data, evaluate expressions and build artifacts with explicit provenance."
+  },
+  {
+    "id": "content-types-schema-authoring",
+    "parentId": "content-types-and-schemas",
+    "name": "Schema authoring",
+    "description": "Inspect schema sources, author native contracts and repair diagnostics within supported subsets."
+  },
+  {
+    "id": "amsterdam-2026",
+    "name": "Amsterdam 2026",
+    "description": "Login, Supplier and Markdown site projects for the Amsterdam presentation."
+  },
+  {
+    "id": "examples",
+    "name": "Schema examples",
+    "description": "All registered schema-package source-validation examples and portable command configurations."
+  }
+]

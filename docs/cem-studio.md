@@ -2348,6 +2348,18 @@ transformation support, and maps the registered packages to existing and planned
 ordinary sample projects. Its identity and configuration references are checked
 by the Feature Tour verifier.
 
+Examples now includes **Content types and schemas** with four nested folders:
+Data, Documents and UI, Queries and transformations, and Schema authoring.
+[Authored collection records](../examples/projects/collections.json) supply
+`id`, `name`, `description` and optional `parentId`; project memberships place
+references to the same ordinary project in each applicable folder. Shared trees
+and folder listings render this data without sample-specific UI behavior.
+`?collection=<category>&sample=<project>` preserves the selected occurrence for
+files, configurations and outputs. Legacy `?sample=<project>` URLs still work,
+highlighting its first membership. Amsterdam and `?collection=examples` remain
+available. Catalog metadata cannot grant package activation or execution, and
+saved clones/drafts remain independent from the original archives.
+
 A waiting service worker does not call `skipWaiting()` on install. The shell's
 update coordinator blocks activation while engine requests are active, persists
 dirty state first, and keeps the current worker active if persistence fails.

@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "description": "A portable folder-based site: Markdown metadata, shared CEM-ML layouts, navigation data and exact static assets, with editing, repair and provenance.",
   "collections": [
-    "amsterdam-2026"
+    "amsterdam-2026",
+    "content-types-documents-ui"
   ],
   "sources": [
     {

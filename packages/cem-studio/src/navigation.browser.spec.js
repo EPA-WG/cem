@@ -12,7 +12,8 @@ beforeAll(() => {
 const services = [];
 afterEach(() => { for (const service of services.splice(0)) service.dispose(); });
 
-async function fixture(url = 'https://studio.test/?project=demo&file=article', readOnly = false, { ambiguousSource = false, alternateBuild = false, plaintextSource = false, tabularSource = false, validator } = {}) {
+async function fixture(url = 'https://studio.test/?project=demo&file=article', readOnly = false, { ambiguousSource = false, alternateBuild = false, plaintextSource = false, tabularSource = false, validator,
+    sampleCollections = ['nested'], collections = [{ id: 'nested', name: 'Nested examples' }] } = {}) {
     const encoder = new TextEncoder();
     const sourceResource = plaintextSource
         ? { id: 'article', path: 'geometry.txt', contentType: 'text/plain' }
@@ -42,8 +43,9 @@ async function fixture(url = 'https://studio.test/?project=demo&file=article', r
     const browser = new EventTarget(); browser.location = new URL(url);
     browser.history = { pushState(_, __, next) { browser.location = new URL(next); }, replaceState(_, __, next) { browser.location = new URL(next); } };
     let fail = false, wait;
+    const loadExample = vi.fn(async () => bundle);
     const service = await createCemStudioNavigation({ repository, workbench, browser, validator,
-        examples: [{ id: 'demo', name: 'Demo sample', collections: ['nested'], load: async () => bundle }], collections: [{ id: 'nested', name: 'Nested examples' }], openBuildWorkbench: async ({ configuration }) => {
+        examples: [{ id: 'demo', name: 'Demo sample', collections: sampleCollections, load: loadExample }], collections, openBuildWorkbench: async ({ configuration }) => {
         const artifacts = [ ['generated/index.html', ambiguousSource ? 'studio://demo/content/article.md' : undefined], ['generated/posts/article.html', 'studio://demo/content/article.md'], ['generated/invalid.json', undefined] ].map(([path, uri]) => ({
             id: path, path, uri: `studio://demo/${path}`, contentType: path.endsWith('.json') ? 'application/json' : 'text/html', provenance: uri ? [{ uri }] : [],
         }));
@@ -54,7 +56,7 @@ async function fixture(url = 'https://studio.test/?project=demo&file=article', r
             const index = artifacts.findIndex(item => item.id === id); projection = { ...projection, output: outputs[index], preview: { ...projection.preview, source: outputs[index].text } };
         } };
     } }); services.push(service);
-    return { service, browser, workbench, setState(next) { state = { ...state, ...next }; publish(); }, fail: () => { fail = true; }, delay: promise => { wait = promise; } };
+    return { service, browser, workbench, loadExample, setState(next) { state = { ...state, ...next }; publish(); }, fail: () => { fail = true; }, delay: promise => { wait = promise; } };
 }
 
 function invocation({ projectId = 'demo', resourceId = 'article', configuration = resourceId, live = false } = {}) {
@@ -67,6 +69,87 @@ function invocation({ projectId = 'demo', resourceId = 'article', configuration 
 }
 
 describe('Studio compact navigation service', () => {
+    const catalog = {
+        collections: [
+            { id: 'conference', name: 'Conference' },
+            { id: 'content-types-and-schemas', name: 'Content types and schemas', description: 'Supported source workflows' },
+            { id: 'content-types-data', name: 'Data', parentId: 'content-types-and-schemas' },
+            { id: 'content-types-documents-ui', name: 'Documents and UI', parentId: 'content-types-and-schemas' },
+            { id: 'content-types-queries-transformations', name: 'Queries and transformations', parentId: 'content-types-and-schemas' },
+            { id: 'content-types-schema-authoring', name: 'Schema authoring', parentId: 'content-types-and-schemas' },
+        ],
+        sampleCollections: ['conference', 'content-types-data', 'content-types-documents-ui'],
+    };
+
+    it('models nested and empty catalog folders without loading projects and gives every occurrence a unique route', async () => {
+        const { service, browser, loadExample } = await fixture('https://studio.test/', false, catalog);
+        const samples = service.snapshot().navigation.samples;
+        expect(samples.children.map(item => item.name)).toEqual(['Conference', 'Content types and schemas']);
+        const categories = samples.children[1].children;
+        expect(categories.map(item => item.name)).toEqual(['Data', 'Documents and UI', 'Queries and transformations', 'Schema authoring']);
+        expect(categories[0].children[0]).toMatchObject({ key: 'collection=content-types-data&sample=demo', route: { sample: 'demo', collection: 'content-types-data' } });
+        expect(categories[1].children[0]).toMatchObject({ key: 'collection=content-types-documents-ui&sample=demo', route: { sample: 'demo', collection: 'content-types-documents-ui' } });
+        const keys = [];
+        const collect = item => { keys.push(item.key); item.children.forEach(collect); };
+        collect(samples);
+        expect(new Set(keys).size).toBe(keys.length);
+        await service.openEntity('collection=content-types-and-schemas');
+        expect(service.snapshot().navigation).toMatchObject({ content: 'folder', count: 4, countKind: 'folder', selected: { description: 'Supported source workflows' } });
+        await service.openEntity('collection=content-types-queries-transformations');
+        expect(service.snapshot().navigation).toMatchObject({ content: 'folder', count: 0, countKind: 'project', children: [], canClone: false, canDelete: false });
+        expect(browser.location.searchParams.get('collection')).toBe('content-types-queries-transformations');
+        expect(service.snapshot().navigation.trees.projects.expanded).toContain('collection=content-types-and-schemas');
+        expect(loadExample).not.toHaveBeenCalled();
+    });
+
+    it('retains explicit collection context through source, configuration and output routes and refuses false memberships', async () => {
+        const { service, browser } = await fixture('https://studio.test/?collection=content-types-data&sample=demo&file=article', false, catalog);
+        expect(service.snapshot().navigation).toMatchObject({ content: 'sample-file', selection: { collection: 'content-types-data', sample: 'demo', file: 'article' } });
+        expect(service.snapshot().navigation.trees.projects.selected).toBe('collection=content-types-data&sample=demo');
+        expect(service.snapshot().navigation.trees.projects.expanded).toContain('collection=content-types-and-schemas');
+        expect(service.snapshot().navigation.trees.projects.expanded).toContain('collection=content-types-data');
+        const sourceFolder = service.snapshot().navigation.files.children.find(item => item.name === 'content');
+        expect(sourceFolder.children[0].route.collection).toBe('content-types-data');
+        const configuration = service.snapshot().navigation.files.children.find(item => item.name === 'Configurations').children[0];
+        await service.openEntity(configuration.key);
+        expect(browser.location.searchParams.get('collection')).toBe('content-types-data');
+        expect(browser.location.searchParams.get('configuration')).toBe('build');
+        await service.buildProjectPreview();
+        const generated = service.snapshot().navigation.output.children[0];
+        await service.openEntity(generated.key);
+        expect(service.snapshot().navigation.selection).toMatchObject({ collection: 'content-types-data', sample: 'demo', selection: 'output', 'output-folder': 'generated/' });
+        const accepted = browser.location.href;
+        for (const route of ['collection=content-types-and-schemas&sample=demo', 'collection=content-types-schema-authoring&sample=demo',
+            'collection=unknown&sample=demo', 'collection=content-types-data&project=demo', 'collection=content-types-data&view=projects',
+            'collection=content-types-data&project=', 'collection=content-types-data&view=']) {
+            await service.openEntity(route);
+            expect(service.snapshot().navigation.error.message).toMatch(/not in this samples folder|conflicting roots/u);
+            expect(browser.location.href).toBe(accepted);
+            expect(service.snapshot().navigation.selection.collection).toBe('content-types-data');
+        }
+    });
+
+    it('keeps legacy URLs while revealing the first membership, reuses one project load and retains collapsed selection', async () => {
+        const { service, browser, workbench, loadExample } = await fixture('https://studio.test/?sample=demo&file=article', false, catalog);
+        expect(browser.location.searchParams.has('collection')).toBe(false);
+        expect(service.snapshot().navigation.selection.key).toBe('sample=demo&file=article');
+        expect(service.snapshot().navigation.trees.projects.selected).toBe('collection=conference&sample=demo');
+        await service.openEntity('collection=content-types-data&sample=demo');
+        await service.openEntity('collection=content-types-documents-ui&sample=demo&file=article');
+        expect(loadExample).toHaveBeenCalledOnce();
+        service.setNavigationExpanded('projects', []);
+        service.setNavigationSection('projects', false);
+        workbench.updateDraft('unrelated saved-project draft');
+        expect(service.snapshot().navigation.trees.projects).toEqual({ selected: 'collection=content-types-documents-ui&sample=demo', expanded: '' });
+        expect(service.snapshot().navigation.sections.projects).toBe(false);
+        expect(service.snapshot().draft).toBe('unrelated saved-project draft');
+        await service.openEntity('sample=demo');
+        expect(browser.location.searchParams.has('collection')).toBe(false);
+        expect(service.snapshot().navigation.selection.key).toBe('sample=demo');
+        expect(service.snapshot().navigation.trees.projects.selected).toBe('collection=conference&sample=demo');
+        expect(loadExample).toHaveBeenCalledOnce();
+    });
+
     it('prepares selected CSV before publication and discards a superseded resource selection', async () => {
         const pending = [];
         const validator = { prepareResource: vi.fn(options => options.contentType === 'text/csv'
@@ -117,7 +200,7 @@ describe('Studio compact navigation service', () => {
         service.toggleNavigationSection('output');
         expect(service.snapshot().navigation.sections.output).toBe(true);
         const sample = (await fixture('https://studio.test/?sample=demo&file=article')).service;
-        expect(sample.snapshot().navigation.trees.projects.selected).toBe('sample=demo');
+        expect(sample.snapshot().navigation.trees.projects.selected).toBe('collection=nested&sample=demo');
         expect(sample.snapshot().navigation.trees.projects.expanded).toContain('collection=nested');
         sample.setNavigationExpanded('projects', []);
         sample.setNavigationSection('projects', false);

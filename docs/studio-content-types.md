@@ -2,8 +2,19 @@
 
 Audited 2026-10-24. This is the implementation map for the **Content types and
 schemas** sample collection in [the active checklist](todo.md#studio-samples-supported-content-types-and-schemas).
-The collection and its category folders are the next implementation step.
+The collection is available under **Examples → Content types and schemas**, with
+Data, Documents and UI, Queries and transformations, and Schema authoring folders.
 Examples remain ordinary cloneable projects with resources and configurations.
+Folder listings reuse existing projects; the missing functional workflows below
+remain the next implementation steps.
+
+Open `?collection=content-types-and-schemas` for the category listing. A project
+opened from a category carries `collection=<category-id>&sample=<project-id>` so
+the correct occurrence stays selected. Existing sample/file bookmarks still work,
+as do Amsterdam and `?collection=examples`. Categories share projects and do not
+copy resources or change archive identities. Saved clones and drafts stay
+independent. The authored hierarchy is in
+[collections.json](../examples/projects/collections.json).
 
 ## Sources and scope
 

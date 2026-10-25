@@ -4,21 +4,67 @@ export const CEM_STUDIO_FILE_SYSTEM_PROVIDER_ID = 'file-system-access';
 export const CEM_STUDIO_PROJECT_MANIFEST = 'project.cem';
 export const CEM_STUDIO_PROJECT_BUNDLE_CONTENT_TYPE = 'application/vnd.cem.studio-project-bundle+json';
 
+// Collection IDs are opaque version-1 strings. URLSearchParams transports
+// spaces, slashes and Unicode without changing their identity.
+const catalogIdentifier = value => typeof value === 'string' && Boolean(value.trim())
+    && ![...value].some(character => character.codePointAt(0) < 32 || character.codePointAt(0) >= 127 && character.codePointAt(0) <= 159);
+const freezeCatalogMetadata = value => {
+    if (value && typeof value === 'object') {
+        for (const child of Object.values(value)) freezeCatalogMetadata(child);
+        Object.freeze(value);
+    }
+    return value;
+};
+
 /** Load ordinary project templates; collection membership never selects application behavior. */
 export async function loadCemStudioExampleProjects({ baseUrl, commonVersion, fetch: fetchResource = globalThis.fetch }) {
     const base = new URL(baseUrl, globalThis.document?.baseURI);
     const response = await fetchResource(new URL('index.json', base));
     if (!response.ok) throw new Error('Studio example-project catalog is unavailable');
-    const catalog = await response.json();
-    if (catalog.schemaVersion !== 1 || catalog.commonVersion !== commonVersion || !Array.isArray(catalog.projects)) {
+    const metadata = await response.json();
+    if (metadata?.schemaVersion !== 1 || metadata.commonVersion !== commonVersion || !Array.isArray(metadata.projects)) {
         throw new Error('Studio example-project catalog is incompatible');
+    }
+    // Providers retain this accepted snapshot, never a caller-owned mutable
+    // hierarchy or archive location that can change after validation.
+    const catalog = freezeCatalogMetadata(structuredClone(metadata));
+    const declaredCollections = Object.hasOwn(catalog, 'collections');
+    const collectionIds = new Map();
+    if (declaredCollections) {
+        if (!Array.isArray(catalog.collections)) throw new Error('Studio example-project collection metadata is invalid');
+        for (const collection of catalog.collections) {
+            if (!collection || !catalogIdentifier(collection.id) || typeof collection.name !== 'string' || !collection.name.trim()
+                || collection.description !== undefined && typeof collection.description !== 'string'
+                || collection.parentId !== undefined && !catalogIdentifier(collection.parentId)) {
+                throw new Error('Studio example-project collection metadata is invalid');
+            }
+            if (collectionIds.has(collection.id)) throw new Error('Studio example-project catalog has duplicate collection identities');
+            collectionIds.set(collection.id, collection);
+        }
+        for (const collection of collectionIds.values()) {
+            if (collection.parentId !== undefined && !collectionIds.has(collection.parentId)) {
+                throw new Error('Studio example-project collection parent is unavailable');
+            }
+        }
+        for (const id of collectionIds.keys()) {
+            const ancestors = new Set();
+            let current = id;
+            while (current !== undefined) {
+                if (ancestors.has(current)) throw new Error('Studio example-project collection hierarchy has a cycle');
+                ancestors.add(current);
+                current = collectionIds.get(current).parentId;
+            }
+        }
     }
     const ids = new Set();
     function provider(record) {
         if (!record || typeof record.id !== 'string' || !record.id || typeof record.name !== 'string' || !record.name ||
             typeof record.version !== 'string' || !record.version || !/^\.\/[a-zA-Z0-9_/-]+\.cem-studio\.json$/.test(record.archive) ||
             record.archive.includes('/../') || !/^[a-f0-9]{64}$/.test(record.sha256) ||
-            (record.collections !== undefined && (!Array.isArray(record.collections) || record.collections.some(id => typeof id !== 'string')))) {
+            (record.description !== undefined && typeof record.description !== 'string') ||
+            (record.collections !== undefined && (!Array.isArray(record.collections) || record.collections.some(id => !catalogIdentifier(id))
+                || new Set(record.collections).size !== record.collections.length
+                || declaredCollections && record.collections.some(id => !collectionIds.has(id))))) {
             throw new Error('Studio example-project metadata is invalid');
         }
         return Object.freeze({ id: record.id, name: record.name, description: record.description, collections: Object.freeze([...(record.collections ?? [])]),

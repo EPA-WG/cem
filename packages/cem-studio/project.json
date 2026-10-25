@@ -468,6 +468,7 @@
                 "{projectRoot}/scripts/generate-feature-tour.mjs",
                 "{projectRoot}/scripts/verify-feature-tour.mjs",
                 "{workspaceRoot}/docs/studio-content-types.md",
+                "{workspaceRoot}/examples/projects/**/*",
                 "{workspaceRoot}/packages/cem_ml/schema/schema-assets-registry-v1.json",
                 "{workspaceRoot}/packages/cem-ml-npm/dist/cem-ml-runtime.json",
                 "{projectRoot}/generated/feature-tour/**/*",

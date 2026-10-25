@@ -21,6 +21,22 @@ are separate capabilities.
   Optional `entryArtifact` sets a named build's project-relative preview output;
   it is copied into the portable configuration, independently of input resources.
 
+[collections.json](collections.json) defines discovery folders with stable `id`,
+`name`, `description` and optional `parentId`. The **Content types and schemas**
+folder contains Data, Documents and UI, Queries and transformations, and Schema
+authoring. A project may belong to several folders while retaining one archive,
+project identity, resource set and set of configurations. Amsterdam membership
+stays independent from these subject categories. Declared empty folders remain
+visible so a collection can grow without placeholder projects.
+
+Opening a project from a folder uses `?collection=<folder-id>&sample=<project-id>`;
+file/configuration links carry that context. Existing `?sample=<project-id>`
+bookmarks continue to work and highlight the first membership in the tree. The
+legacy `?collection=examples` folder remains available. Context must be a direct
+project membership. Catalog loading checks duplicate identities, missing parents,
+cycles and memberships before fetching any archive; catalogs without collection
+definitions retain their legacy implicit flat folders.
+
 Generated bundles use the native version-1 project contract (`entries` and
 `runConfigResourceId` are compatibility wire fields). Studio verifies archive
 hashes and imports editable copies through the same repository as user-created

@@ -24,17 +24,64 @@ const preview = () => page.evaluate(() => {
 const choose = async (name, option) => { await page.getByRole('combobox', { name, exact: true }).click(); await page.getByRole('option', { name: option, exact: true }).click(); await settle(); };
 const click = async name => { await page.getByRole('button', { name, exact: true }).click(); await settle(); };
 const tree = async (name, owner = 'Projects') => { await page.getByRole('tree', { name: owner, exact: true }).getByRole('treeitem', { name, exact: true }).click(); await settle(); };
+const treeKey = async key => { await page.getByRole('tree', { name: 'Projects', exact: true }).locator(`[role=treeitem][data-tree-value="${key}"]`).click(); await settle(); };
 const submit = async (name, action) => { if (name) await page.getByRole('dialog').getByRole('textbox').fill(name); await page.getByRole('dialog').getByRole('button', { name: action, exact: true }).click(); await settle(); };
 const heading = async () => assert.equal(await page.getByRole('heading', { level: 1 }).innerText(), await page.title());
 
 try {
     await page.goto(server.url); await ready();
     assert.equal((await state()).selection.key, 'samples'); await heading();
-    const collection = await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().navigation.samples.children.find(group => group.children.some(item => item.route.sample === 'supplier-pipeline')));
-    await tree(collection.name);
+    const categories = ['Data', 'Documents and UI', 'Queries and transformations', 'Schema authoring'];
+    await tree('Content types and schemas');
+    assert.equal((await state()).selection.collection, 'content-types-and-schemas');
+    assert.equal(new URL(page.url()).searchParams.get('collection'), 'content-types-and-schemas');
+    assert.deepEqual((await state()).children.map(item => item.name), categories);
+    const listing = page.getByRole('list', { name: 'Folder contents' });
+    for (const item of (await state()).children) {
+        assert.ok(item.description);
+        assert.ok(await listing.getByRole('button', { name: item.name, exact: true }).isVisible());
+        assert.ok((await listing.innerText()).includes(item.description));
+    }
+    await heading();
+    await page.screenshot({ path: '/tmp/cem-studio-content-type-folders.png', fullPage: true });
+    const catalogKeys = await page.evaluate(() => {
+        const keys = [];
+        const visit = item => { keys.push(item.key); item.children.forEach(visit); };
+        visit(globalThis.__cemStudioApplication.workbench.snapshot().navigation.samples);
+        return keys;
+    });
+    assert.equal(new Set(catalogKeys).size, catalogKeys.length, 'Every catalog occurrence has a unique tree value');
+    await treeKey('collection=content-types-data');
+    assert.equal((await state()).selection.collection, 'content-types-data');
     assert.ok(await page.getByRole('list', { name: 'Folder contents' }).getByRole('button', { name: 'Supplier pipeline', exact: true }).isVisible());
-    await tree('Supplier pipeline');
+    await treeKey('collection=content-types-data&sample=supplier-pipeline');
     assert.equal((await state()).content, 'project');
+    assert.equal(new URL(page.url()).searchParams.get('collection'), 'content-types-data');
+    const contextualSampleUrl = page.url();
+    await tree('data', 'Project files');
+    const sampleFile = (await state()).children.find(item => item.name === 'stock.csv');
+    assert.ok(sampleFile);
+    await listing.getByRole('button', { name: sampleFile.name, exact: true }).click(); await settle();
+    assert.equal((await state()).content, 'sample-file');
+    assert.equal(new URL(page.url()).searchParams.get('collection'), 'content-types-data');
+    assert.equal(new URL(page.url()).searchParams.get('file'), sampleFile.resourceId);
+    const readonlySource = page.locator('cem-source-editor[readonly] [role=textbox]');
+    const sampleText = await readonlySource.evaluate(element => element.value);
+    assert.ok(sampleText.includes('quantity'));
+    assert.equal(await readonlySource.getAttribute('aria-readonly'), 'true');
+    const readonlyIdentity = await readonlySource.elementHandle();
+    const catalogBranch = page.getByRole('tree', { name: 'Projects', exact: true }).locator('[role=treeitem][data-tree-value="collection=content-types-and-schemas"]');
+    await catalogBranch.locator('[part~=marker]').click(); await settle();
+    assert.equal(await catalogBranch.getAttribute('aria-expanded'), 'false');
+    assert.equal((await state()).selection.file, sampleFile.resourceId);
+    assert.equal((await state()).trees.projects.selected, 'collection=content-types-data&sample=supplier-pipeline');
+    assert.ok(await readonlyIdentity.evaluate(element => element.isConnected));
+    assert.equal(await readonlySource.evaluate(element => element.value), sampleText);
+    await page.goto(`${server.url}/?sample=supplier-pipeline&file=${sampleFile.resourceId}`); await ready();
+    assert.equal((await state()).content, 'sample-file');
+    assert.equal(new URL(page.url()).searchParams.get('collection'), null);
+    assert.equal(await readonlySource.evaluate(element => element.value), sampleText);
+    await page.goto(contextualSampleUrl); await ready();
     await click('Build project');
     const artifactFrame = page.locator('cem-media-preview[mode="artifact-tree"] iframe');
     await artifactFrame.waitFor();
@@ -58,6 +105,7 @@ try {
     const editor = page.getByRole('textbox', { name: 'CEM source', exact: true });
     await page.screenshot({ path: '/tmp/cem-studio-navigator.png', fullPage: true });
     const original = await editor.evaluate(element => element.value);
+    assert.equal(original, sampleText);
     await editor.fill(`${original}\n`); await settle();
     await page.evaluate(() => globalThis.__cemStudioApplication.workbench.buildProjectPreview()); await settle();
     await page.evaluate(() => globalThis.__cemStudioApplication.workbench.selectPreviewArtifact('generated/availability.json')); await settle();
@@ -78,6 +126,17 @@ try {
     assert.equal((await state()).selection.file, file.resourceId);
     assert.equal(await editor.evaluate(element => element.value), `${original}\n`);
     assert.equal((await preview()).runId, runId);
+    const draftRoute = new URL(page.url()).searchParams.toString();
+    await treeKey('collection=content-types-and-schemas');
+    if (await page.getByRole('dialog', { name: 'Resolve drafts before navigation' }).isVisible()) {
+        await click('Cancel navigation');
+    } else {
+        assert.equal((await state()).selection.collection, 'content-types-and-schemas');
+        assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().dirty), true);
+        await page.evaluate(route => globalThis.__cemStudioApplication.workbench.openEntity(route), draftRoute); await settle();
+    }
+    assert.equal((await state()).selection.file, file.resourceId);
+    assert.equal(await editor.evaluate(element => element.value), `${original}\n`, 'Browsing the catalog preserves the existing draft');
     await click('Save and validate');
     await page.reload(); await ready();
     assert.equal((await state()).selection.file, file.resourceId); await heading();
@@ -102,6 +161,28 @@ try {
     assert.equal(page.url(), fileUrl); assert.equal((await state()).selection.file, file.resourceId);
     await page.goForward(); await settle(); assert.equal((await state()).selection.key, 'samples');
     await page.reload(); await ready(); assert.equal((await state()).selection.key, 'samples');
+    await tree('Content types and schemas'); await treeKey('collection=content-types-data');
+    await treeKey('collection=content-types-data&sample=supplier-pipeline');
+    await click('Clone selected'); await submit('Navigator Supplier independent', 'Clone');
+    const independentProjectId = (await state()).selection.project;
+    assert.notEqual(independentProjectId, projectId);
+    await tree('data', 'Project files');
+    await listing.getByRole('button', { name: 'stock.csv', exact: true }).click(); await settle();
+    assert.equal(await editor.evaluate(element => element.value), original, 'A second clone starts from the unchanged original');
+    const copies = await page.evaluate(async ({ firstId, secondId, resourceId }) => {
+        const query = async projectId => (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation: 'export-project', parameters: { projectId } })).value;
+        const first = await query(firstId), second = await query(secondId);
+        return { firstRoot: first.project.rootUri, secondRoot: second.project.rootUri,
+            firstText: new TextDecoder().decode(first.contents[resourceId]), secondText: new TextDecoder().decode(second.contents[resourceId]) };
+    }, { firstId: projectId, secondId: independentProjectId, resourceId: file.resourceId });
+    assert.notEqual(copies.firstRoot, copies.secondRoot);
+    assert.equal(copies.firstText, `${original}\n`);
+    assert.equal(copies.secondText, original);
+    await tree('Content types and schemas'); await treeKey('collection=content-types-data');
+    await treeKey('collection=content-types-data&sample=supplier-pipeline');
+    await tree('data', 'Project files');
+    await listing.getByRole('button', { name: 'stock.csv', exact: true }).click(); await settle();
+    assert.equal(await readonlySource.evaluate(element => element.value), original, 'Editing saved clones never changes the original sample');
     const inset = await page.locator('cem-studio-shell').evaluate(shell => {
         shell.style.setProperty('--cem-inset-container', '23px');
         const region = shell.querySelector('cem-workspace [part~=editor] > [part=content]');
@@ -156,12 +237,26 @@ try {
     await page.locator('cem-expansion[label="Commands and results"] > [part~=root] [part~=header]').first().click(); await settle();
     await click('Run configuration');
     assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().status), 'projected');
+    await page.goto(`${server.url}/?collection=content-types-and-schemas`); await ready();
+    assert.equal((await state()).content, 'folder');
+    assert.deepEqual((await state()).children.map(item => item.name), categories);
+    for (const name of categories) assert.ok(await listing.getByRole('button', { name, exact: true }).isVisible());
+    await treeKey('collection=content-types-data');
+    await listing.getByRole('button', { name: 'Supplier pipeline', exact: true }).click(); await settle();
+    assert.equal(new URL(page.url()).searchParams.get('collection'), 'content-types-data');
+    await tree('data', 'Project files');
+    await listing.getByRole('button', { name: 'stock.csv', exact: true }).click(); await settle();
+    await page.reload(); await ready();
+    assert.equal((await state()).content, 'sample-file');
+    assert.equal((await state()).selection.collection, 'content-types-data');
+    assert.equal((await state()).selection.file, sampleFile.resourceId);
+    assert.equal(await readonlySource.evaluate(element => element.value), sampleText);
     await context.setOffline(false);
     const markdownSite = await verifyMarkdownSite({ page, context, url: server.url });
     assert.deepEqual(errors, []);
     await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
-    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
-    console.log('Studio navigation: URL/history, model trees, CRUD, drafts, themes, responsive layout and offline Supplier/Markdown site builds passed.');
+    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
+    console.log('Studio navigation: nested catalog, contextual/legacy URLs, readonly originals, independent clones, drafts, themes, responsive layout and offline catalog/Supplier/Markdown site builds passed.');
 } catch (error) {
     const failure = await state().catch(() => ({}));
     console.error('Navigation failure:', JSON.stringify({ selection: failure.selection, title: failure.title, error: failure.error, status: failure.status }));

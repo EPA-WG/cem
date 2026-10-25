@@ -34,19 +34,33 @@ export async function createCemStudioNavigation({ workbench, repository, example
     const sectionTouched = new Set();
     const trees = { projects: { selected: 'samples', expanded: new Set(['samples', 'view=projects']) }, structure: { selected: '', expanded: new Set() }, output: { selected: '', expanded: new Set() } };
     let retainedProjectKey, revealPending = true, outputRevealed = false;
+    const memberships = example => [...new Set(example.collections?.length ? example.collections : ['examples'])];
+    const catalogRoute = route => route.sample && !route.collection
+        ? { collection: memberships(examples.find(example => example.id === route.sample))[0], ...route } : route;
+    async function loadSample(example) {
+        let pending = bundles.get(example.id);
+        if (!pending) { pending = Promise.resolve().then(() => example.load()); bundles.set(example.id, pending); }
+        try { return await pending; }
+        catch (cause) { if (bundles.get(example.id) === pending) bundles.delete(example.id); throw cause; }
+    }
     const sampleRoot = () => {
-        const roots = [];
+        const roots = [], groups = new Map(collections.map(collection => [collection.id,
+            node({ collection: collection.id }, collection.name, 'folder', collection.description ?? 'Example projects')]));
+        for (const collection of collections) {
+            const parent = collection.parentId && groups.get(collection.parentId);
+            (parent ? parent.children : roots).push(groups.get(collection.id));
+        }
         for (const example of examples) {
-            // A hierarchy has one parent; additional catalog memberships remain metadata.
-            const ids = [example.collections?.[0] ?? 'examples'];
-            for (const id of ids) {
-                let group = roots.find(item => item.route.collection === id);
+            // Occurrences are catalog routes to the same ordinary project.
+            // Including their direct membership keeps every tree value unique.
+            for (const id of memberships(example)) {
+                let group = groups.get(id);
                 if (!group) {
-                    const collection = collections.find(item => item.id === id);
-                    group = node({ collection: id }, collection?.name ?? (id === 'examples' ? 'Examples' : id), 'folder', collection?.description ?? 'Example projects');
+                    group = node({ collection: id }, id === 'examples' ? 'Examples' : id, 'folder', 'Example projects');
+                    groups.set(id, group);
                     roots.push(group);
                 }
-                group.children.push(node({ sample: example.id }, example.name, 'project', example.description ?? 'Open this sample or clone it into Saved projects.'));
+                group.children.push(node({ collection: id, sample: example.id }, example.name, 'project', example.description ?? 'Open this sample or clone it into Saved projects.'));
             }
         }
         return node({}, 'Examples', 'folder', 'Predefined example projects. Clone a sample to save your own version.', roots);
@@ -148,15 +162,16 @@ export async function createCemStudioNavigation({ workbench, repository, example
         }
         if (revealPending) {
             if (opened) {
-                trees.projects.selected = routeKey(opened.route);
+                trees.projects.selected = routeKey(catalogRoute(opened.route));
                 for (const root of [samples, saved]) for (const ancestor of treeAncestors(root, trees.projects.selected) ?? []) trees.projects.expanded.add(ancestor);
             }
             const group = selection.selection === 'output' ? 'output' : selection.file || selection.folder || selection.configuration ? 'structure' : 'projects';
-            trees[group].selected = selected.key;
+            const treeKey = group === 'projects' && opened?.route.sample ? routeKey(catalogRoute(opened.route)) : selected.key;
+            trees[group].selected = treeKey;
             for (const root of group === 'projects' ? [samples, saved] : group === 'structure' ? [files] : [output]) if (root) {
-                for (const ancestor of treeAncestors(root, selected.key) ?? []) trees[group].expanded.add(ancestor);
+                for (const ancestor of treeAncestors(root, treeKey) ?? []) trees[group].expanded.add(ancestor);
             }
-            if (selected.children.length) trees[group].expanded.add(selected.key);
+            if (selected.children.length) trees[group].expanded.add(treeKey);
             // Project activation is remembered in both its catalog and structure.
             if (selected.kind === 'project' && files) trees.structure.selected = files.key;
             revealPending = false;
@@ -237,7 +252,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
         if (disposed || currentVersion !== version) return;
         busy = true; error = undefined; action = undefined; publish();
         try {
-            if (['view', 'collection', 'project', 'sample'].filter(key => route[key]).length > 1) throw new Error('The Studio URL has conflicting roots.');
+            if (['view', 'project', 'sample'].filter(key => route[key]).length > 1 || route.collection !== undefined && (route.view !== undefined || route.project !== undefined)) throw new Error('The Studio URL has conflicting roots.');
             if ((route.project && route.sample) || (route.file && (route.folder || route.configuration)) || (route.folder && route.configuration)) throw new Error('The Studio URL has conflicting selections.');
             if (route.selection !== undefined && route.selection !== 'output') throw new Error('The navigation selection is unavailable.');
             if (route.selection === 'output' && (route.file || route.folder || route.configuration || Object.hasOwn(route, 'output-folder') && artifact !== undefined)) throw new Error('The Studio URL has conflicting output selections.');
@@ -251,9 +266,9 @@ export async function createCemStudioNavigation({ workbench, repository, example
             if (route.sample) {
                 const example = examples.find(item => item.id === route.sample);
                 if (!example) throw new Error('The requested sample is unavailable.');
-                let bundle = bundles.get(example.id);
-                if (!bundle) { bundle = await example.load(); bundles.set(example.id, bundle); }
-                nextOpened = { project: bundle.project, bundle, route: { sample: example.id }, text: '' };
+                if (route.collection !== undefined && !memberships(example).includes(route.collection)) throw new Error('The requested sample is not in this samples folder.');
+                const bundle = await loadSample(example);
+                nextOpened = { project: bundle.project, bundle, route: { ...(route.collection !== undefined ? { collection: route.collection } : {}), sample: example.id }, text: '' };
                 if (route.file) {
                     const resource = bundle.project.resources.find(item => item.id === route.file);
                     if (!resource) throw new Error('The requested sample file is unavailable.');
@@ -273,7 +288,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
                 const record = (await repository.query(request('get-project', { projectId: route.project }))).value;
                 if (!record || !projects.some(item => item.id === record.id)) throw new Error('The requested project is missing or in Trash.');
                 nextOpened = { project: record, route: { project: record.id } };
-            } else if (route.collection) {
+            } else if (route.collection !== undefined) {
                 if (!find(sampleRoot(), routeKey(route))) throw new Error('The requested samples folder is unavailable.');
             } else if (route.view && route.view !== 'projects') throw new Error('The requested Studio view is unavailable.');
             if (currentVersion !== version) return;
@@ -388,7 +403,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
                     const created = projects.find(item => !previousIds.has(item.id));
                     if (created) await navigate({ project: created.id });
                 } else if (kind === 'clone' && selected.kind === 'project') {
-                    let bundle = selection.sample ? await examples.find(item => item.id === selection.sample).load() : (await repository.query(request('export-project', { projectId: selection.project }))).value;
+                    let bundle = selection.sample ? await loadSample(examples.find(item => item.id === selection.sample)) : (await repository.query(request('export-project', { projectId: selection.project }))).value;
                     bundle = structuredClone(bundle);
                     const id = `project-${crypto.randomUUID()}`, now = new Date().toISOString();
                     bundle.project = { ...bundle.project, id, name, rootUri: `studio://${id}/`, revision: 1, createdAt: now, updatedAt: now };

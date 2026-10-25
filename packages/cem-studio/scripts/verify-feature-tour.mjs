@@ -57,7 +57,10 @@ assert.equal(
 );
 assert.deepEqual(sampleIndex.projects.map(project => project.id), ['schema-examples', 'login', 'markdown-site', 'supplier-pipeline']);
 assert.equal(sampleIndex.cacheUrls.length, catalog.cacheUrlCount + sampleIndex.projects.length + 1);
-assert.deepEqual(sampleIndex.collections, [{ id: 'amsterdam-2026', name: 'Amsterdam 2026' }]);
+assert.deepEqual(sampleIndex.collections, await readJson(resolve(workspaceRoot, 'examples/projects/collections.json')));
+const categoryIds = ['content-types-data', 'content-types-documents-ui', 'content-types-queries-transformations', 'content-types-schema-authoring'];
+assert.deepEqual(sampleIndex.collections.filter(collection => collection.parentId === 'content-types-and-schemas').map(collection => collection.id), categoryIds);
+for (const id of categoryIds) assert.ok(sampleIndex.projects.some(project => project.collections.includes(id)), `${id} has no existing project`);
 const definition = await readJson(resolve(workspaceRoot, 'examples/projects/login/example.json'));
 for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
     assert.ok(sampleIndex.cacheUrls.includes(record.archive));
@@ -73,7 +76,8 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
     await writeFile(manifest, JSON.stringify(bundle.project));
     run(cli, ['validate', manifest, '--format', 'json', '--content-type', 'application/vnd.cem.studio-project+json', '--schema', 'https://cem.dev/ns/studio/project/1'], workspaceRoot);
     if (record.id === 'login') {
-        assert.deepEqual(record.collections, ['amsterdam-2026']);
+        assert.deepEqual(record.collections, definition.collections);
+        assert.equal(record.description, definition.description);
         assert.equal(bundle.project.entries.length, definition.configurations.length);
         for (const source of definition.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
         assert.equal(record.version, '2.8.0');
@@ -144,7 +148,8 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.deepEqual(JSON.parse(new TextDecoder().decode(bundle.contents[repair.runConfigResourceId])).schemaPackages, [{ uri: 'schemas/login-schema-package.cem' }]);
     } else if (record.id === 'supplier-pipeline') {
         const supplier = await readJson(resolve(workspaceRoot, 'examples/projects/supplier-pipeline/example.json'));
-        assert.deepEqual(record.collections, ['amsterdam-2026']);
+        assert.deepEqual(record.collections, supplier.collections);
+        assert.equal(record.description, supplier.description);
         assert.equal(record.version, supplier.version);
         assert.equal(bundle.project.entries.length, supplier.configurations.length);
         for (const source of supplier.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
@@ -175,7 +180,8 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         } finally { await rm(directory, { recursive: true, force: true }); }
     } else if (record.id === 'markdown-site') {
         const site = await readJson(resolve(workspaceRoot, 'examples/projects/markdown-site/example.json'));
-        assert.deepEqual(record.collections, ['amsterdam-2026']);
+        assert.deepEqual(record.collections, site.collections);
+        assert.equal(record.description, site.description);
         assert.equal(bundle.project.entries.length, 3);
         for (const source of site.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
         const build = site.configurations.find(configuration => configuration.id === 'build-site');

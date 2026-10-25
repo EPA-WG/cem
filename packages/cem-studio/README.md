@@ -115,6 +115,14 @@ project configurations and the remaining functional sample workflows. The
 Feature Tour verifier checks its identities, browser capabilities and sample
 references against native metadata and ordinary project bundles.
 
+**Examples → Content types and schemas** groups existing projects under Data,
+Documents and UI, Queries and transformations, and Schema authoring. The hierarchy
+and descriptions come from [collection metadata](../../examples/projects/collections.json).
+Projects can appear in several folders, each with a unique contextual URL/tree
+entry while sharing one integrity-checked archive. Bare sample/file bookmarks,
+Amsterdam and the legacy Schema examples folder remain valid. Selection survives
+folder collapse; saved clones and drafts are independent of read-only originals.
+
 Deterministic search is available through the repository protocol; project-search
 UI belongs to the next milestone below. Storage status uses the CEM shell;
 persistence does not introduce application-local visible controls.

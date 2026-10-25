@@ -25,13 +25,14 @@ describe('CEM Studio File System Access provider', () => {
         const bundle = await exportProject(repository);
         const archive = serializeCemStudioProjectBundle(bundle);
         const sha256 = [...new Uint8Array(await crypto.subtle.digest('SHA-256', archive))].map(value => value.toString(16).padStart(2, '0')).join('');
-        const record = { id: 'custom-example', name: 'Custom example', version: '1.0.0', collections: ['conference'], archive: './custom.cem-studio.json', sha256 };
+        const legacyCollections = ['conference', 'conference/2026', 'My examples', '日本語', ' padded identity '];
+        const record = { id: 'custom-example', name: 'Custom example', version: '1.0.0', collections: legacyCollections, archive: './custom.cem-studio.json', sha256 };
         const catalog = { schemaVersion: 1, commonVersion: 'test', projects: [record], starter: record };
         const fetch = vi.fn(async url => new Response(String(url).endsWith('/index.json') ? JSON.stringify(catalog) : archive));
         const options = { baseUrl: 'https://studio.test/examples/', commonVersion: 'test', fetch };
         const loaded = await loadCemStudioExampleProjects(options);
         expect(fetch).toHaveBeenCalledTimes(1);
-        expect(loaded.examples[0]).toMatchObject({ id: 'custom-example', name: 'Custom example', collections: ['conference'] });
+        expect(loaded.examples[0]).toMatchObject({ id: 'custom-example', name: 'Custom example', collections: legacyCollections });
         const decoded = { project: bundle.project, contents: Object.fromEntries(Object.entries(bundle.contents).map(([id, bytes]) => [id, new Uint8Array(bytes)])) };
         expect(await loaded.examples[0].load()).toEqual(decoded);
         expect(await loaded.starter.load()).toEqual(decoded);
@@ -43,6 +44,75 @@ describe('CEM Studio File System Access provider', () => {
         await expect(corrupt.examples[0].load()).rejects.toThrow('integrity');
         catalog.projects[0] = { ...record, archive: '../outside.json' };
         await expect(loadCemStudioExampleProjects(options)).rejects.toThrow('metadata');
+    });
+
+    it('accepts immutable nested discovery metadata without loading or duplicating ordinary projects', async () => {
+        const discoveryCollections = ['presentation/2026', 'My examples', '日本語', ' padded identity '];
+        const record = { id: 'shared-project', name: 'Shared project', description: 'An ordinary project in multiple discovery folders.',
+            version: '1.0.0', collections: discoveryCollections, archive: './shared.cem-studio.json', sha256: '0'.repeat(64) };
+        const catalog = { schemaVersion: 1, commonVersion: 'test', collections: [
+            { id: 'presentation/2026', name: 'Presentation' },
+            { id: 'content-types', name: 'Content types and schemas', description: 'Discover supported content.' },
+            { id: 'My examples', name: 'My examples', parentId: 'presentation/2026' },
+            { id: '日本語', name: '日本語', parentId: 'My examples' },
+            { id: ' padded identity ', name: 'Padded identity', parentId: '日本語' },
+            { id: 'schema-authoring', name: 'Schema authoring', parentId: 'content-types' },
+        ], projects: [record], starter: { ...record, id: 'starter', collections: [] } };
+        const fetch = vi.fn(async () => new Response(JSON.stringify(catalog)));
+        const loaded = await loadCemStudioExampleProjects({ baseUrl: 'https://studio.test/examples/', commonVersion: 'test', fetch });
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(loaded.examples).toHaveLength(1);
+        expect(loaded.examples[0]).toMatchObject({ id: 'shared-project', description: record.description, collections: discoveryCollections });
+        expect(loaded.catalog.collections).toEqual(catalog.collections);
+        expect(loaded.catalog.collections.at(-1)).toEqual({ id: 'schema-authoring', name: 'Schema authoring', parentId: 'content-types' });
+        expect(Object.isFrozen(loaded.catalog)).toBe(true);
+        expect(Object.isFrozen(loaded.catalog.collections)).toBe(true);
+        expect(Object.isFrozen(loaded.catalog.collections[2])).toBe(true);
+        expect(Object.isFrozen(loaded.catalog.projects[0])).toBe(true);
+        expect(Object.isFrozen(loaded.catalog.projects[0].collections)).toBe(true);
+        expect(Reflect.set(loaded.catalog.collections[2], 'parentId', 'presentation')).toBe(false);
+        expect(Reflect.set(loaded.catalog.projects[0], 'archive', './changed.cem-studio.json')).toBe(false);
+        expect(() => loaded.examples[0].collections.push('schema-authoring')).toThrow(TypeError);
+        catalog.collections[2].parentId = 'content-types';
+        record.collections.push('schema-authoring');
+        expect(loaded.catalog.collections[2].parentId).toBe('presentation/2026');
+        expect(loaded.examples[0].collections).toEqual(['presentation/2026', 'My examples', '日本語', ' padded identity ']);
+    });
+
+    it('rejects malformed collection hierarchies and memberships before fetching an archive', async () => {
+        const record = { id: 'example', name: 'Example', version: '1.0.0', collections: ['data'],
+            archive: './example.cem-studio.json', sha256: '0'.repeat(64) };
+        const catalog = { schemaVersion: 1, commonVersion: 'test', collections: [
+            { id: 'content-types', name: 'Content types and schemas' }, { id: 'data', name: 'Data', parentId: 'content-types' },
+        ], projects: [record], starter: { ...record, id: 'starter', collections: [] } };
+        const invalid = [
+            { ...catalog, collections: null },
+            { ...catalog, collections: [null] },
+            { ...catalog, collections: [{ id: '', name: 'Invalid' }] },
+            { ...catalog, collections: [{ id: '   ', name: 'Invalid' }] },
+            { ...catalog, collections: [{ id: 'bad\u0000id', name: 'Invalid' }] },
+            { ...catalog, collections: [{ id: 'bad\u007fid', name: 'Invalid' }] },
+            { ...catalog, collections: [{ id: 'data', name: '   ' }] },
+            { ...catalog, collections: [{ id: 'data', name: 'Data', description: 1 }] },
+            { ...catalog, collections: [{ id: 'data', name: 'Data', parentId: '' }] },
+            { ...catalog, collections: [catalog.collections[0], catalog.collections[0]] },
+            { ...catalog, collections: [{ id: 'data', name: 'Data', parentId: 'missing' }] },
+            { ...catalog, collections: [{ id: 'data', name: 'Data', parentId: 'data' }] },
+            { ...catalog, collections: [{ id: 'data', name: 'Data', parentId: 'other' }, { id: 'other', name: 'Other', parentId: 'data' }] },
+            { ...catalog, collections: [] },
+            { ...catalog, projects: [{ ...record, collections: ['missing'] }] },
+            { ...catalog, projects: [{ ...record, collections: ['data', 'data'] }] },
+            { ...catalog, projects: [{ ...record, collections: [''] }] },
+            { ...catalog, projects: [{ ...record, collections: [' \t '] }] },
+            { ...catalog, projects: [{ ...record, collections: ['bad\u0085id'] }] },
+            { ...catalog, projects: [{ ...record, collections: 'data' }] },
+            { ...catalog, starter: { ...record, collections: ['missing'] } },
+        ];
+        for (const metadata of invalid) {
+            const fetch = vi.fn(async () => new Response(JSON.stringify(metadata)));
+            await expect(loadCemStudioExampleProjects({ baseUrl: 'https://studio.test/examples/', commonVersion: 'test', fetch })).rejects.toThrow(/collection|metadata/);
+            expect(fetch).toHaveBeenCalledTimes(1);
+        }
     });
 
     it('retains an exact resource handle, pulls external bytes, and rejects stale write-back before truncation', async () => {

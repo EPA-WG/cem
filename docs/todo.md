@@ -138,7 +138,10 @@ are archived. Use the [audited operation and sample map](studio-content-types.md
 when adding the folders and functional projects below; registered aliases alone
 do not establish operation support.
 
-- [ ] Add the catalog subfolder and its category folders using the application data model and shared tree/folder listings. Preserve stable project/resource IDs, URL selection, read-only originals, independent saved clones and existing drafts.
+Completed [nested catalog folders and contextual project discovery](archive/todo-completed-content-type-catalog-2026-10-24.md)
+are archived. Content types and schemas now reuses existing ordinary projects;
+continue with the missing functional workflows below.
+
 - [ ] Add JSON and YAML data projects: API payload inspection, configuration validation, selecting/filtering records and rendering a report through the native retained-tree pipeline.
 - [ ] Add a CSV project: importing spreadsheet/inventory data, header and quoting diagnostics, tabular preview and converting selected records into a report. Include an intentional malformed row and a documented repair.
 - [ ] Add XML and XHTML projects: importing a supplier catalog, namespace-aware selection, validation and template-driven HTML output; cross-reference the Supplier-pipeline example rather than duplicate it.

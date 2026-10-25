@@ -1,7 +1,7 @@
 import type { CemStudioBuildComparison, CemStudioBuildSnapshotSummary, CemStudioPinnedBuildProjection } from './build-snapshots.js';
 import type { CemStudioFeatureTourWorkbench, CemStudioWorkbenchState } from './workbench.js';
 import type { CemStudioIndexedDbRepository } from './repository.js';
-import type { CemStudioExampleProject } from './file-system-provider.js';
+import type { CemStudioExampleCollection, CemStudioExampleProject } from './file-system-provider.js';
 import type { CemStudioBrowserValidator } from './feature-tour.js';
 import type { CemStudioWorkbenchProjection, CemStudioBuildArtifact } from './workbench.js';
 
@@ -117,7 +117,7 @@ export function createCemStudioNavigation(options: {
     validator?: CemStudioBrowserValidator;
     openBuildWorkbench?: (options: Readonly<Record<string, unknown>>) => Promise<CemStudioFeatureTourWorkbench>;
     examples?: readonly CemStudioExampleProject[];
-    collections?: readonly { id: string; name: string; description?: string }[];
+    collections?: readonly CemStudioExampleCollection[];
     browser?: Pick<Window, 'location' | 'history' | 'addEventListener' | 'removeEventListener'>;
 }): Promise<CemStudioNavigation>;
 
