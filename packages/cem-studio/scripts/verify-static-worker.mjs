@@ -177,8 +177,8 @@ try {
         await exerciseExampleProjects(page, context);
         assertNoUnexpectedBrowserErrors(); assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
-        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurations: 23, loginConfigurations: 20, supplierConfigurations: 3, supplierPipeline: true, graphProvenance: true, liveView: true, sourceInspection: true, sourceFormatting: true, sourceColors: true, standaloneExpression: true }, null, 2)}\n`);
-        console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload graph provenance and twenty-three offline configurations across Login and Supplier pipeline.');
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurationCoverage: 'selected', configurations: 23, loginConfigurations: 20, supplierConfigurations: 3, supplierPipeline: true, graphProvenance: true, liveView: true, sourceInspection: true, sourceFormatting: true, sourceColors: true, standaloneExpression: true }, null, 2)}\n`);
+        console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload graph provenance and twenty-three selected offline configurations across Login and Supplier pipeline.');
     } else if (lifecycleOnly) {
         const lifecycle = await exerciseProjectLifecycle(page, context);
         assertNoUnexpectedBrowserErrors(); assert.deepEqual(httpFailures, []);

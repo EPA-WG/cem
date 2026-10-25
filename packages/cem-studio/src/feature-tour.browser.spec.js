@@ -241,6 +241,100 @@ describe('CEM Studio Feature Tour copies', () => {
         expect(decode('inventory-source')).toContain('SKU-C,Glass jars,0,2');
     }, 60_000);
 
+    it('runs ordinary XML and XHTML source configurations with namespace-aware queries and native repair', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        for (const id of ['supplier-pipeline', 'xhtml-document']) {
+            const { bundle, definition, decode } = await authoredProject(id);
+            const projectId = `${id}-commands-copy`;
+            for (const configuration of definition.configurations.filter(item => item.kind !== 'transformation-graph')) {
+                const entry = bundle.project.entries.find(entry => entry.id === configuration.id);
+                const options = projectCommandOptions(bundle, entry, projectId);
+                const command = JSON.parse(decode(entry.runConfigResourceId));
+                const run = overrides => command.argv
+                    ? validator.executeAuthoredResourceCommand({ ...options, ...overrides, commandResource: bundle.contents[entry.runConfigResourceId] })
+                    : validator.validateResource({ ...options, ...overrides });
+                const outcome = await run().catch(error => error);
+                if (!outcome.result) throw new Error(`${id} configuration ${configuration.id}: ${outcome.message}`, { cause: outcome });
+                expect(outcome.result.exitCode, `${id}/${configuration.id}: ${JSON.stringify(outcome.result.diagnostics.items)}`).toBe(configuration.expectedExit ?? 0);
+                const expected = configuration.expectedValidation;
+                if (expected) {
+                    const diagnostics = outcome.result.diagnostics.items;
+                    expect(diagnostics.filter(item => item.severity === 'error')).toHaveLength(expected.errorCount);
+                    expect(diagnostics.filter(item => item.severity === 'warning')).toHaveLength(expected.warningCount);
+                    if (configuration.repair) {
+                        const source = bundle.project.resources.find(resource => resource.id === (expected.source ?? configuration.source));
+                        const diagnostic = diagnostics.find(item => item.code === expected.errorCode);
+                        expect(diagnostic).toMatchObject({ code: expected.errorCode, severity: 'error', uri: `studio://${projectId}/${source.path}` });
+                        for (const [key, value] of Object.entries(expected.location ?? {})) expect(diagnostic[key] ?? null).toBe(value);
+                        const original = decode(configuration.source);
+                        const repaired = original.replace(configuration.repair.find, configuration.repair.replace);
+                        expect(repaired).not.toBe(original);
+                        const result = await run({ bytes: new TextEncoder().encode(repaired) });
+                        expect(result.result.exitCode).toBe(0);
+                        expect(result.result.diagnostics.items).toEqual([]);
+                        expect(decode(configuration.source)).toBe(original);
+                    }
+                }
+                if (configuration.expectedSemanticContract) {
+                    const report = JSON.parse(outcome.output.text);
+                    const values = report.language === 'xpath' ? report.result.sequence.items.map(item => item.value.lexicalValue) : report.result.items.map(item => item.value);
+                    expect(values).toEqual(JSON.parse(decode(configuration.expectedSemanticContract)));
+                }
+                for (const text of configuration.expectedText ?? []) expect(outcome.output.text).toContain(text);
+                if (configuration.id === 'query-products') {
+                    const querySource = bundle.project.resources.find(resource => resource.id === 'supplier-products-query');
+                    const staleMetadata = {
+                        ...options,
+                        dependencies: options.dependencies.map(dependency => dependency.path === `../${querySource.path}`
+                            ? { ...dependency, contentType: 'application/xml', schema: 'https://cem.dev/ns/data/xml/1' } : dependency),
+                    };
+                    const explicit = await validator.executeAuthoredResourceCommand({ ...staleMetadata, commandResource: bundle.contents[entry.runConfigResourceId] });
+                    expect(explicit.result.exitCode).toBe(0);
+                    expect(JSON.parse(explicit.output.text).result.sequence.items.map(item => item.value.lexicalValue))
+                        .toEqual(JSON.parse(decode(configuration.expectedSemanticContract)));
+                    const foreign = decode(configuration.source).replace('urn:demo:supplier', 'urn:demo:foreign');
+                    expect(foreign).not.toBe(decode(configuration.source));
+                    const ignored = await run({ bytes: new TextEncoder().encode(foreign) });
+                    const report = JSON.parse(ignored.output.text);
+                    expect(report.language).toBe('xpath');
+                    expect(report.result.sequence.items).toEqual([]);
+                }
+            }
+        }
+    }, 60_000);
+
+    it('builds the packaged XHTML document into HTML with saved-source identities, provenance and independent copies', async () => {
+        const { bundle, decode } = await authoredProject('xhtml-document');
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const entry = bundle.project.entries.find(entry => entry.id === 'build-html');
+        expect(entry.entryArtifact).toBe('generated/article.html');
+        const command = JSON.parse(decode(entry.runConfigResourceId));
+        const run = (edits = {}, projectId = 'xhtml-report-copy') => validator.runResourceCommand({
+            ...projectCommandOptions(bundle, entry, projectId, edits), argv: command.argv,
+        });
+        const artifacts = outcome => outcome.result.result.value.value.value.artifacts;
+        const baseline = await run();
+        expect(artifacts(baseline)).toHaveLength(1);
+        expect(baseline.output.text.trim()).toBe(decode('expected-html').trim());
+        expect(artifacts(baseline).flatMap(artifact => artifact.outputSpans ?? []).flatMap(span => span.origin.frames))
+            .toEqual(expect.arrayContaining([expect.objectContaining({ transform: expect.objectContaining({ uri: 'studio://xhtml-report-copy/templates/view.cemt' }) })]));
+        const source = decode('article-source');
+        const edited = source.replace('An XHTML field guide', 'Saved XHTML field guide');
+        expect(edited).not.toBe(source);
+        const customized = await run({ 'article-source': edited });
+        expect(customized.output.text).toContain('Saved XHTML field guide');
+        expect(customized.output.text).not.toContain('An XHTML field guide');
+        expect(customized.output.text).toContain('Namespaced documents stay structured.');
+        const malformed = await run({ 'article-source': edited.replace('</html>', '</html-broken>') }).catch(error => error);
+        expect(malformed).toMatchObject({ result: { exitCode: 1 }, output: { available: false, byteLength: 0, text: '' } });
+        expect(malformed.outputs).toEqual([]);
+        expect((await run()).output.text).toBe(baseline.output.text);
+        const independent = await run({}, 'xhtml-report-independent');
+        expect(independent.output.text).toBe(baseline.output.text);
+        expect(artifacts(independent).every(artifact => artifact.destination.startsWith('studio://xhtml-report-independent/'))).toBe(true);
+        expect(decode('article-source')).toBe(source);
+    }, 60_000);
+
     it('runs the packaged supplier pipeline with native multi-format output, edits, failure/repair and isolated copies', async () => {
         const response = await fetch(new URL('../generated/feature-tour/examples/supplier-pipeline.cem-studio.json', import.meta.url));
         expect(response.ok).toBe(true);
@@ -753,6 +847,16 @@ async function csvInventoryProject() {
     const [archive, definition] = await Promise.all([
         fetch(new URL('../generated/feature-tour/examples/csv-inventory.cem-studio.json', import.meta.url)),
         fetch(new URL('../../../examples/projects/csv-inventory/example.json', import.meta.url)),
+    ]);
+    expect(archive.ok && definition.ok).toBe(true);
+    const bundle = parseCemStudioProjectBundle(new Uint8Array(await archive.arrayBuffer()));
+    return { bundle, definition: await definition.json(), decode: id => new TextDecoder().decode(bundle.contents[id]) };
+}
+
+async function authoredProject(id) {
+    const [archive, definition] = await Promise.all([
+        fetch(new URL(`../generated/feature-tour/examples/${id}.cem-studio.json`, import.meta.url)),
+        fetch(new URL(`../../../examples/projects/${id}/example.json`, import.meta.url)),
     ]);
     expect(archive.ok && definition.ok).toBe(true);
     const bundle = parseCemStudioProjectBundle(new Uint8Array(await archive.arrayBuffer()));

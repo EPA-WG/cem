@@ -1,0 +1,6 @@
+(
+    'title=' || normalize-space(//xhtml:head/xhtml:title),
+    'heading=' || normalize-space(//xhtml:main/xhtml:h1),
+    'paragraphs=' || count(//xhtml:main/xhtml:p),
+    'links=' || count(//xhtml:main/xhtml:a)
+)

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog xmlns="urn:demo:supplier" supplier="Canal Supplies">
+  <product id="SKU-A"><name>Café cups</name></product>
+  <product id="SKU-B"><name>Tea pots</name></product>
+  <product id="SKU-C"><name>Glass jars</name></product>
+  <product id="SKU-D"><name>Serving trays</name></product-broken>
+</catalog>

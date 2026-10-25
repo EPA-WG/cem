@@ -254,6 +254,9 @@ export async function createCemStudioBrowserValidator({ recoveryScope, packageDe
             ...(invocation.request.runPlan?.inputs ?? []),
             ...(invocation.request.runPlan?.schemaPackages ?? []),
         ].map(resource => [resource.resolvedUri ?? resource.declaredUri, resource.identity]));
+        const queryUri = invocation.request.operation.kind === 'query' ? invocation.request.operation.queryUri : undefined;
+        const queryIdentity = queryUri && resources[queryUri]?.identity;
+        if (queryUri && queryIdentity) scopedIdentities.set(queryUri, queryIdentity);
         if (requireResourceSet && !resources[inputResourceUri]) {
             throw new Error(`CEM-ML ${operation} omitted input ${inputResourceUri}`);
         }
@@ -267,7 +270,7 @@ export async function createCemStudioBrowserValidator({ recoveryScope, packageDe
             }
             resources[dependencyUri] = {
                 ...resource,
-                // Explicit native input/package scopes own effective identity;
+                // Explicit native input/package/query scopes own effective identity;
                 // other dependencies use their declared project identities.
                 identity: scopedIdentities.get(dependencyUri) ?? {
                     contentType: dependency.contentType,

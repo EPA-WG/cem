@@ -1,0 +1,2 @@
+for $product in /supplier:catalog/supplier:product
+return string($product/@id) || "=" || string($product/supplier:name)

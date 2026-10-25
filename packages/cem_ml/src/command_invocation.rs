@@ -276,7 +276,7 @@ fn build_command_invocation(
 
     let (mut plan, presentation) = command_run_plan(parsed, environment, resources, command)?;
     let operation = command_operation(parsed, environment, resources, command, &plan)?;
-    let mut requirements = operation_resource_requirements(&operation, &plan, resources)?;
+    let mut requirements = operation_resource_requirements(parsed, &operation, &plan, resources)?;
     requirements.extend(scope_resource_requirements(&plan, resources));
     requirements.sort_by(|left, right| left.uri.cmp(&right.uri));
     requirements.dedup_by(|left, right| left.kind == right.kind && left.uri == right.uri);
@@ -444,7 +444,10 @@ fn command_run_plan(
     for package in &mut plan.schema_packages {
         let uri = resolve_host_uri(
             &environment.cwd,
-            package.resolved_uri.as_deref().unwrap_or(&package.declared_uri),
+            package
+                .resolved_uri
+                .as_deref()
+                .unwrap_or(&package.declared_uri),
         );
         package.resolved_uri = (uri != package.declared_uri).then_some(uri);
     }
@@ -620,7 +623,6 @@ fn command_operation(
         }),
         "query" => {
             let content_type = required_option(parsed, "query_content_type")?;
-            let schema = option_string(parsed, "query_schema");
             let query_uri = if let Some(source) = option_string(parsed, "query") {
                 let suffix = query_suffix(&content_type);
                 let uri = format!("{INLINE_QUERY_URI_PREFIX}{suffix}");
@@ -628,12 +630,7 @@ fn command_operation(
                     uri.clone(),
                     VirtualResourceV1 {
                         bytes: source.into_bytes(),
-                        identity: Some(FormatIdentity {
-                            content_type: Some(content_type.clone()),
-                            schema,
-                            base_uri: Some(uri.clone()),
-                            ..FormatIdentity::default()
-                        }),
+                        identity: Some(query_source_identity(parsed, plan, &uri)?),
                     },
                 );
                 uri
@@ -641,12 +638,7 @@ fn command_operation(
                 let raw = required_option(parsed, "query_file")?;
                 let uri = resolve_host_uri(&environment.cwd, &raw);
                 if let Some(resource) = resources.get_mut(&uri) {
-                    resource.identity = Some(FormatIdentity {
-                        content_type: Some(content_type.clone()),
-                        schema,
-                        base_uri: Some(uri.clone()),
-                        ..FormatIdentity::default()
-                    });
+                    resource.identity = Some(query_source_identity(parsed, plan, &uri)?);
                 }
                 uri
             };
@@ -734,7 +726,31 @@ fn command_operation(
     }
 }
 
+fn query_source_identity(
+    parsed: &ParsedCommandInvocationV1,
+    plan: &NormalizedRunPlan,
+    uri: &str,
+) -> Result<FormatIdentity, CommandInvocationErrorV1> {
+    let input = plan.inputs.first().ok_or_else(|| {
+        usage(
+            "cem.command.input_count",
+            "query requires exactly one input",
+        )
+    })?;
+    // CLI namespace options form the query's static context as well as the
+    // data scope. Keep the query's language/schema/base distinct from the data
+    // identity, and carry the same context through asynchronous source reads.
+    Ok(FormatIdentity {
+        content_type: Some(required_option(parsed, "query_content_type")?),
+        schema: option_string(parsed, "query_schema"),
+        namespaces: input.root_scope.namespaces.clone(),
+        default_namespace: input.root_scope.default_namespace.clone(),
+        base_uri: Some(uri.to_owned()),
+    })
+}
+
 fn operation_resource_requirements(
+    parsed: &ParsedCommandInvocationV1,
     operation: &PortableOperationRequestV1,
     plan: &NormalizedRunPlan,
     resources: &CommandUriMapV1<VirtualResourceV1>,
@@ -774,7 +790,7 @@ fn operation_resource_requirements(
                 resources,
                 query_uri,
                 ResolvePurpose::Query,
-                None,
+                Some(query_source_identity(parsed, plan, query_uri)?),
             );
         }
         PortableOperationRequestV1::Transform { source, .. } => match source {
@@ -1662,6 +1678,116 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn query_namespace_context_survives_inline_file_and_missing_resource_lowering() {
+        for inline in [true, false] {
+            let mut command = parsed("query");
+            command.positionals.insert(
+                "data".into(),
+                ParsedCommandValueV1::String("data/catalog.xml".into()),
+            );
+            command.options.insert(
+                if inline { "query" } else { "query_file" }.into(),
+                ParsedCommandValueV1::String(if inline {
+                    "/supplier:catalog/supplier:product".into()
+                } else {
+                    "queries/products.xpath".into()
+                }),
+            );
+            for (key, value) in [
+                ("content_type", "application/xml"),
+                ("schema", "https://cem.dev/ns/data/xml/1"),
+                ("query_content_type", "application/vnd.cem.xpath"),
+                ("query_schema", "https://cem.dev/ns/query/xpath/1"),
+                ("default_namespace", "urn:query-default"),
+            ] {
+                command
+                    .options
+                    .insert(key.into(), ParsedCommandValueV1::String(value.into()));
+            }
+            command.options.insert(
+                "namespaces".into(),
+                ParsedCommandValueV1::Strings(vec!["supplier=urn:demo:supplier".into()]),
+            );
+            let mut environment = environment();
+            environment.cwd = "studio://query-context/".into();
+            let mut resources = CommandUriMapV1::from(BTreeMap::from([(
+                "studio://query-context/data/catalog.xml".into(),
+                VirtualResourceV1 {
+                    bytes: b"<catalog xmlns='urn:demo:supplier'><product/></catalog>".to_vec(),
+                    identity: Some(FormatIdentity {
+                        content_type: Some("application/xml".into()),
+                        ..Default::default()
+                    }),
+                },
+            )]));
+            let expected_uri = if inline {
+                format!("{INLINE_QUERY_URI_PREFIX}query.xpath")
+            } else {
+                let response = build_command_invocation_v1(
+                    command.clone(),
+                    environment.clone(),
+                    resources.clone(),
+                );
+                let CommandInvocationBuildResponseV1::NeedsResources { requirements } = response
+                else {
+                    panic!("query-file needs its original source: {response:?}");
+                };
+                let requirement = requirements
+                    .iter()
+                    .find(|requirement| {
+                        requirement.uri == "studio://query-context/queries/products.xpath"
+                    })
+                    .unwrap();
+                let identity = requirement
+                    .identity
+                    .as_ref()
+                    .expect("query read requirements retain the caller's static context");
+                assert_eq!(
+                    identity.namespaces.get("supplier").map(String::as_str),
+                    Some("urn:demo:supplier")
+                );
+                assert_eq!(
+                    identity.default_namespace.as_deref(),
+                    Some("urn:query-default")
+                );
+                let uri = requirement.uri.clone();
+                resources.insert(
+                    uri.clone(),
+                    VirtualResourceV1 {
+                        bytes: b"/supplier:catalog/supplier:product".to_vec(),
+                        identity: requirement.identity.clone(),
+                    },
+                );
+                uri
+            };
+            let response = build_command_invocation_v1(command, environment, resources);
+            let CommandInvocationBuildResponseV1::Ready { invocation } = response else {
+                panic!("complete query resources must lower: {response:?}");
+            };
+            let query = invocation.request.resources.get(&expected_uri).unwrap();
+            assert_eq!(query.bytes, b"/supplier:catalog/supplier:product");
+            let identity = query.identity.as_ref().unwrap();
+            assert_eq!(
+                identity.content_type.as_deref(),
+                Some("application/vnd.cem.xpath")
+            );
+            assert_eq!(
+                identity.schema.as_deref(),
+                Some("https://cem.dev/ns/query/xpath/1")
+            );
+            assert_eq!(identity.base_uri.as_deref(), Some(expected_uri.as_str()));
+            assert_eq!(
+                identity.namespaces,
+                BTreeMap::from([("supplier".into(), "urn:demo:supplier".into())])
+            );
+            assert_eq!(
+                identity.default_namespace.as_deref(),
+                Some("urn:query-default")
+            );
+        }
     }
 
     #[test]

@@ -9,6 +9,7 @@
     "./examples/schema-examples.cem-studio.json",
     "./examples/starter.cem-studio.json",
     "./examples/supplier-pipeline.cem-studio.json",
+    "./examples/xhtml-document.cem-studio.json",
     "./feature-tour/catalog.json",
     "./feature-tour/feature-tour.project.json",
     "./feature-tour/resources/cem-ast-projection-basic-ast.cem-bin",
@@ -206,15 +207,27 @@
     {
       "id": "supplier-pipeline",
       "name": "Supplier pipeline",
-      "description": "XML products and CSV stock reconciled through explicit native domain rules into JSON, YAML and HTML, with failure/repair and source provenance.",
-      "version": "1.0.0",
+      "description": "Namespace-aware XML catalog validation and selection, then XML products and CSV stock reconciled through explicit native domain rules into JSON, YAML and HTML, with failure/repair and source provenance.",
+      "version": "1.1.0",
       "collections": [
         "amsterdam-2026",
         "content-types-data",
         "content-types-queries-transformations"
       ],
       "archive": "./examples/supplier-pipeline.cem-studio.json",
-      "sha256": "72a709c20b45f5d775d379572e002ea09d973a47e6dca4fe5fac9a37a3774bd3"
+      "sha256": "a90f0fe7ed4b7b0a0cab1c216fddc57dde911f42b350bfb8c9c9feba9b977b51"
+    },
+    {
+      "id": "xhtml-document",
+      "name": "XHTML document",
+      "description": "Inspect and validate XML-serialized HTML, query expanded names across XHTML and foreign SVG, repair a missing namespace and build a script-free HTML article.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-documents-ui",
+        "content-types-queries-transformations"
+      ],
+      "archive": "./examples/xhtml-document.cem-studio.json",
+      "sha256": "8f3c8e1d2a28c93d880de780f04e80223ac4f71ec5bc65f2f63fea4d46137925"
     }
   ]
 }

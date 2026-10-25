@@ -56,6 +56,20 @@ owns the `html` root, XHTML namespace, `head`/`body` ordering, MIME profile, and
 XML serialization constraints. The current validator does not perform complete
 HTML vocabulary or content-model validation beyond those schema bindings.
 
+## Shared data import and templates
+
+The native shared import boundary retains the original XHTML lifecycle owner and
+projects its XML semantic values into the same retained CEM tree used by XPath,
+CEM-QL, structural inspection and templates. The explicit XHTML selector is
+resolved before generic `+xml` syntax handling. XHTML is not relabeled as HTML
+or generic XML: namespace/head-body checks, original source ranges and foreign
+namespaces remain attached to its own source owner. Hard XML/XHTML source facts
+and the shared document byte/event/depth limits still refuse import.
+
+The ordinary [XHTML document Studio project](../../../../../examples/projects/xhtml-document/README.md)
+shows source validation/repair, an expanded-name XPath outline and a CEMT HTML
+artifact. It cross-references Supplier for XML catalog import and reconciliation.
+
 ## Output Artifacts
 
 The package owns `compact`, `pretty`, and `tabular` formatter wrappers plus

@@ -2,6 +2,9 @@
 
 This index links the active project, release, and token workflow documents.
 
+- [What CEM is](./cem-what-it-is.md) — an overview of its languages, schemas,
+  processing tools, build workflows and declarative application platform.
+
 ## Project Planning
 
 - [CEM manifesto](./declarative-amsterdam-2026/cem-manifesto.md) — principles for composable, evolving applications.

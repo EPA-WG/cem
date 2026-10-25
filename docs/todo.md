@@ -153,7 +153,10 @@ previews, independent saved copies and offline saved header-policy execution.
 Both default and optional deployments pass the CSV workflow; standard header-mode
 and row-width diagnostics retain their warning severity.
 
-- [ ] Add XML and XHTML projects: importing a supplier catalog, namespace-aware selection, validation and template-driven HTML output; cross-reference the Supplier-pipeline example rather than duplicate it.
+Completed [XML/XHTML workflows and query namespace context](archive/todo-completed-xml-xhtml-2026-10-24.md)
+cover Supplier validation/selection/repair, the ordinary XHTML document project,
+shared retained import, explicit query identities and saved/offline preview acceptance.
+
 - [ ] Add a Markdown project: article preview and a folder-based Markdown + CEM-ML site with metadata, relative links, CSS and images; reuse the existing site example and expose its source-to-artifact provenance.
 - [ ] Add HTML and CEM-ML projects: semantic comparison, a minimal reusable declarative component and data-bound HTML generation. Reuse Login where appropriate; keep theme/storage keys independent from Studio and preserve credential privacy policy.
 - [ ] Add SVG and MathML projects: inspect and validate a vector diagram and a mathematical expression, then preview supported output using shared preview components.
@@ -348,6 +351,19 @@ until final [Phases 10 and 11](../roadmap.md#phase-10---figma-ui-kit). Their
 checklists live only in the roadmap. Finish and verify `cem-elements` and the
 declarative `cem-components` migration first, then the remaining non-Figma phases
 through Phase 9 release governance.
+
+- [ ] Implement the general whole-page DCE CLI compilation pipeline from the
+      [whole-page SSR proposal](cem-ml-cli-ssr-proposal.md), using config-driven
+      CEMT transform graphs and the shared native DCE lifecycle. Accept HTML,
+      CEM-ML and opted-in `.cem.md` pages; keep source URI, deployed page/base URL
+      and output destination distinct. Support scoped declaration/module
+      resolution, canonical islands, scoped CSS, bounded nested settling and
+      registered CEMT participants such as `cem-demo-element`. Emit deterministic
+      HTML, hydration metadata, diagnostics and source maps with atomic
+      single-page/directory fan-out. Add native, Node and browser fixtures for
+      identity-matched hydration without an initial rerender, mismatch/privacy
+      refusals and source/client parity, without executing arbitrary page
+      JavaScript. Keep this behind the current Studio sample priorities.
 
 ## Deferred work: Declarative Amsterdam 2026 CEM presentation
 

@@ -150,12 +150,21 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.deepEqual(repair.resourceIds, ['login-invalid', 'command-validation-repair', 'login-schema-package', 'login-schema']);
         assert.ok(new TextDecoder().decode(bundle.contents.readme).includes('demo.login.method_required'));
         assert.deepEqual(JSON.parse(new TextDecoder().decode(bundle.contents[repair.runConfigResourceId])).schemaPackages, [{ uri: 'schemas/login-schema-package.cem' }]);
-    } else if (['json-yaml-report', 'csv-inventory'].includes(record.id)) {
+    } else if (['json-yaml-report', 'csv-inventory', 'supplier-pipeline', 'xhtml-document'].includes(record.id)) {
         const definition = authoredDefinitions.find(project => project.id === record.id);
         assert.deepEqual(record.collections, definition.collections);
+        assert.equal(record.description, definition.description);
         assert.equal(record.version, definition.version);
         assert.equal(bundle.project.entries.length, definition.configurations.length);
         for (const source of definition.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
+        if (record.id === 'supplier-pipeline') {
+            const pipeline = bundle.project.entries.find(entry => entry.id === 'availability');
+            assert.equal(pipeline.kind, 'transformation-graph');
+            for (const id of ['supplier-stock', 'supplier-catalog', 'supplier-reconcile', 'supplier-view']) assert.ok(pipeline.resourceIds.includes(id));
+            assert.ok(new TextDecoder().decode(bundle.contents.readme).includes('Failure and repair'));
+            const command = JSON.parse(new TextDecoder().decode(bundle.contents[pipeline.runConfigResourceId]));
+            assert.ok(command.argv.includes('graphs/availability.cem'));
+        }
         const directory = await mkdtemp(resolve(tmpdir(), `cem-studio-${record.id}-`));
         try {
             for (const resource of bundle.project.resources) {
@@ -171,7 +180,9 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                 const actual = runExpected(cli, args, directory, configuration.expectedExit ?? 0);
                 if (configuration.expectedSemanticContract) {
                     const expected = JSON.parse(new TextDecoder().decode(bundle.contents[configuration.expectedSemanticContract]));
-                    assert.deepEqual(JSON.parse(actual).result.items.map(item => item.value), expected, `${configuration.id} semantic result drifted`);
+                    const report = JSON.parse(actual);
+                    const values = report.language === 'xpath' ? report.result.sequence.items.map(item => item.value.lexicalValue) : report.result.items.map(item => item.value);
+                    assert.deepEqual(values, expected, `${configuration.id} semantic result drifted`);
                 }
                 if (configuration.expectedOutput) {
                     const expected = new TextDecoder().decode(bundle.contents[configuration.expectedOutput]);
@@ -208,18 +219,24 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                 }
                 if (configuration.expectedGraphOutputs) {
                     assert.ok(Object.hasOwn(configuration.expectedGraphOutputs, entry.entryArtifact));
+                    const baseline = new Map();
                     for (const [path, expectedId] of Object.entries(configuration.expectedGraphOutputs)) {
-                        const actual = await readFile(resolve(directory, path), 'utf8');
+                        const bytes = new Uint8Array(await readFile(resolve(directory, path)));
+                        baseline.set(path, bytes);
+                        const actual = new TextDecoder().decode(bytes);
                         const expected = new TextDecoder().decode(bundle.contents[expectedId]);
                         if (path.endsWith('.json')) assert.deepEqual(JSON.parse(actual), JSON.parse(expected));
                         else assert.equal(actual.trim(), expected.trim());
+                        if (record.id !== 'supplier-pipeline') assert.deepEqual(bytes, bundle.contents[expectedId], `${path} output fixture drifted`);
                     }
                     const map = await readJson(resolve(directory, `${entry.entryArtifact}.map`));
                     assert.ok(map.outputSpans.length > 0);
                     for (const path of configuration.expectedProvenance ?? ['templates/view.cemt']) assert.ok(JSON.stringify(map).includes(`/${path}`));
                     run(cli, args, directory);
                     for (const [path, expectedId] of Object.entries(configuration.expectedGraphOutputs)) {
-                        assert.deepEqual(new Uint8Array(await readFile(resolve(directory, path))), bundle.contents[expectedId], `${path} repeated build drifted`);
+                        const bytes = new Uint8Array(await readFile(resolve(directory, path)));
+                        assert.deepEqual(bytes, baseline.get(path), `${path} repeated build drifted`);
+                        if (record.id !== 'supplier-pipeline') assert.deepEqual(bytes, bundle.contents[expectedId], `${path} repeated output fixture drifted`);
                     }
                     const failures = configuration.expectedGraphFailures ?? (record.id === 'json-yaml-report'
                         ? [['api-payload', 'invalid-payload'], ['report-settings', 'invalid-settings']] : []);
@@ -234,42 +251,12 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                         await writeFile(resolve(directory, source.path), bundle.contents[sourceId]);
                         run(cli, args, directory);
                         for (const [path, expectedId] of Object.entries(configuration.expectedGraphOutputs)) {
-                            assert.deepEqual(new Uint8Array(await readFile(resolve(directory, path))), bundle.contents[expectedId], `${path} repaired build drifted`);
+                            const bytes = new Uint8Array(await readFile(resolve(directory, path)));
+                            assert.deepEqual(bytes, baseline.get(path), `${path} repaired build drifted`);
+                            if (record.id !== 'supplier-pipeline') assert.deepEqual(bytes, bundle.contents[expectedId], `${path} repaired output fixture drifted`);
                         }
                     }
                 }
-            }
-        } finally { await rm(directory, { recursive: true, force: true }); }
-    } else if (record.id === 'supplier-pipeline') {
-        const supplier = await readJson(resolve(workspaceRoot, 'examples/projects/supplier-pipeline/example.json'));
-        assert.deepEqual(record.collections, supplier.collections);
-        assert.equal(record.description, supplier.description);
-        assert.equal(record.version, supplier.version);
-        assert.equal(bundle.project.entries.length, supplier.configurations.length);
-        for (const source of supplier.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
-        const pipeline = bundle.project.entries.find(entry => entry.id === 'availability');
-        assert.equal(pipeline.kind, 'transformation-graph');
-        for (const id of ['supplier-stock', 'supplier-catalog', 'supplier-reconcile', 'supplier-view']) assert.ok(pipeline.resourceIds.includes(id));
-        assert.ok(new TextDecoder().decode(bundle.contents.readme).includes('Failure and repair'));
-        const command = JSON.parse(new TextDecoder().decode(bundle.contents[pipeline.runConfigResourceId]));
-        assert.ok(command.argv.includes('graphs/availability.cem'));
-        const directory = await mkdtemp(resolve(tmpdir(), 'cem-studio-supplier-'));
-        try {
-            for (const resource of bundle.project.resources) {
-                const path = resolve(directory, resource.path);
-                await mkdir(dirname(path), { recursive: true });
-                await writeFile(path, bundle.contents[resource.id]);
-            }
-            for (const entry of bundle.project.entries) {
-                const command = JSON.parse(new TextDecoder().decode(bundle.contents[entry.runConfigResourceId]));
-                run(cli, command.argv, directory);
-            }
-            const outputs = supplier.configurations.find(configuration => configuration.id === 'availability').expectedGraphOutputs;
-            for (const [path, expectedId] of Object.entries(outputs)) {
-                const actual = await readFile(resolve(directory, path), 'utf8');
-                const expected = new TextDecoder().decode(bundle.contents[expectedId]);
-                if (path.endsWith('.json')) assert.deepEqual(JSON.parse(actual), JSON.parse(expected));
-                else assert.equal(actual.trim(), expected.trim());
             }
         } finally { await rm(directory, { recursive: true, force: true }); }
     } else if (record.id === 'markdown-site') {

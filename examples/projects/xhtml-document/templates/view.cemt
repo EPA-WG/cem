@@ -1,0 +1,18 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+{param @name=input @required=true}
+{template @name=main @visibility=public @cem:whitespace=layout |
+    {cem:variable @name=nodes
+        @select='seq:where(input.descendants, fn(node) => node.kind == "element" && node.namespace == "http://www.w3.org/1999/xhtml")'}
+    {element @name=article @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=aria-label
+            @value='{$str:normalize_space(dom:text(seq:first(seq:where(nodes, fn(node) => node.name == "title"))))}'}
+        {element @name=h1 @namespace=http://www.w3.org/1999/xhtml |
+            {$ | str:normalize_space(dom:text(seq:first(seq:where(nodes, fn(node) => node.name == "h1"))))}
+        }
+        {cem:for-each @as=paragraph @select='seq:where(nodes, fn(node) => node.name == "p")' |
+            {element @name=p @namespace=http://www.w3.org/1999/xhtml |
+                {$ | str:normalize_space(dom:text(paragraph))}
+}   }   }   }

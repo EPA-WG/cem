@@ -820,6 +820,7 @@
                 "{projectRoot}/scripts/verify-navigation.mjs",
                 "{projectRoot}/scripts/verify-markdown-site.mjs",
                 "{projectRoot}/scripts/verify-data-projects.mjs",
+                "{projectRoot}/scripts/verify-xml-xhtml-projects.mjs",
                 "{projectRoot}/scripts/verify-csv-inventory.mjs",
                 "{projectRoot}/dist/static/**/*",
                 {
@@ -930,18 +931,26 @@
                 "command": "node --test scripts/schema-assets-measurements.test.mjs",
                 "cwd": "{projectRoot}"
             },
-            "inputs": ["{projectRoot}/scripts/schema-assets-measurements*.mjs"]
+            "inputs": [
+                "{projectRoot}/scripts/schema-assets-measurements*.mjs"
+            ]
         },
         "measure:schema-assets": {
             "cache": false,
             "parallelism": false,
             "executor": "nx:run-commands",
-            "dependsOn": ["test:schema-measurements", "verify:output", "verify:schema-assets"],
+            "dependsOn": [
+                "test:schema-measurements",
+                "verify:output",
+                "verify:schema-assets"
+            ],
             "options": {
                 "command": "node scripts/measure-schema-assets.mjs",
                 "cwd": "{projectRoot}"
             },
-            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/schema-assets-measurements.json"]
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/schema-assets-measurements.json"
+            ]
         },
         "verify:schema-assets": {
             "cache": true,
@@ -962,6 +971,31 @@
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/schema-assets-profile.json"
+            ]
+        },
+        "verify:xml-xhtml": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:determinism"
+            ],
+            "options": {
+                "command": "node scripts/verify-navigation.mjs --documents-only",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-xml-xhtml-projects.mjs",
+                "{workspaceRoot}/examples/projects/supplier-pipeline/**/*",
+                "{workspaceRoot}/examples/projects/xhtml-document/**/*",
+                "{projectRoot}/dist/static/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/xml-xhtml-projects.json"
             ]
         }
     },

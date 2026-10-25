@@ -1,0 +1,216 @@
+{
+  "id": "xhtml-document",
+  "name": "XHTML document",
+  "version": "1.0.0",
+  "description": "Inspect and validate XML-serialized HTML, query expanded names across XHTML and foreign SVG, repair a missing namespace and build a script-free HTML article.",
+  "collections": [
+    "content-types-documents-ui",
+    "content-types-queries-transformations"
+  ],
+  "sources": [
+    {
+      "id": "article-source",
+      "source": "examples/projects/xhtml-document/data/article.xhtml",
+      "path": "data/article.xhtml",
+      "contentType": "application/xhtml+xml",
+      "schema": "https://cem.dev/ns/data/xhtml/1",
+      "role": "data"
+    },
+    {
+      "id": "article-invalid",
+      "source": "examples/projects/xhtml-document/data/missing-namespace.xhtml",
+      "path": "data/missing-namespace.xhtml",
+      "contentType": "application/xhtml+xml",
+      "schema": "https://cem.dev/ns/data/xhtml/1",
+      "role": "data"
+    },
+    {
+      "id": "article-query",
+      "source": "examples/projects/xhtml-document/queries/outline.xpath",
+      "path": "queries/outline.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "role": "query"
+    },
+    {
+      "id": "article-view",
+      "source": "examples/projects/xhtml-document/templates/view.cemt",
+      "path": "templates/view.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "article-graph",
+      "source": "examples/projects/xhtml-document/graphs/article.cem",
+      "path": "graphs/article.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "expected-outline",
+      "source": "examples/projects/xhtml-document/expected/outline.json",
+      "path": "expected/outline.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-html",
+      "source": "examples/projects/xhtml-document/expected/article.html",
+      "path": "expected/article.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/xhtml-document/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "inspect-xhtml",
+      "name": "Inspect retained XHTML structure",
+      "kind": "inspection",
+      "source": "article-source",
+      "description": "Inspect the imported native tree, XHTML and foreign SVG expanded names, and original source coordinates.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/xhtml+xml",
+        "--schema",
+        "https://cem.dev/ns/data/xhtml/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "http://www.w3.org/1999/xhtml",
+        "http://www.w3.org/2000/svg",
+        "Shared document workflows",
+        "An XHTML field guide"
+      ]
+    },
+    {
+      "id": "validate-xhtml",
+      "name": "Validate XHTML source",
+      "kind": "validation",
+      "source": "article-source",
+      "description": "Check XML well-formedness, XHTML root namespace and ordered head/body structure. This does not establish complete HTML content-model validity.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/xhtml+xml",
+        "--schema",
+        "https://cem.dev/ns/data/xhtml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "query-outline",
+      "name": "Select the namespaced document outline",
+      "kind": "query",
+      "source": "article-source",
+      "dependencies": [
+        "article-query",
+        "expected-outline"
+      ],
+      "description": "Use a caller-bound XHTML prefix to distinguish the document title, heading, paragraphs and link from embedded SVG content.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/xhtml+xml",
+        "--schema",
+        "https://cem.dev/ns/data/xhtml/1",
+        "--query-file",
+        "$article-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--namespace",
+        "xhtml=http://www.w3.org/1999/xhtml",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "expected-outline"
+    },
+    {
+      "id": "repair-namespace",
+      "name": "Repair the XHTML root namespace",
+      "kind": "validation",
+      "source": "article-invalid",
+      "description": "A well-formed XML document without the XHTML root namespace is not an XHTML document; restore its default namespace and validate again.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/xhtml+xml",
+        "--schema",
+        "https://cem.dev/ns/data/xhtml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.xhtml.namespace_missing",
+        "location": {
+          "line": 2,
+          "column": 1,
+          "byteOffset": 39
+        }
+      },
+      "repair": {
+        "find": "<html lang=\"en\">",
+        "replace": "<html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"en\">"
+      }
+    },
+    {
+      "id": "build-html",
+      "name": "Build the XHTML article as HTML",
+      "kind": "transformation-graph",
+      "source": "article-graph",
+      "dependencies": [
+        "article-source",
+        "article-view",
+        "expected-html"
+      ],
+      "description": "Import the original XHTML document into the shared retained tree and publish an explicitly authored, script-free HTML article. Select generated/article.html to preview or inspect its template provenance.",
+      "entryArtifact": "generated/article.html",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedGraphOutputs": {
+        "generated/article.html": "expected-html"
+      }
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 # External data enters through CEM AST import
 
 This is the normative external-data boundary, directed by the user on
-2026-09-17. It applies to XML, HTML, JSON, YAML, CSV, CSS and future document formats.
+2026-09-17. It applies to XML, XHTML, HTML, JSON, YAML, CSV, CSS and future document formats.
 
 External document syntax is parsed, decoded and mapped into a retained typed
 CEM tree at the import boundary. Downstream CEM-QL, XPath, transformations and
@@ -41,7 +41,7 @@ the JSON wire protocol for compiler diagnostics or scalar host parameters.
 
 ## Current implementation and audit
 
-`cem_ml::import` owns the native XML/HTML/JSON/YAML/CSV/CSS data-reader parsing and mapping.
+`cem_ml::import` owns the native XML/XHTML/HTML/JSON/YAML/CSV/CSS data-reader parsing and mapping.
 Its typed `import_string` API also serves XPath `parse-xml`, `json-to-xml` and
 the explicit `urn:cem:import` CSV/YAML functions. The string profile owns BOMs,
 XML declaration handling, JSON codepoint/duplicate/escape policy and URI metadata.
@@ -90,6 +90,7 @@ layer; they are not implemented by dropping or remapping rows in an evaluator.
 | --- | --- | --- |
 | HTML | Retain the registered parser's decoded values, namespaces, boolean attributes, raw text, recovery depths and original lifecycle owner/ranges. Preserve hard validation policy and bounded node/depth limits. | The same CEM navigation, XPath queries and source provenance; HTML mirrors remain literal attributes. |
 | XML | Decode references and normalize literal text/attribute whitespace before merging; retain lexical nodes and namespace provenance. | CEM navigation, logical text, names, values and identity. |
+| XHTML | Select the XHTML lifecycle before generic `+xml` handling; apply its XML-backed root, namespace, head/body and entity policy, then reuse XML semantic import without replacing the original owner. | The same retained CEM navigation, queries and templates, with original XHTML identity, expanded names, foreign content and source coordinates. |
 | JSON | Select generic-data or standard JSON-to-XML vocabulary; preserve member order, null and numeric spelling under the declared import policy. | The same node operations, including nodes retained inside XPath arrays/maps. |
 | YAML | Parse native YAML and import generic-data nodes; enforce the bounded profile and reject unsupported aliases, anchors and explicit tags. | The same node operations and source coordinates. |
 | CSV | Parse native rows and headers; import generic-data nodes with string-valued fields. | The same node operations; numeric casts remain explicitly authored. |

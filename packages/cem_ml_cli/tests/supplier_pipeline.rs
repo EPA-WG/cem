@@ -61,6 +61,175 @@ fn values(root: &Path) -> serde_json::Value {
     serde_json::from_slice(&fs::read(root.join("generated/availability.json")).unwrap()).unwrap()
 }
 
+fn definition() -> serde_json::Value {
+    serde_json::from_slice(
+        &fs::read(workspace().join("examples/projects/supplier-pipeline/example.json")).unwrap(),
+    )
+    .unwrap()
+}
+
+fn run_configuration(root: &Path, id: &str) -> Output {
+    let definition = definition();
+    let configuration = definition["configurations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|configuration| configuration["id"] == id)
+        .unwrap();
+    let arguments: Vec<_> = configuration["argv"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|argument| {
+            let argument = argument.as_str().unwrap();
+            let resource_id = if argument == "$source" {
+                configuration["source"].as_str()
+            } else {
+                argument.strip_prefix('$')
+            };
+            resource_id
+                .map(|id| {
+                    let source = definition["sources"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .find(|source| source["id"] == id)
+                        .unwrap();
+                    root.join(source["path"].as_str().unwrap())
+                        .to_str()
+                        .unwrap()
+                        .to_owned()
+                })
+                .unwrap_or_else(|| argument.to_owned())
+        })
+        .collect();
+    Command::new(env!("CARGO_BIN_EXE_cem-ml"))
+        .args(arguments)
+        .output()
+        .unwrap()
+}
+
+fn query_products(root: &Path) -> serde_json::Value {
+    let output = run_configuration(root, "query-products");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["language"], "xpath");
+    assert_eq!(
+        report["result"]["staticContext"]["namespaces"]["supplier"],
+        "urn:demo:supplier"
+    );
+    serde_json::Value::Array(
+        report["result"]["sequence"]["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item["value"]["lexicalValue"].clone())
+            .collect(),
+    )
+}
+
+#[test]
+fn supplier_catalog_query_uses_expanded_names_independent_of_source_prefixes() {
+    let root = project();
+    let original = fs::read_to_string(root.join("data/catalog.xml")).unwrap();
+    let expected: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.join("expected/products.json")).unwrap()).unwrap();
+    assert_eq!(query_products(&root), expected);
+    success(run_configuration(&root, "validate-catalog"));
+
+    let prefixed = original
+        .replace("<catalog xmlns=", "<p:catalog xmlns:p=")
+        .replace("</catalog>", "</p:catalog>")
+        .replace("<product", "<p:product")
+        .replace("</product>", "</p:product>")
+        .replace("<name>", "<p:name>")
+        .replace("</name>", "</p:name>")
+        .replace(
+            "supplier=\"Canal Supplies\"",
+            "xmlns:supplier=\"urn:foreign\" supplier=\"Canal Supplies\"",
+        )
+        .replace(
+            "</p:catalog>",
+            "  <supplier:product id=\"IGNORE\"><supplier:name>Foreign product</supplier:name></supplier:product>\n</p:catalog>",
+        );
+    fs::write(root.join("data/catalog.xml"), prefixed).unwrap();
+    success(run_configuration(&root, "validate-catalog"));
+    assert_eq!(query_products(&root), expected);
+    success(run(&root));
+    let expected_availability: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.join("expected/availability.json")).unwrap())
+            .unwrap();
+    assert_eq!(values(&root), expected_availability);
+    assert_eq!(
+        fs::read_to_string(
+            workspace().join("examples/projects/supplier-pipeline/data/catalog.xml")
+        )
+        .unwrap(),
+        original,
+        "namespace edits belong only to the temporary project copy"
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn supplier_catalog_validation_retains_original_xml_ranges_and_repairs() {
+    let root = project();
+    let path = root.join("data/catalog-invalid.xml");
+    let invalid = fs::read_to_string(&path).unwrap();
+    let output = run_configuration(&root, "repair-catalog");
+    assert!(!output.status.success());
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["summary"]["errorCount"], 2);
+    assert_eq!(report["summary"]["warningCount"], 0);
+    let diagnostic = report["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == "cem.xml.parse_error")
+        .expect("malformed XML retains its owning parser diagnostic");
+    assert_eq!(diagnostic["uri"], path.to_str().unwrap());
+    assert_eq!(
+        diagnostic["byteOffset"],
+        invalid.find("</product-broken>").unwrap(),
+        "range is in the original UTF-8 XML, including the earlier Café text"
+    );
+    assert_eq!(diagnostic["line"], 6);
+    assert_eq!(diagnostic["column"], 49);
+    assert_eq!(diagnostic["details"]["xml"]["phase"], "parse");
+    assert_eq!(
+        diagnostic["details"]["xml"]["contentType"],
+        "application/xml"
+    );
+
+    let definition = definition();
+    let repair = &definition["configurations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|configuration| configuration["id"] == "repair-catalog")
+        .unwrap()["repair"];
+    let repaired = invalid.replacen(
+        repair["find"].as_str().unwrap(),
+        repair["replace"].as_str().unwrap(),
+        1,
+    );
+    assert_eq!(
+        repaired,
+        fs::read_to_string(root.join("data/catalog.xml")).unwrap()
+    );
+    fs::write(&path, repaired).unwrap();
+    let output = run_configuration(&root, "repair-catalog");
+    assert!(output.status.success());
+    let repaired_report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(repaired_report["summary"]["errorCount"], 0);
+    assert_eq!(repaired_report["summary"]["warningCount"], 0);
+    fs::remove_dir_all(root).unwrap();
+}
+
 #[test]
 fn supplier_pipeline_reconciles_named_inputs_and_branches_to_three_formats() {
     let root = project();

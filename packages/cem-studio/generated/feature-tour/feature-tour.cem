@@ -31,6 +31,10 @@
     {export @id="project-supplier-pipeline-output" @out="../../dist/static/samples/examples/supplier-pipeline.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
 
+  {import @id="project-xhtml-document" @src="examples/xhtml-document.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-xhtml-document-output" @out="../../dist/static/samples/examples/xhtml-document.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
   {import @id="feature-tour-catalog" @src="catalog.json" @content-type="application/json" @opaque=true |
     {export @id="feature-tour-catalog-output" @out="../../dist/static/samples/feature-tour/catalog.json" @content-type="application/json"}
   }

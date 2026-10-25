@@ -1,0 +1,291 @@
+{
+  "archiveSchemaVersion": 1,
+  "project": {
+    "$schema": "https://cem.dev/ns/studio/project/1",
+    "schemaVersion": 1,
+    "id": "xhtml-document-seed",
+    "name": "XHTML document",
+    "description": "Inspect and validate XML-serialized HTML, query expanded names across XHTML and foreign SVG, repair a missing namespace and build a script-free HTML article.",
+    "rootUri": "studio://xhtml-document-seed/",
+    "revision": 1,
+    "createdAt": "2026-10-17T00:00:00Z",
+    "updatedAt": "2026-10-17T00:00:00Z",
+    "entries": [
+      {
+        "id": "inspect-xhtml",
+        "kind": "inspection",
+        "name": "Inspect retained XHTML structure",
+        "description": "Inspect the imported native tree, XHTML and foreign SVG expanded names, and original source coordinates.",
+        "resourceIds": [
+          "article-source",
+          "command-inspect-xhtml"
+        ],
+        "runConfigResourceId": "command-inspect-xhtml",
+        "tags": [
+          "inspect"
+        ]
+      },
+      {
+        "id": "validate-xhtml",
+        "kind": "validation",
+        "name": "Validate XHTML source",
+        "description": "Check XML well-formedness, XHTML root namespace and ordered head/body structure. This does not establish complete HTML content-model validity.",
+        "resourceIds": [
+          "article-source",
+          "command-validate-xhtml"
+        ],
+        "runConfigResourceId": "command-validate-xhtml",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "query-outline",
+        "kind": "query",
+        "name": "Select the namespaced document outline",
+        "description": "Use a caller-bound XHTML prefix to distinguish the document title, heading, paragraphs and link from embedded SVG content.",
+        "resourceIds": [
+          "article-source",
+          "command-query-outline",
+          "article-query",
+          "expected-outline"
+        ],
+        "runConfigResourceId": "command-query-outline",
+        "tags": [
+          "query"
+        ]
+      },
+      {
+        "id": "repair-namespace",
+        "kind": "validation",
+        "name": "Repair the XHTML root namespace",
+        "description": "A well-formed XML document without the XHTML root namespace is not an XHTML document; restore its default namespace and validate again.",
+        "resourceIds": [
+          "article-invalid",
+          "command-repair-namespace"
+        ],
+        "runConfigResourceId": "command-repair-namespace",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "build-html",
+        "kind": "transformation-graph",
+        "name": "Build the XHTML article as HTML",
+        "description": "Import the original XHTML document into the shared retained tree and publish an explicitly authored, script-free HTML article. Select generated/article.html to preview or inspect its template provenance.",
+        "resourceIds": [
+          "article-graph",
+          "command-build-html",
+          "article-source",
+          "article-view",
+          "expected-html"
+        ],
+        "runConfigResourceId": "command-build-html",
+        "entryArtifact": "generated/article.html",
+        "tags": [
+          "transform"
+        ]
+      }
+    ],
+    "resources": [
+      {
+        "id": "article-source",
+        "path": "data/article.xhtml",
+        "referencePath": "data/article.xhtml",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/xhtml+xml",
+        "schema": "https://cem.dev/ns/data/xhtml/1",
+        "revision": 1,
+        "sha256": "e3818560de2d589ce3a12fcf84fae4a9c88a3db5a61c0ae25fe473c889afbff7"
+      },
+      {
+        "id": "article-invalid",
+        "path": "data/missing-namespace.xhtml",
+        "referencePath": "data/missing-namespace.xhtml",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/xhtml+xml",
+        "schema": "https://cem.dev/ns/data/xhtml/1",
+        "revision": 1,
+        "sha256": "a8f6af6dd614e4402b1185945c6d688fed797e50cf11a6499d5a7ebe45f7f471"
+      },
+      {
+        "id": "article-query",
+        "path": "queries/outline.xpath",
+        "referencePath": "queries/outline.xpath",
+        "role": "query",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.xpath",
+        "schema": "https://cem.dev/ns/query/xpath/1",
+        "revision": 1,
+        "sha256": "191d64f4e8a1e2a747672c810b0fca5c2603bf4ecc48c1c5cfd3134464b2f11e"
+      },
+      {
+        "id": "article-view",
+        "path": "templates/view.cemt",
+        "referencePath": "templates/view.cemt",
+        "role": "template",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.template+cem",
+        "schema": "https://cem.dev/ns/template/cem-native/1",
+        "revision": 1,
+        "sha256": "d2770ec835f5b1811ee9e124580267ba00e115965ddc75d0b7f2eb2b996d4a54"
+      },
+      {
+        "id": "article-graph",
+        "path": "graphs/article.cem",
+        "referencePath": "graphs/article.cem",
+        "role": "transform-config",
+        "sourceKind": "project-file",
+        "contentType": "application/cem",
+        "schema": "https://cem.dev/ns/cli/transform-config/1",
+        "revision": 1,
+        "sha256": "83c02b8ee366985add0030278c72c9ba4eb67f23dfa10b935a4c0761530f150d"
+      },
+      {
+        "id": "expected-outline",
+        "path": "expected/outline.json",
+        "referencePath": "expected/outline.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/data/json/1",
+        "revision": 1,
+        "sha256": "a993d784aba49760267c6dfb00c6c36e890c16669fc398d2a0036d395ed30eb2"
+      },
+      {
+        "id": "expected-html",
+        "path": "expected/article.html",
+        "referencePath": "expected/article.html",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/html",
+        "schema": "https://cem.dev/ns/data/html/1",
+        "revision": 1,
+        "sha256": "9f3eb93f8243b686d321387a9ba52669f28b94fc6d629bc950a180b189d81f19"
+      },
+      {
+        "id": "readme",
+        "path": "README.md",
+        "referencePath": "README.md",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/markdown",
+        "schema": "https://cem.dev/ns/data/markdown/1",
+        "revision": 1,
+        "sha256": "fb654aada5f8fd37f867644613e2a283845484d6b71555020685b0af8c7d03a2"
+      },
+      {
+        "id": "command-inspect-xhtml",
+        "path": "config/inspect-xhtml.json",
+        "referencePath": "config/inspect-xhtml.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "bd0d8391ead2d888603d5d9568e0fba0c57c4eaa18376ef58bffbf06fd22552f"
+      },
+      {
+        "id": "command-validate-xhtml",
+        "path": "config/validate-xhtml.json",
+        "referencePath": "config/validate-xhtml.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "ee5429481e258078eed54332c77f1ba659e13c0b939e4175d53f505d4e58d6b8"
+      },
+      {
+        "id": "command-query-outline",
+        "path": "config/query-outline.json",
+        "referencePath": "config/query-outline.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "d0d3389082c79d60e190340e0ec6229ec2789e82212a2efeb1efba40394d0982"
+      },
+      {
+        "id": "command-repair-namespace",
+        "path": "config/repair-namespace.json",
+        "referencePath": "config/repair-namespace.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "44549bdd9a1d2550e5e7c8d073de851de36a915dffb0e940c0d4121f0aa7bd2f"
+      },
+      {
+        "id": "command-build-html",
+        "path": "config/build-html.json",
+        "referencePath": "config/build-html.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "95b0e7825babf37244554c7d997e7ae0b11c4eed3e70e03bc60a2d9e73ea3ac5"
+      }
+    ]
+  },
+  "contents": [
+    {
+      "resourceId": "article-graph",
+      "base64": "QGRvYyBjZW0tbWwgMQp7cnVuIHwKICAgIHtpbXBvcnQgQGNvbnRlbnQtdHlwZT0iYXBwbGljYXRpb24veGh0bWwreG1sIiBAaWQ9YXJ0aWNsZSBAc2NoZW1hPWh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL3hodG1sLzEKICAgICAgICBAc3JjPS4uL2RhdGEvYXJ0aWNsZS54aHRtbCB8CiAgICAgICAge3RyYW5zZm9ybSBAZW50cnlwb2ludD1tYWluIEBpZD12aWV3IEBzcmM9Li4vdGVtcGxhdGVzL3ZpZXcuY2VtdAogICAgICAgICAgICBAdGVtcGxhdGUtY29udGVudC10eXBlPSJhcHBsaWNhdGlvbi92bmQuY2VtLnRlbXBsYXRlK2NlbSIKICAgICAgICAgICAgQHRlbXBsYXRlLXNjaGVtYT1odHRwczovL2NlbS5kZXYvbnMvdGVtcGxhdGUvY2VtLW5hdGl2ZS8xIHwKICAgICAgICAgICAge2V4cG9ydCBAY29udGVudC10eXBlPXRleHQvaHRtbCBAaWQ9d2ViIEBvdXQ9Li4vZ2VuZXJhdGVkL2FydGljbGUuaHRtbAogICAgICAgICAgICAgICAgQHNjaGVtYT1odHRwczovL2NlbS5kZXYvbnMvZGF0YS9odG1sLzF9Cn0gICB9ICAgfQo="
+    },
+    {
+      "resourceId": "article-invalid",
+      "base64": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPGh0bWwgbGFuZz0iZW4iPgogIDxoZWFkPgogICAgPHRpdGxlPlNoYXJlZCBkb2N1bWVudCB3b3JrZmxvd3M8L3RpdGxlPgogIDwvaGVhZD4KICA8Ym9keT4KICAgIDxtYWluPgogICAgICA8aDE+QW4gWEhUTUwgZmllbGQgZ3VpZGU8L2gxPgogICAgICA8cD5OYW1lc3BhY2VkIGRvY3VtZW50cyBzdGF5IHN0cnVjdHVyZWQuPC9wPgogICAgICA8cCBpZD0icmV2aWV3Ij5SZXZpZXcgYmVmb3JlIHB1Ymxpc2hpbmcuPC9wPgogICAgICA8YSBocmVmPSIjcmV2aWV3Ij5SZXZpZXcgc2VjdGlvbjwvYT4KICAgICAgPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0iTmFtZXNwYWNlIGV4YW1wbGUiPgogICAgICAgIDx0aXRsZT5BIGZvcmVpZ24gdGl0bGUgaXMgbm90IHRoZSBkb2N1bWVudCB0aXRsZTwvdGl0bGU+CiAgICAgIDwvc3ZnPgogICAgPC9tYWluPgogIDwvYm9keT4KPC9odG1sPgo="
+    },
+    {
+      "resourceId": "article-query",
+      "base64": "KAogICAgJ3RpdGxlPScgfHwgbm9ybWFsaXplLXNwYWNlKC8veGh0bWw6aGVhZC94aHRtbDp0aXRsZSksCiAgICAnaGVhZGluZz0nIHx8IG5vcm1hbGl6ZS1zcGFjZSgvL3hodG1sOm1haW4veGh0bWw6aDEpLAogICAgJ3BhcmFncmFwaHM9JyB8fCBjb3VudCgvL3hodG1sOm1haW4veGh0bWw6cCksCiAgICAnbGlua3M9JyB8fCBjb3VudCgvL3hodG1sOm1haW4veGh0bWw6YSkKKQo="
+    },
+    {
+      "resourceId": "article-source",
+      "base64": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPGh0bWwgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIGxhbmc9ImVuIj4KICA8aGVhZD4KICAgIDx0aXRsZT5TaGFyZWQgZG9jdW1lbnQgd29ya2Zsb3dzPC90aXRsZT4KICA8L2hlYWQ+CiAgPGJvZHk+CiAgICA8bWFpbj4KICAgICAgPGgxPkFuIFhIVE1MIGZpZWxkIGd1aWRlPC9oMT4KICAgICAgPHA+TmFtZXNwYWNlZCBkb2N1bWVudHMgc3RheSBzdHJ1Y3R1cmVkLjwvcD4KICAgICAgPHAgaWQ9InJldmlldyI+UmV2aWV3IGJlZm9yZSBwdWJsaXNoaW5nLjwvcD4KICAgICAgPGEgaHJlZj0iI3JldmlldyI+UmV2aWV3IHNlY3Rpb248L2E+CiAgICAgIDxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiByb2xlPSJpbWciIGFyaWEtbGFiZWw9Ik5hbWVzcGFjZSBleGFtcGxlIj4KICAgICAgICA8dGl0bGU+QSBmb3JlaWduIHRpdGxlIGlzIG5vdCB0aGUgZG9jdW1lbnQgdGl0bGU8L3RpdGxlPgogICAgICA8L3N2Zz4KICAgIDwvbWFpbj4KICA8L2JvZHk+CjwvaHRtbD4K"
+    },
+    {
+      "resourceId": "article-view",
+      "base64": "QGRvYyBjZW0tbWwgMQpAbnMgdGVtcGxhdGUgPSAiaHR0cHM6Ly9jZW0uZGV2L25zL3RlbXBsYXRlL2NlbS1uYXRpdmUvMSIKQG5zIGNlbSA9ICJodHRwczovL2NlbS5kZXYvbnMvY29yZS8xIgpAZGVmYXVsdCB0ZW1wbGF0ZQp7cGFyYW0gQG5hbWU9aW5wdXQgQHJlcXVpcmVkPXRydWV9Cnt0ZW1wbGF0ZSBAbmFtZT1tYWluIEB2aXNpYmlsaXR5PXB1YmxpYyBAY2VtOndoaXRlc3BhY2U9bGF5b3V0IHwKICAgIHtjZW06dmFyaWFibGUgQG5hbWU9bm9kZXMKICAgICAgICBAc2VsZWN0PSdzZXE6d2hlcmUoaW5wdXQuZGVzY2VuZGFudHMsIGZuKG5vZGUpID0+IG5vZGUua2luZCA9PSAiZWxlbWVudCIgJiYgbm9kZS5uYW1lc3BhY2UgPT0gImh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiKSd9CiAgICB7ZWxlbWVudCBAbmFtZT1hcnRpY2xlIEBuYW1lc3BhY2U9aHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCB8CiAgICAgICAge2F0dHJpYnV0ZSBAbmFtZT1hcmlhLWxhYmVsCiAgICAgICAgICAgIEB2YWx1ZT0neyRzdHI6bm9ybWFsaXplX3NwYWNlKGRvbTp0ZXh0KHNlcTpmaXJzdChzZXE6d2hlcmUobm9kZXMsIGZuKG5vZGUpID0+IG5vZGUubmFtZSA9PSAidGl0bGUiKSkpKX0nfQogICAgICAgIHtlbGVtZW50IEBuYW1lPWgxIEBuYW1lc3BhY2U9aHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCB8CiAgICAgICAgICAgIHskIHwgc3RyOm5vcm1hbGl6ZV9zcGFjZShkb206dGV4dChzZXE6Zmlyc3Qoc2VxOndoZXJlKG5vZGVzLCBmbihub2RlKSA9PiBub2RlLm5hbWUgPT0gImgxIikpKSl9CiAgICAgICAgfQogICAgICAgIHtjZW06Zm9yLWVhY2ggQGFzPXBhcmFncmFwaCBAc2VsZWN0PSdzZXE6d2hlcmUobm9kZXMsIGZuKG5vZGUpID0+IG5vZGUubmFtZSA9PSAicCIpJyB8CiAgICAgICAgICAgIHtlbGVtZW50IEBuYW1lPXAgQG5hbWVzcGFjZT1odHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIHwKICAgICAgICAgICAgICAgIHskIHwgc3RyOm5vcm1hbGl6ZV9zcGFjZShkb206dGV4dChwYXJhZ3JhcGgpKX0KfSAgIH0gICB9ICAgfQo="
+    },
+    {
+      "resourceId": "command-build-html",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJ0cmFuc2Zvcm0iLAogICAgIi0tY29uZmlnIiwKICAgICJncmFwaHMvYXJ0aWNsZS5jZW0iLAogICAgIi0tY29uZmlnLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vY2VtIiwKICAgICItLWNvbmZpZy1zY2hlbWEiLAogICAgImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvdHJhbnNmb3JtLWNvbmZpZy8xIiwKICAgICItLXNjb3BlLWJ1ZGdldCIsCiAgICAicXVldWVTaXplPTEwMjQiCiAgXQp9Cg=="
+    },
+    {
+      "resourceId": "command-inspect-xhtml",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJpbnNwZWN0IiwKICAgICJkYXRhL2FydGljbGUueGh0bWwiLAogICAgIi0tY29udGVudC10eXBlIiwKICAgICJhcHBsaWNhdGlvbi94aHRtbCt4bWwiLAogICAgIi0tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS94aHRtbC8xIiwKICAgICItLXNob3ciLAogICAgImFzdCIsCiAgICAiLS1uby1jb2xvciIKICBdCn0K"
+    },
+    {
+      "resourceId": "command-query-outline",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJxdWVyeSIsCiAgICAiZGF0YS9hcnRpY2xlLnhodG1sIiwKICAgICItLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24veGh0bWwreG1sIiwKICAgICItLXNjaGVtYSIsCiAgICAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEveGh0bWwvMSIsCiAgICAiLS1xdWVyeS1maWxlIiwKICAgICJxdWVyaWVzL291dGxpbmUueHBhdGgiLAogICAgIi0tcXVlcnktY29udGVudC10eXBlIiwKICAgICJhcHBsaWNhdGlvbi92bmQuY2VtLnhwYXRoIiwKICAgICItLXF1ZXJ5LXNjaGVtYSIsCiAgICAiaHR0cHM6Ly9jZW0uZGV2L25zL3F1ZXJ5L3hwYXRoLzEiLAogICAgIi0tbmFtZXNwYWNlIiwKICAgICJ4aHRtbD1odHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiwKICAgICItLXNjb3BlLWJ1ZGdldCIsCiAgICAicXVldWVTaXplPTEwMjQiLAogICAgIi0tb3V0cHV0IiwKICAgICJqc29uIgogIF0KfQo="
+    },
+    {
+      "resourceId": "command-repair-namespace",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZGF0YS9taXNzaW5nLW5hbWVzcGFjZS54aHRtbCIsCiAgICAgICJyb290U2NvcGUiOiB7CiAgICAgICAgImRlZmF1bHRDb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi94aHRtbCt4bWwiLAogICAgICAgICJzY2hlbWEiOiAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEveGh0bWwvMSIKICAgICAgfQogICAgfQogIF0sCiAgIm91dHB1dHMiOiBbXSwKICAic2NoZW1hUGFja2FnZXMiOiBbXSwKICAicmVzb2x2ZXJzIjogW10sCiAgInNjaGVkdWxlciI6IHt9Cn0K"
+    },
+    {
+      "resourceId": "command-validate-xhtml",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZGF0YS9hcnRpY2xlLnhodG1sIiwKICAgICAgInJvb3RTY29wZSI6IHsKICAgICAgICAiZGVmYXVsdENvbnRlbnRUeXBlIjogImFwcGxpY2F0aW9uL3hodG1sK3htbCIsCiAgICAgICAgInNjaGVtYSI6ICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS94aHRtbC8xIgogICAgICB9CiAgICB9CiAgXSwKICAib3V0cHV0cyI6IFtdLAogICJzY2hlbWFQYWNrYWdlcyI6IFtdLAogICJyZXNvbHZlcnMiOiBbXSwKICAic2NoZWR1bGVyIjoge30KfQo="
+    },
+    {
+      "resourceId": "expected-html",
+      "base64": "PGFydGljbGUgYXJpYS1sYWJlbD0iU2hhcmVkIGRvY3VtZW50IHdvcmtmbG93cyI+PGgxPkFuIFhIVE1MIGZpZWxkIGd1aWRlPC9oMT48cD5OYW1lc3BhY2VkIGRvY3VtZW50cyBzdGF5IHN0cnVjdHVyZWQuPC9wPiAgIDxwPlJldmlldyBiZWZvcmUgcHVibGlzaGluZy48L3A+ICAgICAgPC9hcnRpY2xlPiAgIA=="
+    },
+    {
+      "resourceId": "expected-outline",
+      "base64": "WwogICJ0aXRsZT1TaGFyZWQgZG9jdW1lbnQgd29ya2Zsb3dzIiwKICAiaGVhZGluZz1BbiBYSFRNTCBmaWVsZCBndWlkZSIsCiAgInBhcmFncmFwaHM9MiIsCiAgImxpbmtzPTEiCl0K"
+    },
+    {
+      "resourceId": "readme",
+      "base64": "IyBYSFRNTCBkb2N1bWVudAoKVXNlIHRoaXMgb3JkaW5hcnkgU3R1ZGlvIHByb2plY3QgZm9yIFhNTC1zZXJpYWxpemVkIHdlYiBkb2N1bWVudHMsIHB1Ymxpc2hpbmcKcGlwZWxpbmVzIGFuZCBuYW1lc3BhY2UtYXdhcmUgY29udGVudCBleHRyYWN0aW9uLiBJdCBrZWVwcyB0aGUgb3JpZ2luYWwgWEhUTUwKc291cmNlLCBxdWVyeSwgdGVtcGxhdGUgYW5kIGJ1aWxkIGNvbmZpZ3VyYXRpb24gYXMgZWRpdGFibGUgcmVzb3VyY2VzLgoKRm9yIFhNTCBidXNpbmVzcyBkYXRhIGFuZCBjcm9zcy1zb3VyY2UgcmVjb25jaWxpYXRpb24sIHVzZSB0aGUKW1N1cHBsaWVyIHBpcGVsaW5lXSguLi9zdXBwbGllci1waXBlbGluZS9SRUFETUUubWQpLiBUaGF0IHByb2plY3QgaW1wb3J0cyB0aGUKZXhpc3Rpbmcgc3VwcGxpZXIgY2F0YWxvZyBhbmQgc3RvY2sgZmVlZDsgdGhpcyBleGFtcGxlIGRvZXMgbm90IGNvcHkgdGhlbS4KCiMjIFJlc291cmNlcyBhbmQgaWRlbnRpdGllcwoKLSBgZGF0YS9hcnRpY2xlLnhodG1sYCBpcyBgYXBwbGljYXRpb24veGh0bWwreG1sYCB3aXRoIHNjaGVtYQogIGBodHRwczovL2NlbS5kZXYvbnMvZGF0YS94aHRtbC8xYC4gSXRzIGBodG1sYCwgYGhlYWRgLCBgYm9keWAgYW5kIGFydGljbGUgY29udGVudAogIHVzZSBgaHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbGAuCi0gVGhlIGVtYmVkZGVkIFNWRyBoYXMgaXRzIG93biBgaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmdgIG5hbWVzcGFjZSBhbmQgYQogIGB0aXRsZWAgZWxlbWVudC4gSXRzIHRpdGxlIGlzIGRpc3RpbmN0IGZyb20gdGhlIFhIVE1MIGRvY3VtZW50IHRpdGxlLgotIGBxdWVyaWVzL291dGxpbmUueHBhdGhgIGlzIGBhcHBsaWNhdGlvbi92bmQuY2VtLnhwYXRoYCB3aXRoIHNjaGVtYQogIGBodHRwczovL2NlbS5kZXYvbnMvcXVlcnkveHBhdGgvMWAuIFRoZSBjb21tYW5kIGV4cGxpY2l0bHkgYmluZHMKICBgeGh0bWw9aHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbGA7IHNvdXJjZSBwcmVmaXggc3BlbGxpbmcgaXMgaW5kZXBlbmRlbnQgb2YKICB0aGUgcXVlcnkgcHJlZml4LgotIGB0ZW1wbGF0ZXMvdmlldy5jZW10YCBpcyBhIG5hdGl2ZSBDRU1UIHRlbXBsYXRlLiBJdCBzZWxlY3RzIFhIVE1MIGVsZW1lbnRzIGJ5CiAgZXhwYW5kZWQgbmFtZSBmcm9tIHRoZSBzaGFyZWQgcmV0YWluZWQgdHJlZSBhbmQgY29uc3RydWN0cyBhbiBIVE1MIGFydGljbGUuCi0gYGdyYXBocy9hcnRpY2xlLmNlbWAgaXMgYSB2ZXJzaW9uLTEgbmF0aXZlIHRyYW5zZm9ybWF0aW9uIGNvbmZpZ3VyYXRpb24uIEl0CiAgaW1wb3J0cyBYSFRNTCwgYXBwbGllcyB0aGUgdGVtcGxhdGUgYW5kIGV4cG9ydHMgYGdlbmVyYXRlZC9hcnRpY2xlLmh0bWxgIGFzCiAgYHRleHQvaHRtbGAgd2l0aCBzY2hlbWEgYGh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL2h0bWwvMWAuCgpUaGUgWEhUTUwtdG8tSFRNTCBtYXBwaW5nIGlzIGF1dGhvcmVkIGV4cGxpY2l0bHkuIFhIVE1MIHNvdXJjZSBpZGVudGl0eSBpcwpwcmVzZXJ2ZWQgZHVyaW5nIGltcG9ydDsgdGhlIG5hdGl2ZSBzaGFyZWQgdHJlZSBpcyB0aGUgaW5wdXQgdG8gYm90aCBxdWVyeSBhbmQKdGVtcGxhdGUgcHJvY2Vzc2luZy4KCiMjIENvbmZpZ3VyYXRpb25zCgp8IENvbmZpZ3VyYXRpb24gfCBUeXBpY2FsIHVzZSB8IEV4cGVjdGVkIHJlc3VsdCB8CnwgLS0tIHwgLS0tIHwgLS0tIHwKfCBJbnNwZWN0IHJldGFpbmVkIFhIVE1MIHN0cnVjdHVyZSB8IFJldmlldyBzb3VyY2Ugbm9kZXMsIG5hbWVzcGFjZXMgYW5kIHBvc2l0aW9ucyB8IEEgQ0VNLU1MIHN0cnVjdHVyYWwgcHJvamVjdGlvbiBjb250YWluaW5nIFhIVE1MIGFuZCBTVkcgbmFtZXMgfAp8IFZhbGlkYXRlIFhIVE1MIHNvdXJjZSB8IENoZWNrIFhNTCBzeW50YXggYW5kIHN1cHBvcnRlZCBYSFRNTCBkb2N1bWVudCBzdHJ1Y3R1cmUgfCBaZXJvIGVycm9ycyBhbmQgd2FybmluZ3MgfAp8IFNlbGVjdCB0aGUgbmFtZXNwYWNlZCBkb2N1bWVudCBvdXRsaW5lIHwgRXh0cmFjdCBhIHB1Ymxpc2hpbmcgc3VtbWFyeSB3aXRoIFhQYXRoIHwgRm91ciBzdHJpbmdzIG1hdGNoaW5nIGBleHBlY3RlZC9vdXRsaW5lLmpzb25gIHwKfCBSZXBhaXIgdGhlIFhIVE1MIHJvb3QgbmFtZXNwYWNlIHwgRGlhZ25vc2UgYW4gWE1MIGRvY3VtZW50IHRoYXQgaXMgbm90IFhIVE1MIHwgYGNlbS54aHRtbC5uYW1lc3BhY2VfbWlzc2luZ2A7IHplcm8gZXJyb3JzIGFmdGVyIHRoZSByZXBhaXIgYmVsb3cgfAp8IEJ1aWxkIHRoZSBYSFRNTCBhcnRpY2xlIGFzIEhUTUwgfCBQdWJsaXNoIHNlbGVjdGVkIGRvY3VtZW50IGNvbnRlbnQgfCBgZ2VuZXJhdGVkL2FydGljbGUuaHRtbGAsIG1hdGNoaW5nIGBleHBlY3RlZC9hcnRpY2xlLmh0bWxgIHwKClRoZSBvdXRsaW5lIGlzOgoKYGBgdGV4dAp0aXRsZT1TaGFyZWQgZG9jdW1lbnQgd29ya2Zsb3dzCmhlYWRpbmc9QW4gWEhUTUwgZmllbGQgZ3VpZGUKcGFyYWdyYXBocz0yCmxpbmtzPTEKYGBgCgpUaGUgZm9yZWlnbiBTVkcgdGl0bGUgZG9lcyBub3QgcGFydGljaXBhdGUuIFRoZSBidWlsdCBhcnRpY2xlIGNvbnRhaW5zIHRoZSBYSFRNTAp0aXRsZSBhcyBpdHMgYWNjZXNzaWJsZSBsYWJlbCwgaXRzIGhlYWRpbmcgYW5kIGl0cyB0d28gcGFyYWdyYXBocy4gSXQgZGVsaWJlcmF0ZWx5CnNlbGVjdHMgdGhvc2UgZmllbGRzIHJhdGhlciB0aGFuIGNvcHlpbmcgdGhlIHdob2xlIHNvdXJjZSBwYWdlLgoKIyMgRmFpbHVyZSBhbmQgcmVwYWlyCgpSdW4gKipSZXBhaXIgdGhlIFhIVE1MIHJvb3QgbmFtZXNwYWNlKiogYWdhaW5zdApgZGF0YS9taXNzaW5nLW5hbWVzcGFjZS54aHRtbGAuIEl0IGlzIHdlbGwtZm9ybWVkIFhNTCB3aXRoIGFuIGBodG1sYCByb290LCBidXQgdGhlCnJvb3QgaGFzIG5vIFhIVE1MIG5hbWVzcGFjZS4gVGhlIG5hdGl2ZSB2YWxpZGF0b3IgcmVwb3J0cwpgY2VtLnhodG1sLm5hbWVzcGFjZV9taXNzaW5nYCBhdCBsaW5lIDIsIGNvbHVtbiAxLCBieXRlIG9mZnNldCAzOS4KCkNsb25lIHRoZSBleGFtcGxlIHRvIGVkaXQgaXQsIHRoZW4gcmVwbGFjZToKCmBgYHhtbAo8aHRtbCBsYW5nPSJlbiI+CmBgYAoKd2l0aDoKCmBgYHhtbAo8aHRtbCB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCIgbGFuZz0iZW4iPgpgYGAKClNhdmUgdGhlIHJlc291cmNlIGFuZCByZXJ1biB0aGUgc2FtZSBjb25maWd1cmF0aW9uLiBJdCBub3cgcmVwb3J0cyB6ZXJvIGVycm9ycwphbmQgd2FybmluZ3MuIFRoaXMgaXMgYSBzb3VyY2UgcmVwYWlyIGluIGFuIG9yZGluYXJ5IHByb2plY3QsIHdpdGhvdXQgYSBkZWRpY2F0ZWQKdHV0b3JpYWwgc2NyZWVuIG9yIGFwcGxpY2F0aW9uLXNwZWNpZmljIHBhcnNlci4KCiMjIEVkaXRpbmcsIGJ1aWxkcyBhbmQgcHJvdmVuYW5jZQoKT3BlbiB0aGUgcHJvamVjdCB0byBidWlsZCBpdCwgb3Igc2VsZWN0IGBkYXRhL2FydGljbGUueGh0bWxgIGluIFN0cnVjdHVyZSB0byBlZGl0CnRoZSBzb3VyY2UuIENsb25lIGZpcnN0IHRvIGtlZXAgdGhlIGNhdGFsb2cgZXhhbXBsZSByZWFkLW9ubHkuIENoYW5nZSB0aGUgaGVhZGluZywKc2F2ZSBhbmQgcmVydW4gKipCdWlsZCB0aGUgWEhUTUwgYXJ0aWNsZSBhcyBIVE1MKiouIFNlbGVjdApgZ2VuZXJhdGVkL2FydGljbGUuaHRtbGAgaW4gT3V0cHV0IGZpbGVzIHRvIHVzZSB0aGUgc2hhcmVkIEhUTUwgcHJldmlldy4KClRoZSBvdXRwdXQgYXJ0aWZhY3QgY2FycmllcyBpdHMgb3JpZ2luYWwgaW5wdXQgcmVzb3VyY2UgaWRlbnRpdGllcyBhbmQgYSBzb3VyY2UKbWFwLiBHZW5lcmF0ZWQgcmFuZ2VzIHBvaW50IHRvIHRoZSBhdXRob3JlZCBpbnN0cnVjdGlvbnMgYW5kIGV4cHJlc3Npb25zIGluCmB0ZW1wbGF0ZXMvdmlldy5jZW10YDsgY29tcHV0ZWQgdGV4dCBkb2VzIG5vdCBpbXBseSBhcmJpdHJhcnkgY2hhcmFjdGVyLWJ5LWNoYXJhY3RlcgpsaW5lYWdlIHRvIHRoZSBpbnB1dC4gSW5zcGVjdCB0aGUgYXJ0aWZhY3QncyBwcm92ZW5hbmNlIGluIFN0dWRpbyB0byBuYXZpZ2F0ZQpiYWNrIHRvIHRob3NlIHJlc291cmNlcy4KClNhdmVkIGNvcGllcyBrZWVwIHRoZWlyIG93biBzb3VyY2UgYW5kIGNvbmZpZ3VyYXRpb24gZWRpdHMuIE9uY2UgU3R1ZGlvJ3MgcnVudGltZQphbmQgcHJvamVjdCByZXNvdXJjZXMgYXJlIGNhY2hlZCwgcmVvcGVuIHRoZSBzYXZlZCBjb3B5IG9mZmxpbmUgYW5kIHJlYnVpbGQgaXQuClRoZSBvcmlnaW5hbCBleGFtcGxlIGFuZCBhbm90aGVyIHNhdmVkIGNvcHkgcmVtYWluIGluZGVwZW5kZW50LiBUaGlzIGV4YW1wbGUKY29udGFpbnMgbm8gY3JlZGVudGlhbCBjb250cm9sczsgU3R1ZGlvJ3MgZXhpc3RpbmcgcnVsZSBzdGlsbCBibG9ja3MgcmVjb3ZlcnkKd2hpbGUgYSBwYXNzd29yZCBvciBvbmUtdGltZSBjb2RlIGlzIGVudGVyZWQgZWxzZXdoZXJlLgoKVGhlIHNhbWUgYnVpbGQgY2FuIHJ1biBuYXRpdmVseSBmcm9tIHRoZSByZXBvc2l0b3J5OgoKYGBgc2gKY2VtLW1sIHRyYW5zZm9ybSAtLWNvbmZpZyBleGFtcGxlcy9wcm9qZWN0cy94aHRtbC1kb2N1bWVudC9ncmFwaHMvYXJ0aWNsZS5jZW0gXAogIC0tc2NvcGUtYnVkZ2V0IHF1ZXVlU2l6ZT0xMDI0CmBgYAoKIyMgU3VwcG9ydGVkIGJvdW5kYXJpZXMKClhIVE1MIHVzZXMgdGhlIFhNTCBwYXJzZXIgYW5kIGEgZGlzdGluY3QgWEhUTUwgc2NoZW1hIGNvbnRyYWN0LiBDdXJyZW50IHNvdXJjZQp2YWxpZGF0aW9uIGNvdmVycyBYTUwgd2VsbC1mb3JtZWRuZXNzLCBuYW1lc3BhY2UgYmluZGluZywgdGhlIFhIVE1MIHJvb3QgYW5kCm9yZGVyZWQgYGhlYWRgL2Bib2R5YCBzdHJ1Y3R1cmUuIEl0IGRvZXMgbm90IGVzdGFibGlzaCBjb21wbGV0ZSBIVE1MIHZvY2FidWxhcnkKb3IgY29udGVudC1tb2RlbCB2YWxpZGl0eSwgYXJiaXRyYXJ5IFhTRC9SRUxBWCBORyBpbnN0YW5jZSB2YWxpZGl0eSwgb3Igc2VtYW50aWMKdmFsaWRpdHkgb2YgZW1iZWRkZWQgU1ZHLiBUaG9zZSByZXF1aXJlIHRoZWlyIG93biBzdXBwb3J0ZWQgY29udHJhY3RzLgoKTmF0aXZlIFhIVE1MIGBjb21wYWN0YCwgYHByZXR0eWAgYW5kIGB0YWJ1bGFyYCBmb3JtYXR0aW5nIGN1cnJlbnRseSBwcmVzZXJ2ZXMKc291cmNlIGxleGVtZXM7IGl0IGRvZXMgbm90IHJlZmxvdyBtaXhlZCBjb250ZW50LiBEVERzIGFuZCBub24tYnVpbHQtaW4gZW50aXRpZXMKYXJlIHJlamVjdGVkIHdpdGhvdXQgZXh0ZXJuYWwgcmVzb2x1dGlvbi4gVGhlIGdlbmVyYXRlZCBIVE1MIGlzIGEgc2VwYXJhdGUsCmV4cGxpY2l0IG91dHB1dCBpZGVudGl0eSwgYW5kIHRoZSBwcmV2aWV3IGZvbGxvd3MgdGhlIHNoYXJlZCBzY3JpcHQtZnJlZQpwcmVzZW50YXRpb24gcG9saWN5LiBBbGwgZXhhbXBsZSBkYXRhIGlzIGZpY3Rpb25hbC4K"
+    }
+  ]
+}

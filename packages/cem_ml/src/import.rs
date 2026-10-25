@@ -13,7 +13,7 @@ use crate::{
     validation::{
         csv, html as html_parser,
         generic_data::{GenericDataDocumentAst, GenericDataValueAst as Value},
-        json, json_xml, xml, yaml,
+        json, json_xml, xhtml, xml, yaml,
     },
 };
 use std::sync::Arc;
@@ -475,6 +475,13 @@ fn parse_bytes(
     let (format, content_type) = import_content_type(content_type)?;
     Ok(match format {
         "css" => LoadedInputAstStream::CssDocument(css::parse(bytes, source_uri, &content_type)?),
+        "xhtml" => LoadedInputAstStream::XhtmlDocument(checked(
+            xhtml::xhtml_document_ast_from_source_bytes(xhtml::XhtmlSourceValidationRequest {
+                bytes,
+                source_uri,
+                content_type: Some(&content_type),
+            }),
+        )?),
         "xml" | "application/xml" | "text/xml" => {
             let doc = checked(xml::xml_document_ast_from_source_bytes(
                 xml::XmlSourceValidationRequest {
@@ -536,6 +543,7 @@ pub(crate) fn import_content_type(value: &str) -> Result<(&'static str, String),
     let (format, canonical) = match mime.as_str() {
         "json" | "application/json" | "text/json" => ("json", "application/json"),
         "xml" | "application/xml" | "text/xml" => ("xml", "application/xml"),
+        "xhtml" | "application/xhtml+xml" => ("xhtml", "application/xhtml+xml"),
         "yaml" | "application/yaml" | "application/x-yaml" | "text/yaml" => {
             ("yaml", "application/yaml")
         }
@@ -746,6 +754,7 @@ pub fn try_retain_lifecycle(
     if matches!(
         native.as_ref(),
         LoadedInputAstStream::XmlDocument(_)
+            | LoadedInputAstStream::XhtmlDocument(_)
             | LoadedInputAstStream::HtmlDocument(_)
             | LoadedInputAstStream::JsonDocument(_)
             | LoadedInputAstStream::CsvDocument(_)
@@ -762,6 +771,9 @@ pub fn try_retain_lifecycle(
 pub fn retain_lifecycle(native: Arc<LoadedInputAstStream>) -> Result<Arc<RetainedCemTree>, String> {
     let (uri, format, length) = match native.as_ref() {
         LoadedInputAstStream::HtmlDocument(doc) => (doc.source.uri.clone(), doc.source.content_type.clone(), doc.source.byte_length),
+        LoadedInputAstStream::XhtmlDocument(doc) => (
+            doc.source.uri.clone(), doc.source.content_type.clone(), doc.source.byte_length,
+        ),
         LoadedInputAstStream::CssDocument(doc) => (
             doc.source.uri.clone(), doc.source.content_type.clone(), doc.source.byte_length,
         ),
@@ -797,6 +809,18 @@ fn validate_data_ast(native: &LoadedInputAstStream, max_values: usize) -> Result
     use ImportFailureKind::*;
     match native {
         LoadedInputAstStream::HtmlDocument(doc) => html::validate(doc, max_values).map_err(|message| ImportFailure::new(Malformed, message))?,
+        LoadedInputAstStream::XhtmlDocument(doc) => {
+            validate_xml_limits(&doc.xml_document, max_values)?;
+            if let Some(diagnostic) = xhtml::validate_xhtml_document_ast(doc)
+                .into_iter().find(|diagnostic| diagnostic.severity.is_hard_violation())
+            {
+                return Err(ImportFailure {
+                    kind: Malformed,
+                    message: format!("{}: {}", diagnostic.code, diagnostic.message),
+                    diagnostics: vec![diagnostic],
+                });
+            }
+        }
         LoadedInputAstStream::XmlDocument(doc) => validate_xml_limits(doc, max_values)?,
         LoadedInputAstStream::JsonDocument(doc) => {
             if let Some(fact) = doc.parse_facts.iter().find(|fact| fact.fatal) {
@@ -903,6 +927,10 @@ fn project_native(
             json_xml::project_json_to_xml_with_semantics(doc, &json_xml::JsonXmlProjectionOptions { max_depth: MAX_DEPTH, max_values, ..Default::default() }).map_err(|e| e.to_string())?,
         ("json-to-xml", _) => return Err("The json-to-xml projection requires JSON input.".into()),
         ("cem" | "xpath", LoadedInputAstStream::XmlDocument(doc)) => { let imported = import_xml_ast(doc)?; (imported.ast, imported.semantics) },
+        ("cem" | "xpath", LoadedInputAstStream::XhtmlDocument(doc)) => {
+            let imported = import_xml_ast(&doc.xml_document)?;
+            (imported.ast, imported.semantics)
+        },
         ("xpath", _) => return Err("The xpath projection requires XML input; use the ordinary CEM import for other formats.".into()),
         ("cem", owner) => {
             let data = match owner {

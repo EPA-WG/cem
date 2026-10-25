@@ -1,13 +1,17 @@
 # Supplier pipeline
 
-Open **Supplier pipeline** from **Example projects**, choose **Create project from
-example**, then open the resulting project. It is an ordinary editable project
-in the existing Studio workspace. The catalog original remains unchanged; each
-copy owns its resources, configurations and saved revisions independently.
+Open **Examples → Content types and schemas → Data → Supplier pipeline**, or
+find the same project under **Amsterdam 2026**. Clone it, then open the resulting
+ordinary editable project in Studio. The catalog original remains unchanged;
+each copy owns its resources, configurations and saved revisions independently.
 
 ## Resources and configurations
 
 - `data/catalog.xml` declares four products in the `urn:demo:supplier` vocabulary.
+- `queries/products.xpath` selects IDs and names using an explicit namespace
+  binding. `expected/products.json` records the four selected strings.
+- `data/catalog-invalid.xml` contains an intentional mismatched closing tag for
+  the native XML failure/repair workflow.
 - `data/stock.csv` supplies product IDs and quantities. Its explicit
   `text/csv;header=present` identity keeps cells as strings at import.
 - `templates/reconcile.cemt` matches product IDs across the two retained native
@@ -18,8 +22,47 @@ copy owns its resources, configurations and saved revisions independently.
   partner feed. Graph joins do not perform business-record matching.
 - `expected/availability.json`, `.yaml` and `.html` state the baseline results.
 - **Inspect supplier catalog** and **Inspect supplier stock** parse saved source
-  through the native adapters. **Supplier availability pipeline** executes the
-  saved graph and all saved dependencies.
+  through the native adapters. **Validate supplier catalog** validates XML source
+  syntax and namespace bindings. **Select namespaced supplier products** runs
+  the saved XPath query. **Repair malformed supplier XML** validates the deliberate
+  failure. **Supplier availability pipeline** executes the saved graph and all
+  saved dependencies.
+
+## XML namespaces and source validation
+
+Run **Validate supplier catalog**, then **Select namespaced supplier products**.
+The query returns `SKU-A=Café cups`, `SKU-B=Tea pots`, `SKU-C=Glass jars` and
+`SKU-D=Serving trays`. Its configuration binds
+`--namespace supplier=urn:demo:supplier`; `supplier` is the query's prefix and
+the document uses a default namespace. Selection compares the namespace URI and
+local name, independently of the source prefix spelling. The query uses explicit
+XPath strings, and product IDs remain unqualified XML attributes.
+
+For example, changing the document to use a `p` prefix for the catalog, product
+and name elements while binding `xmlns:p="urn:demo:supplier"` preserves the
+selection. An element called `product` in another namespace does not qualify.
+The reconciliation template follows the same expanded-name rule when importing
+the catalog through the shared native CEM tree.
+
+Source validation checks XML well-formedness, encoding, namespaces and the
+registered parser contracts. It does not establish supplier business rules or
+perform arbitrary XSD/RELAX NG instance validation. DTD-bearing documents and
+external entity resolution are rejected; no filesystem/network entity resolver
+is enabled. XML formatter profiles currently preserve lexical source bytes
+rather than reindent mixed content. See the [XML package](../../../packages/cem_ml/schema-packages/xml/v1/README.md)
+for supported contracts and the [XHTML document project](../xhtml-document/README.md)
+for XML-serialized HTML, XHTML-specific validation and generated HTML output.
+
+Run **Repair malformed supplier XML**. The intentional
+`</product-broken>` on line 6 produces two `cem.xml.parse_error` diagnostics:
+the closing tag does not match, and the open product consequently lacks its
+matching close. The first diagnostic points at the original closing tag, after
+the earlier UTF-8 `Café` text; no CEM-ML wrapper offsets replace the XML location.
+Replace `</product-broken>` with `</product>`, save, then rerun the same
+configuration. Both diagnostics clear. This changes only the invalid resource,
+leaving the valid catalog and the availability graph's inputs independent.
+
+## Build the availability report
 
 Run **Supplier availability pipeline**. The operation output previews the HTML
 view. In **Results → Operation output**, choose **Output artifact** to inspect

@@ -316,21 +316,24 @@ pub fn xhtml_document_ast_from_source_bytes(
     };
     let source = XhtmlDocumentSource::from_xml(&xml_document);
     let facts = xhtml_facts(&xml_document, &source);
-    let diagnostics = xhtml_diagnostics(
-        request.source_uri,
-        &source.media_type,
-        &facts,
-        XhtmlSchemaContractCatalog::from_builtin(),
-    );
     let line_ending = xml_document.line_ending.clone();
-    (
-        Some(XhtmlDocumentAst {
-            source,
-            xml_document,
-            facts,
-            line_ending,
-        }),
-        diagnostics,
+    let document = XhtmlDocumentAst {
+        source,
+        xml_document,
+        facts,
+        line_ending,
+    };
+    let diagnostics = validate_xhtml_document_ast(&document);
+    (Some(document), diagnostics)
+}
+
+/// Apply the XHTML contract to a retained owner without reparsing its source.
+pub(crate) fn validate_xhtml_document_ast(document: &XhtmlDocumentAst) -> Vec<Diagnostic> {
+    xhtml_diagnostics(
+        &document.source.uri,
+        &document.source.media_type,
+        &document.facts,
+        XhtmlSchemaContractCatalog::from_builtin(),
     )
 }
 

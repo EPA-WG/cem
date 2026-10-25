@@ -1,8 +1,8 @@
 {
   "id": "supplier-pipeline",
   "name": "Supplier pipeline",
-  "version": "1.0.0",
-  "description": "XML products and CSV stock reconciled through explicit native domain rules into JSON, YAML and HTML, with failure/repair and source provenance.",
+  "version": "1.1.0",
+  "description": "Namespace-aware XML catalog validation and selection, then XML products and CSV stock reconciled through explicit native domain rules into JSON, YAML and HTML, with failure/repair and source provenance.",
   "collections": [
     "amsterdam-2026",
     "content-types-data",
@@ -74,6 +74,30 @@
       "role": "data"
     },
     {
+      "id": "supplier-products-query",
+      "source": "examples/projects/supplier-pipeline/queries/products.xpath",
+      "path": "queries/products.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "role": "query"
+    },
+    {
+      "id": "supplier-expected-products",
+      "source": "examples/projects/supplier-pipeline/expected/products.json",
+      "path": "expected/products.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "supplier-invalid-catalog",
+      "source": "examples/projects/supplier-pipeline/data/catalog-invalid.xml",
+      "path": "data/catalog-invalid.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "role": "data"
+    },
+    {
       "id": "readme",
       "source": "examples/projects/supplier-pipeline/README.md",
       "path": "README.md",
@@ -99,6 +123,86 @@
         "ast",
         "--no-color"
       ]
+    },
+    {
+      "id": "validate-catalog",
+      "name": "Validate supplier catalog",
+      "kind": "validation",
+      "source": "supplier-catalog",
+      "description": "Validate native XML source syntax and namespace bindings; business rules remain in the availability templates.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "query-products",
+      "name": "Select namespaced supplier products",
+      "kind": "query",
+      "source": "supplier-catalog",
+      "dependencies": [
+        "supplier-products-query",
+        "supplier-expected-products"
+      ],
+      "description": "Select product IDs and names by expanded XML namespace, independently of the source prefix spelling.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--query-file",
+        "$supplier-products-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--namespace",
+        "supplier=urn:demo:supplier",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "supplier-expected-products"
+    },
+    {
+      "id": "repair-catalog",
+      "name": "Repair malformed supplier XML",
+      "kind": "validation",
+      "source": "supplier-invalid-catalog",
+      "description": "Run the deliberate mismatched-tag failure, inspect the original source range, then repair the closing product tag and rerun.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 2,
+        "warningCount": 0,
+        "errorCode": "cem.xml.parse_error"
+      },
+      "repair": {
+        "find": "</product-broken>",
+        "replace": "</product>"
+      }
     },
     {
       "id": "stock-source",
@@ -147,7 +251,8 @@
         "generated/availability.json": "supplier-expected-json",
         "generated/availability.yaml": "supplier-expected-yaml",
         "generated/availability.html": "supplier-expected-html"
-      }
+      },
+      "entryArtifact": "generated/availability.html"
     }
   ]
 }

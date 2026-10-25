@@ -75,3 +75,11 @@ report. Its configurations preserve native header/row-width warnings and hard
 quoting errors, with repairs in ordinary source or configuration resources.
 Compact CSV formatting preserves interchange values; tabular formatting is a
 review presentation. Inventory number conversion is an explicit template rule.
+
+The [Supplier pipeline](supplier-pipeline/README.md) also exposes native XML
+validation, expanded-name XPath selection and a mismatched-tag repair without
+copying its catalog or reconciliation graph. The [XHTML document](xhtml-document/README.md)
+adds XML-serialized document inspection, namespace-aware outlines, source
+validation/repair and template-driven HTML output. XHTML uses its own lifecycle
+identity and preserves foreign namespaces; validation covers the documented
+XML/XHTML source contract rather than complete HTML content models.

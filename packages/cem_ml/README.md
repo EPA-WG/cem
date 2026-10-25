@@ -154,8 +154,10 @@ commands are documented in the
 ### Shared imports
 
 `import::import_data_bytes` resolves external content types into retained CEM
-AST documents. XML, JSON, YAML and CSV semantics belong to this boundary;
-query/render consumers receive native nodes.
+AST documents. XML, XHTML, HTML, JSON, YAML, CSV and CSS semantics belong to
+this boundary; query/render consumers receive native nodes. XHTML retains its
+original lifecycle wrapper and source ranges while reusing XML semantic import;
+its root/namespace/head-body contract applies before query or template execution.
 
 The explicit `value::json::write_json(&CemValueGraph, &CemValueArtifactLimits)`
 export writes one generic-data document/value or JSON-compatible native scalar.

@@ -141,14 +141,16 @@ artifacts; the mere presence of a manifest artifact is insufficient.
 
 The generic retained-document
 [import boundary](../packages/cem_ml/src/import.rs) accepts JSON (`application/json`,
-`text/json`, `+json`), XML (`application/xml`, `text/xml`, `+xml`), YAML
-(`application/yaml`, `application/x-yaml`, `text/yaml`), CSV, HTML and `text/css`.
-Its short selectors are `json`, `xml`, `yaml`, `csv` and `html`. `text/x-yaml` is
-registered but is not accepted at this boundary. MIME essence matching is
-case-insensitive; CSV defaults to `header=present`. UTF-8 `text/plain` is an
-additional loader input with the CEM text projection only; it has no schema
-package. Structured `+json`/`+xml` suffixes select syntax parsing, not domain
-validation, query compilation or template execution.
+`text/json`, `+json`), XML (`application/xml`, `text/xml`, `+xml`), XHTML
+(`application/xhtml+xml`), YAML (`application/yaml`, `application/x-yaml`,
+`text/yaml`), CSV, HTML and `text/css`. Its short selectors are `json`, `xml`,
+`xhtml`, `yaml`, `csv` and `html`. `text/x-yaml` is registered but is not accepted
+at this boundary. MIME essence matching is case-insensitive; CSV defaults to
+`header=present`. UTF-8 `text/plain` is an additional loader input with the CEM
+text projection only; it has no schema package. The explicit XHTML selector
+retains and validates its XHTML owner before XML semantic import. Other structured
+`+json`/`+xml` suffixes select syntax parsing, not domain validation, query
+compilation or template execution.
 
 The native [query dispatch](../packages/cem_ml/src/query.rs) binds CSS selectors
 to element trees, XPath to XDM trees and CEM-QL to native items. A sample must
@@ -198,7 +200,15 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `json-yaml-report` | `invalid-settings` | `invalid-yaml` | Intentional YAML source failure with an explicit repair. |
 | `supplier-pipeline` | `supplier-stock` | `stock-source` | CSV source inspection. |
 | `supplier-pipeline` | `supplier-catalog` | `catalog-source` | XML catalog source inspection. |
+| `supplier-pipeline` | `supplier-catalog` | `validate-catalog` | Native XML well-formedness and namespace validation, separate from supplier business rules. |
+| `supplier-pipeline` | `supplier-catalog` | `query-products` | Expanded-name XPath selection with an explicit namespace binding and foreign-name exclusion. |
+| `supplier-pipeline` | `supplier-invalid-catalog` | `repair-catalog` | Mismatched XML end-tag diagnostics at original UTF-8 coordinates with an exact repair. |
 | `supplier-pipeline` | `supplier-reconcile` | `availability` | CSV + XML reconciliation, HTML/JSON/YAML outputs, provenance and deliberate repair. |
+| `xhtml-document` | `article-source` | `inspect-xhtml` | Original XHTML lifecycle identity, expanded names, foreign content and source locations. |
+| `xhtml-document` | `article-source` | `validate-xhtml` | XML-backed XHTML root/namespace/head-body checks, without claiming full HTML vocabulary validation. |
+| `xhtml-document` | `article-source` | `query-outline` | Namespace-aware XPath document outline, excluding foreign SVG title elements. |
+| `xhtml-document` | `article-invalid` | `repair-namespace` | Missing XHTML namespace diagnostic, saved source repair and revalidation. |
+| `xhtml-document` | `article-graph` | `build-html` | Retained XHTML input to a CEMT HTML artifact with explicit entry and template provenance. |
 | `markdown-site` | `data-site-json` | `build-site` | Site metadata, Markdown folder tree, layouts, relative CSS/images, explicit entry output and provenance. |
 | `login` | `login-html` | `semantics-html` | XPath query of the HTML semantic contract. |
 | `login` | `login-cem` | `semantics-cem-cemql` | CEM-QL query of the CEM semantic contract. |
@@ -221,7 +231,7 @@ category names below are discovery metadata; they do not affect runtime authorit
 | Category | Families / selectors to cover | Reuse or planned workflow |
 | --- | --- | --- |
 | Data | JSON and YAML aliases; CSV | Reuse `json-yaml-report` and `csv-inventory` for imported data, explicit queries/formatting and reports. CSV covers header-mode/row-width warnings and quote failures with repair, compact interchange versus tabular review, and explicit count rules. Reuse Supplier for cross-source reconciliation. |
-| Data | XML, XHTML and XML aliases | Extend Supplier with namespaces and selected instance validation; add XHTML operations. Keep DTD/entity refusals visible. |
+| Data / Documents and UI | XML, XHTML and XML aliases | Reuse Supplier XML validation/namespace-aware selection and the `xhtml-document` query, repair and HTML graph. XML source validation does not establish domain instance rules; XHTML retains its own owner and source contract. Keep DTD/entity refusals visible. |
 | Documents and UI | Markdown | Reuse `markdown-site`; expose article conversion and complete site outputs. |
 | Documents and UI | HTML, CEM-ML, native/element templates, runtime data island | Reuse Login and add a minimal declarative component project; explain template identity and live runtime bindings. |
 | Documents and UI | SVG and MathML variants | New diagram/formula project with native validation, inspection and shared preview; document supported vocabulary. |
@@ -248,7 +258,7 @@ against the native-emitted registry, the capability list against runtime metadat
 and each existing sample reference against the generated ordinary project bundle.
 It also runs all manifest-selected source validations through the native CLI and
 checks deployed bytes and hashes. The `test:feature-tour` browser cases exercise
-the authored Login and Supplier workflows; site preview/build browser acceptance
+the authored Login, Supplier, data-report and XHTML workflows; site preview/build browser acceptance
 lives in `test:workbench`. These checks establish the covered operations; they do
 not turn untested aliases or planned workflows into supported commands.
 

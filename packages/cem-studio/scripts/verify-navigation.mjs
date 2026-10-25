@@ -6,10 +6,13 @@ import { chromium } from 'playwright';
 import { verifyMarkdownSite } from './verify-markdown-site.mjs';
 import { verifyDataProjects } from './verify-data-projects.mjs';
 import { verifyCsvInventory } from './verify-csv-inventory.mjs';
+import { verifyXmlXhtmlProjects } from './verify-xml-xhtml-projects.mjs';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const csvOnly = process.argv.includes('--csv-only');
+const documentsOnly = process.argv.includes('--documents-only');
 const schemaAssets = process.argv.includes('--schema-assets');
+if (csvOnly && documentsOnly) throw new Error('Select one project verification scope.');
 if (schemaAssets && !csvOnly) throw new Error('The optional profile replay requires --csv-only.');
 const server = await startStaticServer(resolve(projectRoot, schemaAssets ? 'dist/schema-assets' : 'dist/static'));
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
@@ -34,7 +37,13 @@ const submit = async (name, action) => { if (name) await page.getByRole('dialog'
 const heading = async () => assert.equal(await page.getByRole('heading', { level: 1 }).innerText(), await page.title());
 
 try {
-    if (csvOnly) {
+    if (documentsOnly) {
+        const xmlXhtmlProjects = await verifyXmlXhtmlProjects({ page, context, url: server.url });
+        assert.deepEqual(errors, []);
+        await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
+        await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/xml-xhtml-projects.json'), `${JSON.stringify({ schemaVersion: 1, xmlXhtmlProjects }, null, 2)}\n`);
+        console.log('Studio XML/XHTML projects: catalog, native namespaces, source repair, saved edits, generated previews and offline rebuilding passed.');
+    } else if (csvOnly) {
         const csvInventory = await verifyCsvInventory({ page, context, url: server.url });
         assert.deepEqual(errors, []);
         const packages = await page.evaluate(() => globalThis.__cemStudioApplication.packageStatus());
@@ -272,10 +281,11 @@ try {
     const markdownSite = await verifyMarkdownSite({ page, context, url: server.url });
     const dataProjects = await verifyDataProjects({ page, context, url: server.url });
     const csvInventory = await verifyCsvInventory({ page, context, url: server.url });
+    const xmlXhtmlProjects = await verifyXmlXhtmlProjects({ page, context, url: server.url });
     assert.deepEqual(errors, []);
     await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
-    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, csvInventory, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
-    console.log('Studio navigation: nested catalog, contextual/legacy URLs, readonly originals, independent clones, drafts, themes, responsive layout and offline catalog/Supplier/Markdown site/JSON and YAML report/CSV inventory builds passed.');
+    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, csvInventory, xmlXhtmlProjects, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
+    console.log('Studio navigation: nested catalog, contextual/legacy URLs, readonly originals, independent clones, drafts, themes, responsive layout and offline catalog/Supplier/Markdown site/JSON and YAML report/CSV inventory/XML and XHTML builds passed.');
     }
 } catch (error) {
     const failure = await state().catch(() => ({}));
