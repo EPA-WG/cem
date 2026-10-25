@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block" aria-label="x squared plus one, divided by two">
+    <mfrac>
+        <mrow>
+            <msup>
+                <mi>x</mi>
+                <mn>2</mn>
+            </msup>
+            <mo>+</mo>
+            <mn>1</mn>
+        </mrow>
+        <mn>2</mn>
+    </mfrac>
+</math>

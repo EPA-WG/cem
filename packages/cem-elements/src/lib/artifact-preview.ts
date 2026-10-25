@@ -10,6 +10,63 @@ const decoder = new TextDecoder('utf-8', { fatal: true });
 const htmlTypes = new Set(['text/html', 'application/xhtml+xml']);
 const imageTypes = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'image/bmp', 'image/x-icon', 'image/svg+xml']);
 const mediaType = (type: string) => type.split(';')[0].trim().toLowerCase();
+const htmlNamespace = 'http://www.w3.org/1999/xhtml';
+const svgNamespace = 'http://www.w3.org/2000/svg';
+const mathNamespace = 'http://www.w3.org/1998/Math/MathML';
+const xmlnsNamespace = 'http://www.w3.org/2000/xmlns/';
+const svgElements = new Set(['svg', 'g', 'title', 'desc', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path', 'text', 'tspan']);
+const mathElements = new Set(['math', 'mrow', 'mi', 'mo', 'mn', 'mspace', 'mfrac', 'msup', 'msub', 'msubsup', 'msqrt', 'mroot', 'mover', 'munder', 'munderover']);
+const mathTokens = new Set(['mi', 'mo', 'mn', 'mspace']);
+const foreignCommonAttributes = new Set(['id', 'class', 'role', 'lang', 'dir', 'aria-label', 'aria-labelledby', 'aria-describedby', 'aria-hidden']);
+const svgAttributes = new Set(['viewBox', 'preserveAspectRatio', 'x', 'y', 'width', 'height', 'rx', 'ry', 'cx', 'cy', 'r', 'x1', 'x2', 'y1', 'y2',
+    'd', 'points', 'pathLength', 'transform', 'fill', 'fill-rule', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-opacity', 'stroke-linecap', 'stroke-linejoin',
+    'stroke-miterlimit', 'stroke-dasharray', 'stroke-dashoffset', 'opacity', 'color', 'vector-effect', 'dx', 'dy', 'rotate', 'text-anchor', 'dominant-baseline',
+    'font-family', 'font-size', 'font-style', 'font-weight', 'textLength', 'lengthAdjust']);
+const mathAttributes = new Set(['display', 'alttext', 'mathvariant', 'mathsize', 'mathcolor', 'mathbackground', 'displaystyle', 'scriptlevel', 'stretchy',
+    'symmetric', 'fence', 'separator', 'accent', 'accentunder', 'movablelimits', 'largeop', 'lspace', 'rspace', 'minsize', 'maxsize', 'linethickness', 'bevelled',
+    'subscriptshift', 'superscriptshift', 'width', 'height', 'depth']);
+const paintAttributes = new Set(['fill', 'stroke', 'color', 'mathcolor', 'mathbackground']);
+
+function literalPaint(value: string): boolean {
+    const paint = value.trim();
+    if (/^(none|currentcolor)$/i.test(paint)) return true;
+    if (/^(inherit|initial|unset|revert)$/i.test(paint)) return false;
+    // No url(), var(), escapes, paint servers or cross-document references.
+    return (/^[a-z]+$/i.test(paint) || /^#[\da-f]{3,8}$/i.test(paint)
+        || /^(rgba?|hsla?)\([\d\s.,%+\-/]+\)$/i.test(paint)) && CSS.supports('color', paint);
+}
+
+/** A passive browser projection subset, independent of native source validation. */
+function admitForeignElement(element: Element, report: (message: string) => void): boolean {
+    const namespace = element.namespaceURI;
+    const elements = namespace === svgNamespace ? svgElements : namespace === mathNamespace ? mathElements : undefined;
+    if (!elements?.has(element.localName) || element.hasAttribute('xmlns') && element.getAttribute('xmlns') !== namespace) {
+        report(`Blocked artifact element: ${element.localName}`); return false;
+    }
+    const attributes = namespace === svgNamespace ? svgAttributes : mathAttributes;
+    for (const attribute of [...element.attributes]) {
+        const declaration = attribute.name === 'xmlns' && (!attribute.namespaceURI || attribute.namespaceURI === xmlnsNamespace);
+        if (declaration || !attribute.namespaceURI && (foreignCommonAttributes.has(attribute.name) || attributes.has(attribute.name))
+            && (!paintAttributes.has(attribute.name) || literalPaint(attribute.value))) continue;
+        report(`Blocked artifact attribute: ${element.localName}[${attribute.name}]`);
+        element.removeAttributeNode(attribute);
+    }
+    return true;
+}
+
+function permittedForeignChild(element: Element): boolean {
+    const parent = element.parentElement;
+    if (!parent || ![svgNamespace, mathNamespace].includes(parent.namespaceURI ?? '')) return true;
+    // HTML integration points never grant the HTML or another foreign namespace
+    // inside a token/description. Those admitted nodes retain plain text only.
+    if (parent.namespaceURI !== element.namespaceURI) return false;
+    if (parent.namespaceURI === mathNamespace && mathTokens.has(parent.localName)) return false;
+    if (parent.namespaceURI === svgNamespace) {
+        if (['title', 'desc'].includes(parent.localName)) return false;
+        if (['text', 'tspan'].includes(parent.localName) && element.localName !== 'tspan') return false;
+    }
+    return true;
+}
 // Paths are output metadata, never ambient source addresses. URL canonicalization
 // also catches dot aliases, encoded traversal and percent-encoding collisions.
 function pathUrl(path: string): URL {
@@ -167,7 +224,13 @@ export function mountCemArtifactPreview(frame: HTMLIFrameElement, options: CemAr
         inert.innerHTML = decoder.decode(selectedArtifact.bytes);
         for (const element of [...inert.content.querySelectorAll('*')]) {
             current();
-            if (element.namespaceURI !== 'http://www.w3.org/1999/xhtml' || ['script', 'base', 'meta', 'iframe', 'frame', 'frameset', 'object', 'embed', 'portal', 'template'].includes(element.localName)) { element.remove(); continue; }
+            if (!inert.content.contains(element)) continue;
+            if (!permittedForeignChild(element)) { report(`Blocked artifact element: ${element.localName}`); element.remove(); continue; }
+            if (element.namespaceURI !== htmlNamespace) {
+                if (!admitForeignElement(element, report)) element.remove();
+                continue;
+            }
+            if (['script', 'base', 'meta', 'iframe', 'frame', 'frameset', 'object', 'embed', 'portal', 'template'].includes(element.localName)) { element.remove(); continue; }
             if (element.localName.includes('-')) { element.replaceWith(...element.childNodes); continue; }
             const style = element.getAttribute('style'), src = element.localName === 'img' ? element.getAttribute('src') : null;
             const href = element.getAttribute('href');

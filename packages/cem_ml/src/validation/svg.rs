@@ -343,6 +343,16 @@ pub fn svg_document_ast_from_source_bytes(
     )
 }
 
+/// Apply SVG policy to its retained typed owner without reparsing source bytes.
+pub(crate) fn validate_svg_document_ast(document: &SvgDocumentAst) -> Vec<Diagnostic> {
+    svg_diagnostics(
+        &document.source.uri,
+        &document.source.media_type,
+        &document.facts,
+        SvgSchemaContractCatalog::from_builtin(),
+    )
+}
+
 fn svg_facts(document: &XmlDocumentAst) -> Vec<SvgFact> {
     let mut facts = document
         .parse_facts

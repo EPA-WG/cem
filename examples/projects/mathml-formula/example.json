@@ -1,0 +1,283 @@
+{
+  "id": "mathml-formula",
+  "name": "MathML formula",
+  "version": "1.0.0",
+  "description": "Inspect, validate, query and format a namespaced mathematical expression, repair its namespace and build a bounded Presentation MathML HTML preview.",
+  "collections": [
+    "content-types-documents-ui",
+    "content-types-queries-transformations"
+  ],
+  "sources": [
+    {
+      "id": "formula-source",
+      "source": "examples/projects/mathml-formula/data/formula.mml",
+      "path": "data/formula.mml",
+      "contentType": "application/mathml-presentation+xml",
+      "schema": "https://cem.dev/ns/data/mathml/1",
+      "role": "data"
+    },
+    {
+      "id": "formula-content",
+      "source": "examples/projects/mathml-formula/data/content.mathml",
+      "path": "data/content.mathml",
+      "contentType": "application/mathml-content+xml",
+      "schema": "https://cem.dev/ns/data/mathml/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-mathml",
+      "source": "examples/projects/mathml-formula/failures/missing-namespace.mml",
+      "path": "failures/missing-namespace.mml",
+      "contentType": "application/mathml-presentation+xml",
+      "schema": "https://cem.dev/ns/data/mathml/1",
+      "role": "data"
+    },
+    {
+      "id": "formula-query",
+      "source": "examples/projects/mathml-formula/queries/formula.xpath",
+      "path": "queries/formula.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "role": "query"
+    },
+    {
+      "id": "formula-summary",
+      "source": "examples/projects/mathml-formula/expected/summary.json",
+      "path": "expected/summary.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "formula-template",
+      "source": "examples/projects/mathml-formula/templates/formula.cemt",
+      "path": "templates/formula.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "formula-graph",
+      "source": "examples/projects/mathml-formula/graphs/formula.cem",
+      "path": "graphs/formula.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "expected-mathml",
+      "source": "examples/projects/mathml-formula/expected/formula.mml",
+      "path": "expected/formula.mml",
+      "contentType": "application/mathml-presentation+xml",
+      "schema": "https://cem.dev/ns/data/mathml/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-html",
+      "source": "examples/projects/mathml-formula/expected/formula.html",
+      "path": "expected/formula.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/mathml-formula/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "inspect-mathml",
+      "name": "Inspect retained MathML formula",
+      "kind": "inspection",
+      "source": "formula-source",
+      "description": "Inspect expanded names and original source positions from the genuine XML-backed family owner in the shared retained CEM tree.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/mathml-presentation+xml",
+        "--schema",
+        "https://cem.dev/ns/data/mathml/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "http://www.w3.org/1998/Math/MathML",
+        "@byte-offset=",
+        "mfrac"
+      ]
+    },
+    {
+      "id": "validate-presentation",
+      "name": "Validate Presentation MathML",
+      "kind": "validation",
+      "source": "formula-source",
+      "description": "Validate XML well-formedness and the documented family/profile source facts, without claiming complete language conformance.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/mathml-presentation+xml",
+        "--schema",
+        "https://cem.dev/ns/data/mathml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "validate-content",
+      "name": "Validate Content MathML source",
+      "kind": "validation",
+      "source": "formula-content",
+      "description": "Validate a separate Content MathML expression source. This is not Content-to-Presentation conversion or algebraic evaluation.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/mathml-content+xml",
+        "--schema",
+        "https://cem.dev/ns/data/mathml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "query-mathml",
+      "name": "Query the MathML formula structure",
+      "kind": "query",
+      "source": "formula-source",
+      "dependencies": [
+        "formula-query",
+        "formula-summary"
+      ],
+      "description": "Use caller-bound expanded XML names to summarize the source structure and values, independently of source prefix spelling.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/mathml-presentation+xml",
+        "--schema",
+        "https://cem.dev/ns/data/mathml/1",
+        "--query-file",
+        "$formula-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--namespace",
+        "m=http://www.w3.org/1998/Math/MathML",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "formula-summary"
+    },
+    {
+      "id": "format-mathml",
+      "name": "Format Presentation MathML (pretty)",
+      "kind": "conversion",
+      "source": "formula-source",
+      "dependencies": [
+        "expected-mathml"
+      ],
+      "description": "Run the native family-owned pretty formatter with source text/token boundaries preserved and synthetic indentation unmapped.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/mathml-presentation+xml",
+        "--schema",
+        "https://cem.dev/ns/data/mathml/1",
+        "--to-content-type",
+        "application/mathml-presentation+xml",
+        "--to-schema",
+        "https://cem.dev/ns/data/mathml/1",
+        "--cemt-formatter-profile",
+        "pretty",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedOutput": "expected-mathml"
+    },
+    {
+      "id": "repair-mathml-namespace",
+      "name": "Repair the MathML namespace",
+      "kind": "validation",
+      "source": "invalid-mathml",
+      "description": "Restore the required family namespace on a well-formed XML document and revalidate the same saved resource.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/mathml-presentation+xml",
+        "--schema",
+        "https://cem.dev/ns/data/mathml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.mathml.namespace_missing",
+        "location": {
+          "line": 2,
+          "column": 1,
+          "byteOffset": 39
+        }
+      },
+      "repair": {
+        "find": "<math ",
+        "replace": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" "
+      }
+    },
+    {
+      "id": "build-html",
+      "name": "Build and preview the formula",
+      "kind": "transformation-graph",
+      "source": "formula-graph",
+      "dependencies": [
+        "formula-source",
+        "formula-template",
+        "expected-html"
+      ],
+      "description": "Construct an HTML wrapper and copy the retained, namespaced source element without its XML prolog. Preview bounded inert foreign content through shared components.",
+      "entryArtifact": "generated/formula.html",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedGraphOutputs": {
+        "generated/formula.html": "expected-html"
+      },
+      "expectedProvenance": [
+        "templates/formula.cemt"
+      ]
+    }
+  ]
+}

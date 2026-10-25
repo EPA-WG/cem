@@ -13,7 +13,7 @@ use crate::{
     validation::{
         csv, html as html_parser,
         generic_data::{GenericDataDocumentAst, GenericDataValueAst as Value},
-        json, json_xml, xhtml, xml, yaml,
+        json, json_xml, mathml, svg, xhtml, xml, yaml,
     },
 };
 use std::sync::Arc;
@@ -482,6 +482,20 @@ fn parse_bytes(
                 content_type: Some(&content_type),
             }),
         )?),
+        "svg" => LoadedInputAstStream::SvgDocument(checked(
+            svg::svg_document_ast_from_source_bytes(svg::SvgSourceValidationRequest {
+                bytes,
+                source_uri,
+                content_type: Some(&content_type),
+            }),
+        )?),
+        "mathml" => LoadedInputAstStream::MathMlDocument(checked(
+            mathml::mathml_document_ast_from_source_bytes(mathml::MathMlSourceValidationRequest {
+                bytes,
+                source_uri,
+                content_type: Some(&content_type),
+            }),
+        )?),
         "xml" | "application/xml" | "text/xml" => {
             let doc = checked(xml::xml_document_ast_from_source_bytes(
                 xml::XmlSourceValidationRequest {
@@ -544,6 +558,10 @@ pub(crate) fn import_content_type(value: &str) -> Result<(&'static str, String),
         "json" | "application/json" | "text/json" => ("json", "application/json"),
         "xml" | "application/xml" | "text/xml" => ("xml", "application/xml"),
         "xhtml" | "application/xhtml+xml" => ("xhtml", "application/xhtml+xml"),
+        "image/svg+xml" => ("svg", "image/svg+xml"),
+        "application/mathml+xml" => ("mathml", "application/mathml+xml"),
+        "application/mathml-presentation+xml" => ("mathml", "application/mathml-presentation+xml"),
+        "application/mathml-content+xml" => ("mathml", "application/mathml-content+xml"),
         "yaml" | "application/yaml" | "application/x-yaml" | "text/yaml" => {
             ("yaml", "application/yaml")
         }
@@ -755,6 +773,8 @@ pub fn try_retain_lifecycle(
         native.as_ref(),
         LoadedInputAstStream::XmlDocument(_)
             | LoadedInputAstStream::XhtmlDocument(_)
+            | LoadedInputAstStream::SvgDocument(_)
+            | LoadedInputAstStream::MathMlDocument(_)
             | LoadedInputAstStream::HtmlDocument(_)
             | LoadedInputAstStream::JsonDocument(_)
             | LoadedInputAstStream::CsvDocument(_)
@@ -773,6 +793,13 @@ pub fn retain_lifecycle(native: Arc<LoadedInputAstStream>) -> Result<Arc<Retaine
         LoadedInputAstStream::HtmlDocument(doc) => (doc.source.uri.clone(), doc.source.content_type.clone(), doc.source.byte_length),
         LoadedInputAstStream::XhtmlDocument(doc) => (
             doc.source.uri.clone(), doc.source.content_type.clone(), doc.source.byte_length,
+        ),
+        LoadedInputAstStream::SvgDocument(doc) => (
+            doc.source.uri.clone(), doc.source.content_type.clone(), doc.source.byte_length,
+        ),
+        LoadedInputAstStream::MathMlDocument(doc) => (
+            doc.xml_document.source.uri.clone(), doc.xml_document.source.content_type.clone(),
+            doc.xml_document.source.byte_length,
         ),
         LoadedInputAstStream::CssDocument(doc) => (
             doc.source.uri.clone(), doc.source.content_type.clone(), doc.source.byte_length,
@@ -812,6 +839,30 @@ fn validate_data_ast(native: &LoadedInputAstStream, max_values: usize) -> Result
         LoadedInputAstStream::XhtmlDocument(doc) => {
             validate_xml_limits(&doc.xml_document, max_values)?;
             if let Some(diagnostic) = xhtml::validate_xhtml_document_ast(doc)
+                .into_iter().find(|diagnostic| diagnostic.severity.is_hard_violation())
+            {
+                return Err(ImportFailure {
+                    kind: Malformed,
+                    message: format!("{}: {}", diagnostic.code, diagnostic.message),
+                    diagnostics: vec![diagnostic],
+                });
+            }
+        }
+        LoadedInputAstStream::SvgDocument(doc) => {
+            validate_xml_limits(&doc.xml_document, max_values)?;
+            if let Some(diagnostic) = svg::validate_svg_document_ast(doc)
+                .into_iter().find(|diagnostic| diagnostic.severity.is_hard_violation())
+            {
+                return Err(ImportFailure {
+                    kind: Malformed,
+                    message: format!("{}: {}", diagnostic.code, diagnostic.message),
+                    diagnostics: vec![diagnostic],
+                });
+            }
+        }
+        LoadedInputAstStream::MathMlDocument(doc) => {
+            validate_xml_limits(&doc.xml_document, max_values)?;
+            if let Some(diagnostic) = mathml::validate_mathml_document_ast(doc)
                 .into_iter().find(|diagnostic| diagnostic.severity.is_hard_violation())
             {
                 return Err(ImportFailure {
@@ -928,6 +979,14 @@ fn project_native(
         ("json-to-xml", _) => return Err("The json-to-xml projection requires JSON input.".into()),
         ("cem" | "xpath", LoadedInputAstStream::XmlDocument(doc)) => { let imported = import_xml_ast(doc)?; (imported.ast, imported.semantics) },
         ("cem" | "xpath", LoadedInputAstStream::XhtmlDocument(doc)) => {
+            let imported = import_xml_ast(&doc.xml_document)?;
+            (imported.ast, imported.semantics)
+        },
+        ("cem" | "xpath", LoadedInputAstStream::SvgDocument(doc)) => {
+            let imported = import_xml_ast(&doc.xml_document)?;
+            (imported.ast, imported.semantics)
+        },
+        ("cem" | "xpath", LoadedInputAstStream::MathMlDocument(doc)) => {
             let imported = import_xml_ast(&doc.xml_document)?;
             (imported.ast, imported.semantics)
         },

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="diagram-title" aria-describedby="diagram-description" viewBox="0 0 320 160" width="320" height="160">
+    <title id="diagram-title">A small transformation pipeline</title>
+    <desc id="diagram-description">Source data passes through a template to become an artifact.</desc>
+    <rect x="16" y="48" width="80" height="48" rx="6" fill="none" stroke="currentColor"/>
+    <line x1="96" y1="72" x2="136" y2="72" stroke="currentColor"/>
+    <circle cx="160" cy="72" r="24" fill="none" stroke="currentColor"/>
+    <line x1="184" y1="72" x2="224" y2="72" stroke="currentColor"/>
+    <rect x="224" y="48" width="80" height="48" rx="6" fill="none" stroke="currentColor"/>
+    <text x="56" y="76" text-anchor="middle" fill="currentColor">Source</text>
+    <text x="160" y="76" text-anchor="middle" fill="currentColor">Map</text>
+    <text x="264" y="76" text-anchor="middle" fill="currentColor">HTML</text>
+</svg>

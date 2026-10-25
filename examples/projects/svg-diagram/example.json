@@ -1,0 +1,253 @@
+{
+  "id": "svg-diagram",
+  "name": "SVG diagram",
+  "version": "1.0.0",
+  "description": "Inspect, validate, query and format an accessible vector pipeline diagram, repair its namespace and build a bounded inline SVG HTML preview.",
+  "collections": [
+    "content-types-documents-ui",
+    "content-types-queries-transformations"
+  ],
+  "sources": [
+    {
+      "id": "diagram-source",
+      "source": "examples/projects/svg-diagram/data/diagram.svg",
+      "path": "data/diagram.svg",
+      "contentType": "image/svg+xml",
+      "schema": "https://cem.dev/ns/data/svg/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-svg",
+      "source": "examples/projects/svg-diagram/failures/missing-namespace.svg",
+      "path": "failures/missing-namespace.svg",
+      "contentType": "image/svg+xml",
+      "schema": "https://cem.dev/ns/data/svg/1",
+      "role": "data"
+    },
+    {
+      "id": "diagram-query",
+      "source": "examples/projects/svg-diagram/queries/diagram.xpath",
+      "path": "queries/diagram.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "role": "query"
+    },
+    {
+      "id": "diagram-summary",
+      "source": "examples/projects/svg-diagram/expected/summary.json",
+      "path": "expected/summary.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "diagram-template",
+      "source": "examples/projects/svg-diagram/templates/diagram.cemt",
+      "path": "templates/diagram.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "diagram-graph",
+      "source": "examples/projects/svg-diagram/graphs/diagram.cem",
+      "path": "graphs/diagram.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "expected-svg",
+      "source": "examples/projects/svg-diagram/expected/diagram.svg",
+      "path": "expected/diagram.svg",
+      "contentType": "image/svg+xml",
+      "schema": "https://cem.dev/ns/data/svg/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-html",
+      "source": "examples/projects/svg-diagram/expected/diagram.html",
+      "path": "expected/diagram.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/svg-diagram/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "inspect-svg",
+      "name": "Inspect retained SVG diagram",
+      "kind": "inspection",
+      "source": "diagram-source",
+      "description": "Inspect expanded names and original source positions from the genuine XML-backed family owner in the shared retained CEM tree.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "image/svg+xml",
+        "--schema",
+        "https://cem.dev/ns/data/svg/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "http://www.w3.org/2000/svg",
+        "@byte-offset=",
+        "A small transformation pipeline"
+      ]
+    },
+    {
+      "id": "validate-svg",
+      "name": "Validate SVG source",
+      "kind": "validation",
+      "source": "diagram-source",
+      "description": "Validate XML well-formedness and the documented family/profile source facts, without claiming complete language conformance.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "image/svg+xml",
+        "--schema",
+        "https://cem.dev/ns/data/svg/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "query-svg",
+      "name": "Query the SVG diagram structure",
+      "kind": "query",
+      "source": "diagram-source",
+      "dependencies": [
+        "diagram-query",
+        "diagram-summary"
+      ],
+      "description": "Use caller-bound expanded XML names to summarize the source structure and values, independently of source prefix spelling.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "image/svg+xml",
+        "--schema",
+        "https://cem.dev/ns/data/svg/1",
+        "--query-file",
+        "$diagram-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--namespace",
+        "s=http://www.w3.org/2000/svg",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "diagram-summary"
+    },
+    {
+      "id": "format-svg",
+      "name": "Format SVG (pretty)",
+      "kind": "conversion",
+      "source": "diagram-source",
+      "dependencies": [
+        "expected-svg"
+      ],
+      "description": "Run the native family-owned pretty formatter with source text/token boundaries preserved and synthetic indentation unmapped.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "image/svg+xml",
+        "--schema",
+        "https://cem.dev/ns/data/svg/1",
+        "--to-content-type",
+        "image/svg+xml",
+        "--to-schema",
+        "https://cem.dev/ns/data/svg/1",
+        "--cemt-formatter-profile",
+        "pretty",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedOutput": "expected-svg"
+    },
+    {
+      "id": "repair-svg-namespace",
+      "name": "Repair the SVG namespace",
+      "kind": "validation",
+      "source": "invalid-svg",
+      "description": "Restore the required family namespace on a well-formed XML document and revalidate the same saved resource.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "image/svg+xml",
+        "--schema",
+        "https://cem.dev/ns/data/svg/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.svg.namespace_missing",
+        "location": {
+          "line": 2,
+          "column": 1,
+          "byteOffset": 39
+        }
+      },
+      "repair": {
+        "find": "<svg ",
+        "replace": "<svg xmlns=\"http://www.w3.org/2000/svg\" "
+      }
+    },
+    {
+      "id": "build-html",
+      "name": "Build and preview the diagram",
+      "kind": "transformation-graph",
+      "source": "diagram-graph",
+      "dependencies": [
+        "diagram-source",
+        "diagram-template",
+        "expected-html"
+      ],
+      "description": "Construct an HTML wrapper and copy the retained, namespaced source element without its XML prolog. Preview bounded inert foreign content through shared components.",
+      "entryArtifact": "generated/diagram.html",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedGraphOutputs": {
+        "generated/diagram.html": "expected-html"
+      },
+      "expectedProvenance": [
+        "templates/diagram.cemt"
+      ]
+    }
+  ]
+}

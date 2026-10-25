@@ -40,6 +40,79 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
+    for (const projectId of ['svg-diagram', 'mathml-formula']) {
+        it(`runs the ${projectId} native family configurations, exact formats and namespace repair`, async () => {
+            const { bundle, definition, decode } = await authoredProject(projectId);
+            const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+            expect(definition.configurations).toHaveLength(projectId === 'svg-diagram' ? 6 : 7);
+            for (const configuration of definition.configurations.filter(item => item.kind !== 'transformation-graph')) {
+                const entry = bundle.project.entries.find(item => item.id === configuration.id);
+                const options = projectCommandOptions(bundle, entry, `${projectId}-commands-copy`);
+                const command = JSON.parse(decode(entry.runConfigResourceId));
+                const run = overrides => command.argv
+                    ? validator.executeAuthoredResourceCommand({ ...options, ...overrides, commandResource: bundle.contents[entry.runConfigResourceId] })
+                    : validator.validateResource({ ...options, ...overrides });
+                const outcome = await run().catch(error => error);
+                if (!outcome.result) throw new Error(`${projectId}/${configuration.id}: ${outcome.message}`, { cause: outcome });
+                expect(outcome.result.exitCode, JSON.stringify(outcome.result.diagnostics.items)).toBe(configuration.expectedExit ?? 0);
+                if ((configuration.expectedExit ?? 0) === 0) expect(outcome.result.diagnostics.items.filter(item => ['error', 'fatal'].includes(item.severity))).toEqual([]);
+                if (configuration.expectedOutput) expect(outcome.output.text).toBe(decode(configuration.expectedOutput));
+                for (const text of configuration.expectedText ?? []) expect(outcome.output.text).toContain(text);
+                if (configuration.expectedSemanticContract) {
+                    const report = JSON.parse(outcome.output.text);
+                    expect(report.language).toBe('xpath');
+                    expect(report.result.sequence.items.map(item => item.value.lexicalValue)).toEqual(JSON.parse(decode(configuration.expectedSemanticContract)));
+                }
+                const expected = configuration.expectedValidation;
+                if (expected) {
+                    const diagnostics = outcome.result.diagnostics.items;
+                    expect(diagnostics.filter(item => item.severity === 'error')).toHaveLength(expected.errorCount);
+                    expect(diagnostics.filter(item => item.severity === 'warning')).toHaveLength(expected.warningCount);
+                    if (configuration.repair) {
+                        const source = bundle.project.resources.find(item => item.id === configuration.source);
+                        const diagnostic = diagnostics.find(item => item.code === expected.errorCode);
+                        expect(diagnostic).toMatchObject({ severity: 'error', uri: `studio://${projectId}-commands-copy/${source.path}` });
+                        for (const [key, value] of Object.entries(expected.location)) expect(diagnostic[key] ?? null).toBe(value);
+                        const original = decode(configuration.source), repaired = original.replace(configuration.repair.find, configuration.repair.replace);
+                        expect(repaired).not.toBe(original);
+                        const fixed = await run({ bytes: new TextEncoder().encode(repaired) });
+                        expect(fixed.result.exitCode).toBe(0); expect(fixed.result.diagnostics.items).toEqual([]);
+                        expect(decode(configuration.source)).toBe(original);
+                    }
+                }
+            }
+        }, 60_000);
+
+        it(`builds the ${projectId} foreign-content entry with original source owners and independent copies`, async () => {
+            const { bundle, definition, decode } = await authoredProject(projectId);
+            const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+            const configuration = definition.configurations.find(item => item.kind === 'transformation-graph');
+            const entry = bundle.project.entries.find(item => item.id === configuration.id);
+            const command = JSON.parse(decode(entry.runConfigResourceId));
+            const inputId = definition.configurations.find(item => item.expectedSemanticContract).source;
+            const source = bundle.project.resources.find(item => item.id === inputId);
+            const template = bundle.project.resources.find(item => configuration.dependencies.includes(item.id) && item.role === 'template');
+            const run = (edits = {}, id = `${projectId}-build-copy`) => validator.runResourceCommand({ ...projectCommandOptions(bundle, entry, id, edits), argv: command.argv });
+            const baseline = await run();
+            expect(baseline.outputs).toHaveLength(Object.keys(configuration.expectedGraphOutputs).length);
+            expect(entry.entryArtifact).toBe(configuration.entryArtifact);
+            for (const [path, expected] of Object.entries(configuration.expectedGraphOutputs)) expect(baseline.outputs.find(item => item.uri.endsWith(`/${path}`)).bytes).toEqual(bundle.contents[expected]);
+            const frames = baseline.result.result.value.value.value.artifacts.flatMap(item => item.outputSpans ?? []).flatMap(span => span.origin.frames);
+            for (const resource of [source, template]) expect(frames).toEqual(expect.arrayContaining([expect.objectContaining({ transform: expect.objectContaining({ uri: `studio://${projectId}-build-copy/${resource.path}` }) })]));
+            const original = decode(inputId);
+            const edited = projectId === 'svg-diagram' ? original.replace('>Source<', '>Café source<').replace('width="80"', 'width="72"')
+                : original.replace('>x<', '>y<').replace('x squared', 'y squared');
+            expect(edited).not.toBe(original); expect((await run({ [inputId]: edited })).output.text).not.toBe(baseline.output.text);
+            const invalid = definition.configurations.find(item => item.repair).source;
+            await expect(run({ [inputId]: decode(invalid) })).rejects.toMatchObject({ result: { exitCode: 1 }, output: { available: false } });
+            expect((await run()).output.text).toBe(baseline.output.text);
+            const independent = await run({}, `${projectId}-independent`);
+            expect(independent.output.text).toBe(baseline.output.text);
+            expect(independent.outputs.every(item => item.uri.startsWith(`studio://${projectId}-independent/`))).toBe(true);
+            expect(decode(inputId)).toBe(original);
+        }, 60_000);
+    }
+
     it('keeps the submitted resource revision while asynchronous command preparation runs', async () => {
         const validator = await createCemStudioBrowserValidator(); validators.push(validator);
         const bytes = new TextEncoder().encode('{"title":"before"}');

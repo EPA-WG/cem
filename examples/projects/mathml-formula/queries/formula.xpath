@@ -1,0 +1,12 @@
+let $formula := /m:math,
+    $fraction := $formula/m:mfrac,
+    $numerator := $fraction/m:mrow
+return (
+    'label=' || string($formula/@aria-label),
+    'fractions=' || count($formula/m:mfrac),
+    'powers=' || count($numerator/m:msup),
+    'variable=' || normalize-space($numerator/m:msup/m:mi),
+    'exponent=' || normalize-space($numerator/m:msup/m:mn),
+    'constant=' || normalize-space($numerator/m:mn),
+    'denominator=' || normalize-space($fraction/m:mn)
+)

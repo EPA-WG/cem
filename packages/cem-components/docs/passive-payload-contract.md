@@ -133,8 +133,11 @@ mode default/caption slots and label fallbacks. Explicit modes read `value`:
   The shared capability manages a script-free frame with `allow-same-origin` for
   parent access, fixed CSP, no referrer and no CEM runtime or component registry.
   HTML is parsed in an inert template before admission. Scripts, refresh/base,
-  nested browsing contexts, foreign markup and active URL/event attributes are
-  removed; forms cannot submit. Relative stylesheet links, inline/style-block
+  nested browsing contexts, unsupported foreign markup and active URL/event
+  attributes are removed; forms cannot submit. Inline static SVG and Presentation
+  MathML use the shared [bounded foreign-content policy](../../cem-elements/README.md#inline-svg-and-mathml-artifacts),
+  preserving admitted namespaces while excluding scripts, integration escapes,
+  foreign styles and resource URLs. Relative stylesheet links, inline/style-block
   CSS, CSS imports and images resolve only against this run. The native retained
   CSS importer owns URL decoding and remapping, including escaped/static
   `image-set` references and import conditions; unsupported CSS grammar is

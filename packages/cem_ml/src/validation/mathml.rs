@@ -266,6 +266,16 @@ pub fn mathml_document_ast_from_source_bytes(
     )
 }
 
+/// Apply MathML profile policy to its retained owner without reparsing source bytes.
+pub(crate) fn validate_mathml_document_ast(document: &MathMlDocumentAst) -> Vec<Diagnostic> {
+    mathml_diagnostics(
+        &document.xml_document.source.uri,
+        &document.xml_document.source.media_type,
+        &document.facts,
+        MathMlSchemaContractCatalog::from_builtin(),
+    )
+}
+
 fn mathml_media_profile(document: &XmlDocumentAst) -> (MathMlMediaProfile, Option<String>) {
     let mut profile = match document.source.media_type.as_str() {
         MATHML_PRESENTATION_CONTENT_TYPE => MathMlMediaProfile::Presentation,

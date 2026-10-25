@@ -1542,6 +1542,34 @@ only this immutable set. Native retained CSS import owns resource decoding and
 rewriting; the browser host owns inert HTML admission, object URLs and navigation.
 Missing assets and denied references report bounded status without ambient fetch.
 
+#### Inline SVG and MathML artifacts
+
+Inline SVG and Presentation MathML in HTML/XHTML artifacts retain their browser
+namespaces under a separate passive preview admission policy. SVG admits `svg`,
+`g`, `title`, `desc`, `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`,
+`path`, `text` and `tspan`. MathML admits `math`, `mrow`, `mi`, `mo`, `mn`,
+`mspace`, `mfrac`, `msup`, `msub`, `msubsup`, `msqrt`, `mroot`, `mover`, `munder`
+and `munderover`. The selected artifact still declares HTML or XHTML; this does
+not relabel a standalone SVG or MathML resource as HTML.
+
+The bounded foreign-attribute lists retain accessibility names/descriptions,
+matching `xmlns`, literal geometry/text/paint attributes and the supported math
+layout attributes. Paint accepts named/system colors, hexadecimal and numeric
+RGB/HSL forms, `none` and `currentColor`; URL paint servers, CSS variables and
+escaped values are excluded. Foreign `style`, event handlers, namespaced URL
+attributes and other resource/navigation attributes are removed. SVG
+`foreignObject`, scripts, animation, images, `use`, links, MathML annotations,
+Content MathML and unknown elements are removed with bounded status messages.
+Math tokens and SVG titles/descriptions admit plain text only: an HTML or other
+namespace child cannot use an integration point to acquire HTML asset admission.
+Foreign namespace changes and mismatched namespace declarations are refused.
+
+This DOM admission is independent of native SVG/MathML parsing and validation.
+The browser renders admitted geometry and presentation math; the preview does
+not implement either source grammar, complete vocabulary or expression semantics.
+Exact artifact bytes and native provenance remain available even when part of
+their content is outside the preview subset.
+
 No CEM runtime or authored scripts run inside this HTML output frame. The parent
 can manage its document through the same-origin sandbox permission; forms, frames,
 script execution and network sources remain denied. Authored URLs are admitted

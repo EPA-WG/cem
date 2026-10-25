@@ -173,7 +173,12 @@ source inspection and policy repair, saved/offline previews, explicit worker
 Inspect formats and shared projected slice-event ownership. Existing Login
 contracts, declaration authority and credential privacy remain unchanged.
 
-- [ ] Add SVG and MathML projects: inspect and validate a vector diagram and a mathematical expression, then preview supported output using shared preview components.
+Completed [SVG/MathML projects and shared foreign-content previews](archive/todo-completed-svg-mathml-2026-10-25.md)
+cover retained family imports, native inspection/query/formatting, namespace repair,
+exact HTML entries and provenance, real vector/formula rendering and independent
+saved/offline copies. Source validation and bounded preview admission remain
+separate; credential privacy and automatic recovery policies are unchanged.
+
 - [ ] Add CSS, SCSS and CSS-selector projects: inspect/format a stylesheet, demonstrate supported variable/nesting transformations and select document elements. State native subset limits and include scoped-style examples where supported.
 - [ ] Add CEM-QL and XPath projects: standalone expressions, selecting/filtering/joining data, parameter maps and inspecting native results with source provenance.
 - [ ] Add CEM transformation and XSLT projects: transform a source document into HTML or data artifacts, compare supported approaches and inspect a multi-step transformation graph with explicit entry artifacts.

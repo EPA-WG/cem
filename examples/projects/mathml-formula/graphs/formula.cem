@@ -1,0 +1,13 @@
+@doc cem-ml 1
+{run |
+    {import @id=formula @src=../data/formula.mml
+        @content-type="application/mathml-presentation+xml"
+        @schema=https://cem.dev/ns/data/mathml/1 |
+        {transform @id=page @src=../templates/formula.cemt @entrypoint=main
+            @template-content-type="application/vnd.cem.template+cem"
+            @template-schema=https://cem.dev/ns/template/cem-native/1 |
+            {export @id=html @out=../generated/formula.html @content-type=text/html
+                @schema=https://cem.dev/ns/data/html/1}
+        }
+    }
+}

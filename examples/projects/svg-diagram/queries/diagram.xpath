@@ -1,0 +1,10 @@
+let $diagram := /s:svg
+return (
+    'title=' || normalize-space($diagram/s:title),
+    'view-box=' || string($diagram/@viewBox),
+    'rectangles=' || count($diagram/s:rect),
+    'circles=' || count($diagram/s:circle),
+    'lines=' || count($diagram/s:line),
+    'first-label=' || normalize-space(($diagram/s:text)[1]),
+    'first-width=' || string(($diagram/s:rect)[1]/@width)
+)

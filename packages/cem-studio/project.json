@@ -821,6 +821,7 @@
             "inputs": [
                 "{projectRoot}/scripts/verify-navigation.mjs",
                 "{projectRoot}/scripts/verify-markdown-site.mjs",
+                "{projectRoot}/scripts/verify-svg-mathml-projects.mjs",
                 "{projectRoot}/scripts/verify-html-cem-card.mjs",
                 "{projectRoot}/scripts/verify-data-projects.mjs",
                 "{projectRoot}/scripts/verify-xml-xhtml-projects.mjs",
@@ -1047,6 +1048,31 @@
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/html-cem-card.json"
+            ]
+        },
+        "verify:svg-mathml": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:determinism"
+            ],
+            "options": {
+                "command": "node scripts/verify-navigation.mjs --svg-mathml-only",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-svg-mathml-projects.mjs",
+                "{workspaceRoot}/examples/projects/svg-diagram/**/*",
+                "{workspaceRoot}/examples/projects/mathml-formula/**/*",
+                "{projectRoot}/dist/static/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/svg-mathml-projects.json"
             ]
         }
     },

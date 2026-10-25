@@ -1,0 +1,380 @@
+{
+  "archiveSchemaVersion": 1,
+  "project": {
+    "$schema": "https://cem.dev/ns/studio/project/1",
+    "schemaVersion": 1,
+    "id": "mathml-formula-seed",
+    "name": "MathML formula",
+    "description": "Inspect, validate, query and format a namespaced mathematical expression, repair its namespace and build a bounded Presentation MathML HTML preview.",
+    "rootUri": "studio://mathml-formula-seed/",
+    "revision": 1,
+    "createdAt": "2026-10-17T00:00:00Z",
+    "updatedAt": "2026-10-17T00:00:00Z",
+    "entries": [
+      {
+        "id": "inspect-mathml",
+        "kind": "inspection",
+        "name": "Inspect retained MathML formula",
+        "description": "Inspect expanded names and original source positions from the genuine XML-backed family owner in the shared retained CEM tree.",
+        "resourceIds": [
+          "formula-source",
+          "command-inspect-mathml"
+        ],
+        "runConfigResourceId": "command-inspect-mathml",
+        "tags": [
+          "inspect"
+        ]
+      },
+      {
+        "id": "validate-presentation",
+        "kind": "validation",
+        "name": "Validate Presentation MathML",
+        "description": "Validate XML well-formedness and the documented family/profile source facts, without claiming complete language conformance.",
+        "resourceIds": [
+          "formula-source",
+          "command-validate-presentation"
+        ],
+        "runConfigResourceId": "command-validate-presentation",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "validate-content",
+        "kind": "validation",
+        "name": "Validate Content MathML source",
+        "description": "Validate a separate Content MathML expression source. This is not Content-to-Presentation conversion or algebraic evaluation.",
+        "resourceIds": [
+          "formula-content",
+          "command-validate-content"
+        ],
+        "runConfigResourceId": "command-validate-content",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "query-mathml",
+        "kind": "query",
+        "name": "Query the MathML formula structure",
+        "description": "Use caller-bound expanded XML names to summarize the source structure and values, independently of source prefix spelling.",
+        "resourceIds": [
+          "formula-source",
+          "command-query-mathml",
+          "formula-query",
+          "formula-summary"
+        ],
+        "runConfigResourceId": "command-query-mathml",
+        "tags": [
+          "query"
+        ]
+      },
+      {
+        "id": "format-mathml",
+        "kind": "conversion",
+        "name": "Format Presentation MathML (pretty)",
+        "description": "Run the native family-owned pretty formatter with source text/token boundaries preserved and synthetic indentation unmapped.",
+        "resourceIds": [
+          "formula-source",
+          "command-format-mathml",
+          "expected-mathml"
+        ],
+        "runConfigResourceId": "command-format-mathml",
+        "tags": [
+          "convert"
+        ]
+      },
+      {
+        "id": "repair-mathml-namespace",
+        "kind": "validation",
+        "name": "Repair the MathML namespace",
+        "description": "Restore the required family namespace on a well-formed XML document and revalidate the same saved resource.",
+        "resourceIds": [
+          "invalid-mathml",
+          "command-repair-mathml-namespace"
+        ],
+        "runConfigResourceId": "command-repair-mathml-namespace",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "build-html",
+        "kind": "transformation-graph",
+        "name": "Build and preview the formula",
+        "description": "Construct an HTML wrapper and copy the retained, namespaced source element without its XML prolog. Preview bounded inert foreign content through shared components.",
+        "resourceIds": [
+          "formula-graph",
+          "command-build-html",
+          "formula-source",
+          "formula-template",
+          "expected-html"
+        ],
+        "runConfigResourceId": "command-build-html",
+        "entryArtifact": "generated/formula.html",
+        "tags": [
+          "transform"
+        ]
+      }
+    ],
+    "resources": [
+      {
+        "id": "formula-source",
+        "path": "data/formula.mml",
+        "referencePath": "data/formula.mml",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/mathml-presentation+xml",
+        "schema": "https://cem.dev/ns/data/mathml/1",
+        "revision": 1,
+        "sha256": "e45b110523f7ef57a11d3eb4e423a02c5949bb7ac362222d4d2d24ca78506d6e"
+      },
+      {
+        "id": "formula-content",
+        "path": "data/content.mathml",
+        "referencePath": "data/content.mathml",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/mathml-content+xml",
+        "schema": "https://cem.dev/ns/data/mathml/1",
+        "revision": 1,
+        "sha256": "e3236580923bbb1fdcff5b61fc26581971afb2f94845d64ef90e957a80367756"
+      },
+      {
+        "id": "invalid-mathml",
+        "path": "failures/missing-namespace.mml",
+        "referencePath": "failures/missing-namespace.mml",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/mathml-presentation+xml",
+        "schema": "https://cem.dev/ns/data/mathml/1",
+        "revision": 1,
+        "sha256": "c696a2c5f1f1fa6a78e292a89100318f2ae0ee35308db2745c0eb244822f4883"
+      },
+      {
+        "id": "formula-query",
+        "path": "queries/formula.xpath",
+        "referencePath": "queries/formula.xpath",
+        "role": "query",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.xpath",
+        "schema": "https://cem.dev/ns/query/xpath/1",
+        "revision": 1,
+        "sha256": "86facdafb918a2c3e5920b1cfe1288851bc45d30f378b530d9436029543a90cb"
+      },
+      {
+        "id": "formula-summary",
+        "path": "expected/summary.json",
+        "referencePath": "expected/summary.json",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/data/json/1",
+        "revision": 1,
+        "sha256": "07f8807a3b1a439e859f5b8199e88515684f8287e1c72ab440447e9164395961"
+      },
+      {
+        "id": "formula-template",
+        "path": "templates/formula.cemt",
+        "referencePath": "templates/formula.cemt",
+        "role": "template",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.template+cem",
+        "schema": "https://cem.dev/ns/template/cem-native/1",
+        "revision": 1,
+        "sha256": "1cffeac977ae109a6a8142ca0370f4f68910e462ffb4e2a8061fe2825287d01c"
+      },
+      {
+        "id": "formula-graph",
+        "path": "graphs/formula.cem",
+        "referencePath": "graphs/formula.cem",
+        "role": "transform-config",
+        "sourceKind": "project-file",
+        "contentType": "application/cem",
+        "schema": "https://cem.dev/ns/cli/transform-config/1",
+        "revision": 1,
+        "sha256": "a58170fda6d75840b8b71766d6c5b8e839c1987dde119d8f0f393a73976cd990"
+      },
+      {
+        "id": "expected-mathml",
+        "path": "expected/formula.mml",
+        "referencePath": "expected/formula.mml",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/mathml-presentation+xml",
+        "schema": "https://cem.dev/ns/data/mathml/1",
+        "revision": 1,
+        "sha256": "8bbca5d305d96d9e6d05b36cebcfb3b2d8811bf51726907b2fa04417db2067af"
+      },
+      {
+        "id": "expected-html",
+        "path": "expected/formula.html",
+        "referencePath": "expected/formula.html",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/html",
+        "schema": "https://cem.dev/ns/data/html/1",
+        "revision": 1,
+        "sha256": "62f8ffb6e2dfb3647bcc9fde5543d1143645a094e10e8f4d6ef48804cce29ad4"
+      },
+      {
+        "id": "readme",
+        "path": "README.md",
+        "referencePath": "README.md",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/markdown; charset=utf-8",
+        "schema": "https://cem.dev/ns/data/markdown/1",
+        "revision": 1,
+        "sha256": "bd0bb6054cd3f31fdc0347b40bf02b9d2bb9b11d9aa1a481095aabef588030b6"
+      },
+      {
+        "id": "command-inspect-mathml",
+        "path": "config/inspect-mathml.json",
+        "referencePath": "config/inspect-mathml.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "018fef5bdf1dac6cf3ae96d543aba2f4b1cea824d697ffee0aebc2ec6319b264"
+      },
+      {
+        "id": "command-validate-presentation",
+        "path": "config/validate-presentation.json",
+        "referencePath": "config/validate-presentation.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "650145722c4979a4e395664e6194657631243b007ea3611f6609d9acd7f6ad3f"
+      },
+      {
+        "id": "command-validate-content",
+        "path": "config/validate-content.json",
+        "referencePath": "config/validate-content.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "fbbb9eb10ed66b8e06a240b16b6534ed288cff9fbe04d51aa50b1095a8f80a23"
+      },
+      {
+        "id": "command-query-mathml",
+        "path": "config/query-mathml.json",
+        "referencePath": "config/query-mathml.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "d37cef51754027983fa1bffd62beff93f4df634818cc29c6000b4fbbe78fc164"
+      },
+      {
+        "id": "command-format-mathml",
+        "path": "config/format-mathml.json",
+        "referencePath": "config/format-mathml.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "b7872e68c3f2dca6a4539522baf3c7c77b9277e1cbb4e01b57a69b1df1b46f67"
+      },
+      {
+        "id": "command-repair-mathml-namespace",
+        "path": "config/repair-mathml-namespace.json",
+        "referencePath": "config/repair-mathml-namespace.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "5beefadc0e513525887579638b1f85d731d803ecf0ce6e7d78c4ee09434a3304"
+      },
+      {
+        "id": "command-build-html",
+        "path": "config/build-html.json",
+        "referencePath": "config/build-html.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "5d8c0b82dae2133c3f72f21a5f43042e7c0ec43a33fc662b63813659ea2f751f"
+      }
+    ]
+  },
+  "contents": [
+    {
+      "resourceId": "command-build-html",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJ0cmFuc2Zvcm0iLAogICAgIi0tY29uZmlnIiwKICAgICJncmFwaHMvZm9ybXVsYS5jZW0iLAogICAgIi0tY29uZmlnLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vY2VtIiwKICAgICItLWNvbmZpZy1zY2hlbWEiLAogICAgImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvdHJhbnNmb3JtLWNvbmZpZy8xIiwKICAgICItLXNjb3BlLWJ1ZGdldCIsCiAgICAicXVldWVTaXplPTEwMjQiCiAgXQp9Cg=="
+    },
+    {
+      "resourceId": "command-format-mathml",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJjb252ZXJ0IiwKICAgICJkYXRhL2Zvcm11bGEubW1sIiwKICAgICItLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vbWF0aG1sLXByZXNlbnRhdGlvbit4bWwiLAogICAgIi0tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9tYXRobWwvMSIsCiAgICAiLS10by1jb250ZW50LXR5cGUiLAogICAgImFwcGxpY2F0aW9uL21hdGhtbC1wcmVzZW50YXRpb24reG1sIiwKICAgICItLXRvLXNjaGVtYSIsCiAgICAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvbWF0aG1sLzEiLAogICAgIi0tY2VtdC1mb3JtYXR0ZXItcHJvZmlsZSIsCiAgICAicHJldHR5IiwKICAgICItLW91dHB1dC1jb2xvci10eXBlIiwKICAgICJub25lIgogIF0KfQo="
+    },
+    {
+      "resourceId": "command-inspect-mathml",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJpbnNwZWN0IiwKICAgICJkYXRhL2Zvcm11bGEubW1sIiwKICAgICItLWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vbWF0aG1sLXByZXNlbnRhdGlvbit4bWwiLAogICAgIi0tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9tYXRobWwvMSIsCiAgICAiLS1zaG93IiwKICAgICJhc3QiLAogICAgIi0tbm8tY29sb3IiCiAgXQp9Cg=="
+    },
+    {
+      "resourceId": "command-query-mathml",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJxdWVyeSIsCiAgICAiZGF0YS9mb3JtdWxhLm1tbCIsCiAgICAiLS1jb250ZW50LXR5cGUiLAogICAgImFwcGxpY2F0aW9uL21hdGhtbC1wcmVzZW50YXRpb24reG1sIiwKICAgICItLXNjaGVtYSIsCiAgICAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvbWF0aG1sLzEiLAogICAgIi0tcXVlcnktZmlsZSIsCiAgICAicXVlcmllcy9mb3JtdWxhLnhwYXRoIiwKICAgICItLXF1ZXJ5LWNvbnRlbnQtdHlwZSIsCiAgICAiYXBwbGljYXRpb24vdm5kLmNlbS54cGF0aCIsCiAgICAiLS1xdWVyeS1zY2hlbWEiLAogICAgImh0dHBzOi8vY2VtLmRldi9ucy9xdWVyeS94cGF0aC8xIiwKICAgICItLW5hbWVzcGFjZSIsCiAgICAibT1odHRwOi8vd3d3LnczLm9yZy8xOTk4L01hdGgvTWF0aE1MIiwKICAgICItLXNjb3BlLWJ1ZGdldCIsCiAgICAicXVldWVTaXplPTEwMjQiLAogICAgIi0tb3V0cHV0IiwKICAgICJqc29uIgogIF0KfQo="
+    },
+    {
+      "resourceId": "command-repair-mathml-namespace",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZmFpbHVyZXMvbWlzc2luZy1uYW1lc3BhY2UubW1sIiwKICAgICAgInJvb3RTY29wZSI6IHsKICAgICAgICAiZGVmYXVsdENvbnRlbnRUeXBlIjogImFwcGxpY2F0aW9uL21hdGhtbC1wcmVzZW50YXRpb24reG1sIiwKICAgICAgICAic2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL21hdGhtbC8xIgogICAgICB9CiAgICB9CiAgXSwKICAib3V0cHV0cyI6IFtdLAogICJzY2hlbWFQYWNrYWdlcyI6IFtdLAogICJyZXNvbHZlcnMiOiBbXSwKICAic2NoZWR1bGVyIjoge30KfQo="
+    },
+    {
+      "resourceId": "command-validate-content",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZGF0YS9jb250ZW50Lm1hdGhtbCIsCiAgICAgICJyb290U2NvcGUiOiB7CiAgICAgICAgImRlZmF1bHRDb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi9tYXRobWwtY29udGVudCt4bWwiLAogICAgICAgICJzY2hlbWEiOiAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvbWF0aG1sLzEiCiAgICAgIH0KICAgIH0KICBdLAogICJvdXRwdXRzIjogW10sCiAgInNjaGVtYVBhY2thZ2VzIjogW10sCiAgInJlc29sdmVycyI6IFtdLAogICJzY2hlZHVsZXIiOiB7fQp9Cg=="
+    },
+    {
+      "resourceId": "command-validate-presentation",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZGF0YS9mb3JtdWxhLm1tbCIsCiAgICAgICJyb290U2NvcGUiOiB7CiAgICAgICAgImRlZmF1bHRDb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi9tYXRobWwtcHJlc2VudGF0aW9uK3htbCIsCiAgICAgICAgInNjaGVtYSI6ICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9tYXRobWwvMSIKICAgICAgfQogICAgfQogIF0sCiAgIm91dHB1dHMiOiBbXSwKICAic2NoZW1hUGFja2FnZXMiOiBbXSwKICAicmVzb2x2ZXJzIjogW10sCiAgInNjaGVkdWxlciI6IHt9Cn0K"
+    },
+    {
+      "resourceId": "expected-html",
+      "base64": "PHNlY3Rpb24gYXJpYS1sYWJlbD0iTWF0aE1MIGZvcm11bGEgcHJldmlldyI+PGgxPkEgcXVhZHJhdGljIGZyYWN0aW9uPC9oMT48cD5SZW5kZXJlZCBmcm9tIHJldGFpbmVkIFByZXNlbnRhdGlvbiBNYXRoTUwuPC9wPjxtYXRoIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk4L01hdGgvTWF0aE1MIiBkaXNwbGF5PSJibG9jayIgYXJpYS1sYWJlbD0ieCBzcXVhcmVkIHBsdXMgb25lLCBkaXZpZGVkIGJ5IHR3byI+CiAgPG1mcmFjIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk4L01hdGgvTWF0aE1MIj4KICAgIDxtcm93IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk4L01hdGgvTWF0aE1MIj4KICAgICAgPG1zdXAgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTgvTWF0aC9NYXRoTUwiPjxtaSB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMTk5OC9NYXRoL01hdGhNTCI+eDwvbWk+PG1uIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk4L01hdGgvTWF0aE1MIj4yPC9tbj48L21zdXA+CiAgICAgIDxtbyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMTk5OC9NYXRoL01hdGhNTCI+KzwvbW8+CiAgICAgIDxtbiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMTk5OC9NYXRoL01hdGhNTCI+MTwvbW4+CiAgICA8L21yb3c+CiAgICA8bW4geG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTgvTWF0aC9NYXRoTUwiPjI8L21uPgogIDwvbWZyYWM+CjwvbWF0aD48L3NlY3Rpb24+ICAg"
+    },
+    {
+      "resourceId": "expected-mathml",
+      "base64": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPG1hdGggeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTgvTWF0aC9NYXRoTUwiIGRpc3BsYXk9ImJsb2NrIiBhcmlhLWxhYmVsPSJ4IHNxdWFyZWQgcGx1cyBvbmUsIGRpdmlkZWQgYnkgdHdvIj4KICAgIDxtZnJhYz4KICAgICAgICA8bXJvdz4KICAgICAgICAgICAgPG1zdXA+CiAgICAgICAgICAgICAgICA8bWk+eDwvbWk+CiAgICAgICAgICAgICAgICA8bW4+MjwvbW4+CiAgICAgICAgICAgIDwvbXN1cD4KICAgICAgICAgICAgPG1vPis8L21vPgogICAgICAgICAgICA8bW4+MTwvbW4+CiAgICAgICAgPC9tcm93PgogICAgICAgIDxtbj4yPC9tbj4KICAgIDwvbWZyYWM+CjwvbWF0aD4K"
+    },
+    {
+      "resourceId": "formula-content",
+      "base64": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPG1hdGggeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTgvTWF0aC9NYXRoTUwiIGRpc3BsYXk9ImJsb2NrIiBhcmlhLWxhYmVsPSJ4IHBsdXMgb25lIj4KICA8YXBwbHk+PHBsdXMvPjxjaT54PC9jaT48Y24+MTwvY24+PC9hcHBseT4KPC9tYXRoPgo="
+    },
+    {
+      "resourceId": "formula-graph",
+      "base64": "QGRvYyBjZW0tbWwgMQp7cnVuIHwKICAgIHtpbXBvcnQgQGlkPWZvcm11bGEgQHNyYz0uLi9kYXRhL2Zvcm11bGEubW1sCiAgICAgICAgQGNvbnRlbnQtdHlwZT0iYXBwbGljYXRpb24vbWF0aG1sLXByZXNlbnRhdGlvbit4bWwiCiAgICAgICAgQHNjaGVtYT1odHRwczovL2NlbS5kZXYvbnMvZGF0YS9tYXRobWwvMSB8CiAgICAgICAge3RyYW5zZm9ybSBAaWQ9cGFnZSBAc3JjPS4uL3RlbXBsYXRlcy9mb3JtdWxhLmNlbXQgQGVudHJ5cG9pbnQ9bWFpbgogICAgICAgICAgICBAdGVtcGxhdGUtY29udGVudC10eXBlPSJhcHBsaWNhdGlvbi92bmQuY2VtLnRlbXBsYXRlK2NlbSIKICAgICAgICAgICAgQHRlbXBsYXRlLXNjaGVtYT1odHRwczovL2NlbS5kZXYvbnMvdGVtcGxhdGUvY2VtLW5hdGl2ZS8xIHwKICAgICAgICAgICAge2V4cG9ydCBAaWQ9aHRtbCBAb3V0PS4uL2dlbmVyYXRlZC9mb3JtdWxhLmh0bWwgQGNvbnRlbnQtdHlwZT10ZXh0L2h0bWwKICAgICAgICAgICAgICAgIEBzY2hlbWE9aHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvaHRtbC8xfQogICAgICAgIH0KICAgIH0KfQo="
+    },
+    {
+      "resourceId": "formula-query",
+      "base64": "bGV0ICRmb3JtdWxhIDo9IC9tOm1hdGgsCiAgICAkZnJhY3Rpb24gOj0gJGZvcm11bGEvbTptZnJhYywKICAgICRudW1lcmF0b3IgOj0gJGZyYWN0aW9uL206bXJvdwpyZXR1cm4gKAogICAgJ2xhYmVsPScgfHwgc3RyaW5nKCRmb3JtdWxhL0BhcmlhLWxhYmVsKSwKICAgICdmcmFjdGlvbnM9JyB8fCBjb3VudCgkZm9ybXVsYS9tOm1mcmFjKSwKICAgICdwb3dlcnM9JyB8fCBjb3VudCgkbnVtZXJhdG9yL206bXN1cCksCiAgICAndmFyaWFibGU9JyB8fCBub3JtYWxpemUtc3BhY2UoJG51bWVyYXRvci9tOm1zdXAvbTptaSksCiAgICAnZXhwb25lbnQ9JyB8fCBub3JtYWxpemUtc3BhY2UoJG51bWVyYXRvci9tOm1zdXAvbTptbiksCiAgICAnY29uc3RhbnQ9JyB8fCBub3JtYWxpemUtc3BhY2UoJG51bWVyYXRvci9tOm1uKSwKICAgICdkZW5vbWluYXRvcj0nIHx8IG5vcm1hbGl6ZS1zcGFjZSgkZnJhY3Rpb24vbTptbikKKQo="
+    },
+    {
+      "resourceId": "formula-source",
+      "base64": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPG1hdGggeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTgvTWF0aC9NYXRoTUwiIGRpc3BsYXk9ImJsb2NrIiBhcmlhLWxhYmVsPSJ4IHNxdWFyZWQgcGx1cyBvbmUsIGRpdmlkZWQgYnkgdHdvIj4KICA8bWZyYWM+CiAgICA8bXJvdz4KICAgICAgPG1zdXA+PG1pPng8L21pPjxtbj4yPC9tbj48L21zdXA+CiAgICAgIDxtbz4rPC9tbz4KICAgICAgPG1uPjE8L21uPgogICAgPC9tcm93PgogICAgPG1uPjI8L21uPgogIDwvbWZyYWM+CjwvbWF0aD4K"
+    },
+    {
+      "resourceId": "formula-summary",
+      "base64": "WwogICJsYWJlbD14IHNxdWFyZWQgcGx1cyBvbmUsIGRpdmlkZWQgYnkgdHdvIiwKICAiZnJhY3Rpb25zPTEiLAogICJwb3dlcnM9MSIsCiAgInZhcmlhYmxlPXgiLAogICJleHBvbmVudD0yIiwKICAiY29uc3RhbnQ9MSIsCiAgImRlbm9taW5hdG9yPTIiCl0K"
+    },
+    {
+      "resourceId": "formula-template",
+      "base64": "QGRvYyBjZW0tbWwgMQpAbnMgdGVtcGxhdGUgPSAiaHR0cHM6Ly9jZW0uZGV2L25zL3RlbXBsYXRlL2NlbS1uYXRpdmUvMSIKQG5zIGNlbSA9ICJodHRwczovL2NlbS5kZXYvbnMvY29yZS8xIgpAZGVmYXVsdCB0ZW1wbGF0ZQp7cGFyYW0gQG5hbWU9aW5wdXQgQHJlcXVpcmVkPXRydWV9Cnt0ZW1wbGF0ZSBAbmFtZT1tYWluIEB2aXNpYmlsaXR5PXB1YmxpYyBAY2VtOndoaXRlc3BhY2U9bGF5b3V0IHwKICAgIHtjZW06dmFyaWFibGUgQG5hbWU9Zm9ybXVsYQogICAgICAgIEBzZWxlY3Q9J3NlcTpmaXJzdChzZXE6d2hlcmUoaW5wdXQuZGVzY2VuZGFudHMsIGZuKG5vZGUpID0+IG5vZGUua2luZCA9PSAiZWxlbWVudCIgJiYgbm9kZS5uYW1lc3BhY2UgPT0gImh0dHA6Ly93d3cudzMub3JnLzE5OTgvTWF0aC9NYXRoTUwiICYmIG5vZGUubmFtZSA9PSAibWF0aCIpKSd9CiAgICB7ZWxlbWVudCBAbmFtZT1zZWN0aW9uIEBuYW1lc3BhY2U9aHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCB8CiAgICAgICAge2F0dHJpYnV0ZSBAbmFtZT1hcmlhLWxhYmVsIEB2YWx1ZT0iTWF0aE1MIGZvcm11bGEgcHJldmlldyJ9CiAgICAgICAge2VsZW1lbnQgQG5hbWU9aDEgQG5hbWVzcGFjZT1odHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIHwgQSBxdWFkcmF0aWMgZnJhY3Rpb259CiAgICAgICAge2VsZW1lbnQgQG5hbWU9cCBAbmFtZXNwYWNlPWh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwgfCBSZW5kZXJlZCBmcm9tIHJldGFpbmVkIFByZXNlbnRhdGlvbiBNYXRoTUwufQogICAgICAgIHskIHwgZm9ybXVsYX0KfSAgIH0K"
+    },
+    {
+      "resourceId": "invalid-mathml",
+      "base64": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPG1hdGggZGlzcGxheT0iYmxvY2siIGFyaWEtbGFiZWw9Inggc3F1YXJlZCBwbHVzIG9uZSwgZGl2aWRlZCBieSB0d28iPgogIDxtZnJhYz4KICAgIDxtcm93PgogICAgICA8bXN1cD48bWk+eDwvbWk+PG1uPjI8L21uPjwvbXN1cD4KICAgICAgPG1vPis8L21vPgogICAgICA8bW4+MTwvbW4+CiAgICA8L21yb3c+CiAgICA8bW4+MjwvbW4+CiAgPC9tZnJhYz4KPC9tYXRoPgo="
+    },
+    {
+      "resourceId": "readme",
+      "base64": "IyBNYXRoTUwgZm9ybXVsYQoKT3BlbiAqKkV4YW1wbGVzIOKGkiBDb250ZW50IHR5cGVzIGFuZCBzY2hlbWFzIOKGkiBEb2N1bWVudHMgYW5kIFVJIOKGkiBNYXRoTUwgZm9ybXVsYSoqLApvciBmaW5kIHRoZSBzYW1lIHByb2plY3QgdW5kZXIgKipRdWVyaWVzIGFuZCB0cmFuc2Zvcm1hdGlvbnMqKi4gQ2xvbmUgaXQgdG8gbWFrZQphbiBlZGl0YWJsZSBzYXZlZCBwcm9qZWN0LiBJdCBkZW1vbnN0cmF0ZXMgbmF0aXZlIHNvdXJjZSBoYW5kbGluZyBhbmQgYSBzaGFyZWQKSFRNTCBwcmV2aWV3IG9mIGEgc21hbGwgUHJlc2VudGF0aW9uIE1hdGhNTCBleHByZXNzaW9uLCB3aXRoIGFuIGluZGVwZW5kZW50CkNvbnRlbnQgTWF0aE1MIHNvdXJjZS12YWxpZGF0aW9uIGV4YW1wbGUuCgojIyBTb3VyY2UgaWRlbnRpdGllcwoKLSBgZGF0YS9mb3JtdWxhLm1tbGAgdXNlcyBgYXBwbGljYXRpb24vbWF0aG1sLXByZXNlbnRhdGlvbit4bWxgIGFuZCBzY2hlbWEKICBgaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvbWF0aG1sLzFgLiBJdHMgYG1hdGhgIHJvb3QgaXMgaW4KICBgaHR0cDovL3d3dy53My5vcmcvMTk5OC9NYXRoL01hdGhNTGAsIHdpdGggYW4gYWNjZXNzaWJsZSBsYWJlbCBhbmQgYmxvY2sgZGlzcGxheS4KLSBUaGUgZXhwcmVzc2lvbiBpcyB0aGUgZnJhY3Rpb24gYCh4wrIgKyAxKSAvIDJgLCBhdXRob3JlZCB3aXRoIGBtZnJhY2AsIGBtcm93YCwKICBgbXN1cGAsIGBtaWAsIGBtb2AgYW5kIGBtbmAuIFRoZSBicm93c2VyIGxheXMgb3V0IHRoZXNlIHByZXNlbnRhdGlvbiBlbGVtZW50cy4KLSBgZGF0YS9jb250ZW50Lm1hdGhtbGAgdXNlcyBgYXBwbGljYXRpb24vbWF0aG1sLWNvbnRlbnQreG1sYCB3aXRoIHRoZSBzYW1lIHNjaGVtYS4KICBJdCBkZXNjcmliZXMgYHggKyAxYCB1c2luZyBgYXBwbHlgLCBgcGx1c2AsIGBjaWAgYW5kIGBjbmAuIEl0IGlzIGEgc2VwYXJhdGUKICB2YWxpZGF0aW9uIHJlc291cmNlLCBub3QgdGhlIHJlbmRlcmVkIGV4cHJlc3Npb24ncyBiYWNraW5nIHNvdXJjZS4KClRoZSBwcmltYXJ5IGBhcHBsaWNhdGlvbi9tYXRobWwreG1sYCBpZGVudGl0eSBzdXBwb3J0cyB0aGUgZ2VuZXJpYyBtaXhlZCBwcm9maWxlOwp0aGUgcHJlc2VudGF0aW9uIGFuZCBjb250ZW50IGFsaWFzZXMgc2VsZWN0IHRoZWlyIGNvcnJlc3BvbmRpbmcgZXhwcmVzc2lvbgpwcm9maWxlcy4gVGhpcyBleGFtcGxlIGRvZXMgbm90IHRyYW5zbGF0ZSBDb250ZW50IE1hdGhNTCBpbnRvIFByZXNlbnRhdGlvbgpNYXRoTUwsIGV2YWx1YXRlIGFsZ2VicmEgb3IgY2xhaW0gY29tcGxldGUgTWF0aE1MIENvcmUgY29uZm9ybWFuY2UuCgojIyBDb25maWd1cmF0aW9ucwoKfCBDb25maWd1cmF0aW9uIHwgVHlwaWNhbCB1c2UgfCBFeHBlY3RlZCByZXN1bHQgfAp8IC0tLSB8IC0tLSB8IC0tLSB8CnwgSW5zcGVjdCByZXRhaW5lZCBNYXRoTUwgZm9ybXVsYSB8IFJldmlldyBuYXRpdmUgc3RydWN0dXJlIGFuZCBvcmlnaW5hbCBzb3VyY2UgcmFuZ2VzIHwgTmFtZXNwYWNlZCBmcmFjdGlvbiBhbmQgcG93ZXIgZWxlbWVudHMgfAp8IFZhbGlkYXRlIFByZXNlbnRhdGlvbiBNYXRoTUwgfCBDaGVjayBYTUwgYW5kIHN1cHBvcnRlZCBwcmVzZW50YXRpb24tcHJvZmlsZSBmYWN0cyB8IFplcm8gZXJyb3JzIGFuZCB3YXJuaW5ncyB8CnwgVmFsaWRhdGUgQ29udGVudCBNYXRoTUwgc291cmNlIHwgQ2hlY2sgdGhlIHNlcGFyYXRlIGNvbnRlbnQtcHJvZmlsZSBleGFtcGxlIHwgWmVybyBlcnJvcnMgYW5kIHdhcm5pbmdzIHwKfCBRdWVyeSB0aGUgTWF0aE1MIGZvcm11bGEgc3RydWN0dXJlIHwgUmVhZCBhIG5hbWVzcGFjZS1hd2FyZSBzdHJ1Y3R1cmFsIHN1bW1hcnkgfCBTZXZlbiBzdHJpbmdzIG1hdGNoaW5nIGBleHBlY3RlZC9zdW1tYXJ5Lmpzb25gIHwKfCBGb3JtYXQgUHJlc2VudGF0aW9uIE1hdGhNTCAocHJldHR5KSB8IEV4cG9ydCByZWFkYWJsZSBzYW1lLXNjaGVtYSBzb3VyY2UgfCBFeGFjdCBieXRlcyBpbiBgZXhwZWN0ZWQvZm9ybXVsYS5tbWxgIHwKfCBSZXBhaXIgdGhlIE1hdGhNTCBuYW1lc3BhY2UgfCBEaWFnbm9zZSBtaXNzaW5nIE1hdGhNTCBkb2N1bWVudCBpZGVudGl0eSB8IGBjZW0ubWF0aG1sLm5hbWVzcGFjZV9taXNzaW5nYCwgdGhlbiB6ZXJvIGVycm9ycyBhZnRlciByZXBhaXIgfAp8IEJ1aWxkIGFuZCBwcmV2aWV3IHRoZSBmb3JtdWxhIHwgQ29uc3RydWN0IEhUTUwgY29udGFpbmluZyB0aGUgcmV0YWluZWQgZXhwcmVzc2lvbiB8IGBnZW5lcmF0ZWQvZm9ybXVsYS5odG1sYCwgbWF0Y2hpbmcgYGV4cGVjdGVkL2Zvcm11bGEuaHRtbGAgfAoKVGhlIHF1ZXJ5IGJpbmRzIGBtPWh0dHA6Ly93d3cudzMub3JnLzE5OTgvTWF0aC9NYXRoTUxgIGFuZCBzZWxlY3RzIGV4cGFuZGVkCmVsZW1lbnQgbmFtZXMuIEl0IHJlcG9ydHM6CgpgYGB0ZXh0CmxhYmVsPXggc3F1YXJlZCBwbHVzIG9uZSwgZGl2aWRlZCBieSB0d28KZnJhY3Rpb25zPTEKcG93ZXJzPTEKdmFyaWFibGU9eApleHBvbmVudD0yCmNvbnN0YW50PTEKZGVub21pbmF0b3I9MgpgYGAKCiMjIFNhdmUsIGJ1aWxkIGFuZCBmb2xsb3cgcHJvdmVuYW5jZQoKSW4gYGRhdGEvZm9ybXVsYS5tbWxgLCBjaGFuZ2UgYDxtaT54PC9taT5gIHRvIGA8bWk+eTwvbWk+YCBhbmQgdXBkYXRlIHRoZSBhY2Nlc3NpYmxlCmxhYmVsIHRvIGRlc2NyaWJlIHRoZSBjaGFuZ2VkIGV4cHJlc3Npb24uIFNhdmUgYW5kIHJlcnVuIHRoZSBxdWVyeSBhbmQgYnVpbGQuClRoZSB2aXNpYmxlIHZhcmlhYmxlIGFuZCBxdWVyeSBzdW1tYXJ5IGNoYW5nZS4gRWRpdGluZyB0aGUgZGVub21pbmF0b3Igb3IgcG93ZXIKbGlrZXdpc2UgY2hhbmdlcyBhdXRob3JlZCBzdHJ1Y3R1cmU7IG5hdGl2ZSBzb3VyY2UgdmFsaWRhdGlvbiBkb2VzIG5vdCBwcm92ZSBhCm1hdGhlbWF0aWNhbCBpZGVudGl0eS4gVW5zYXZlZCBkcmFmdHMgbGVhdmUgcGVyc2lzdGVkIGV4ZWN1dGlvbiBpbnB1dHMgdW5jaGFuZ2VkLgoKYGdyYXBocy9mb3JtdWxhLmNlbWAgaW1wb3J0cyB0aGUgcHJlc2VudGF0aW9uIHJlc291cmNlIHdpdGggaXRzIHByb3BlciBmYW1pbHkKb3duZXIuIGB0ZW1wbGF0ZXMvZm9ybXVsYS5jZW10YCBjb25zdHJ1Y3RzIGEgaGVhZGluZy9jYXB0aW9uIGFuZCBpbnNlcnRzIHRoZQpyZXRhaW5lZCBgbWF0aGAgZWxlbWVudCBhbmQgaXRzIGNoaWxkcmVuIGludG8gSFRNTCwgb21pdHRpbmcgdGhlIFhNTCBkZWNsYXJhdGlvbi4KVGhlIGVudHJ5IGFydGlmYWN0IGlzIGV4cGxpY2l0bHkgYGdlbmVyYXRlZC9mb3JtdWxhLmh0bWxgOyBDb250ZW50IE1hdGhNTCBpcyBub3QKYW4gaW5wdXQgdG8gdGhpcyBidWlsZC4gTm8gSmF2YVNjcmlwdCByZXBhcnNlcywgZHJhd3Mgb3IgdHlwZXNldHMgdGhlIGV4cHJlc3Npb24uCgpTZWxlY3QgdGhlIHByb2plY3QgYW5kIGNob29zZSAqKkJ1aWxkIHByb2plY3QqKiBmb3IgdGhlIHNoYXJlZCBvdXRwdXQgcHJldmlldy4KVGhlIHByZXZpZXcgYWRtaXRzIGEgYm91bmRlZCBpbmVydCBwcmVzZW50YXRpb24gdm9jYWJ1bGFyeSwgaW5jbHVkaW5nIHRoaXMKZnJhY3Rpb24gYW5kIHBvd2VyLiBJdCBkb2VzIG5vdCBhZG1pdCBhcmJpdHJhcnkgYW5ub3RhdGlvbnMsIGludGVncmF0aW9uIHBvaW50cywKZXh0ZXJuYWwgcmVmZXJlbmNlcywgc2NyaXB0cyBvciBDU1MuIEJyb3dzZXIgbGF5b3V0IGFuZCBhc3Npc3RpdmUtdGVjaG5vbG9neQpzdXBwb3J0IHJlbWFpbiBkaXN0aW5jdCBmcm9tIG5hdGl2ZSBzb3VyY2UgdmFsaWRhdGlvbi4KCkZvciBzb3VyY2UgbmF2aWdhdGlvbiwgcnVuICoqQnVpbGQgYW5kIHByZXZpZXcgdGhlIGZvcm11bGEqKiwgb3BlbiAqKkNvbW1hbmRzIGFuZApyZXN1bHRzIOKGkiBSZXN1bHRzIOKGkiBQcm92ZW5hbmNlKiosIHRoZW4gc2VsZWN0IGEgKipTb3VyY2UtbWFwIHByb3ZlbmFuY2UqKiByb3cuClRoZSBjb3BpZWQgZXhwcmVzc2lvbiByZXRhaW5zIG9yaWdpbmFsIG5hdGl2ZSBzb3VyY2UgYm91bmRhcmllcyB3aGVyZSBtYXBwZWQ7CnRoZSB3cmFwcGVyIHJldGFpbnMgdGVtcGxhdGUgb3JpZ2lucy4gQ29uc3RydWN0ZWQgdGV4dCBhbmQgc3ludGhldGljIGluZGVudGF0aW9uCmRvIG5vdCBhY3F1aXJlIGFyYml0cmFyeSBjaGFyYWN0ZXItYnktY2hhcmFjdGVyIGlucHV0IGxpbmVhZ2UuCgpOYXRpdmUgYnVpbGQsIGZyb20gdGhpcyBwcm9qZWN0IGRpcmVjdG9yeToKCmBgYHNoCmNlbS1tbCB0cmFuc2Zvcm0gLS1jb25maWcgZ3JhcGhzL2Zvcm11bGEuY2VtIC0tY29uZmlnLWNvbnRlbnQtdHlwZSBhcHBsaWNhdGlvbi9jZW0gXAogIC0tY29uZmlnLXNjaGVtYSBodHRwczovL2NlbS5kZXYvbnMvY2xpL3RyYW5zZm9ybS1jb25maWcvMSAtLXNjb3BlLWJ1ZGdldCBxdWV1ZVNpemU9MTAyNApgYGAKCiMjIEZhaWx1cmUgYW5kIHJlcGFpcgoKUnVuICoqUmVwYWlyIHRoZSBNYXRoTUwgbmFtZXNwYWNlKiogb24KYGZhaWx1cmVzL21pc3NpbmctbmFtZXNwYWNlLm1tbGAsIHdoaWNoIGlzIHNlcGFyYXRlIGZyb20gdGhlIGdyYXBoIGlucHV0cy4gSXRzCndlbGwtZm9ybWVkIFhNTCByb290IGxhY2tzIHRoZSBNYXRoTUwgbmFtZXNwYWNlLiBUaGUgbmF0aXZlIHZhbGlkYXRvciByZXBvcnRzIG9uZQpgY2VtLm1hdGhtbC5uYW1lc3BhY2VfbWlzc2luZ2AgYXQgbGluZSAyLCBjb2x1bW4gMSwgb3JpZ2luYWwgYnl0ZSBvZmZzZXQgMzkuClJlcGxhY2UgdGhlIG9wZW5pbmcgYDxtYXRoIGAgd2l0aApgPG1hdGggeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTgvTWF0aC9NYXRoTUwiIGAsIHNhdmUgYW5kIHJlcnVuLiBUaGUgZXJyb3IKY2xlYXJzIGFuZCB0aGUgcmVwYWlyZWQgYnl0ZXMgbWF0Y2ggdGhlIHZhbGlkIHByZXNlbnRhdGlvbiBzb3VyY2UuCgojIyBMaW1pdHMgYW5kIGluZGVwZW5kZW50IG9mZmxpbmUgcHJvamVjdHMKCk5hdGl2ZSB2YWxpZGF0aW9uIGNvdmVycyBYTUwgZmFjdHMsIE1hdGhNTCByb290L25hbWVzcGFjZSwgdGhlIHNlbGVjdGVkIG1lZGlhCnByb2ZpbGUgYW5kIGRvY3VtZW50ZWQgZXhwcmVzc2lvbi9wb2xpY3kgY2hlY2tzLiBJdCBkb2VzIG5vdCB2YWxpZGF0ZSBldmVyeQpNYXRoTUwgZWxlbWVudCwgZXhwcmVzc2lvbiBhcml0eSwgb3BlcmF0b3IsIG1hdGhlbWF0aWNhbCB0eXBlIG9yIHJlbmRlcmluZyBydWxlLgpBbiB1bnN1cHBvcnRlZCBgcHJvZmlsZWAgTUlNRSBwYXJhbWV0ZXIgd2FybnM7IHRoZSByZWdpc3RlcmVkIGFsaWFzIHJldGFpbnMgaXRzCmRlZmF1bHQgcHJvZmlsZS4gRXh0ZXJuYWwgYW5ub3RhdGlvbiBwb2xpY3kgZGlhZ25vc3RpY3MgcmV0YWluIHRoZWlyIGRvY3VtZW50ZWQKd2FybmluZyBzZXZlcml0eSB3aXRob3V0IGdyYW50aW5nIGEgcmVzb3VyY2UgcmVzb2x2ZXIuIFRoaXMgZXhhbXBsZSB1c2VzIG5vCmFubm90YXRpb25zLCBleHRlcm5hbCBVUkxzIG9yIGZvcmVpZ24gY29udGVudC4gU2VlIHRoZQpbTWF0aE1MIHBhY2thZ2VdKC4uLy4uLy4uL3BhY2thZ2VzL2NlbV9tbC9zY2hlbWEtcGFja2FnZXMvbWF0aG1sL3YxL1JFQURNRS5tZCkuCgpUaGUgbmF0aXZlIHNhbWUtc2NoZW1hIGZvcm1hdHRlciBwcmVzZXJ2ZXMgbWF0aGVtYXRpY2FsIHRva2VuIHRleHQgYW5kIHNlbnNpdGl2ZQpjb250ZW50IHdoaWxlIGxheWluZyBvdXQgc3RydWN0dXJhbCBlbGVtZW50cy4gR2VuZXJhdGVkIHdoaXRlc3BhY2UgaXMgdW5tYXBwZWQuCkhUTUwgcHJldmlldyBpcyBhbiBleHBsaWNpdGx5IGF1dGhvcmVkIHByZXNlbnRhdGlvbiBvdXRwdXQsIHJhdGhlciB0aGFuIGFuCmF1dG9tYXRpYyB1bml2ZXJzYWwgZm9ybWF0IGNvbnZlcnNpb24uCgpBZnRlciBydW50aW1lIGFuZCBzb3VyY2UgcmVzb3VyY2VzIGFyZSBjYWNoZWQsIGVhY2ggc2F2ZWQgY29weSBjYW4gcmVvcGVuIGFuZApyZWJ1aWxkIG9mZmxpbmUuIEl0cyBzb3VyY2VzLCB0ZW1wbGF0ZXMsIGNvbmZpZ3VyYXRpb25zIGFuZCBkcmFmdHMgcmVtYWluCmluZGVwZW5kZW50IG9mIHRoZSBjYXRhbG9nIG9yaWdpbmFsIGFuZCBvdGhlciBjb3BpZXMuIFRoZXJlIGFyZSBubyBjb21wb25lbnQKc2NyaXB0cywgZXh0ZXJuYWwgZm9udHMgb3IgZXhhbXBsZSBzdG9yYWdlIGtleXMuIEV4aXN0aW5nIGNyZWRlbnRpYWwgcmVmdXNhbCBhbmQKZGlzYWJsZWQgYXV0b21hdGljIHdob2xlLVN0dWRpbyByZWNvdmVyeSByZW1haW4gdW5jaGFuZ2VkLgo="
+    }
+  ]
+}

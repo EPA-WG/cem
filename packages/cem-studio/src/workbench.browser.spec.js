@@ -5,6 +5,7 @@ import { describeCemStudioOperationFields, describeCemStudioOperationGroups, edi
 import { createCemStudioFileSystemProvider, serializeCemStudioProjectBundle, parseCemStudioProjectBundle } from './file-system-provider.js';
 import { createCemStudioNavigation, createCemStudioProjectPreview } from './navigation.js';
 import { createCemStudioProjectRepository } from './repository.js';
+import { CEM_STUDIO_LIMITS } from './preview.js';
 import { createCemStudioProjectSession } from './project-session.js';
 import { mountCemStudioApplicationShell } from './shell.js';
 import {
@@ -3046,6 +3047,59 @@ describe('Project-owned workbench loading', () => {
         } finally { await validator.close(); }
     }, 30000);
 
+    it.each([
+        ['Application/MathML+XML; charset=utf-8', '<mi>x</mi>'],
+        [' application/mathml-presentation+xml ; charset="UTF-8"', '<mi>x</mi>'],
+        ['APPLICATION/MATHML-CONTENT+XML; profile=content; charset=utf-8', '<ci>x</ci>'],
+    ])('admits MathML text editing and explicit commands for normalized media essence: %s', async (contentType, token) => {
+        const source = `<math xmlns="http://www.w3.org/1998/Math/MathML" alttext="Café formula">${token}</math>\n`;
+        const repository = await mathmlAdmissionRepository(contentType, new TextEncoder().encode(source));
+        const validator = await createCemStudioBrowserValidator();
+        try {
+            const file = await createCemStudioProjectWorkbench({ repository, validator,
+                selection: { projectId: 'mathml-admission', resourceId: 'source' } }); workbenches.push(file);
+            expect(file.snapshot()).toMatchObject({ status: 'loaded', editable: true, runnable: false,
+                contentType, persistedText: source, draft: source });
+            const edited = source.replace('>x<', '>y<');
+            file.updateDraft(edited); expect(file.snapshot().dirty).toBe(true);
+            await file.saveSource();
+            expect(file.snapshot()).toMatchObject({ dirty: false, persistedText: edited });
+            await expect(file.runPersistedOperation()).rejects.toThrow(/persisted executable command/);
+            const configuration = await createCemStudioProjectWorkbench({ repository, validator,
+                selection: { projectId: 'mathml-admission', entryId: 'inspect-mathml' } }); workbenches.push(configuration);
+            expect(configuration.snapshot()).toMatchObject({ editable: true, runnable: true, resourceId: 'source', contentType, persistedText: edited });
+            await configuration.runPersistedOperation();
+            expect(configuration.snapshot()).toMatchObject({ status: 'projected', projection: { kind: 'inspect', exitCode: 0, stale: false } });
+            expect(configuration.snapshot().projection.sourceByteLength).toBe(new TextEncoder().encode(edited).byteLength);
+            expect(configuration.snapshot().projection.revision.resourceRevision).toBe(configuration.snapshot().resourceRevision);
+        } finally { await validator.close(); }
+    }, 30_000);
+
+    it.each([
+        'application/mathml+xml',
+        'application/mathml-presentation+xml',
+        'application/mathml-content+xml',
+    ].flatMap(contentType => [
+        [contentType, 'invalid UTF-8', new Uint8Array([0x3c, 0xff, 0x3e])],
+        [contentType, 'oversized UTF-8', new Uint8Array(CEM_STUDIO_LIMITS.sourceBytes + 1).fill(0x61)],
+    ]).concat([['application/octet-stream', 'binary media type', new TextEncoder().encode('<math/>')]]))(
+        'keeps MathML editing bounds and exact downloads for %s: %s', async (contentType, _reason, bytes) => {
+            const repository = await mathmlAdmissionRepository(contentType, bytes);
+            const validator = validatorFor(validResult());
+            for (const selection of [{ projectId: 'mathml-admission', resourceId: 'source' },
+                { projectId: 'mathml-admission', entryId: 'inspect-mathml', resourceId: 'source' }]) {
+                const workbench = await createCemStudioProjectWorkbench({ repository, validator, selection }); workbenches.push(workbench);
+                expect(workbench.snapshot()).toMatchObject({ status: 'read-only', editable: false, runnable: false,
+                    contentType, byteLength: bytes.byteLength, draft: '', persistedText: '' });
+                expect(workbench.updateDraft).toBeUndefined(); expect(workbench.runPersistedOperation).toBeUndefined();
+                let downloaded; await workbench.downloadSource(async value => { downloaded = value; });
+                expect(downloaded.contentType).toBe(contentType); expect(downloaded.bytes.byteLength).toBe(bytes.byteLength);
+                expect(await digest(downloaded.bytes)).toBe(await digest(bytes));
+            }
+            expect(validator.previewResourceCommand).not.toHaveBeenCalled();
+            expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
+        });
+
     it('loads nested durable identities without a catalog and never infers a missing command', async () => {
         const repository = await fixture();
         const validator = validatorFor(validResult());
@@ -4034,6 +4088,24 @@ async function repositoryWithSource(content) {
             },
         }),
     );
+    return repository;
+}
+
+async function mathmlAdmissionRepository(contentType, bytes) {
+    const repository = await repositoryWithSource('fixture seed');
+    const bundle = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+    bundle.project.id = 'mathml-admission'; bundle.project.rootUri = 'studio://mathml-admission/';
+    const resource = bundle.project.resources.find(item => item.id === 'source');
+    Object.assign(resource, { path: 'data/formula.mml', contentType, schema: 'https://cem.dev/ns/data/mathml/1', sha256: await digest(bytes) });
+    const commandBytes = new TextEncoder().encode(JSON.stringify({ $schema: 'https://cem.dev/ns/cli/command/1',
+        schemaVersion: 1, commandSchemaVersion: 1, commonVersion: '0.1.0', binaryName: 'cem-ml',
+        argv: ['inspect', resource.referencePath ?? resource.path, '--content-type', contentType, '--show', 'summary', '--format', 'cem'] }));
+    const command = bundle.project.resources.find(item => item.id === 'run-cem-ml');
+    Object.assign(command, { schema: 'https://cem.dev/ns/cli/command/1', sha256: await digest(commandBytes) });
+    bundle.project.entries = [{ id: 'inspect-mathml', name: 'Inspect MathML', kind: 'inspection',
+        resourceIds: ['source', 'run-cem-ml'], runConfigResourceId: 'run-cem-ml' }];
+    bundle.contents = { source: bytes, 'run-cem-ml': commandBytes };
+    await repository.execute(request('import-project', { bundle }));
     return repository;
 }
 

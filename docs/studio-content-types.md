@@ -124,7 +124,7 @@ artifacts; the mere presence of a manifest artifact is insufficient.
 | Markdown | Native source validation and Markdown-to-HTML conversion; opt-in YAML front matter has typed metadata checks. Not a generic data-loader MIME. | Native source formatting/coloring. Current Parse AST/events and the article Inspect workflow describe generated HTML. | Namespace-aware queries consume the generated body; site layouts receive metadata separately. An HTML projection is not a Markdown source AST. |
 | CSS | Native retained CSS import and stylesheet validation. | Typed CSS inspection and native formatter/colorizer pipeline. | Scoped stylesheet preparation. It is not a query language or a general Sass compiler. |
 | SCSS | Explicit MIME/schema selects passive source validation; generic import and filename inference are unavailable. | Parse AST/events inspect expanded typed CSS with SCSS origin frames. | Bounded resolver/context-owned expansion to plain CSS. Passive validation does not fetch modules or expand. Same-schema SCSS source export, source DomJson/Json and command HTML-colored CSS export are unavailable. |
-| SVG, MathML | XML syntax import and package-specific source validation are distinct steps. | Native XML-family formatting/projection; use supported vocabulary/subsets. | Shared media/HTML previews and document queries where an element tree is available. Static asset copying proves neither parsing nor complete SVG/MathML semantics. |
+| SVG, MathML | Dedicated family import retains the original XML-backed owner, namespace, source positions and profile policy. SVG and all three MathML MIME identities resolve before generic `+xml`. | Native same-schema formatting and default CEM-ML inspection. Explicit JSON inspection retains the existing compatibility projection. | Shared native queries/templates and bounded inline artifact previews. Complete vocabulary/geometry/algebra validation is not implied; browser admission is independent of source validation. |
 | CSS selector | Source/expression validation; not data. | Registered expression formatting/coloring. | Explicit canonical MIME or schema selects element-tree query dispatch; supplied MIME/schema must agree. No general-purpose transformation language. |
 | XPath | Expression validation and native query compilation; not generic data. | Native expression formatting/coloring and inspection. | XPath/XDM-tree query or direct transformation. Binary artifacts and JSON results are not XPath source text. Supported native subset applies. |
 | CEM-QL | Query modules and standalone expressions have explicit native source handling. | Native Parse/Inspect, formatting/coloring, source ranges. | Native-items query/evaluation, parameters and template integration. Module, expression and binary artifact selectors have distinct contracts. |
@@ -142,13 +142,16 @@ artifacts; the mere presence of a manifest artifact is insufficient.
 The generic retained-document
 [import boundary](../packages/cem_ml/src/import.rs) accepts JSON (`application/json`,
 `text/json`, `+json`), XML (`application/xml`, `text/xml`, `+xml`), XHTML
-(`application/xhtml+xml`), YAML (`application/yaml`, `application/x-yaml`,
+(`application/xhtml+xml`), SVG (`image/svg+xml`), MathML (`application/mathml+xml`,
+`application/mathml-presentation+xml`, `application/mathml-content+xml`), YAML (`application/yaml`, `application/x-yaml`,
 `text/yaml`), CSV, HTML and `text/css`. Its short selectors are `json`, `xml`,
 `xhtml`, `yaml`, `csv` and `html`. `text/x-yaml` is registered but is not accepted
 at this boundary. MIME essence matching is case-insensitive; CSV defaults to
 `header=present`. UTF-8 `text/plain` is an additional loader input with the CEM
 text projection only; it has no schema package. The explicit XHTML selector
-retains and validates its XHTML owner before XML semantic import. Other structured
+retains and validates its XHTML owner before XML semantic import. The explicit
+SVG/MathML media types likewise retain their family owners, profiles and policy;
+they do not fall through to generic XML. Other structured
 `+json`/`+xml` suffixes select syntax parsing, not domain validation, query
 compilation or template execution.
 
@@ -223,6 +226,19 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `html-cem-card` | `card-live-view` | `live-view` | Saved data bound to two shared declarative cards, named/default slots and a transient local action. |
 | `html-cem-card` | `card-component` | `inspect-component` | Explicit JSON inspection of the canonical shared declaration's XML source, without registering a project component. |
 | `html-cem-card` | `card-invalid-policy` | `repair-html-policy` | Native inline-handler refusal at original source coordinates; remove the handler and revalidate the same saved resource. |
+| `svg-diagram` | `diagram-source` | `inspect-svg` | Family-preserving SVG inspection with real namespaces and original source offsets. |
+| `svg-diagram` | `diagram-source` | `validate-svg` | SVG root/namespace, XML, viewport/accessibility and source-policy checks. |
+| `svg-diagram` | `diagram-source` | `query-svg` | Expanded-name XPath diagram labels, dimensions and primitive counts. |
+| `svg-diagram` | `diagram-source` | `format-svg` | Exact pretty SVG output, preserving XML identity and mixed text. |
+| `svg-diagram` | `invalid-svg` | `repair-svg-namespace` | Repair the missing SVG namespace at original source coordinates. |
+| `svg-diagram` | `diagram-graph` | `build-html` | Native CEMT HTML entry copying retained SVG geometry, text and source provenance. |
+| `mathml-formula` | `formula-source` | `inspect-mathml` | Namespace- and profile-preserving Presentation MathML inspection. |
+| `mathml-formula` | `formula-source` | `validate-presentation` | Validate the Presentation MathML alias and XML/root/namespace rules. |
+| `mathml-formula` | `formula-content` | `validate-content` | Validate a separate Content MathML source; no algebra evaluation or presentation conversion is implied. |
+| `mathml-formula` | `formula-source` | `query-mathml` | Expanded-name XPath fraction, exponent, identifier and token summary. |
+| `mathml-formula` | `formula-source` | `format-mathml` | Exact pretty output retaining the Presentation MathML media identity. |
+| `mathml-formula` | `invalid-mathml` | `repair-mathml-namespace` | Repair the missing MathML namespace with original byte/line coordinates. |
+| `mathml-formula` | `formula-graph` | `build-html` | Native CEMT HTML entry with an inline fraction and superscript rendered by the shared artifact viewer. |
 | `login` | `login-html` | `semantics-html` | XPath query of the HTML semantic contract. |
 | `login` | `login-cem` | `semantics-cem-cemql` | CEM-QL query of the CEM semantic contract. |
 | `login` | `login-expression` | `expression-html` | Standalone expression evaluation. |
@@ -258,6 +274,21 @@ retain their normal CEM-ML presentation. The native HTML artifact is a separatel
 authored CEMT projection, rather than whole-page DCE compilation. Login retains
 the larger form/semantic comparison and credential recovery policy examples.
 
+The vector/formula projects use genuine SVG/MathML lifecycle inputs through the
+common retained tree. Their explicitly authored CEMT HTML wrappers copy the
+namespaced source root and omit the source's XML declaration; they do not claim
+a universal direct SVG/MathML-to-HTML converter. Native source validation covers
+the documented family facts, rather than complete SVG geometry or MathML
+vocabulary/arity/algebra semantics. MathML external-annotation diagnostics retain
+their warning severity and grant no fetch or execution capability.
+
+The shared artifact viewer admits a [bounded inline SVG/MathML subset](../packages/cem-elements/README.md#inline-svg-and-mathml-artifacts)
+independently of native validation. Static geometry, text and presentation math
+retain their namespaces. Scripts, handlers, foreign styles, resource URLs,
+animation, annotations, unknown elements and namespace integration escapes are
+excluded. Exact outputs and native source maps remain available for export even
+when a document contains content outside that rendering subset.
+
 The following rows describe existing reuse and planned extensions, rather than
 additional routes. Category names are discovery metadata and do not affect
 runtime authority.
@@ -268,7 +299,7 @@ runtime authority.
 | Data / Documents and UI | XML, XHTML and XML aliases | Reuse Supplier XML validation/namespace-aware selection and the `xhtml-document` query, repair and HTML graph. XML source validation does not establish domain instance rules; XHTML retains its own owner and source contract. Keep DTD/entity refusals visible. |
 | Documents and UI | Markdown | Reuse `markdown-site` for saved-article validation, generated-HTML inspection/query, exact standalone preview and metadata failure/repair; its folder graph publishes complete site outputs and content/layout provenance. |
 | Documents and UI | HTML, CEM-ML, native/element templates, runtime data island | Reuse Login and `html-cem-card` for semantic comparisons, shared card declarations/slots, local slice bindings and data-to-HTML generation. Keep project declaration authority and automatic DCE compilation limits explicit. |
-| Documents and UI | SVG and MathML variants | New diagram/formula project with native validation, inspection and shared preview; document supported vocabulary. |
+| Documents and UI | SVG and MathML variants | `svg-diagram` and `mathml-formula` cover native retained inspection/query/formatting, validation/repair, HTML artifacts, original provenance and bounded actual vector/presentation-math rendering. Content MathML is validated separately without an algebra or presentation claim. |
 | Documents and UI | CSS and SCSS aliases | New stylesheet project with inspect/format, supported scoped CSS and bounded SCSS-to-CSS expansion. Include unavailable source-export/loader cases. |
 | Queries and transformations | CSS selectors, XPath source aliases, CEM-QL modules/expressions | Reuse Login semantic comparisons and expression configs; add selectors, parameter maps, joins/filtering and source provenance. Treat compiled artifacts/results as separate inputs/outputs. |
 | Queries and transformations | CEM transformation and XSLT source/custom-element selectors | Reuse existing CEM graphs; add a complete-profile bounded XSLT graph and explicit optional-profile refusal. Do not treat custom-element mode as a universal XSLT alias. |
@@ -292,7 +323,7 @@ against the native-emitted registry, the capability list against runtime metadat
 and each existing sample reference against the generated ordinary project bundle.
 It also runs all manifest-selected source validations through the native CLI and
 checks deployed bytes and hashes. The `test:feature-tour` browser cases exercise
-the authored Login, Supplier, data-report, XHTML, Markdown and HTML/CEM card workflows;
+the authored Login, Supplier, data-report, XHTML, Markdown, HTML/CEM card and SVG/MathML workflows;
 site preview/build browser acceptance also lives in `test:workbench`, with deployed
 article/site and offline checks in the navigation gate. These checks establish the
 covered operations; they do not turn untested aliases or planned workflows into

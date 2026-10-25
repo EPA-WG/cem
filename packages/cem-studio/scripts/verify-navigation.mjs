@@ -8,14 +8,16 @@ import { verifyDataProjects } from './verify-data-projects.mjs';
 import { verifyCsvInventory } from './verify-csv-inventory.mjs';
 import { verifyXmlXhtmlProjects } from './verify-xml-xhtml-projects.mjs';
 import { verifyHtmlCemCard } from './verify-html-cem-card.mjs';
+import { verifySvgMathmlProjects } from './verify-svg-mathml-projects.mjs';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const csvOnly = process.argv.includes('--csv-only');
 const documentsOnly = process.argv.includes('--documents-only');
 const markdownOnly = process.argv.includes('--markdown-only');
 const htmlCemOnly = process.argv.includes('--html-cem-only');
+const svgMathmlOnly = process.argv.includes('--svg-mathml-only');
 const schemaAssets = process.argv.includes('--schema-assets');
-if ([csvOnly, documentsOnly, markdownOnly, htmlCemOnly].filter(Boolean).length > 1) throw new Error('Select one project verification scope.');
+if ([csvOnly, documentsOnly, markdownOnly, htmlCemOnly, svgMathmlOnly].filter(Boolean).length > 1) throw new Error('Select one project verification scope.');
 if (schemaAssets && !csvOnly) throw new Error('The optional profile replay requires --csv-only.');
 const server = await startStaticServer(resolve(projectRoot, schemaAssets ? 'dist/schema-assets' : 'dist/static'));
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
@@ -40,7 +42,13 @@ const submit = async (name, action) => { if (name) await page.getByRole('dialog'
 const heading = async () => assert.equal(await page.getByRole('heading', { level: 1 }).innerText(), await page.title());
 
 try {
-    if (htmlCemOnly) {
+    if (svgMathmlOnly) {
+        const svgMathmlProjects = await verifySvgMathmlProjects({ page, context, url: server.url });
+        assert.deepEqual(errors, []);
+        await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
+        await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/svg-mathml-projects.json'), `${JSON.stringify({ schemaVersion: 1, svgMathmlProjects }, null, 2)}\n`);
+        console.log('Studio SVG/MathML projects: native families, namespace repairs, exact foreign-content previews and independent offline builds passed.');
+    } else if (htmlCemOnly) {
         const htmlCemCard = await verifyHtmlCemCard({ page, context, url: server.url });
         assert.deepEqual(errors, []);
         await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
@@ -298,9 +306,10 @@ try {
     const csvInventory = await verifyCsvInventory({ page, context, url: server.url });
     const xmlXhtmlProjects = await verifyXmlXhtmlProjects({ page, context, url: server.url });
     const htmlCemCard = await verifyHtmlCemCard({ page, context, url: server.url });
+    const svgMathmlProjects = await verifySvgMathmlProjects({ page, context, url: server.url });
     assert.deepEqual(errors, []);
     await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
-    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, csvInventory, xmlXhtmlProjects, htmlCemCard, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
+    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, csvInventory, xmlXhtmlProjects, htmlCemCard, svgMathmlProjects, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
     console.log('Studio navigation: nested catalog, contextual/legacy URLs, readonly originals, independent clones, drafts, themes, responsive layout and offline catalog/Supplier/Markdown site/JSON and YAML report/CSV inventory/XML and XHTML builds passed.');
     }
 } catch (error) {

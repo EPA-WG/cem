@@ -1,0 +1,12 @@
+@doc cem-ml 1
+{run |
+    {import @id=diagram @src=../data/diagram.svg @content-type="image/svg+xml"
+        @schema=https://cem.dev/ns/data/svg/1 |
+        {transform @id=page @src=../templates/diagram.cemt @entrypoint=main
+            @template-content-type="application/vnd.cem.template+cem"
+            @template-schema=https://cem.dev/ns/template/cem-native/1 |
+            {export @id=html @out=../generated/diagram.html @content-type=text/html
+                @schema=https://cem.dev/ns/data/html/1}
+        }
+    }
+}

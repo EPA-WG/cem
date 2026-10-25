@@ -162,10 +162,16 @@ commands are documented in the
 ### Shared imports
 
 `import::import_data_bytes` resolves external content types into retained CEM
-AST documents. XML, XHTML, HTML, JSON, YAML, CSV and CSS semantics belong to
-this boundary; query/render consumers receive native nodes. XHTML retains its
-original lifecycle wrapper and source ranges while reusing XML semantic import;
-its root/namespace/head-body contract applies before query or template execution.
+AST documents. XML, XHTML, SVG, MathML, HTML, JSON, YAML, CSV and CSS semantics
+belong to this boundary; query/render consumers receive native nodes. XHTML,
+SVG and all three MathML media profiles retain their original lifecycle wrappers
+and source ranges while reusing XML semantic import. Their family contracts
+apply before query or template execution, including SVG execution/resource
+policy and MathML root/namespace/profile checks. Advisory MathML annotation
+references remain lexical and are not dereferenced. Explicit family media types
+are selected before the generic `+xml` fallback; unrelated `+xml` types retain
+generic XML identity. These contracts preserve the existing family validation
+limits and do not provide complete vocabulary validation or HTML sanitization.
 
 The explicit `value::json::write_json(&CemValueGraph, &CemValueArtifactLimits)`
 export writes one generic-data document/value or JSON-compatible native scalar.

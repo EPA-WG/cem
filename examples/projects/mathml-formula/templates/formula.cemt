@@ -1,0 +1,14 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+{param @name=input @required=true}
+{template @name=main @visibility=public @cem:whitespace=layout |
+    {cem:variable @name=formula
+        @select='seq:first(seq:where(input.descendants, fn(node) => node.kind == "element" && node.namespace == "http://www.w3.org/1998/Math/MathML" && node.name == "math"))'}
+    {element @name=section @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=aria-label @value="MathML formula preview"}
+        {element @name=h1 @namespace=http://www.w3.org/1999/xhtml | A quadratic fraction}
+        {element @name=p @namespace=http://www.w3.org/1999/xhtml | Rendered from retained Presentation MathML.}
+        {$ | formula}
+}   }

@@ -7,9 +7,11 @@
     "./examples/json-yaml-report.cem-studio.json",
     "./examples/login.cem-studio.json",
     "./examples/markdown-site.cem-studio.json",
+    "./examples/mathml-formula.cem-studio.json",
     "./examples/schema-examples.cem-studio.json",
     "./examples/starter.cem-studio.json",
     "./examples/supplier-pipeline.cem-studio.json",
+    "./examples/svg-diagram.cem-studio.json",
     "./examples/xhtml-document.cem-studio.json",
     "./feature-tour/catalog.json",
     "./feature-tour/feature-tour.project.json",
@@ -218,6 +220,18 @@
       "sha256": "0a4db9a79f713c2df966a39ff554e7528412a005896a428435f66c87ef199c20"
     },
     {
+      "id": "mathml-formula",
+      "name": "MathML formula",
+      "description": "Inspect, validate, query and format a namespaced mathematical expression, repair its namespace and build a bounded Presentation MathML HTML preview.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-documents-ui",
+        "content-types-queries-transformations"
+      ],
+      "archive": "./examples/mathml-formula.cem-studio.json",
+      "sha256": "b69d9aabe1e54d04d9a0bca90ad1f95abf71696711f7ccd9fed5aa88b8abf418"
+    },
+    {
       "id": "supplier-pipeline",
       "name": "Supplier pipeline",
       "description": "Namespace-aware XML catalog validation and selection, then XML products and CSV stock reconciled through explicit native domain rules into JSON, YAML and HTML, with failure/repair and source provenance.",
@@ -229,6 +243,18 @@
       ],
       "archive": "./examples/supplier-pipeline.cem-studio.json",
       "sha256": "a90f0fe7ed4b7b0a0cab1c216fddc57dde911f42b350bfb8c9c9feba9b977b51"
+    },
+    {
+      "id": "svg-diagram",
+      "name": "SVG diagram",
+      "description": "Inspect, validate, query and format an accessible vector pipeline diagram, repair its namespace and build a bounded inline SVG HTML preview.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-documents-ui",
+        "content-types-queries-transformations"
+      ],
+      "archive": "./examples/svg-diagram.cem-studio.json",
+      "sha256": "f50dfc15beacfac4f012727633bb5e82f70a1956791abbce3199e357ac970357"
     },
     {
       "id": "xhtml-document",
