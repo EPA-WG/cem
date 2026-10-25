@@ -5,6 +5,18 @@ project-owned schema and applies it to a separate CEM instance. Open it from
 **Content types and schemas → Schema authoring**. Clone the read-only example
 before editing; all operations use the shared source editor and command controls.
 
+## Authored identity reference
+
+These are resource identities, including expected artifacts. The configurations
+below determine their supported uses. An identity alone does not grant an
+operation.
+
+| Resource role | Content type | Schema |
+| --- | --- | --- |
+| CEM schema source | `application/cem` | `https://cem.dev/ns/schema/1` |
+| Note domain instances | `application/cem` | `urn:example:note` |
+| CEM schema packages | `application/vnd.cem.schema-package+cem` | `https://cem.dev/ns/schema-package/1` |
+
 ## Resources and configurations
 
 | Configuration | Input | Purpose |
@@ -51,8 +63,12 @@ schema revision is used. Restore the id and validate again. Changing the text
 unchanged. Clone again to edit without changing the first saved project.
 
 No application artifact or live Login view is created. Source projections retain
-native URI/ranges; formatting creates text and does not claim arbitrary instance
-character lineage. Saved resources and native operations are available offline
+native URI/ranges as presentation facts; common Inspect currently publishes no
+owned artifact-source references to Studio's Provenance selector. Actual native
+diagnostics remain separate source-selection inputs. Formatting creates text
+and does not claim arbitrary instance character lineage. Saved resources and
+native operations are available offline
 after the ordinary Studio cache is installed. Acceptance uses isolated browser
 storage and temporary copies; existing user projects and drafts are preserved.
 Entered passwords and one-time codes continue to block recovery until cleared.
+Automatic whole-Studio recovery remains disabled.

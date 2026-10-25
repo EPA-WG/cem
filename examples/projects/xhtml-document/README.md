@@ -19,25 +19,33 @@ existing supplier catalog and stock feed; this example does not copy them.
   `https://cem.dev/ns/query/xpath/1`. The command explicitly binds
   `xhtml=http://www.w3.org/1999/xhtml`; source prefix spelling is independent of
   the query prefix.
-- `templates/view.cemt` is a native CEMT template. It selects XHTML elements by
-  expanded name from the shared retained tree and constructs an HTML article.
-- `graphs/article.cem` is a version-1 native transformation configuration. It
-  imports XHTML, applies the template and exports `generated/article.html` as
+- `templates/view.cemt` declares `application/vnd.cem.template+cem` and
+  `https://cem.dev/ns/template/cem-native/1`. The native CEMT template selects
+  XHTML elements by expanded name from the shared retained tree and constructs
+  an HTML article.
+- `graphs/article.cem` declares `application/cem` and
+  `https://cem.dev/ns/cli/transform-config/1`. The version-1 native transformation
+  configuration imports XHTML, applies the template and exports `generated/article.html` as
   `text/html` with schema `https://cem.dev/ns/data/html/1`.
+- `expected/outline.json` declares `application/json` with
+  `https://cem.dev/ns/data/json/1`; it records the explicit query result contract.
 
 The XHTML-to-HTML mapping is authored explicitly. XHTML source identity is
 preserved during import; the native shared tree is the input to both query and
 template processing.
+The configured `xhtml` binding reaches query execution. Standalone XPath source
+validation currently does not inherit caller namespace bindings; standalone
+XPath Parse/Inspect/format are not configurations in this project.
 
 ## Configurations
 
 | Configuration | Typical use | Expected result |
 | --- | --- | --- |
-| Inspect retained XHTML structure | Review source nodes, namespaces and positions | A CEM-ML structural projection containing XHTML and SVG names |
-| Validate XHTML source | Check XML syntax and supported XHTML document structure | Zero errors and warnings |
-| Select the namespaced document outline | Extract a publishing summary with XPath | Four strings matching `expected/outline.json` |
-| Repair the XHTML root namespace | Diagnose an XML document that is not XHTML | `cem.xhtml.namespace_missing`; zero errors after the repair below |
-| Build the XHTML article as HTML | Publish selected document content | `generated/article.html`, matching `expected/article.html` |
+| `inspect-xhtml` — Inspect retained XHTML structure | Review source nodes, namespaces and positions | A CEM-ML structural projection containing XHTML and SVG names |
+| `validate-xhtml` — Validate XHTML source | Check XML syntax and supported XHTML document structure | Zero errors and warnings |
+| `query-outline` — Select the namespaced document outline | Extract a publishing summary with XPath | Four strings matching `expected/outline.json` |
+| `repair-namespace` — Repair the XHTML root namespace | Diagnose an XML document that is not XHTML | `cem.xhtml.namespace_missing`; zero errors after the repair below |
+| `build-html` — Build the XHTML article as HTML | Publish selected document content | `generated/article.html`, matching `expected/article.html` |
 
 The outline is:
 
@@ -87,12 +95,17 @@ map. Generated ranges point to the authored instructions and expressions in
 `templates/view.cemt`; computed text does not imply arbitrary character-by-character
 lineage to the input. Inspect the artifact's provenance in Studio to navigate
 back to those resources.
+The source coordinates printed by `inspect-xhtml` do not themselves populate
+owned artifact-source references in the current Parse/Inspect Provenance panel.
+Use the build's actual output maps or native diagnostics for source navigation.
 
 Saved copies keep their own source and configuration edits. Once Studio's runtime
 and project resources are cached, reopen the saved copy offline and rebuild it.
 The original example and another saved copy remain independent. This example
 contains no credential controls; Studio's existing rule still blocks recovery
 while a password or one-time code is entered elsewhere.
+Automatic whole-Studio recovery remains disabled. The project adds no local
+JavaScript behavior or credential storage.
 
 The same build can run natively from the repository:
 

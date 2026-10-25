@@ -4,7 +4,20 @@ Open **Examples → Content types and schemas → Queries and transformations �
 CSS selector queries**, or find the same project under **Documents and UI**.
 Clone it to edit an ordinary saved project. Typical uses are finding document
 sections, checking an HTML publishing structure, selecting XML domain records
-and navigating the original source ranges of matched elements.
+and examining the original source ranges of matched elements.
+
+## Authored identity reference
+
+These are resource identities, including expected artifacts. The configurations
+below determine their supported uses. An identity alone does not grant an
+operation.
+
+| Resource role | Content type | Schema |
+| --- | --- | --- |
+| Data and expected JSON artifacts | `application/json` | `https://cem.dev/ns/data/json/1` |
+| CSS selector source | `application/vnd.cem.query-expression+css-selector` | `https://cem.dev/ns/query/css-selector/1` |
+| XML data | `application/xml` | `https://cem.dev/ns/data/xml/1` |
+| HTML source and expected artifacts | `text/html` | `https://cem.dev/ns/data/html/1` |
 
 ## Query and document identities
 
@@ -29,11 +42,11 @@ substitute a stylesheet parser. The JSON result is a named human-facing export.
 
 | Configuration | Typical use | Expected result |
 | --- | --- | --- |
-| Inspect the original selector source | Review original query text and byte offsets | Existing CEM text-envelope inspection, not a typed selector AST |
-| Validate the ready-card selector | Check standalone query syntax and capability facts | Zero errors and warnings |
-| Select ready HTML product cards | Select structural document nodes | Tea and Cocoa element identities, deduplicated and in document order |
-| Select namespaced XML products | Select native XML nodes with explicit namespace context | Tea and Cocoa product identities in source order |
-| Repair the unclosed attribute selector | Locate and repair malformed query source | `css-selector.parse.invalid`, then zero errors after repair |
+| `inspect-selector` — Inspect the original selector source | Review original query text and byte offsets | Existing CEM text-envelope inspection, not a typed selector AST |
+| `validate-selector` — Validate the ready-card selector | Check standalone query syntax and capability facts | Zero errors and warnings |
+| `query-cards` — Select ready HTML product cards | Select structural document nodes | Tea and Cocoa element identities, deduplicated and in document order |
+| `query-namespaces` — Select namespaced XML products | Select native XML nodes with explicit namespace context | Tea and Cocoa product identities in source order |
+| `repair-selector` — Repair the unclosed attribute selector | Locate and repair malformed query source | `css-selector.parse.invalid`, then zero errors after repair |
 
 ## Native result contracts
 
@@ -53,6 +66,12 @@ The XML matches are `xml:event:3` and `xml:event:9`, both `product` elements in
 with lengths 32 and 34. Each result also carries the query's original source
 range. Source ranges are supplied by the native query result and retain their
 original content-type transforms; they are not browser-generated positions.
+
+Matched-document coordinate fields are part of the explicitly exported native
+result. They are distinct from the query-source frames published to Studio's
+Provenance selector. They do not turn every exported numeric range into an owned
+link to a document. Standalone Inspect likewise prints coordinate data without
+publishing owned artifact-source references.
 
 In a saved copy, change Coffee's `data-state="draft"` to `data-state="ready"`,
 save and rerun **Select ready HTML product cards**. All three cards now match,

@@ -7,6 +7,24 @@ editing. The shared source editor, command/result inspector, source navigation,
 structured data view and exact-byte downloads provide the complete workspace;
 there is no special example page or application UI JavaScript.
 
+## Authored identity reference
+
+These are resource identities, including expected artifacts. The configurations
+below determine their supported uses. An identity alone does not grant an
+operation.
+
+| Resource role | Content type | Schema |
+| --- | --- | --- |
+| Original CEM source | `application/cem` | `https://cem.dev/ns/cem-ml/1` |
+| AST binary artifacts | `application/vnd.cem.ast+cem-bin` | `https://cem.dev/ns/projection/ast/1` |
+| AST JSON source/artifact buffers | `application/vnd.cem.ast+json` | `https://cem.dev/ns/projection/ast/1` |
+| DOM binary artifacts | `application/vnd.cem.dom+cem-bin` | `https://cem.dev/ns/projection/dom/1` |
+| DOM JSON source/artifact buffers | `application/vnd.cem.dom+json` | `https://cem.dev/ns/projection/dom/1` |
+| Event binary artifacts | `application/vnd.cem.events+cem-bin` | `https://cem.dev/ns/projection/events/1` |
+| Event JSON source/artifact buffers | `application/vnd.cem.events+json` | `https://cem.dev/ns/projection/events/1` |
+| XML data | `application/xml` | `https://cem.dev/ns/data/xml/1` |
+| Owned plain-text inspection source | `text/plain` | No registered source schema |
+
 ## Original source and human presentation
 
 `data/dispatch.cem` is the authored UTF-8 source. `validate-source` checks it
@@ -15,8 +33,9 @@ frames as CEM-ML; `parse-events` presents ordered events, trivia and original
 byte ranges as CEM-ML. Human presentation does not default to JSON. The AST
 view can retain a coarse original source frame, while events expose individual
 lexical ranges: `Café Noord` is an 11-byte value starting at byte 147. A native
-source range selects its admitted original buffer, never an unrelated active
-editor or a JSON property's numeric value.
+source range describes its original buffer. Navigation separately requires an
+admitted source endpoint; printed coordinates never authorize an unrelated
+active editor or a JSON property's numeric value.
 
 `data/dispatch.xml` independently expresses the same article text with XML
 namespace declarations, a comment and CDATA. `validate-xml` checks XML source.
@@ -97,8 +116,9 @@ Publishing native inspection provenance is a separate engine follow-up.
 ## Failure, repair and saved copies
 
 `repair-dom-json`, `repair-ast-json` and `repair-events-json` validate the three
-`failures/invalid.<kind>.json` sources. Each has one original
-`cem.projection.<kind>.json_shape` error. Restore `"kind": "unknown"` to
+`failures/invalid.<kind>.json` sources. Each has one original shape error:
+`cem.projection.dom.json_shape`, `cem.projection.ast.json_shape` or
+`cem.projection.events.json_shape`, respectively. Restore `"kind": "unknown"` to
 `"kind": "document"` for DOM/AST or `"kind": "open"` for events. The repaired
 buffers exactly match their valid counterparts. These native shape diagnostics
 retain the owned input URI and currently have null text coordinates; no

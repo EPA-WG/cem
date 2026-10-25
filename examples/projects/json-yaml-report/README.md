@@ -19,6 +19,7 @@ Each copy owns its saved resources, revisions, configurations and drafts.
 | `queries/inspect-settings.cem-ql` | `application/vnd.cem.query-expression+cem-ql` | `https://cem.dev/ns/query/cem-ql/1#expression` | Standalone expression reading configuration fields. |
 | `templates/model.cemt`, `templates/view.cemt` | `application/vnd.cem.template+cem` | `https://cem.dev/ns/template/cem-native/1` | Shared native templates for the typed report model and HTML table. |
 | `graphs/report.cem` | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` | Explicit imports, named settings input, template stages and exports. |
+| `expected/report.html` | `text/html` | `https://cem.dev/ns/data/html/1` | Reference bytes for the generated HTML artifact. |
 
 The malformed source resources use the corresponding JSON/YAML identities.
 `expected/` contains deterministic reports, query results and formatted source.
@@ -30,13 +31,13 @@ contract; other configurations use the versioned native command contract.
 
 | Configuration | Result |
 | --- | --- |
-| **Inspect imported JSON tree** / **Inspect imported YAML tree** | CEM-ML AST presentation of the imported generic-data tree, with original source start offsets. |
-| **Validate JSON source** / **Validate YAML source** | Native source diagnostics; both valid inputs pass. |
-| **Format JSON source** / **Format YAML source** | Native package formatting using the `tabular` profile, without overwriting saved source. |
-| **Select active API record IDs** | Explicit JSON query result containing `API-101` and `API-103`. |
-| **Inspect report settings** | Explicit JSON query result containing `title=Active service report` and `status=active`. |
-| **Repair malformed JSON** / **Repair malformed YAML** | Intentional source failure, with the exact repairs below. |
-| **Build and preview report** | HTML report plus typed JSON and YAML arrays of the selected records. |
+| **Inspect imported JSON tree** (`inspect-json`) / **Inspect imported YAML tree** (`inspect-yaml`) | CEM-ML AST presentation of the imported generic-data tree, with original source start offsets. |
+| **Validate JSON source** (`validate-json`) / **Validate YAML source** (`validate-yaml`) | Native source diagnostics; both valid inputs pass. |
+| **Format JSON source** (`format-json`) / **Format YAML source** (`format-yaml`) | Native package formatting using the `tabular` profile, without overwriting saved source. |
+| **Select active API record IDs** (`query-json`) | Explicit JSON query result containing `API-101` and `API-103`. |
+| **Inspect report settings** (`query-yaml`) | Explicit JSON query result containing `title=Active service report` and `status=active`. |
+| **Repair malformed JSON** (`invalid-json`) / **Repair malformed YAML** (`invalid-yaml`) | Intentional source failure, with the exact repairs below. |
+| **Build and preview report** (`build-report`) | HTML report plus typed JSON and YAML arrays of the selected records. |
 
 JSON and YAML import through the same retained native CEM generic-data boundary.
 Queries and templates navigate that typed tree. The example contains no
@@ -52,6 +53,10 @@ check JSON/YAML syntax and native source contracts. They do not validate payload
 instances against an authored JSON Schema, require business fields, or implement
 a general application-configuration schema validator. Arbitrary JSON Schema
 instance assertions are currently unavailable.
+Generic JSON/YAML Parse source identity still has a known native gap, so these
+configurations use the supported imported-tree Inspect path instead. Displayed
+inspection coordinates do not populate owned artifact-source references in the
+Provenance panel; the report graph's output maps are a separate native contract.
 
 ## Build and preview
 
@@ -132,3 +137,4 @@ template source ranges are separate boundaries.
 This project adds no recovery policy or credential storage. Existing Studio
 credential privacy remains in force: recovery stays blocked while a live Login
 view contains a password or one-time code, until the user clears it.
+Automatic whole-Studio recovery remains disabled.

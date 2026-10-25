@@ -9,6 +9,10 @@ all registered package identities and selectors to existing validation resources
 functional configurations and planned projects. Consult its operation limits
 before adding a sample: source validation, instance validation and execution
 are separate capabilities.
+The [catalog coverage audit](../../docs/studio-catalog-coverage.md) separates
+declared primary inputs, packaged dependencies and expected reference artifacts
+from native, worker and deployed verification. A registered alias or available
+browser command does not establish per-format execution support.
 
 - `id`, `name` and `version` identify the catalog template. Optional `collections`
   mark presentation or subject membership, such as `amsterdam-2026`.
@@ -20,6 +24,15 @@ are separate capabilities.
   repair metadata support native fixtures; they do not drive a tutorial UI.
   Optional `entryArtifact` sets a named build's project-relative preview output;
   it is copied into the portable configuration, independently of input resources.
+
+Every project includes `README.md` as an ordinary resource. Its instructions
+name each owned configuration ID and every non-documentation content type/schema
+identity in exact inline code, with typical uses, expected artifacts, original
+source-location boundaries, repairs where applicable and current native limits.
+Group identities by source/reference role; listing a golden output does not
+make it an admitted input. Preserve credential privacy: entered passwords or
+one-time codes block recovery until cleared, and automatic whole-Studio recovery
+remains disabled. Documentation changes never overwrite existing saved copies.
 
 Direct source-validation arguments generate a native run configuration. An
 explicit `validate --config $source` instead keeps the versioned command envelope
@@ -56,6 +69,18 @@ The schema-package example project is generated from package manifests using
 the same archive/catalog contract. Run the known Studio build and verification
 Nx targets after changing a definition, source or expected result; maintain
 `docs/todo.md` fixture actions before adding tests.
+Its instructions come from [schema-examples.md](schema-examples.md), shared with
+the legacy Feature Tour seed. [starter.md](starter.md) documents the editable
+starter, which has no persisted configurations and keeps `source` as its default
+document. Their READMEs travel in the same archives and offline cache as other
+resources; no dedicated documentation route is required.
+
+After generating bundles, run
+`node packages/cem-studio/scripts/audit-catalog.mjs --write` to refresh the coverage
+document and review it. Run
+`yarn nx run @epa-wg/cem-studio:verify:catalog-audit` for the deterministic gate
+and negative-reference tests. Native command grammar and data parsing stay in
+the shared native engine; the documentation audit reads named control metadata.
 
 The [Markdown site](markdown-site/README.md) demonstrates a folder-based build
 with four Markdown documents, shared CEM-ML layouts/partials, explicit site data

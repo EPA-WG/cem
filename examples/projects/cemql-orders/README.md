@@ -6,6 +6,20 @@ it to edit independent saved resources. The project demonstrates filtering,
 joining, typed results, original source ranges and native parameter maps; it
 adds no application-specific parser or UI JavaScript.
 
+## Authored identity reference
+
+These are resource identities, including expected artifacts. The configurations
+below determine their supported uses. An identity alone does not grant an
+operation.
+
+| Resource role | Content type | Schema |
+| --- | --- | --- |
+| Transformation graphs | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` |
+| Data and expected JSON artifacts | `application/json` | `https://cem.dev/ns/data/json/1` |
+| CEM-QL modules | `application/vnd.cem.query+cem-ql` | `https://cem.dev/ns/query/cem-ql/1` |
+| CEM-QL standalone expressions | `application/vnd.cem.query-expression+cem-ql` | `https://cem.dev/ns/query/cem-ql/1#expression` |
+| CEM-native templates | `application/vnd.cem.template+cem` | `https://cem.dev/ns/template/cem-native/1` |
+
 ## Data and query identities
 
 `data/orders.json` owns two customer records and four orders. Three orders have
@@ -27,7 +41,8 @@ The native queries decide whether an order participates in the inner join.
 - `queries/ready-nodes.cem-ql` returns the three retained native order nodes,
   rather than constructing new records. Their source maps retain the original
   JSON URI and object ranges. The runtime-local opaque item identities are not
-  portable resource addresses; source URI/ranges provide source navigation.
+  portable resource addresses; the exported source URI/ranges describe the
+  original data owner without granting a new navigation endpoint.
 
 All queries consume the shared retained generic-data CEM tree. JSON result
 export is a human-facing boundary, never a serialized AST fed back into query
@@ -38,20 +53,20 @@ types rather than flattening integers or inventing data fields.
 
 | Configuration | Typical use | Expected result |
 | --- | --- | --- |
-| Inspect retained order data | Review imported data structure and source positions | Native generic-data nodes and original JSON offsets |
-| Inspect standalone CEM-QL syntax | Review the typed expression AST | Original query URI and token/node ranges |
-| Parse standalone CEM-QL events | Inspect lossless source events | Unicode comment and original byte positions |
-| Validate the filter expression | Check input-bound expression syntax | Zero errors and warnings |
-| Format the standalone expression | Export canonical source layout | Exact native tabular fixture |
-| Filter ready order records | Select native data and construct typed fields | Three records matching `expected/filter-items.json` |
-| Validate the local query module | Check module identity/declarations | Zero errors and warnings |
-| Format the query module | Preserve module/local-function source | Exact native tabular fixture |
-| Join orders to customers | Combine order/customer records by key | Two typed records matching `expected/join-items.json` |
-| Select native order nodes and source ranges | Inspect retained source ownership | Three original object spans from `expected/native-ranges.json` |
-| Repair the missing CEM-QL closing brace | Diagnose and repair the same saved source | Two native parse errors, then zero after repair |
-| Validate the declared parameter model | Check declared parameters and expression slots | Zero errors and warnings |
-| Build ready orders from a parameter map | Apply status `ready`, minimum `30` | Two application JSON rows in `generated/ready-orders.json` |
-| Build draft orders from a parameter map | Apply status `draft`, minimum `0` | One application JSON row in `generated/draft-orders.json` |
+| `inspect-data` — Inspect retained order data | Review imported data structure and source positions | Native generic-data nodes and original JSON offsets |
+| `inspect-expression` — Inspect standalone CEM-QL syntax | Review the typed expression AST | Original query URI and token/node ranges |
+| `parse-expression-events` — Parse standalone CEM-QL events | Inspect lossless source events | Unicode comment and original byte positions |
+| `validate-expression` — Validate the filter expression | Check input-bound expression syntax | Zero errors and warnings |
+| `format-expression` — Format the standalone expression | Export canonical source layout | Exact native tabular fixture |
+| `query-filter` — Filter ready order records | Select native data and construct typed fields | Three records matching `expected/filter-items.json` |
+| `validate-module` — Validate the local query module | Check module identity/declarations | Zero errors and warnings |
+| `format-module` — Format the query module | Preserve module/local-function source | Exact native tabular fixture |
+| `query-join` — Join orders to customers | Combine order/customer records by key | Two typed records matching `expected/join-items.json` |
+| `query-source-nodes` — Select native order nodes and source ranges | Inspect retained source ownership | Three original object spans from `expected/native-ranges.json` |
+| `repair-expression` — Repair the missing CEM-QL closing brace | Diagnose and repair the same saved source | Two native parse errors, then zero after repair |
+| `validate-parameter-template` — Validate the declared parameter model | Check declared parameters and expression slots | Zero errors and warnings |
+| `report-ready` — Build ready orders from a parameter map | Apply status `ready`, minimum `30` | Two application JSON rows in `generated/ready-orders.json` |
+| `report-draft` — Build draft orders from a parameter map | Apply status `draft`, minimum `0` | One application JSON row in `generated/draft-orders.json` |
 
 ## Parameter maps and result views
 
@@ -98,6 +113,13 @@ current generic-data JSON writer emits exact business output without character
 source-map sidecars; the reports do not invent template or data mappings. Use
 the source-node configuration and native source inspection for real original
 data/query ranges. Synthetic formatting receives no invented source range.
+
+Source inspection prints native coordinates but currently publishes no owned
+artifact-source references through common Parse/Inspect. Exported node fields
+describe original data ranges; Studio's separate Provenance selector follows
+the query-source frames published by the command, including their admitted
+query-buffer identity. Neither path interprets serialized AST fields as a new
+source capability.
 
 `failures/invalid-expression.cem-ql` omits the final block brace. Native source
 validation reports two `cem.ql.parse_error` diagnostics. The primary missing-brace

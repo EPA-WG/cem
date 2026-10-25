@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseCemStudioProjectBundle } from '../src/file-system-provider.js';
+import { collectCatalogAudit } from './audit-catalog.mjs';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const workspaceRoot = resolve(projectRoot, '../..');
@@ -54,12 +55,24 @@ assert.equal(project.entries.filter(({ kind }) => kind === 'validation').length,
 assert.equal(project.resources.length, catalog.projectResourceCount);
 assert.equal(
     catalog.projectResourceCount,
-    catalog.exampleCount * 2 + catalog.dependencyCount + catalog.workbenchResourceCount,
+    catalog.exampleCount * 2 + catalog.dependencyCount + catalog.workbenchResourceCount + catalog.documentationResourceCount,
 );
+assert.equal(catalog.documentationResourceCount, 1);
+for (const document of catalog.documentation) {
+    const resource = project.resources.find(resource => resource.id === document.resourceId);
+    assert.equal(resource.path, 'README.md');
+    assert.equal(resource.sha256, document.sha256);
+    const bytes = await readFile(resolve(outputRoot, document.asset.slice(2)));
+    assert.equal(sha256(bytes), document.sha256);
+    assert.deepEqual(bytes, await readFile(resolve(workspaceRoot, document.source)));
+}
 const authoredRoot = resolve(workspaceRoot, 'examples/projects');
 const authoredDefinitions = await Promise.all((await readdir(authoredRoot, { withFileTypes: true }))
     .filter(item => item.isDirectory()).sort((left, right) => left.name.localeCompare(right.name))
     .map(item => readJson(resolve(authoredRoot, item.name, 'example.json'))));
+const catalogAudit = await collectCatalogAudit(workspaceRoot);
+assert.equal(catalogAudit.counts.authoredConfigurations, authoredDefinitions.reduce((count, definition) => count + definition.configurations.length, 0));
+assert.equal(documentedSamples.length, catalogAudit.counts.documentedWorkflows);
 assert.deepEqual(sampleIndex.projects.map(project => project.id), ['schema-examples', ...authoredDefinitions.map(project => project.id)]);
 assert.equal(sampleIndex.cacheUrls.length, catalog.cacheUrlCount + sampleIndex.projects.length + 1);
 assert.deepEqual(sampleIndex.collections, await readJson(resolve(workspaceRoot, 'examples/projects/collections.json')));

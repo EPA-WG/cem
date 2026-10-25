@@ -6,6 +6,24 @@ paired deployment-map versions using owned files, explicit graph dependencies an
 exact exported artifacts. Studio reuses its shared editor, commands, artifact
 tree, structured data view and sandboxed HTML preview.
 
+## Authored identity reference
+
+These are resource identities, including expected artifacts. The configurations
+below determine their supported uses. An identity alone does not grant an
+operation.
+
+| Resource role | Content type | Schema |
+| --- | --- | --- |
+| Transformation graphs | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` |
+| Data and expected JSON artifacts | `application/json` | `https://cem.dev/ns/data/json/1` |
+| Paired deployment maps v1 | `application/vnd.cem.module-map+json` | `https://cem.dev/ns/data/module-map/1` |
+| Paired deployment maps v2 | `application/vnd.cem.module-map+json` | `https://cem.dev/ns/data/module-map/2` |
+| Paired deployment maps v3 | `application/vnd.cem.module-map+json` | `https://cem.dev/ns/data/module-map/3` |
+| Opaque XHTML deployment resources | `application/xhtml+xml` | `https://cem.dev/ns/data/xhtml/1` |
+| Stylesheets and expected CSS artifacts | `text/css` | `https://cem.dev/ns/data/css/1` |
+| HTML source and expected artifacts | `text/html` | `https://cem.dev/ns/data/html/1` |
+| Opaque JavaScript deployment modules | `text/javascript` | No registered source schema |
+
 ## Source contracts and configurations
 
 Every version uses `application/vnd.cem.module-map+json` with its explicit schema:
@@ -15,6 +33,12 @@ Every version uses `application/vnd.cem.module-map+json` with its explicit schem
 | v1 | `https://cem.dev/ns/data/module-map/1` | Exact bare JavaScript imports copied to app-relative targets. |
 | v2 | `https://cem.dev/ns/data/module-map/2` | The same import contract plus an explicit CSS deployment resource. The native version also supports declared JS/WASM resources. |
 | v3 | `https://cem.dev/ns/data/module-map/3` | Typed JS/JSON imports, a declared bare module edge rewritten to a relative output URL, and an opaque XHTML resource. |
+
+| Version | Validation | Inspection | Formatting | Syntax repair | Build |
+| --- | --- | --- | --- | --- | --- |
+| v1 | `validate-v1` | `inspect-v1` | `format-v1` | `repair-v1` | `build-v1` |
+| v2 | `validate-v2` | `inspect-v2` | `format-v2` | `repair-v2` | `build-v2` |
+| v3 | `validate-v3` | `inspect-v3` | `format-v3` | `repair-v3` | `build-v3` |
 
 For each `N` in `1`, `2`, `3`:
 
@@ -32,6 +56,9 @@ For each `N` in `1`, `2`, `3`:
 `validate-graph` and `inspect-graph` cover the v3 graph source separately from
 reading its maps or running deployment. Standalone JSON-family Parse currently
 emits embedded CEM tokenizer errors despite exit zero and is not advertised.
+The standalone Inspect coordinates remain presentation facts. They do not
+populate Studio's Provenance selector, whose owned source-map references are
+absent from current common Inspect publication.
 
 ## Relative paths, maps and artifacts
 

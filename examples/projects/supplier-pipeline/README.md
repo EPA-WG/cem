@@ -7,6 +7,19 @@ each copy owns its resources, configurations and saved revisions independently.
 
 ## Resources and configurations
 
+The resource identities in [example.json](example.json) are:
+
+| Resources | Content type | Schema identity |
+| --- | --- | --- |
+| `data/catalog.xml`, `data/catalog-invalid.xml` | `application/xml` | `https://cem.dev/ns/data/xml/1` |
+| `data/stock.csv` | `text/csv;header=present` | `https://cem.dev/ns/data/csv/1` |
+| `queries/products.xpath` | `application/vnd.cem.xpath` | `https://cem.dev/ns/query/xpath/1` |
+| `templates/reconcile.cemt`, `templates/view.cemt` | `application/vnd.cem.template+cem` | `https://cem.dev/ns/template/cem-native/1` |
+| `graphs/availability.cem` | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` |
+| `expected/products.json`, `expected/availability.json` | `application/json` | `https://cem.dev/ns/data/json/1` |
+| `expected/availability.yaml` | `application/yaml` | `https://cem.dev/ns/data/yaml/1` |
+| `expected/availability.html` | `text/html` | `https://cem.dev/ns/data/html/1` |
+
 - `data/catalog.xml` declares four products in the `urn:demo:supplier` vocabulary.
 - `queries/products.xpath` selects IDs and names using an explicit namespace
   binding. `expected/products.json` records the four selected strings.
@@ -21,12 +34,13 @@ each copy owns its resources, configurations and saved revisions independently.
   result identity. It branches to the view, a JSON service payload and a YAML
   partner feed. Graph joins do not perform business-record matching.
 - `expected/availability.json`, `.yaml` and `.html` state the baseline results.
-- **Inspect supplier catalog** and **Inspect supplier stock** parse saved source
-  through the native adapters. **Validate supplier catalog** validates XML source
-  syntax and namespace bindings. **Select namespaced supplier products** runs
-  the saved XPath query. **Repair malformed supplier XML** validates the deliberate
-  failure. **Supplier availability pipeline** executes the saved graph and all
-  saved dependencies.
+- **Inspect supplier catalog** (`catalog-source`) and **Inspect supplier stock**
+  (`stock-source`) parse saved source through the native adapters.
+  **Validate supplier catalog** (`validate-catalog`) validates XML source syntax
+  and namespace bindings. **Select namespaced supplier products**
+  (`query-products`) runs the saved XPath query. **Repair malformed supplier XML**
+  (`repair-catalog`) validates the deliberate failure. **Supplier availability
+  pipeline** (`availability`) executes the saved graph and all saved dependencies.
 
 ## XML namespaces and source validation
 
@@ -37,6 +51,9 @@ The query returns `SKU-A=Café cups`, `SKU-B=Tea pots`, `SKU-C=Glass jars` and
 the document uses a default namespace. Selection compares the namespace URI and
 local name, independently of the source prefix spelling. The query uses explicit
 XPath strings, and product IDs remain unqualified XML attributes.
+The prefix binding belongs to query execution. Standalone XPath source validation
+currently does not inherit caller namespace bindings, and standalone XPath
+Parse/Inspect/format are not configurations in this project.
 
 For example, changing the document to use a `p` prefix for the catalog, product
 and name elements while binding `xmlns:p="urn:demo:supplier"` preserves the
@@ -138,3 +155,12 @@ This example does not claim that every generated character traces directly to an
 original XML node or CSV cell. JSON/YAML formatter output and HTML template
 provenance are separate boundaries. Export/import of the portable project and
 independent copies use the same Studio facilities as user-created projects.
+
+The two inspection configurations display native source coordinates in CEM-ML;
+Parse/Inspect currently publishes no owned artifact-source references to the
+Provenance panel. Follow the graph's actual output maps or native diagnostics;
+printed source IDs and ranges do not confer navigation authority.
+
+The example adds no JavaScript behavior, credentials or storage keys. Entered
+passwords and one-time codes elsewhere block recovery until explicitly cleared;
+automatic whole-Studio recovery remains disabled.

@@ -8,6 +8,24 @@ There is no dedicated site-example screen.
 
 ## Resources and configurations
 
+The declared source identities in [example.json](example.json) are:
+
+| Resources | Content type | Schema identity |
+| --- | --- | --- |
+| `content/**/*.md`, `failures/invalid-article.md` | `text/markdown; charset=utf-8; variant=CommonMark; front-matter=yaml` | `https://cem.dev/ns/data/markdown/1` |
+| `data/site.json`, `expected/article-outline.json` | `application/json` | `https://cem.dev/ns/data/json/1` |
+| `queries/article-outline.xpath` | `application/vnd.cem.xpath` | `https://cem.dev/ns/query/xpath/1` |
+| `layouts/page.cemt`, `layouts/partials/*.cemt` | `application/vnd.cem.transform+cem` | `https://cem.dev/ns/transform/cem/1` |
+| `graphs/build.cem` | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` |
+| `expected/**/*.html` | `text/html` | `https://cem.dev/ns/data/html/1` |
+| `assets/site.css` | `text/css` | None declared; opaque asset copy |
+| `static/images/harbor.svg` | `image/svg+xml` | None declared; opaque asset copy |
+| `static/downloads/notes.txt` | `text/plain; charset=utf-8` | None declared; opaque asset copy |
+
+The three static assets are untyped by a declared schema and copied unchanged.
+Their presence does not claim CSS/SVG/plain-text validation or transformation
+support. The native graph owns publication and the shared preview owns admission.
+
 `content/index.md` is home; `content/articles/index.md` lists two articles.
 All four resources opt into native YAML front matter. `title` and `description`
 feed the HTML head. The project-owned `base` string is `.` at home and `..`
@@ -24,26 +42,26 @@ input, imported through the common native data boundary. `assets/site.css` and
 and follows the viewer's light/dark or forced-color settings independently of
 Studio's own theme. No JavaScript assembles or renders the site.
 
-- **Build and preview site** executes `graphs/build.cem`: native Markdown → HTML
+- **Build and preview site** (`build-site`) executes `graphs/build.cem`: native Markdown → HTML
   → retained DOM → CEM-ML layout → HTML export, plus opaque asset publication.
   The seven output artifacts are four HTML documents, CSS, an SVG and a download.
   The configuration declares `entryArtifact: "generated/index.html"`; Build
   opens home without an artifact URL or manual selection. Follow article links,
   images and nested navigation inside the same immutable output tree. Selecting
   an artifact does not change the source file open in the editor.
-- **Validate article metadata** validates the saved first article using its
+- **Validate article metadata** (`validate-article`) validates the saved first article using its
   declared Markdown identity, including the opt-in YAML metadata contract.
-- **Preview Markdown article** converts that saved article body on its own.
+- **Preview Markdown article** (`preview-article`) converts that saved article body on its own.
   Its exact HTML matches `expected/article-body.html`; front matter is omitted.
   The full build supplies the shared layout and assets.
-- **Inspect generated article structure** inspects the generated HTML tree, its
+- **Inspect generated article structure** (`inspect-article`) inspects the generated HTML tree, its
   XHTML element names, attributes and retained source information. It is an HTML
   projection of the Markdown body, not the Markdown parser's source AST.
-- **Query the generated article outline** runs `queries/article-outline.xpath`
+- **Query the generated article outline** (`query-article-outline`) runs `queries/article-outline.xpath`
   over the same generated HTML using the explicit namespace binding
   `h=http://www.w3.org/1999/xhtml`. Its four result strings match
   `expected/article-outline.json`.
-- **Repair the article metadata type** validates
+- **Repair the article metadata type** (`repair-article-metadata`) validates
   `failures/invalid-article.md`, a deliberately invalid resource outside the
   site's `content/**/*.md` glob. It can be repaired independently without making
   the ordinary site build fail.
@@ -71,6 +89,12 @@ front-matter `title` changes the complete site's HTML title, while leaving this
 body outline unchanged. Metadata and page content are separate native inputs to
 the layout; a generated HTML query does not expose front matter as visible text.
 The `inspect-article` configuration likewise presents generated HTML structure.
+Its displayed coordinates do not become owned artifact-source links in the
+current Parse/Inspect publication contract. Use the build's actual provenance
+for original Markdown/layout navigation, as described below.
+The outline configuration supplies its `h` binding during execution. Standalone
+XPath source validation currently does not inherit caller namespace bindings;
+standalone XPath Parse/Inspect/format are not configurations here.
 
 For the deliberate type failure, run **Repair the article metadata type**. The
 native validator reports `cem.markdown.front_matter_invalid` for `weight: heavy`
@@ -157,3 +181,5 @@ optional-package deployment, first run the Markdown-dependent workflow online
 to admit its package before reopening it offline. This project adds no theme or
 storage keys and contains no credential controls. Studio's existing rule still
 blocks recovery while an entered password or one-time code is present elsewhere.
+Automatic whole-Studio recovery remains disabled. The project supplies no local
+JavaScript editing, preview or recovery behavior.

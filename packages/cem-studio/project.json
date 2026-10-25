@@ -460,7 +460,8 @@
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
-                "build"
+                "build",
+                "verify:catalog-audit"
             ],
             "options": {
                 "command": "node scripts/verify-feature-tour.mjs",
@@ -479,7 +480,10 @@
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
-                }
+                },
+                "{projectRoot}/scripts/audit-catalog.mjs",
+                "{projectRoot}/scripts/catalog-audit.mjs",
+                "{workspaceRoot}/docs/studio-catalog-coverage.md"
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/feature-tour.json"
@@ -821,6 +825,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-catalog-documentation.mjs",
                 "{projectRoot}/scripts/verify-native-projection-project.mjs",
                 "{projectRoot}/scripts/verify-module-map-project.mjs",
                 "{projectRoot}/scripts/verify-portable-config-project.mjs",
@@ -1217,6 +1222,69 @@
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/native-projection-projects.json"
+            ]
+        },
+        "test:catalog-audit": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node --test scripts/catalog-audit.test.mjs",
+                "cwd": "packages/cem-studio"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/catalog-audit.mjs",
+                "{projectRoot}/scripts/catalog-audit.test.mjs"
+            ],
+            "outputs": []
+        },
+        "verify:catalog-audit": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "generate:feature-tour",
+                "test:catalog-audit"
+            ],
+            "options": {
+                "command": "node scripts/audit-catalog.mjs --check",
+                "cwd": "packages/cem-studio"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/catalog-audit.mjs",
+                "{projectRoot}/scripts/audit-catalog.mjs",
+                "{projectRoot}/src/file-system-provider.js",
+                "{projectRoot}/generated/feature-tour/**/*",
+                "{workspaceRoot}/examples/projects/**/*",
+                "{workspaceRoot}/docs/studio-content-types.md",
+                "{workspaceRoot}/docs/studio-catalog-coverage.md",
+                "{workspaceRoot}/packages/cem_ml/schema/schema-assets-registry-v1.json",
+                "{workspaceRoot}/packages/cem-ml-npm/dist/cem-ml-runtime.json"
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/catalog-audit.json"
+            ]
+        },
+        "verify:catalog-readmes": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:determinism"
+            ],
+            "options": {
+                "command": "node scripts/verify-navigation.mjs --catalog-docs-only",
+                "cwd": "packages/cem-studio"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-catalog-documentation.mjs",
+                "{workspaceRoot}/examples/projects/**/*",
+                "{projectRoot}/dist/static/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/catalog-documentation.json"
             ]
         }
     },

@@ -5,6 +5,17 @@ This ordinary Studio project authors a small note schema using the explicit
 `https://cem.dev/ns/data/json-schema/1`. Open it under **Content types and schemas
 → Schema authoring** and clone it before editing. It uses shared source controls.
 
+## Authored identity reference
+
+These are resource identities, including expected artifacts. The configurations
+below determine their supported uses. An identity alone does not grant an
+operation.
+
+| Resource role | Content type | Schema |
+| --- | --- | --- |
+| Data and expected JSON artifacts | `application/json` | `https://cem.dev/ns/data/json/1` |
+| JSON Schema source | `application/schema+json` | `https://cem.dev/ns/data/json-schema/1` |
+
 ## Configurations
 
 | Configuration | Purpose |

@@ -1460,6 +1460,17 @@
       "schema": "https://cem.dev/ns/cli/run-config/1",
       "revision": 1,
       "sha256": "41f8ff5f064ee1a9819f1ccc8dfbc9d6266f8a88523d10adfd2def5e88f80763"
+    },
+    {
+      "id": "readme",
+      "role": "data",
+      "sourceKind": "project-file",
+      "path": "README.md",
+      "referencePath": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "revision": 1,
+      "sha256": "a85b7c6edf79d629e9304dc2eb4606379e996bac988d7ca954a35f227d9decee"
     }
   ]
 }

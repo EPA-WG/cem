@@ -20,6 +20,8 @@ resources, configurations, revisions and drafts.
 | `templates/model.cemt`, `templates/view.cemt` | `application/vnd.cem.template+cem` | `https://cem.dev/ns/template/cem-native/1` | Typed report model and HTML table. |
 | `graphs/inventory.cem` | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` | Explicit import, template stages and report exports. |
 | `config/header-policy.json` | `application/json` | `https://cem.dev/ns/cli/run-config/1` | Authored validation configuration with an intentionally unknown header parameter. |
+| `expected/selection.json`, `expected/headerless.json`, `expected/low-stock.json` | `application/json` | `https://cem.dev/ns/data/json/1` | Reference query/report values, without an inventory instance-schema claim. |
+| `expected/low-stock.html` | `text/html` | `https://cem.dev/ns/data/html/1` | Reference bytes for the generated HTML table. |
 
 The three malformed CSV resources use the same declared CSV identity as the
 inventory. `expected/` contains deterministic reports, query results, compact
@@ -44,17 +46,17 @@ CSV cells remain strings; parsing does not infer numeric column types.
 
 | Configuration | Result |
 | --- | --- |
-| **Inspect imported inventory tree** | Retained generic-data CEM projection, with header-derived mapping keys and original source start offsets. |
-| **Validate inventory CSV source** | Native CSV syntax/dialect diagnostics, independently of inventory count rules. |
-| **Format CSV for interchange** | Native `compact` CSV output with required quoting and no presentation padding. |
-| **Review aligned CSV** | Native `tabular` review presentation. Padding is visual and must not be treated as a safe reimport contract. |
-| **Select low-stock SKUs** | Explicit JSON query result containing `SKU-A` and `SKU-C`. |
-| **Inspect declared headerless rows** | Arrays of string cells, with every data row preserved. |
-| **Read headerless SKU cells** | Explicit JSON query result containing all four SKUs. |
-| **Repair declared header policy** | Execute the authored run configuration and observe a native metadata warning. |
-| **Repair an unclosed quoted field** / **Repair an unescaped field quote** | Intentional hard CSV syntax failures. |
-| **Repair an incomplete inventory row** | Intentional row-width drift, reported as a warning. |
-| **Build low-stock inventory** | An HTML table and typed JSON records, with HTML as the explicit entry artifact. |
+| **Inspect imported inventory tree** (`inspect-csv`) | Retained generic-data CEM projection, with header-derived mapping keys and original source start offsets. |
+| **Validate inventory CSV source** (`validate-csv`) | Native CSV syntax/dialect diagnostics, independently of inventory count rules. |
+| **Format CSV for interchange** (`format-csv`) | Native `compact` CSV output with required quoting and no presentation padding. |
+| **Review aligned CSV** (`review-csv`) | Native `tabular` review presentation. Padding is visual and must not be treated as a safe reimport contract. |
+| **Select low-stock SKUs** (`query-low-stock`) | Explicit JSON query result containing `SKU-A` and `SKU-C`. |
+| **Inspect declared headerless rows** (`inspect-headerless`) | Arrays of string cells, with every data row preserved. |
+| **Read headerless SKU cells** (`query-headerless`) | Explicit JSON query result containing all four SKUs. |
+| **Repair declared header policy** (`repair-header-policy`) | Execute the authored run configuration and observe a native metadata warning. |
+| **Repair an unclosed quoted field** (`repair-unclosed-quote`) / **Repair an unescaped field quote** (`repair-invalid-escape`) | Intentional hard CSV syntax failures. |
+| **Repair an incomplete inventory row** (`repair-ragged-rows`) | Intentional row-width drift, reported as a warning. |
+| **Build low-stock inventory** (`build-inventory`) | An HTML table and typed JSON records, with HTML as the explicit entry artifact. |
 
 With `header=present`, the first source row supplies mapping keys and is excluded
 from data rows. With `header=absent`, every row remains an array of string cells;
@@ -74,6 +76,9 @@ offsets still refer to original CSV bytes: `SKU-A` starts at byte 32 in the
 header-bearing source; the quoted café name starts at byte 38. The corresponding
 headerless starts are 0 and 6. All input parsing, field decoding, diagnostics,
 queries and serialization stay in the native shared engine.
+Parse/Inspect currently displays coordinates without publishing owned
+artifact-source references to the Provenance panel. CSV field offsets remain
+inspection facts; the report's actual template output maps are separate.
 
 ## Numeric rules and report artifacts
 

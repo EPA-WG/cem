@@ -216,7 +216,13 @@ uses admitted source buffers; missing inspection-provenance publication, AST JSO
 compatibility and binary input/replay remain explicit native follow-ups.
 Credential privacy and existing saved projects/drafts are preserved.
 
-- [ ] Give each project a README with its typical use, content types/schema identities, supported configurations, expected artifacts, provenance and deliberate failure/repair steps where applicable. Reuse shared table, editor and preview controls; add no sample-specific UI JavaScript.
+Completed [catalog README and declared capability audit](archive/todo-completed-catalog-readme-capability-audit-2026-10-25.md)
+covers all 22 authored projects, generated Schema examples/Feature Tour and the
+starter, 203 authored configurations and 208 documented workflows. Deterministic
+reference/identity checks, worker/native fixtures and deployed readonly, saved-copy
+and offline README/draft checks pass. Registered selector gaps and native limits
+remain explicit; no new UI behavior or credential recovery authority is added.
+
 - [ ] Add native fixtures for each sample's authored configurations, expected artifacts and intentional diagnostics, plus Studio catalog/navigation/clone/build/preview and offline-inventory coverage. Preserve saved projects/drafts and test that original examples remain unchanged after editing clones.
 
 ## Native and release follow-ups

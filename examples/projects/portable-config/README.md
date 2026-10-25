@@ -6,6 +6,23 @@ configurations, transformation graphs and portable project manifests. Open
 transformations**, select **Portable configurations**, and clone before editing.
 There is no dedicated example page or private command runner.
 
+## Authored identity reference
+
+These are resource identities, including expected artifacts. The configurations
+below determine their supported uses. An identity alone does not grant an
+operation.
+
+| Resource role | Content type | Schema |
+| --- | --- | --- |
+| Transformation graphs | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` |
+| Run configuration control source | `application/json` | `https://cem.dev/ns/cli/run-config/1` |
+| Authored CLI commands | `application/vnd.cem.cli-command+json` | `https://cem.dev/ns/cli/command/1` |
+| CEM project control sources | `application/vnd.cem.studio-project+cem` | `https://cem.dev/ns/studio/project/1` |
+| JSON project control sources | `application/vnd.cem.studio-project+json` | `https://cem.dev/ns/studio/project/1` |
+| CEM-native templates | `application/vnd.cem.template+cem` | `https://cem.dev/ns/template/cem-native/1` |
+| XML data | `application/xml` | `https://cem.dev/ns/data/xml/1` |
+| HTML source and expected artifacts | `text/html` | `https://cem.dev/ns/data/html/1` |
+
 ## Resources and configurations
 
 `data/card.xml` and `data/alternate.xml` are ordinary XML inputs. The CEM-native
@@ -57,6 +74,10 @@ projection/target gap. JSON project Parse/Inspect has the same source-projection
 limit, so those configurations are not advertised. CEM project Inspect is a
 structural CEM view, not a typed project Parse export. JSON/CEM project conversion
 and CEM source formatting use the actual native Studio project codec.
+The CEM inspection's printed coordinates are not owned artifact-source links;
+common Inspect currently publishes no such references to the Provenance selector.
+Use native diagnostics or the graph's separately published output spans when
+following an available source-selection path.
 
 Run config has a native parser/normalizer used by `validate --config`; its schema
 identity does not install a generic standalone source adapter. The `run-check`

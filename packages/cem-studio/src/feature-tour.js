@@ -591,6 +591,18 @@ export async function loadCemStudioFeatureTour(options = {}) {
             }
         }),
     );
+    await Promise.all((catalog.documentation ?? []).map(async document => {
+        const resource = project.resources.find(resource => resource.id === document.resourceId);
+        if (!resource || resource.path !== document.path || resource.contentType !== document.contentType
+            || resource.schema !== document.schema || resource.sha256 !== document.sha256) {
+            throw new Error('Feature Tour documentation metadata does not match its project resource');
+        }
+        const bytes = await fetchBytes(new URL(document.asset, baseUrl), fetchResource);
+        if ((await sha256(bytes)) !== document.sha256) {
+            throw new Error(`Feature Tour documentation ${document.resourceId} failed its SHA-256 integrity check`);
+        }
+        contents[document.resourceId] = bytes;
+    }));
     if (project.resources.some(({ id }) => !(id in contents))) {
         throw new Error('Feature Tour bundle is missing a declared project resource');
     }
@@ -649,6 +661,8 @@ function assertFeatureTourCatalog(catalog) {
         catalog.capability.availability !== 'available' ||
         !Array.isArray(catalog.examples) ||
         !Array.isArray(catalog.workbenches) ||
+        (catalog.documentation !== undefined && !Array.isArray(catalog.documentation)) ||
+        (catalog.documentationResourceCount !== undefined && catalog.documentationResourceCount !== (catalog.documentation?.length ?? 0)) ||
         catalog.workbenches.length !== 5 ||
         catalog.examples.length !== catalog.exampleCount ||
         catalog.exampleCount !== catalog.packageCount

@@ -14,14 +14,14 @@ larger comparison with forms, labels and required controls, use the existing
 
 | Configuration | Saved input | Result |
 | --- | --- | --- |
-| Inspect HTML card | `data/card.html` | Retained HTML structure and original source positions |
-| Inspect CEM-ML card | `data/card.cem` | Native CEM structure and original source positions |
-| Card semantics from HTML | `data/card.html` and `queries/card.xpath` | Nine strings matching `expected/semantics.json` |
-| Card semantics from CEM-ML | `data/card.cem` and the same query | The same nine-string contract |
-| Build the card as HTML | `graphs/card.cem`, the HTML data and native template | `generated/card.html`, matching `expected/card.html` |
-| Shared card live view | `views/card.cem` and the same HTML data | Two shared `cem-card` instances and a local action |
-| Inspect component declaration (JSON) | `components/cem-card.xhtml` | Explicit JSON source-AST presentation of the packaged XML declaration snapshot |
-| Repair inline HTML policy | `failures/inline-handler.html` | Native event-handler refusal and exact source repair |
+| `inspect-html` — Inspect HTML card | `data/card.html` | Retained HTML structure and original source positions |
+| `inspect-cem` — Inspect CEM-ML card | `data/card.cem` | Native CEM structure and original source positions |
+| `semantics-html` — Card semantics from HTML | `data/card.html` and `queries/card.xpath` | Nine strings matching `expected/semantics.json` |
+| `semantics-cem` — Card semantics from CEM-ML | `data/card.cem` and the same query | The same nine-string contract |
+| `build-html` — Build the card as HTML | `graphs/card.cem`, the HTML data and native template | `generated/card.html`, matching `expected/card.html` |
+| `live-view` — Shared card live view | `views/card.cem` and the same HTML data | Two shared `cem-card` instances and a local action |
+| `inspect-component` — Inspect component declaration (JSON) | `components/cem-card.xhtml` | Explicit JSON source-AST presentation of the packaged XML declaration snapshot |
+| `repair-html-policy` — Repair inline HTML policy | `failures/inline-handler.html` | Native event-handler refusal and exact source repair |
 
 `data/card.html` uses `text/html` and `https://cem.dev/ns/data/html/1`.
 `data/card.cem` uses `application/cem` and `https://cem.dev/ns/cem-ml/1`, with an
@@ -33,8 +33,18 @@ The live view uses the existing `application/vnd.cem.element-template+cem`
 source identity and `https://cem.dev/ns/template/cem-element/1`, so validation
 recognizes its runtime `datadom`, slice and declared-variable bindings. The
 current open-content attribute warnings remain advisory.
+`queries/card.xpath` declares `application/vnd.cem.xpath` with
+`https://cem.dev/ns/query/xpath/1`; `expected/semantics.json` declares
+`application/json` with `https://cem.dev/ns/data/json/1`. The component snapshot
+uses `application/xml` with `https://cem.dev/ns/data/xml/1`. These are distinct
+source identities and explicit reference exports, without a universal operation
+support claim.
 
 ## Compare the two source forms
+
+The XPath prefix belongs to the query execution context. Standalone XPath source
+validation currently does not inherit caller namespace bindings, and standalone
+XPath Parse/Inspect/format are not configurations here.
 
 Both semantic configurations use an explicit query namespace binding,
 `h=http://www.w3.org/1999/xhtml`. They select the article, heading, two
@@ -119,8 +129,12 @@ outside this preview's policy.
 The inspection command explicitly requests `--format json`: the CEM-ML writer
 currently refuses a source text scalar containing both quote styles, as found
 in this unchanged declaration. JSON here is a named human-facing source-AST
-export, with original source maps. It is not used as a runtime tree handoff or
-as a replacement component implementation.
+export, with original source-map fields. It is not used as a runtime tree handoff
+or as a replacement component implementation.
+The Parse/Inspect command publication currently supplies no owned artifact-source
+references to the Provenance panel. Its printed coordinate fields do not become
+links; use `build-html`'s real output maps or the native policy diagnostic for
+source navigation.
 
 The live view owns an explicit light theme and no storage keys. Changing Studio's
 theme does not persist an example preference. Its script-free frame denies

@@ -6,6 +6,20 @@ Queries and transformations**, then clone it to edit. The related **XSLT
 transformation** project uses the same original data and produces the same HTML
 through a bounded native XSLT report stage and a CEM-native view.
 
+## Authored identity reference
+
+These are resource identities, including expected artifacts. The configurations
+below determine their supported uses. An identity alone does not grant an
+operation.
+
+| Resource role | Content type | Schema |
+| --- | --- | --- |
+| Transformation graphs | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` |
+| Data and expected JSON artifacts | `application/json` | `https://cem.dev/ns/data/json/1` |
+| CEM-native templates | `application/vnd.cem.template+cem` | `https://cem.dev/ns/template/cem-native/1` |
+| XML data | `application/xml` | `https://cem.dev/ns/data/xml/1` |
+| HTML source and expected artifacts | `text/html` | `https://cem.dev/ns/data/html/1` |
+
 ## Resources and configurations
 
 - `orders-source` — `data/orders.xml`, `application/xml`,
@@ -59,6 +73,10 @@ fixtures remain byte-exact. Trailing HTML layout whitespace is native output.
 
 The native `inspect` JSON is a read-only source projection. Execution continues
 through original native source and retained owners, without JSON AST handoffs.
+`inspect-template` and `inspect-graph` explicitly request that JSON boundary.
+Their coordinate fields do not populate Studio's Provenance selector: common
+Inspect currently publishes no owned artifact-source references. The build's
+separately published HTML output mappings remain the supported navigation path.
 
 ## Failure and repair
 

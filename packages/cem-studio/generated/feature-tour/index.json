@@ -42,6 +42,7 @@
     "./feature-tour/resources/css-selector-basic-selector.css-selector",
     "./feature-tour/resources/csv-basic-table.csv",
     "./feature-tour/resources/dependencies/schema-package/schema/note.cem",
+    "./feature-tour/resources/documentation/README.md",
     "./feature-tour/resources/html-basic-document.html",
     "./feature-tour/resources/json-basic-object.json",
     "./feature-tour/resources/json-schema-basic-schema.json",
@@ -155,7 +156,7 @@
     "name": "CEM-ML project",
     "version": "1.0.0",
     "archive": "./examples/starter.cem-studio.json",
-    "sha256": "116541298b030a386bcf07b0632af7660698c2b3dd10efb3069c6f3a8a17dbdf"
+    "sha256": "a60af3d69c992f63e534a41044e2855c1c5e8924919dbf10007c62813bf94643"
   },
   "projects": [
     {
@@ -168,7 +169,7 @@
         "examples"
       ],
       "archive": "./examples/schema-examples.cem-studio.json",
-      "sha256": "979219ffd4605401e583480eb8066707c3453a2d895598e0f0145bbeca529f8a"
+      "sha256": "636fff9f0b50ac63b0a2026f445ce892cdb0ad8ae0c2aa180334759c68bad581"
     },
     {
       "id": "cem-schema",
@@ -179,7 +180,7 @@
         "content-types-schema-authoring"
       ],
       "archive": "./examples/cem-schema.cem-studio.json",
-      "sha256": "51eaa8e0d99279a9ea88c7760508e6048c940c49cefdb8c63e6e73bf186e31b3"
+      "sha256": "7d111e20bb48b8063840ccc14694a947b8738647ed8d2d4d0f7ca6a5c6b6f1a3"
     },
     {
       "id": "cem-transform",
@@ -190,7 +191,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/cem-transform.cem-studio.json",
-      "sha256": "2dfe3982e4dc9debc37f847e8f0bdd1ecf3f6903aa694298d8a45063ac36d0cc"
+      "sha256": "c0a09d5ceb9141b13ed81e0491112fcd7d29118e6a8c0a45432a019a9e710fb1"
     },
     {
       "id": "cemql-orders",
@@ -202,7 +203,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/cemql-orders.cem-studio.json",
-      "sha256": "d7dac91954b5d125c9f57a017b4285eec80e3e3a11c37c28c9564a73365cca47"
+      "sha256": "567245ea3fc968db889beb20f3dedf30663038f3597d74abac2c298643acbf98"
     },
     {
       "id": "css-selector",
@@ -214,7 +215,7 @@
         "content-types-documents-ui"
       ],
       "archive": "./examples/css-selector.cem-studio.json",
-      "sha256": "9a0c8ea46b06e72fd2787bf2fca90cca3f39496a861346f13a43dfadce9469ec"
+      "sha256": "914d756e30869351d1a916f70770909a98d519e9ba8b85d2d8ba10c96d88f7cd"
     },
     {
       "id": "css-stylesheet",
@@ -226,7 +227,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/css-stylesheet.cem-studio.json",
-      "sha256": "6e8024c18d63dcf23ea08ffe4e7e1001962c57eb913d09f8be6750fa10de4bd3"
+      "sha256": "0cb143cd431fe536d798fa1db530c4dff4c783e1558792e84a6fe77bc6a11a66"
     },
     {
       "id": "csv-inventory",
@@ -238,7 +239,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/csv-inventory.cem-studio.json",
-      "sha256": "aef223a313fc9f92e342601db5a9f3076536998e1c10c73ace6d3ec3e1432fa0"
+      "sha256": "292303ec80f8680a20e255e208b3414dfcdb59828d4ae207ceeb6077c9058e0c"
     },
     {
       "id": "html-cem-card",
@@ -250,7 +251,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/html-cem-card.cem-studio.json",
-      "sha256": "770429b4824bc8663b55cac9c578faa7311172d2f337bcc2ad69cec4e7cbe8c1"
+      "sha256": "d2b1d9799f4343bf16380bcd870f9fe89fb43bb486443d00ea5d34fbfd468236"
     },
     {
       "id": "json-schema",
@@ -261,7 +262,7 @@
         "content-types-schema-authoring"
       ],
       "archive": "./examples/json-schema.cem-studio.json",
-      "sha256": "540d02bc2e58ec209182479720343e0b9dd043057e3316e32e5fbe5d99b6c949"
+      "sha256": "0928987cb7eecc050e14bc4ca130befa68867d3e9aeabbe633fa8a31d2f9d8b2"
     },
     {
       "id": "json-yaml-report",
@@ -273,7 +274,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/json-yaml-report.cem-studio.json",
-      "sha256": "80dd8ee7515ed39df30c4cda8b52aaab232ed0d19f252c8bc1afd757245011c8"
+      "sha256": "4ad6e251d01c931646869c37ee667e813cfa08ae098c7dbee63dbc2d44d490ae"
     },
     {
       "id": "login",
@@ -287,7 +288,7 @@
         "content-types-schema-authoring"
       ],
       "archive": "./examples/login.cem-studio.json",
-      "sha256": "5dbf238b4ddde24fab490cbcc4379d3b1720bae609fd0061a0726a3d6970951a"
+      "sha256": "c43e4d8ba571898a299e9970f8c7076954aeaf185a7cd9fbe2961693728af5e3"
     },
     {
       "id": "markdown-site",
@@ -299,7 +300,7 @@
         "content-types-documents-ui"
       ],
       "archive": "./examples/markdown-site.cem-studio.json",
-      "sha256": "0a4db9a79f713c2df966a39ff554e7528412a005896a428435f66c87ef199c20"
+      "sha256": "030b821a88dc765b6d2e6dc679912aece88029fbc2c4ebf773ce385dc2e4bbb7"
     },
     {
       "id": "mathml-formula",
@@ -311,7 +312,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/mathml-formula.cem-studio.json",
-      "sha256": "b69d9aabe1e54d04d9a0bca90ad1f95abf71696711f7ccd9fed5aa88b8abf418"
+      "sha256": "474c2a5167dca2052c112092bd26fd171971f869cb81b6c8fdfc2e80cc23824a"
     },
     {
       "id": "module-maps",
@@ -323,7 +324,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/module-maps.cem-studio.json",
-      "sha256": "5529ac1d065d701711105a0874e96a187302e03f701403b757d2658c8a4a6906"
+      "sha256": "484deed8e93d45ccd57e62d0cf4a50fa153025e4dd2eabebeecdcd145b136b04"
     },
     {
       "id": "native-projections",
@@ -335,7 +336,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/native-projections.cem-studio.json",
-      "sha256": "90994b04267d3f8d3f5cf5967e0399c2bc56b1719a642873fc5c43ad2c5afb0a"
+      "sha256": "72cbf3185c4af0e36291acd78aee0bef23b1654e7505a382bae3d7be98c57e14"
     },
     {
       "id": "portable-config",
@@ -347,7 +348,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/portable-config.cem-studio.json",
-      "sha256": "43af5e2cfecff937f9e8243e9d0ce3d45de09a9ad5b98b623d8ba30acaae9aff"
+      "sha256": "19a13187935f7d55037486dcb98dd07ebcfa216d25c3aca5f3df138ced483524"
     },
     {
       "id": "relax-ng",
@@ -358,7 +359,7 @@
         "content-types-schema-authoring"
       ],
       "archive": "./examples/relax-ng.cem-studio.json",
-      "sha256": "80bd54c6df9690ed15612227e657404fa3c720044d9177eb03efea8c8d89cd11"
+      "sha256": "ecbd81b285c78a0bb8c5539ee421d6e182abca52696b8104b0add25d331c4697"
     },
     {
       "id": "scss-stylesheet",
@@ -370,7 +371,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/scss-stylesheet.cem-studio.json",
-      "sha256": "4d325c60a93edb9a21624ba9d1e442d84d708363fff4ab41906885f1a54ee448"
+      "sha256": "a2dc26f3f8b889c63f27624e023fe6875e9a3bc23efd439a89b0e3b41cf432e8"
     },
     {
       "id": "supplier-pipeline",
@@ -383,7 +384,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/supplier-pipeline.cem-studio.json",
-      "sha256": "a90f0fe7ed4b7b0a0cab1c216fddc57dde911f42b350bfb8c9c9feba9b977b51"
+      "sha256": "fc0edbfabd2c1d59c28e14846e29c98174e02246b985bbd218498e5516cff401"
     },
     {
       "id": "svg-diagram",
@@ -395,7 +396,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/svg-diagram.cem-studio.json",
-      "sha256": "f50dfc15beacfac4f012727633bb5e82f70a1956791abbce3199e357ac970357"
+      "sha256": "621721100df19b1ecc9c2e3544262056ff3fd584108024074bc61db529158618"
     },
     {
       "id": "xhtml-document",
@@ -407,7 +408,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/xhtml-document.cem-studio.json",
-      "sha256": "8f3c8e1d2a28c93d880de780f04e80223ac4f71ec5bc65f2f63fea4d46137925"
+      "sha256": "0983702c0e1f1fbfdf66491ce675d63f395ac5a09a92af94374d51861d58df64"
     },
     {
       "id": "xpath-catalog",
@@ -419,7 +420,7 @@
         "content-types-data"
       ],
       "archive": "./examples/xpath-catalog.cem-studio.json",
-      "sha256": "4eb4753bcb8566be0a5c8227cb2d24ee1c4b00621d87a389a08b9bb2d5e04e7b"
+      "sha256": "dd613c7d7baa06fc6531f1d3a9572201a4514c551281377788e76c675b35c879"
     },
     {
       "id": "xslt-transform",
@@ -430,7 +431,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/xslt-transform.cem-studio.json",
-      "sha256": "5814012145de0537bdc3221d0d746a7dab3fc596c2a101cdcc7bcd86c76dfdd7"
+      "sha256": "6998227f5df3c704fa54138cb0537b417197f5a0bda45b17cdc0775df3adca3d"
     }
   ]
 }

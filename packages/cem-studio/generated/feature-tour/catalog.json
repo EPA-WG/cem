@@ -6,7 +6,7 @@
     "name": "CEM-ML Feature Tour",
     "version": "1.1.0",
     "project": "./feature-tour.project.json",
-    "projectSha256": "1b7a06edf7409ac11e1b26ddc995a0c96c45c2f54e13b2734dcbcd5b11ca19a5"
+    "projectSha256": "c66bd154013012cacc865d482971b657c67e30d9fdbb800bb824832661cd965f"
   },
   "capability": {
     "contractVersion": 2,
@@ -22,8 +22,9 @@
   "dependencyCount": 1,
   "workbenchCount": 5,
   "workbenchResourceCount": 14,
-  "projectResourceCount": 79,
-  "cacheUrlCount": 82,
+  "documentationResourceCount": 1,
+  "projectResourceCount": 80,
+  "cacheUrlCount": 83,
   "examples": [
     {
       "id": "cem-ast-projection-basic-ast",
@@ -860,6 +861,17 @@
       "sha256": "b280c18b0a0698e198166d827ec3fc474724a94a88c284e333e3a80ebab69dce",
       "expected": "./resources/portable-operations/expected/transformation-graph.json",
       "expectedSha256": "b40a07887c4793ad9c0568fc3d98f603b4305f257e15ef4f57d9efe346342755"
+    }
+  ],
+  "documentation": [
+    {
+      "resourceId": "readme",
+      "path": "README.md",
+      "asset": "./resources/documentation/README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "sha256": "a85b7c6edf79d629e9304dc2eb4606379e996bac988d7ca954a35f227d9decee",
+      "source": "examples/projects/schema-examples.md"
     }
   ]
 }

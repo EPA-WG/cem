@@ -279,8 +279,22 @@ assert.equal(
     featureTourCatalog.projectResourceCount,
     featureTourCatalog.exampleCount * 2 +
         featureTourCatalog.dependencyCount +
-        featureTourCatalog.workbenchResourceCount,
+        featureTourCatalog.workbenchResourceCount +
+        featureTourCatalog.documentationResourceCount,
 );
+assert.equal(featureTourCatalog.documentationResourceCount, 1);
+assert.equal(featureTourCatalog.documentation.length, featureTourCatalog.documentationResourceCount);
+for (const document of featureTourCatalog.documentation) {
+    const resource = featureTourProject.resources.find(({ id }) => id === document.resourceId);
+    assert.equal(resource?.path, document.path);
+    assert.equal(resource.contentType, document.contentType);
+    assert.equal(resource.schema, document.schema);
+    assert.equal(resource.sha256, document.sha256);
+    assert.ok(sampleIndex.cacheUrls.includes(`./feature-tour/${document.asset.slice(2)}`));
+    const bytes = await readFile(resolve(outputRoot, 'samples/feature-tour', document.asset));
+    assert.equal(sha256(bytes), document.sha256);
+    assert.deepEqual(bytes, await readFile(resolve(workspaceRoot, document.source)));
+}
 assert.equal(sampleIndex.cacheUrls.length, featureTourCatalog.cacheUrlCount + sampleIndex.projects.length + 1);
 assert.match(serviceWorker, /event\.data\?\.type === 'cem-studio-activate-update'/);
 assert.match(serviceWorker, /event\.waitUntil\(self\.skipWaiting\(\)\)/);

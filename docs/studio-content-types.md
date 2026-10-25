@@ -5,8 +5,13 @@ schemas** sample collection in [the active checklist](todo.md#studio-samples-sup
 The collection is available under **Examples → Content types and schemas**, with
 Data, Documents and UI, Queries and transformations, and Schema authoring folders.
 Examples remain ordinary cloneable projects with resources and configurations.
-Folder listings reuse existing projects; the missing functional workflows below
-remain the next implementation steps.
+Folder listings reuse existing projects. The
+[catalog README/capability audit](studio-catalog-coverage.md) records 22 authored
+projects and 203 configurations, plus the generated Schema examples project and
+the starter. All 208 inventory rows (203 authored and five portable workbenches)
+are checked against their actual resource/configuration references. The 32
+generated package validations remain a separate registry matrix. These counts
+describe declared coverage, not uniform native conformance or UI runnability.
 
 Open `?collection=content-types-and-schemas` for the category listing. A project
 opened from a category carries `collection=<category-id>&sample=<project-id>` so
@@ -376,6 +381,23 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `native-projections` | `events-json` | `validate-events-json` | Validate the native JSON debug export using the registered projection source validator. This checks its supported shape and grants no decoded runtime import or source ownership. |
 | `native-projections` | `invalid-events` | `repair-events-json` | Restore the supported open event kind after the original native projection-shape diagnostic. Native JSON projection diagnostics currently have null text coordinates. |
 | `native-projections` | `invalid-source` | `repair-source` | Review all three original native unclosed-scope diagnostics, including the tokenizer EOF byte/UTF-16 boundary, then restore the missing outer closing brace. |
+| `csv-inventory` | `inventory-source` | `validate-csv` | Validate CSV source syntax and declared dialect, separately from inventory count rules. |
+| `csv-inventory` | `headerless-source` | `inspect-headerless` | Declared header=absent keeps every record as an array of string cells instead of deriving object keys from its first row. |
+| `json-yaml-report` | `api-payload` | `validate-json` | Validate native source syntax; this is not an authored application-schema instance check. |
+| `json-yaml-report` | `api-payload` | `format-json` | Format saved source with the native package tabular profile without overwriting it. |
+| `json-yaml-report` | `report-settings` | `inspect-yaml` | Inspect the retained generic-data CEM tree and original source offsets, rather than a format-specific source AST. |
+| `login` | `login-cem` | `read-edit` | Parse the saved Login source. Its existing generic CEM source identity retains the documented runtime-binding/diagnostic limits; command availability alone is not source conformance. |
+| `login` | `login-cem` | `validate` | Validate the saved Login source. Its existing generic CEM source identity retains the documented runtime-binding/diagnostic limits; command availability alone is not source conformance. |
+| `login` | `login-cem` | `inspect` | Inspect the saved Login source. Its existing generic CEM source identity retains the documented runtime-binding/diagnostic limits; command availability alone is not source conformance. |
+| `login` | `login-cem` | `format-pretty` | Format saved data/login.cem with the native pretty profile. Plain output is available for copy/download; formatting does not overwrite the source. Existing generic CEM source identity retains the documented runtime-binding/diagnostic limits; command availability alone is not source conformance. |
+| `login` | `login-cem` | `format-tabular` | Format saved data/login.cem with the native tabular profile. Plain output is available for copy/download; formatting does not overwrite the source. Existing generic CEM source identity retains the documented runtime-binding/diagnostic limits; command availability alone is not source conformance. |
+| `login` | `login-cem` | `source-colors` | Export the saved Login source as escaped, colored HTML. Copy/download preserves the native source colors; the sandboxed Studio preview blocks styles. Existing generic CEM source identity retains the documented runtime-binding/diagnostic limits; command availability alone is not source conformance. |
+| `login` | `login-html` | `html-conversion` | Convert HTML to CEM-ML. The existing generic CEM source identity retains the documented runtime-binding/diagnostic limits; command availability alone is not source conformance. |
+| `login` | `login-cem` | `semantics-cem` | Run the shared 21-field Login contract and compare with expected/semantics.json. Source wrappers and HTML mirrors are mapped explicitly by the query. |
+| `login` | `login-html` | `semantics-html-cemql` | Run the equivalent CEM-QL module against the same 21-field contract. Consume ready namespace names explicitly with a bounded navigation budget; source declarations remain inert. |
+| `login` | `login-html` | `render-html` | Generate an HTML Login form from the saved source. Edit the template instruction or a source field, save, and rerun. |
+| `login` | `login-cem` | `expression-cem` | Evaluate saved queries/summary.cem-ql against this saved Login source. Compare title and required-field count with expected/expression.json; edit the expression through Resources. |
+| `login` | `login-expression` | `expression-format-pretty` | Format saved queries/summary.cem-ql without evaluating it or adding a module. Plain output is available for copy/download and never overwrites the source. |
 <!-- existing-samples:end -->
 
 The Markdown article operations and complete site build use the same ordinary

@@ -6,6 +6,20 @@ transformations**. Clone it to edit a saved copy. This project demonstrates a
 small stylesheet build with native SCSS variables, a project-owned module, a
 namespaced mixin and nested selectors, followed by a shared HTML/CSS preview.
 
+## Authored identity reference
+
+These are resource identities, including expected artifacts. The configurations
+below determine their supported uses. An identity alone does not grant an
+operation.
+
+| Resource role | Content type | Schema |
+| --- | --- | --- |
+| Transformation graphs | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` |
+| CEM-native templates | `application/vnd.cem.template+cem` | `https://cem.dev/ns/template/cem-native/1` |
+| Stylesheets and expected CSS artifacts | `text/css` | `https://cem.dev/ns/data/css/1` |
+| HTML source and expected artifacts | `text/html` | `https://cem.dev/ns/data/html/1` |
+| SCSS sources and modules | `text/vnd.cem.scss` | `https://cem.dev/ns/data/scss/1` |
+
 ## Sources and identities
 
 - `styles/cards.scss` declares `text/vnd.cem.scss` and schema
@@ -28,20 +42,22 @@ The output contains ordinary `.demo-card`, `.demo-card__title` and
 
 | Configuration | Typical use | Expected result |
 | --- | --- | --- |
-| Validate passive SCSS source | Check grammar before executing a build | Zero errors and warnings, without module reads |
-| Validate syntax without loading a module | Distinguish syntax validation from execution readiness | A valid `@use "not-published"` source still validates passively |
-| Parse expanded CSS AST with SCSS origins | Inspect the native expansion subject | CSS AST with the original SCSS source identity |
-| Parse expanded CSS events with SCSS origins | Inspect the generated typed CSS stream | CSS events with the retained SCSS source identity |
-| Expand SCSS to exact browser CSS | Compile the owned variables, mixin and nested rules | Exact `expected/cards.css` bytes |
-| Repair the SCSS opening brace | Diagnose and repair a saved syntax failure | One `cem.scss.parse_error`, then zero errors after repair |
-| Build HTML and generated CSS | Publish a styled preview with an explicit entry artifact | `generated/index.html` and `generated/cards.css` |
+| `validate-scss` — Validate passive SCSS source | Check grammar before executing a build | Zero errors and warnings, without module reads |
+| `validate-unresolved-module` — Validate syntax without loading a module | Distinguish syntax validation from execution readiness | A valid `@use "not-published"` source still validates passively |
+| `parse-scss-ast` — Parse expanded CSS AST with SCSS origins | Inspect the native expansion subject | CSS AST with the original SCSS source identity |
+| `parse-scss-events` — Parse expanded CSS events with SCSS origins | Inspect the generated typed CSS stream | CSS events with the retained SCSS source identity |
+| `expand-css` — Expand SCSS to exact browser CSS | Compile the owned variables, mixin and nested rules | Exact `expected/cards.css` bytes |
+| `repair-scss-syntax` — Repair the SCSS opening brace | Diagnose and repair a saved syntax failure | One `cem.scss.parse_error`, then zero errors after repair |
+| `build-html` — Build HTML and generated CSS | Publish a styled preview with an explicit entry artifact | `generated/index.html` and `generated/cards.css` |
 
 Parse and conversion perform expansion and may resolve admitted modules. Passive
 source validation does neither. The Parse AST/events describe the resulting
 **CSS** subject, not a raw SCSS syntax tree or a lossless SCSS source export.
 Their displayed token offsets index that expanded CSS subject; they must not be
-read as original SCSS byte positions. Native SCSS origin frames and build output
-provenance are the source-navigation contract where provided.
+read as original SCSS byte positions. Printed native SCSS origin frames are
+inspection data; common Parse publication currently supplies no owned
+artifact-source references. The build's separately published output provenance
+is the source-navigation contract where provided.
 
 ## Edit, save and build
 

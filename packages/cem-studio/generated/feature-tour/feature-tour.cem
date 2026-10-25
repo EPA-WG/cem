@@ -278,4 +278,8 @@
   {import @id="operation-transformation-graph-expected" @src="../../fixtures/portable-operations/expected/transform-graph.json" @content-type="application/json" @opaque=true |
     {export @id="operation-transformation-graph-expected-output" @out="../../dist/static/samples/feature-tour/resources/portable-operations/expected/transformation-graph.json" @content-type="application/json"}
   }
+
+  {import @id="documentation-readme" @src="../../../../examples/projects/schema-examples.md" @content-type="text/markdown; charset=utf-8" @opaque=true |
+    {export @id="documentation-readme-output" @out="../../dist/static/samples/feature-tour/resources/documentation/README.md" @content-type="text/markdown; charset=utf-8"}
+  }
 }

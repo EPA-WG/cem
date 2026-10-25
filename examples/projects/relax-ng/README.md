@@ -4,6 +4,18 @@ This ordinary project compares XML and compact RELAX NG source for a small note
 contract. Open **Content types and schemas → Schema authoring**, clone the
 read-only example, and use the shared editor and native command controls.
 
+## Authored identity reference
+
+These are resource identities, including expected artifacts. The configurations
+below determine their supported uses. An identity alone does not grant an
+operation.
+
+| Resource role | Content type | Schema |
+| --- | --- | --- |
+| RELAX NG XML source | `application/relax-ng+xml` | `https://cem.dev/ns/data/relax-ng/1` |
+| RELAX NG compact source | `application/relax-ng-compact-syntax` | `https://cem.dev/ns/data/relax-ng/1` |
+| XML data | `application/xml` | `https://cem.dev/ns/data/xml/1` |
+
 ## Configurations
 
 | Configuration | Purpose |
@@ -43,6 +55,9 @@ final newline if absent. The tabular configurations compare
 `expected/formatted-note.rng` and `expected/formatted-note.rnc`; they do not
 promise reflow or cross-syntax conversion. The typed Parse views retain original
 native source ranges. Generic Inspect is not advertised as a typed RNG view.
+The Parse coordinates are presentation facts; common Parse currently publishes
+no owned artifact-source references to Studio's Provenance selector. Native
+repair diagnostics remain the separate source-selection path.
 
 The missing XML start case reports `cem.relax_ng.missing_start` at buffer start.
 Restore `<start><ref name="note"/></start>` after the grammar opening line.

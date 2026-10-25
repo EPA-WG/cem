@@ -14,17 +14,34 @@ publishing, using native source processing and the shared output preview.
 rectangles, a circle, two connecting lines and three text labels. Literal
 geometry and `currentColor` paint keep it independent of Studio theme keys.
 
+The remaining declared resource roles in [example.json](example.json) are:
+
+| Resources | Content type | Schema identity |
+| --- | --- | --- |
+| `queries/diagram.xpath` | `application/vnd.cem.xpath` | `https://cem.dev/ns/query/xpath/1` |
+| `templates/diagram.cemt` | `application/vnd.cem.template+cem` | `https://cem.dev/ns/template/cem-native/1` |
+| `graphs/diagram.cem` | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` |
+| `expected/summary.json` | `application/json` | `https://cem.dev/ns/data/json/1` |
+| `expected/diagram.html` | `text/html` | `https://cem.dev/ns/data/html/1` |
+
+The invalid SVG and expected formatted SVG retain the SVG source identity above.
+Query/template/configuration declarations and reference outputs have separate
+roles; their presence does not promise every standalone source operation.
+
 | Configuration | Typical use | Expected result |
 | --- | --- | --- |
-| Inspect retained SVG diagram | Review native elements, attributes and source ranges | SVG expanded names and original byte positions |
-| Validate SVG source | Check XML and supported SVG source contracts | Zero errors and warnings |
-| Query the SVG diagram structure | Read a diagram summary with namespace-aware XPath | Seven strings matching `expected/summary.json` |
-| Format SVG (pretty) | Export a readable same-schema SVG | Exact bytes in `expected/diagram.svg` |
-| Repair the SVG namespace | Diagnose well-formed XML with the wrong document identity | `cem.svg.namespace_missing`, then zero errors after repair |
-| Build and preview the diagram | Publish an HTML page containing the retained SVG subtree | `generated/diagram.html`, matching `expected/diagram.html` |
+| `inspect-svg` — Inspect retained SVG diagram | Review native elements, attributes and source ranges | SVG expanded names and original byte positions |
+| `validate-svg` — Validate SVG source | Check XML and supported SVG source contracts | Zero errors and warnings |
+| `query-svg` — Query the SVG diagram structure | Read a diagram summary with namespace-aware XPath | Seven strings matching `expected/summary.json` |
+| `format-svg` — Format SVG (pretty) | Export a readable same-schema SVG | Exact bytes in `expected/diagram.svg` |
+| `repair-svg-namespace` — Repair the SVG namespace | Diagnose well-formed XML with the wrong document identity | `cem.svg.namespace_missing`, then zero errors after repair |
+| `build-html` — Build and preview the diagram | Publish an HTML page containing the retained SVG subtree | `generated/diagram.html`, matching `expected/diagram.html` |
 
 The query binds `s=http://www.w3.org/2000/svg`. Namespace URI and local name
-determine selection; producer prefix spelling does not. Its summary is:
+determine selection; producer prefix spelling does not. The binding belongs to
+execution: standalone XPath source validation currently does not inherit caller
+namespace bindings, and standalone XPath Parse/Inspect/format are not
+configurations here. The query summary is:
 
 ```text
 title=A small transformation pipeline
@@ -63,6 +80,9 @@ provenance** row to open the original SVG or template range where the native
 operation supplies one. Copied native nodes retain their source boundaries;
 the caption and constructed HTML retain template origins. Generated indentation
 and computed strings do not acquire invented character mappings.
+`inspect-svg` prints original coordinates but currently publishes no owned
+artifact-source references to the Provenance panel. Use the build output's maps
+or native diagnostics; numeric inspection fields are not navigation authority.
 
 Native build, from this project directory:
 
@@ -98,5 +118,6 @@ and the narrower preview vocabulary are separate contracts.
 Once Studio's runtime and project resources are cached, saved copies reopen and
 rebuild offline. Data, commands, templates and drafts remain project-local; the
 catalog original stays unchanged. No JavaScript, external resources or storage
-keys belong to this example. Existing credential recovery refusal and disabled
-automatic whole-Studio recovery remain unchanged.
+keys belong to this example. Entered passwords and one-time codes elsewhere
+block recovery until explicitly cleared; automatic whole-Studio recovery remains
+disabled.

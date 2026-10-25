@@ -22,20 +22,36 @@ the presentation and content aliases select their corresponding expression
 profiles. This example does not translate Content MathML into Presentation
 MathML, evaluate algebra or claim complete MathML Core conformance.
 
+The other declared resource roles in [example.json](example.json) are:
+
+| Resources | Content type | Schema identity |
+| --- | --- | --- |
+| `queries/formula.xpath` | `application/vnd.cem.xpath` | `https://cem.dev/ns/query/xpath/1` |
+| `templates/formula.cemt` | `application/vnd.cem.template+cem` | `https://cem.dev/ns/template/cem-native/1` |
+| `graphs/formula.cem` | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` |
+| `expected/summary.json` | `application/json` | `https://cem.dev/ns/data/json/1` |
+| `expected/formula.html` | `text/html` | `https://cem.dev/ns/data/html/1` |
+
+The malformed and expected formatted presentation resources keep the presentation
+identity above. These declarations do not imply support for every standalone
+query/template/configuration source operation.
+
 ## Configurations
 
 | Configuration | Typical use | Expected result |
 | --- | --- | --- |
-| Inspect retained MathML formula | Review native structure and original source ranges | Namespaced fraction and power elements |
-| Validate Presentation MathML | Check XML and supported presentation-profile facts | Zero errors and warnings |
-| Validate Content MathML source | Check the separate content-profile example | Zero errors and warnings |
-| Query the MathML formula structure | Read a namespace-aware structural summary | Seven strings matching `expected/summary.json` |
-| Format Presentation MathML (pretty) | Export readable same-schema source | Exact bytes in `expected/formula.mml` |
-| Repair the MathML namespace | Diagnose missing MathML document identity | `cem.mathml.namespace_missing`, then zero errors after repair |
-| Build and preview the formula | Construct HTML containing the retained expression | `generated/formula.html`, matching `expected/formula.html` |
+| `inspect-mathml` — Inspect retained MathML formula | Review native structure and original source ranges | Namespaced fraction and power elements |
+| `validate-presentation` — Validate Presentation MathML | Check XML and supported presentation-profile facts | Zero errors and warnings |
+| `validate-content` — Validate Content MathML source | Check the separate content-profile example | Zero errors and warnings |
+| `query-mathml` — Query the MathML formula structure | Read a namespace-aware structural summary | Seven strings matching `expected/summary.json` |
+| `format-mathml` — Format Presentation MathML (pretty) | Export readable same-schema source | Exact bytes in `expected/formula.mml` |
+| `repair-mathml-namespace` — Repair the MathML namespace | Diagnose missing MathML document identity | `cem.mathml.namespace_missing`, then zero errors after repair |
+| `build-html` — Build and preview the formula | Construct HTML containing the retained expression | `generated/formula.html`, matching `expected/formula.html` |
 
 The query binds `m=http://www.w3.org/1998/Math/MathML` and selects expanded
-element names. It reports:
+element names. The binding belongs to execution; standalone XPath source
+validation currently does not inherit caller namespace bindings, and standalone
+XPath Parse/Inspect/format are not configurations here. The query reports:
 
 ```text
 label=x squared plus one, divided by two
@@ -72,6 +88,9 @@ results → Results → Provenance**, then select a **Source-map provenance** ro
 The copied expression retains original native source boundaries where mapped;
 the wrapper retains template origins. Constructed text and synthetic indentation
 do not acquire arbitrary character-by-character input lineage.
+`inspect-mathml` prints source coordinates but the current Parse/Inspect command
+publication supplies no owned artifact-source references to the Provenance panel.
+Use the build's actual output maps or native diagnostics for source navigation.
 
 Native build, from this project directory:
 
@@ -109,5 +128,6 @@ automatic universal format conversion.
 After runtime and source resources are cached, each saved copy can reopen and
 rebuild offline. Its sources, templates, configurations and drafts remain
 independent of the catalog original and other copies. There are no component
-scripts, external fonts or example storage keys. Existing credential refusal and
-disabled automatic whole-Studio recovery remain unchanged.
+scripts, external fonts or example storage keys. Entered passwords and one-time
+codes elsewhere block recovery until explicitly cleared; automatic whole-Studio
+recovery remains disabled.

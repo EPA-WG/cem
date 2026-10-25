@@ -6,6 +6,19 @@ it to edit saved source and build resources independently of the catalog origina
 Typical uses are reviewing a stylesheet's lexical and semantic structure,
 repairing syntax, preserving formatting and publishing a small styled document.
 
+## Authored identity reference
+
+These are resource identities, including expected artifacts. The configurations
+below determine their supported uses. An identity alone does not grant an
+operation.
+
+| Resource role | Content type | Schema |
+| --- | --- | --- |
+| Transformation graphs | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` |
+| CEM-native templates | `application/vnd.cem.template+cem` | `https://cem.dev/ns/template/cem-native/1` |
+| Stylesheets and expected CSS artifacts | `text/css` | `https://cem.dev/ns/data/css/1` |
+| HTML source and expected artifacts | `text/html` | `https://cem.dev/ns/data/html/1` |
+
 ## Source identities and configurations
 
 `styles/cards.css` uses `text/css` and schema
@@ -16,17 +29,23 @@ and the lexical inspection vocabulary are separate views of the same source.
 
 | Configuration | Typical use | Expected result |
 | --- | --- | --- |
-| Inspect native CSS source | Review lossless native CSS source/token fields | CSS document identity, entry mode and original byte length |
-| Inspect retained CSS rules | Review semantic rules, declarations and selectors | Native CSS-namespace nodes with original byte ranges |
-| Validate the scoped CSS source | Check native syntax and source policy | Zero errors and warnings |
-| Format CSS (pretty profile) | Export conservative native CSS formatting | Exact bytes in `expected/cards.css` |
-| Repair the unclosed CSS layer | Locate and repair a missing closing delimiter | `cem.css.invalid_token`, then zero errors after repair |
-| Build and preview the scoped stylesheet | Build one HTML entry and its stylesheet asset | `generated/cards.html` and `generated/cards.css` |
+| `inspect-css` — Inspect native CSS source | Review lossless native CSS source/token fields | CSS document identity, entry mode and original byte length |
+| `inspect-tree` — Inspect retained CSS rules | Review semantic rules, declarations and selectors | Native CSS-namespace nodes with original byte ranges |
+| `validate-css` — Validate the scoped CSS source | Check native syntax and source policy | Zero errors and warnings |
+| `format-css` — Format CSS (pretty profile) | Export conservative native CSS formatting | Exact bytes in `expected/cards.css` |
+| `repair-css` — Repair the unclosed CSS layer | Locate and repair a missing closing delimiter | `cem.css.invalid_token`, then zero errors after repair |
+| `build-html` — Build and preview the scoped stylesheet | Build one HTML entry and its stylesheet asset | `generated/cards.html` and `generated/cards.css` |
 
 The CSS package's current `compact`, `pretty` and `tabular` profiles preserve
 conservative lexical boundaries. The name `pretty` does not promise that existing
 layout, strings, comments, functions, custom properties or nested blocks are
 rewritten. The example's formatted CSS is exactly 241 UTF-8 bytes.
+
+The two Inspect configurations print native coordinate facts in their CEM-ML
+presentation. Common Inspect publication currently supplies no owned source-map
+references for Studio's Provenance selector. Use the build's published mappings
+or actual diagnostic ranges for source selection; printed fields alone are not
+navigation grants.
 
 ## Scoped output and saved edits
 

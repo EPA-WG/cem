@@ -5,6 +5,20 @@ This ordinary Studio project compares bounded native XSLT with the related
 produce the same explicit HTML entry. Open **Content types and schemas → Queries
 and transformations**, select this project, then clone it to edit.
 
+## Authored identity reference
+
+These are resource identities, including expected artifacts. The configurations
+below determine their supported uses. An identity alone does not grant an
+operation.
+
+| Resource role | Content type | Schema |
+| --- | --- | --- |
+| Transformation graphs | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` |
+| CEM-native templates | `application/vnd.cem.template+cem` | `https://cem.dev/ns/template/cem-native/1` |
+| XML data | `application/xml` | `https://cem.dev/ns/data/xml/1` |
+| XSLT source | `application/xslt+xml` | `https://cem.dev/ns/transform/xslt/1` |
+| HTML source and expected artifacts | `text/html` | `https://cem.dev/ns/data/html/1` |
+
 ## Resources and configurations
 
 - `orders-source` — `data/orders.xml`, `application/xml`,
@@ -56,6 +70,11 @@ list-item content as the graph; native formatting whitespace differs. Each path
 has its own byte-exact fixture. The graph's HTML output spans/sidecar identify
 original `templates/page.cemt` ranges. They are template provenance, not invented
 character mappings from computed results into source data.
+
+`inspect-template` and `inspect-graph` explicitly request JSON for source review.
+Their original coordinate fields are presentation data; common Inspect currently
+publishes no owned artifact-source references to Studio's Provenance selector.
+The graph's separately published HTML output maps remain the navigation path.
 
 Standard `application/xslt+xml` selects the native bounded XSLT adapter. Neither
 browser `XSLTProcessor` nor the `custom-element-xslt` compatibility dialect is

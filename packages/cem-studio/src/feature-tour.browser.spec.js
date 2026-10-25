@@ -1,13 +1,15 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { parseCemStudioProjectBundle } from './file-system-provider.js';
+import { loadCemStudioExampleProjects, parseCemStudioProjectBundle } from './file-system-provider.js';
 
 import {
     CEM_STUDIO_FEATURE_TOUR_SEED_ID,
     createCemStudioBrowserValidator,
     installCemStudioFeatureTour,
+    loadCemStudioFeatureTour,
 } from './feature-tour.js';
 import { CEM_STUDIO_REPOSITORY_ID, createCemStudioProjectRepository } from './repository.js';
 import { createCemStudioProjectWorkbench } from './workbench.js';
+import { createCemStudioProjectPreview } from './navigation.js';
 let invalidLogin, loginSchema, loginPackage, loginHtml, loginCem, semanticsQuery, semanticsContract, semanticsCemql, viewTemplate, viewExpected, viewGraph;
 beforeAll(async () => {
     [invalidLogin, loginSchema, loginPackage, loginHtml, loginCem, semanticsQuery, semanticsContract, semanticsCemql, viewTemplate, viewExpected, viewGraph] = await Promise.all([
@@ -41,6 +43,55 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
+    it('loads the generated README as an integrity-checked resource with complete configuration and source identities', async () => {
+        const fixture = await generatedDocumentationFixture();
+        const loaded = await loadCemStudioFeatureTour({ baseUrl: fixture.base, fetch: fixture.fetch });
+        const { catalog, bundle } = loaded;
+        expect(catalog.documentationResourceCount).toBe(1);
+        expect(catalog.workbenchResourceCount).toBe(14);
+        expect(bundle.project.resources).toHaveLength(catalog.projectResourceCount);
+        expect(Object.keys(bundle.contents)).toHaveLength(catalog.projectResourceCount);
+        expect(bundle.project.resources[0].id).toBe(catalog.examples[0].resourceId);
+        const document = catalog.documentation[0], resource = bundle.project.resources.find(item => item.id === document.resourceId);
+        expect(resource).toMatchObject({ id: 'readme', path: 'README.md', contentType: 'text/markdown; charset=utf-8', schema: 'https://cem.dev/ns/data/markdown/1' });
+        expect(bundle.contents.readme).toEqual(fixture.schemaBundle.contents.readme);
+        expect(new TextDecoder().decode(bundle.contents.readme)).toBe(await (await fetch(new URL('../../../examples/projects/schema-examples.md', import.meta.url))).text());
+        expect(fixture.index.cacheUrls).toContain(`./feature-tour/${document.asset.slice(2)}`);
+        const text = new TextDecoder().decode(bundle.contents.readme);
+        for (const example of catalog.examples) {
+            expect(text).toContain('`validate-' + example.packageId + '`');
+            expect(text).toContain('`' + example.contentType + '`'); expect(text).toContain('`' + example.schema + '`');
+        }
+        for (const workbench of catalog.workbenches) expect(text).toContain('`' + workbench.entryId + '`');
+        expect(text).toContain('Automatic whole-Studio recovery remains disabled');
+    });
+
+    it('refuses corrupted generated README bytes and mismatched documentation metadata', async () => {
+        const fixture = await generatedDocumentationFixture(), document = fixture.catalog.documentation[0];
+        const source = new URL(document.asset, fixture.base).href;
+        await expect(loadCemStudioFeatureTour({ baseUrl: fixture.base, fetch: async url => String(url) === source
+            ? new Response('Changed documentation') : fixture.fetch(url) })).rejects.toThrow(/documentation.*SHA-256/);
+        const catalog = { ...fixture.catalog, documentation: [{ ...document, path: 'other.md' }] };
+        await expect(loadCemStudioFeatureTour({ baseUrl: fixture.base, fetch: async url => String(url) === new URL('catalog.json', fixture.base).href
+            ? new Response(JSON.stringify(catalog)) : fixture.fetch(url) })).rejects.toThrow('documentation metadata');
+    });
+
+    it('keeps the starter source as its default document when README is an ordinary second resource', async () => {
+        const fixture = await generatedDocumentationFixture();
+        const examples = await loadCemStudioExampleProjects({ baseUrl: new URL('../', fixture.base), commonVersion: fixture.index.commonVersion, fetch: fixture.fetch });
+        const bundle = await examples.starter.load();
+        expect(bundle.project.entries).toEqual([]);
+        expect(bundle.project.resources.map(resource => resource.id)).toEqual(['source', 'readme']);
+        expect(bundle.project.resources[0]).toMatchObject({ path: 'data/main.cem', contentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1' });
+        expect(new TextDecoder().decode(bundle.contents.readme)).toBe(await (await fetch(new URL('../../../examples/projects/starter.md', import.meta.url))).text());
+        const preview = createCemStudioProjectPreview({ repository: { query: async () => ({ value: [] }) } });
+        try {
+            preview.setContext({ key: 'starter', project: bundle.project, bundle });
+            expect(preview.snapshot().configurationId).toBe('html-v1:source');
+            expect(preview.snapshot().configurations).toEqual([{ id: 'html-v1:source', name: 'data/main.cem', kind: 'document-html', resourceId: 'source' }]);
+        } finally { preview.dispose(); }
+    });
+
     for (const projectId of ['cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng', 'module-maps', 'portable-config', 'native-projections']) {
         it(`runs ${projectId} authored native configurations and repairs original sources`, async () => {
             const { bundle, definition, decode } = await authoredProject(projectId);
@@ -1539,6 +1590,42 @@ async function csvInventoryProject() {
     expect(archive.ok && definition.ok).toBe(true);
     const bundle = parseCemStudioProjectBundle(new Uint8Array(await archive.arrayBuffer()));
     return { bundle, definition: await definition.json(), decode: id => new TextDecoder().decode(bundle.contents[id]) };
+}
+
+async function generatedDocumentationFixture() {
+    const base = new URL('https://feature-tour.test/samples/feature-tour/'), samplesBase = new URL('../', base);
+    const assets = new Map();
+    const generated = async path => {
+        const response = await fetch(new URL(path, new URL('../generated/feature-tour/catalog.json', import.meta.url)));
+        expect(response.ok, `${path}: ${response.url}`).toBe(true);
+        return new Uint8Array(await response.arrayBuffer());
+    };
+    const [catalogBytes, projectBytes, indexBytes, schemaBytes, starterBytes] = await Promise.all([
+        'catalog.json', 'feature-tour.project.json', 'index.json', 'examples/schema-examples.cem-studio.json', 'examples/starter.cem-studio.json',
+    ].map(generated));
+    const catalog = JSON.parse(new TextDecoder().decode(catalogBytes)), index = JSON.parse(new TextDecoder().decode(indexBytes));
+    const schemaBundle = parseCemStudioProjectBundle(schemaBytes);
+    const asset = (path, bytes) => assets.set(new URL(path, base).href, bytes);
+    asset('catalog.json', catalogBytes); asset(catalog.seed.project, projectBytes);
+    assets.set(new URL('index.json', samplesBase).href, indexBytes);
+    assets.set(new URL(index.starter.archive, samplesBase).href, starterBytes);
+    assets.set(new URL(index.projects.find(project => project.id === 'schema-examples').archive, samplesBase).href, schemaBytes);
+    for (const item of catalog.examples) {
+        asset(item.asset, schemaBundle.contents[item.resourceId]);
+        asset(item.runConfig, await generated(item.runConfig.slice(2)));
+        for (const dependency of item.dependencies) asset(dependency.asset, schemaBundle.contents[dependency.resourceId]);
+    }
+    for (const item of catalog.workbenches) {
+        asset(item.asset, schemaBundle.contents[item.resourceId]);
+        asset(item.expected, schemaBundle.contents[item.expectedResourceId]);
+        asset(item.runConfig, await generated(item.runConfig.slice(2)));
+        for (const dependency of item.dependencies) asset(dependency.asset, schemaBundle.contents[dependency.resourceId]);
+    }
+    for (const item of catalog.documentation) asset(item.asset, schemaBundle.contents[item.resourceId]);
+    return { base, catalog, index, schemaBundle, fetch: async url => {
+        const bytes = assets.get(String(url));
+        return bytes ? new Response(bytes) : new Response('Unknown fixture resource', { status: 404 });
+    } };
 }
 
 async function authoredProject(id) {

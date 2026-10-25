@@ -1,8 +1,65 @@
 # Login project
 
+Use this ordinary project to compare HTML/CEM form semantics, author native
+queries and templates, and preview a shared-control Login view. The local form
+does not authenticate an account or contact an identity provider.
+
 Open any resource or configuration in the shared Studio workspace. Edit and save
 `data/login.cem`, then use **Validate login**, **Parse login**, or **Inspect login**.
 **Convert HTML to CEM-ML** uses `data/login.html` as its input.
+
+## Resource identities
+
+The declared identities in [example.json](example.json) select these contracts.
+Display paths do not substitute for a resource's schema identity.
+
+| Saved resources | Content type | Schema identity |
+| --- | --- | --- |
+| `data/login.cem`, `views/login.cem` | `application/cem` | `https://cem.dev/ns/cem-ml/1` |
+| `data/login.html`, `expected/view.html` | `text/html` | `https://cem.dev/ns/data/html/1` |
+| `data/login-invalid.cem` | `application/cem` | `urn:demo:login` |
+| `schemas/login-schema.cem` | `application/cem` | `https://cem.dev/ns/schema/1` |
+| `schemas/login-schema-package.cem` | `application/vnd.cem.schema-package+cem` | `https://cem.dev/ns/schema-package/1` |
+| `queries/semantics.xpath` | `application/vnd.cem.xpath` | `https://cem.dev/ns/query/xpath/1` |
+| `queries/semantics.cemql` | `application/vnd.cem.query+cem-ql` | `https://cem.dev/ns/query/cem-ql/1` |
+| `queries/summary.cem-ql` | `application/vnd.cem.query-expression+cem-ql` | `https://cem.dev/ns/query/cem-ql/1#expression` |
+| `templates/view.cemt` | `application/vnd.cem.template+cem` | `https://cem.dev/ns/template/cem-native/1` |
+| `graphs/view.cem` | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` |
+| `expected/semantics.json`, `expected/expression.json` | `application/json` | `https://cem.dev/ns/data/json/1` |
+
+The invalid Login resource exercises the project-owned instance schema. The
+generic CEM-ML source contract and that instance rule are separate checks. The
+live view's current generic identity has the source-operation limit described
+below; these identities do not promise every operation for every resource.
+
+## Configuration index
+
+These are stable configuration IDs in the same project. Their Studio labels and
+workflow details appear below; generated configuration resources are ordinary
+saved project resources.
+
+| Configuration ID | Studio label | Expected result |
+| --- | --- | --- |
+| `read-edit` | Parse login | Native CEM-ML AST presentation |
+| `validate` | Validate login | Zero errors and three unresolved-reference warnings |
+| `inspect` | Inspect login | Native structural CEM-ML presentation |
+| `format-pretty` | Format Login (pretty) | Expanded plain CEM-ML source |
+| `format-tabular` | Format Login (tabular) | Tabular plain CEM-ML source |
+| `source-colors` | Export Login source colors (HTML) | Escaped source-color HTML |
+| `html-conversion` | Convert HTML to CEM-ML | Native CEM-ML source export |
+| `validation-repair` | Validate form method | `demo.login.method_required`, then repair to zero errors |
+| `semantics-html` | Login semantics from HTML | The 21-field `expected/semantics.json` contract |
+| `semantics-cem` | Login semantics from CEM-ML | The same 21-field contract |
+| `semantics-html-cemql` | Login semantics from HTML (CEM-QL) | The same 21-field contract |
+| `semantics-cem-cemql` | Login semantics from CEM-ML (CEM-QL) | The same 21-field contract |
+| `render-html` | Render Login from HTML | HTML matching `expected/view.html` |
+| `render-cem` | Render Login from CEM-ML | The same expected HTML |
+| `render-graph` | Render Login graph | `generated/login.html`, matching the expected HTML |
+| `live-view` | Login live view | Shared-control light-DOM view, with the source-identity limit below |
+| `expression-html` | Evaluate Login expression (HTML) | `title=Sign in` and `required=2` |
+| `expression-cem` | Evaluate Login expression (CEM-ML) | The same `expected/expression.json` contract |
+| `expression-format-pretty` | Format Login expression (pretty) | Saved standalone expression source |
+| `expression-format-tabular` | Format Login expression (tabular) | The same authored expression layout |
 
 ## Format the saved source
 
@@ -92,7 +149,7 @@ trusted worker host supplies that ceiling; request data cannot raise a stricter
 host limit. Global defaults remain unchanged. The common browser runtime links
 CEM-QL adapters into the same WASM binary and retains the native source owners.
 
-Open `queries/semantics.cemql` through Resources, edit it, **Save and validate**,
+Open `queries/semantics.cemql` in Structure, edit it, **Save and validate**,
 then select a CEM-QL configuration and **Run configuration**. For example, rename
 `local:field("inputs", seq:count(inputs))` to use `"input-count"`; only that
 result field changes. Restore and save the original to recover the baseline.
@@ -121,7 +178,7 @@ and execution remain available.
 ## Standalone expression evaluation and formatting
 
 Login 2.8.0 has twenty ordinary configurations. Open `queries/summary.cem-ql`
-through Resources, or select **Format Login expression (pretty)** or
+in Structure, or select **Format Login expression (pretty)** or
 **Format Login expression (tabular)** to edit it directly. This is one standalone
 CEM-QL expression with the explicit expression content type/schema, not a module.
 Its comment, local bindings and Unicode remain in the source.
@@ -213,6 +270,14 @@ own source URI/ranges. Production template artifacts still strip source maps.
 
 ### Login live view
 
+`views/login.cem` currently declares the generic CEM-ML source identity. Native
+standalone Parse can therefore report hard unknown runtime-binding diagnostics
+even when its default exit status is zero. Interactive preview and standalone
+source validation are distinct contracts: this configuration is not evidence of
+clean template-source validation. Adopting the registered element-template
+identity is an explicit follow-up; the [shared card project](../html-cem-card/README.md)
+already demonstrates that identity without changing this saved resource's contract.
+
 Open **Login live view** in an ordinary Studio project copy. Its configuration parses
 `views/login.cem`, then the shared `cem-media-preview` renders that saved template
 in a script-free frame using `cem-element` light DOM. The configuration's explicit
@@ -231,3 +296,13 @@ Unsaved drafts never replace persisted execution inputs. Reload works offline;
 a fresh project copy keeps the original view and data. Fields and the local action
 show transient interaction only: credentials are neither submitted nor saved.
 The example owns its light theme; it does not read or write Studio's theme key.
+
+Entered passwords and one-time codes block recovery until the user explicitly
+clears them. They are not exported in checkpoints or project bundles. Automatic
+whole-Studio recovery remains disabled. Shared declarative controls own the
+interaction; the project adds no JavaScript behavior or credential persistence.
+
+Parse/Inspect displays native coordinates in its structural presentation, but
+currently publishes no owned artifact-source references to Studio's Provenance
+panel. The graph provenance described above is a separate native output contract;
+printed source IDs and byte ranges must not be turned into links by the example.

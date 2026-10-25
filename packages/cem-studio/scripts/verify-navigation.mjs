@@ -16,6 +16,7 @@ import { verifySchemaAuthoringProjects } from './verify-schema-authoring-project
 import { verifyModuleMapProject } from './verify-module-map-project.mjs';
 import { verifyPortableConfigProject } from './verify-portable-config-project.mjs';
 import { verifyNativeProjectionProject } from './verify-native-projection-project.mjs';
+import { verifyCatalogDocumentation } from './verify-catalog-documentation.mjs';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const csvOnly = process.argv.includes('--csv-only');
@@ -28,8 +29,9 @@ const dataQueriesOnly = process.argv.includes('--data-queries-only');
 const transformationsSchemasOnly = process.argv.includes('--transformations-schemas-only');
 const moduleConfigsOnly = process.argv.includes('--module-configs-only');
 const nativeProjectionsOnly = process.argv.includes('--native-projections-only');
+const catalogDocsOnly = process.argv.includes('--catalog-docs-only');
 const schemaAssets = process.argv.includes('--schema-assets');
-if ([csvOnly, documentsOnly, markdownOnly, htmlCemOnly, svgMathmlOnly, stylesheetsOnly, dataQueriesOnly, transformationsSchemasOnly, moduleConfigsOnly, nativeProjectionsOnly].filter(Boolean).length > 1) throw new Error('Select one project verification scope.');
+if ([csvOnly, documentsOnly, markdownOnly, htmlCemOnly, svgMathmlOnly, stylesheetsOnly, dataQueriesOnly, transformationsSchemasOnly, moduleConfigsOnly, nativeProjectionsOnly, catalogDocsOnly].filter(Boolean).length > 1) throw new Error('Select one project verification scope.');
 if (schemaAssets && !csvOnly) throw new Error('The optional profile replay requires --csv-only.');
 const server = await startStaticServer(resolve(projectRoot, schemaAssets ? 'dist/schema-assets' : 'dist/static'));
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
@@ -54,7 +56,13 @@ const submit = async (name, action) => { if (name) await page.getByRole('dialog'
 const heading = async () => assert.equal(await page.getByRole('heading', { level: 1 }).innerText(), await page.title());
 
 try {
-    if (nativeProjectionsOnly) {
+    if (catalogDocsOnly) {
+        const catalogDocumentation = await verifyCatalogDocumentation({ page, context, url: server.url });
+        assert.deepEqual(errors, []);
+        await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
+        await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/catalog-documentation.json'), `${JSON.stringify({ schemaVersion: 1, catalogDocumentation }, null, 2)}\n`);
+        console.log('Studio catalog documentation: all original README views, source-first starter, independent saved copies and offline draft retention passed.');
+    } else if (nativeProjectionsOnly) {
         const nativeProjectionProject = await verifyNativeProjectionProject({ page, context, url: server.url });
         assert.deepEqual(errors, []);
         await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
@@ -366,9 +374,10 @@ try {
     const moduleMapProject = await verifyModuleMapProject({ page, context, url: server.url });
     const portableConfigProject = await verifyPortableConfigProject({ page, context, url: server.url });
     const nativeProjectionProject = await verifyNativeProjectionProject({ page, context, url: server.url });
+    const catalogDocumentation = await verifyCatalogDocumentation({ page, context, url: server.url });
     assert.deepEqual(errors, []);
     await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
-    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, csvInventory, xmlXhtmlProjects, htmlCemCard, svgMathmlProjects, stylesheetProjects, dataQueryProjects, transformationProjects, schemaAuthoringProjects, moduleMapProject, portableConfigProject, nativeProjectionProject, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
+    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, csvInventory, xmlXhtmlProjects, htmlCemCard, svgMathmlProjects, stylesheetProjects, dataQueryProjects, transformationProjects, schemaAuthoringProjects, moduleMapProject, portableConfigProject, nativeProjectionProject, catalogDocumentation, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
     console.log('Studio navigation: nested catalog, contextual/legacy URLs, readonly originals, independent clones, drafts, themes, responsive layout and offline catalog/Supplier/Markdown site/JSON and YAML report/CSV inventory/XML and XHTML builds passed.');
     }
 } catch (error) {

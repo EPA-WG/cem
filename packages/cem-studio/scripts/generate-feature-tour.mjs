@@ -418,6 +418,24 @@ for (const scenario of operationScenarioDefinitions) {
     });
 }
 
+const dependencyCount = examples.reduce((count, example) => count + example.dependencies.length, 0);
+const workbenchResourceCount = projectResources.length - (examples.length * 2 + dependencyCount);
+const readmeSourcePath = resolve(workspaceRoot, 'examples/projects/schema-examples.md');
+const readmeBytes = await readFile(readmeSourcePath);
+const documentation = [{
+    resourceId: 'readme', path: 'README.md', asset: './resources/documentation/README.md',
+    contentType: 'text/markdown; charset=utf-8', schema: 'https://cem.dev/ns/data/markdown/1',
+    sha256: sha256(readmeBytes), source: workspacePath(readmeSourcePath),
+}];
+for (const document of documentation) {
+    projectResources.push({ id: document.resourceId, role: 'data', sourceKind: 'project-file',
+        path: document.path, referencePath: document.path, contentType: document.contentType,
+        schema: document.schema, revision: 1, sha256: document.sha256 });
+    projectContents[document.resourceId] = readmeBytes;
+    graphNodes.push(graphCopyNode(`documentation-${document.resourceId}`, workspacePath(readmeSourcePath, generatedRoot),
+        `../../dist/static/samples/feature-tour/${document.asset.slice(2)}`, document.contentType));
+}
+
 const project = {
     $schema: 'https://cem.dev/ns/studio/project/1',
     schemaVersion: 1,
@@ -434,7 +452,6 @@ const project = {
 const projectBytes = jsonBytes(project);
 generated.set('feature-tour.project.json', projectBytes);
 
-const dependencyCount = examples.reduce((count, example) => count + example.dependencies.length, 0);
 const operationCacheUrls = unique([
     ...Object.values(operationFixtures).map(({ deployedPath }) => `./${deployedPath}`),
     ...workbenches.flatMap(({ runConfigResourceId, expected }) => [
@@ -442,7 +459,7 @@ const operationCacheUrls = unique([
         expected,
     ]),
 ]);
-const cacheUrlCount = 3 + examples.length * 2 + dependencyCount + operationCacheUrls.length;
+const cacheUrlCount = 3 + examples.length * 2 + dependencyCount + operationCacheUrls.length + documentation.length;
 const catalog = {
     schemaVersion: 1,
     commonVersion: runtime.commonVersion,
@@ -466,11 +483,13 @@ const catalog = {
     exampleCount: examples.length,
     dependencyCount,
     workbenchCount: workbenches.length,
-    workbenchResourceCount: projectResources.length - (examples.length * 2 + dependencyCount),
+    workbenchResourceCount,
+    documentationResourceCount: documentation.length,
     projectResourceCount: projectResources.length,
     cacheUrlCount,
     examples,
     workbenches,
+    documentation,
 };
 generated.set('catalog.json', jsonBytes(catalog));
 
@@ -498,10 +517,13 @@ const exampleProjects = [{ archive: schemaArchive, record: { id: 'schema-example
     archive: './examples/schema-examples.cem-studio.json', sha256: sha256(schemaArchive) } },
     ...await createExampleProjects(workspaceRoot, runtime.commonVersion)];
 const starterBytes = Buffer.from('@doc cem-ml 1\n{main | My project}\n');
+const starterReadmeBytes = await readFile(resolve(workspaceRoot, 'examples/projects/starter.md'));
 const starterProject = { ...project, id: 'starter', name: 'CEM-ML project', description: 'An editable CEM-ML project.',
     rootUri: 'studio://starter/', entries: [], resources: [{ id: 'source', path: 'data/main.cem', referencePath: 'data/main.cem',
-        role: 'data', sourceKind: 'project-file', contentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1', revision: 1, sha256: sha256(starterBytes) }] };
-const starterArchive = serializeCemStudioProjectBundle({ project: starterProject, contents: { source: starterBytes } });
+        role: 'data', sourceKind: 'project-file', contentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1', revision: 1, sha256: sha256(starterBytes) },
+    { id: 'readme', path: 'README.md', referencePath: 'README.md', role: 'data', sourceKind: 'project-file',
+        contentType: 'text/markdown; charset=utf-8', schema: 'https://cem.dev/ns/data/markdown/1', revision: 1, sha256: sha256(starterReadmeBytes) }] };
+const starterArchive = serializeCemStudioProjectBundle({ project: starterProject, contents: { source: starterBytes, readme: starterReadmeBytes } });
 const starter = { id: 'starter', name: starterProject.name, version: '1.0.0', archive: './examples/starter.cem-studio.json', sha256: sha256(starterArchive) };
 generated.set(starter.archive.slice(2), starterArchive);
 for (const example of exampleProjects) generated.set(example.record.archive.slice(2), example.archive);
@@ -511,6 +533,7 @@ const sampleCacheUrls = [
     ...exampleProjects.map(example => example.record.archive),
     './feature-tour/catalog.json',
     './feature-tour/feature-tour.project.json',
+    ...documentation.map(document => `./feature-tour/${document.asset.slice(2)}`),
     ...examples.flatMap(({ asset, runConfig, dependencies }) => [
         `./feature-tour/${asset.slice(2)}`,
         `./feature-tour/${runConfig.slice(2)}`,

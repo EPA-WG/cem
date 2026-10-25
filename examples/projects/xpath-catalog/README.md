@@ -6,6 +6,18 @@ Clone it to edit its resources and configurations without changing the catalog
 original or another saved copy. It demonstrates document selection, a small
 supplier join, data-driven parameter maps and native result inspection.
 
+## Authored identity reference
+
+These are resource identities, including expected artifacts. The configurations
+below determine their supported uses. An identity alone does not grant an
+operation.
+
+| Resource role | Content type | Schema |
+| --- | --- | --- |
+| Data and expected JSON artifacts | `application/json` | `https://cem.dev/ns/data/json/1` |
+| XPath source | `application/vnd.cem.xpath` | `https://cem.dev/ns/query/xpath/1` |
+| XML data | `application/xml` | `https://cem.dev/ns/data/xml/1` |
+
 ## Sources and identities
 
 `data/catalog.xml` uses `application/xml` with schema
@@ -27,13 +39,13 @@ Query identity comes from metadata, not filename inference or text guessing.
 
 | Configuration | Typical use | Result |
 | --- | --- | --- |
-| Validate the expanded-name XPath source | Check standalone grammar, namespace names and source policy | Zero errors and warnings |
-| Filter available products | Select stock of at least four and project readable product labels | `tea:Green tea`, `cocoa:Cocoa` |
-| Inspect selected native product nodes | Inspect real retained nodes and source provenance | Two product node identities with their original opening-tag ranges |
-| Join products to their suppliers | Evaluate dependent `for` bindings and matching supplier IDs | Three order-preserving supplier summaries |
-| Apply the saved selection parameter map | Build a map from XML options and filter/join using its lookups | Two option fields and two selected product/supplier rows |
-| Inspect the native map and array result | Inspect native map/array/atomic item kinds | One map containing an integer, a string and an array of SKUs |
-| Repair the unclosed XPath predicate | Diagnose and close the independent malformed source | Two native diagnostics, then no diagnostics after repair |
+| `validate-filter` — Validate the expanded-name XPath source | Check standalone grammar, namespace names and source policy | Zero errors and warnings |
+| `query-filter` — Filter available products | Select stock of at least four and project readable product labels | `tea:Green tea`, `cocoa:Cocoa` |
+| `query-nodes` — Inspect selected native product nodes | Inspect real retained nodes and source provenance | Two product node identities with their original opening-tag ranges |
+| `query-join` — Join products to their suppliers | Evaluate dependent `for` bindings and matching supplier IDs | Three order-preserving supplier summaries |
+| `query-parameters` — Apply the saved selection parameter map | Build a map from XML options and filter/join using its lookups | Two option fields and two selected product/supplier rows |
+| `inspect-parameters` — Inspect the native map and array result | Inspect native map/array/atomic item kinds | One map containing an integer, a string and an array of SKUs |
+| `repair-query` — Repair the unclosed XPath predicate | Diagnose and close the independent malformed source | Two native diagnostics, then no diagnostics after repair |
 
 The query configurations use the original lifecycle-owned XML tree. Native
 comparisons, XPath focus, dependent bindings, simple mapping and map lookup run
@@ -73,6 +85,12 @@ column 5, byte offset 320, length 47; the second is line 11, column 5, byte offs
 the original catalog. These are original opening-element spans, not whole
 product-subtree or arbitrary descendant-character mappings. After source edits,
 follow the new result's coordinates rather than assuming baseline offsets.
+
+Those original-data coordinates are explicit result fields, not newly granted
+Studio source links. The common query publication used by the Provenance selector
+identifies the admitted query buffer and its expression ranges separately.
+Source-node exports must not be reparsed into runtime nodes or treated as owned
+navigation endpoints merely because they contain a URI and numbers.
 
 The scalar reports and constructed map/array retain their native expression
 origin frames and the result's `expressionUri`. Computed text does not acquire
