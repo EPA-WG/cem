@@ -167,7 +167,12 @@ cover article inspection/query/preview, typed metadata repair, complete site ass
 native source-range navigation and independent saved/offline copies. Authored HTML
 policy, shared declarative controls and credential privacy remain unchanged.
 
-- [ ] Add HTML and CEM-ML projects: semantic comparison, a minimal reusable declarative component and data-bound HTML generation. Reuse Login where appropriate; keep theme/storage keys independent from Studio and preserve credential privacy policy.
+Completed [HTML/CEM card and shared component workflows](archive/todo-completed-html-cem-card-2026-10-25.md)
+cover semantic comparison, production card/slot composition, native HTML builds,
+source inspection and policy repair, saved/offline previews, explicit worker
+Inspect formats and shared projected slice-event ownership. Existing Login
+contracts, declaration authority and credential privacy remain unchanged.
+
 - [ ] Add SVG and MathML projects: inspect and validate a vector diagram and a mathematical expression, then preview supported output using shared preview components.
 - [ ] Add CSS, SCSS and CSS-selector projects: inspect/format a stylesheet, demonstrate supported variable/nesting transformations and select document elements. State native subset limits and include scoped-style examples where supported.
 - [ ] Add CEM-QL and XPath projects: standalone expressions, selecting/filtering/joining data, parameter maps and inspecting native results with source provenance.
@@ -182,6 +187,10 @@ policy, shared declarative controls and credential privacy remain unchanged.
 
 These remain explicit follow-ups after the functional Studio sample catalog.
 Keep the original admission, provenance, privacy and verification bounds.
+
+- [ ] Design lossless typed CEM-ML inspection of source strings containing both single and double quotes, including embedded rich-content fences. The canonical `cem-card.xhtml` XML AST currently reaches the deliberate native attribute-string encoder refusal; keep that guard and original source bytes until an admitted representation exists. Add native round-trip fixtures before changing the writer/tokenizer contract. The HTML/CEM card project explicitly requests JSON for this one AST export; it is a presentation boundary, never an internal AST handoff.
+
+- [ ] Adopt the existing element-template source identity for remaining live-view examples such as Login. Its current generic CEM Parse reports hard unknown runtime-binding diagnostics despite exiting successfully; the new card sample uses the correct template identity. Verify source validation, editor behavior, live rendering, saved/offline copies and credential/recovery contracts before changing existing example metadata; preserve diagnostic severity and old saved-project identities.
 
 - [ ] Repair JSON/YAML source Parse identity and diagnostics: JSON `parse --format ast` currently exits successfully with CEM bare-brace tokenizer errors, while clean `inspect --show ast` presents an imported CEM generic-data tree. Distinguish source-format metadata from projection identity and retain original source start offsets; do not replace native parsing with application JavaScript.
 

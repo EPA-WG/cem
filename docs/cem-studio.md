@@ -3521,6 +3521,25 @@ dependency and rerunning replaces the view; unsaved drafts leave persisted input
 unchanged. Saved sources reopen offline, while entered credentials are discarded.
 The existing static HTML output preview continues to deny scripts and styling.
 
+The ordinary **HTML and CEM card** project (`html-cem-card`) provides a smaller
+Documents and UI example beside Login. Its live CEM-ML view reads saved HTML data
+and composes the existing shared `cem-card`, action and alert declarations. Its
+native CEMT graph reads the same HTML data and produces a separate, script-free
+HTML artifact with an explicit build entry. The equivalent CEM source supports
+semantic comparison; the two source representations are independently editable.
+
+The project's component resource is an inspectable snapshot of the canonical
+`cem-card` declaration, parsed as XML because its root is `cem-element`, rather
+than an XHTML `html` document. Its inspection configuration explicitly requests
+JSON: the current CEM-ML attribute-string writer cannot encode both quote styles
+in the template source. This named structural export is a presentation result;
+it does not supply an AST to the runtime. The live preview uses the trusted packaged shared
+declaration. Editing the snapshot does not register or replace a component in the
+preview. Project-defined declarations remain denied. The native artifact is an
+authored CEMT projection, not a whole-page DCE compilation or hydration claim.
+The view owns its light theme and transient notice without using Studio's
+storage keys. Login retains the broader semantic and credential-policy examples.
+
 Native CEM-QL source Parse/Inspect and standalone-expression formatting are
 available. Login includes **Format Login (pretty)** and **Format Login (tabular)**
 as ordinary Convert configurations, alongside **Export Login source colors (HTML)**,

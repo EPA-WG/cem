@@ -612,6 +612,10 @@ fn command_operation(
                 "show",
                 &option_string(parsed, "show").unwrap_or_else(|| "summary".to_owned()),
             )?,
+            format: Some(enum_value(
+                "format",
+                &option_string(parsed, "format").unwrap_or_else(|| "cem".to_owned()),
+            )?),
         }),
         "convert" => Ok(PortableOperationRequestV1::Convert {
             input_id: single_input()?,
@@ -1194,6 +1198,9 @@ fn output_scope(
         scope.default_content_type = option_string(parsed, "to_content_type");
         scope.schema = option_string(parsed, "to_schema");
         scope.output_color_type = option_string(parsed, "output_color_type");
+    } else if command == "inspect" && option_string(parsed, "format").as_deref() == Some("json") {
+        scope.default_content_type = Some("application/json".to_owned());
+        scope.output_color_type = Some("none".to_owned());
     } else if command == "parse" || command == "inspect" {
         scope.cemt_formatter_profile = Some("tabular".to_owned());
         if stdout_is_terminal && !global_bool(parsed, "no_color") {
@@ -1635,6 +1642,118 @@ mod tests {
                 panic!("virtual replacement grant must fail before resource loading");
             };
             assert_eq!(error.code, "cem.command.replacement_grant_host_required");
+        }
+    }
+
+    #[test]
+    fn inspect_named_json_survives_invocation_preparation_without_cem_serialization() {
+        use crate::capability::{capability_manifest, CapabilityRequest, RuntimeKind};
+        use crate::command_operation::{prepare_command_operation_v1, PreparedPortableOperationV1};
+        use crate::engine::{CemMlEngine, EngineContext};
+
+        let capability = capability_manifest(CapabilityRequest {
+            runtime: RuntimeKind::Native,
+            target_identity: "x86_64-unknown-linux-gnu".into(),
+            abi_identity: "rust:1".into(),
+            debug_control_active: false,
+        })
+        .unwrap();
+        let uri = "studio://inspect-format/components/note.xml";
+        let literal = "can't \"quote\" ```retained template source```";
+        for format in [Some("json"), None, Some("cem")] {
+            let mut command = parsed("inspect");
+            command.positionals.insert(
+                "input".into(),
+                ParsedCommandValueV1::String("components/note.xml".into()),
+            );
+            for (key, value) in [
+                ("show", "ast"),
+                ("content_type", "application/xml"),
+                ("schema", "https://cem.dev/ns/data/xml/1"),
+            ] {
+                command
+                    .options
+                    .insert(key.into(), ParsedCommandValueV1::String(value.into()));
+            }
+            if let Some(format) = format {
+                command
+                    .options
+                    .insert("format".into(), ParsedCommandValueV1::String(format.into()));
+            }
+            let mut environment = environment();
+            environment.cwd = "studio://inspect-format/".into();
+            let resources = CommandUriMapV1::from(BTreeMap::from([(
+                uri.into(),
+                VirtualResourceV1 {
+                    bytes: format!("<note>{literal}</note>").into_bytes(),
+                    identity: Some(FormatIdentity {
+                        content_type: Some("application/xml".into()),
+                        schema: Some("https://cem.dev/ns/data/xml/1".into()),
+                        ..Default::default()
+                    }),
+                },
+            )]));
+            let response = build_command_invocation_v1(command, environment, resources);
+            let CommandInvocationBuildResponseV1::Ready { invocation } = response else {
+                panic!("complete inspect request must lower: {response:?}");
+            };
+            // The format must survive the same typed JSON wire boundary as a worker request.
+            let mut serialized = serde_json::to_value(&invocation.request).unwrap();
+            if format.is_none() {
+                serialized["operation"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("format");
+            } else {
+                assert_eq!(serialized["operation"]["format"], format.unwrap());
+            }
+            let request: CommandServiceRequestV1 = serde_json::from_value(serialized).unwrap();
+            if format == Some("json") {
+                let outputs = &request.run_plan.plan().unwrap().outputs;
+                assert_eq!(outputs.len(), 1);
+                assert_eq!(
+                    outputs[0].identity.content_type.as_deref(),
+                    Some("application/json")
+                );
+            }
+            let prepared = prepare_command_operation_v1(
+                &request,
+                crate::command_service::CommandServiceLimitsV1::default(),
+                &EngineContext::default(),
+                &capability,
+            )
+            .unwrap();
+            let PreparedPortableOperationV1::Inspect(inspect) = prepared else {
+                panic!("inspect must retain its operation");
+            };
+            assert_eq!(inspect.input.uri, uri);
+            assert_eq!(
+                inspect.presentation_scope.is_none(),
+                format == Some("json"),
+                "named inspect format: {format:?}"
+            );
+            let response = crate::real::RealCemMlEngine::new().inspect(inspect);
+            if format == Some("json") {
+                let response =
+                    response.expect("explicit JSON does not invoke the CEM scalar writer");
+                assert!(response.primary_bytes.is_none());
+                let root = response
+                    .body
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|node| node["name"] == "note")
+                    .unwrap();
+                assert_eq!(root["children"][0]["value"], literal);
+            } else {
+                assert!(
+                    response
+                        .unwrap_err()
+                        .to_string()
+                        .contains("both single and double quotes"),
+                    "default CEM keeps its deliberate scalar refusal"
+                );
+            }
         }
     }
 

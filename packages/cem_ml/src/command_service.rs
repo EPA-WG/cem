@@ -209,6 +209,16 @@ pub enum CommandTransformSourceV1 {
     },
 }
 
+/// Human-facing inspect presentation. JSON is an explicit source export, not a
+/// replacement native document or an implicit runtime tree handoff.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
+#[serde(rename_all = "lowercase")]
+pub enum CommandInspectFormatV1 {
+    Cem,
+    Json,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(
@@ -234,6 +244,9 @@ pub enum PortableOperationRequestV1 {
     Inspect {
         input_id: String,
         show: InspectView,
+        /// Missing in older requests means the normal CEM-ML presentation.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        format: Option<CommandInspectFormatV1>,
     },
     Convert {
         input_id: String,
@@ -1661,6 +1674,7 @@ mod tests {
             PortableOperationRequestV1::Inspect {
                 input_id: "input:0".to_owned(),
                 show: InspectView::SourceOffsets,
+                format: None,
             },
             PortableOperationRequestV1::Convert {
                 input_id: "input:0".to_owned(),
@@ -2083,6 +2097,7 @@ mod tests {
         let request = request(PortableOperationRequestV1::Inspect {
             input_id: "input:0".to_owned(),
             show: InspectView::Summary,
+            format: None,
         });
         let current = CommandRevisionLedgerV1 {
             project: request.project.clone(),
@@ -2129,6 +2144,33 @@ mod tests {
                 .code(),
             "cem.command_service.ledger_resource_missing"
         );
+    }
+
+    #[test]
+    fn inspect_presentation_wire_keeps_legacy_defaults_and_checks_named_formats() {
+        let legacy = json!({"kind": "inspect", "inputId": "input:0", "show": "ast"});
+        let operation: PortableOperationRequestV1 = serde_json::from_value(legacy.clone()).unwrap();
+        assert!(matches!(
+            operation,
+            PortableOperationRequestV1::Inspect { format: None, .. }
+        ));
+        assert_eq!(serde_json::to_value(operation).unwrap(), legacy);
+        for (name, expected) in [
+            ("cem", CommandInspectFormatV1::Cem),
+            ("json", CommandInspectFormatV1::Json),
+        ] {
+            let mut value = legacy.clone();
+            value["format"] = json!(name);
+            let operation: PortableOperationRequestV1 =
+                serde_json::from_value(value.clone()).unwrap();
+            assert!(
+                matches!(operation, PortableOperationRequestV1::Inspect { format: Some(format), .. } if format == expected)
+            );
+            assert_eq!(serde_json::to_value(operation).unwrap(), value);
+        }
+        let mut unsupported = legacy;
+        unsupported["format"] = json!("xml");
+        assert!(serde_json::from_value::<PortableOperationRequestV1>(unsupported).is_err());
     }
 
     #[test]

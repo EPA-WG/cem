@@ -296,14 +296,20 @@ pub fn prepare_command_operation_v1(
             zero_hard_violations: *zero_hard_violations,
             context,
         })),
-        PortableOperationRequestV1::Inspect { input_id, show } => {
-            Ok(PreparedPortableOperationV1::Inspect(InspectRequest {
-                input: engine_input(request, plan, input_id)?,
-                show: *show,
-                presentation_scope: Some(command_presentation_scope(plan, input_id)),
-                context,
-            }))
-        }
+        PortableOperationRequestV1::Inspect {
+            input_id,
+            show,
+            format,
+        } => Ok(PreparedPortableOperationV1::Inspect(InspectRequest {
+            input: engine_input(request, plan, input_id)?,
+            show: *show,
+            presentation_scope: (!matches!(
+                format,
+                Some(crate::command_service::CommandInspectFormatV1::Json)
+            ))
+            .then(|| command_presentation_scope(plan, input_id)),
+            context,
+        })),
         PortableOperationRequestV1::Convert {
             input_id,
             to_format,
@@ -1339,6 +1345,7 @@ mod tests {
             PortableOperationRequestV1::Inspect {
                 input_id: "input:0".to_owned(),
                 show: InspectView::Summary,
+                format: None,
             },
             PortableOperationRequestV1::Convert {
                 input_id: "input:0".to_owned(),
@@ -1434,6 +1441,7 @@ mod tests {
         let inspect = prepare(&request(PortableOperationRequestV1::Inspect {
             input_id: "input:0".to_owned(),
             show: InspectView::Summary,
+            format: None,
         }))
         .expect("inspect prepares");
         let PreparedPortableOperationV1::Inspect(inspect) = inspect else {

@@ -1,0 +1,28 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+{param @name=input @required=true}
+{template @name=main @visibility=public @cem:whitespace=layout |
+    {cem:variable @name=card
+        @select='seq:first(seq:where(input.descendants, fn(node) => node.kind == "element" && node.namespace == "http://www.w3.org/1999/xhtml" && node.name == "article"))'}
+    {element @name=article @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=aria-labelledby @value=rendered-card-title}
+        {cem:for-each @as=field
+            @select='seq:where(card.children, fn(node) => node.kind == "element" && node.namespace == card.namespace && (node.name == "h1" || node.name == "p" || node.name == "a"))' |
+            {element @name="{$field.name}" @namespace=http://www.w3.org/1999/xhtml |
+                {cem:if @test='field.name == "h1"' |
+                    {attribute @name=id @value=rendered-card-title}
+                }
+                {cem:for-each @as=attr
+                    @select='seq:where(field.attributes, fn(attr) => (attr.name == "href" || (attr.name == "id" && field.name != "h1")) && (attr.namespace == "" || attr.namespace == field.namespace))' |
+                    {attribute @name="{$attr.name}" @value="{$attr}"}
+                }
+                {$ | str:normalize_space(dom:text(field))}
+            }
+        }
+        {element @name=p @namespace=http://www.w3.org/1999/xhtml |
+            ```Rendered from saved HTML data.```
+        }
+    }
+}

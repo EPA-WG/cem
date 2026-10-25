@@ -1,0 +1,30 @@
+{slice @name=notice | This view uses shared CEM components.}
+{http-request @slice=card @url="../data/card.html" @method=GET @content-type=text/html}
+{cem:variable @name=article
+ @select='if (datadom.slices.card.state ?? "") == "loaded" { seq:first(seq:where(datadom.slices.card.data.descendants, fn(node) => node.kind == "element" && node.namespace == "http://www.w3.org/1999/xhtml" && node.name == "article")) } else { () }'}
+{cem:variable @name=heading
+ @select='if (datadom.slices.card.state ?? "") == "loaded" { seq:first(seq:where(article.children, fn(node) => node.kind == "element" && node.namespace == article.namespace && node.name == "h1")) } else { () }'}
+{cem:variable @name=paragraphs
+ @select='if (datadom.slices.card.state ?? "") == "loaded" { seq:where(article.children, fn(node) => node.kind == "element" && node.namespace == article.namespace && node.name == "p") } else { () }'}
+{style @type=text/css | ```
+section { display: grid; gap: var(--cem-gap-group); padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); }
+```}
+{section @class=cem-theme-light @aria-label="Shared card example" |
+ {cem-card @label="Primary shared card" |
+  {h1 @slot=title | {$str:normalize_space(dom:text(heading))}}
+  {p | {$str:normalize_space(dom:text(seq:first(paragraphs)))}}
+  {cem-action @label="Show details" @slice=notice @slice-event=click
+   @slice-value="'Shared CEM interaction received.'"}
+  {cem:if @test='datadom.slices.notice == "Shared CEM interaction received."' |
+   {p | {$str:normalize_space(dom:text(seq:where(paragraphs, fn(node) => dom:text(dom:attribute(node, "id")) == "details")))}}
+  }
+  {cem-alert @tone=info @label={datadom.slices.notice}}
+ }
+ {cem-card @label="Second shared card" |
+  {h2 @slot=title | Same reusable declaration}
+  {p | Both cards use the packaged cem-card template.}
+ }
+ {cem:if @test='(datadom.slices.card.state ?? "") == "failed"' |
+  {cem-alert @tone=danger @label="Card data could not be loaded from this project."}
+ }
+}

@@ -215,6 +215,14 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `markdown-site` | `content-articles-first-build-md` | `inspect-article` | Inspect the generated HTML structure and retained source information, rather than the Markdown parser's source AST. |
 | `markdown-site` | `content-articles-first-build-md` | `query-article-outline` | XPath heading, image/link counts and image reference with an explicit XHTML namespace binding; metadata title does not become body text. |
 | `markdown-site` | `invalid-article-metadata` | `repair-article-metadata` | Native typed front-matter failure at original source coordinates; repair a string weight to an integer in a resource outside the site content glob. |
+| `html-cem-card` | `card-html` | `inspect-html` | Retained HTML elements, attributes and original source positions. |
+| `html-cem-card` | `card-cem` | `inspect-cem` | Native CEM structure for the equivalent card source with an explicit XHTML namespace. |
+| `html-cem-card` | `card-html` | `semantics-html` | Nine named card fields queried with a caller-bound XHTML prefix. |
+| `html-cem-card` | `card-cem` | `semantics-cem` | The same nine fields with explicit HTML/CEM attribute namespace mappings. |
+| `html-cem-card` | `card-graph` | `build-html` | Saved HTML data and a native CEMT template produce an exact HTML entry artifact with template provenance. |
+| `html-cem-card` | `card-live-view` | `live-view` | Saved data bound to two shared declarative cards, named/default slots and a transient local action. |
+| `html-cem-card` | `card-component` | `inspect-component` | Explicit JSON inspection of the canonical shared declaration's XML source, without registering a project component. |
+| `html-cem-card` | `card-invalid-policy` | `repair-html-policy` | Native inline-handler refusal at original source coordinates; remove the handler and revalidate the same saved resource. |
 | `login` | `login-html` | `semantics-html` | XPath query of the HTML semantic contract. |
 | `login` | `login-cem` | `semantics-cem-cemql` | CEM-QL query of the CEM semantic contract. |
 | `login` | `login-expression` | `expression-html` | Standalone expression evaluation. |
@@ -239,6 +247,17 @@ provenance controls open those source resources and ranges. Relative image/link
 references remain references in standalone HTML; the full site's artifact tree
 supplies the admitted pages and assets without granting ambient network access.
 
+The HTML/CEM card project reuses `cem-card` from the production shared component
+library. Its declaration resource is an XML source snapshot; the live view loads
+the trusted packaged declaration. Edits to the snapshot do not replace runtime
+code or grant new registration authority. The component inspection configuration
+names JSON explicitly because the current CEM-ML attribute-string writer refuses
+mixed single/double quotes in that embedded template source. This structural
+export is a human-facing result, never an AST handoff. Other inspection commands
+retain their normal CEM-ML presentation. The native HTML artifact is a separately
+authored CEMT projection, rather than whole-page DCE compilation. Login retains
+the larger form/semantic comparison and credential recovery policy examples.
+
 The following rows describe existing reuse and planned extensions, rather than
 additional routes. Category names are discovery metadata and do not affect
 runtime authority.
@@ -248,7 +267,7 @@ runtime authority.
 | Data | JSON and YAML aliases; CSV | Reuse `json-yaml-report` and `csv-inventory` for imported data, explicit queries/formatting and reports. CSV covers header-mode/row-width warnings and quote failures with repair, compact interchange versus tabular review, and explicit count rules. Reuse Supplier for cross-source reconciliation. |
 | Data / Documents and UI | XML, XHTML and XML aliases | Reuse Supplier XML validation/namespace-aware selection and the `xhtml-document` query, repair and HTML graph. XML source validation does not establish domain instance rules; XHTML retains its own owner and source contract. Keep DTD/entity refusals visible. |
 | Documents and UI | Markdown | Reuse `markdown-site` for saved-article validation, generated-HTML inspection/query, exact standalone preview and metadata failure/repair; its folder graph publishes complete site outputs and content/layout provenance. |
-| Documents and UI | HTML, CEM-ML, native/element templates, runtime data island | Reuse Login and add a minimal declarative component project; explain template identity and live runtime bindings. |
+| Documents and UI | HTML, CEM-ML, native/element templates, runtime data island | Reuse Login and `html-cem-card` for semantic comparisons, shared card declarations/slots, local slice bindings and data-to-HTML generation. Keep project declaration authority and automatic DCE compilation limits explicit. |
 | Documents and UI | SVG and MathML variants | New diagram/formula project with native validation, inspection and shared preview; document supported vocabulary. |
 | Documents and UI | CSS and SCSS aliases | New stylesheet project with inspect/format, supported scoped CSS and bounded SCSS-to-CSS expansion. Include unavailable source-export/loader cases. |
 | Queries and transformations | CSS selectors, XPath source aliases, CEM-QL modules/expressions | Reuse Login semantic comparisons and expression configs; add selectors, parameter maps, joins/filtering and source provenance. Treat compiled artifacts/results as separate inputs/outputs. |
@@ -273,7 +292,7 @@ against the native-emitted registry, the capability list against runtime metadat
 and each existing sample reference against the generated ordinary project bundle.
 It also runs all manifest-selected source validations through the native CLI and
 checks deployed bytes and hashes. The `test:feature-tour` browser cases exercise
-the authored Login, Supplier, data-report, XHTML and Markdown article workflows;
+the authored Login, Supplier, data-report, XHTML, Markdown and HTML/CEM card workflows;
 site preview/build browser acceptance also lives in `test:workbench`, with deployed
 article/site and offline checks in the navigation gate. These checks establish the
 covered operations; they do not turn untested aliases or planned workflows into

@@ -241,6 +241,85 @@ describe('CEM Studio Feature Tour copies', () => {
         expect(decode('inventory-source')).toContain('SKU-C,Glass jars,0,2');
     }, 60_000);
 
+    it('runs the packaged HTML and CEM card configurations with equivalent semantics and native policy repair', async () => {
+        const { bundle, definition, decode } = await authoredProject('html-cem-card');
+        expect(definition.configurations.map(item => item.id).sort()).toEqual([
+            'build-html', 'inspect-cem', 'inspect-component', 'inspect-html', 'live-view', 'repair-html-policy', 'semantics-cem', 'semantics-html',
+        ]);
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        for (const configuration of definition.configurations.filter(item => item.kind !== 'transformation-graph')) {
+            const entry = bundle.project.entries.find(item => item.id === configuration.id);
+            const options = projectCommandOptions(bundle, entry, 'html-card-commands-copy');
+            const command = JSON.parse(decode(entry.runConfigResourceId));
+            const run = overrides => command.argv
+                ? validator.executeAuthoredResourceCommand({ ...options, ...overrides, commandResource: bundle.contents[entry.runConfigResourceId] })
+                : validator.validateResource({ ...options, ...overrides });
+            const outcome = await run().catch(error => error);
+            if (!outcome.result) throw new Error(`HTML/CEM ${configuration.id}: ${outcome.message}`, { cause: outcome });
+            expect(outcome.result.exitCode, JSON.stringify(outcome.result.diagnostics.items)).toBe(configuration.expectedExit ?? 0);
+            for (const text of configuration.expectedText ?? []) expect(outcome.output.text).toContain(text);
+            if (configuration.expectedSemanticContract) {
+                const report = JSON.parse(outcome.output.text);
+                const values = report.language === 'xpath' ? report.result.sequence.items.map(item => item.value.lexicalValue) : report.result.items.map(item => item.value);
+                expect(values).toEqual(JSON.parse(decode(configuration.expectedSemanticContract)));
+            }
+            const expected = configuration.expectedValidation;
+            if (expected) {
+                const diagnostics = outcome.result.diagnostics.items;
+                expect(diagnostics.filter(item => item.severity === 'error')).toHaveLength(expected.errorCount);
+                expect(diagnostics.filter(item => item.severity === 'warning')).toHaveLength(expected.warningCount);
+                if (configuration.repair) {
+                    const source = bundle.project.resources.find(item => item.id === configuration.source);
+                    const code = expected.errorCode ?? expected.warningCode;
+                    const diagnostic = diagnostics.find(item => item.code === code);
+                    expect(diagnostic).toMatchObject({ code, severity: expected.errorCode ? 'error' : 'warning', uri: `studio://html-card-commands-copy/${source.path}` });
+                    for (const [key, value] of Object.entries(expected.location ?? {})) expect(diagnostic[key] ?? null).toBe(value);
+                    const original = decode(configuration.source), repaired = original.replace(configuration.repair.find, configuration.repair.replace);
+                    expect(repaired).not.toBe(original);
+                    const result = await run({ bytes: new TextEncoder().encode(repaired) });
+                    expect(result.result.exitCode).toBe(0); expect(result.result.diagnostics.items).toEqual([]);
+                    expect(decode(configuration.source)).toBe(original);
+                }
+            }
+            if (configuration.id === 'live-view') {
+                expect(outcome.result.diagnostics.items.filter(item => ['error', 'fatal'].includes(item.severity))).toEqual([]);
+                expect(bundle.project.resources.find(item => item.id === configuration.source).role).toBe('template');
+                expect(entry.tags).toEqual(expect.arrayContaining(['live-preview', 'preview-component:cem-card', 'preview-component:cem-action', 'preview-component:cem-alert']));
+                expect(entry.resourceIds).toContain(definition.configurations.find(item => item.id === 'inspect-html').source);
+            }
+        }
+    }, 60_000);
+
+    it('builds the packaged HTML and CEM card with exact static output, native origins and independent saved data', async () => {
+        const { bundle, definition, decode } = await authoredProject('html-cem-card');
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const configuration = definition.configurations.find(item => item.id === 'build-html');
+        const entry = bundle.project.entries.find(item => item.id === configuration.id);
+        expect(entry.entryArtifact).toBe('generated/card.html');
+        const command = JSON.parse(decode(entry.runConfigResourceId));
+        const run = (edits = {}, projectId = 'html-card-build-copy') => validator.runResourceCommand({
+            ...projectCommandOptions(bundle, entry, projectId, edits), argv: command.argv,
+        });
+        const templateId = configuration.dependencies.find(id => bundle.project.resources.find(item => item.id === id)?.role === 'template');
+        expect(templateId).toBeDefined();
+        const template = bundle.project.resources.find(item => item.id === templateId);
+        const baseline = await run(); expect(baseline.outputs).toHaveLength(1);
+        expect(baseline.outputs[0].bytes).toEqual(bundle.contents[configuration.expectedGraphOutputs[entry.entryArtifact]]);
+        const artifacts = outcome => outcome.result.result.value.value.value.artifacts;
+        expect(artifacts(baseline).flatMap(item => item.outputSpans ?? []).flatMap(span => span.origin.frames))
+            .toEqual(expect.arrayContaining([expect.objectContaining({ transform: expect.objectContaining({ uri: `studio://html-card-build-copy/${template.path}` }) })]));
+        const sourceId = definition.configurations.find(item => item.id === 'inspect-html').source;
+        const original = decode(sourceId), edited = original.replaceAll('Harbor field notes', 'Canal field notes');
+        expect(edited).not.toBe(original);
+        expect((await run({ [sourceId]: edited })).output.text).toContain('Canal field notes');
+        await expect(run({ [templateId]: '@doc cem-ml 1\n{template @name=main |' })).rejects.toMatchObject({ result: { exitCode: 1 }, output: { available: false } });
+        expect((await run()).output.text).toBe(baseline.output.text);
+        const independent = await run({}, 'html-card-independent');
+        expect(independent.output.text).toBe(baseline.output.text);
+        expect(independent.outputs.every(item => item.uri.startsWith('studio://html-card-independent/'))).toBe(true);
+        expect(decode(sourceId)).toBe(original);
+    }, 60_000);
+
     it('runs packaged Markdown article inspection, preview, outline and metadata repair with original source coordinates', async () => {
         const { bundle, definition, decode } = await authoredProject('markdown-site');
         const validator = await createCemStudioBrowserValidator(); validators.push(validator);

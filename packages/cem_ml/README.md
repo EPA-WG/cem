@@ -24,6 +24,14 @@ nodes, borrowing the native tree and preserving overlay order and provenance.
 Native pipeline stages retain the artifact; this export is not an AST handoff.
 Indexed access to the borrowed evaluator view remains available.
 
+Portable Inspect requests carry an optional `format` (`cem` or `json`). Missing
+fields in older requests retain the default CEM-ML presentation. Shared command
+lowering preserves an explicitly requested JSON inspection through preparation
+and worker execution, with JSON output identity and no terminal color encoding.
+This is a named structural export for callers; retained native trees remain the
+runtime handoff. JSON inspection can represent embedded template strings that
+the current CEM-ML attribute-string encoder deliberately refuses.
+
 ## Native document I/O
 
 ### Optional immutable schema assets

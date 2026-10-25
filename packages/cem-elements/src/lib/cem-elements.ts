@@ -999,7 +999,10 @@ interface InstanceState {
 }
 
 interface SliceEventBinding {
-    instance: HTMLElement;
+    instance: WeakRef<HTMLElement>;
+    renderInstance: WeakRef<HTMLElement>;
+    surfaceBody?: WeakRef<HTMLElement>;
+    surfaceSignal?: AbortSignal;
     target: Element;
     sliceNames: string[];
     attributeNames: string[];
@@ -2006,7 +2009,7 @@ export class CemElementRuntime {
     prepareSurfaceBody(instance: HTMLElement, owner: HTMLElement, signal: AbortSignal): void | Promise<void> {
         const compiled = this.declarationForInstance(instance);
         if (!compiled || signal.aborted) return;
-        this.bindRenderedSliceEvents(instance, compiled, owner);
+        this.bindRenderedSliceEvents(instance, compiled, owner, { owner, signal });
         this.bindRenderedCustomValidity(owner);
         this.bindRenderedFormEvents(instance, compiled, owner);
         const visited = new Set<HTMLElement>();
@@ -5733,9 +5736,10 @@ export class CemElementRuntime {
         }
     }
 
-    private bindRenderedSliceEvents(instance: HTMLElement, compiled: CompiledDeclaration, rendered: ParentNode): void {
+    private bindRenderedSliceEvents(instance: HTMLElement, compiled: CompiledDeclaration, rendered: ParentNode,
+        surfaceBody?: { owner: HTMLElement; signal: AbortSignal }): void {
         for (const element of Array.from(rendered.querySelectorAll('*'))) {
-            this.bindRenderedSliceEventElement(instance, compiled, element);
+            this.bindRenderedSliceEventElement(instance, compiled, element, surfaceBody);
         }
     }
 
@@ -5753,8 +5757,17 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         element: Element,
+        surfaceBody?: { owner: HTMLElement; signal: AbortSignal },
     ): void {
-        if (!this.ownsRenderedElement(instance, element)) return;
+        const renderInstance = instance;
+        const author = this.renderedSliceBindingOwner(instance, element);
+        if (!author) return;
+        if (author !== instance) {
+            const declaration = this.declarationForInstance(author);
+            if (!declaration) return;
+            instance = author;
+            compiled = declaration;
+        }
         const rawTargets = renderedBindingAttribute(element, 'slice') ?? '';
         const sliceNames = parseSliceTargets(rawTargets);
         const attributeNames = parseSliceAttributeTargets(rawTargets);
@@ -5783,7 +5796,10 @@ export class CemElementRuntime {
 
         if (
             existing &&
-            existing.instance === instance &&
+            existing.instance.deref() === instance &&
+            existing.renderInstance.deref() === renderInstance &&
+            existing.surfaceBody?.deref() === surfaceBody?.owner &&
+            existing.surfaceSignal === surfaceBody?.signal &&
             existing.target === target &&
             stringArraysEqual(existing.sliceNames, sliceNames) &&
             stringArraysEqual(existing.attributeNames, attributeNames) &&
@@ -5799,14 +5815,30 @@ export class CemElementRuntime {
             }
         }
 
+        const authorRef = new WeakRef(instance);
+        const renderRef = new WeakRef(renderInstance);
+        const bodyRef = surfaceBody && new WeakRef(surfaceBody.owner);
+        const surfaceSignal = surfaceBody?.signal;
+        let initialization: Event | undefined;
         const listener: EventListener = (event) => {
-            this.writeSlicesFromEvent(instance, compiled, sliceNames, attributeNames, expression, event, nativeValue);
+            const owner = authorRef.deref(), renderedBy = renderRef.deref();
+            if (!owner || !renderedBy) return;
+            const body = bodyRef?.deref();
+            const withinOwner = bodyRef ? !!body?.isConnected && !surfaceSignal?.aborted && body.contains(element) : owner.contains(element);
+            // First materialization binds before publication. Only this exact
+            // internal dispatch may initialize a still-detached rendered node.
+            if (event !== initialization && (!owner.isConnected || !renderedBy.isConnected || !element.isConnected || !withinOwner
+                || this.renderedSliceBindingOwner(renderedBy, element) !== owner)) return;
+            this.writeSlicesFromEvent(owner, compiled, sliceNames, attributeNames, expression, event, nativeValue);
         };
         for (const eventName of eventNames) {
             target.addEventListener(eventName, listener);
         }
         this.sliceEventBindings.set(element, {
-            instance,
+            instance: authorRef,
+            renderInstance: renderRef,
+            surfaceBody: bodyRef,
+            surfaceSignal,
             target,
             sliceNames,
             attributeNames,
@@ -5816,8 +5848,52 @@ export class CemElementRuntime {
             listener,
         });
         if (eventNames.includes('init')) {
-            target.dispatchEvent(new Event('init', { bubbles: false }));
+            initialization = new Event('init', { bubbles: false });
+            try { target.dispatchEvent(initialization); }
+            finally { initialization = undefined; }
         }
+    }
+
+    /** Slot copies retain the author of their original payload, not the visual
+     * container. Only renderer-issued weak identity witnesses can cross a DCE
+     * boundary; serialized/public ID attributes never establish this authority.
+     * Keep physical widget/resource ownership separate from slice authoring.
+     */
+    private renderedSliceBindingOwner(instance: HTMLElement, element: Element): HTMLElement | null {
+        let source = element;
+        let visitedInstance = false;
+        for (let ancestor: HTMLElement | null = element.parentElement; ; ancestor = ancestor.parentElement) {
+            if (!ancestor) {
+                if (visitedInstance || !this.ownsRenderedElement(instance, element)) break;
+                // Initial fragments and deferred surface bodies are not yet
+                // physically beneath their rendering instance.
+                ancestor = instance;
+            }
+            if (ancestor === instance) visitedInstance = true;
+            const instanceId = this.instanceIds.get(ancestor);
+            if (!instanceId) continue;
+            const nodeId = checkpointRenderedNodeIdentity(source, instanceId);
+            if (!nodeId) continue;
+            if (!nodeId.startsWith('payload-')) return ancestor;
+            const path = nodeId.slice('payload-'.length).split('/');
+            if (!path.every(part => /^(0|[1-9]\d*)$/u.test(part))) return null;
+            const island = directDataIsland(ancestor);
+            const payload = island && directIslandSection(island, DATA_ISLAND_SECTIONS.payload);
+            if (!payload) return null;
+            let children: readonly Node[] = Array.from(payload.childNodes);
+            let original: Node | undefined;
+            for (const part of path) {
+                original = children[Number(part)];
+                if (!original) return null;
+                children = original.nodeType === 1 ? payloadChildNodes(original as Element) : [];
+            }
+            if (original?.nodeType !== 1) return null;
+            source = original as Element;
+        }
+        // A detached/serialized renderer origin cannot be adopted by its new
+        // container. Unrendered authored HTML keeps its existing local context.
+        if (source !== element && source.hasAttribute(RENDER_NODE_ID_ATTR)) return null;
+        return this.ownsRenderedElement(instance, element) ? instance : null;
     }
 
     private initializeRenderedSliceDirective(

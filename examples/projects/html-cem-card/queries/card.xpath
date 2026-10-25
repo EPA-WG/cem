@@ -1,0 +1,16 @@
+let $card := //h:article,
+    $heading := $card/h:h1,
+    $summary := ($card/h:p)[1],
+    $details := $card/h:p[(@id | @h:id) = 'details'],
+    $link := $card/h:a
+return (
+    'title=' || normalize-space($heading),
+    'title-id=' || string($heading/(@id | @h:id)),
+    'labelled-by=' || string($card/(@aria-labelledby | @h:aria-labelledby)),
+    'summary=' || normalize-space($summary),
+    'details=' || normalize-space($details),
+    'details-id=' || string($details/(@id | @h:id)),
+    'link-text=' || normalize-space($link),
+    'link-target=' || string($link/(@href | @h:href)),
+    'paragraphs=' || count($card/h:p)
+)

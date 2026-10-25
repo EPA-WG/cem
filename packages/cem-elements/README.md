@@ -564,6 +564,14 @@ projected input labels, names and defaults retain native input identity; unchang
 value bindings preserve edits. The calendar input's `AuthoredPayloadUpdates`
 story covers this boundary in worker and fallback execution.
 
+Slice-event bindings authored in a parent's projected content keep that parent
+as their binding owner through named and default slots. A projected native
+control or custom-element action updates the parent's slices; controls authored
+inside the receiving component keep its own state. Child and parent rerenders
+preserve that distinction. This source ownership is runtime metadata, not a
+public attribute that payload markup can use to claim another owner. Widget and
+form ownership still follows the receiving component's existing boundaries.
+
 Declarations may opt into `capability="checkable-control"` for one owned native
 `input[type="checkbox"][part~="control"]`. The host's `indeterminate` presence
 sets the native mixed-state property, including empty values and the text

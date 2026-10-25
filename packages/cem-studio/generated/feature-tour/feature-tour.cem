@@ -15,6 +15,10 @@
     {export @id="project-csv-inventory-output" @out="../../dist/static/samples/examples/csv-inventory.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
 
+  {import @id="project-html-cem-card" @src="examples/html-cem-card.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-html-cem-card-output" @out="../../dist/static/samples/examples/html-cem-card.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
   {import @id="project-json-yaml-report" @src="examples/json-yaml-report.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
     {export @id="project-json-yaml-report-output" @out="../../dist/static/samples/examples/json-yaml-report.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }

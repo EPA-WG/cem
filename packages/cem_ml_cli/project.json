@@ -122,6 +122,7 @@
                 "^default",
                 "{workspaceRoot}/packages/cem-elements/demo/data-table-view.xslt",
                 "{workspaceRoot}/examples/projects/**/*",
+                "{workspaceRoot}/packages/cem-components/src/components/cem-card/cem-card.xhtml",
                 "{workspaceRoot}/examples/cem-ml/login.cem",
                 "{workspaceRoot}/examples/semantic/login.html"
             ],

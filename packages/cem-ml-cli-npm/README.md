@@ -230,6 +230,12 @@ The package also installs `cem-ml`. It uses one worker-thread runtime, maps
 `SIGINT`/`SIGTERM` to cooperative cancellation, publishes stdout/stderr and
 report files through the Node host, and preserves the stable common exit policy.
 
+`inspect --format json` keeps its explicit presentation choice across browser,
+Node and worker command transport. Omitted format and `--format cem` retain the
+normal CEM-ML inspector output. The common native request/preparation owns that
+choice and the JSON output identity; hosts do not serialize an intermediate AST
+or infer JSON from the source format.
+
 `pool.run(request)` returns an awaitable operation handle with `result()`,
 `subscribe()`, `cancel()`, `pause()`, `continue()`, `step()`, and `dispose()`.
 The common Rust coordinator retains continuation and deterministic commit order;

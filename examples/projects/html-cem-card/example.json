@@ -1,0 +1,333 @@
+{
+  "id": "html-cem-card",
+  "name": "HTML and CEM card",
+  "version": "1.0.0",
+  "description": "Compare HTML and CEM-ML card semantics, inspect the canonical shared declaration, generate native HTML and reuse packaged declarative cards in an independent live view.",
+  "collections": [
+    "content-types-documents-ui",
+    "content-types-queries-transformations"
+  ],
+  "sources": [
+    {
+      "id": "card-html",
+      "source": "examples/projects/html-cem-card/data/card.html",
+      "path": "data/card.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "card-cem",
+      "source": "examples/projects/html-cem-card/data/card.cem",
+      "path": "data/card.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cem-ml/1",
+      "role": "data"
+    },
+    {
+      "id": "card-query",
+      "source": "examples/projects/html-cem-card/queries/card.xpath",
+      "path": "queries/card.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "role": "query"
+    },
+    {
+      "id": "card-semantics",
+      "source": "examples/projects/html-cem-card/expected/semantics.json",
+      "path": "expected/semantics.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "card-template",
+      "source": "examples/projects/html-cem-card/templates/card.cemt",
+      "path": "templates/card.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "card-graph",
+      "source": "examples/projects/html-cem-card/graphs/card.cem",
+      "path": "graphs/card.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "card-live-view",
+      "source": "examples/projects/html-cem-card/views/card.cem",
+      "path": "views/card.cem",
+      "contentType": "application/vnd.cem.element-template+cem",
+      "schema": "https://cem.dev/ns/template/cem-element/1",
+      "role": "template"
+    },
+    {
+      "id": "card-component",
+      "source": "packages/cem-components/src/components/cem-card/cem-card.xhtml",
+      "path": "components/cem-card.xhtml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "role": "data"
+    },
+    {
+      "id": "card-invalid-policy",
+      "source": "examples/projects/html-cem-card/failures/inline-handler.html",
+      "path": "failures/inline-handler.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "card-expected-html",
+      "source": "examples/projects/html-cem-card/expected/card.html",
+      "path": "expected/card.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/html-cem-card/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "inspect-html",
+      "name": "Inspect HTML card",
+      "kind": "inspection",
+      "source": "card-html",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "http://www.w3.org/1999/xhtml",
+        "Harbor field notes",
+        "#details",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "inspect-cem",
+      "name": "Inspect CEM-ML card",
+      "kind": "inspection",
+      "source": "card-cem",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "http://www.w3.org/1999/xhtml",
+        "Harbor field notes",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "semantics-html",
+      "name": "Card semantics from HTML",
+      "kind": "query",
+      "source": "card-html",
+      "dependencies": [
+        "card-query",
+        "card-semantics"
+      ],
+      "description": "Compare the same nine literal card fields using expanded element names and explicit HTML/CEM attribute namespace mappings.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--query-file",
+        "$card-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--namespace",
+        "h=http://www.w3.org/1999/xhtml",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "card-semantics"
+    },
+    {
+      "id": "semantics-cem",
+      "name": "Card semantics from CEM-ML",
+      "kind": "query",
+      "source": "card-cem",
+      "dependencies": [
+        "card-query",
+        "card-semantics"
+      ],
+      "description": "Compare the same nine literal card fields using expanded element names and explicit HTML/CEM attribute namespace mappings.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--query-file",
+        "$card-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--namespace",
+        "h=http://www.w3.org/1999/xhtml",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "card-semantics"
+    },
+    {
+      "id": "build-html",
+      "name": "Build the card as HTML",
+      "kind": "transformation-graph",
+      "source": "card-graph",
+      "dependencies": [
+        "card-html",
+        "card-template",
+        "card-expected-html"
+      ],
+      "description": "Generate an HTML article from saved HTML data using a native CEMT template; inspect exact output bytes and original template provenance.",
+      "entryArtifact": "generated/card.html",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedGraphOutputs": {
+        "generated/card.html": "card-expected-html"
+      },
+      "expectedProvenance": [
+        "templates/card.cemt"
+      ]
+    },
+    {
+      "id": "live-view",
+      "name": "Shared card live view",
+      "kind": "inspection",
+      "source": "card-live-view",
+      "dependencies": [
+        "card-html"
+      ],
+      "description": "Render two existing shared cem-card instances from saved HTML data and projected content; Show details uses shared slice bindings and a local alert, without project JavaScript or new declaration authority.",
+      "tags": [
+        "live-preview",
+        "preview-component:cem-card",
+        "preview-component:cem-action",
+        "preview-component:cem-alert"
+      ],
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.element-template+cem",
+        "--schema",
+        "https://cem.dev/ns/template/cem-element/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@name=cem-card",
+        "@name=cem-action",
+        "@name=cem-alert"
+      ]
+    },
+    {
+      "id": "inspect-component",
+      "name": "Inspect component declaration (JSON)",
+      "kind": "inspection",
+      "source": "card-component",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--show",
+        "ast",
+        "--no-color",
+        "--format",
+        "json"
+      ],
+      "expectedText": [
+        "http://www.w3.org/1999/xhtml",
+        "\"name\": \"cem-element\"",
+        "\"name\": \"template\"",
+        "\"value\": \"cem-card\"",
+        "sourceMap"
+      ],
+      "description": "Inspect the unchanged packaged declaration snapshot through an explicitly selected JSON source-AST export. The default CEM-ML writer currently refuses mixed-quote text; JSON is a named human-facing presentation, never a runtime AST handoff."
+    },
+    {
+      "id": "repair-html-policy",
+      "name": "Repair inline HTML policy",
+      "kind": "validation",
+      "source": "card-invalid-policy",
+      "description": "Diagnose an ungranted inline event handler at its original source range, remove the attribute, save and validate again.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.html.event_handler_rejected",
+        "location": {
+          "line": 1,
+          "column": 39,
+          "byteOffset": 38
+        }
+      },
+      "repair": {
+        "find": " onclick=\"return false\"",
+        "replace": ""
+      }
+    }
+  ]
+}

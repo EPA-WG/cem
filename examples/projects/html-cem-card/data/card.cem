@@ -1,0 +1,9 @@
+@doc cem-ml 1
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+{article @aria-labelledby=card-title |
+    {h1 @id=card-title | Harbor field notes}
+    {p | Reusable presentation starts with explicit data.}
+    {a @href="#details" | Read the notes}
+    {p @id=details | The saved source belongs to this project.}
+}

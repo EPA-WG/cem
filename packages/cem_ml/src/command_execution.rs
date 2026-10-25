@@ -21,10 +21,11 @@ use crate::command_publication::{
 use crate::command_runtime::PreparedCommandServiceInvocationV1;
 use crate::command_service::{
     validate_command_service_result_v1, CommandArtifactKindV1, CommandExecutionIdentityV1,
-    CommandFanoutResultV1, CommandOutputResultV1, CommandPayloadV1, CommandQueryResultV1,
-    CommandServiceLimitsV1, CommandServiceRequestV1, CommandServiceResultV1,
+    CommandFanoutResultV1, CommandInspectFormatV1, CommandOutputResultV1, CommandPayloadV1,
+    CommandQueryResultV1, CommandServiceLimitsV1, CommandServiceRequestV1, CommandServiceResultV1,
     CommandServiceStatusV1, CommandSourceMapOwnerV1, CommandSourceMapReferenceV1,
-    CommandTransformResultV1, PortableOperationResultV1, COMMAND_SERVICE_PROTOCOL_VERSION,
+    CommandTransformResultV1, PortableOperationRequestV1, PortableOperationResultV1,
+    COMMAND_SERVICE_PROTOCOL_VERSION,
 };
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{
@@ -535,12 +536,30 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
         }
         PreparedPortableOperationV1::Inspect(engine_request) => {
             let response = engine.inspect(engine_request).map_err(engine_failure)?;
-            let items = output_items(
-                plan,
-                response.primary_bytes.as_ref(),
-                &response.body,
-                "inspect-output",
-            )?;
+            let items = if matches!(
+                request.operation,
+                PortableOperationRequestV1::Inspect {
+                    format: Some(CommandInspectFormatV1::Json),
+                    ..
+                }
+            ) {
+                let bytes =
+                    serde_json::to_vec_pretty(&response.body).map_err(serialization_failure)?;
+                let mut items = encoded_output_items(plan, "application/json", &bytes);
+                for item in &mut items {
+                    if item.uri == crate::command_invocation::STDOUT_RESOURCE_URI {
+                        item.bytes.push(b'\n');
+                    }
+                }
+                items
+            } else {
+                output_items(
+                    plan,
+                    response.primary_bytes.as_ref(),
+                    &response.body,
+                    "inspect-output",
+                )?
+            };
             Ok(product(
                 PortableOperationResultV1::Inspect(response),
                 Vec::new(),
@@ -1645,6 +1664,72 @@ mod tests {
                 project: request.project.clone(),
                 resource_versions: request.resource_versions.clone(),
             },
+        }
+    }
+
+    #[test]
+    fn named_inspect_json_publishes_cli_equivalent_bytes_and_explicit_output_labels() {
+        let literal = "can't \"quote\" ```retained source```";
+        let bytes = format!("<p>{literal}</p>").into_bytes();
+        let mut request = fixture_request(false);
+        request.resources.get_mut(DATA_URI).unwrap().bytes = bytes.clone();
+        request.resource_versions.get_mut(DATA_URI).unwrap().sha256 = sha256_hex(&bytes);
+        request.operation = PortableOperationRequestV1::Inspect {
+            input_id: "input:0".into(),
+            show: InspectView::Ast,
+            format: Some(CommandInspectFormatV1::Json),
+        };
+        request.run_plan = parse_normalized_run_plan(NormalizedRunPlanRequest {
+            input_records: vec![format!(
+                "uri={DATA_URI},contentType={HTML_CONTENT_TYPE},schema={HTML_SCHEMA_URI}"
+            )],
+            output_records: [crate::command_invocation::STDOUT_RESOURCE_URI, OUTPUT_URI]
+                .into_iter()
+                .map(|uri| format!("input={DATA_URI},dest={uri},contentType=application/json"))
+                .collect(),
+            ..Default::default()
+        })
+        .unwrap()
+        .into();
+        let prepared = crate::command_operation::prepare_command_operation_v1(
+            &request,
+            CommandServiceLimitsV1::default(),
+            &EngineContext::default(),
+            &capability(),
+        )
+        .unwrap();
+        let product = execute_operation(
+            &crate::real::RealCemMlEngine::new(),
+            &request,
+            prepared,
+            &QueryResultExporterRegistry::new(),
+            CommandServiceLimitsV1::default(),
+        )
+        .unwrap_or_else(|_| panic!("named JSON inspection must execute"));
+        let PortableOperationResultV1::Inspect(response) = product.operation_result else {
+            panic!("inspect keeps its typed result envelope");
+        };
+        assert!(
+            response.primary_bytes.is_none(),
+            "native CEM writer was not requested"
+        );
+        let pretty = serde_json::to_vec_pretty(&response.body).unwrap();
+        assert_eq!(product.publication_items.len(), 2);
+        for item in product.publication_items {
+            assert_eq!(item.kind, CommandArtifactKindV1::Output);
+            assert_eq!(item.content_type, "application/json");
+            assert!(!item.label.is_empty());
+            let mut expected = pretty.clone();
+            if item.uri == crate::command_invocation::STDOUT_RESOURCE_URI {
+                expected.push(b'\n');
+            } else {
+                assert_eq!(item.uri, OUTPUT_URI);
+            }
+            assert_eq!(item.bytes, expected);
+            assert_eq!(
+                serde_json::from_slice::<Value>(&item.bytes).unwrap(),
+                response.body
+            );
         }
     }
 

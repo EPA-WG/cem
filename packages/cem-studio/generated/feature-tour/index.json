@@ -3,6 +3,7 @@
   "commonVersion": "0.1.0",
   "cacheUrls": [
     "./examples/csv-inventory.cem-studio.json",
+    "./examples/html-cem-card.cem-studio.json",
     "./examples/json-yaml-report.cem-studio.json",
     "./examples/login.cem-studio.json",
     "./examples/markdown-site.cem-studio.json",
@@ -165,6 +166,18 @@
       ],
       "archive": "./examples/csv-inventory.cem-studio.json",
       "sha256": "aef223a313fc9f92e342601db5a9f3076536998e1c10c73ace6d3ec3e1432fa0"
+    },
+    {
+      "id": "html-cem-card",
+      "name": "HTML and CEM card",
+      "description": "Compare HTML and CEM-ML card semantics, inspect the canonical shared declaration, generate native HTML and reuse packaged declarative cards in an independent live view.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-documents-ui",
+        "content-types-queries-transformations"
+      ],
+      "archive": "./examples/html-cem-card.cem-studio.json",
+      "sha256": "770429b4824bc8663b55cac9c578faa7311172d2f337bcc2ad69cec4e7cbe8c1"
     },
     {
       "id": "json-yaml-report",
