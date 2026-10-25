@@ -1,0 +1,20 @@
+@use "tokens";
+
+body {
+  font-family: system-ui, sans-serif;
+}
+
+.demo-card
+  color: tokens.$accent;
+  background: white;
+  border: 1px solid currentColor;
+  @include tokens.inset(tokens.$space);
+
+  &__title {
+    font-weight: 700;
+  }
+
+  p {
+    margin-block: 0.25rem;
+  }
+}

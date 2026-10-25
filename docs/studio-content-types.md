@@ -125,7 +125,7 @@ artifacts; the mere presence of a manifest artifact is insufficient.
 | CSS | Native retained CSS import and stylesheet validation. | Typed CSS inspection and native formatter/colorizer pipeline. | Scoped stylesheet preparation. It is not a query language or a general Sass compiler. |
 | SCSS | Explicit MIME/schema selects passive source validation; generic import and filename inference are unavailable. | Parse AST/events inspect expanded typed CSS with SCSS origin frames. | Bounded resolver/context-owned expansion to plain CSS. Passive validation does not fetch modules or expand. Same-schema SCSS source export, source DomJson/Json and command HTML-colored CSS export are unavailable. |
 | SVG, MathML | Dedicated family import retains the original XML-backed owner, namespace, source positions and profile policy. SVG and all three MathML MIME identities resolve before generic `+xml`. | Native same-schema formatting and default CEM-ML inspection. Explicit JSON inspection retains the existing compatibility projection. | Shared native queries/templates and bounded inline artifact previews. Complete vocabulary/geometry/algebra validation is not implied; browser admission is independent of source validation. |
-| CSS selector | Source/expression validation; not data. | Registered expression formatting/coloring. | Explicit canonical MIME or schema selects element-tree query dispatch; supplied MIME/schema must agree. No general-purpose transformation language. |
+| CSS selector | Source/expression validation; not data. | Registered source profiles; command source conversion is currently unavailable, and Inspect AST is a generic text envelope. | Explicit canonical MIME or schema selects element-tree query dispatch; supplied MIME/schema must agree. No general-purpose transformation language. |
 | XPath | Expression validation and native query compilation; not generic data. | Native expression formatting/coloring and inspection. | XPath/XDM-tree query or direct transformation. Binary artifacts and JSON results are not XPath source text. Supported native subset applies. |
 | CEM-QL | Query modules and standalone expressions have explicit native source handling. | Native Parse/Inspect, formatting/coloring, source ranges. | Native-items query/evaluation, parameters and template integration. Module, expression and binary artifact selectors have distinct contracts. |
 | CEM native/element templates | CEM source plus the selected template contract; element declarations run through shared `cem-elements`. | CEM-native formatting/inspection. | Native templates render data; element templates also bind declarative browser state. Source validation alone does not execute browser bindings. |
@@ -252,6 +252,24 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `schema-examples` | `operation-template` | `workbench-transformation` | Direct XPath transformation. |
 | `schema-examples` | `operation-graph` | `workbench-transformation-graph` | Portable transformation graph. |
 | `schema-examples` | `operation-input` | `workbench-trace` | Parser/validation trace. |
+| `css-stylesheet` | `style-source` | `inspect-css` | Inspect the lossless typed CSS source/token vocabulary and original source positions. |
+| `css-stylesheet` | `style-source` | `inspect-tree` | Inspect native semantic CSS rules, declarations and original ranges, independently of the lexical source AST. |
+| `css-stylesheet` | `style-source` | `validate-css` | Check native syntax and source-policy facts, without evaluating the browser cascade or claiming full CSS conformance. |
+| `css-stylesheet` | `style-source` | `format-css` | Use the native conservative lexical formatter; pretty preserves comments, strings, values and source layout instead of claiming a CSS beautifier. |
+| `css-stylesheet` | `invalid-css` | `repair-css` | Restore the missing closing delimiter and revalidate the same saved CSS resource at the original source position. |
+| `css-stylesheet` | `style-graph` | `build-html` | Publish an explicitly authored HTML wrapper and native CSS output as a two-artifact tree; the ordinary browser @scope rule is separate from DCE host scoping. |
+| `css-selector` | `selector-source` | `inspect-selector` | View the existing CEM text envelope and original query bytes/offsets. This is not a typed selector-AST export; actual matching and validation use the native selector parser. |
+| `css-selector` | `selector-source` | `validate-selector` | Validate standalone selector grammar and capability facts using its explicit query identity, independently of any host document. |
+| `css-selector` | `document-source` | `query-cards` | Select actual native HTML element identities in document order; the overlapping selector list deduplicates Tea. JSON is an explicit human-facing result export. |
+| `css-selector` | `catalog-source` | `query-namespaces` | Use an explicit static namespace binding over the original native XML element tree; source prefix spelling is not query identity. |
+| `css-selector` | `invalid-selector` | `repair-selector` | Replace the incomplete attribute selector with the valid project query and revalidate the same saved resource. |
+| `scss-stylesheet` | `scss-source` | `validate-scss` | Validate the SCSS source grammar without loading its local module or expanding variables. |
+| `scss-stylesheet` | `unresolved-module` | `validate-unresolved-module` | A syntactically valid source may mention an unavailable module: passive validation does not grant resolver access. |
+| `scss-stylesheet` | `scss-source` | `parse-scss-ast` | Expand the owned SCSS module set and inspect typed CSS structure with original SCSS origin frames, not a raw SCSS source AST. |
+| `scss-stylesheet` | `scss-source` | `parse-scss-events` | Inspect the expanded native CSS event projection and retained SCSS source identities. |
+| `scss-stylesheet` | `scss-source` | `expand-css` | Use native variables, a namespaced local mixin and nested selectors; serialize the resulting typed CSS using its own output pipeline. |
+| `scss-stylesheet` | `invalid-scss` | `repair-scss-syntax` | Restore the opening block brace and revalidate the same saved source before attempting expansion. |
+| `scss-stylesheet` | `scss-graph` | `build-html` | Build a validated HTML source through an explicit CEMT wrapper plus native SCSS-to-CSS output; publish both artifacts with an explicit HTML entry. |
 <!-- existing-samples:end -->
 
 The Markdown article operations and complete site build use the same ordinary
@@ -289,6 +307,33 @@ animation, annotations, unknown elements and namespace integration escapes are
 excluded. Exact outputs and native source maps remain available for export even
 when a document contains content outside that rendering subset.
 
+The stylesheet projects keep source handling native. CSS Inspect retains lexical
+structure, while tree inspection uses the retained CSS namespace. Current native
+CSS formatter profiles preserve conservative lexical boundaries rather than
+claiming general beautification. The graph exports typed CSS through the same
+CSS-owned writer, keeping original source spans; SCSS hands its expanded typed
+CSS owner directly to that pipeline without serializing/reparsing CSS.
+
+The SCSS source identity is explicit. Source validation is passive and does not
+resolve a module, while Parse/expansion requires an admitted resolver context.
+Native CLI use grants a bounded project-root file resolver explicitly; Studio
+supplies only owned virtual resources. Expanded Parse offsets describe generated
+CSS, not original SCSS bytes; native expansion/module origin frames retain the
+original provenance. The sample uses an explicit mixin argument and makes no full
+Sass claim. Same-schema SCSS source export, source DomJson/Json and command
+HTML-colored CSS output remain unavailable. Optional-profile use requires the
+existing trusted source-package preparation; these new project acceptance checks
+cover the complete default deployment.
+
+The selector project never treats a stylesheet as a query. It validates and
+executes an explicitly identified selector over native HTML/XML owners, preserves
+namespace bindings and returns real matched node identities in document order
+with duplicates removed. The selected JSON result is a human-facing export;
+no JSON tree is fed back as an execution input. Inspector text envelopes are not
+selector syntax trees, and registered selector formatters do not currently imply
+working command source export. The schema's unsupported-feature, host-capability
+and work-budget boundaries remain unchanged.
+
 The following rows describe existing reuse and planned extensions, rather than
 additional routes. Category names are discovery metadata and do not affect
 runtime authority.
@@ -300,8 +345,8 @@ runtime authority.
 | Documents and UI | Markdown | Reuse `markdown-site` for saved-article validation, generated-HTML inspection/query, exact standalone preview and metadata failure/repair; its folder graph publishes complete site outputs and content/layout provenance. |
 | Documents and UI | HTML, CEM-ML, native/element templates, runtime data island | Reuse Login and `html-cem-card` for semantic comparisons, shared card declarations/slots, local slice bindings and data-to-HTML generation. Keep project declaration authority and automatic DCE compilation limits explicit. |
 | Documents and UI | SVG and MathML variants | `svg-diagram` and `mathml-formula` cover native retained inspection/query/formatting, validation/repair, HTML artifacts, original provenance and bounded actual vector/presentation-math rendering. Content MathML is validated separately without an algebra or presentation claim. |
-| Documents and UI | CSS and SCSS aliases | New stylesheet project with inspect/format, supported scoped CSS and bounded SCSS-to-CSS expansion. Include unavailable source-export/loader cases. |
-| Queries and transformations | CSS selectors, XPath source aliases, CEM-QL modules/expressions | Reuse Login semantic comparisons and expression configs; add selectors, parameter maps, joins/filtering and source provenance. Treat compiled artifacts/results as separate inputs/outputs. |
+| Documents and UI | CSS and SCSS aliases | `css-stylesheet` and `scss-stylesheet` cover native inspection, validation/repair, exact CSS output, scoped styles, owned-module expansion, native HTML/CSS graphs and shared previews. Keep unavailable SCSS source-export/loader cases explicit. |
+| Queries and transformations | CSS selectors, XPath source aliases, CEM-QL modules/expressions | `css-selector` demonstrates explicit native HTML/XML matching, namespace context, ordered/deduplicated native identities and source ranges. Reuse Login semantic comparisons/expressions and add parameter maps and joins/filtering. Treat compiled artifacts/results as separate inputs/outputs. |
 | Queries and transformations | CEM transformation and XSLT source/custom-element selectors | Reuse existing CEM graphs; add a complete-profile bounded XSLT graph and explicit optional-profile refusal. Do not treat custom-element mode as a universal XSLT alias. |
 | Schema authoring | CEM schema and schema package | Extend Login's failure/repair package with declarations, references and explicit instance inputs. |
 | Schema authoring | JSON Schema and both Relax NG syntaxes | Add schema-source inspect/format/validation projects. Show instance validation only where independently supported; document unsupported drafts/patterns rather than promise arbitrary validators. |
@@ -323,7 +368,7 @@ against the native-emitted registry, the capability list against runtime metadat
 and each existing sample reference against the generated ordinary project bundle.
 It also runs all manifest-selected source validations through the native CLI and
 checks deployed bytes and hashes. The `test:feature-tour` browser cases exercise
-the authored Login, Supplier, data-report, XHTML, Markdown, HTML/CEM card and SVG/MathML workflows;
+the authored Login, Supplier, data-report, XHTML, Markdown, HTML/CEM card, SVG/MathML and CSS/SCSS/selector workflows;
 site preview/build browser acceptance also lives in `test:workbench`, with deployed
 article/site and offline checks in the navigation gate. These checks establish the
 covered operations; they do not turn untested aliases or planned workflows into

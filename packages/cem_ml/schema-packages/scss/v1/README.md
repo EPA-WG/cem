@@ -37,6 +37,13 @@ Browser-facing serialization belongs to the CSS package and always uses
 `text/css`. The pipeline must not call a Sass CSS serializer and then reparse
 the generated text.
 
+An explicitly typed CSS export in a transformation graph uses the same native
+CSS writer after SCSS expansion, with original module/definition/expansion
+origins. The caller must still grant module reads: a local source path or base
+URI alone grants no filesystem resolver. CLI callers can supply a bounded
+project-root read map; Studio supplies its declared virtual project resources.
+Raw SCSS cannot be relabeled as a CSS artifact.
+
 ## Compatibility And Modules
 
 The package-owned

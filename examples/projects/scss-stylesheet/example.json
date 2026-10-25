@@ -1,0 +1,291 @@
+{
+  "id": "scss-stylesheet",
+  "name": "SCSS stylesheet",
+  "version": "1.0.0",
+  "description": "Validate passive SCSS, inspect its expanded CSS, resolve a project-owned module, repair source syntax and build an independent HTML/CSS preview.",
+  "collections": [
+    "content-types-documents-ui",
+    "content-types-queries-transformations"
+  ],
+  "sources": [
+    {
+      "id": "scss-source",
+      "source": "examples/projects/scss-stylesheet/styles/cards.scss",
+      "path": "styles/cards.scss",
+      "contentType": "text/vnd.cem.scss",
+      "schema": "https://cem.dev/ns/data/scss/1",
+      "role": "data"
+    },
+    {
+      "id": "scss-tokens",
+      "source": "examples/projects/scss-stylesheet/styles/_tokens.scss",
+      "path": "styles/_tokens.scss",
+      "contentType": "text/vnd.cem.scss",
+      "schema": "https://cem.dev/ns/data/scss/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-scss",
+      "source": "examples/projects/scss-stylesheet/failures/missing-brace.scss",
+      "path": "failures/missing-brace.scss",
+      "contentType": "text/vnd.cem.scss",
+      "schema": "https://cem.dev/ns/data/scss/1",
+      "role": "data"
+    },
+    {
+      "id": "unresolved-module",
+      "source": "examples/projects/scss-stylesheet/failures/unavailable-module.scss",
+      "path": "failures/unavailable-module.scss",
+      "contentType": "text/vnd.cem.scss",
+      "schema": "https://cem.dev/ns/data/scss/1",
+      "role": "data"
+    },
+    {
+      "id": "preview-html",
+      "source": "examples/projects/scss-stylesheet/data/card.html",
+      "path": "data/card.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "html-template",
+      "source": "examples/projects/scss-stylesheet/templates/page.cemt",
+      "path": "templates/page.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "scss-graph",
+      "source": "examples/projects/scss-stylesheet/graphs/styles.cem",
+      "path": "graphs/styles.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "expected-css",
+      "source": "examples/projects/scss-stylesheet/expected/cards.css",
+      "path": "expected/cards.css",
+      "contentType": "text/css",
+      "schema": "https://cem.dev/ns/data/css/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-html",
+      "source": "examples/projects/scss-stylesheet/expected/index.html",
+      "path": "expected/index.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/scss-stylesheet/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "validate-scss",
+      "name": "Validate passive SCSS source",
+      "kind": "validation",
+      "source": "scss-source",
+      "description": "Validate the SCSS source grammar without loading its local module or expanding variables.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "text/vnd.cem.scss",
+        "--schema",
+        "https://cem.dev/ns/data/scss/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "validate-unresolved-module",
+      "name": "Validate syntax without loading a module",
+      "kind": "validation",
+      "source": "unresolved-module",
+      "description": "A syntactically valid source may mention an unavailable module: passive validation does not grant resolver access.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "text/vnd.cem.scss",
+        "--schema",
+        "https://cem.dev/ns/data/scss/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "parse-scss-ast",
+      "name": "Parse expanded CSS AST with SCSS origins",
+      "kind": "inspection",
+      "source": "scss-source",
+      "description": "Expand the owned SCSS module set and inspect typed CSS structure with original SCSS origin frames, not a raw SCSS source AST.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "text/vnd.cem.scss",
+        "--schema",
+        "https://cem.dev/ns/data/scss/1",
+        "--format",
+        "ast",
+        "--preserve-source-offsets",
+        "--no-color"
+      ],
+      "dependencies": [
+        "scss-tokens"
+      ],
+      "expectedText": [
+        "https://cem.dev/ns/data/css/1",
+        ".demo-card"
+      ]
+    },
+    {
+      "id": "parse-scss-events",
+      "name": "Parse expanded CSS events with SCSS origins",
+      "kind": "inspection",
+      "source": "scss-source",
+      "description": "Inspect the expanded native CSS event projection and retained SCSS source identities.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "text/vnd.cem.scss",
+        "--schema",
+        "https://cem.dev/ns/data/scss/1",
+        "--format",
+        "events",
+        "--preserve-source-offsets",
+        "--no-color"
+      ],
+      "dependencies": [
+        "scss-tokens"
+      ],
+      "expectedText": [
+        "https://cem.dev/ns/data/css/1",
+        ".demo-card"
+      ]
+    },
+    {
+      "id": "expand-css",
+      "name": "Expand SCSS to exact browser CSS",
+      "kind": "conversion",
+      "source": "scss-source",
+      "description": "Use native variables, a namespaced local mixin and nested selectors; serialize the resulting typed CSS using its own output pipeline.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "text/vnd.cem.scss",
+        "--schema",
+        "https://cem.dev/ns/data/scss/1",
+        "--to-content-type",
+        "text/css",
+        "--to-schema",
+        "https://cem.dev/ns/data/css/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "dependencies": [
+        "scss-tokens",
+        "expected-css"
+      ],
+      "expectedOutput": "expected-css"
+    },
+    {
+      "id": "repair-scss-syntax",
+      "name": "Repair the SCSS opening brace",
+      "kind": "validation",
+      "source": "invalid-scss",
+      "description": "Restore the opening block brace and revalidate the same saved source before attempting expansion.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "text/vnd.cem.scss",
+        "--schema",
+        "https://cem.dev/ns/data/scss/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.scss.parse_error",
+        "location": {
+          "line": 20,
+          "column": 1,
+          "byteOffset": 273
+        }
+      },
+      "repair": {
+        "find": ".demo-card\n",
+        "replace": ".demo-card {\n"
+      }
+    },
+    {
+      "id": "build-html",
+      "name": "Build HTML and generated CSS",
+      "kind": "transformation-graph",
+      "source": "scss-graph",
+      "description": "Build a validated HTML source through an explicit CEMT wrapper plus native SCSS-to-CSS output; publish both artifacts with an explicit HTML entry.",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "dependencies": [
+        "scss-source",
+        "scss-tokens",
+        "preview-html",
+        "html-template",
+        "expected-css",
+        "expected-html"
+      ],
+      "entryArtifact": "generated/index.html",
+      "expectedGraphOutputs": {
+        "generated/index.html": "expected-html",
+        "generated/cards.css": "expected-css"
+      },
+      "expectedProvenance": [
+        "templates/page.cemt"
+      ],
+      "expectedGraphFailures": [
+        [
+          "scss-source",
+          "invalid-scss"
+        ]
+      ]
+    }
+  ]
+}

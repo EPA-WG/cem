@@ -4210,6 +4210,7 @@ fn transform_graph_export_primary(
     artifact: &TransformTemplateDataArtifact,
     metadata: &TransformOutputMetadata,
     target: Option<&FormatIdentity>,
+    target_scope: &ScopeConfig,
     style_projection: TransformGraphHtmlStyleProjection,
 ) -> Result<TransformGraphExportPrimary, String> {
     if let TransformArtifactBody::Encoded(encoded) = &artifact.body {
@@ -4243,6 +4244,14 @@ fn transform_graph_export_primary(
                 metadata.source_map.clone(),
                 metadata.output_spans.clone(),
             ));
+        }
+    }
+    // SCSS loading already hands off the same typed CSS owner as CSS loading.
+    // Export that owner through the CSS writer, rather than serializing its AST
+    // or treating generated CSS as replacement source text.
+    if let TransformArtifactBody::Lifecycle(owner) = &artifact.body {
+        if let LoadedInputAstStream::CssDocument(document) = owner.as_ref() {
+            return transform_graph_css_primary(context, artifact, document, target, target_scope);
         }
     }
     if transform_graph_target_is_css(target) {
@@ -4313,6 +4322,52 @@ fn transform_graph_export_primary(
         None,
         metadata.source_map.clone(),
         metadata.output_spans.clone(),
+    ))
+}
+
+fn transform_graph_css_primary(
+    context: &EngineContext,
+    artifact: &TransformTemplateDataArtifact,
+    document: &CssDocumentAst,
+    target: Option<&FormatIdentity>,
+    target_scope: &ScopeConfig,
+) -> Result<TransformGraphExportPrimary, String> {
+    let target = target.ok_or("typed CSS export requires an explicit CSS target")?;
+    let selection = LifecycleRegistry::with_builtin_adapters()
+        .select_export(Some(target), LayerFormat::Css);
+    if selection.adapter_id != Some("css") {
+        return Err("typed CSS export requires a matching text/css content type and CSS schema identity".to_owned());
+    }
+    if let Some(profile) = xml_direct_output_color_profile(target_scope) {
+        return Err(format!("browser-facing CSS export cannot apply the `{profile}` presentation color profile"));
+    }
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: activated_package_artifact_reader(context),
+        artifact_cache: None,
+    };
+    let execution = execute_css_document_output_pipeline_with_environment(
+        &environment, document.clone(), target_scope, artifact.uri.as_deref(),
+    );
+    if let Some(diagnostic) = execution.diagnostics.iter().find(|item| item.severity.is_hard_violation()) {
+        return Err(format!("{}: {}", diagnostic.code, diagnostic.message));
+    }
+    let content = execution.output.as_ref().and_then(Value::as_str)
+        .ok_or("CSS output pipeline did not produce native writer text")?;
+    let bytes = content.as_bytes().to_vec();
+    let primary_bytes = PrimaryBytes {
+        content_type: target.content_type.clone().unwrap_or_else(|| CSS_CONTENT_TYPE.to_owned()),
+        schema: Some(target.schema.clone().unwrap_or_else(|| CSS_SCHEMA_URI.to_owned())),
+        format_version: "css/1".to_owned(),
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    Ok((
+        json!({ "kind": "document", "contentType": primary_bytes.content_type,
+            "schema": primary_bytes.schema, "hash": primary_bytes.hash }),
+        Some(primary_bytes), execution.source_map, execution.output_spans,
     ))
 }
 
@@ -13788,6 +13843,7 @@ impl CemMlEngine for RealCemMlEngine {
                             artifact,
                             &metadata,
                             identity.as_ref(),
+                            &export.target_scope,
                             style_projection,
                         ) {
                         Ok(encoded) => encoded,
@@ -16452,6 +16508,7 @@ mod tests {
             &artifact,
             &metadata,
             Some(&target),
+            &ScopeConfig::default(),
             TransformGraphHtmlStyleProjection::Inline,
         )
         .expect("CSS export projection");
@@ -16495,6 +16552,7 @@ mod tests {
             &artifact,
             &TransformOutputMetadata::default(),
             Some(&identity),
+            &ScopeConfig::default(),
             TransformGraphHtmlStyleProjection::Inline,
         )
         .expect("opaque JSON-labeled bytes export without parsing");
@@ -16547,6 +16605,7 @@ mod tests {
                 &artifact,
                 &metadata,
                 Some(&target),
+                &ScopeConfig::default(),
                 TransformGraphHtmlStyleProjection::Inline,
             )
             .expect("CSS export projection");
@@ -16602,6 +16661,7 @@ mod tests {
             &artifact,
             &metadata,
             Some(&target),
+            &ScopeConfig::default(),
             TransformGraphHtmlStyleProjection::Link(
                 "assets/page.css?mode=screen&theme=\"dark\"".to_owned(),
             ),
@@ -16659,6 +16719,7 @@ mod tests {
                 &artifact,
                 &metadata,
                 Some(&target),
+                &ScopeConfig::default(),
                 TransformGraphHtmlStyleProjection::Link("page.css".to_owned()),
             )
             .expect("HTML link export projection");
@@ -16723,6 +16784,7 @@ mod tests {
                 &artifact,
                 &metadata,
                 Some(&target),
+                &ScopeConfig::default(),
                 TransformGraphHtmlStyleProjection::Omit,
             )
             .expect("HTML omit export projection");
@@ -16776,6 +16838,7 @@ mod tests {
             &artifact,
             &metadata,
             Some(&target),
+            &ScopeConfig::default(),
             TransformGraphHtmlStyleProjection::Omit,
         )
         .expect("HTML omit export projection");

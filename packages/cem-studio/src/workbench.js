@@ -2228,7 +2228,7 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
         const native = nativeOutputs.find(candidate => candidate.destination === output.uri);
         const frames = [];
         for (const span of native?.outputSpans ?? []) for (const frame of span.origin?.frames ?? []) {
-            if (frame.transform?.kind !== 'SourceBoundary' || !frame.transform.uri) continue;
+            if (!frameSourceUri(frame)) continue;
             const ranges = frame.span?.kind === 'Multi' ? frame.span.ranges : frame.span?.kind === 'Single' ? [frame.span.ranges] : [];
             for (const range of ranges) if (frames.length < CEM_STUDIO_LIMITS.structuredRows) {
                 frames.push(Object.freeze({ ...normalizeFrame(frame, {}), range: Object.freeze({ ...range }), outputRange: span.outputRange, outputUri: output.uri }));
@@ -2360,12 +2360,21 @@ function normalizeDiagnostic(diagnostic) {
     });
 }
 
+function frameSourceUri(frame) {
+    const transform = frame?.transform;
+    if (transform?.kind === 'SourceBoundary') return transform.uri;
+    if (transform?.kind === 'ScssOrigin') return transform.module_uri;
+    return undefined;
+}
+
 function normalizeFrame(frame, owner) {
     return Object.freeze({
         ...owner,
         sourceId: frame?.source_id,
-        uri: frame?.transform?.kind === 'SourceBoundary' ? frame.transform.uri : undefined,
+        uri: frameSourceUri(frame),
         transform: frame?.transform?.kind ?? 'Unknown',
+        ...(frame?.transform?.kind === 'ScssOrigin' ? { originKind: frame.transform.origin_kind,
+            ...(frame.transform.name === undefined ? {} : { name: frame.transform.name }) } : {}),
         range: Object.freeze(firstFrameRange(frame) ?? { start: 0, len: 0 }),
     });
 }

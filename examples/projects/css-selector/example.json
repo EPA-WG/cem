@@ -1,0 +1,214 @@
+{
+  "id": "css-selector",
+  "name": "CSS selector queries",
+  "version": "1.0.0",
+  "description": "Validate explicit CSS-selector expressions, select native HTML and namespaced XML elements in document order, inspect original query bytes and repair malformed selector source.",
+  "collections": [
+    "content-types-queries-transformations",
+    "content-types-documents-ui"
+  ],
+  "sources": [
+    {
+      "id": "document-source",
+      "source": "examples/projects/css-selector/data/products.html",
+      "path": "data/products.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "catalog-source",
+      "source": "examples/projects/css-selector/data/catalog.xml",
+      "path": "data/catalog.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "role": "data"
+    },
+    {
+      "id": "selector-source",
+      "source": "examples/projects/css-selector/queries/ready-cards.css-selector",
+      "path": "queries/ready-cards.css-selector",
+      "contentType": "application/vnd.cem.query-expression+css-selector",
+      "schema": "https://cem.dev/ns/query/css-selector/1",
+      "role": "query"
+    },
+    {
+      "id": "namespace-selector",
+      "source": "examples/projects/css-selector/queries/namespaced-products.css-selector",
+      "path": "queries/namespaced-products.css-selector",
+      "contentType": "application/vnd.cem.query-expression+css-selector",
+      "schema": "https://cem.dev/ns/query/css-selector/1",
+      "role": "query"
+    },
+    {
+      "id": "invalid-selector",
+      "source": "examples/projects/css-selector/failures/invalid.css-selector",
+      "path": "failures/invalid.css-selector",
+      "contentType": "application/vnd.cem.query-expression+css-selector",
+      "schema": "https://cem.dev/ns/query/css-selector/1",
+      "role": "query"
+    },
+    {
+      "id": "selector-summary",
+      "source": "examples/projects/css-selector/expected/ready-cards.json",
+      "path": "expected/ready-cards.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "namespace-summary",
+      "source": "examples/projects/css-selector/expected/namespaced-products.json",
+      "path": "expected/namespaced-products.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/css-selector/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "inspect-selector",
+      "name": "Inspect the original selector source",
+      "kind": "inspection",
+      "source": "selector-source",
+      "description": "View the existing CEM text envelope and original query bytes/offsets. This is not a typed selector-AST export; actual matching and validation use the native selector parser.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query-expression+css-selector",
+        "--schema",
+        "https://cem.dev/ns/query/css-selector/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@kind=text",
+        "article.product",
+        "@byte-offset=0"
+      ]
+    },
+    {
+      "id": "validate-selector",
+      "name": "Validate the ready-card selector",
+      "kind": "validation",
+      "source": "selector-source",
+      "description": "Validate standalone selector grammar and capability facts using its explicit query identity, independently of any host document.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query-expression+css-selector",
+        "--schema",
+        "https://cem.dev/ns/query/css-selector/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "query-cards",
+      "name": "Select ready HTML product cards",
+      "kind": "query",
+      "source": "document-source",
+      "description": "Select actual native HTML element identities in document order; the overlapping selector list deduplicates Tea. JSON is an explicit human-facing result export.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--query-file",
+        "$selector-source",
+        "--query-content-type",
+        "application/vnd.cem.query-expression+css-selector",
+        "--query-schema",
+        "https://cem.dev/ns/query/css-selector/1",
+        "--output",
+        "json"
+      ],
+      "dependencies": [
+        "selector-source",
+        "selector-summary"
+      ],
+      "expectedSemanticContract": "selector-summary"
+    },
+    {
+      "id": "query-namespaces",
+      "name": "Select namespaced XML products",
+      "kind": "query",
+      "source": "catalog-source",
+      "description": "Use an explicit static namespace binding over the original native XML element tree; source prefix spelling is not query identity.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--query-file",
+        "$namespace-selector",
+        "--query-content-type",
+        "application/vnd.cem.query-expression+css-selector",
+        "--query-schema",
+        "https://cem.dev/ns/query/css-selector/1",
+        "--namespace",
+        "c=urn:example:products",
+        "--output",
+        "json"
+      ],
+      "dependencies": [
+        "namespace-selector",
+        "namespace-summary"
+      ],
+      "expectedSemanticContract": "namespace-summary"
+    },
+    {
+      "id": "repair-selector",
+      "name": "Repair the unclosed attribute selector",
+      "kind": "validation",
+      "source": "invalid-selector",
+      "description": "Replace the incomplete attribute selector with the valid project query and revalidate the same saved resource.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query-expression+css-selector",
+        "--schema",
+        "https://cem.dev/ns/query/css-selector/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "css-selector.parse.invalid",
+        "location": {
+          "line": 1,
+          "column": 8,
+          "byteOffset": 7
+        }
+      },
+      "repair": {
+        "find": "article[\n",
+        "replace": "main#catalog > article.product[data-state=\"ready\"]:has(> h2), article#tea\n"
+      }
+    }
+  ]
+}

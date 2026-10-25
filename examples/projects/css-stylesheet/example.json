@@ -1,0 +1,246 @@
+{
+  "id": "css-stylesheet",
+  "name": "CSS stylesheet",
+  "version": "1.0.0",
+  "description": "Inspect lossless and semantic CSS views, validate and format source, repair an unclosed layer and preview a native CSS/HTML build with a scoped card style.",
+  "collections": [
+    "content-types-documents-ui",
+    "content-types-queries-transformations"
+  ],
+  "sources": [
+    {
+      "id": "style-source",
+      "source": "examples/projects/css-stylesheet/styles/cards.css",
+      "path": "styles/cards.css",
+      "contentType": "text/css",
+      "schema": "https://cem.dev/ns/data/css/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-css",
+      "source": "examples/projects/css-stylesheet/failures/unclosed-rule.css",
+      "path": "failures/unclosed-rule.css",
+      "contentType": "text/css",
+      "schema": "https://cem.dev/ns/data/css/1",
+      "role": "data"
+    },
+    {
+      "id": "preview-document",
+      "source": "examples/projects/css-stylesheet/data/preview.html",
+      "path": "data/preview.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "style-template",
+      "source": "examples/projects/css-stylesheet/templates/cards.cemt",
+      "path": "templates/cards.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "style-graph",
+      "source": "examples/projects/css-stylesheet/graphs/cards.cem",
+      "path": "graphs/cards.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "expected-css",
+      "source": "examples/projects/css-stylesheet/expected/cards.css",
+      "path": "expected/cards.css",
+      "contentType": "text/css",
+      "schema": "https://cem.dev/ns/data/css/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-html",
+      "source": "examples/projects/css-stylesheet/expected/cards.html",
+      "path": "expected/cards.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/css-stylesheet/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "inspect-css",
+      "name": "Inspect native CSS source",
+      "kind": "inspection",
+      "source": "style-source",
+      "description": "Inspect the lossless typed CSS source/token vocabulary and original source positions.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "text/css",
+        "--schema",
+        "https://cem.dev/ns/data/css/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@kind=css-document",
+        "@schema=https://cem.dev/ns/data/css/1",
+        "source.byte-length"
+      ]
+    },
+    {
+      "id": "inspect-tree",
+      "name": "Inspect retained CSS rules",
+      "kind": "inspection",
+      "source": "style-source",
+      "description": "Inspect native semantic CSS rules, declarations and original ranges, independently of the lexical source AST.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "text/css",
+        "--schema",
+        "https://cem.dev/ns/data/css/1",
+        "--show",
+        "tree",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@namespace=https://cem.dev/ns/data/css/1",
+        "@name=declaration",
+        "@name=selector-list",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "validate-css",
+      "name": "Validate the scoped CSS source",
+      "kind": "validation",
+      "source": "style-source",
+      "description": "Check native syntax and source-policy facts, without evaluating the browser cascade or claiming full CSS conformance.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "text/css",
+        "--schema",
+        "https://cem.dev/ns/data/css/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "format-css",
+      "name": "Format CSS (pretty profile)",
+      "kind": "conversion",
+      "source": "style-source",
+      "description": "Use the native conservative lexical formatter; pretty preserves comments, strings, values and source layout instead of claiming a CSS beautifier.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "text/css",
+        "--schema",
+        "https://cem.dev/ns/data/css/1",
+        "--to-content-type",
+        "text/css",
+        "--to-schema",
+        "https://cem.dev/ns/data/css/1",
+        "--cemt-formatter-profile",
+        "pretty",
+        "--output-color-type",
+        "none"
+      ],
+      "dependencies": [
+        "expected-css"
+      ],
+      "expectedOutput": "expected-css"
+    },
+    {
+      "id": "repair-css",
+      "name": "Repair the unclosed CSS layer",
+      "kind": "validation",
+      "source": "invalid-css",
+      "description": "Restore the missing closing delimiter and revalidate the same saved CSS resource at the original source position.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "text/css",
+        "--schema",
+        "https://cem.dev/ns/data/css/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.css.invalid_token",
+        "location": {
+          "line": 2,
+          "column": 17,
+          "byteOffset": 68
+        }
+      },
+      "repair": {
+        "find": "  }\n",
+        "replace": "  }\n}\n"
+      }
+    },
+    {
+      "id": "build-html",
+      "name": "Build and preview the scoped stylesheet",
+      "kind": "transformation-graph",
+      "source": "style-graph",
+      "description": "Publish an explicitly authored HTML wrapper and native CSS output as a two-artifact tree; the ordinary browser @scope rule is separate from DCE host scoping.",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "dependencies": [
+        "preview-document",
+        "style-template",
+        "style-source",
+        "expected-html",
+        "expected-css"
+      ],
+      "entryArtifact": "generated/cards.html",
+      "expectedGraphOutputs": {
+        "generated/cards.html": "expected-html",
+        "generated/cards.css": "expected-css"
+      },
+      "expectedProvenance": [
+        "templates/cards.cemt"
+      ],
+      "expectedGraphFailures": [
+        [
+          "style-source",
+          "invalid-css"
+        ]
+      ]
+    }
+  ]
+}

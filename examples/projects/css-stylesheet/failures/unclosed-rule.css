@@ -1,0 +1,7 @@
+/* Native CSS keeps authored lexical boundaries. */
+@layer examples {
+  .catalog-card { padding: 0.5rem; border: 1px solid currentColor; }
+  @scope (.catalog-card) {
+    h2 { color: rgb(24, 92, 128); }
+    p { margin-block: 0.25rem; }
+  }

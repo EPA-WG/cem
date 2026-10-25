@@ -400,6 +400,16 @@ pub fn css_document_ast_from_source_bytes(
     let mut facts = Vec::new();
     collect_cssparser_events(&mut parser, source, &line_index, 0, &mut events, &mut facts);
     normalize_lossless_events(source, &line_index, &mut events);
+    // Numeric source IDs are local to this parser. Keep the authored URI on
+    // each lossless event so writer spans remain unambiguous across graph
+    // inputs; generated SCSS events retain their separate expansion origins.
+    for event in &mut events {
+        event.source_map.frames.insert(0, SourceMapFrame {
+            source_id: SourceId(1),
+            span: FrameSpan::Single(event.source_range.byte_range()),
+            transform: TransformKind::SourceBoundary { uri: request.source_uri.to_owned() },
+        });
+    }
 
     let declared_charset = parameters.get("charset").cloned();
     let entry_mode = infer_entry_mode(&parameters, source, &events);

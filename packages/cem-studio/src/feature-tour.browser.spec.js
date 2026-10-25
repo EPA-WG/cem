@@ -40,6 +40,81 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
+    for (const projectId of ['css-stylesheet', 'css-selector', 'scss-stylesheet']) {
+        it(`runs the ${projectId} native configurations with exact outputs and source repair`, async () => {
+            const { bundle, definition, decode } = await authoredProject(projectId);
+            const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+            for (const configuration of definition.configurations.filter(item => item.kind !== 'transformation-graph')) {
+                const entry = bundle.project.entries.find(item => item.id === configuration.id);
+                const options = projectCommandOptions(bundle, entry, `${projectId}-commands-copy`);
+                const commandResource = bundle.contents[entry.runConfigResourceId];
+                const command = JSON.parse(decode(entry.runConfigResourceId));
+                const run = overrides => command.argv
+                    ? validator.executeAuthoredResourceCommand({ ...options, ...overrides, commandResource })
+                    : validator.validateResource({ ...options, ...overrides });
+                const outcome = await run().catch(error => error);
+                if (!outcome.result) throw new Error(`${projectId}/${configuration.id}: ${outcome.message}`, { cause: outcome });
+                expect(outcome.result.exitCode, JSON.stringify(outcome.result.diagnostics.items)).toBe(configuration.expectedExit ?? 0);
+                if ((configuration.expectedExit ?? 0) === 0) expect(outcome.result.diagnostics.items.filter(item => ['error', 'fatal'].includes(item.severity))).toEqual([]);
+                if (configuration.expectedOutput) expect(outcome.output.text).toBe(decode(configuration.expectedOutput));
+                for (const text of configuration.expectedText ?? []) expect(outcome.output.text).toContain(text);
+                if (configuration.expectedSemanticContract) {
+                    const report = JSON.parse(outcome.output.text); expect(report.language).toBe('css-selector');
+                    expect(report.matches.map(({ localName, namespaceUri, documentOrder, nodeId }) => ({ localName, namespaceUri, documentOrder, nodeId })))
+                        .toEqual(JSON.parse(decode(configuration.expectedSemanticContract)));
+                    expect(report.matches.every(item => item.sourceMap.frames.length > 0)).toBe(true);
+                }
+                const expected = configuration.expectedValidation;
+                if (expected) {
+                    expect(outcome.result.diagnostics.items.filter(item => item.severity === 'error')).toHaveLength(expected.errorCount);
+                    expect(outcome.result.diagnostics.items.filter(item => item.severity === 'warning')).toHaveLength(expected.warningCount);
+                    if (configuration.repair) {
+                        const source = bundle.project.resources.find(item => item.id === configuration.source);
+                        const diagnostic = outcome.result.diagnostics.items.find(item => item.code === expected.errorCode);
+                        expect(diagnostic).toMatchObject({ severity: 'error', uri: `studio://${projectId}-commands-copy/${source.path}` });
+                        for (const [key, value] of Object.entries(expected.location)) expect(diagnostic[key] ?? null).toBe(value);
+                        const original = decode(configuration.source), repaired = original.replace(configuration.repair.find, configuration.repair.replace);
+                        expect(repaired).not.toBe(original);
+                        const fixed = await run({ bytes: new TextEncoder().encode(repaired) });
+                        expect(fixed.result.exitCode).toBe(0); expect(fixed.result.diagnostics.items).toEqual([]);
+                        expect(decode(configuration.source)).toBe(original);
+                    }
+                }
+            }
+        }, 60_000);
+    }
+
+    for (const [projectId, sourceId, find, replacement] of [
+        ['css-stylesheet', 'style-source', 'rgb(24, 92, 128)', 'rgb(128, 48, 24)'],
+        ['scss-stylesheet', 'scss-tokens', '#036', '#630'],
+    ]) {
+        it(`builds ${projectId} CSS artifacts with native origins and independent module/source edits`, async () => {
+            const { bundle, definition, decode } = await authoredProject(projectId);
+            const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+            const configuration = definition.configurations.find(item => item.kind === 'transformation-graph');
+            const entry = bundle.project.entries.find(item => item.id === configuration.id);
+            const command = JSON.parse(decode(entry.runConfigResourceId));
+            const run = (edits = {}, id = `${projectId}-build-copy`) => validator.runResourceCommand({ ...projectCommandOptions(bundle, entry, id, edits), argv: command.argv });
+            const baseline = await run();
+            expect(entry.entryArtifact).toBe(configuration.entryArtifact);
+            expect(baseline.outputs).toHaveLength(Object.keys(configuration.expectedGraphOutputs).length);
+            for (const [path, expected] of Object.entries(configuration.expectedGraphOutputs)) expect(baseline.outputs.find(item => item.uri.endsWith(`/${path}`)).bytes).toEqual(bundle.contents[expected]);
+            const css = baseline.result.result.value.value.value.artifacts.find(item => item.destination.endsWith('.css'));
+            expect(css.outputSpans.length).toBeGreaterThan(0);
+            const source = bundle.project.resources.find(item => item.id === sourceId);
+            expect(JSON.stringify(css.outputSpans)).toContain(`/${source.path}`);
+            const original = decode(sourceId), edited = original.replace(find, replacement); expect(edited).not.toBe(original);
+            const customized = await run({ [sourceId]: edited });
+            const cssPath = Object.keys(configuration.expectedGraphOutputs).find(path => path.endsWith('.css'));
+            expect(customized.outputs.find(item => item.uri.endsWith(`/${cssPath}`)).bytes).not.toEqual(baseline.outputs.find(item => item.uri.endsWith(`/${cssPath}`)).bytes);
+            for (const [sourceId, invalidId] of configuration.expectedGraphFailures ?? []) await expect(run({ [sourceId]: decode(invalidId) })).rejects.toMatchObject({ result: { exitCode: 1 }, output: { available: false } });
+            const independent = await run({}, `${projectId}-independent`);
+            for (const [path, expected] of Object.entries(configuration.expectedGraphOutputs)) expect(independent.outputs.find(item => item.uri.endsWith(`/${path}`)).bytes).toEqual(bundle.contents[expected]);
+            expect(independent.outputs.every(item => item.uri.startsWith(`studio://${projectId}-independent/`))).toBe(true);
+            expect(decode(sourceId)).toBe(original);
+        }, 60_000);
+    }
+
     for (const projectId of ['svg-diagram', 'mathml-formula']) {
         it(`runs the ${projectId} native family configurations, exact formats and namespace repair`, async () => {
             const { bundle, definition, decode } = await authoredProject(projectId);

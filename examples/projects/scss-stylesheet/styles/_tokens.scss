@@ -1,0 +1,6 @@
+$accent: #036;
+$space: 0.75rem;
+
+@mixin inset($amount) {
+  padding: $amount;
+}

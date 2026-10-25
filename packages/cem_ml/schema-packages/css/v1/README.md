@@ -38,6 +38,14 @@ conservative lexical boundaries rather than rewriting strings, comments,
 custom properties, functions, or nested rules. Text output receives the common
 default final newline.
 
+Native transformation graphs also export lifecycle-owned `CssDocumentAst`
+through this CSS output pipeline, including the typed CSS handed off by SCSS
+expansion. Graph exports require a matching explicit CSS target and preserve
+writer spans and original source URI boundaries; they do not serialize the AST
+as JSON or reparse generated CSS. Presentation coloring is refused for a
+browser-facing stylesheet artifact. Existing resource policy and formatter
+package readiness still apply.
+
 ## Validation
 
 Validate CSS resources through the CLI with the schema URI and content type:

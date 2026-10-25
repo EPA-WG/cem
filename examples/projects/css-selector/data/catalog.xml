@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog xmlns="urn:example:products"><product id="tea" state="ready">Green tea</product><product id="coffee" state="draft">Harbor coffee</product><product id="cocoa" state="ready">Cocoa</product></catalog>

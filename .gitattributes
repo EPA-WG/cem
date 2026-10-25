@@ -31,6 +31,8 @@ examples/projects/json-yaml-report/expected/report.html whitespace=-blank-at-eol
 examples/projects/xhtml-document/expected/article.html whitespace=-blank-at-eol
 examples/projects/svg-diagram/expected/diagram.html whitespace=-blank-at-eol
 examples/projects/mathml-formula/expected/formula.html whitespace=-blank-at-eol
+examples/projects/css-stylesheet/expected/cards.html whitespace=-blank-at-eol
+examples/projects/scss-stylesheet/expected/index.html whitespace=-blank-at-eol
 
 # Binary files
 *.png binary

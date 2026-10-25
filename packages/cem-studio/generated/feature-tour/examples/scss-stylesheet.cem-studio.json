@@ -1,0 +1,384 @@
+{
+  "archiveSchemaVersion": 1,
+  "project": {
+    "$schema": "https://cem.dev/ns/studio/project/1",
+    "schemaVersion": 1,
+    "id": "scss-stylesheet-seed",
+    "name": "SCSS stylesheet",
+    "description": "Validate passive SCSS, inspect its expanded CSS, resolve a project-owned module, repair source syntax and build an independent HTML/CSS preview.",
+    "rootUri": "studio://scss-stylesheet-seed/",
+    "revision": 1,
+    "createdAt": "2026-10-17T00:00:00Z",
+    "updatedAt": "2026-10-17T00:00:00Z",
+    "entries": [
+      {
+        "id": "validate-scss",
+        "kind": "validation",
+        "name": "Validate passive SCSS source",
+        "description": "Validate the SCSS source grammar without loading its local module or expanding variables.",
+        "resourceIds": [
+          "scss-source",
+          "command-validate-scss"
+        ],
+        "runConfigResourceId": "command-validate-scss",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "validate-unresolved-module",
+        "kind": "validation",
+        "name": "Validate syntax without loading a module",
+        "description": "A syntactically valid source may mention an unavailable module: passive validation does not grant resolver access.",
+        "resourceIds": [
+          "unresolved-module",
+          "command-validate-unresolved-module"
+        ],
+        "runConfigResourceId": "command-validate-unresolved-module",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "parse-scss-ast",
+        "kind": "inspection",
+        "name": "Parse expanded CSS AST with SCSS origins",
+        "description": "Expand the owned SCSS module set and inspect typed CSS structure with original SCSS origin frames, not a raw SCSS source AST.",
+        "resourceIds": [
+          "scss-source",
+          "command-parse-scss-ast",
+          "scss-tokens"
+        ],
+        "runConfigResourceId": "command-parse-scss-ast",
+        "tags": [
+          "parse"
+        ]
+      },
+      {
+        "id": "parse-scss-events",
+        "kind": "inspection",
+        "name": "Parse expanded CSS events with SCSS origins",
+        "description": "Inspect the expanded native CSS event projection and retained SCSS source identities.",
+        "resourceIds": [
+          "scss-source",
+          "command-parse-scss-events",
+          "scss-tokens"
+        ],
+        "runConfigResourceId": "command-parse-scss-events",
+        "tags": [
+          "parse"
+        ]
+      },
+      {
+        "id": "expand-css",
+        "kind": "conversion",
+        "name": "Expand SCSS to exact browser CSS",
+        "description": "Use native variables, a namespaced local mixin and nested selectors; serialize the resulting typed CSS using its own output pipeline.",
+        "resourceIds": [
+          "scss-source",
+          "command-expand-css",
+          "scss-tokens",
+          "expected-css"
+        ],
+        "runConfigResourceId": "command-expand-css",
+        "tags": [
+          "convert"
+        ]
+      },
+      {
+        "id": "repair-scss-syntax",
+        "kind": "validation",
+        "name": "Repair the SCSS opening brace",
+        "description": "Restore the opening block brace and revalidate the same saved source before attempting expansion.",
+        "resourceIds": [
+          "invalid-scss",
+          "command-repair-scss-syntax"
+        ],
+        "runConfigResourceId": "command-repair-scss-syntax",
+        "tags": [
+          "validate"
+        ]
+      },
+      {
+        "id": "build-html",
+        "kind": "transformation-graph",
+        "name": "Build HTML and generated CSS",
+        "description": "Build a validated HTML source through an explicit CEMT wrapper plus native SCSS-to-CSS output; publish both artifacts with an explicit HTML entry.",
+        "resourceIds": [
+          "scss-graph",
+          "command-build-html",
+          "scss-source",
+          "scss-tokens",
+          "preview-html",
+          "html-template",
+          "expected-css",
+          "expected-html"
+        ],
+        "runConfigResourceId": "command-build-html",
+        "entryArtifact": "generated/index.html",
+        "tags": [
+          "transform"
+        ]
+      }
+    ],
+    "resources": [
+      {
+        "id": "scss-source",
+        "path": "styles/cards.scss",
+        "referencePath": "styles/cards.scss",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/vnd.cem.scss",
+        "schema": "https://cem.dev/ns/data/scss/1",
+        "revision": 1,
+        "sha256": "539b42eb54d006cb8c1037eb23dd4cf83836d541a3a2c5fefd76a540d437f75e"
+      },
+      {
+        "id": "scss-tokens",
+        "path": "styles/_tokens.scss",
+        "referencePath": "styles/_tokens.scss",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/vnd.cem.scss",
+        "schema": "https://cem.dev/ns/data/scss/1",
+        "revision": 1,
+        "sha256": "6d364538a09c2f7634e98df1e0610b86546b91457d369e080c30de806f5ad14e"
+      },
+      {
+        "id": "invalid-scss",
+        "path": "failures/missing-brace.scss",
+        "referencePath": "failures/missing-brace.scss",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/vnd.cem.scss",
+        "schema": "https://cem.dev/ns/data/scss/1",
+        "revision": 1,
+        "sha256": "c173a00dc0cbdfe55b62f60d8c8a25378f686b1ea6915c86db78169a7b1f3848"
+      },
+      {
+        "id": "unresolved-module",
+        "path": "failures/unavailable-module.scss",
+        "referencePath": "failures/unavailable-module.scss",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/vnd.cem.scss",
+        "schema": "https://cem.dev/ns/data/scss/1",
+        "revision": 1,
+        "sha256": "aae826ee89d12dee3ee343b4ac2f9d6da9a2836f79ebe52e04b64ec066ac890d"
+      },
+      {
+        "id": "preview-html",
+        "path": "data/card.html",
+        "referencePath": "data/card.html",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/html",
+        "schema": "https://cem.dev/ns/data/html/1",
+        "revision": 1,
+        "sha256": "9efd22ef77999a4a13afceb853f0ed9f3b43fb45ca34116adc4a5970b92505fb"
+      },
+      {
+        "id": "html-template",
+        "path": "templates/page.cemt",
+        "referencePath": "templates/page.cemt",
+        "role": "template",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.template+cem",
+        "schema": "https://cem.dev/ns/template/cem-native/1",
+        "revision": 1,
+        "sha256": "10f069bdcafb373ab9674bdb2dc611b804f3b2f1d31a9c24dcdca0ebf1e49603"
+      },
+      {
+        "id": "scss-graph",
+        "path": "graphs/styles.cem",
+        "referencePath": "graphs/styles.cem",
+        "role": "transform-config",
+        "sourceKind": "project-file",
+        "contentType": "application/cem",
+        "schema": "https://cem.dev/ns/cli/transform-config/1",
+        "revision": 1,
+        "sha256": "879b3be5cf87f7cc1a5784166edcd29a9eb21a3a73ee231ba2375fca3479ff86"
+      },
+      {
+        "id": "expected-css",
+        "path": "expected/cards.css",
+        "referencePath": "expected/cards.css",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/css",
+        "schema": "https://cem.dev/ns/data/css/1",
+        "revision": 1,
+        "sha256": "b8e06489fbff0dc27e04bc4d7af87ec1895281b31a84f3c926a3bdb7b4a7681e"
+      },
+      {
+        "id": "expected-html",
+        "path": "expected/index.html",
+        "referencePath": "expected/index.html",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/html",
+        "schema": "https://cem.dev/ns/data/html/1",
+        "revision": 1,
+        "sha256": "5ef27d2f3ec37172ca2db25b6658364f2411444e1d94265ee9b0bcd83055512a"
+      },
+      {
+        "id": "readme",
+        "path": "README.md",
+        "referencePath": "README.md",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/markdown; charset=utf-8",
+        "schema": "https://cem.dev/ns/data/markdown/1",
+        "revision": 1,
+        "sha256": "d606efc2a4fc679d5f529ee8a67836ee88a580fcc69974cfe2a07cd61362183b"
+      },
+      {
+        "id": "command-validate-scss",
+        "path": "config/validate-scss.json",
+        "referencePath": "config/validate-scss.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "0b42151d94235b104ba8f7801cf624630c91d2c6208b314fef5b1469aaae08de"
+      },
+      {
+        "id": "command-validate-unresolved-module",
+        "path": "config/validate-unresolved-module.json",
+        "referencePath": "config/validate-unresolved-module.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "32e99dc31dd6c410a47df7b4916e047118fb6e766a59a2bd201b6449fc78f7c1"
+      },
+      {
+        "id": "command-parse-scss-ast",
+        "path": "config/parse-scss-ast.json",
+        "referencePath": "config/parse-scss-ast.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "86cf40c5da694d802e642bbacb0c08e7c50dcbeae8af68ac2536f166d3846140"
+      },
+      {
+        "id": "command-parse-scss-events",
+        "path": "config/parse-scss-events.json",
+        "referencePath": "config/parse-scss-events.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "3d8ca80b2d9690acb54bd1ef0e08117564fd834058b8836925539d357c716b66"
+      },
+      {
+        "id": "command-expand-css",
+        "path": "config/expand-css.json",
+        "referencePath": "config/expand-css.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "65b12f141bbbd1318b2f5cda0794100bb0619372b2b605a63845e3159e306f2d"
+      },
+      {
+        "id": "command-repair-scss-syntax",
+        "path": "config/repair-scss-syntax.json",
+        "referencePath": "config/repair-scss-syntax.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "24975412a1c056f586781297f8632a97b35349ec6e8d74dd65597a57124c5fee"
+      },
+      {
+        "id": "command-build-html",
+        "path": "config/build-html.json",
+        "referencePath": "config/build-html.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "93aab2c394f0b5fcbf6746d1d1c9013e99022c86393e621ffabc311ae88fe8ec"
+      }
+    ]
+  },
+  "contents": [
+    {
+      "resourceId": "command-build-html",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJ0cmFuc2Zvcm0iLAogICAgIi0tY29uZmlnIiwKICAgICJncmFwaHMvc3R5bGVzLmNlbSIsCiAgICAiLS1jb25maWctY29udGVudC10eXBlIiwKICAgICJhcHBsaWNhdGlvbi9jZW0iLAogICAgIi0tY29uZmlnLXNjaGVtYSIsCiAgICAiaHR0cHM6Ly9jZW0uZGV2L25zL2NsaS90cmFuc2Zvcm0tY29uZmlnLzEiLAogICAgIi0tc2NvcGUtYnVkZ2V0IiwKICAgICJxdWV1ZVNpemU9MTAyNCIKICBdCn0K"
+    },
+    {
+      "resourceId": "command-expand-css",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJjb252ZXJ0IiwKICAgICJzdHlsZXMvY2FyZHMuc2NzcyIsCiAgICAiLS1jb250ZW50LXR5cGUiLAogICAgInRleHQvdm5kLmNlbS5zY3NzIiwKICAgICItLXNjaGVtYSIsCiAgICAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvc2Nzcy8xIiwKICAgICItLXRvLWNvbnRlbnQtdHlwZSIsCiAgICAidGV4dC9jc3MiLAogICAgIi0tdG8tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9jc3MvMSIsCiAgICAiLS1jZW10LWZvcm1hdHRlci1wcm9maWxlIiwKICAgICJ0YWJ1bGFyIiwKICAgICItLW91dHB1dC1jb2xvci10eXBlIiwKICAgICJub25lIgogIF0KfQo="
+    },
+    {
+      "resourceId": "command-parse-scss-ast",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJwYXJzZSIsCiAgICAic3R5bGVzL2NhcmRzLnNjc3MiLAogICAgIi0tY29udGVudC10eXBlIiwKICAgICJ0ZXh0L3ZuZC5jZW0uc2NzcyIsCiAgICAiLS1zY2hlbWEiLAogICAgImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL3Njc3MvMSIsCiAgICAiLS1mb3JtYXQiLAogICAgImFzdCIsCiAgICAiLS1wcmVzZXJ2ZS1zb3VyY2Utb2Zmc2V0cyIsCiAgICAiLS1uby1jb2xvciIKICBdCn0K"
+    },
+    {
+      "resourceId": "command-parse-scss-events",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJwYXJzZSIsCiAgICAic3R5bGVzL2NhcmRzLnNjc3MiLAogICAgIi0tY29udGVudC10eXBlIiwKICAgICJ0ZXh0L3ZuZC5jZW0uc2NzcyIsCiAgICAiLS1zY2hlbWEiLAogICAgImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL3Njc3MvMSIsCiAgICAiLS1mb3JtYXQiLAogICAgImV2ZW50cyIsCiAgICAiLS1wcmVzZXJ2ZS1zb3VyY2Utb2Zmc2V0cyIsCiAgICAiLS1uby1jb2xvciIKICBdCn0K"
+    },
+    {
+      "resourceId": "command-repair-scss-syntax",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZmFpbHVyZXMvbWlzc2luZy1icmFjZS5zY3NzIiwKICAgICAgInJvb3RTY29wZSI6IHsKICAgICAgICAiZGVmYXVsdENvbnRlbnRUeXBlIjogInRleHQvdm5kLmNlbS5zY3NzIiwKICAgICAgICAic2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL3Njc3MvMSIKICAgICAgfQogICAgfQogIF0sCiAgIm91dHB1dHMiOiBbXSwKICAic2NoZW1hUGFja2FnZXMiOiBbXSwKICAicmVzb2x2ZXJzIjogW10sCiAgInNjaGVkdWxlciI6IHt9Cn0K"
+    },
+    {
+      "resourceId": "command-validate-scss",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAic3R5bGVzL2NhcmRzLnNjc3MiLAogICAgICAicm9vdFNjb3BlIjogewogICAgICAgICJkZWZhdWx0Q29udGVudFR5cGUiOiAidGV4dC92bmQuY2VtLnNjc3MiLAogICAgICAgICJzY2hlbWEiOiAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvc2Nzcy8xIgogICAgICB9CiAgICB9CiAgXSwKICAib3V0cHV0cyI6IFtdLAogICJzY2hlbWFQYWNrYWdlcyI6IFtdLAogICJyZXNvbHZlcnMiOiBbXSwKICAic2NoZWR1bGVyIjoge30KfQo="
+    },
+    {
+      "resourceId": "command-validate-unresolved-module",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZmFpbHVyZXMvdW5hdmFpbGFibGUtbW9kdWxlLnNjc3MiLAogICAgICAicm9vdFNjb3BlIjogewogICAgICAgICJkZWZhdWx0Q29udGVudFR5cGUiOiAidGV4dC92bmQuY2VtLnNjc3MiLAogICAgICAgICJzY2hlbWEiOiAiaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvc2Nzcy8xIgogICAgICB9CiAgICB9CiAgXSwKICAib3V0cHV0cyI6IFtdLAogICJzY2hlbWFQYWNrYWdlcyI6IFtdLAogICJyZXNvbHZlcnMiOiBbXSwKICAic2NoZWR1bGVyIjoge30KfQo="
+    },
+    {
+      "resourceId": "expected-css",
+      "base64": "Ym9keSB7CiAgZm9udC1mYW1pbHk6IHN5c3RlbS11aSwgc2Fucy1zZXJpZjsKfQouZGVtby1jYXJkIHsKICBjb2xvcjogIzAzNjsKICBiYWNrZ3JvdW5kOiB3aGl0ZTsKICBib3JkZXI6IDFweCBzb2xpZCBjdXJyZW50Q29sb3I7CiAgcGFkZGluZzogMC43NXJlbTsKfQouZGVtby1jYXJkX190aXRsZSB7CiAgZm9udC13ZWlnaHQ6IDcwMDsKfQouZGVtby1jYXJkIHAgewogIG1hcmdpbi1ibG9jazogMC4yNXJlbTsKfQo="
+    },
+    {
+      "resourceId": "expected-html",
+      "base64": "PGh0bWwgbGFuZz0iZW4iPjxoZWFkPjx0aXRsZT5TQ1NTIGNhcmQgcHJldmlldzwvdGl0bGU+PGxpbmsgaHJlZj0iY2FyZHMuY3NzIiByZWw9InN0eWxlc2hlZXQiPiAgIDwvaGVhZD48Ym9keSB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCI+CiAgPGgxIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIj5TQ1NTIGNhcmQgcHJldmlldzwvaDE+CiAgPGFydGljbGUgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIGNsYXNzPSJkZW1vLWNhcmQiIGFyaWEtbGFiZWxsZWRieT0iY2FyZC10aXRsZSI+CiAgICA8aDIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIGlkPSJjYXJkLXRpdGxlIiBjbGFzcz0iZGVtby1jYXJkX190aXRsZSI+QSBuYXRpdmUgZXhwYW5zaW9uPC9oMj4KICAgIDxwIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIj5WYXJpYWJsZXMsIGEgbG9jYWwgbWl4aW4gYW5kIG5lc3RlZCBzZWxlY3RvcnMgYmVjb21lIGJyb3dzZXIgQ1NTLjwvcD4KICA8L2FydGljbGU+CjwvYm9keT48L2h0bWw+ICAg"
+    },
+    {
+      "resourceId": "html-template",
+      "base64": "QGRvYyBjZW0tbWwgMQpAbnMgdGVtcGxhdGUgPSAiaHR0cHM6Ly9jZW0uZGV2L25zL3RlbXBsYXRlL2NlbS1uYXRpdmUvMSIKQG5zIGNlbSA9ICJodHRwczovL2NlbS5kZXYvbnMvY29yZS8xIgpAZGVmYXVsdCB0ZW1wbGF0ZQp7cGFyYW0gQG5hbWU9aW5wdXQgQHJlcXVpcmVkPXRydWV9Cnt0ZW1wbGF0ZSBAbmFtZT1tYWluIEB2aXNpYmlsaXR5PXB1YmxpYyBAY2VtOndoaXRlc3BhY2U9bGF5b3V0IHwKICAgIHtjZW06dmFyaWFibGUgQG5hbWU9Ym9keQogICAgICAgIEBzZWxlY3Q9J3NlcTpmaXJzdChzZXE6d2hlcmUoaW5wdXQuZGVzY2VuZGFudHMsIGZuKG5vZGUpID0+IG5vZGUua2luZCA9PSAiZWxlbWVudCIgJiYgbm9kZS5uYW1lc3BhY2UgPT0gImh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiICYmIG5vZGUubmFtZSA9PSAiYm9keSIpKSd9CiAgICB7ZWxlbWVudCBAbmFtZT1odG1sIEBuYW1lc3BhY2U9aHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCB8CiAgICAgICAge2F0dHJpYnV0ZSBAbmFtZT1sYW5nIEB2YWx1ZT1lbn0KICAgICAgICB7ZWxlbWVudCBAbmFtZT1oZWFkIEBuYW1lc3BhY2U9aHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCB8CiAgICAgICAgICAgIHtlbGVtZW50IEBuYW1lPXRpdGxlIEBuYW1lc3BhY2U9aHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCB8IFNDU1MgY2FyZCBwcmV2aWV3fQogICAgICAgICAgICB7ZWxlbWVudCBAbmFtZT1saW5rIEBuYW1lc3BhY2U9aHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCB8CiAgICAgICAgICAgICAgICB7YXR0cmlidXRlIEBuYW1lPXJlbCBAdmFsdWU9c3R5bGVzaGVldH0KICAgICAgICAgICAgICAgIHthdHRyaWJ1dGUgQG5hbWU9aHJlZiBAdmFsdWU9Y2FyZHMuY3NzfQogICAgICAgIH0gICB9CiAgICAgICAgeyQgfCBib2R5fQp9ICAgfQo="
+    },
+    {
+      "resourceId": "invalid-scss",
+      "base64": "QHVzZSAidG9rZW5zIjsKCmJvZHkgewogIGZvbnQtZmFtaWx5OiBzeXN0ZW0tdWksIHNhbnMtc2VyaWY7Cn0KCi5kZW1vLWNhcmQKICBjb2xvcjogdG9rZW5zLiRhY2NlbnQ7CiAgYmFja2dyb3VuZDogd2hpdGU7CiAgYm9yZGVyOiAxcHggc29saWQgY3VycmVudENvbG9yOwogIEBpbmNsdWRlIHRva2Vucy5pbnNldCh0b2tlbnMuJHNwYWNlKTsKCiAgJl9fdGl0bGUgewogICAgZm9udC13ZWlnaHQ6IDcwMDsKICB9CgogIHAgewogICAgbWFyZ2luLWJsb2NrOiAwLjI1cmVtOwogIH0KfQo="
+    },
+    {
+      "resourceId": "preview-html",
+      "base64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KPGhlYWQ+PHRpdGxlPlNDU1MgY2FyZCBwcmV2aWV3PC90aXRsZT48L2hlYWQ+Cjxib2R5PgogIDxoMT5TQ1NTIGNhcmQgcHJldmlldzwvaDE+CiAgPGFydGljbGUgY2xhc3M9ImRlbW8tY2FyZCIgYXJpYS1sYWJlbGxlZGJ5PSJjYXJkLXRpdGxlIj4KICAgIDxoMiBpZD0iY2FyZC10aXRsZSIgY2xhc3M9ImRlbW8tY2FyZF9fdGl0bGUiPkEgbmF0aXZlIGV4cGFuc2lvbjwvaDI+CiAgICA8cD5WYXJpYWJsZXMsIGEgbG9jYWwgbWl4aW4gYW5kIG5lc3RlZCBzZWxlY3RvcnMgYmVjb21lIGJyb3dzZXIgQ1NTLjwvcD4KICA8L2FydGljbGU+CjwvYm9keT4KPC9odG1sPgo="
+    },
+    {
+      "resourceId": "readme",
+      "base64": "IyBTQ1NTIHN0eWxlc2hlZXQKCk9wZW4gKipFeGFtcGxlcyDihpIgQ29udGVudCB0eXBlcyBhbmQgc2NoZW1hcyDihpIgRG9jdW1lbnRzIGFuZCBVSSDihpIgU0NTUwpzdHlsZXNoZWV0KiosIG9yIGZpbmQgdGhlIHNhbWUgb3JkaW5hcnkgcHJvamVjdCB1bmRlciAqKlF1ZXJpZXMgYW5kCnRyYW5zZm9ybWF0aW9ucyoqLiBDbG9uZSBpdCB0byBlZGl0IGEgc2F2ZWQgY29weS4gVGhpcyBwcm9qZWN0IGRlbW9uc3RyYXRlcyBhCnNtYWxsIHN0eWxlc2hlZXQgYnVpbGQgd2l0aCBuYXRpdmUgU0NTUyB2YXJpYWJsZXMsIGEgcHJvamVjdC1vd25lZCBtb2R1bGUsIGEKbmFtZXNwYWNlZCBtaXhpbiBhbmQgbmVzdGVkIHNlbGVjdG9ycywgZm9sbG93ZWQgYnkgYSBzaGFyZWQgSFRNTC9DU1MgcHJldmlldy4KCiMjIFNvdXJjZXMgYW5kIGlkZW50aXRpZXMKCi0gYHN0eWxlcy9jYXJkcy5zY3NzYCBkZWNsYXJlcyBgdGV4dC92bmQuY2VtLnNjc3NgIGFuZCBzY2hlbWEKICBgaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvc2Nzcy8xYC4gVGhlIHJlZ2lzdGVyZWQgYHRleHQveC1zY3NzYCBhbGlhcyBzZWxlY3RzIHRoZQogIHNhbWUgZmFtaWx5OyBgLnNjc3NgIGFsb25lIGRvZXMgbm90IHNlbGVjdCBpdC4KLSBgc3R5bGVzL190b2tlbnMuc2Nzc2AgcHJvdmlkZXMgdGhlIGB0b2tlbnNgIG1vZHVsZSdzIGAkYWNjZW50YCwgYCRzcGFjZWAgYW5kCiAgYGluc2V0KCRhbW91bnQpYCBtaXhpbi4gVGhlIGNhbGxlciBzdXBwbGllcyBgdG9rZW5zLiRzcGFjZWAgZXhwbGljaXRseS4KLSBgZGF0YS9jYXJkLmh0bWxgIGlzIGEgc2VwYXJhdGUgdmFsaWRhdGVkIEhUTUwgc291cmNlIHdpdGggYSBoZWFkaW5nIGFuZCBjYXJkLgogIEl0IGNvbnRhaW5zIG5vIGV4dGVybmFsIHJlc291cmNlIHJlZmVyZW5jZS4gYHRlbXBsYXRlcy9wYWdlLmNlbXRgIGNvbnN0cnVjdHMKICB0aGUgb3V0cHV0IHdyYXBwZXIgYW5kIGl0cyByZWxhdGl2ZSBsaW5rIHRvIGBjYXJkcy5jc3NgLgotIGBncmFwaHMvc3R5bGVzLmNlbWAgb3ducyB0aGUgdHdvIG91dHB1dCBicmFuY2hlczogbmF0aXZlIHR5cGVkIENTUyBnZW5lcmF0ZWQKICBmcm9tIFNDU1MsIGFuZCBIVE1MIHJlbmRlcmVkIHRocm91Z2ggdGhlIENFTVQgd3JhcHBlci4KClRoZSBtYWluIHNvdXJjZSB1c2VzIGBAdXNlICJ0b2tlbnMiYCwgYHRva2Vucy4kYWNjZW50YCwKYEBpbmNsdWRlIHRva2Vucy5pbnNldCh0b2tlbnMuJHNwYWNlKWAsIGAmX190aXRsZWAgYW5kIGEgbmVzdGVkIHBhcmFncmFwaCBydWxlLgpUaGUgb3V0cHV0IGNvbnRhaW5zIG9yZGluYXJ5IGAuZGVtby1jYXJkYCwgYC5kZW1vLWNhcmRfX3RpdGxlYCBhbmQKYC5kZW1vLWNhcmQgcGAgc2VsZWN0b3JzLiBSYXcgU0NTUyBpcyBuZXZlciBzZXJ2ZWQgYXMgQ1NTLgoKIyMgQ29uZmlndXJhdGlvbnMKCnwgQ29uZmlndXJhdGlvbiB8IFR5cGljYWwgdXNlIHwgRXhwZWN0ZWQgcmVzdWx0IHwKfCAtLS0gfCAtLS0gfCAtLS0gfAp8IFZhbGlkYXRlIHBhc3NpdmUgU0NTUyBzb3VyY2UgfCBDaGVjayBncmFtbWFyIGJlZm9yZSBleGVjdXRpbmcgYSBidWlsZCB8IFplcm8gZXJyb3JzIGFuZCB3YXJuaW5ncywgd2l0aG91dCBtb2R1bGUgcmVhZHMgfAp8IFZhbGlkYXRlIHN5bnRheCB3aXRob3V0IGxvYWRpbmcgYSBtb2R1bGUgfCBEaXN0aW5ndWlzaCBzeW50YXggdmFsaWRhdGlvbiBmcm9tIGV4ZWN1dGlvbiByZWFkaW5lc3MgfCBBIHZhbGlkIGBAdXNlICJub3QtcHVibGlzaGVkImAgc291cmNlIHN0aWxsIHZhbGlkYXRlcyBwYXNzaXZlbHkgfAp8IFBhcnNlIGV4cGFuZGVkIENTUyBBU1Qgd2l0aCBTQ1NTIG9yaWdpbnMgfCBJbnNwZWN0IHRoZSBuYXRpdmUgZXhwYW5zaW9uIHN1YmplY3QgfCBDU1MgQVNUIHdpdGggdGhlIG9yaWdpbmFsIFNDU1Mgc291cmNlIGlkZW50aXR5IHwKfCBQYXJzZSBleHBhbmRlZCBDU1MgZXZlbnRzIHdpdGggU0NTUyBvcmlnaW5zIHwgSW5zcGVjdCB0aGUgZ2VuZXJhdGVkIHR5cGVkIENTUyBzdHJlYW0gfCBDU1MgZXZlbnRzIHdpdGggdGhlIHJldGFpbmVkIFNDU1Mgc291cmNlIGlkZW50aXR5IHwKfCBFeHBhbmQgU0NTUyB0byBleGFjdCBicm93c2VyIENTUyB8IENvbXBpbGUgdGhlIG93bmVkIHZhcmlhYmxlcywgbWl4aW4gYW5kIG5lc3RlZCBydWxlcyB8IEV4YWN0IGBleHBlY3RlZC9jYXJkcy5jc3NgIGJ5dGVzIHwKfCBSZXBhaXIgdGhlIFNDU1Mgb3BlbmluZyBicmFjZSB8IERpYWdub3NlIGFuZCByZXBhaXIgYSBzYXZlZCBzeW50YXggZmFpbHVyZSB8IE9uZSBgY2VtLnNjc3MucGFyc2VfZXJyb3JgLCB0aGVuIHplcm8gZXJyb3JzIGFmdGVyIHJlcGFpciB8CnwgQnVpbGQgSFRNTCBhbmQgZ2VuZXJhdGVkIENTUyB8IFB1Ymxpc2ggYSBzdHlsZWQgcHJldmlldyB3aXRoIGFuIGV4cGxpY2l0IGVudHJ5IGFydGlmYWN0IHwgYGdlbmVyYXRlZC9pbmRleC5odG1sYCBhbmQgYGdlbmVyYXRlZC9jYXJkcy5jc3NgIHwKClBhcnNlIGFuZCBjb252ZXJzaW9uIHBlcmZvcm0gZXhwYW5zaW9uIGFuZCBtYXkgcmVzb2x2ZSBhZG1pdHRlZCBtb2R1bGVzLiBQYXNzaXZlCnNvdXJjZSB2YWxpZGF0aW9uIGRvZXMgbmVpdGhlci4gVGhlIFBhcnNlIEFTVC9ldmVudHMgZGVzY3JpYmUgdGhlIHJlc3VsdGluZwoqKkNTUyoqIHN1YmplY3QsIG5vdCBhIHJhdyBTQ1NTIHN5bnRheCB0cmVlIG9yIGEgbG9zc2xlc3MgU0NTUyBzb3VyY2UgZXhwb3J0LgpUaGVpciBkaXNwbGF5ZWQgdG9rZW4gb2Zmc2V0cyBpbmRleCB0aGF0IGV4cGFuZGVkIENTUyBzdWJqZWN0OyB0aGV5IG11c3Qgbm90IGJlCnJlYWQgYXMgb3JpZ2luYWwgU0NTUyBieXRlIHBvc2l0aW9ucy4gTmF0aXZlIFNDU1Mgb3JpZ2luIGZyYW1lcyBhbmQgYnVpbGQgb3V0cHV0CnByb3ZlbmFuY2UgYXJlIHRoZSBzb3VyY2UtbmF2aWdhdGlvbiBjb250cmFjdCB3aGVyZSBwcm92aWRlZC4KCiMjIEVkaXQsIHNhdmUgYW5kIGJ1aWxkCgpJbiBgc3R5bGVzL190b2tlbnMuc2Nzc2AsIGNoYW5nZSBgJGFjY2VudDogIzAzNjtgIHRvIGAkYWNjZW50OiAjNjMwO2Agb3IgY2hhbmdlCmAkc3BhY2U6IDAuNzVyZW07YCB0byBgJHNwYWNlOiAxcmVtO2AuIFNhdmUsIHJlcnVuICoqRXhwYW5kIFNDU1MgdG8gZXhhY3QgYnJvd3NlcgpDU1MqKiwgYW5kIGNob29zZSAqKkJ1aWxkIHByb2plY3QqKi4gVGhlIENTUyBvdXRwdXQgYW5kIHZpc2libGUgY2FyZCBjaGFuZ2UuClRoZSB0aXRsZSByZXRhaW5zIGl0cyBuZXN0ZWQgYGZvbnQtd2VpZ2h0OiA3MDBgOyB0aGUgcGFyYWdyYXBoIHJ1bGUgcmVtYWlucyBhCnNlbGVjdG9yIHNjb3BlZCB0byBkZXNjZW5kYW50cyBvZiBgLmRlbW8tY2FyZGAuIFRoaXMgaXMgb3JkaW5hcnkgc2VsZWN0b3IKbmVzdGluZywgbm90IGFuIGFzc2VydGlvbiB0aGF0IFNDU1MgaW1wbGVtZW50cyBDRU0ncyBjb21wb25lbnQgc2NvcGUgcmV3cml0aW5nLgoKYGdlbmVyYXRlZC9pbmRleC5odG1sYCBpcyB0aGUgZXhwbGljaXQgcHJvamVjdCBlbnRyeS4gSXRzIHJlbGF0aXZlIGBjYXJkcy5jc3NgCnJlZmVyZW5jZSByZXNvbHZlcyBvbmx5IGFnYWluc3QgdGhlIHB1Ymxpc2hlZCBhcnRpZmFjdCB0cmVlLiBUaGUgc2hhcmVkIHByZXZpZXcKbG9hZHMgdGhlIGdlbmVyYXRlZCBDU1MgdGhyb3VnaCBpdHMgZXhpc3RpbmcgbmF0aXZlIENTUy9yZXNvdXJjZSBwb2xpY3kuIEl0CmludHJvZHVjZXMgbm8gYXV0aG9yZWQgc2NyaXB0LCBzb3VyY2UgcGFyc2VyLCBtb2R1bGUgZmV0Y2hlciBvciBwYWdlLXNwZWNpZmljIFVJCmJlaGF2aW9yLiBUaGUgZXhhbXBsZSdzIHN0eWxlc2hlZXQgaXMgaW5kZXBlbmRlbnQgb2YgU3R1ZGlvJ3MgdGhlbWUgYW5kIGtleXMuCgpVbnNhdmVkIGRyYWZ0cyBsZWF2ZSBwZXJzaXN0ZWQgZXhlY3V0aW9uIGlucHV0cyB1bmNoYW5nZWQuIEFuIGludmFsaWQgc291cmNlCmNhbm5vdCBwdWJsaXNoIGEgbmV3IGJ1aWxkOyBTdHVkaW8gcmV0YWlucyB0aGUgbGFzdCBzdWNjZXNzZnVsIG91dHB1dC4gQSBjbG9uZWQKcHJvamVjdCBvd25zIGluZGVwZW5kZW50IHNvdXJjZSwgbW9kdWxlLCB0ZW1wbGF0ZSBhbmQgY29uZmlndXJhdGlvbiByZXZpc2lvbnMuClRoZSByZWFkLW9ubHkgY2F0YWxvZyBvcmlnaW5hbCByZW1haW5zIHVuY2hhbmdlZC4KCiMjIEZhaWx1cmUgYW5kIHJlcGFpcgoKUnVuICoqUmVwYWlyIHRoZSBTQ1NTIG9wZW5pbmcgYnJhY2UqKiBvbiBgZmFpbHVyZXMvbWlzc2luZy1icmFjZS5zY3NzYC4gVGhlIHNvdXJjZQpvbWl0cyB0aGUgYHtgIGFmdGVyIGAuZGVtby1jYXJkYC4gVGhlIG5hdGl2ZSBwYXJzZXIgcmVwb3J0cyBvbmUKYGNlbS5zY3NzLnBhcnNlX2Vycm9yYCBhdCBsaW5lIDIwLCBjb2x1bW4gMSwgb3JpZ2luYWwgVVRGLTggYnl0ZSBvZmZzZXQgMjczOiB0aGUKcmVtYWluaW5nIGNsb3NpbmcgYnJhY2UgaXMgdW5tYXRjaGVkLiBSZXBsYWNlIGAuZGVtby1jYXJkYCBmb2xsb3dlZCBieSBhIG5ld2xpbmUKd2l0aCBgLmRlbW8tY2FyZCB7YCBmb2xsb3dlZCBieSBhIG5ld2xpbmUsIHNhdmUgYW5kIHJldmFsaWRhdGUuIFRoZSByZXBhaXJlZApyZXNvdXJjZSB0aGVuIG1hdGNoZXMgYHN0eWxlcy9jYXJkcy5zY3NzYCBleGFjdGx5LiBJdCByZW1haW5zIHNlcGFyYXRlIGZyb20gdGhlCm5vcm1hbCBidWlsZCBpbnB1dHMgdW50aWwgZGVsaWJlcmF0ZWx5IHVzZWQgYXMgb25lLgoKIyMgUmVzb2x2ZXIsIG91dHB1dCBhbmQgY29tcGF0aWJpbGl0eSBsaW1pdHMKCk5hdGl2ZSBjb21tYW5kIGNhbGxlcnMgbXVzdCBleHBsaWNpdGx5IGFkbWl0IHRoZSBwcm9qZWN0LW93bmVkIG1vZHVsZSBieXRlcy4KVGhlIENMSSBkb2VzIG5vdCBncmFudCBhbWJpZW50IGZpbGVzeXN0ZW0gb3IgbmV0d29yayBtb2R1bGUgYWNjZXNzLiBGb3IgZXhhbXBsZSwKcmVwbGFjZSB0aGUgcGF0aHMgYmVsb3cgd2l0aCB0aGUgY2hvc2VuIHByb2plY3Qgcm9vdDsgdGhlIHJlYWQgbWFwIGdyYW50cyBvbmx5CnRoYXQgZGlyZWN0b3J5IHRyZWU6CgpgYGBzaApjZW0tbWwgY29udmVydCBmaWxlOi8vL2Fic29sdXRlL3Byb2plY3Qvc3R5bGVzL2NhcmRzLnNjc3MgXAogIC0tcmVzb2x2ZXItcmVhZC1tYXAgZmlsZTovLy9hYnNvbHV0ZS9wcm9qZWN0Lz0vYWJzb2x1dGUvcHJvamVjdCBcCiAgLS1jb250ZW50LXR5cGUgdGV4dC92bmQuY2VtLnNjc3MgLS1zY2hlbWEgaHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvc2Nzcy8xIFwKICAtLXRvLWNvbnRlbnQtdHlwZSB0ZXh0L2NzcyAtLXRvLXNjaGVtYSBodHRwczovL2NlbS5kZXYvbnMvZGF0YS9jc3MvMSBcCiAgLS1jZW10LWZvcm1hdHRlci1wcm9maWxlIHRhYnVsYXIgLS1vdXRwdXQtY29sb3ItdHlwZSBub25lCmBgYAoKRm9yIGEgbmF0aXZlIENMSSBncmFwaCBidWlsZCwgYWxzbyBzZXQgdGhlIGV4cGxpY2l0IG1vZHVsZSBsb2FkLXBhdGggYmFzZToKCmBgYHNoCmNlbS1tbCB0cmFuc2Zvcm0gLS1jb25maWcgZmlsZTovLy9hYnNvbHV0ZS9wcm9qZWN0L2dyYXBocy9zdHlsZXMuY2VtIFwKICAtLXJlc29sdmVyLXJlYWQtbWFwIGZpbGU6Ly8vYWJzb2x1dGUvcHJvamVjdC89L2Fic29sdXRlL3Byb2plY3QgXAogIC0tYmFzZS11cmkgZmlsZTovLy9hYnNvbHV0ZS9wcm9qZWN0L3N0eWxlcy8KYGBgCgpUaGUgY3VycmVudCBDTEkgZ3JhcGggcHJvdmlkZXIgZXhwb3NlcyBpbXBvcnRlZCBsb2NhbCBzb3VyY2VzIGFzIGZpbGVzeXN0ZW0KcGF0aHMsIHNvIHRoaXMgYmFzZSBzdXBwbGllcyB0aGVpciBtb2R1bGUtcmVzb2x1dGlvbiBjb250ZXh0LiBUaGUgYmFzZSBpdHNlbGYKZ3JhbnRzIG5vIGZpbGUgcmVhZHM7IHRoZSBzZXBhcmF0ZSBib3VuZGVkIHJlYWQgbWFwIHJlbWFpbnMgcmVxdWlyZWQuIFBvcnRhYmxlCnByb2plY3QgY29tbWFuZHMga2VlcCByZWxhdGl2ZSByZXNvdXJjZSByZWZlcmVuY2VzLCBhbmQgU3R1ZGlvJ3Mgb3duZWQgdmlydHVhbApzb3VyY2UgVVJJcyBzdXBwbHkgdGhlaXIgb3duIG1vZHVsZSBjb250ZXh0LgoKU3R1ZGlvIHN1cHBsaWVzIHRoZSBvd25lZCB2aXJ0dWFsIHJlc291cmNlcyB0aHJvdWdoIGl0cyBleGlzdGluZyByZXNvbHZlci4gQQpmaWxlIFVSSSwgTUlNRSBpZGVudGl0eSBvciBzY2hlbWEgaWRlbnRpdHkgYWxvbmUgZ3JhbnRzIG5vIHJlYWQgY2FwYWJpbGl0eS4KYEB1c2VgIGNhbmRpZGF0ZSByZXNvbHV0aW9uIGlzIGJvdW5kZWQsIHJlamVjdHMgdW5zYWZlIHNwZWNpZmllcnMgYW5kIGFtYmlndW91cwptb2R1bGVzLCBhbmQgdXNlcyB0aGUgZW5naW5lJ3Mgd29yaywgcmVjdXJzaW9uIGFuZCBvdXRwdXQgbGltaXRzLiBUaGUgc2FtcGxlIHVzZXMKbm8gZXh0ZXJuYWwgcGFja2FnZXMgb3IgcmVtb3RlIHJlc291cmNlcy4KClRoZSBDRU0tb3duZWQgZXZhbHVhdG9yIHByb2R1Y2VzIGBDc3NEb2N1bWVudEFzdGAgZGlyZWN0bHk7IHRoZSBDU1MgcGFja2FnZSBvd25zCmJyb3dzZXIgc2VyaWFsaXphdGlvbi4gTm8gZ2VuZXJhdGVkIENTUyB0ZXh0IGlzIHJlcGFyc2VkIHRvIHJlY3JlYXRlIHRoYXQgQVNULgpUaGlzIHByb2plY3QgZXhlcmNpc2VzIGEgc3VwcG9ydGVkIHN1YnNldCwgbm90IGZ1bGwgRGFydCBTYXNzIHBhcml0eS4gSW5kZW50ZWQKYC5zYXNzYCwgYXJiaXRyYXJ5IFNhc3MgY29uZmlndXJhdGlvbi9mb3J3YXJkaW5nIGJlaGF2aW9yIGFuZCBmdWxsIGxhbmd1YWdlIG9yCmxleGljYWwtZGVmYXVsdCBjb21wYXRpYmlsaXR5IGFyZSBub3QgY2xhaW1lZC4gU2VlIHRoZSBuYXRpdmUKW1NDU1MgcGFja2FnZV0oLi4vLi4vLi4vcGFja2FnZXMvY2VtX21sL3NjaGVtYS1wYWNrYWdlcy9zY3NzL3YxL1JFQURNRS5tZCkuCgpTYW1lLXNjaGVtYSBTQ1NTIHNvdXJjZSBleHBvcnQsIHNvdXJjZSBEb21Kc29uL0pzb24gYW5kIGNvbW1hbmQgSFRNTC1jb2xvcmVkIENTUwpleHBvcnQgYXJlIHVuYXZhaWxhYmxlLiBUaGUgcmVnaXN0ZXJlZCBwYXNzaXZlIHNvdXJjZSBmb3JtYXR0ZXIvY29sb3JpemVyIGFzc2V0cwpkbyBub3QgZXN0YWJsaXNoIHRob3NlIGNvbW1hbmQgb3BlcmF0aW9ucy4gR2VuZXJhdGVkIGJyb3dzZXIgQ1NTIGlzIHVuY29sb3JlZApgdGV4dC9jc3NgLCBkaXN0aW5jdCBmcm9tIGEgc3ludGF4LWNvbG9yZWQgcHJlc2VudGF0aW9uIGFydGlmYWN0LiBUaGUgb3B0aW9uYWwKc2NoZW1hLWFzc2V0IHByb2ZpbGUgbXVzdCBhY3F1aXJlIGFuZCBhZG1pdCB0aGUgcmV0YWluZWQgU0NTUyBzb3VyY2UgY29udHJhY3QKYmVmb3JlIGRlcGVuZGVudCBvcGVyYXRpb25zOyBjYXRhbG9nIHJlZ2lzdHJhdGlvbiBhbG9uZSBkb2VzIG5vdCBhY3RpdmF0ZSBpdC4KCkFmdGVyIHRoZSBydW50aW1lIGFuZCBwcm9qZWN0IHJlc291cmNlcyBhcmUgY2FjaGVkLCBzYXZlZCBjb3BpZXMgY2FuIHJlb3BlbiBhbmQKcmVidWlsZCBvZmZsaW5lIHVzaW5nIHRoZWlyIG93biBtb2R1bGUgYnl0ZXMuIE5vIGV4YW1wbGUgc3RvcmFnZSBrZXksIGV4dGVybmFsCmZvbnQgb3IgY3JlZGVudGlhbCBiZWxvbmdzIHRvIHRoaXMgcHJvamVjdC4gRW50ZXJlZCBwYXNzd29yZHMgYW5kIG9uZS10aW1lIGNvZGVzCmNvbnRpbnVlIHRvIGJsb2NrIHJlY292ZXJ5IHVudGlsIGV4cGxpY2l0bHkgY2xlYXJlZCwgYW5kIGF1dG9tYXRpYyB3aG9sZS1TdHVkaW8KcmVjb3ZlcnkgcmVtYWlucyBkaXNhYmxlZC4K"
+    },
+    {
+      "resourceId": "scss-graph",
+      "base64": "QGRvYyBjZW0tbWwgMQp7cnVuIHwKICAgIHtpbXBvcnQgQGNvbnRlbnQtdHlwZT10ZXh0L3ZuZC5jZW0uc2NzcyBAaWQ9c3R5bGVzIEBzY2hlbWE9aHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvc2Nzcy8xCiAgICAgICAgQHNyYz0uLi9zdHlsZXMvY2FyZHMuc2NzcyB8CiAgICAgICAge2V4cG9ydCBAY29udGVudC10eXBlPXRleHQvY3NzIEBpZD1jc3MgQG91dD0uLi9nZW5lcmF0ZWQvY2FyZHMuY3NzCiAgICAgICAgICAgIEBzY2hlbWE9aHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvY3NzLzF9CiAgICB9CiAgICB7aW1wb3J0IEBjb250ZW50LXR5cGU9dGV4dC9odG1sIEBpZD1jYXJkIEBzY2hlbWE9aHR0cHM6Ly9jZW0uZGV2L25zL2RhdGEvaHRtbC8xCiAgICAgICAgQHNyYz0uLi9kYXRhL2NhcmQuaHRtbCB8CiAgICAgICAge3RyYW5zZm9ybSBAZW50cnlwb2ludD1tYWluIEBpZD1wYWdlIEBzcmM9Li4vdGVtcGxhdGVzL3BhZ2UuY2VtdAogICAgICAgICAgICBAdGVtcGxhdGUtY29udGVudC10eXBlPSJhcHBsaWNhdGlvbi92bmQuY2VtLnRlbXBsYXRlK2NlbSIKICAgICAgICAgICAgQHRlbXBsYXRlLXNjaGVtYT1odHRwczovL2NlbS5kZXYvbnMvdGVtcGxhdGUvY2VtLW5hdGl2ZS8xIHwKICAgICAgICAgICAge2V4cG9ydCBAY29udGVudC10eXBlPXRleHQvaHRtbCBAaWQ9aHRtbCBAb3V0PS4uL2dlbmVyYXRlZC9pbmRleC5odG1sCiAgICAgICAgICAgICAgICBAc2NoZW1hPWh0dHBzOi8vY2VtLmRldi9ucy9kYXRhL2h0bWwvMX0KfSAgIH0gICB9Cg=="
+    },
+    {
+      "resourceId": "scss-source",
+      "base64": "QHVzZSAidG9rZW5zIjsKCmJvZHkgewogIGZvbnQtZmFtaWx5OiBzeXN0ZW0tdWksIHNhbnMtc2VyaWY7Cn0KCi5kZW1vLWNhcmQgewogIGNvbG9yOiB0b2tlbnMuJGFjY2VudDsKICBiYWNrZ3JvdW5kOiB3aGl0ZTsKICBib3JkZXI6IDFweCBzb2xpZCBjdXJyZW50Q29sb3I7CiAgQGluY2x1ZGUgdG9rZW5zLmluc2V0KHRva2Vucy4kc3BhY2UpOwoKICAmX190aXRsZSB7CiAgICBmb250LXdlaWdodDogNzAwOwogIH0KCiAgcCB7CiAgICBtYXJnaW4tYmxvY2s6IDAuMjVyZW07CiAgfQp9Cg=="
+    },
+    {
+      "resourceId": "scss-tokens",
+      "base64": "JGFjY2VudDogIzAzNjsKJHNwYWNlOiAwLjc1cmVtOwoKQG1peGluIGluc2V0KCRhbW91bnQpIHsKICBwYWRkaW5nOiAkYW1vdW50Owp9Cg=="
+    },
+    {
+      "resourceId": "unresolved-module",
+      "base64": "QHVzZSAibm90LXB1Ymxpc2hlZCI7CgouZGVtby1jYXJkIHsKICBjb2xvcjogIzAzNjsKfQo="
+    }
+  ]
+}

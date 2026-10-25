@@ -1,0 +1,15 @@
+@doc cem-ml 1
+{run |
+    {import @content-type=text/html @id=document @schema=https://cem.dev/ns/data/html/1
+        @src=../data/preview.html |
+        {transform @entrypoint=main @id=page @src=../templates/cards.cemt
+            @template-content-type="application/vnd.cem.template+cem"
+            @template-schema=https://cem.dev/ns/template/cem-native/1 |
+            {export @content-type=text/html @id=html @out=../generated/cards.html
+                @schema=https://cem.dev/ns/data/html/1}
+    }   }
+    {import @content-type=text/css @id=styles @schema=https://cem.dev/ns/data/css/1
+        @src=../styles/cards.css |
+        {export @content-type=text/css @id=css @out=../generated/cards.css
+            @schema=https://cem.dev/ns/data/css/1}
+}   }

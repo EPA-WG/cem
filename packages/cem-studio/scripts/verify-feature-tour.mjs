@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseCemStudioProjectBundle } from '../src/file-system-provider.js';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -150,7 +151,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.deepEqual(repair.resourceIds, ['login-invalid', 'command-validation-repair', 'login-schema-package', 'login-schema']);
         assert.ok(new TextDecoder().decode(bundle.contents.readme).includes('demo.login.method_required'));
         assert.deepEqual(JSON.parse(new TextDecoder().decode(bundle.contents[repair.runConfigResourceId])).schemaPackages, [{ uri: 'schemas/login-schema-package.cem' }]);
-    } else if (['json-yaml-report', 'csv-inventory', 'supplier-pipeline', 'xhtml-document', 'html-cem-card', 'svg-diagram', 'mathml-formula'].includes(record.id)) {
+    } else if (['json-yaml-report', 'csv-inventory', 'supplier-pipeline', 'xhtml-document', 'html-cem-card', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet'].includes(record.id)) {
         const definition = authoredDefinitions.find(project => project.id === record.id);
         assert.deepEqual(record.collections, definition.collections);
         assert.equal(record.description, definition.description);
@@ -176,17 +177,28 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                 const entry = bundle.project.entries.find(entry => entry.id === configuration.id);
                 const configResource = bundle.project.resources.find(resource => resource.id === entry.runConfigResourceId);
                 const command = JSON.parse(new TextDecoder().decode(bundle.contents[configResource.id]));
-                const args = command.argv ?? ['validate', '--config', configResource.path, '--format', 'json', '--no-color'];
+                const authoredArgs = command.argv ?? ['validate', '--config', configResource.path, '--format', 'json', '--no-color'];
+                // The CLI's explicit, bounded local grant is a host concern.
+                // Portable project commands keep relative resource references;
+                // Studio instead supplies its owned virtual project resources.
+                const args = record.id === 'scss-stylesheet'
+                    ? [...authoredArgs.map(value => bundle.project.resources.some(resource => resource.path === value)
+                        ? pathToFileURL(resolve(directory, value)).href : value),
+                    '--resolver-read-map', `${pathToFileURL(`${directory}/`).href}=${directory}`,
+                    '--base-uri', pathToFileURL(`${directory}/styles/`).href]
+                    : authoredArgs;
                 const actual = runExpected(cli, args, directory, configuration.expectedExit ?? 0);
                 if (configuration.expectedSemanticContract) {
                     const expected = JSON.parse(new TextDecoder().decode(bundle.contents[configuration.expectedSemanticContract]));
                     const report = JSON.parse(actual);
-                    const values = report.language === 'xpath' ? report.result.sequence.items.map(item => item.value.lexicalValue) : report.result.items.map(item => item.value);
+                    const values = report.language === 'css-selector'
+                        ? report.matches.map(({ localName, namespaceUri, documentOrder, nodeId }) => ({ localName, namespaceUri, documentOrder, nodeId }))
+                        : report.language === 'xpath' ? report.result.sequence.items.map(item => item.value.lexicalValue) : report.result.items.map(item => item.value);
                     assert.deepEqual(values, expected, `${configuration.id} semantic result drifted`);
                 }
                 if (configuration.expectedOutput) {
                     const expected = new TextDecoder().decode(bundle.contents[configuration.expectedOutput]);
-                    const exact = ['csv-inventory', 'svg-diagram', 'mathml-formula'].includes(record.id);
+                    const exact = ['csv-inventory', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet'].includes(record.id);
                     assert.equal(exact ? actual : actual.trim(), exact ? expected : expected.trim(), `${configuration.id} output drifted`);
                 }
                 for (const text of configuration.expectedText ?? []) assert.ok(actual.includes(text), `${configuration.id} misses ${text}`);

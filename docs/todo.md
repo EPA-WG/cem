@@ -179,7 +179,12 @@ exact HTML entries and provenance, real vector/formula rendering and independent
 saved/offline copies. Source validation and bounded preview admission remain
 separate; credential privacy and automatic recovery policies are unchanged.
 
-- [ ] Add CSS, SCSS and CSS-selector projects: inspect/format a stylesheet, demonstrate supported variable/nesting transformations and select document elements. State native subset limits and include scoped-style examples where supported.
+Completed [CSS/SCSS/selector projects and native stylesheet artifacts](archive/todo-completed-stylesheet-projects-2026-10-25.md)
+cover typed CSS graph export, original CSS/SCSS provenance, scoped browser styles,
+module/variable/nesting expansion, native HTML/XML selection and source repairs.
+Saved edits, independent copies and offline reruns pass with shared controls and
+unchanged resolver authority, source guards and credential policy.
+
 - [ ] Add CEM-QL and XPath projects: standalone expressions, selecting/filtering/joining data, parameter maps and inspecting native results with source provenance.
 - [ ] Add CEM transformation and XSLT projects: transform a source document into HTML or data artifacts, compare supported approaches and inspect a multi-step transformation graph with explicit entry artifacts.
 - [ ] Add schema-authoring projects for native CEM schemas, JSON Schema and RELAX NG: define a small domain contract, validate passing/failing schema sources and repair the reported violations. Demonstrate CEM instance validation separately; JSON Schema and RELAX NG currently provide source validation rather than general instance validators. Expose supported schema subsets and declaration/reference behavior.
@@ -192,6 +197,12 @@ separate; credential privacy and automatic recovery policies are unchanged.
 
 These remain explicit follow-ups after the functional Studio sample catalog.
 Keep the original admission, provenance, privacy and verification bounds.
+
+- [ ] Wire registered CSS-selector formatter/colorizer assets into native command source export. Same-identity conversion currently reports `cem.lifecycle.target_adapter_unsupported` and a JSON fallback despite exit zero. Preserve native selector ownership and exact ranges; add failing export and diagnostic/exit-status fixtures before claiming command formatting support.
+
+- [ ] Repair namespaced SCSS mixin default-argument lexical binding. The native module probe leaves `padding: $space` unresolved when a namespaced mixin's default references its module variable. The stylesheet project supplies an explicit argument; retain the limited Sass conformance claim and add native module-scope regressions before changing evaluation.
+
+- [ ] Preserve the admitted file URI as the module-resolution base through the native CLI graph provider. Imported local sources currently expose plain filesystem paths, so SCSS graph callers need an explicit `--base-uri` alongside their bounded read map. Keep original provenance and missing-grant refusal, and add native provider regressions before changing source identity normalization.
 
 - [ ] Design lossless typed CEM-ML inspection of source strings containing both single and double quotes, including embedded rich-content fences. The canonical `cem-card.xhtml` XML AST currently reaches the deliberate native attribute-string encoder refusal; keep that guard and original source bytes until an admitted representation exists. Add native round-trip fixtures before changing the writer/tokenizer contract. The HTML/CEM card project explicitly requests JSON for this one AST export; it is a presentation boundary, never an internal AST handoff.
 

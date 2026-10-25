@@ -2443,14 +2443,15 @@ describe('Project-owned workbench loading', () => {
         return repository;
     }
 
-    async function provenanceFixture(uri = 'studio://alpha/extra.cem', range = { start: 9, len: 11 }) {
+    async function provenanceFixture(uri = 'studio://alpha/extra.cem', range = { start: 9, len: 11 }, kind = 'SourceBoundary') {
         const source = '// café\n{p | target}';
         const repository = await fixture('alpha', false, true, source);
         const validator = validatorFor(validResult());
         validator.parseResource.mockImplementation(async () => {
             const outcome = projectionOutcome('parse', 'ast');
             outcome.result.sourceMaps.items.push({ sourceMapId: 'named-origin', sourceMap: { storage: 'inline', value: { frames: [
-                { source_id: 1, span: { kind: 'Single', ranges: range }, transform: { kind: 'SourceBoundary', uri } },
+                { source_id: 1, span: { kind: 'Single', ranges: range }, transform: kind === 'ScssOrigin'
+                    ? { kind, module_uri: uri, origin_kind: 'definition', name: '$accent' } : { kind, uri } },
             ] } } });
             return outcome;
         });
@@ -2462,6 +2463,88 @@ describe('Project-owned workbench loading', () => {
         await workbench.openEntity('project=alpha&file=source');
         return { source, repository, session, workbench };
     }
+
+    it('preserves ScssOrigin module frames from a real native CSS graph without changing their kind or ranges', async () => {
+        const response = await fetch(new URL('../generated/feature-tour/examples/scss-stylesheet.cem-studio.json', import.meta.url));
+        expect(response.ok).toBe(true);
+        const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
+        const module = bundle.project.resources.find(resource => resource.id === 'scss-tokens');
+        const original = `// café module\n${new TextDecoder().decode(bundle.contents[module.id])}`;
+        const bytes = new TextEncoder().encode(original);
+        bundle.contents[module.id] = bytes; module.sha256 = await digest(bytes);
+        const repository = await repositoryWithSource('unrelated');
+        await repository.execute(request('import-project', { bundle }));
+        const validator = await createCemStudioBrowserValidator();
+        try {
+            const workbench = await createCemStudioProjectWorkbench({ repository, validator,
+                selection: { projectId: bundle.project.id, entryId: 'build-html' } }); workbenches.push(workbench);
+            await workbench.runPersistedOperation();
+            const artifact = workbench.snapshot().projection.buildRun.artifacts.find(item => item.path.endsWith('.css'));
+            const frames = artifact.provenance.filter(frame => frame.uri === `${bundle.project.rootUri}${module.path}`);
+            expect(frames.length).toBeGreaterThan(0);
+            expect(artifact.provenance.length).toBeLessThanOrEqual(CEM_STUDIO_LIMITS.structuredRows);
+            for (const frame of frames) {
+                expect(frame.transform).toBe('ScssOrigin');
+                expect(frame.originKind).toBeTruthy();
+                expect(frame.outputUri).toBe(artifact.uri);
+                expect(frame.outputRange.start + frame.outputRange.len).toBeLessThanOrEqual(artifact.byteLength);
+                expect(frame.range.start + frame.range.len).toBeLessThanOrEqual(bytes.byteLength);
+                expect(() => new TextDecoder('utf-8', { fatal: true }).decode(bytes.slice(frame.range.start, frame.range.start + frame.range.len))).not.toThrow();
+            }
+            expect(frames.some(frame => frame.originKind === 'definition'
+                && new TextDecoder().decode(bytes.slice(frame.range.start, frame.range.start + frame.range.len)).includes('$accent'))).toBe(true);
+            expect(workbench.snapshot().projection.buildRun.inputs).toEqual(expect.arrayContaining([
+                expect.objectContaining({ resourceId: module.id, revision: 1, sha256: module.sha256 }),
+            ]));
+        } finally { await validator.close(); }
+    }, 30_000);
+
+    it('normalizes ScssOrigin source-map identity and follows its stable module address after a rename', async () => {
+        const { source, session, workbench } = await provenanceFixture('studio://alpha/extra.cem', { start: 9, len: 11 }, 'ScssOrigin');
+        await workbench.editStructure({ kind: 'rename-resource', id: 'extra', path: 'styles/_tokens.scss' });
+        await workbench.parsePersisted('ast');
+        expect(workbench.snapshot().projection.provenance[0]).toMatchObject({ transform: 'ScssOrigin', uri: 'studio://alpha/extra.cem',
+            originKind: 'definition', name: '$accent', range: { start: 9, len: 11 } });
+        await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().navigationError).toBeUndefined();
+        expect(session.snapshot().selection).toEqual({ projectId: 'alpha', resourceId: 'extra' });
+        expect(workbench.snapshot().path).toBe('styles/_tokens.scss');
+        const selected = workbench.snapshot().selection;
+        expect(selected).toMatchObject({ kind: 'provenance', byteStart: 9, byteLength: 11 });
+        expect(source.slice(selected.start, selected.end)).toBe('{p | target');
+    });
+
+    it.each(['cancel', 'discard', 'save'])('retains source-draft guards for ScssOrigin navigation: %s', async decision => {
+        const { session, workbench } = await provenanceFixture('studio://alpha/extra.cem', { start: 9, len: 11 }, 'ScssOrigin');
+        await workbench.parsePersisted('ast'); workbench.updateDraft('retained graph draft');
+        await workbench.navigateProvenance(0);
+        expect(session.snapshot().transition.stage).toBe('source');
+        await workbench.resolveNavigation(decision);
+        if (decision === 'cancel') {
+            expect(session.snapshot().selection.resourceId).toBe('source'); expect(workbench.snapshot().draft).toBe('retained graph draft');
+        } else {
+            expect(session.snapshot().selection.resourceId).toBe('extra');
+            if (decision === 'discard') expect(workbench.snapshot().selection?.kind).toBe('provenance');
+            else { expect(workbench.snapshot().selection).toBeUndefined(); expect(workbench.snapshot().navigationError.message).toContain('stale'); }
+        }
+    });
+
+    it('retains project ownership and stale-revision refusals for ScssOrigin module references', async () => {
+        const { repository, session, workbench } = await provenanceFixture('studio://other/extra.cem', { start: 9, len: 11 }, 'ScssOrigin');
+        await workbench.parsePersisted('ast'); await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().navigationError.message).toContain('not an available resource');
+        expect(session.snapshot().selection.resourceId).toBe('source');
+        await repository.execute(request('save-resource', { projectId: 'alpha', resourceId: 'extra', expectedProjectRevision: 1, expectedResourceRevision: 1, content: 'changed' }));
+        await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().navigationError.message).toContain('stale');
+        expect(session.snapshot().selection.resourceId).toBe('source'); await workbench.refreshNavigation();
+    });
+
+    it.each([{ start: 100, len: 2 }, { start: 6, len: 1 }, { start: 9, len: -1 }])('retains ScssOrigin original UTF-8 range bounds: %j', async range => {
+        const { workbench } = await provenanceFixture('studio://alpha/extra.cem', range, 'ScssOrigin');
+        await workbench.parsePersisted('ast'); await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().selection).toBeUndefined(); expect(workbench.snapshot().navigationError.message).toMatch(/outside|UTF-8/);
+    });
 
     it('follows named source provenance using stable resolver addresses after a display-path rename', async () => {
         const { source, session, workbench } = await provenanceFixture();

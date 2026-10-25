@@ -1,0 +1,14 @@
+[
+  {
+    "localName": "product",
+    "namespaceUri": "urn:example:products",
+    "documentOrder": 3,
+    "nodeId": "xml:event:3"
+  },
+  {
+    "localName": "product",
+    "namespaceUri": "urn:example:products",
+    "documentOrder": 9,
+    "nodeId": "xml:event:9"
+  }
+]

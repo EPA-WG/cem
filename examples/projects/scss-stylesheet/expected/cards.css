@@ -1,0 +1,15 @@
+body {
+  font-family: system-ui, sans-serif;
+}
+.demo-card {
+  color: #036;
+  background: white;
+  border: 1px solid currentColor;
+  padding: 0.75rem;
+}
+.demo-card__title {
+  font-weight: 700;
+}
+.demo-card p {
+  margin-block: 0.25rem;
+}

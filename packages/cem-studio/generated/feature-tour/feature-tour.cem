@@ -11,6 +11,14 @@
     {export @id="project-schema-examples-output" @out="../../dist/static/samples/examples/schema-examples.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
 
+  {import @id="project-css-selector" @src="examples/css-selector.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-css-selector-output" @out="../../dist/static/samples/examples/css-selector.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
+  {import @id="project-css-stylesheet" @src="examples/css-stylesheet.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-css-stylesheet-output" @out="../../dist/static/samples/examples/css-stylesheet.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
   {import @id="project-csv-inventory" @src="examples/csv-inventory.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
     {export @id="project-csv-inventory-output" @out="../../dist/static/samples/examples/csv-inventory.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
@@ -33,6 +41,10 @@
 
   {import @id="project-mathml-formula" @src="examples/mathml-formula.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
     {export @id="project-mathml-formula-output" @out="../../dist/static/samples/examples/mathml-formula.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
+  {import @id="project-scss-stylesheet" @src="examples/scss-stylesheet.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-scss-stylesheet-output" @out="../../dist/static/samples/examples/scss-stylesheet.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
 
   {import @id="project-supplier-pipeline" @src="examples/supplier-pipeline.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |

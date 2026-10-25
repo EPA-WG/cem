@@ -2,6 +2,8 @@
   "schemaVersion": 1,
   "commonVersion": "0.1.0",
   "cacheUrls": [
+    "./examples/css-selector.cem-studio.json",
+    "./examples/css-stylesheet.cem-studio.json",
     "./examples/csv-inventory.cem-studio.json",
     "./examples/html-cem-card.cem-studio.json",
     "./examples/json-yaml-report.cem-studio.json",
@@ -9,6 +11,7 @@
     "./examples/markdown-site.cem-studio.json",
     "./examples/mathml-formula.cem-studio.json",
     "./examples/schema-examples.cem-studio.json",
+    "./examples/scss-stylesheet.cem-studio.json",
     "./examples/starter.cem-studio.json",
     "./examples/supplier-pipeline.cem-studio.json",
     "./examples/svg-diagram.cem-studio.json",
@@ -158,6 +161,30 @@
       "sha256": "979219ffd4605401e583480eb8066707c3453a2d895598e0f0145bbeca529f8a"
     },
     {
+      "id": "css-selector",
+      "name": "CSS selector queries",
+      "description": "Validate explicit CSS-selector expressions, select native HTML and namespaced XML elements in document order, inspect original query bytes and repair malformed selector source.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-queries-transformations",
+        "content-types-documents-ui"
+      ],
+      "archive": "./examples/css-selector.cem-studio.json",
+      "sha256": "9a0c8ea46b06e72fd2787bf2fca90cca3f39496a861346f13a43dfadce9469ec"
+    },
+    {
+      "id": "css-stylesheet",
+      "name": "CSS stylesheet",
+      "description": "Inspect lossless and semantic CSS views, validate and format source, repair an unclosed layer and preview a native CSS/HTML build with a scoped card style.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-documents-ui",
+        "content-types-queries-transformations"
+      ],
+      "archive": "./examples/css-stylesheet.cem-studio.json",
+      "sha256": "6e8024c18d63dcf23ea08ffe4e7e1001962c57eb913d09f8be6750fa10de4bd3"
+    },
+    {
       "id": "csv-inventory",
       "name": "CSV inventory",
       "description": "Inspect quoted spreadsheet cells and declared headers, diagnose and repair CSV source, and report low stock with native typed counts and HTML/JSON artifacts.",
@@ -230,6 +257,18 @@
       ],
       "archive": "./examples/mathml-formula.cem-studio.json",
       "sha256": "b69d9aabe1e54d04d9a0bca90ad1f95abf71696711f7ccd9fed5aa88b8abf418"
+    },
+    {
+      "id": "scss-stylesheet",
+      "name": "SCSS stylesheet",
+      "description": "Validate passive SCSS, inspect its expanded CSS, resolve a project-owned module, repair source syntax and build an independent HTML/CSS preview.",
+      "version": "1.0.0",
+      "collections": [
+        "content-types-documents-ui",
+        "content-types-queries-transformations"
+      ],
+      "archive": "./examples/scss-stylesheet.cem-studio.json",
+      "sha256": "4d325c60a93edb9a21624ba9d1e442d84d708363fff4ab41906885f1a54ee448"
     },
     {
       "id": "supplier-pipeline",
