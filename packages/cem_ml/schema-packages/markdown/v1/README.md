@@ -18,6 +18,13 @@ RFC 7763 registers `text/markdown` with required `charset` and optional
 `variant` parameters. RFC 7764 defines Markdown variant registration and local
 storage guidance.
 
+When `variant` is omitted, the native parser selects the supported GFM profile,
+including tables, task lists and strikethrough. Use `variant=CommonMark` for
+strict CommonMark parsing without those extensions. An unsupported explicit
+variant retains its warning and existing conservative parser behavior. The
+declared source content type and parameters stay unchanged; the typed document
+and its default-variant fact report the effective GFM profile.
+
 ## Output Artifacts
 
 The package declares CEMT formatter and colorizer artifacts plus the
@@ -145,14 +152,19 @@ The package-local `cem_ml_schema_package_markdown_v1:verify` target checks:
 ## Release Behavior
 
 Validation currently recognizes UTF-8 Markdown text, checks the `charset` and
-`variant` content-type parameters, enables GFM parser options for GFM variants,
+`variant` content-type parameters, enables GFM parser options when the variant is
+omitted or explicitly GFM, preserves explicit CommonMark parsing,
 and rejects embedded HTML unless a future policy permits it. Markdown source
 validation now opens a typed Markdown AST/event stream with source metadata,
 encoding facts, variant facts, parser events, embedded-HTML facts, and source
 maps before projecting diagnostics. Package-owned formatter/colorizer bodies
 now consume the `markdown-document` subject and pass formatted/colored
 `cem-tree` artifacts to the writer. The current formatter is an event-stream
-writer, not a full Markdown block/inline reflow engine. Trusted HTML rendering
+writer, not a full Markdown block/inline reflow engine. Tables retain their
+original lexical text and source range in every formatter profile, preserving
+column alignment, escaped pipes, and inline markup without reconstructing
+table syntax. Other events retain the existing event-stream formatting policy.
+Trusted HTML rendering
 modes and variant-specific extension models are not part of the current release
 contract.
 

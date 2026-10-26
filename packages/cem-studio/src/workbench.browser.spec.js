@@ -86,7 +86,15 @@ describe('CEM Studio Feature Tour workbench', () => {
         const assertPaint = async host => {
             await vi.waitFor(() => expect(paintRanges(host).length).toBeGreaterThan(0));
             expect(paintRanges(host).every(range => host.contains(range.endContainer))).toBe(true);
-            expect(host.querySelector('[role=textbox]').children).toHaveLength(0);
+            const control = host.querySelector('[role=textbox]');
+            expect(control.textContent).toBe(host.value);
+            expect(control.children).toHaveLength(host.value.endsWith('\n') ? 1 : 0);
+            for (const child of control.children) {
+                expect(child).toBe(control.lastChild);
+                expect(child.tagName).toBe('BR');
+                expect(child.attributes).toHaveLength(0);
+                expect(child.childNodes).toHaveLength(0);
+            }
         };
         await mount();
         const sampleEditor = root.querySelector('cem-source-editor[readonly]');
@@ -787,6 +795,12 @@ describe('CEM Studio Feature Tour workbench', () => {
         await vi.waitFor(() => expect(workbench.snapshot().navigation.content).toBe('file'));
         await vi.waitFor(() => expect(root.querySelector('section[aria-label="Selected file"]').hidden).toBe(false));
         await vi.waitFor(() => expect(root.querySelector('[data-cem-studio-editor] [role="textbox"]')).not.toBeNull());
+        // Complete the first navigation's public busy/count projection before
+        // returning to the project; the separate build is still pending.
+        const actions = root.querySelector('cem-studio-workbench-navigation[section="actions"]');
+        await vi.waitFor(() => expect(actions.querySelector('[part~=count]').textContent.trim()).toBe('1 file'));
+        await vi.waitFor(() => expect(actions.querySelector('[aria-label="Clone selected"] button').disabled).toBe(false));
+        await vi.waitFor(() => expect(root.querySelector('cem-tree[label="Project files"] [data-tree-value="project=feature-tour&file=source"]').getAttribute('aria-selected')).toBe('true'));
         root.querySelector('cem-tree[label="Project files"] [data-tree-value="project=feature-tour"] [part~=label]').click();
         await vi.waitFor(() => expect(root.querySelector('section[aria-label="Project build"]').hidden).toBe(false));
         root.querySelector('[host-command="cancel-build"] button').click(); await view.whenSettled();

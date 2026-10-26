@@ -40,6 +40,53 @@ fn input(bytes: &[u8], content_type: &str) -> EngineInput {
 }
 
 #[test]
+fn owned_markdown_contract_defaults_to_gfm_without_rewriting_declared_identity() {
+    let owner = SchemaPackageSourceRegistry::default()
+        .retain("memory://owned/markdown-schema.cem", SCHEMA)
+        .unwrap();
+    let model = compile_schema_document_model_from_retained(MARKDOWN_SCHEMA_URI, &owner);
+    assert!(
+        model.is_ready_for_validation(),
+        "{:?}",
+        model.compile_diagnostics
+    );
+    let mut context = EngineContext::default();
+    context.schema_document_models.register(model);
+    context.schema_registry.set_package_origin(
+        "markdown",
+        SchemaPackageOrigin::Manifest("memory://owned/markdown-schema.cem".into()),
+    );
+    for (content_type, expected_variant, tables) in [
+        ("text/markdown; charset=utf-8", "GFM", true),
+        (
+            "text/markdown; charset=utf-8; variant=CommonMark",
+            "CommonMark",
+            false,
+        ),
+    ] {
+        let source = input(
+            b"| Name | Status |\n| --- | --- |\n| Owned | Ready |\n",
+            content_type,
+        );
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(&source, &context);
+        assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
+        let Some(LoadedInputAstStream::MarkdownDocument(document)) = loaded.ast_stream else {
+            panic!("the admitted Markdown contract must retain the native document");
+        };
+        assert_eq!(document.source.uri, source.uri);
+        assert_eq!(document.source.content_type, content_type);
+        assert_eq!(document.variant, expected_variant);
+        assert_eq!(
+            document
+                .events
+                .iter()
+                .any(|event| event.tag.as_deref() == Some("table")),
+            tables
+        );
+    }
+}
+
+#[test]
 fn owned_markdown_contract_retains_source_owner_and_refuses_unbound_or_unsafe_models() {
     let retain = |source: &str| {
         SchemaPackageSourceRegistry::default()

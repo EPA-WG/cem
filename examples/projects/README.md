@@ -82,6 +82,20 @@ document and review it. Run
 and negative-reference tests. Native command grammar and data parsing stay in
 the shared native engine; the documentation audit reads named control metadata.
 
+Run `yarn nx run @epa-wg/cem-studio:verify:catalog-acceptance` for the complete
+catalog gate. It checks actual native/worker configuration receipts, project
+navigation and independent clones, original/saved/offline bytes, builds and
+previews. The fast resource-presentation preflight runs before the browser census.
+Project profiles keep complete assertions and existing timeouts; cross-project
+state, draft and preview checks remain in the normal navigation suite.
+
+The evidence distinguishes intentional diagnostic cases, native source limits,
+Inspector output versus its diagnostic companion, and binary admission refusals.
+Native query owner identities are not portable addresses: compare original
+source facts, retain exact per-run exports, and never restore an owner from JSON.
+See the [acceptance evidence](../../docs/archive/todo-completed-full-catalog-acceptance-2026-10-25.md)
+for the checked scope and remaining native follow-ups.
+
 The [Markdown site](markdown-site/README.md) demonstrates a folder-based build
 with four Markdown documents, shared CEM-ML layouts/partials, explicit site data
 and static assets. Its validation, body-preview and complete-site configurations

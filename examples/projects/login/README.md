@@ -246,6 +246,10 @@ saved `data/login.cem`, applies the public `main` template from
 `expected/view.html`. Generated output stays a run artifact; it does not silently
 create a source resource.
 
+The expected HTML pins the native writer's exact output bytes, including its
+three final spaces. The former fixture's final newline was stale; the native
+HTML, CEM-ML and graph configurations produce the same exact artifact.
+
 Use **Graph configuration** to choose **page (export)** and its **out** attribute.
 Set it to `../generated/presentation.html`. The native graph editor stages a
 validated draft; Undo/Redo and Reload use the usual workspace behavior.

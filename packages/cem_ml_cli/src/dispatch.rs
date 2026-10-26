@@ -14545,6 +14545,136 @@ Markdown can produce browser HTML.
     }
 
     #[test]
+    fn convert_unspecified_markdown_readme_to_html_renders_configuration_tables() {
+        let source = include_str!("../../../examples/projects/cemql-orders/README.md");
+        let path = write_fixture("convert-unspecified-markdown-readme.md", source);
+        let mut generic_html = None;
+        for (content_type, table_count) in [
+            ("text/markdown; charset=utf-8", 2),
+            ("text/markdown; charset=utf-8; variant=GFM", 2),
+            ("text/markdown; charset=utf-8; variant=CommonMark", 0),
+        ] {
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "convert",
+                    path.to_str().unwrap(),
+                    "--content-type",
+                    content_type,
+                    "--schema",
+                    cem_ml::schema::registry::MARKDOWN_SCHEMA_URI,
+                    "--to-content-type",
+                    "text/html",
+                    "--to-schema",
+                    cem_ml::schema::registry::HTML_SCHEMA_URI,
+                    "--output-color-type",
+                    "none",
+                ],
+            );
+            assert_eq!(outcome.exit_code, EXIT_OK, "{content_type}: {stderr}");
+            assert!(stderr.trim().is_empty(), "{content_type}: {stderr}");
+            assert_eq!(
+                stdout.matches("<table>").count(),
+                table_count,
+                "{content_type}: {stdout}"
+            );
+            assert_eq!(stdout.matches("</table>").count(), table_count);
+            if table_count == 0 {
+                assert!(stdout.contains("| Configuration | Typical use | Expected result |"));
+                continue;
+            }
+            let configurations = stdout
+                .split("id=\"configurations\"")
+                .nth(1)
+                .expect("Configurations heading")
+                .split("id=\"parameter-maps-and-result-views\"")
+                .next()
+                .unwrap();
+            assert!(
+                configurations.contains("<thead>\n<tr><th>Configuration</th>"),
+                "{configurations}"
+            );
+            assert!(configurations.contains("<th>Typical use</th>"));
+            assert!(configurations.contains("<th>Expected result</th>"));
+            assert!(configurations.contains("<td><code>inspect-data</code>"));
+            assert!(configurations.contains("<td><code>report-draft</code>"));
+            assert_eq!(
+                configurations.matches("<tr>").count(),
+                15,
+                "header and all fourteen configurations"
+            );
+            assert!(!configurations.contains("| Configuration | Typical use |"));
+            if let Some(generic) = &generic_html {
+                assert_eq!(
+                    &stdout, generic,
+                    "unspecified Markdown uses the existing GFM converter"
+                );
+            } else {
+                generic_html = Some(stdout);
+            }
+        }
+    }
+
+    #[test]
+    fn convert_unspecified_markdown_table_round_trip_preserves_cells() {
+        let content_type = "text/markdown; charset=utf-8";
+        let source = "# Café\n\n| Configuration | Expected |\n| --- | --- |\n| `inspect-data` | **ready** & `a\\|b` |\n";
+        let source_path = write_fixture("convert-unspecified-markdown-table.md", source);
+        let convert_html = |path: &std::path::Path| {
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "convert",
+                    path.to_str().unwrap(),
+                    "--content-type",
+                    content_type,
+                    "--schema",
+                    cem_ml::schema::registry::MARKDOWN_SCHEMA_URI,
+                    "--to-content-type",
+                    "text/html",
+                    "--to-schema",
+                    cem_ml::schema::registry::HTML_SCHEMA_URI,
+                    "--output-color-type",
+                    "none",
+                ],
+            );
+            assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+            assert!(stderr.trim().is_empty(), "{stderr}");
+            stdout
+        };
+        let html = convert_html(&source_path);
+        assert!(html.contains("<table>"), "{html}");
+        assert!(html.contains("<td><code>inspect-data</code></td>"));
+        assert!(html.contains("<td><strong>ready</strong> &amp; <code>a|b</code></td>"));
+        let (outcome, formatted, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                source_path.to_str().unwrap(),
+                "--content-type",
+                content_type,
+                "--schema",
+                cem_ml::schema::registry::MARKDOWN_SCHEMA_URI,
+                "--to-content-type",
+                content_type,
+                "--to-schema",
+                cem_ml::schema::registry::MARKDOWN_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+                "--output-color-type",
+                "none",
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let formatted_path = write_fixture(
+            "convert-unspecified-markdown-table-formatted.md",
+            &formatted,
+        );
+        assert_eq!(convert_html(&formatted_path), html);
+    }
+
+    #[test]
     fn convert_markdown_gfm_to_html_renders_tables_and_task_lists() {
         let p = write_fixture(
             "convert-markdown-gfm-to-html.md",

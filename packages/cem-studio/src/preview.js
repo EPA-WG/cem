@@ -162,11 +162,13 @@ function isActiveMarkup(contentType) {
 }
 
 function isTextContentType(contentType) {
+    if (contentType.endsWith('+cem-bin')) return false;
     return (
         contentType.startsWith('text/') ||
         contentType === 'application/json' ||
         contentType === 'application/yaml' ||
         contentType === 'application/x-yaml' ||
+        contentType === 'application/relax-ng-compact-syntax' ||
         contentType.endsWith('+json') ||
         contentType === 'application/xml' ||
         contentType.endsWith('+xml') ||

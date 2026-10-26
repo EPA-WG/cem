@@ -2796,13 +2796,17 @@ function workbenchNavigationState(state, actionsOnly = false) {
 }
 
 function workbenchControlState(state) {
-    const { status, projectId, resourceId, workbenchId, workbenches, draft, dirty, projectRevision,
+    const { status, projectId, resourceId, draft, dirty, projectRevision,
         resourceRevision, selection, error, path, description, contentType, validation } = state;
-    return { graphConfiguration: state.graphConfiguration, structure: state.structure, home: state.home, explorer: state.explorer, status, projectId, workbenchId, workbenches, draft, dirty, projectRevision,
-        resourceRevision, selection, error, path, description, contentType, validation,
+    // Controls render one resource. Workspace trees/choices belong to navigation;
+    // detailed validation reports and source maps belong to the result views.
+    return { status, projectId, resourceId, draft, dirty, projectRevision,
+        resourceRevision, selection, error, path, description, contentType,
+        validation: validation && { stale: validation.stale, hardViolationCount: validation.hardViolationCount,
+            diagnostics: (validation.diagnostics ?? []).map(({ code }) => ({ code })) },
         sourceId: JSON.stringify([projectId, resourceId]),
-        editable: state.editable !== false, runnable: state.runnable !== false, transition: state.transition,
-        sessionStatus: state.sessionStatus, draftRecovery: state.draftRecovery, navigationError: state.navigationError, resourceAvailable: state.resourceAvailable ?? Boolean(state.resourceId),
+        editable: state.editable !== false, runnable: state.runnable !== false,
+        resourceAvailable: state.resourceAvailable ?? Boolean(resourceId),
         command: { status: state.command?.status, application: { status: state.command?.application?.status } } };
 }
 

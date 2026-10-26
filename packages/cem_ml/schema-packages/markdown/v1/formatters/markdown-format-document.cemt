@@ -135,10 +135,45 @@
         {param @name="events" @type="array" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
-            {$ fold($events, [], extend(
-                $acc,
-                call("markdown.format-document.event", { event: $item, profile: $profile })
-            )) }
+            {$ call("markdown.format-document.event-nodes", {
+                state: fold($events, { nodes: [], lexicalTable: false }, call("markdown.format-document.event-state", {
+                    state: $acc,
+                    event: $item,
+                    profile: $profile
+                }))
+            }) }
+        }
+    }
+
+    {function @name="markdown.format-document.event-nodes" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="state" @type="object" @required=true}
+        {body | {$ $state.nodes } }
+    }
+
+    {function @name="markdown.format-document.event-state" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="state" @type="object" @required=true}
+        {param @name="event" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($state.lexicalTable, {
+                true: {
+                    nodes: $state.nodes,
+                    lexicalTable: match($event.kind, {
+                        end: match($event.tag, { table: false, default: true }),
+                        default: true
+                    })
+                },
+                false: {
+                    nodes: extend($state.nodes, call("markdown.format-document.event", { event: $event, profile: $profile })),
+                    lexicalTable: match($event.kind, {
+                        start: match($event.tag, {
+                            table: match(typeOf($event.lexicalSource), { string: true, default: false }),
+                            default: false
+                        }),
+                        default: false
+                    })
+                }
+            }) }
         }
     }
 
@@ -226,6 +261,17 @@
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ match($event.tag, {
+                table: [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.table-lexical",
+                        text: match(typeOf($event.lexicalSource), { string: $event.lexicalSource, default: "" }),
+                        role: "syntax.raw",
+                        profile: $profile
+                    }),
+                    call("markdown.format-document.line-ending", { profile: $profile }),
+                    call("markdown.format-document.line-ending", { profile: $profile })
+                ],
                 heading: [
                     call("markdown.format-document.event-token", {
                         event: $event,

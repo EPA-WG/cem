@@ -1688,6 +1688,12 @@ Source folders have no unrelated output preview. Build configuration and artifac
 choices do not activate a different center; an explicit tree configuration may
 change the selected build. JSON/CSV use the shared native table viewer, while
 declared Markdown uses bounded native HTML conversion without Save or Build.
+Unqualified `text/markdown` uses the shared native GFM default, including tables,
+task lists and strikethrough. An explicit `variant=CommonMark` retains strict
+CommonMark interpretation. Studio forwards the resource's declared content type
+to the same converter used by the CLI and WASM; it does not parse or rewrite
+Markdown in JavaScript. Original source bytes, native ranges and the embedded
+HTML admission policy remain unchanged.
 
 All tree nodes, resource metadata, folder children, action availability and the
 selection record reside in `navigation.js` application data. Studio declarations

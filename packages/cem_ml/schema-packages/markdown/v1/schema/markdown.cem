@@ -60,7 +60,7 @@
         {constraint @kind="front-matter-values" @target="document" @policy="String unique keys; title/description/layout/slug/date strings, draft boolean, weight integer, tags string sequence. Additional literal values allowed. No anchors, aliases or explicit tags."}
         {constraint @kind="front-matter-bounds" @target="document" @policy="At most 64 KiB metadata, 64 YAML collection levels, 4096 values including keys and 16384 scanner tokens. Reject malformed, unclosed or unsupported metadata before rendering."}
         {constraint @kind="site-layout-inputs" @target="document" @policy="The recovered native DOM exposes metadata as common CEM nodes and sourceUri. Site data/navigation are declared graph side inputs; metadata never loads templates, discovers resources or chooses output paths implicitly."}
-        {constraint @kind="variant-preserved" @target="document" @policy="preserve text/markdown variant parameter when present"}
+        {constraint @kind="variant-preserved" @target="document" @policy="Preserve an explicit text/markdown variant parameter. Omission selects the supported GFM parser profile, including tables, task lists and strikethrough; explicit CommonMark retains its strict parser profile. Unsupported explicit variants retain the unknown-variant diagnostic and conservative parsing."}
         {constraint @kind="block-order-preserved" @target="document" @policy="required"}
         {constraint @kind="inline-order-preserved" @target="block" @policy="required"}
         {constraint @kind="source-map-preferred" @target="block" @policy="required when parser exposes source ranges"}

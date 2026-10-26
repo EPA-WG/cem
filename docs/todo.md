@@ -223,7 +223,14 @@ reference/identity checks, worker/native fixtures and deployed readonly, saved-c
 and offline README/draft checks pass. Registered selector gaps and native limits
 remain explicit; no new UI behavior or credential recovery authority is added.
 
-- [ ] Add native fixtures for each sample's authored configurations, expected artifacts and intentional diagnostics, plus Studio catalog/navigation/clone/build/preview and offline-inventory coverage. Preserve saved projects/drafts and test that original examples remain unchanged after editing clones.
+Completed 2026-10-26: [full catalog acceptance](archive/todo-completed-full-catalog-acceptance-2026-10-25.md)
+accounts for all 23 projects, 565 resources and 240 configurations with qualified
+native/worker receipts, independent copies, actual builds/previews and offline
+coverage. Generic native Markdown now renders and preserves tables; the reported
+CEM-QL README preview passes online/offline. Populated-workspace controls and the
+combined long navigation run pass without changing admission limits, saved
+projects/drafts or credential policy. Native source-operation limits and
+concurrent release scheduling remain explicit follow-ups below.
 
 ## Native and release follow-ups
 
@@ -247,6 +254,8 @@ Keep the original admission, provenance, privacy and verification bounds.
 - [ ] Adopt the existing element-template source identity for remaining live-view examples such as Login. Its current generic CEM Parse reports hard unknown runtime-binding diagnostics despite exiting successfully; the new card sample uses the correct template identity. Verify source validation, editor behavior, live rendering, saved/offline copies and credential/recovery contracts before changing existing example metadata; preserve diagnostic severity and old saved-project identities.
 
 - [ ] Repair JSON/YAML source Parse identity and diagnostics: JSON `parse --format ast` currently exits successfully with CEM bare-brace tokenizer errors, while clean simple-data `inspect --show ast` presents an imported CEM generic-data tree. JSON Schema structural Inspect with `$defs`/`$ref` also emits embedded CEM tokenizer errors despite exit zero. Add source-identity and hard-diagnostic fixtures for these cases before enabling their sample operations. Distinguish source-format metadata from projection identity and retain original source start offsets; do not replace native parsing with application JavaScript.
+
+- [ ] Align native source-operation diagnostic publication with the admitted typed source owner. The catalog fixtures pin two actual zero-exit Parse limits (Login runtime bindings and Supplier XML) and ten separate Inspect companion diagnostic-view disagreements. Inspect's retained AST/tree output currently publishes no original-view diagnostics; its generic diagnostic companion is separate evidence. Add native selected-view reporting/import regressions, preserve original URI/range and warning facts (including zero/absent coordinates), and do not infer AST failure or clean conformance from the companion or reconstruct source ownership from exported fields.
 
 - [ ] Expose typed native source operations for CLI command/run-config and Studio control encodings without duplicating their grammar in JavaScript. CLI command envelope validation works, but generic Parse/Inspect/format still route to unsupported or erroneous source paths; run configs currently have only their real CLI loader/normalizer, not a registered standalone source adapter. Studio source conversion and CEM structural Inspect work; generic JSON/CEM Parse and JSON Inspect retain source-identity gaps. Add failing native source/exit-status fixtures before enabling these operations; preserve existing native command/plan inspection and preparation refusals.
 
@@ -280,7 +289,7 @@ Keep the original admission, provenance, privacy and verification bounds.
 
 - [ ] Repair standalone runtime typecheck preparation for the transitive CLI generated schema: retain or restore the exact native-generated TypeScript input through the CLI build/cache contract, so `tsc --build --emitDeclarationOnly` works without explicit schema preparation. Keep this separate from semantic editor/widget recovery.
 
-- [ ] Stabilize concurrent release-verifier scheduling around the existing 30-second cold Login source-paint case; retain its assertions and deadline. The unchanged complete release passes with `--parallel=1`.
+- [ ] Stabilize concurrent release-verifier scheduling around the existing 30-second cold Login source-paint case; retain its assertions and deadline. The unchanged complete release passes with `--parallel=1`. The 283-case Studio source invocation overlapping deployed browser gates passes 276 cases with seven deadline failures; all seven pass in an isolated Nx rerun, including complete live Login recovery on worker/fallback. Pending-build cancellation then passes three isolated runs after public navigation-readiness ordering is repaired. Keep the original five-second resume deadline, test bounds, privacy assertions and 4 MiB checkpoint budget; do not treat overlapping execution as a green full-cohort invocation.
 
 - [ ] Repair the existing native conversion baselines independently of recovery: `cross_surface_conversion_rules::cem_fixture_preserves_anonymous_scope_expression_avt_comments_and_rich_content` loses the expected `{.busy}` value in both default and stripped tests, and stripped CLI `convert_cemt_profile_ambiguity_reports_and_explicit_selectors_resolve` expects raw CEM where the current renderer returns a `<pre>` wrapper. Preserve the intended native semantics and assertions when resolving the mismatch.
 

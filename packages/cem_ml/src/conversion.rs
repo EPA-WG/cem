@@ -25924,6 +25924,82 @@ mod tests {
     }
 
     #[test]
+    fn markdown_tables_survive_every_native_formatter_profile() {
+        use crate::validation::markdown::{
+            markdown_document_ast_from_source_bytes, MarkdownSourceValidationRequest,
+        };
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = "# Café\n\n| Name | State |\n| :--- | ---: |\n| `a\\|b` | **ready** and *active* |\n\nAfter table.\n\n| Count |\n| --- |\n| ~~zero~~ |\n";
+        for source in [source.to_owned(), source.replace('\n', "\r\n")] {
+            let open = |text: &str| {
+                let (document, diagnostics) =
+                    markdown_document_ast_from_source_bytes(MarkdownSourceValidationRequest {
+                        bytes: text.as_bytes(),
+                        source_uri: "studio://catalog/readme.md",
+                        content_type: Some("text/markdown; charset=utf-8"),
+                    });
+                assert!(diagnostics.is_empty(), "{diagnostics:?}");
+                document.unwrap()
+            };
+            let document = open(&source);
+            let semantic_events = |document: &crate::validation::markdown::MarkdownDocumentAst| {
+                document
+                    .events
+                    .iter()
+                    .map(|event| {
+                        (
+                            event.kind.clone(),
+                            event.tag.clone(),
+                            event.text.clone(),
+                            event.destination.clone(),
+                            event.level,
+                            event.checked,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+            for profile in ["compact", "pretty", "tabular"] {
+                let scope = ScopeConfig {
+                    cemt_formatter_profile: Some(profile.into()),
+                    cemt_formatter_options: BTreeMap::from([("lineEnding".into(), "preserve".into())]),
+                    ..Default::default()
+                };
+                let output = execute_markdown_document_output_pipeline_with_environment(
+                    &environment,
+                    document.clone(),
+                    &scope,
+                    Some("studio://catalog/readme.md"),
+                );
+                assert!(
+                    output.diagnostics.is_empty(),
+                    "{profile}: {:?}",
+                    output.diagnostics
+                );
+                let text = output.output.as_ref().and_then(Value::as_str).unwrap();
+                for table in document
+                    .events
+                    .iter()
+                    .filter_map(|event| event.lexical_source.as_deref())
+                {
+                    assert!(text.contains(table), "{profile}: {text:?}");
+                }
+                assert_eq!(
+                    semantic_events(&open(text)),
+                    semantic_events(&document),
+                    "{profile}: {text:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn markdown_front_matter_survives_every_native_formatter_profile() {
         use crate::validation::markdown::{
             markdown_document_ast_from_source_bytes, MarkdownSourceValidationRequest,

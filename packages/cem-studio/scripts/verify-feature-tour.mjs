@@ -7,6 +7,8 @@ import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseCemStudioProjectBundle } from '../src/file-system-provider.js';
 import { collectCatalogAudit } from './audit-catalog.mjs';
+import { catalogAcceptanceInputs, assertCatalogConfigurationEvidence } from './catalog-acceptance.mjs';
+import { executeNativeCatalogCommand, nativeCatalogReceipt } from './native-catalog-execution.mjs';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const workspaceRoot = resolve(projectRoot, '../..');
@@ -24,6 +26,7 @@ const featureTourBuild = await readJson(resolve(workspaceRoot, 'dist/reports/cem
 const inventory = await readFile(resolve(workspaceRoot, 'docs/studio-content-types.md'), 'utf8');
 const registry = await readJson(resolve(workspaceRoot, 'packages/cem_ml/schema/schema-assets-registry-v1.json'));
 const runtime = await readJson(resolve(workspaceRoot, 'packages/cem-ml-npm/dist/cem-ml-runtime.json'));
+const acceptance = await catalogAcceptanceInputs(workspaceRoot);
 const documentedPackages = inventoryRows('native-identities').map(row => row.map(inlineCodes));
 assert.deepEqual(documentedPackages, registry.map(item => [
     [item.packageId], [item.version], [item.schemaUri],
@@ -35,6 +38,7 @@ assert.deepEqual(inventoryRows('browser-operations').map(row => row.map(cell => 
     'Studio browser operation inventory drifted from native capabilities');
 const documentedSamples = inventoryRows('existing-samples');
 const sampleBundles = new Map();
+const configurationReceipts = [];
 
 assert.equal(catalog.selection, 'first-manifest-declared-pass-example-per-registered-package');
 assert.equal(catalog.packageCount, 32);
@@ -164,6 +168,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.deepEqual(repair.resourceIds, ['login-invalid', 'command-validation-repair', 'login-schema-package', 'login-schema']);
         assert.ok(new TextDecoder().decode(bundle.contents.readme).includes('demo.login.method_required'));
         assert.deepEqual(JSON.parse(new TextDecoder().decode(bundle.contents[repair.runConfigResourceId])).schemaPackages, [{ uri: 'schemas/login-schema-package.cem' }]);
+        await verifyLoginNativeConfigurations(bundle, definition);
     } else if (['json-yaml-report', 'csv-inventory', 'supplier-pipeline', 'xhtml-document', 'html-cem-card', 'svg-diagram', 'mathml-formula', 'css-stylesheet', 'css-selector', 'scss-stylesheet', 'cemql-orders', 'xpath-catalog', 'cem-transform', 'xslt-transform', 'cem-schema', 'json-schema', 'relax-ng', 'module-maps', 'portable-config', 'native-projections'].includes(record.id)) {
         const definition = authoredDefinitions.find(project => project.id === record.id);
         assert.deepEqual(record.collections, definition.collections);
@@ -203,11 +208,15 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                 const moduleReport = configuration.expectedNativeAssets && resolve(directory, `native-${configuration.id}.report.json`);
                 if (moduleReport) args.push('--report-json', moduleReport);
                 if (configuration.expectedOutputBytes) {
-                    assert.deepEqual(new Uint8Array(runExpected(cli, args, directory, configuration.expectedExit ?? 0, null)),
+                    const outcome = await executeNativeCatalogCommand(cli, args, directory, configuration.expectedExit ?? 0, null);
+                    configurationReceipts.push(nativeCatalogReceipt(record.id, configuration.id, outcome, configuration.expectedValidation));
+                    assert.deepEqual(new Uint8Array(outcome.stdout),
                         bundle.contents[configuration.expectedOutputBytes], `${configuration.id} binary output drifted`);
                     continue;
                 }
-                const actual = runExpected(cli, args, directory, configuration.expectedExit ?? 0);
+                const outcome = await executeNativeCatalogCommand(cli, args, directory, configuration.expectedExit ?? 0);
+                configurationReceipts.push(nativeCatalogReceipt(record.id, configuration.id, outcome, configuration.expectedValidation));
+                const actual = outcome.stdout;
                 if (configuration.expectedSemanticContract) {
                     const expected = JSON.parse(new TextDecoder().decode(bundle.contents[configuration.expectedSemanticContract]));
                     const report = JSON.parse(actual);
@@ -373,7 +382,9 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                 const configResource = bundle.project.resources.find(resource => resource.id === entry.runConfigResourceId);
                 const command = JSON.parse(new TextDecoder().decode(bundle.contents[entry.runConfigResourceId]));
                 const args = command.argv ?? ['validate', '--config', configResource.path, '--format', 'json', '--no-color'];
-                const actual = runExpected(cli, args, directory, configuration.expectedExit ?? 0);
+                const outcome = await executeNativeCatalogCommand(cli, args, directory, configuration.expectedExit ?? 0);
+                configurationReceipts.push(nativeCatalogReceipt(record.id, configuration.id, outcome, configuration.expectedValidation));
+                const actual = outcome.stdout;
                 if (configuration.expectedOutput) {
                     assert.equal(actual, new TextDecoder().decode(bundle.contents[configuration.expectedOutput]), `${configuration.id} article output drifted`);
                 }
@@ -423,6 +434,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
             const command = JSON.parse(new TextDecoder().decode(bundle.contents[resource.id]));
             assert.ok(command.argv.every(argument => !argument.startsWith('$')), 'commands own their concrete project addresses');
         }
+        await verifyGeneratedNativeWorkbenches(bundle);
     }
 }
 for (const [projectCell, resourceCell, configurationCell] of documentedSamples) {
@@ -487,7 +499,7 @@ for (const example of catalog.examples) {
         );
         assert.equal(sha256(dependencyDeployed), dependency.sha256, `${dependency.resourceId} hash drifted`);
     }
-    nativeValidationBytes += Buffer.byteLength(run(cli, [
+    const outcome = await executeNativeCatalogCommand(cli, [
         'validate',
         '--format',
         'json',
@@ -496,7 +508,10 @@ for (const example of catalog.examples) {
         '--schema',
         example.schema,
         example.source,
-    ], workspaceRoot));
+    ], workspaceRoot, 0, 'utf8', resolve(dirname(reportPath), 'schema-validation.report.json'));
+    configurationReceipts.push({ ...nativeCatalogReceipt('schema-examples', `validate-${example.packageId}`, outcome),
+        ...(example.contentType.includes('+cem-bin') ? { validationScope: 'native-envelope-header', studioAdmission: 'read-only' } : {}) });
+    nativeValidationBytes += Buffer.byteLength(outcome.stdout);
 }
 for (const workbench of catalog.workbenches) {
     const [asset, expected, runConfig] = await Promise.all([
@@ -514,6 +529,14 @@ for (const workbench of catalog.workbenches) {
     }
 }
 
+const expectedReceiptKeys = [...authoredDefinitions.flatMap(definition => definition.configurations.map(configuration => `${definition.id}/${configuration.id}`)),
+    ...catalog.examples.map(example => `schema-examples/validate-${example.packageId}`),
+    ...catalog.workbenches.map(workbench => `schema-examples/${workbench.entryId}`)].sort();
+assert.deepEqual(configurationReceipts.map(receipt => `${receipt.project}/${receipt.configuration}`).sort(), expectedReceiptKeys,
+    'Every declared catalog configuration requires exactly one native execution receipt');
+const configurationSummary = assertCatalogConfigurationEvidence(acceptance.projects, configurationReceipts, { host: 'native' });
+assert.equal((await catalogAcceptanceInputs(workspaceRoot)).identity, acceptance.identity, 'Catalog changed during native verification');
+
 const report = {
     schemaVersion: 1,
     project: '@epa-wg/cem-studio',
@@ -525,6 +548,10 @@ const report = {
     workbenchCount: catalog.workbenchCount,
     workbenchResourceCount: catalog.workbenchResourceCount,
     nativeValidationBytes,
+    configurationCoverage: 'complete-declared-catalog',
+    catalogIdentity: acceptance.identity,
+    configurationSummary,
+    configurationReceipts,
     contentTypeInventory: {
         packageCount: registry.length,
         contentTypeClaims: registry.reduce((count, item) => count + item.contentTypes.length, 0),
@@ -537,6 +564,135 @@ const report = {
 await mkdir(dirname(reportPath), { recursive: true });
 await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 console.log(`Verified Feature Tour seed and ${catalog.exampleCount} native schema-package examples.`);
+
+async function writeNativeProject(bundle, prefix) {
+    const directory = await mkdtemp(resolve(tmpdir(), prefix));
+    for (const resource of bundle.project.resources) {
+        const path = resolve(directory, resource.path);
+        await mkdir(dirname(path), { recursive: true });
+        await writeFile(path, bundle.contents[resource.id]);
+    }
+    return directory;
+}
+
+async function verifyLoginNativeConfigurations(bundle, definition) {
+    const directory = await writeNativeProject(bundle, 'cem-studio-login-');
+    try {
+        for (const configuration of definition.configurations) {
+            const entry = bundle.project.entries.find(entry => entry.id === configuration.id);
+            const commandResource = bundle.project.resources.find(resource => resource.id === entry.runConfigResourceId);
+            const command = JSON.parse(new TextDecoder().decode(bundle.contents[commandResource.id]));
+            const args = command.argv ?? ['validate', '--config', commandResource.path, '--format', 'json', '--no-color'];
+            const outcome = await executeNativeCatalogCommand(cli, args, directory, configuration.expectedExit ?? 0);
+            let expectation = configuration.expectedValidation;
+            if (['read-edit', 'inspect'].includes(configuration.id)) {
+                expectation = { errorCount: 0, warningCount: 3, warningCode: 'cem.ast.unresolved_reference' };
+                assert.deepEqual(outcome.diagnostics.map(item => item.code), Array(3).fill('cem.ast.unresolved_reference'));
+                assert.deepEqual(outcome.diagnostics.map(item => item.byteOffset), [136, 277, 385]);
+                assert.ok(outcome.diagnostics.every(item => item.uri === 'data/login.cem'));
+            }
+            if (configuration.id === 'live-view') {
+                // Keep the existing generic source identity and its actual hard
+                // diagnostics visible until the separate native/template work.
+                expectation = { knownLimit: true, errorCount: 4, warningCount: 0 };
+                assert.equal(outcome.exitCode, 0, 'Default Parse exits successfully despite the known source-identity diagnostics');
+                assert.deepEqual(outcome.diagnostics.map(item => item.code), Array(4).fill('cem.ql.compile_failed'));
+                assert.deepEqual(outcome.diagnostics.map(item => item.byteOffset), [196, 657, 1147, 1187]);
+                const ranges = [{ start: 196, len: 184 }, { start: 657, len: 38 }, { start: 1147, len: 23 }, { start: 1187, len: 48 }];
+                for (const [index, diagnostic] of outcome.diagnostics.entries()) {
+                    assert.equal(diagnostic.severity, 'error'); assert.equal(diagnostic.uri, 'views/login.cem');
+                    assert.equal(diagnostic.line, null); assert.equal(diagnostic.column, null);
+                    const frames = diagnostic.sourceMap.frames;
+                    assert.deepEqual(frames[0].span.ranges, { start: 0, len: bundle.contents[configuration.source].byteLength });
+                    assert.equal(frames.at(-1).source_id, frames[0].source_id);
+                    assert.equal(frames.at(-1).transform.kind, 'TemplateEmbedding');
+                    assert.deepEqual(frames.at(-1).span.ranges, ranges[index]);
+                    assert.deepEqual(frames.at(-1).transform.host, ranges[index]);
+                }
+            }
+            const receipt = nativeCatalogReceipt('login', configuration.id, outcome, expectation);
+            if (configuration.id === 'read-edit') receipt.status = 'passed';
+            if (configuration.id === 'live-view') Object.assign(receipt, { diagnosticOffsets: [196, 657, 1147, 1187], diagnosticSource: 'views/login.cem' });
+            let actual = outcome.stdout;
+            if (configuration.expectedGraphOutput) {
+                actual = await readFile(resolve(directory, configuration.expectedGraphOutput), 'utf8');
+                receipt.outputSha256 = sha256(actual);
+                const map = await readJson(resolve(directory, `${configuration.expectedGraphOutput}.map`));
+                assert.ok(map.outputSpans.length > 0);
+                assert.ok(JSON.stringify(map).includes('/templates/view.cemt'));
+            }
+            if (configuration.expectedOutput) assert.equal(actual, new TextDecoder().decode(bundle.contents[configuration.expectedOutput]), `${configuration.id} exact Login output drifted`);
+            for (const text of configuration.expectedText ?? []) assert.ok(actual.includes(text), `${configuration.id} misses ${text}`);
+            if (configuration.expectedSemanticContract) {
+                const report = JSON.parse(actual);
+                const values = report.language === 'xpath' ? report.result.sequence.items.map(item => item.value.lexicalValue) : report.result.items.map(item => item.value);
+                assert.deepEqual(values, JSON.parse(new TextDecoder().decode(bundle.contents[configuration.expectedSemanticContract])), `${configuration.id} Login semantic contract drifted`);
+            }
+            if (configuration.repair) {
+                const source = bundle.project.resources.find(resource => resource.id === configuration.source);
+                const failure = outcome.diagnostics.find(item => item.code === configuration.expectedValidation.errorCode);
+                assert.equal(failure.uri, source.path); assert.ok(failure.line > 0 && failure.column > 0 && failure.byteOffset >= 0);
+                const original = new TextDecoder().decode(bundle.contents[source.id]);
+                const repaired = original.replace(configuration.repair.find, configuration.repair.replace);
+                assert.notEqual(repaired, original);
+                await writeFile(resolve(directory, source.path), repaired);
+                const fixed = await executeNativeCatalogCommand(cli, args, directory);
+                nativeCatalogReceipt('login', `${configuration.id}:repair`, fixed, { errorCount: 0, warningCount: 3, warningCode: 'cem.ast.unresolved_reference' });
+                assert.deepEqual(fixed.diagnostics.map(item => item.code), Array(3).fill('cem.ast.unresolved_reference'));
+                await writeFile(resolve(directory, source.path), bundle.contents[source.id]);
+                receipt.repair = { exitCode: fixed.exitCode, errorCount: 0, warningCount: 3, restoredOriginal: true };
+            }
+            configurationReceipts.push(receipt);
+        }
+    } finally { await rm(directory, { recursive: true, force: true }); }
+}
+
+async function verifyGeneratedNativeWorkbenches(bundle) {
+    const directory = await writeNativeProject(bundle, 'cem-studio-portable-workbenches-');
+    try {
+        for (const workbench of catalog.workbenches) {
+            const command = JSON.parse(new TextDecoder().decode(bundle.contents[workbench.runConfigResourceId]));
+            const outcome = await executeNativeCatalogCommand(cli, command.argv, directory);
+            const receipt = nativeCatalogReceipt('schema-examples', workbench.entryId, outcome);
+            const expected = JSON.parse(await readFile(resolve(outputRoot, workbench.expected.slice(2)), 'utf8'));
+            let summary, selected;
+            if (workbench.id === 'conversion') {
+                const projection = JSON.parse(outcome.stdout);
+                assert.equal(projection.kind, 'document');
+                summary = { kind: 'convert', outputCount: outcome.report.reportAst.convert.outputCount };
+            } else if (workbench.id === 'query') {
+                selected = JSON.parse(outcome.stdout).result.sequence.items;
+                summary = { kind: 'query', itemCount: selected.length };
+            } else if (workbench.id === 'transformation') {
+                selected = JSON.parse(outcome.stdout).sequence.items;
+                summary = { kind: 'transform', mode: 'direct', itemCount: selected.length };
+            } else if (workbench.id === 'trace') {
+                summary = { kind: 'trace', hasEvents: JSON.parse(outcome.stdout).events.length > 0 };
+            } else {
+                assert.equal(workbench.id, 'transformation-graph');
+                const graph = outcome.report.reportAst.transformGraph;
+                assert.equal(graph.exportCount, 1);
+                assert.equal(graph.exports[0].destination, 'workbenches/graph-output.json');
+                const artifact = await readFile(resolve(directory, graph.exports[0].destination));
+                const projection = JSON.parse(artifact);
+                assert.equal(projection.sequence.sequenceType, 'node()*');
+                selected = projection.sequence.items;
+                receipt.outputSha256 = sha256(artifact);
+                summary = { kind: 'transform', mode: 'graph', artifactCount: graph.exportCount, itemCount: selected.length };
+            }
+            assert.deepEqual(summary, expected, `${workbench.entryId} native operation summary drifted`);
+            if (selected) {
+                // These are explicit XPath JSON result exports. They are never
+                // supplied back as a retained native tree or execution input.
+                assert.ok(Array.isArray(selected), `${workbench.entryId} must publish an explicit result item sequence`);
+                assert.deepEqual(selected.map(item => ({ kind: item.kind, nodeKind: item.nodeKind, expandedName: item.expandedName,
+                    sourceUri: item.sourceUri, start: item.sourceRange.start.byteOffset, length: item.sourceRange.byteLength })), [9, 25].map(start => ({
+                    kind: 'node', nodeKind: 'element', expandedName: 'item', sourceUri: 'workbenches/data.xml', start, length: 16 })));
+            }
+            configurationReceipts.push(receipt);
+        }
+    } finally { await rm(directory, { recursive: true, force: true }); }
+}
 
 function run(command, args, cwd) {
     return runExpected(command, args, cwd, 0);

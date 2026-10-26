@@ -483,7 +483,10 @@
                 },
                 "{projectRoot}/scripts/audit-catalog.mjs",
                 "{projectRoot}/scripts/catalog-audit.mjs",
-                "{workspaceRoot}/docs/studio-catalog-coverage.md"
+                "{workspaceRoot}/docs/studio-catalog-coverage.md",
+                "{projectRoot}/scripts/native-catalog-execution.mjs",
+                "{projectRoot}/scripts/catalog-acceptance.mjs",
+                "{projectRoot}/scripts/fixtures/catalog-native-diagnostics.json"
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/feature-tour.json"
@@ -567,7 +570,10 @@
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
-                }
+                },
+                "{projectRoot}/scripts/catalog-acceptance.mjs",
+                "{projectRoot}/scripts/native-catalog-execution.mjs",
+                "{projectRoot}/scripts/fixtures/catalog-native-diagnostics.json"
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/static-worker.json"
@@ -785,7 +791,10 @@
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
-                }
+                },
+                "{projectRoot}/scripts/catalog-acceptance.mjs",
+                "{projectRoot}/scripts/native-catalog-execution.mjs",
+                "{projectRoot}/scripts/fixtures/catalog-native-diagnostics.json"
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/shell-delivery.json"
@@ -807,7 +816,10 @@
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
-                }
+                },
+                "{projectRoot}/scripts/catalog-acceptance.mjs",
+                "{projectRoot}/scripts/native-catalog-execution.mjs",
+                "{projectRoot}/scripts/fixtures/catalog-native-diagnostics.json"
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/workspace-delivery.json"
@@ -846,7 +858,12 @@
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
-                }
+                },
+                "{projectRoot}/scripts/catalog-acceptance.mjs",
+                "{projectRoot}/scripts/verify-catalog-configurations.mjs",
+                "{projectRoot}/scripts/verify-catalog-projects.mjs",
+                "{projectRoot}/scripts/native-catalog-execution.mjs",
+                "{projectRoot}/scripts/fixtures/catalog-native-diagnostics.json"
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/navigation.json"
@@ -1281,10 +1298,70 @@
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
-                }
+                },
+                "{projectRoot}/scripts/catalog-acceptance.mjs",
+                "{projectRoot}/scripts/verify-catalog-configurations.mjs",
+                "{projectRoot}/scripts/verify-catalog-projects.mjs",
+                "{projectRoot}/scripts/native-catalog-execution.mjs",
+                "{projectRoot}/scripts/fixtures/catalog-native-diagnostics.json"
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/catalog-documentation.json"
+            ]
+        },
+        "test:catalog-acceptance": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node --test scripts/catalog-acceptance.test.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/catalog-acceptance.mjs",
+                "{projectRoot}/scripts/catalog-acceptance.test.mjs",
+                "{projectRoot}/scripts/native-catalog-execution.mjs",
+                "{projectRoot}/src/file-system-provider.js",
+                "{projectRoot}/scripts/fixtures/catalog-native-diagnostics.json",
+                "{projectRoot}/src/preview.js",
+                "{projectRoot}/generated/feature-tour/**/*",
+                "{workspaceRoot}/examples/projects/**/example.json"
+            ],
+            "outputs": [],
+            "dependsOn": [
+                "generate:feature-tour"
+            ]
+        },
+        "verify:catalog-acceptance": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:determinism",
+                "test:feature-tour",
+                "test:catalog-acceptance"
+            ],
+            "options": {
+                "command": "node scripts/verify-catalog-acceptance.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/**/*.mjs",
+                "{projectRoot}/dist/static/**/*",
+                "{projectRoot}/generated/feature-tour/**/*",
+                "{workspaceRoot}/examples/projects/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                },
+                "{projectRoot}/scripts/fixtures/**/*"
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/catalog-acceptance.json",
+                "{workspaceRoot}/dist/reports/cem-studio/catalog-configurations.json",
+                "{workspaceRoot}/dist/reports/cem-studio/catalog-projects.json",
+                "{workspaceRoot}/dist/reports/cem-studio/populated-workspace.json",
+                "{workspaceRoot}/dist/reports/cem-studio/navigation.json",
+                "{workspaceRoot}/dist/reports/cem-studio/static-worker.json",
+                "{workspaceRoot}/dist/reports/cem-studio/presentation-samples.json"
             ]
         }
     },

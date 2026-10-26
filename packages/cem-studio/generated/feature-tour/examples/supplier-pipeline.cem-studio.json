@@ -191,7 +191,7 @@
         "contentType": "text/html",
         "schema": "https://cem.dev/ns/data/html/1",
         "revision": 1,
-        "sha256": "ec9faf3f743b577d5f4ef7e83f0ceec381dc2a165bdd75d66df074daf6f3d507"
+        "sha256": "ecaf78aa20df7a426484c68542f6624b3508b7b55ae45ba3d59e9e693b4ac3c8"
       },
       {
         "id": "supplier-products-query",
@@ -340,7 +340,7 @@
     },
     {
       "resourceId": "supplier-expected-html",
-      "base64": "PHNlY3Rpb24gYXJpYS1sYWJlbD0iU3VwcGxpZXIgYXZhaWxhYmlsaXR5Ij48aDE+U3VwcGxpZXIgYXZhaWxhYmlsaXR5PC9oMT48cD5TdG9jayBpcyBtYXRjaGVkIGJ5IHByb2R1Y3QgSUQuIFVua25vd24gYW5kIGFtYmlndW91cyBzdG9jayBjYW5ub3QgYmUgb3JkZXJlZC48L3A+PHVsPjxsaT5TS1UtQSDigJQgQ2Fmw6kgY3VwcyDigJQgNyDigJQgYXZhaWxhYmxlPC9saT48bGk+U0tVLUIg4oCUIFRlYSBwb3RzIOKAlCAwIOKAlCBvdXQtb2Ytc3RvY2s8L2xpPjxsaT5TS1UtQyDigJQgR2xhc3MgamFycyDigJQgMCDigJQgdW5rbm93bjwvbGk+PGxpPlNLVS1EIOKAlCBTZXJ2aW5nIHRyYXlzIOKAlCAwIOKAlCBhbWJpZ3VvdXM8L2xpPjwvdWw+PC9zZWN0aW9uPgo="
+      "base64": "PHNlY3Rpb24gYXJpYS1sYWJlbD0iU3VwcGxpZXIgYXZhaWxhYmlsaXR5Ij48aDE+U3VwcGxpZXIgYXZhaWxhYmlsaXR5PC9oMT48cD5TdG9jayBpcyBtYXRjaGVkIGJ5IHByb2R1Y3QgSUQuIFVua25vd24gYW5kIGFtYmlndW91cyBzdG9jayBjYW5ub3QgYmUgb3JkZXJlZC48L3A+PHVsPjxsaT5TS1UtQSDigJQgQ2Fmw6kgY3VwcyDigJQgNyDigJQgYXZhaWxhYmxlPC9saT48bGk+U0tVLUIg4oCUIFRlYSBwb3RzIOKAlCAwIOKAlCBvdXQtb2Ytc3RvY2s8L2xpPjxsaT5TS1UtQyDigJQgR2xhc3MgamFycyDigJQgMCDigJQgdW5rbm93bjwvbGk+PGxpPlNLVS1EIOKAlCBTZXJ2aW5nIHRyYXlzIOKAlCAwIOKAlCBhbWJpZ3VvdXM8L2xpPjwvdWw+PC9zZWN0aW9uPg=="
     },
     {
       "resourceId": "supplier-expected-json",

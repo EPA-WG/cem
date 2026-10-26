@@ -139,6 +139,20 @@ describe('CEM Studio bounded preview boundary', () => {
         ).toMatchObject({ kind: 'download', byteLength: CEM_STUDIO_LIMITS.inlinePreviewBytes + 1 });
     });
 
+    it('keeps declared compiled binaries as exact downloads even when every byte is valid UTF-8', () => {
+        const bytes = new TextEncoder().encode('CEMPROJ\u0000\u0000\u0001\u0002');
+        for (const family of ['ast', 'dom', 'events']) {
+            expect(createCemStudioPreview({ bytes, contentType: `application/vnd.cem.${family}+cem-bin; version=1` }))
+                .toMatchObject({ kind: 'download', byteLength: bytes.length });
+        }
+    });
+
+    it('presents declared RELAX NG compact source as text', () => {
+        const text = 'element note { text }\n';
+        expect(createCemStudioPreview({ bytes: new TextEncoder().encode(text), contentType: 'application/relax-ng-compact-syntax' }))
+            .toMatchObject({ kind: 'text', text });
+    });
+
     it('rejects unsafe resolver URLs and redacts credentials before diagnostics cross the UI boundary', () => {
         expect(assertCemStudioResourceUri('studio://project/source.cem', 'studio')).toBe('studio://project/source.cem');
         expect(() => assertCemStudioResourceUri('javascript:alert(1)', 'studio')).toThrowError(

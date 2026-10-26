@@ -288,7 +288,7 @@
         "content-types-schema-authoring"
       ],
       "archive": "./examples/login.cem-studio.json",
-      "sha256": "c43e4d8ba571898a299e9970f8c7076954aeaf185a7cd9fbe2961693728af5e3"
+      "sha256": "6ef8a111b78f1b2c68035a7c6cbe1f42005710f05aedb293938bf4c1fa926e38"
     },
     {
       "id": "markdown-site",
@@ -384,7 +384,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/supplier-pipeline.cem-studio.json",
-      "sha256": "fc0edbfabd2c1d59c28e14846e29c98174e02246b985bbd218498e5516cff401"
+      "sha256": "2a29a6bc8b75fbdbb90e817728e486f0749394a1118c2080f4712866b63e3d8a"
     },
     {
       "id": "svg-diagram",

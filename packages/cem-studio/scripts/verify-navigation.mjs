@@ -17,8 +17,13 @@ import { verifyModuleMapProject } from './verify-module-map-project.mjs';
 import { verifyPortableConfigProject } from './verify-portable-config-project.mjs';
 import { verifyNativeProjectionProject } from './verify-native-projection-project.mjs';
 import { verifyCatalogDocumentation } from './verify-catalog-documentation.mjs';
+import { verifyCatalogConfigurations } from './verify-catalog-configurations.mjs';
+import { verifyCatalogProjects } from './verify-catalog-projects.mjs';
+import { catalogAcceptanceInputs, catalogAcceptanceStamp, catalogCensusVerifierIdentity } from './catalog-acceptance.mjs';
+import { captureStudioRenderFailure } from './studio-browser-diagnostics.mjs';
 
 const projectRoot = resolve(import.meta.dirname, '..');
+const acceptanceStamp = await catalogAcceptanceStamp(resolve(projectRoot, '../..'));
 const csvOnly = process.argv.includes('--csv-only');
 const documentsOnly = process.argv.includes('--documents-only');
 const markdownOnly = process.argv.includes('--markdown-only');
@@ -30,8 +35,12 @@ const transformationsSchemasOnly = process.argv.includes('--transformations-sche
 const moduleConfigsOnly = process.argv.includes('--module-configs-only');
 const nativeProjectionsOnly = process.argv.includes('--native-projections-only');
 const catalogDocsOnly = process.argv.includes('--catalog-docs-only');
+const catalogProjectsOnly = process.argv.includes('--catalog-projects-only');
+const catalogCommandsOnly = process.argv.includes('--catalog-commands-only');
+const catalogProject = process.argv.find(argument => argument.startsWith('--catalog-project='))?.slice('--catalog-project='.length);
+if (catalogProject && !catalogProjectsOnly) throw new Error('Catalog project filtering requires the project census scope.');
 const schemaAssets = process.argv.includes('--schema-assets');
-if ([csvOnly, documentsOnly, markdownOnly, htmlCemOnly, svgMathmlOnly, stylesheetsOnly, dataQueriesOnly, transformationsSchemasOnly, moduleConfigsOnly, nativeProjectionsOnly, catalogDocsOnly].filter(Boolean).length > 1) throw new Error('Select one project verification scope.');
+if ([csvOnly, documentsOnly, markdownOnly, htmlCemOnly, svgMathmlOnly, stylesheetsOnly, dataQueriesOnly, transformationsSchemasOnly, moduleConfigsOnly, nativeProjectionsOnly, catalogDocsOnly, catalogProjectsOnly, catalogCommandsOnly].filter(Boolean).length > 1) throw new Error('Select one project verification scope.');
 if (schemaAssets && !csvOnly) throw new Error('The optional profile replay requires --csv-only.');
 const server = await startStaticServer(resolve(projectRoot, schemaAssets ? 'dist/schema-assets' : 'dist/static'));
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
@@ -56,7 +65,20 @@ const submit = async (name, action) => { if (name) await page.getByRole('dialog'
 const heading = async () => assert.equal(await page.getByRole('heading', { level: 1 }).innerText(), await page.title());
 
 try {
-    if (catalogDocsOnly) {
+    if (catalogCommandsOnly || catalogProjectsOnly) {
+        const commands = catalogCommandsOnly;
+        const { identity } = await catalogAcceptanceInputs(resolve(projectRoot, '../..'));
+        const verifierIdentity = await catalogCensusVerifierIdentity(resolve(projectRoot, '../..'));
+        const evidence = await (commands ? verifyCatalogConfigurations : verifyCatalogProjects)({ page, context, url: server.url,
+            ...(catalogProject ? { projectIds: [catalogProject] } : {}) });
+        assert.equal((await catalogAcceptanceInputs(resolve(projectRoot, '../..'))).identity, identity, 'Catalog changed during acceptance');
+        assert.deepEqual(errors, []);
+        await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
+        assert.deepEqual(await catalogAcceptanceStamp(resolve(projectRoot, '../..')), acceptanceStamp, 'Deployment changed during catalog acceptance');
+        assert.equal(await catalogCensusVerifierIdentity(resolve(projectRoot, '../..')), verifierIdentity, 'Census verifier changed during acceptance');
+        await writeFile(resolve(projectRoot, `../../dist/reports/cem-studio/catalog-${commands ? 'configurations' : `projects${catalogProject ? `-${catalogProject}` : ''}`}.json`), `${JSON.stringify({ schemaVersion: 1, ...acceptanceStamp, identity, verifierIdentity, evidence }, null, 2)}\n`);
+        console.log(`Studio catalog ${commands ? 'configuration execution' : 'navigation and clones'}: complete online/offline evidence passed.`);
+    } else if (catalogDocsOnly) {
         const catalogDocumentation = await verifyCatalogDocumentation({ page, context, url: server.url });
         assert.deepEqual(errors, []);
         await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
@@ -375,19 +397,22 @@ try {
     const portableConfigProject = await verifyPortableConfigProject({ page, context, url: server.url });
     const nativeProjectionProject = await verifyNativeProjectionProject({ page, context, url: server.url });
     const catalogDocumentation = await verifyCatalogDocumentation({ page, context, url: server.url });
+    assert.deepEqual(await catalogAcceptanceStamp(resolve(projectRoot, '../..')), acceptanceStamp, 'Deployment changed during navigation acceptance');
     assert.deepEqual(errors, []);
     await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
-    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, csvInventory, xmlXhtmlProjects, htmlCemCard, svgMathmlProjects, stylesheetProjects, dataQueryProjects, transformationProjects, schemaAuthoringProjects, moduleMapProject, portableConfigProject, nativeProjectionProject, catalogDocumentation, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
+    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, ...acceptanceStamp, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, nestedCatalog: true, uniqueCatalogOccurrences: true, contextualAndLegacySampleUrls: true, collapsedCatalogSelection: true, readonlyOriginals: true, independentClones: true, catalogDraftRetention: true, offlineCatalog: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, dataProjects, csvInventory, xmlXhtmlProjects, htmlCemCard, svgMathmlProjects, stylesheetProjects, dataQueryProjects, transformationProjects, schemaAuthoringProjects, moduleMapProject, portableConfigProject, nativeProjectionProject, catalogDocumentation, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
     console.log('Studio navigation: nested catalog, contextual/legacy URLs, readonly originals, independent clones, drafts, themes, responsive layout and offline catalog/Supplier/Markdown site/JSON and YAML report/CSV inventory/XML and XHTML builds passed.');
     }
 } catch (error) {
     console.error('Studio navigation verification failed:', error);
     let timer;
     const failure = await Promise.race([
-        state().catch(() => ({})),
+        Promise.all([state().catch(() => ({})), captureStudioRenderFailure(page, errors).catch(() => ({ pageErrors: errors.slice(0, 12) }))])
+            .then(([selection, render]) => ({ selection, render })),
         new Promise(resolveFailure => { timer = setTimeout(() => resolveFailure({}), 5_000); }),
     ]).finally(() => clearTimeout(timer));
-    console.error('Navigation failure:', JSON.stringify({ selection: failure.selection, title: failure.title, error: failure.error, status: failure.status }));
+    console.error('Navigation failure:', JSON.stringify({ selection: failure.selection?.selection, title: failure.selection?.title,
+        error: failure.selection?.error, status: failure.selection?.status, render: failure.render }));
     await page.screenshot({ path: '/tmp/cem-studio-navigation-failure.png', fullPage: true, timeout: 5_000 }).catch(() => undefined);
     throw error;
 } finally { await browser.close(); await server.close(); }

@@ -167,8 +167,10 @@ coverage. Native grammar, data imports, validation and execution stay in Rust;
 this tool does not parse project data or interpret native ASTs. README prose is
 reviewed against the native fixtures and [format limits](studio-content-types.md).
 
-The native Feature Tour verifier executes generic project and Markdown workflows;
-Login has separate browser cohorts and known generic-source identity limits.
+The native Feature Tour verifier records all declared configuration executions.
+Native Inspect verifies its original output and exit separately from a companion
+diagnostic view; that view does not prove the retained AST failed or was clean.
+Exact native Parse and companion-view limits remain explicit in acceptance evidence.
 Declared configurations therefore do not imply uniform clean native execution.
 Parse/Inspect coordinate presentation is distinct from owned source-map
 publication; explicit projection JSON is an export boundary, never an internal

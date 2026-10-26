@@ -4248,6 +4248,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "kind",
                 "tag",
                 "text",
+                "lexicalSource",
                 "destination",
                 "title",
                 "info",
@@ -7170,6 +7171,9 @@ fn markdown_event_evaluator_field<'a>(
         "kind" => Some(CemtEvaluatorValueRef::String(&event.kind)),
         "tag" => Some(optional_string_evaluator_value(event.tag.as_deref())),
         "text" => Some(optional_string_evaluator_value(event.text.as_deref())),
+        "lexicalSource" => Some(optional_string_evaluator_value(
+            event.lexical_source.as_deref(),
+        )),
         "destination" => Some(optional_string_evaluator_value(
             event.destination.as_deref(),
         )),

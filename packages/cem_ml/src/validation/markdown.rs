@@ -19,6 +19,7 @@ const MARKDOWN_PACKAGE_ID: &str = "markdown";
 const MARKDOWN_UNSUPPORTED_ENCODING_CODE: &str = "cem.markdown.unsupported_encoding";
 const MARKDOWN_CHARSET_MISSING_CODE: &str = "cem.markdown.charset_missing";
 const MARKDOWN_UNKNOWN_VARIANT_CODE: &str = "cem.markdown.unknown_variant";
+const DEFAULT_MARKDOWN_VARIANT: &str = "GFM";
 const MARKDOWN_EMBEDDED_HTML_REJECTED_CODE: &str = "cem.markdown.embedded_html_rejected";
 
 #[derive(Debug, Clone, Copy)]
@@ -291,12 +292,12 @@ impl MarkdownVariantFact {
     fn default_variant() -> Self {
         Self {
             kind: MarkdownVariantFactKind::DefaultVariant,
-            variant: Some("CommonMark".to_owned()),
+            variant: Some(DEFAULT_MARKDOWN_VARIANT.to_owned()),
             diagnostic_code: None,
             diagnostic_severity: None,
             recoverable: true,
             fatal: false,
-            message: "Markdown variant defaults to CommonMark".to_owned(),
+            message: format!("Markdown variant defaults to {DEFAULT_MARKDOWN_VARIANT}"),
         }
     }
 
@@ -435,6 +436,9 @@ pub struct MarkdownEventAst {
     pub kind: String,
     pub tag: Option<String>,
     pub text: Option<String>,
+    /// Original table syntax, retained only on a table start event. The event
+    /// writer cannot safely reconstruct separators, alignment, or inline escapes.
+    pub lexical_source: Option<String>,
     pub destination: Option<String>,
     pub title: Option<String>,
     pub info: Option<String>,
@@ -452,6 +456,7 @@ impl MarkdownEventAst {
             "kind": self.kind,
             "tag": self.tag,
             "text": self.text,
+            "lexicalSource": self.lexical_source,
             "destination": self.destination,
             "title": self.title,
             "info": self.info,
@@ -675,13 +680,20 @@ fn collect_markdown_events_and_facts(
     }
     for (index, (event, range)) in parser.enumerate() {
         let index = index + usize::from(body_offset > 0);
-        let event_ast = markdown_event_ast(
+        let mut event_ast = markdown_event_ast(
             index,
             &event,
             range.start + body_offset..range.end + body_offset,
             &line_index,
             &source_uri,
         );
+        if matches!(
+            event,
+            pulldown_cmark::Event::Start(pulldown_cmark::Tag::Table(_))
+        ) {
+            event_ast.lexical_source =
+                Some(source[range.start + body_offset..range.end + body_offset].to_owned());
+        }
         if matches!(
             event,
             pulldown_cmark::Event::Html(_) | pulldown_cmark::Event::InlineHtml(_)
@@ -832,6 +844,7 @@ fn markdown_event_ast(
         kind: markdown_event_kind(event).to_owned(),
         tag: markdown_event_tag(event),
         text: markdown_event_text(event),
+        lexical_source: None,
         destination: markdown_event_destination(event),
         title: markdown_event_title(event),
         info: markdown_event_info(event),
@@ -1030,16 +1043,13 @@ fn markdown_normalized_variant(variant: Option<&str>) -> String {
         }
         Some(variant) if variant.eq_ignore_ascii_case("commonmark") => "CommonMark".to_owned(),
         Some(variant) => variant.to_owned(),
-        None => "CommonMark".to_owned(),
+        None => DEFAULT_MARKDOWN_VARIANT.to_owned(),
     }
 }
 
 fn markdown_parser_options(variant: Option<&str>) -> pulldown_cmark::Options {
     let mut options = pulldown_cmark::Options::empty();
-    if variant.map(str::trim).is_some_and(|variant| {
-        variant.eq_ignore_ascii_case("gfm")
-            || variant.eq_ignore_ascii_case("github-flavored-markdown")
-    }) {
+    if markdown_normalized_variant(variant) == "GFM" {
         options.insert(pulldown_cmark::Options::ENABLE_GFM);
         options.insert(pulldown_cmark::Options::ENABLE_TABLES);
         options.insert(pulldown_cmark::Options::ENABLE_TASKLISTS);
@@ -1365,6 +1375,92 @@ mod tests {
             .events
             .iter()
             .any(|event| event.kind == "task-list-marker" && event.checked == Some(false)));
+    }
+
+    #[test]
+    fn markdown_unspecified_variant_uses_gfm_and_preserves_table_source_ranges() {
+        let source = "# Café\n\n| Configuration | Result |\n| --- | --- |\n| `inspect-data` | **ready** & `<tag>` |\n";
+        let content_type = "text/markdown; charset=utf-8";
+        let (document, diagnostics) = open_ast_with_content_type(source, content_type);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(document.variant, "GFM");
+        assert_eq!(document.source.content_type, content_type);
+        assert!(!document.source.parameters.contains_key("variant"));
+        assert!(document.variant_facts.iter().any(|fact| {
+            fact.kind == MarkdownVariantFactKind::DefaultVariant
+                && fact.variant.as_deref() == Some("GFM")
+        }));
+        for tag in ["table", "table-head", "table-row", "table-cell"] {
+            assert!(
+                document
+                    .events
+                    .iter()
+                    .any(|event| { event.kind == "start" && event.tag.as_deref() == Some(tag) }),
+                "missing {tag} in generic Markdown"
+            );
+        }
+        let table = document
+            .events
+            .iter()
+            .find(|event| event.kind == "start" && event.tag.as_deref() == Some("table"))
+            .expect("native lexical table");
+        let table_offset = source.find("| Configuration").unwrap();
+        assert_eq!(
+            table.lexical_source.as_deref(),
+            Some(&source[table_offset..])
+        );
+        assert_eq!(table.source_range.start.byte_offset as usize, table_offset);
+        assert_eq!(
+            table.source_range.byte_length as usize,
+            source.len() - table_offset
+        );
+        assert_eq!(
+            document
+                .events
+                .iter()
+                .filter(|event| event.lexical_source.is_some())
+                .count(),
+            1
+        );
+        let code = document
+            .events
+            .iter()
+            .find(|event| event.kind == "code" && event.text.as_deref() == Some("inspect-data"))
+            .expect("native table code cell");
+        assert_eq!(code.source_uri.as_ref(), "fixture.md");
+        assert_eq!(code.source_range.start.line, 5);
+        assert_eq!(
+            code.source_range.start.byte_offset as usize,
+            source.find("`inspect-data`").unwrap()
+        );
+        assert_eq!(
+            code.source_range.byte_length as usize,
+            "`inspect-data`".len()
+        );
+        assert!(!code.source_range.source_map().frames.is_empty());
+    }
+
+    #[test]
+    fn markdown_explicit_variants_do_not_inherit_the_gfm_default() {
+        let source = "| Configuration | Result |\n| --- | --- |\n| Inspect | Ready |\n\n- [x] Ready\n";
+        for variant in ["CommonMark", "Private"] {
+            let (document, diagnostics) = open_ast_with_content_type(
+                source,
+                &format!("text/markdown; charset=utf-8; variant={variant}"),
+            );
+            assert_eq!(document.variant, variant);
+            assert!(
+                !document.events.iter().any(|event| {
+                    event.tag.as_deref() == Some("table") || event.kind == "task-list-marker"
+                }),
+                "explicit {variant} must retain its parser options"
+            );
+            assert_eq!(
+                has_code(&diagnostics, MARKDOWN_UNKNOWN_VARIANT_CODE),
+                variant == "Private"
+            );
+        }
     }
 
     #[test]

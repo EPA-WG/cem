@@ -182,9 +182,9 @@ describe('Studio compact navigation service', () => {
         expect(browser.location.searchParams.get('file')).toBe('article');
     });
 
-    it('keeps catalog binary resources out of text preparation and downloads their exact owned bytes', async () => {
+    for (const sourceBytes of [new Uint8Array([67, 69, 77, 0, 255]), new TextEncoder().encode('CEMPROJ\u0000\u0000\u0001\u0002')]) it(`keeps catalog binary resources out of text preparation and downloads their exact owned bytes (${sourceBytes.length} bytes)`, async () => {
         const prepareResource = vi.fn(async () => undefined);
-        const { service } = await fixture('https://studio.test/?sample=demo&file=article', false, { binarySource: true, validator: { prepareResource } });
+        const { service } = await fixture('https://studio.test/?sample=demo&file=article', false, { binarySource: true, sourceBytes, validator: { prepareResource } });
         expect(service.snapshot().navigation).toMatchObject({ content: 'sample-file', sampleTextAvailable: false, sampleText: '' });
         expect(service.snapshot().navigation.sourcePreview).toBeUndefined(); expect(prepareResource).not.toHaveBeenCalled();
         const root = document.createElement('main'); document.body.append(root);
@@ -196,7 +196,7 @@ describe('Studio compact navigation service', () => {
         expect(button).toBeDefined(); button.click(); await view.whenSettled();
         expect(downloads).toHaveLength(1);
         expect(downloads[0]).toMatchObject({ filename: 'projection.cem-bin', contentType: 'application/vnd.cem.ast+cem-bin' });
-        expect(downloads[0].bytes).toEqual(new Uint8Array([67, 69, 77, 0, 255]));
+        expect(downloads[0].bytes).toEqual(sourceBytes);
     });
 
     for (const missing of [false, true]) it(`guards catalog text availability for ${missing ? 'unavailable bytes' : 'invalid UTF-8 beyond the preview prefix'}`, async () => {
@@ -430,6 +430,34 @@ describe('Studio native per-file Markdown preview', () => {
             expect(html.querySelector('strong').textContent).toBe('this');
         } finally { service.dispose(); await validator.close(); }
     }, 40_000);
+
+    it('renders ordinary README configuration tables through generic native Markdown conversion while preserving explicit CommonMark', async () => {
+        const response = await fetch(new URL('../../../examples/projects/cemql-orders/README.md', import.meta.url));
+        expect(response.ok).toBe(true);
+        const readme = await response.text();
+        const { createCemStudioBrowserValidator } = await import('./feature-tour.js');
+        const validator = await createCemStudioBrowserValidator();
+        const service = createCemStudioSourcePreview({ validator, delay: 0 }); services.push(service);
+        try {
+            const source = { ...descriptor('readme', readme), contentType: 'text/markdown; charset=utf-8' };
+            service.setSource(source);
+            await vi.waitFor(() => expect(service.snapshot().status).not.toBe('pending'), { timeout: 30_000 });
+            expect(service.snapshot().error).toBeUndefined();
+            const html = new DOMParser().parseFromString(service.snapshot().preview.source, 'text/html');
+            const table = [...html.querySelectorAll('table')].find(table => table.querySelector('th')?.textContent === 'Configuration');
+            expect(table).toBeDefined();
+            expect([...table.querySelectorAll('thead th')].map(cell => cell.textContent)).toEqual(['Configuration', 'Typical use', 'Expected result']);
+            expect(table.querySelectorAll('tbody tr')).toHaveLength(14);
+            expect(table.querySelectorAll('tbody td code')[0].textContent).toBe('inspect-data');
+            expect(table.textContent).toContain('report-ready');
+            service.setSource({ ...source, contentType: 'text/markdown; charset=utf-8; variant=CommonMark' });
+            await vi.waitFor(() => expect(service.snapshot().status).not.toBe('pending'), { timeout: 30_000 });
+            expect(service.snapshot().error).toBeUndefined();
+            const strict = new DOMParser().parseFromString(service.snapshot().preview.source, 'text/html');
+            expect(strict.querySelector('table')).toBeNull();
+            expect(strict.body.textContent).toContain('| Configuration | Typical use | Expected result |');
+        } finally { service.dispose(); await validator.close(); }
+    }, 70_000);
 
 });
 

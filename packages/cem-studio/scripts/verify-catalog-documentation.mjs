@@ -2,6 +2,36 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 
+/** The ordinary README uses the generic native source preview, not a project build. */
+export async function verifyCemqlReadmePreview(page) {
+    const route = { collection: 'content-types-data', sample: 'cemql-orders', file: 'readme', build: 'report-ready' };
+    await page.evaluate(route => globalThis.__cemStudioApplication.workbench.openEntity(new URLSearchParams(route).toString()), route);
+    await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
+    await page.waitForFunction(() => {
+        const source = globalThis.__cemStudioApplication.workbench.snapshot().navigation.sourcePreview;
+        return source?.status === 'ready' && source.resourceId === 'readme';
+    });
+    const state = await page.evaluate(() => {
+        const current = globalThis.__cemStudioApplication.workbench.snapshot();
+        return { route: current.navigation.selection, build: current.projectPreview.configurationId,
+            error: current.navigation.sourcePreview.error };
+    });
+    assert.equal(state.error, undefined);
+    assert.equal(state.build, route.build);
+    for (const [key, value] of Object.entries(route)) assert.equal(new URL(page.url()).searchParams.get(key), value);
+    for (const key of ['collection', 'sample', 'file']) assert.equal(state.route[key], route[key]);
+    const preview = page.locator('[data-cem-studio-preview] cem-media-preview[mode="document"] iframe');
+    await preview.scrollIntoViewIfNeeded();
+    assert.equal(await preview.getAttribute('sandbox'), '');
+    const frame = preview.contentFrame();
+    const table = frame.getByRole('table').filter({ hasText: /Configuration\s*Typical use\s*Expected result/ });
+    await table.waitFor();
+    assert.deepEqual((await table.getByRole('columnheader').allTextContents()).map(text => text.trim()), ['Configuration', 'Typical use', 'Expected result']);
+    assert.equal(await table.locator('tbody tr').count(), 14);
+    assert.equal(await table.locator('tbody tr').first().locator('code').first().textContent(), 'inspect-data');
+    assert.ok((await table.textContent()).includes('report-ready'));
+}
+
 /** Documentation remains an ordinary resource in the caller's isolated test context. */
 export async function verifyCatalogDocumentation({ page, context, url }) {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -117,6 +147,7 @@ export async function verifyCatalogDocumentation({ page, context, url }) {
     await verifyOriginalBytes();
     console.log(`[cem-studio:catalog-docs] browsing ${originals.size} original README resources`);
     for (const sample of originals.keys()) await browseOriginal(sample);
+    await verifyCemqlReadmePreview(page);
 
     await open({}); await click('Create'); await submit('Catalog documentation starter', 'Create');
     const created = await state(), starterId = created.route.project; assert.ok(starterId);
@@ -171,6 +202,8 @@ export async function verifyCatalogDocumentation({ page, context, url }) {
         assert.equal(restored.dirty, true); assert.equal(restored.draft, draft); assert.equal(restored.persistedText, saved);
         assert.equal(await bounded(editor.evaluate(element => element.value), 'offline restored draft'), draft);
         for (const sample of originals.keys()) await browseOriginal(sample, draft);
+        await verifyCemqlReadmePreview(page);
+        assert.equal((await state()).dirty, true); assert.equal((await state()).draft, draft);
         await verifyOriginalBytes();
         await open({ project: first, file: 'readme' });
         assert.equal(await bounded(editor.evaluate(element => element.value), 'offline retained draft'), draft);
@@ -186,5 +219,6 @@ export async function verifyCatalogDocumentation({ page, context, url }) {
         readonlyOriginals: true, readmeUrlSelection: true, starterReadme: true, starterSourceFirst: true,
         starterTwoResources: true, starterDefaultPreview: true, savedSchemaReadme: true, independentCopies: true,
         unsavedDraftRetained: true, offlineDraftRestored: true, offlineReadmes: originals.size,
-        unchangedOriginals: true, savedBytesPreserved: true, existingProjectsPreserved: true, existingDraftsPreserved: true };
+        unchangedOriginals: true, savedBytesPreserved: true, existingProjectsPreserved: true, existingDraftsPreserved: true,
+        nativeReadmeTables: true, offlineReadmeTables: true };
 }
