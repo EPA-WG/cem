@@ -481,6 +481,8 @@ describe('CEM Studio Feature Tour copies', () => {
                     expect(report.matches.map(({ localName, namespaceUri, documentOrder, nodeId }) => ({ localName, namespaceUri, documentOrder, nodeId })))
                         .toEqual(JSON.parse(decode(configuration.expectedSemanticContract)));
                     expect(report.matches.every(item => item.sourceMap.frames.length > 0)).toBe(true);
+                    expect(report.matches.every(item => item.sourceMap.frames.some(frame =>
+                        frame.transform.kind === 'SourceBoundary' && frame.transform.uri === options.uri))).toBe(true);
                 }
                 const expected = configuration.expectedValidation;
                 if (expected) {
@@ -1420,7 +1422,7 @@ describe('CEM Studio Feature Tour copies', () => {
             diagnostics: { items: expect.arrayContaining([expect.objectContaining({ code: 'cem.ql.query_identity_unsupported' })]) } } });
     }, 60_000);
 
-    it('queries the same Login semantic contract with XPath and CEM-QL in the native browser worker', async () => {
+    it('queries the same Login semantic contract and input provenance across native query languages', async () => {
         const validator = await createCemStudioBrowserValidator(); validators.push(validator);
         const bytes = text => new TextEncoder().encode(text);
         const expected = JSON.parse(semanticsContract);
@@ -1462,6 +1464,18 @@ describe('CEM Studio Feature Tour copies', () => {
             if (maps.has(uri)) expect(sources).toEqual(maps.get(uri));
             else { maps.set(uri, sources); expect(items[0].sourceUri).toBe(uri); }
         }
+        const uri = 'studio://semantic-copy/data/login.html';
+        const selected = await validator.runResourceCommand({ uri, bytes: bytes(loginHtml),
+            contentType: 'text/html', schema: 'https://cem.dev/ns/data/html/1',
+            projectId: 'semantic-copy', projectRootUri: 'studio://semantic-copy/',
+            argv: ['query', uri, '--content-type', 'text/html', '--schema', 'https://cem.dev/ns/data/html/1',
+                '--query', 'input', '--query-content-type', 'application/vnd.cem.query-expression+css-selector',
+                '--query-schema', 'https://cem.dev/ns/query/css-selector/1', '--output', 'json'] });
+        const matches = JSON.parse(selected.output.text).matches;
+        expect(matches).toHaveLength(2);
+        expect(matches.map(item => item.sourceMap)).toEqual(maps.get(uri));
+        expect(matches.every(item => item.sourceMap.frames.some(frame =>
+            frame.transform.kind === 'SourceBoundary' && frame.transform.uri === uri))).toBe(true);
     }, 60_000);
 
     it('initializes native graph authoring through the public CLI browser facade', async () => {

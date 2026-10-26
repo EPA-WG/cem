@@ -175,8 +175,12 @@ fn text_run_source_map_and_covering_range_retain_all_source_events() {
             },
         )
         .collect::<Vec<_>>();
-    assert_eq!(source_map.frames.len(), 1);
-    assert_eq!(source_map.frames[0].span, FrameSpan::Multi(expected));
+    // The full text run retains every original range and its input URI.
+    assert_eq!(source_map.frames.len(), 2);
+    assert_eq!(source_map.frames[0].span, FrameSpan::Multi(expected.clone()));
+    assert_eq!(source_map.frames[1].span, FrameSpan::Multi(expected));
+    assert!(matches!(&source_map.frames[1].transform,
+        cem_ml::source_map::TransformKind::SourceBoundary { uri } if uri == &document.source.uri));
     assert_eq!(range.start.byte_offset, 3);
     assert_eq!(range.start.line, 1);
     assert_eq!(range.start.column, 4);

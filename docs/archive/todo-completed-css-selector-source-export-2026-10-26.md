@@ -92,6 +92,10 @@ probe confirms that binary predates the new export path. Original assertions,
 URI frames and ranges remain intact, and the provenance repair stays active in
 the TODO list. The current CLI binary was restored byte-for-byte afterward.
 
+Follow-up 2026-10-26: this provenance failure is now repaired by the shared
+retained-tree import path. The original equality assertion and full selector
+package gate pass; see [cross-query provenance completion](todo-completed-cross-query-provenance-2026-10-26.md).
+
 The scoped browser deployment uses catalog identity
 `92c7e61bd790eb407a8b1bd88bdcd23fc361a396ca61442752bed783598bd084`
 and deployed SHA-256

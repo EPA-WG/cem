@@ -33,10 +33,18 @@ pub(super) fn validate(document: &HtmlDocumentAst, max_values: usize) -> Result<
 pub(super) fn project(
     document: &HtmlDocumentAst,
 ) -> Result<(crate::parser::document::CemDocument, CemTreeSemantics), String> {
+    let (ast, semantics, _) = project_tracked(document)?;
+    Ok((ast, semantics))
+}
+
+pub(super) fn project_tracked(
+    document: &HtmlDocumentAst,
+) -> Result<(crate::parser::document::CemDocument, CemTreeSemantics, Vec<Option<u32>>), String> {
+    let mut event_nodes = vec![None; document.events.len()];
     let mut builder = ImportBuilder::new();
     let mut semantics = CemTreeSemantics::default();
     let mut stack = vec![0];
-    for event in &document.events {
+    for (index, event) in document.events.iter().enumerate() {
         // Native event depths already describe closing-tag recovery. Do not
         // reconstruct a second HTML parsing policy from tag names here.
         if event.depth + 1 > stack.len() {
@@ -144,11 +152,12 @@ pub(super) fn project(
                 id
             }
         };
+        event_nodes[index] = Some(id);
         semantics.sources.insert(id, source);
         semantics.ranges.insert(id, range);
     }
     // Imported HTML never evaluates expressions, applies styles or runs scripts.
-    Ok((builder.ast, semantics))
+    Ok((builder.ast, semantics, event_nodes))
 }
 
 #[cfg(test)]

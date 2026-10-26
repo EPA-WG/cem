@@ -2,6 +2,8 @@
 #[test]
 fn query_consumers_do_not_interpret_external_document_formats() {
     for (name, source) in [
+        ("CSS selector input and evaluation", include_str!("../src/validation/css_selector.rs")
+            .split("pub struct CssSelectorElementTreeOwner").nth(1).unwrap()),
         (
             "XPath evaluator",
             include_str!("../src/validation/xpath.rs"),

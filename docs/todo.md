@@ -240,9 +240,9 @@ Keep the original admission, provenance, privacy and verification bounds.
 Completed 2026-10-26: [native CSS-selector source export and shared editor paint](archive/todo-completed-css-selector-source-export-2026-10-26.md)
 covers typed formatter/colorizer ownership, exact lexical source, native ranges,
 hard-diagnostic refusal, shared worker/fallback coloring and ordinary Studio
-format/color configurations with saved-copy and offline acceptance. The existing
-cross-query provenance failure remains a separate open item below; the complete
-selector-package gate is not green.
+format/color configurations with saved-copy and offline acceptance. Cross-query
+provenance and the complete selector-package gate are covered by the completed
+follow-up below.
 
 Completed 2026-10-26: [typed XPath Parse, Inspect and source export](archive/todo-completed-xpath-source-operations-2026-10-26.md)
 covers native syntax/token projections, declared shared fields and monotonic
@@ -259,7 +259,13 @@ selected-command execution. The ordinary XPath project passes namespace-command
 repair, independent-copy and offline checks without changing shared controls or
 credential privacy policy.
 
-- [ ] Align original input provenance across native query languages. `query_fixture_runs_all_languages_with_the_same_native_nodes_and_report_shape` at `query_cli.rs:390` compares CSS-selector ContentTypeTransform-only maps with CEM-QL maps that also retain a SourceBoundary URI. The unchanged `5ca43f31` reproduces this failure under a clean non-incremental build. Preserve the original assertion, URI frames and exact source ranges; add retained-owner/import regressions before changing query adapters or claiming a green complete selector-package gate.
+Completed 2026-10-26: [cross-query original-source provenance](archive/todo-completed-cross-query-provenance-2026-10-26.md)
+covers shared retained CEM input views for CSS-selector, native tree map accessors
+for all three query languages, original owner/URI/range retention, literal input
+profiles and import guards. The unchanged cross-language equality assertion and
+complete selector-package gate pass. Rebuilt WASM, ordinary Studio commands,
+Login map equality, saved/offline selector workflows and credential refusal pass
+without changing shared declarative UI or enabling automatic recovery.
 
 - [ ] Define a shared byte-format policy for abstract JSON graph primaries. Native CLI currently serializes them with indentation while common worker publication uses compact JSON; both preserve the same JSON value. Preserve explicit native writer bytes and add cross-host fixtures before promising exact byte parity for these fallback outputs.
 

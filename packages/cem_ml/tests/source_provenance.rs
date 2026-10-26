@@ -220,3 +220,83 @@ fn csv_header_option_matches_cemt_import_without_changing_the_default() {
         assert_eq!(document.source_line_number(), Some(1));
     }
 }
+
+#[test]
+fn source_and_semantic_maps_keep_distinct_ranges_for_coalesced_text() {
+    let tree = import_data(
+        "<r>é<![CDATA[b]]>&amp;</r>",
+        "xml",
+        "cem",
+        "memory:original.xml",
+    )
+    .unwrap();
+    let ids: Vec<_> = tree
+        .ast()
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Text { node_id, .. } | CemAstNode::Cdata { node_id, .. } => Some(*node_id),
+            _ => None,
+        })
+        .collect();
+    assert!(ids.len() > 1);
+    let semantic = tree.node_source_map(ids[0]).unwrap();
+    for id in &ids {
+        assert_eq!(tree.node_source_map(*id).unwrap(), semantic);
+        let source = tree.source_node_map(*id).unwrap();
+        assert_eq!(source.frames.len(), 2);
+        assert!(matches!(&source.frames[1].transform,
+            cem_ml::source_map::TransformKind::SourceBoundary { uri } if uri == "memory:original.xml"));
+        let origin = source.origin().unwrap();
+        assert_eq!(source.frames[1].span, origin.span);
+    }
+    assert_ne!(tree.source_node_map(ids[0]), tree.source_node_map(ids[1]));
+    assert!(tree.source_node_map(u32::MAX).is_none());
+    assert!(tree.node_source_map(u32::MAX).is_none());
+}
+
+#[test]
+fn retained_maps_keep_existing_origin_boundaries_and_do_not_invent_empty_maps() {
+    let imported = import_data("<r/>", "xml", "cem", "memory:original.xml").unwrap();
+    let mut ast = CemDocument {
+        nodes: imported.ast().nodes.clone(),
+        ..Default::default()
+    };
+    for node in &mut ast.nodes {
+        if let CemAstNode::Element { source, .. } = node {
+            *source = source.clone().with_source_uri("memory:original.xml");
+        }
+    }
+    let tree = RetainedCemTree::new(
+        ast,
+        "memory:wrapper.xml",
+        "",
+        CemTreeSemantics::default(),
+        None,
+    )
+    .unwrap();
+    let id = tree.node(0).unwrap().children[0];
+    for map in [
+        tree.node_source_map(id).unwrap(),
+        tree.source_node_map(id).unwrap(),
+    ] {
+        assert_eq!(map.frames.len(), 2);
+        assert!(matches!(&map.frames[1].transform,
+            cem_ml::source_map::TransformKind::SourceBoundary { uri } if uri == "memory:original.xml"));
+    }
+    let mut ast = CemDocument::default();
+    ast.nodes.push(CemAstNode::Document {
+        node_id: 0,
+        root_children: vec![],
+        source: Default::default(),
+    });
+    let synthetic = RetainedCemTree::new(
+        ast,
+        "memory:synthetic",
+        "",
+        CemTreeSemantics::default(),
+        None,
+    )
+    .unwrap();
+    assert!(synthetic.node_source_map(0).unwrap().frames.is_empty());
+    assert!(synthetic.source_node_map(0).unwrap().frames.is_empty());
+}

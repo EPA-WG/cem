@@ -108,6 +108,23 @@ ready name-completion view over the same arena. Literal bindings require no
 execution. Pending values or completion metadata from another owner are rejected;
 queries do not manufacture grants, evaluate namespace slots or mutate source
 names. CEM-QL's ordinary source-oriented ingress retains its existing behavior.
+CSS-selector input navigation also consumes a retained CEM element view. Its
+literal-element import profile preserves inert XML CEM payloads, HTML boolean
+attributes and decoded names/values without executing expressions. Original
+`html:event:N` / `xml:event:N` handles and source event order are compatibility
+metadata supplied by import; they are never a parser-AST navigation path. The
+view retains the same HTML/XML-family lifecycle owner, including XSLT and XML
+Relax NG wrappers, and refuses compact Relax NG, non-element formats, hard
+source policy failures and shared byte/node/depth limits.
+
+`RetainedCemTree::node_source_map` supplies semantic-node maps to XPath and CSS;
+`source_node_map` supplies original source-arena maps to CEM-QL. Both retain
+existing source boundaries and append the retained input URI only when a map
+has ranges and no boundary. Source text nodes keep individual lexical ranges;
+semantic text runs keep the complete merged ranges. Query source maps remain
+separate from selected input maps. Neither exporters nor browser adapters
+manufacture input frames or remove URI facts to make hosts agree.
+
 The Login project uses an authored XPath mapping to compare its HTML and CEM
 field contracts; no evaluator branches interpret HTML attributes or parser ASTs.
 

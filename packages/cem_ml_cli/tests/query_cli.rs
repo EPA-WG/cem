@@ -1008,3 +1008,46 @@ fn query_honors_explicit_scope_navigation_budgets_without_changing_defaults() {
     assert!(String::from_utf8_lossy(&rejected.stderr).contains("cem.scope.budget_invalid"));
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn all_query_languages_keep_unicode_crlf_input_provenance_separate_from_query_ranges() {
+    for (source, content_type, tag) in [
+        (
+            "<catalog>\r\n  <item title=\"café &amp; tea\"/>\r\n</catalog>",
+            "application/xml",
+            "<item title=\"café &amp; tea\"/>",
+        ),
+        (
+            "<main>\r\n  <item title=\"café &amp; tea\"></item>\r\n</main>",
+            "text/html",
+            "<item title=\"café &amp; tea\">",
+        ),
+    ] {
+        let (root, data) = query_data();
+        fs::write(&data, source).unwrap();
+        let mut maps = Vec::new();
+        for (query, query_type, query_schema) in [
+            ("item[title='café & tea']", CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA),
+            ("seq:where(dom:descendants(input), fn(node) => node.kind == \"element\" && node.name == \"item\")", CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA),
+            ("//*[local-name()='item']", XPATH_CONTENT_TYPE, XPATH_SCHEMA),
+        ] {
+            let result = assert_success(&run_query_with_data_type(&data, content_type,
+                &["--query", query, "--query-content-type", query_type, "--query-schema", query_schema, "--output", "json"]));
+            let items = match result["language"].as_str().unwrap() {
+                "css-selector" => &result["matches"],
+                "cem-ql" => &result["result"]["items"],
+                _ => &result["result"]["sequence"]["items"],
+            };
+            assert_eq!(items.as_array().unwrap().len(), 1);
+            let map = items[0]["sourceMap"].clone();
+            assert_eq!(map["frames"][0]["span"]["ranges"]["start"], source.find(tag).unwrap());
+            assert_eq!(map["frames"][0]["span"]["ranges"]["len"], tag.len());
+            assert_eq!(map["frames"][1]["transform"]["uri"], data.to_str().unwrap());
+            assert_eq!(map["frames"].as_array().unwrap().len(), 2);
+            maps.push(map);
+        }
+        assert_eq!(maps[0], maps[1]);
+        assert_eq!(maps[0], maps[2]);
+        fs::remove_dir_all(root).unwrap();
+    }
+}

@@ -550,6 +550,29 @@ impl RetainedCemTree {
         let node = self.node(id)?;
         (node.source.origin().is_some() && node.range.line > 0).then_some(node.range.line)
     }
+    /// Semantic node provenance, including its retained original URI. Existing
+    /// source boundaries take precedence over document/constructed metadata.
+    pub fn node_source_map(&self, id: AstNodeId) -> Option<SourceMapStack> {
+        let id = self.canonical_id(id)?;
+        Some(self.node(id)?.source.clone().with_source_uri(self.node_source_uri(id).unwrap_or("")))
+    }
+
+    /// Source arena provenance before semantic text coalescing or omission.
+    /// CEM-QL source nodes must keep their own ranges, not a neighbour's range.
+    pub fn source_node_map(&self, id: AstNodeId) -> Option<SourceMapStack> {
+        let source = if id == 0 { &self.nodes.first()?.source } else {
+            match self.ast.get(id)? {
+                CemAstNode::Document { source, .. } | CemAstNode::Element { source, .. }
+                | CemAstNode::Attribute { source, .. } | CemAstNode::Text { source, .. }
+                | CemAstNode::Whitespace { source, .. } | CemAstNode::Comment { source, .. }
+                | CemAstNode::ProcessingInstruction { source, .. } | CemAstNode::Cdata { source, .. }
+                | CemAstNode::RawText { source, .. } | CemAstNode::Reference { source, .. }
+                | CemAstNode::Error { source, .. } => source,
+            }
+        };
+        Some(source.clone().with_source_uri(self.node_source_uri(id).unwrap_or("")))
+    }
+
     pub fn node_source_uri(&self, id: AstNodeId) -> Option<&str> {
         self.provenance.get(&id).and_then(|p| p.source_uri.as_deref())
             .or_else(|| self.document_uri())

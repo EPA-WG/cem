@@ -24,8 +24,8 @@ use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind
 use crate::validation::css::{
     css_syntax_lossless_events, CssEventAst, CssFactKind, CssSourceRange,
 };
-use crate::validation::html::{HtmlDocumentAst, HtmlEventAst, HtmlEventKind};
-use crate::validation::xml::{XmlAttributeAst, XmlDocumentAst, XmlEventAst, XmlEventKind};
+use crate::import::element_tree::{retain_element_lifecycle, ElementSourceHandle as CssSelectorNodeHandle};
+use crate::parser::tree::{CemTreeNode, RetainedCemTree};
 
 const CSS_SELECTOR_PACKAGE_ID: &str = "css-selector";
 const CSS_SELECTOR_FACT_BEHAVIOR: &str = "css-selector-report-fact";
@@ -1659,15 +1659,12 @@ fn selector_specificity(compounds: &[CssSelectorCompoundAst]) -> (u32, u32, u32)
     specificity
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum CssSelectorNodeHandle {
-    Html { event_index: usize },
-    Xml { event_index: usize },
-}
-
 #[derive(Debug, Clone)]
 pub struct CssSelectorElementTreeOwner {
     owner: Arc<LoadedInputAstStream>,
+    tree: Arc<RetainedCemTree>,
+    attribute_names_ascii_case_insensitive: bool,
+    elements: Arc<Vec<(u32, CssSelectorNodeHandle, usize)>>,
     identity: FormatIdentity,
     source_map: SourceMapStack,
 }
@@ -1677,57 +1674,24 @@ impl CssSelectorElementTreeOwner {
         owner: Arc<LoadedInputAstStream>,
         identity: FormatIdentity,
     ) -> Result<Self, CssSelectorFact> {
-        let byte_length = match owner.as_ref() {
-            LoadedInputAstStream::HtmlDocument(document) => document.source.byte_length,
-            LoadedInputAstStream::XmlDocument(document) => document.source.byte_length,
-            LoadedInputAstStream::XhtmlDocument(document) => {
-                document.xml_document.source.byte_length
-            }
-            LoadedInputAstStream::SvgDocument(document) => document.xml_document.source.byte_length,
-            LoadedInputAstStream::MathMlDocument(document) => {
-                document.xml_document.source.byte_length
-            }
-            LoadedInputAstStream::XsltStylesheet(document) => {
-                document.xml_document.source.byte_length
-            }
-            LoadedInputAstStream::RelaxNgDocument(document) => document
-                .xml_document
-                .as_ref()
-                .map(|xml| xml.source.byte_length)
-                .ok_or_else(|| CssSelectorFact {
-                    kind: CssSelectorFactKind::InputUnsupported,
-                    source_range: None,
-                    message: "Relax NG compact syntax does not expose an element-tree view"
-                        .to_owned(),
-                    value: Some("relax-ng-compact".to_owned()),
-                })?,
-            _ => {
-                return Err(CssSelectorFact {
-                    kind: CssSelectorFactKind::InputUnsupported,
-                    source_range: None,
-                    message: "Lifecycle input does not expose an HTML/XML-family element-tree view"
-                        .to_owned(),
-                    value: Some(lifecycle_ast_stream_kind(owner.as_ref()).to_owned()),
-                })
-            }
-        };
-        let content_type = identity
-            .content_type
-            .clone()
-            .unwrap_or_else(|| "application/octet-stream".to_owned());
+        let imported =
+            retain_element_lifecycle(owner.clone()).map_err(|message| CssSelectorFact {
+                kind: CssSelectorFactKind::InputUnsupported,
+                source_range: None,
+                message,
+                value: None,
+            })?;
+        let source_map = imported
+            .tree
+            .node_source_map(0)
+            .expect("imported document root");
         Ok(Self {
             owner,
+            tree: imported.tree,
+            attribute_names_ascii_case_insensitive: imported.attribute_names_ascii_case_insensitive,
+            elements: Arc::new(imported.elements),
             identity,
-            source_map: SourceMapStack {
-                frames: vec![SourceMapFrame {
-                    source_id: SourceId(1),
-                    span: FrameSpan::Single(ByteRange::new(
-                        0,
-                        u32::try_from(byte_length).unwrap_or(u32::MAX),
-                    )),
-                    transform: TransformKind::ContentTypeTransform { content_type },
-                }],
-            },
+            source_map,
         })
     }
 
@@ -1735,76 +1699,20 @@ impl CssSelectorElementTreeOwner {
         &self.owner
     }
 
-    fn html_document(&self) -> Option<&HtmlDocumentAst> {
-        match self.owner.as_ref() {
-            LoadedInputAstStream::HtmlDocument(document) => Some(document),
-            _ => None,
-        }
-    }
-
-    fn xml_document(&self) -> Option<&XmlDocumentAst> {
-        match self.owner.as_ref() {
-            LoadedInputAstStream::XmlDocument(document) => Some(document),
-            LoadedInputAstStream::XhtmlDocument(document) => Some(&document.xml_document),
-            LoadedInputAstStream::SvgDocument(document) => Some(&document.xml_document),
-            LoadedInputAstStream::MathMlDocument(document) => Some(&document.xml_document),
-            LoadedInputAstStream::XsltStylesheet(document) => Some(&document.xml_document),
-            LoadedInputAstStream::RelaxNgDocument(document) => document.xml_document.as_ref(),
-            _ => None,
-        }
+    pub fn retained_tree(&self) -> &Arc<RetainedCemTree> {
+        &self.tree
     }
 
     fn all_elements(&self) -> Vec<CssSelectorNativeNode> {
-        if let Some(document) = self.html_document() {
-            return document
-                .events
-                .iter()
-                .filter(|event| event.kind == HtmlEventKind::StartElement)
-                .map(|event| CssSelectorNativeNode {
-                    owner: self.clone(),
-                    handle: CssSelectorNodeHandle::Html {
-                        event_index: event.index,
-                    },
-                })
-                .collect();
-        }
-        self.xml_document()
-            .into_iter()
-            .flat_map(|document| &document.events)
-            .filter(|event| {
-                matches!(
-                    event.kind,
-                    XmlEventKind::StartElement | XmlEventKind::EmptyElement
-                )
-            })
-            .map(|event| CssSelectorNativeNode {
+        self.elements
+            .iter()
+            .map(|&(id, handle, depth)| CssSelectorNativeNode {
                 owner: self.clone(),
-                handle: CssSelectorNodeHandle::Xml {
-                    event_index: event.index,
-                },
+                id,
+                handle,
+                depth,
             })
             .collect()
-    }
-}
-
-fn lifecycle_ast_stream_kind(owner: &LoadedInputAstStream) -> &'static str {
-    match owner {
-        LoadedInputAstStream::HtmlDocument(_) => "html-document",
-        LoadedInputAstStream::CssDocument(_) => "css-document",
-        LoadedInputAstStream::CssSelectorExpression(_) => "css-selector-expression",
-        LoadedInputAstStream::CsvDocument(_) => "csv-document",
-        LoadedInputAstStream::YamlDocument(_) => "yaml-document",
-        LoadedInputAstStream::JsonDocument(_) => "json-document",
-        LoadedInputAstStream::JsonSchemaDocument(_) => "json-schema-document",
-        LoadedInputAstStream::MarkdownDocument(_) => "markdown-document",
-        LoadedInputAstStream::XmlDocument(_) => "xml-document",
-        LoadedInputAstStream::XhtmlDocument(_) => "xhtml-document",
-        LoadedInputAstStream::SvgDocument(_) => "svg-document",
-        LoadedInputAstStream::MathMlDocument(_) => "mathml-document",
-        LoadedInputAstStream::XPathExpression(_) => "xpath-expression",
-        LoadedInputAstStream::XsltStylesheet(_) => "xslt-stylesheet",
-        LoadedInputAstStream::RelaxNgDocument(_) => "relax-ng-document",
-        LoadedInputAstStream::StudioProject(_) => "studio-project",
     }
 }
 
@@ -1836,6 +1744,8 @@ impl QueryInputOwner for CssSelectorElementTreeOwner {
 pub struct CssSelectorNativeNode {
     owner: CssSelectorElementTreeOwner,
     handle: CssSelectorNodeHandle,
+    id: u32,
+    depth: usize,
 }
 
 impl PartialEq for CssSelectorNativeNode {
@@ -1847,44 +1757,27 @@ impl PartialEq for CssSelectorNativeNode {
 impl Eq for CssSelectorNativeNode {}
 
 impl CssSelectorNativeNode {
-    fn html_event(&self) -> Option<&HtmlEventAst> {
-        let CssSelectorNodeHandle::Html { event_index } = self.handle else {
-            return None;
-        };
-        self.owner.html_document()?.events.get(event_index)
-    }
-
-    fn xml_event(&self) -> Option<&XmlEventAst> {
-        let CssSelectorNodeHandle::Xml { event_index } = self.handle else {
-            return None;
-        };
-        self.owner.xml_document()?.events.get(event_index)
+    fn data(&self) -> &CemTreeNode {
+        self.owner.tree.node(self.id).expect("imported element")
     }
 
     fn depth(&self) -> usize {
-        self.html_event()
-            .map(|event| event.depth)
-            .or_else(|| self.xml_event().map(|event| event.depth))
-            .unwrap_or(0)
+        self.depth
     }
 
     fn local_name(&self) -> &str {
-        self.html_event()
-            .and_then(|event| event.local_name.as_deref())
-            .or_else(|| {
-                self.xml_event()
-                    .and_then(|event| event.local_name.as_deref())
-            })
+        self.data()
+            .name
+            .as_ref()
+            .map(|name| name.local_name.as_str())
             .unwrap_or_default()
     }
 
     fn namespace_uri(&self) -> &str {
-        self.html_event()
-            .map(|event| event.namespace_uri.as_str())
-            .or_else(|| {
-                self.xml_event()
-                    .and_then(|event| event.namespace_uri.as_deref())
-            })
+        self.data()
+            .name
+            .as_ref()
+            .map(|name| name.namespace_uri.as_str())
             .unwrap_or_default()
     }
 
@@ -1906,44 +1799,11 @@ impl CssSelectorNativeNode {
         }
     }
 
-    fn source_range(&self) -> (u64, u64) {
-        self.html_event()
-            .map(|event| {
-                (
-                    event.source_range.start.byte_offset,
-                    event.source_range.byte_length,
-                )
-            })
-            .or_else(|| {
-                self.xml_event().map(|event| {
-                    (
-                        event.source_range.start.byte_offset,
-                        event.source_range.byte_length,
-                    )
-                })
-            })
-            .unwrap_or((0, 0))
-    }
-
     fn source_map(&self) -> SourceMapStack {
-        let (byte_offset, byte_length) = self.source_range();
-        SourceMapStack {
-            frames: vec![SourceMapFrame {
-                source_id: SourceId(1),
-                span: FrameSpan::Single(ByteRange::new(
-                    byte_offset,
-                    u32::try_from(byte_length).unwrap_or(u32::MAX),
-                )),
-                transform: TransformKind::ContentTypeTransform {
-                    content_type: self
-                        .owner
-                        .identity
-                        .content_type
-                        .clone()
-                        .unwrap_or_else(|| "application/octet-stream".to_owned()),
-                },
-            }],
-        }
+        self.owner
+            .tree
+            .node_source_map(self.id)
+            .expect("imported element")
     }
 
     fn parent(
@@ -1993,38 +1853,23 @@ impl CssSelectorNativeNode {
         namespace: &CssSelectorNamespace,
         local_name: &str,
     ) -> Vec<&'a str> {
-        if let Some(event) = self.html_event() {
-            return event
-                .attributes
-                .iter()
-                .filter(|attribute| {
-                    matches!(
-                        namespace,
-                        CssSelectorNamespace::Any | CssSelectorNamespace::None
-                    ) && attribute.local_name.eq_ignore_ascii_case(local_name)
-                })
-                .map(|attribute| attribute.value.as_deref().unwrap_or_default())
-                .collect();
-        }
-        self.xml_event()
-            .into_iter()
-            .flat_map(|event| &event.attributes)
+        self.data()
+            .attributes
+            .iter()
+            .filter_map(|&id| self.owner.tree.node(id))
             .filter(|attribute| {
-                namespace_matches(
-                    namespace,
-                    attribute.namespace_uri.as_deref().unwrap_or_default(),
-                ) && attribute.local_name == local_name
+                attribute.name.as_ref().is_some_and(|name| {
+                    namespace_matches(namespace, &name.namespace_uri)
+                        && if self.owner.attribute_names_ascii_case_insensitive {
+                            name.local_name.eq_ignore_ascii_case(local_name)
+                        } else {
+                            name.local_name == local_name
+                        }
+                })
             })
-            .map(xml_attribute_value)
+            .map(|attribute| attribute.value.as_str())
             .collect()
     }
-}
-
-fn xml_attribute_value(attribute: &XmlAttributeAst) -> &str {
-    attribute
-        .entity_decoded_value
-        .as_deref()
-        .unwrap_or(attribute.value.as_str())
 }
 
 #[derive(Debug, Clone)]

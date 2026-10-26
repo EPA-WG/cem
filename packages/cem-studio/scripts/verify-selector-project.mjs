@@ -37,8 +37,14 @@ export async function verifySelectorProject({ page, context, url }) {
         }
         await button.click(); await settle(); return state();
     };
-    const values = current => {
+    const values = (current, sourceId = 'document-source') => {
         const report = JSON.parse(current.text); assert.equal(report.language, 'css-selector');
+        for (const match of report.matches) {
+            assert.equal(match.sourceMap.frames.length, 2);
+            assert.equal(match.sourceMap.frames[1].transform.kind, 'SourceBoundary');
+            assert.equal(match.sourceMap.frames[1].transform.uri, `studio://${current.route.project}/${resource(sourceId).path}`);
+            assert.deepEqual(match.sourceMap.frames[0].span, match.sourceMap.frames[1].span);
+        }
         return report.matches.map(({ localName, namespaceUri, documentOrder, nodeId }) => ({ localName, namespaceUri, documentOrder, nodeId }));
     };
     const clone = async name => {
@@ -78,7 +84,7 @@ export async function verifySelectorProject({ page, context, url }) {
         if (command.expectedOutput) assert.equal(result.text, await fixture(command.expectedOutput));
         for (const text of command.expectedText ?? []) assert.ok(result.text.includes(text), `${command.id}: missing ${text}`);
         if (command.id === 'color-selector') await assertSourcePresentation(result, originals['selector-source']);
-        if (command.expectedSemanticContract) assert.deepEqual(values(result), JSON.parse(await fixture(command.expectedSemanticContract)));
+        if (command.expectedSemanticContract) assert.deepEqual(values(result, command.source), JSON.parse(await fixture(command.expectedSemanticContract)));
     }
     const baseline = await run(project, 'query-cards'), report = JSON.parse(baseline.text);
     assert.deepEqual(values(baseline), expectedCards);
@@ -107,7 +113,7 @@ export async function verifySelectorProject({ page, context, url }) {
     await click('Save and validate'); await click('Run configuration');
     const editedCards = values(await state()); assert.equal(editedCards.length, 3);
     assert.deepEqual(editedCards.map(item => item.nodeId), ['html:event:13', 'html:event:22', 'html:event:31']);
-    assert.deepEqual(values(await run(project, 'query-namespaces')), expectedNamespace);
+    assert.deepEqual(values(await run(project, 'query-namespaces'), 'catalog-source'), expectedNamespace);
     await open({ project });
     const copy = await clone(`Portable ${definition.name}`); assert.notEqual(copy, project);
     await open({ project: copy, file: 'selector-source' });
@@ -127,7 +133,7 @@ export async function verifySelectorProject({ page, context, url }) {
     try {
         await page.reload(); await ready();
         assert.deepEqual(values(await run(copy, 'query-cards')), expectedCards.slice(0, 1));
-        assert.deepEqual(values(await run(copy, 'query-namespaces')), expectedNamespace);
+        assert.deepEqual(values(await run(copy, 'query-namespaces'), 'catalog-source'), expectedNamespace);
         assert.equal((await run(copy, 'validate-selector')).status, 'valid');
         assert.equal((await run(copy, 'format-selector')).text, editedSelector);
         await assertSourcePresentation(await run(copy, 'color-selector'), editedSelector);
@@ -140,7 +146,7 @@ export async function verifySelectorProject({ page, context, url }) {
         }
     } finally { await context.setOffline(false); }
     console.log('[cem-studio:css-selector] offline native queries, repaired resource and unchanged read-only originals passed');
-    return { catalog: true, readonlyOriginals: true, nativeCommands: true, exactIdentityContracts: true, nativeSourceRanges: true,
+    return { catalog: true, readonlyOriginals: true, nativeCommands: true, exactIdentityContracts: true, nativeSourceRanges: true, originalInputUris: true,
         namespaceQuery: true, nativeRepair: true, unsavedSourceGuard: true, savedDocument: true, savedSelector: true,
         deduplication: true, invalidQueryRefusal: true, independentCopies: true, offline: true,
         sourceFormatting: true, htmlSourceColoring: true, offlineSourceFormatting: true };

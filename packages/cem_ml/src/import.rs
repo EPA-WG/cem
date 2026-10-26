@@ -19,6 +19,7 @@ use crate::{
 use std::sync::Arc;
 
 pub mod documents;
+pub mod element_tree;
 mod css;
 mod html;
 mod expression_sources;
@@ -101,6 +102,16 @@ fn import_xml_ast_tracked(
     document: &xml::XmlDocumentAst,
     capture: &mut Option<crate::schema::machine::XmlLexicalCapture>,
 ) -> Result<XmlCemImport, String> {
+    import_xml_ast_with_element_policy(document, capture, false)
+}
+
+// A source element-tree view retains literal XML elements/attributes. Ordinary
+// CEM import still recognizes authored native expression payloads as before.
+fn import_xml_ast_with_element_policy(
+    document: &xml::XmlDocumentAst,
+    capture: &mut Option<crate::schema::machine::XmlLexicalCapture>,
+    literal_elements: bool,
+) -> Result<XmlCemImport, String> {
     use xml::XmlEventKind::*;
     if !document.parse_facts.is_empty() {
         let contracts = xml::XmlSchemaContractCatalog::from_builtin();
@@ -156,7 +167,7 @@ fn import_xml_ast_tracked(
                     event.local_name.as_deref().unwrap_or(""),
                     source.clone(),
                 );
-                let selected = xml_attribute_expressions::selected(event)?;
+                let selected = if literal_elements { Default::default() } else { xml_attribute_expressions::selected(event)? };
                 let mut native_values = Vec::new();
                 for (attribute_index, attr) in event.attributes.iter().enumerate() {
                     let aid = b.ast.nodes.len() as AstNodeId;
@@ -175,7 +186,7 @@ fn import_xml_ast_tracked(
                         .ranges
                         .insert(aid, attr.value_source_range.map(xml_range).unwrap_or(range));
                     if attr.qualified_name == "xmlns" || attr.prefix.as_deref() == Some("xmlns") {
-                        semantics.omitted.insert(aid);
+                        if !literal_elements { semantics.omitted.insert(aid); }
                     } else {
                         semantics
                             .values
@@ -202,7 +213,7 @@ fn import_xml_ast_tracked(
                 }
                 let closed = stack.pop().expect("checked XML stack");
                 if let CemAstNode::Element { expanded_name, attributes, children, source, .. } = &b.ast.nodes[closed as usize] {
-                    if expanded_name.local_name == "expr" && expanded_name.namespace_uri == "https://cem.dev/ns/cem-ml/1"
+                    if !literal_elements && expanded_name.local_name == "expr" && expanded_name.namespace_uri == "https://cem.dev/ns/cem-ml/1"
                         && attributes.iter().all(|id| semantics.omitted.contains(id)) {
                         let expression = children.iter().map(|id| {
                             match &b.ast.nodes[*id as usize] {
