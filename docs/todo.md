@@ -275,7 +275,12 @@ fixtures pass. All 250 catalog configurations pass online/offline; shared Studio
 saved-copy/preview workflows and credential refusal pass. Native collection
 manifest/sidecar parity remains a separate follow-up below.
 
-- [ ] Repair namespaced SCSS mixin default-argument lexical binding. The native module probe leaves `padding: $space` unresolved when a namespaced mixin's default references its module variable. The stylesheet project supplies an explicit argument; retain the limited Sass conformance claim and add native module-scope regressions before changing evaluation.
+Completed 2026-10-26: [SCSS mixin default-argument binding](archive/todo-completed-scss-mixin-defaults-2026-10-26.md)
+covers captured module variables and earlier parameters, explicit caller-scope
+arguments, aliases/forwarding/repeated calls and original Unicode/CRLF ranges.
+SCSS stylesheet 1.0.1 now uses the omitted default with unchanged exact CSS.
+Native, CLI, worker, saved/offline preview and credential refusal checks pass;
+full lexical/function/content-block compatibility remains outside this profile.
 
 - [ ] Preserve the admitted file URI as the module-resolution base through the native CLI graph provider. Imported local sources currently expose plain filesystem paths, so SCSS graph callers need an explicit `--base-uri` alongside their bounded read map. Keep original provenance and missing-grant refusal, and add native provider regressions before changing source identity normalization.
 

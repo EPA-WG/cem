@@ -61,6 +61,13 @@ is the source-navigation contract where provided.
 
 ## Edit, save and build
 
+The module defines `inset($amount: $space)`, and `cards.scss` calls
+`@include tokens.inset()` without an argument. The omitted amount binds the
+module's `$space`; a same-named caller variable does not replace it. Explicit
+arguments still evaluate in caller scope, and later defaults can use earlier
+bound parameters. The CSS, module origins and definition/call-site ranges use
+the shared native SCSS evaluator.
+
 In `styles/_tokens.scss`, change `$accent: #036;` to `$accent: #630;` or change
 `$space: 0.75rem;` to `$space: 1rem;`. Save, rerun **Expand SCSS to exact browser
 CSS**, and choose **Build project**. The CSS output and visible card change.
@@ -128,7 +135,10 @@ The CEM-owned evaluator produces `CssDocumentAst` directly; the CSS package owns
 browser serialization. No generated CSS text is reparsed to recreate that AST.
 This project exercises a supported subset, not full Dart Sass parity. Indented
 `.sass`, arbitrary Sass configuration/forwarding behavior and full language or
-lexical-default compatibility are not claimed. See the native
+lexical-scope compatibility are not claimed. Module-variable and earlier-parameter
+mixin defaults are covered here; function-default binding, captured callable
+environments, full local-variable isolation and content-block scoping remain
+outside this profile. See the native
 [SCSS package](../../../packages/cem_ml/schema-packages/scss/v1/README.md).
 
 Same-schema SCSS source export, source DomJson/Json and command HTML-colored CSS

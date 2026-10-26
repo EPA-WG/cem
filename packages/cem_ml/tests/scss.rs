@@ -949,3 +949,109 @@ fn scss_evaluation_observes_cancellation_recursion_work_and_output_limits() {
     }));
     assert!(byte_limited.document.is_none());
 }
+
+fn mixin_default_modules(
+    source: &str,
+    modules: &[(&str, &str)],
+) -> cem_ml::validation::scss::ScssEvaluationResult {
+    let stylesheet = parse(source);
+    let registry = scss_registry(modules);
+    let policy = ResolverPolicy::new();
+    let safety = ScssSafetyPolicy::default();
+    evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
+        stylesheet: &stylesheet,
+        resolver_registry: &registry,
+        resolver_policy: &policy,
+        resolver_policy_stamp: &policy.cache_stamp(),
+        safety_policy: &safety,
+        safety_policy_stamp: &safety.cache_stamp(),
+        abort_signal: &AbortSignal::new(),
+        load_paths: &["cem+vfs://styles/load-path.scss".to_owned()],
+        limits: ScssEvaluationLimits::default(),
+    })
+}
+
+#[test]
+fn mixin_defaults_bind_module_variables_and_prior_parameters_while_arguments_stay_in_caller_scope()
+{
+    let source = r#"@use "tokens";
+$space: 9rem;
+$amount: 7rem;
+.default { @include tokens.inset(); }
+.explicit { @include tokens.inset($space); }
+.caller { @include tokens.inset(2rem, $amount); }
+.zero { @include tokens.inset(0); }
+.again { @include tokens.inset(); }
+.tail { width: $space; }
+"#;
+    let module = "$space: 0.75rem; @mixin inset($amount: $space, $double: $amount * 2) { padding: $amount; gap: $double; }";
+    let result = mixin_default_modules(source, &[("cem+vfs://styles/_tokens.scss", module)]);
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let document = result.document.unwrap();
+    let css = document
+        .events
+        .iter()
+        .map(|event| event.lexeme.as_str())
+        .collect::<String>();
+    assert_eq!(css, ".default {\n  padding: 0.75rem;\n  gap: 1.5rem;\n}\n.explicit {\n  padding: 9rem;\n  gap: 18rem;\n}\n.caller {\n  padding: 2rem;\n  gap: 7rem;\n}\n.zero {\n  padding: 0;\n  gap: 0;\n}\n.again {\n  padding: 0.75rem;\n  gap: 1.5rem;\n}\n.tail {\n  width: 9rem;\n}\n");
+}
+
+#[test]
+fn mixin_default_interpolation_retains_original_module_and_caller_ranges() {
+    let source = "// café caller\r\n@use \"tokens\";\r\n.card { @include tokens.inset(); }\r\n";
+    let module = "// café module 🍒\r\n$space: 0.75rem;\r\n@mixin inset($amount: #{$space}) { padding: $amount; }\r\n";
+    let uri = "cem+vfs://styles/_tokens.scss";
+    let result = mixin_default_modules(source, &[(uri, module)]);
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let document = result.document.unwrap();
+    let value = document
+        .events
+        .iter()
+        .find(|event| event.lexeme == "0.75rem")
+        .expect("module default must expand");
+    let definition = value.source_map.frames.iter().find(|frame| matches!(&frame.transform,
+        TransformKind::ScssOrigin { module_uri, origin_kind: ScssOriginKind::Definition, name: Some(name) }
+        if module_uri == uri && name == "space")).unwrap();
+    assert_eq!(
+        definition.span,
+        FrameSpan::Single(ByteRange::new(
+            module.find("$space:").unwrap() as u64,
+            "$space: 0.75rem;".len() as u32
+        ))
+    );
+    assert!(value.source_map.frames.iter().any(|frame| matches!(&frame.transform,
+        TransformKind::ScssOrigin { module_uri, origin_kind: ScssOriginKind::Interpolation, .. } if module_uri == uri)));
+    let include = "@include tokens.inset();";
+    assert!(value.source_map.frames.iter().any(|frame| matches!(&frame.transform,
+        TransformKind::ScssOrigin { module_uri, origin_kind: ScssOriginKind::CallSite, .. } if module_uri == "file:///styles/main.scss")
+        && frame.span == FrameSpan::Single(ByteRange::new(source.find(include).unwrap() as u64, include.len() as u32))));
+}
+
+#[test]
+fn mixin_defaults_survive_forwarding_and_aliases_without_binding_arguments_from_previous_calls() {
+    let result = mixin_default_modules(
+        r#"@use "theme" as first; @use "theme" as second;
+.a { @include first.inset(2rem); }
+.b { @include second.inset(); }
+.c { @include first.inset(); }"#,
+        &[
+            ("cem+vfs://styles/_theme.scss", "@forward \"tokens\";"),
+            (
+                "cem+vfs://styles/_tokens.scss",
+                "$space: 0.75rem; @mixin inset($amount: $space) { padding: $amount; }",
+            ),
+        ],
+    );
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let css = result
+        .document
+        .unwrap()
+        .events
+        .iter()
+        .map(|event| event.lexeme.as_str())
+        .collect::<String>();
+    assert_eq!(
+        css,
+        ".a {\n  padding: 2rem;\n}\n.b {\n  padding: 0.75rem;\n}\n.c {\n  padding: 0.75rem;\n}\n"
+    );
+}

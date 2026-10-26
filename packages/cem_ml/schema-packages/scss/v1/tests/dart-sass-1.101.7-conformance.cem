@@ -61,6 +61,12 @@
         @summary="focused variables mixins functions if each for while nesting and interpolation are implemented while full Dart Sass semantics content blocks extension and generated-selector parity remain gaps"
     }
     {conformance-feature
+        @id="module-mixin-positional-defaults"
+        @requirement="required"
+        @state="supported"
+        @summary="omitted mixin arguments use captured module variables and earlier bound parameters; explicit arguments use caller scope; original default and call-site origins survive aliases and forwarding"
+    }
+    {conformance-feature
         @id="use-and-forward"
         @requirement="required"
         @state="gap"

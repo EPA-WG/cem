@@ -2374,34 +2374,6 @@ impl<'a> ScssEvaluator<'a> {
         call_scope
             .variables
             .extend(located_mixin.closure.variables.clone());
-        for (index, parameter) in mixin.parameters.iter().enumerate() {
-            let evaluated = include
-                .arguments
-                .get(index)
-                .map(|argument| self.evaluate_expression(argument, scope, frames))
-                .or_else(|| {
-                    parameter
-                        .default
-                        .as_ref()
-                        .map(|default| self.evaluate_expression(default, scope, frames))
-                });
-            if let Some(evaluated) = evaluated {
-                let mut origins = evaluated.origins;
-                origins.push(OriginSpec {
-                    kind: ScssOriginKind::Definition,
-                    name: Some(parameter.name.clone()),
-                    range: parameter.source_range,
-                    module_uri: located_mixin.module_uri.clone(),
-                });
-                call_scope.variables.insert(
-                    normalize_name(&parameter.name),
-                    VariableBinding {
-                        value: evaluated.text,
-                        origins,
-                    },
-                );
-            }
-        }
         let mut call_frames = frames.to_vec();
         call_frames.push(OriginSpec {
             kind: ScssOriginKind::Definition,
@@ -2415,6 +2387,50 @@ impl<'a> ScssEvaluator<'a> {
             range: include.source_range,
             module_uri: self.current_module_uri.clone(),
         });
+        // Imported defaults use the captured module environment, never a caller
+        // shadow or an argument from a previous call. Local mixins retain the
+        // existing local-scope profile; full callable/content scoping is separate.
+        let mut default_scope = if located_mixin.module_uri == self.current_module_uri {
+            call_scope.clone()
+        } else {
+            located_mixin.closure.clone()
+        };
+        for (index, parameter) in mixin.parameters.iter().enumerate() {
+            let evaluated = include
+                .arguments
+                .get(index)
+                .map(|argument| self.evaluate_expression(argument, scope, frames))
+                .or_else(|| {
+                    parameter.default.as_ref().map(|default| {
+                        let caller_uri = std::mem::replace(
+                            &mut self.current_module_uri,
+                            located_mixin.module_uri.clone(),
+                        );
+                        let value = self.evaluate_expression(default, &default_scope, &call_frames);
+                        self.current_module_uri = caller_uri;
+                        value
+                    })
+                });
+            if let Some(evaluated) = evaluated {
+                let mut origins = evaluated.origins;
+                origins.push(OriginSpec {
+                    kind: ScssOriginKind::Definition,
+                    name: Some(parameter.name.clone()),
+                    range: parameter.source_range,
+                    module_uri: located_mixin.module_uri.clone(),
+                });
+                let binding = VariableBinding {
+                    value: evaluated.text,
+                    origins,
+                };
+                default_scope
+                    .variables
+                    .insert(normalize_name(&parameter.name), binding.clone());
+                call_scope
+                    .variables
+                    .insert(normalize_name(&parameter.name), binding);
+            }
+        }
         let caller_module_uri = std::mem::replace(
             &mut self.current_module_uri,
             located_mixin.module_uri.clone(),

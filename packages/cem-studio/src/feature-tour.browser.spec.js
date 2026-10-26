@@ -479,6 +479,17 @@ describe('CEM Studio Feature Tour copies', () => {
                 expect(outcome.result.exitCode, JSON.stringify(outcome.result.diagnostics.items)).toBe(configuration.expectedExit ?? 0);
                 if ((configuration.expectedExit ?? 0) === 0) expect(outcome.result.diagnostics.items.filter(item => ['error', 'fatal'].includes(item.severity))).toEqual([]);
                 if (configuration.expectedOutput) expect(outcome.output.text).toBe(decode(configuration.expectedOutput));
+                if (projectId === 'scss-stylesheet' && configuration.id === 'expand-css') {
+                    const source = decode(configuration.source);
+                    expect(source).toContain('@include tokens.inset();');
+                    const shadow = source.replace('.demo-card {', '$space: 9rem;\n\n.demo-card {');
+                    expect(shadow).not.toBe(source);
+                    const omitted = await run({ bytes: new TextEncoder().encode(shadow) });
+                    expect(omitted.output.text).toBe(decode(configuration.expectedOutput));
+                    const explicit = shadow.replace('tokens.inset()', 'tokens.inset($space)');
+                    const supplied = await run({ bytes: new TextEncoder().encode(explicit) });
+                    expect(supplied.output.text).toBe(decode(configuration.expectedOutput).replace('padding: 0.75rem', 'padding: 9rem'));
+                }
                 for (const text of configuration.expectedText ?? []) expect(outcome.output.text).toContain(text);
                 if (configuration.expectedSemanticContract) {
                     const report = JSON.parse(outcome.output.text); expect(report.language).toBe('css-selector');

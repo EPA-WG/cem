@@ -138,7 +138,7 @@ fn all_authored_stylesheet_and_selector_configurations_keep_exact_native_results
             project.configs().len(),
             match id {
                 "css-stylesheet" => 6,
-                "css-selector" => 5,
+                "css-selector" => 7,
                 _ => 7,
             }
         );
@@ -346,4 +346,47 @@ fn stylesheet_builds_keep_owned_origins_edits_and_independent_outputs() {
             success(&project.run(graph));
         }
     }
+}
+
+#[test]
+fn scss_module_defaults_keep_caller_shadows_separate_and_rebuild_from_saved_module_changes() {
+    let project = Project::new("scss-stylesheet");
+    let config = project
+        .configs()
+        .iter()
+        .find(|entry| entry["id"] == "expand-css")
+        .unwrap();
+    let source_path = project.path("scss-source");
+    let source = fs::read_to_string(&source_path).unwrap();
+    assert!(source.contains("@include tokens.inset();"));
+    let module_path = project.path("scss-tokens");
+    let module = fs::read_to_string(&module_path).unwrap();
+    assert!(module.contains("@mixin inset($amount: $space)"));
+    let baseline = fs::read(project.path("expected-css")).unwrap();
+    let shadow = source.replace(".demo-card {", "$space: 9rem;\n\n.demo-card {");
+    assert_ne!(shadow, source);
+    fs::write(&source_path, &shadow).unwrap();
+    let omitted = project.run(config);
+    success(&omitted);
+    assert_eq!(omitted.stdout, baseline);
+    let explicit = shadow.replace("tokens.inset()", "tokens.inset($space)");
+    fs::write(&source_path, explicit).unwrap();
+    let supplied = project.run(config);
+    success(&supplied);
+    assert_eq!(
+        String::from_utf8(supplied.stdout).unwrap(),
+        String::from_utf8(baseline.clone())
+            .unwrap()
+            .replace("padding: 0.75rem", "padding: 9rem")
+    );
+    fs::write(&source_path, shadow).unwrap();
+    fs::write(module_path, module.replace("$space: 0.75rem", "$space: 1rem")).unwrap();
+    let changed = project.run(config);
+    success(&changed);
+    assert_eq!(
+        String::from_utf8(changed.stdout).unwrap(),
+        String::from_utf8(baseline)
+            .unwrap()
+            .replace("padding: 0.75rem", "padding: 1rem")
+    );
 }

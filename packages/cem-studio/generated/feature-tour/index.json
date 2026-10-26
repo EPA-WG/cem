@@ -365,13 +365,13 @@
       "id": "scss-stylesheet",
       "name": "SCSS stylesheet",
       "description": "Validate passive SCSS, inspect its expanded CSS, resolve a project-owned module, repair source syntax and build an independent HTML/CSS preview.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "collections": [
         "content-types-documents-ui",
         "content-types-queries-transformations"
       ],
       "archive": "./examples/scss-stylesheet.cem-studio.json",
-      "sha256": "a2dc26f3f8b889c63f27624e023fe6875e9a3bc23efd439a89b0e3b41cf432e8"
+      "sha256": "cb839ae15dc04711c75f008496754dc319315dd4f69fa042244f77a0a3ac4955"
     },
     {
       "id": "supplier-pipeline",

@@ -96,6 +96,17 @@ without a namespace and retaining its deprecation warning. Configuration value
 application, forwarding prefixes/show/hide semantics, and full Dart Sass module
 parity remain explicit gaps in the conformance matrix.
 
+Omitted positional arguments of imported mixins evaluate against the captured
+module variables plus parameters already bound for that invocation. Explicit
+arguments evaluate in caller scope. Aliases, forwarded members and repeated
+calls retain the original defining module; default interpolation, variable and
+parameter origins use its source URI/ranges while include call sites keep the
+caller URI/ranges. This implements the focused
+[Sass optional-argument rule](https://sass-lang.com/documentation/at-rules/mixin/#optional-arguments)
+without expanding the full-language conformance claim. Local-variable isolation,
+function defaults, captured callable-member environments and content-block
+scoping retain their existing profile limits.
+
 Every expansion request carries resolver and safety stamps, a cooperative abort
 signal, explicit load paths, and four limits. Lifecycle defaults are 100,000
 work units, recursion depth 64, 100,000 generated CSS events, and 16 MiB of CSS
