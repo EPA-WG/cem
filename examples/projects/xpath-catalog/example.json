@@ -265,6 +265,83 @@
       ]
     },
     {
+      "id": "validate-join",
+      "name": "Validate the caller-bound XPath source",
+      "kind": "validation",
+      "source": "join-query",
+      "description": "Bind c in the caller static context and validate the original prefixed source without evaluating a query.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.xpath",
+        "--schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--namespace",
+        "c=urn:example:catalog",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "parse-join",
+      "name": "Parse the caller-bound XPath source",
+      "kind": "inspection",
+      "source": "join-query",
+      "description": "Parse the prefixed supplier join with its saved caller namespace binding and retain original token ranges.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.xpath",
+        "--schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--namespace",
+        "c=urn:example:catalog",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@schema=https://cem.dev/ns/query/xpath/1",
+        "c:catalog",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "format-join",
+      "name": "Format the caller-bound XPath source",
+      "kind": "conversion",
+      "source": "join-query",
+      "description": "Preserve original prefix spelling and whitespace while formatting under the saved native static context.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.xpath",
+        "--schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--namespace",
+        "c=urn:example:catalog",
+        "--to-content-type",
+        "application/vnd.cem.xpath",
+        "--to-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--cemt-formatter",
+        "xpath.format-expression",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedOutput": "join-query"
+    },
+    {
       "id": "query-filter",
       "name": "Filter available products",
       "kind": "query",

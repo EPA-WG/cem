@@ -865,7 +865,10 @@ export async function createCemStudioWorkbench(options) {
         publish({ ...state, status: 'validating', error: undefined });
         let outcome;
         try {
-            outcome = await validator.validateResource({
+            const commandResource = authoredValidationCommand(persisted);
+            outcome = commandResource ? await validator.executeAuthoredResourceCommand({
+                ...commandResourceOptions(persisted), commandResource, signal,
+            }) : await validator.validateResource({
                 bytes: persisted.bytes,
                 contentType: example.contentType,
                 schema: example.schema,
@@ -1688,6 +1691,21 @@ export async function createCemStudioWorkbench(options) {
             resourceRevision: persisted.resourceRevision,
             ...(example.commandArguments ? { argv: commandArgumentsForExample(example, projectId, 'studio') } : {}),
         };
+    }
+
+    function authoredValidationCommand(persisted) {
+        if (persisted.currentEntry?.kind !== 'validation' || !persisted.commandBytes ||
+            example.resourceId === persisted.currentEntry.runConfigResourceId) return undefined;
+        const parsed = validator.decodeResourceCommand(persisted.commandBytes);
+        if (!['validate', 'check'].includes(parsed.commandPath[0])) {
+            throw new TypeError('A validation configuration must use validate or check');
+        }
+        const input = parsed.positionals.inputs ?? parsed.positionals.input;
+        const inputs = Array.isArray(input) ? input : [input];
+        // Selecting another resource validates that file in its own context.
+        if (inputs.length !== 1 || typeof inputs[0] !== 'string' ||
+            resolveVirtualUri(example.projectRootUri, inputs[0]) !== resourceUri(example.referenceUri ?? example.path, projectId)) return undefined;
+        return persisted.commandBytes;
     }
 
     function navigateDiagnostic(index) {

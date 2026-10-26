@@ -1,6 +1,23 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { auditCatalog, inventoryWorkflows, catalogCoverageMarkdown } from './catalog-audit.mjs';
+import { createExampleProjects } from './example-projects.mjs';
+import { parseCemStudioProjectBundle } from '../src/file-system-provider.js';
+import { fileURLToPath } from 'node:url';
+
+test('preserves caller namespace validation argv as an authored native command', async () => {
+    const projects = await createExampleProjects(fileURLToPath(new URL('../../..', import.meta.url)), '0.1.0');
+    const project = projects.find(item => item.record.id === 'xpath-catalog');
+    const bundle = parseCemStudioProjectBundle(project.archive);
+    const entry = bundle.project.entries.find(item => item.id === 'validate-join');
+    const command = bundle.project.resources.find(item => item.id === entry.runConfigResourceId);
+    assert.equal(command.schema, 'https://cem.dev/ns/cli/command/1');
+    const body = JSON.parse(new TextDecoder().decode(bundle.contents[command.id]));
+    assert.deepEqual(body.argv, ['validate', 'queries/supplier-join.xpath', '--content-type', 'application/vnd.cem.xpath',
+        '--schema', 'https://cem.dev/ns/query/xpath/1', '--namespace', 'c=urn:example:catalog', '--format', 'json', '--no-color']);
+    const legacy = bundle.project.entries.find(item => item.id === 'validate-filter');
+    assert.equal(bundle.project.resources.find(item => item.id === legacy.runConfigResourceId).schema, 'https://cem.dev/ns/cli/run-config/1');
+});
 
 function fixture() {
     return {

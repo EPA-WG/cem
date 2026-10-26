@@ -46,6 +46,9 @@ Query identity comes from metadata, not filename inference or text guessing.
 | `inspect-filter` — Inspect the native XPath source | Inspect the typed source owner and expanded names without executing it | CEM-ML source structure with original URI and UTF-8 ranges |
 | `format-filter` — Format the XPath source | Apply the native lexical-lossless tabular profile | Original source spelling, comments and whitespace with the shared text EOF policy |
 | `color-filter` — Color the XPath source as HTML | Review escaped semantic source coloring | An HTML span fragment displaying the original source verbatim |
+| `validate-join` — Validate the caller-bound XPath source | Validate prefixed names with the saved `--namespace c=urn:example:catalog` binding | Zero errors and warnings without evaluating the query |
+| `parse-join` — Parse the caller-bound XPath source | Inspect native syntax under the same declared static context | Original prefix spelling and token ranges in CEM-ML |
+| `format-join` — Format the caller-bound XPath source | Format the prefixed source with its caller binding | Original source bytes, including the final newline |
 | `query-filter` — Filter available products | Select stock of at least four and project readable product labels | `tea:Green tea`, `cocoa:Cocoa` |
 | `query-nodes` — Inspect selected native product nodes | Inspect real retained nodes and source provenance | Two product node identities with their original opening-tag ranges |
 | `query-join` — Join products to their suppliers | Evaluate dependent `for` bindings and matching supplier IDs | Three order-preserving supplier summaries |
@@ -133,11 +136,19 @@ cem-ml query data/catalog.xml --content-type application/xml \
 ```
 
 The expanded-name query files need no `--namespace` flag. The configured
-prefixed join requires its declared host static context. Standalone source
-validation currently does not receive that query-context binding from the CLI's
-namespace option; the context-independent validation configuration therefore
-uses the expanded-name source. An independently opened prefixed source can
-report an unresolved namespace until evaluated in its configured query context.
+prefixed join requires its declared host static context. `validate-join`,
+`parse-join` and `format-join` retain `--namespace c=urn:example:catalog` in their
+saved native command resources. Source validation, Parse/Inspect and formatting
+use these caller bindings; `--default-namespace` supplies the default element
+namespace, leaving unprefixed attributes and the default function namespace alone.
+
+Bindings belong to the selected command. Opening and validating the prefixed
+file by itself still reports an unresolved prefix unless its caller supplies the
+binding. Edit `config/validate-join.json` to remove or change the prefix, save,
+then run that validation configuration to see the native namespace diagnostic.
+Restore `c=urn:example:catalog` to repair it. Saved command changes and independent
+copies work offline. A namespace URI grants no resolver, variable or function
+capability.
 
 ## Deliberate failure and repair
 
@@ -158,8 +169,8 @@ in force. Parsing or validating a source is not permission to execute arbitrary
 resource-sensitive functions.
 
 Standalone source operations retain native syntax and policy diagnostics;
-invalid source cannot become a successful formatted replacement. They do not
-change namespace admission, evaluator capabilities or the limits above.
+invalid source cannot become a successful formatted replacement. They grant no
+evaluator capabilities and do not override the limits above.
 Source-owner inspection and native query-result inspection remain distinct
 operations, even when both expose original source coordinates.
 

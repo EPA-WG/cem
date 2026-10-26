@@ -80,7 +80,7 @@ use crate::validation::xml::{
 };
 use crate::validation::xpath::{
     validate_xpath_expression_ast, xpath_expression_ast_from_source_bytes, XPathAttachment,
-    XPathExpressionAst, XPathSchemaContractCatalog, XPathSourceRequest,
+    XPathExpressionAst, XPathSchemaContractCatalog, XPathSourceRequest, XPathStaticContext,
 };
 use crate::validation::xslt::{
     validate_xslt_compat_source_bytes, xslt_stylesheet_ast_from_source_bytes,
@@ -1132,7 +1132,14 @@ impl LifecycleAdapter for XPathAdapter {
                 content_type: Some(content_type),
                 source_range_projector: None,
             },
-            XPathAttachment::Standalone { source_id: 1 },
+            XPathAttachment::StandaloneStaticContext {
+                source_id: 1,
+                static_context: XPathStaticContext {
+                    namespaces: identity.namespaces.clone(),
+                    default_element_namespace: identity.default_namespace.clone(),
+                    ..XPathStaticContext::default()
+                },
+            },
         );
         let diagnostics =
             validate_xpath_expression_ast(&expression, XPathSchemaContractCatalog::from_builtin());
@@ -2386,6 +2393,80 @@ mod tests {
         assert_eq!(item.namespace_uri.as_deref(), Some("urn:meta"));
         assert!(item.source_range.byte_length > 0);
         assert!(!item.source_range.source_map().frames.is_empty());
+    }
+
+    #[test]
+    fn xpath_source_namespace_bindings_reach_native_names_without_changing_source() {
+        use crate::validation::xpath::{XPathExpression, XPathNameTest, XPathNodeTest, XPathStep};
+        let text = "(: Café 茶 :)\r\n/c:catalog/book/@id";
+        let registry = LifecycleRegistry::with_builtin_adapters();
+        for namespace in ["urn:catalog:first", "urn:catalog:second"] {
+            let mut source = input(text.as_bytes());
+            source.identity = Some(FormatIdentity {
+                content_type: Some("text/xpath; charset=utf-8".into()),
+                schema: Some(XPATH_SCHEMA_URI.into()),
+                namespaces: std::collections::BTreeMap::from([("c".into(), namespace.into())]),
+                default_namespace: Some("urn:books".into()),
+                ..Default::default()
+            });
+            source.root_scope.namespaces.insert("c".into(), "urn:ignored-scope".into());
+            let loaded = registry.load_for_source_validation(&source, &EngineContext::default());
+            assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
+            let Some(LoadedInputAstStream::XPathExpression(owner)) = loaded.ast_stream else { panic!("native XPath") };
+            let context = owner.attachment.static_context().expect("caller static context");
+            assert_eq!(context.namespaces["c"], namespace);
+            assert_eq!(context.default_element_namespace.as_deref(), Some("urn:books"));
+            assert!(context.default_function_namespace.is_none());
+            assert!(context.variable_bindings.is_empty() && context.function_bindings.is_empty());
+            assert_eq!(owner.source_text.as_deref(), Some(text));
+            assert_eq!(owner.tokens.iter().map(|t| t.lexeme.as_str()).collect::<String>(), text);
+            for token in &owner.tokens {
+                let range = token.source_range;
+                assert_eq!(&text[range.start.byte_offset as usize..(range.start.byte_offset + range.byte_length) as usize], token.lexeme);
+            }
+            let XPathExpression::Path(path) = &owner.syntax_ast.as_ref().unwrap().root.expressions[0].expression else { panic!("typed path") };
+            let names = path.steps.iter().filter_map(|step| match &step.step {
+                XPathStep::Axis { node_test: XPathNodeTest::Name(XPathNameTest::Name(name)), .. } => Some(name),
+                _ => None,
+            }).collect::<Vec<_>>();
+            assert_eq!(names.len(), 3);
+            assert_eq!(names[0].namespace_uri.as_deref(), Some(namespace));
+            assert_eq!(names[1].namespace_uri.as_deref(), Some("urn:books"));
+            assert_eq!(names[2].namespace_uri, None, "default namespace does not apply to attributes");
+            assert_eq!(source.root_scope.namespaces["c"], "urn:ignored-scope");
+        }
+    }
+
+    #[test]
+    fn xpath_source_namespace_scope_keeps_missing_prefix_and_resource_refusals() {
+        let registry = LifecycleRegistry::with_builtin_adapters();
+        let mut source = input(b"count(/c:catalog/@id)");
+        source.root_scope.schema = Some(XPATH_SCHEMA_URI.into());
+        source.root_scope.namespaces.insert("c".into(), "urn:catalog".into());
+        source.root_scope.default_namespace = Some("urn:default".into());
+        let loaded = registry.load_for_source_validation(&source, &EngineContext::default());
+        assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
+        let Some(LoadedInputAstStream::XPathExpression(owner)) = loaded.ast_stream else { panic!("native XPath") };
+        assert_eq!(owner.attachment.static_context().unwrap().namespaces["c"], "urn:catalog");
+        for (text, code) in [
+            ("(: Café :)\r\n/c:catalog/lost:book", "cem.xpath.unknown_namespace_prefix"),
+            ("io:doc('secret.xml')", "cem.xpath.external_resource_denied"),
+        ] {
+            source.bytes = text.as_bytes().to_vec();
+            source.root_scope.namespaces.insert("io".into(), "http://www.w3.org/2005/xpath-functions".into());
+            let loaded = registry.load_for_source_validation(&source, &EngineContext::default());
+            let diagnostic = loaded.diagnostics.iter().find(|d| d.code == code).unwrap_or_else(|| panic!("{code}: {:?}", loaded.diagnostics));
+            assert!(diagnostic.severity.is_hard_violation());
+            assert!(diagnostic.source_map.is_some());
+            if code == "cem.xpath.unknown_namespace_prefix" {
+                assert_eq!(diagnostic.byte_offset, Some(text.find("lost:book").unwrap() as u64));
+                assert_eq!((diagnostic.line, diagnostic.column), (Some(2), Some(12)));
+            }
+        }
+        source.bytes = b"/c:catalog".to_vec();
+        source.root_scope.namespaces.clear();
+        let loaded = registry.load_for_source_validation(&source, &EngineContext::default());
+        assert!(loaded.diagnostics.iter().any(|d| d.code == "cem.xpath.unknown_namespace_prefix"));
     }
 
     #[test]

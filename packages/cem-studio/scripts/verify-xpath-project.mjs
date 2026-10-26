@@ -97,7 +97,7 @@ export async function verifyXpathProject({ page, context, url }) {
     await page.getByRole('list', { name: 'Folder contents' }).getByRole('button', { name: record.name, exact: true }).click(); await settle();
     assert.equal((await state()).route.sample, id);
     const originals = {};
-    for (const name of ['catalog-source', 'filter-query', 'node-query', 'invalid-query']) {
+    for (const name of ['catalog-source', 'filter-query', 'node-query', 'join-query', 'invalid-query']) {
         await open(originalRoute(name)); assert.equal(await readonly.getAttribute('aria-readonly'), 'true');
         originals[name] = await readonly.evaluate(element => element.value);
     }
@@ -134,6 +134,19 @@ export async function verifyXpathProject({ page, context, url }) {
     assert.equal((await run(project, repair.id)).status, 'valid');
     console.log('[cem-studio:xpath-catalog] catalog, native scalar/node/map contracts, original UTF-8 ranges and repair passed');
 
+    await open({ project, file: 'command-validate-join' });
+    const namespaceCommand = await editor.evaluate(element => element.value);
+    assert.ok(namespaceCommand.includes('c=urn:example:catalog'));
+    await save(namespaceCommand.replace('c=urn:example:catalog', 'unused=urn:example:catalog'));
+    const unbound = await run(project, 'validate-join');
+    assert.equal(unbound.status, 'invalid', JSON.stringify(unbound));
+    const prefix = unbound.diagnostics.find(item => item.code === 'cem.xpath.unknown_namespace_prefix');
+    assert.ok(prefix, JSON.stringify(unbound));
+    assert.equal(prefix.uri, `studio://${project}/${resource('join-query').path}`);
+    assert.equal(prefix.byteOffset, originals['join-query'].indexOf('c:catalog'));
+    await open({ project, file: 'command-validate-join' }); await save(namespaceCommand);
+    assert.equal((await run(project, 'validate-join')).status, 'valid');
+
     await run(project, 'query-filter');
     const editedCatalog = originals['catalog-source'].replace('stock="2"', 'stock="8"'); assert.notEqual(editedCatalog, originals['catalog-source']);
     await editor.fill(editedCatalog); await settle(); await click('Run configuration');
@@ -149,6 +162,13 @@ export async function verifyXpathProject({ page, context, url }) {
     assert.deepEqual(mapValue(await run(project, 'inspect-parameters')), { minimum: '6', region: 'west' });
     await open({ project });
     const copy = await clone(`Portable ${definition.name}`); assert.notEqual(copy, project);
+    // Persist a different prefix in this copy's validation command. Repair only
+    // that command, leaving the original project's binding and source unchanged.
+    await open({ project: copy, file: 'command-validate-join' });
+    await save(namespaceCommand.replace('c=urn:example:catalog', 'unused=urn:example:catalog'));
+    assert.equal((await run(copy, 'validate-join')).status, 'invalid');
+    assert.equal((await run(project, 'validate-join')).status, 'valid');
+    await open({ project: copy, file: 'command-validate-join' }); await save(namespaceCommand);
     const editedNodes = originals['node-query'].replace('@stock >= 4', '@stock >= 6'); assert.notEqual(editedNodes, originals['node-query']);
     const editedFilter = originals['filter-query'].replace('@stock >= 4', '@stock >= 6'); assert.notEqual(editedFilter, originals['filter-query']);
     await open({ project: copy, file: 'filter-query' }); await save(editedFilter);
@@ -170,6 +190,11 @@ export async function verifyXpathProject({ page, context, url }) {
     await context.setOffline(true);
     try {
         await page.reload(); await ready();
+        assert.equal((await run(copy, 'validate-join')).status, 'valid');
+        assert.equal((await run(copy, 'parse-join')).status, 'projected');
+        assert.equal((await run(copy, 'format-join')).text, originals['join-query']);
+        await open({ project: copy, file: 'command-validate-join' });
+        assert.equal(await editor.evaluate(element => element.value), namespaceCommand);
         assertNodes(await run(copy, 'query-nodes'), copy, parameterCatalog, ['cem:node:27', 'cem:node:36']);
         assert.deepEqual(values(await run(copy, 'query-parameters')), parameters);
         assert.deepEqual(values(await run(copy, 'query-join')), await contract('join-summary'));
@@ -192,5 +217,6 @@ export async function verifyXpathProject({ page, context, url }) {
     return { catalog: true, readonlyOriginals: true, nativeCommands: true, exactValueContracts: true, nativeNodeIdentity: true,
         nativeSourceRanges: true, typedMapArray: true, namespaceQuery: true, nativeRepair: true, unsavedSourceGuard: true,
         savedData: true, savedParameterMap: true, independentCopies: true, invalidQueryRefusal: true, offline: true,
-        typedSourceParse: true, typedSourceInspect: true, sourceFormatting: true, htmlSourceColoring: true, offlineSourceOperations: true };
+        typedSourceParse: true, typedSourceInspect: true, sourceFormatting: true, htmlSourceColoring: true, offlineSourceOperations: true,
+        callerNamespaceValidation: true, namespaceCommandRepair: true, independentNamespaceCommands: true, offlineNamespaceCommands: true };
 }

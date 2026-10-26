@@ -7,8 +7,8 @@ Run `yarn nx run @epa-wg/cem-studio:verify:catalog-audit` after changing them.
 Declared catalog/documentation coverage; native/worker/deployed verification and current resource admission remain separate evidence.
 
 There are **22 authored projects**, **282 authored source resources**
-and **210 authored configurations**. The inventory names
-**215 workflows**, including five generated portable workbenches;
+and **213 authored configurations**. The inventory names
+**218 workflows**, including five generated portable workbenches;
 32 generated package validations are represented by the native package matrix.
 The starter owns no configurations. Source resources include reference fixtures
 and documentation: their presence does not establish executable format support.
@@ -37,13 +37,13 @@ and documentation: their presence does not establish executable format support.
 | `supplier-pipeline` | [README](../examples/projects/supplier-pipeline/README.md) | 12 | 6 | 1 | `parse`, `query`, `transform`, `validate` |
 | `svg-diagram` | [README](../examples/projects/svg-diagram/README.md) | 9 | 6 | 1 | `convert`, `inspect`, `query`, `transform`, `validate` |
 | `xhtml-document` | [README](../examples/projects/xhtml-document/README.md) | 8 | 5 | 1 | `inspect`, `query`, `transform`, `validate` |
-| `xpath-catalog` | [README](../examples/projects/xpath-catalog/README.md) | 13 | 12 | 1 | `convert`, `inspect`, `parse`, `query`, `validate` |
+| `xpath-catalog` | [README](../examples/projects/xpath-catalog/README.md) | 13 | 15 | 1 | `convert`, `inspect`, `parse`, `query`, `validate` |
 | `xslt-transform` | [README](../examples/projects/xslt-transform/README.md) | 11 | 8 | 1 | `convert`, `inspect`, `transform`, `validate` |
 
 ## Generated projects
 
-The selectable catalog has **23 projects** with **247 declared configurations**
-and **572 stored resources**. The starter adds 2 resources.
+The selectable catalog has **23 projects** with **250 declared configurations**
+and **575 stored resources**. The starter adds 2 resources.
 The legacy Feature Tour seed shares the Schema examples workflows and is not
 counted twice. Declared configurations are not a uniform UI execution guarantee.
 
@@ -62,11 +62,11 @@ negotiation does not require a source-project configuration.
 
 | Operation | Browser availability | Declared configurations |
 | --- | --- | --- |
-| `parse` | `available` | 14 |
-| `validate` | `available` | 110 |
+| `parse` | `available` | 15 |
+| `validate` | `available` | 111 |
 | `check` | `available` | 0 |
 | `inspect` | `available` | 30 |
-| `convert` | `available` | 40 |
+| `convert` | `available` | 41 |
 | `query` | `available` | 28 |
 | `transform` | `available` | 24 |
 | `trace` | `available` | 1 |

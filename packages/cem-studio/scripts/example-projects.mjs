@@ -36,9 +36,16 @@ async function createExampleProject(workspaceRoot, commonVersion, definition) {
             if (!resource) throw new Error(`Example configuration ${configuration.id} has no dependency ${id}`);
             return resource;
         });
-        const validation = configuration.argv[0] === 'validate' && !configuration.argv.includes('--config');
-        // These are versioned authored argv documents, never lowered run plans.
-        // Native fixtures execute the same argv; browser acceptance checks the codec.
+        // Keep existing identity-only validation records stable. Anything else
+        // remains authored argv so native options are never silently discarded.
+        const basicValidation = ['validate', '$source', '--content-type', source.contentType,
+            '--schema', source.schema,
+            ...dependencies.filter(resource => resource.schema === 'https://cem.dev/ns/schema-package/1')
+                .flatMap(resource => ['--schema-package', `$${resource.id}`]),
+            '--format', 'json', '--no-color'];
+        const validation = JSON.stringify(configuration.argv) === JSON.stringify(basicValidation);
+        // Nontrivial configurations keep versioned authored argv; the native
+        // CLI owns parsing and execution. Basic validation keeps its old record.
         const bytes = json(validation ? {
             inputs: [{ uri: source.path, rootScope: { defaultContentType: source.contentType, schema: source.schema } }],
             outputs: [], schemaPackages: dependencies.filter(resource => resource.schema === 'https://cem.dev/ns/schema-package/1').map(resource => ({ uri: resource.path })), resolvers: [], scheduler: {},

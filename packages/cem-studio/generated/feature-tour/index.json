@@ -420,7 +420,7 @@
         "content-types-data"
       ],
       "archive": "./examples/xpath-catalog.cem-studio.json",
-      "sha256": "2d3d9fbfa60c1b6964c3c7b3267bbe5a7c3914365e69c5d6c6cd1637c90e6549"
+      "sha256": "f048cf2f17cc5347105049e14734ef0f8231df27d1b9f5cbf236b9af6d3eb3ed"
     },
     {
       "id": "xslt-transform",

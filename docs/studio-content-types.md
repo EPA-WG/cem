@@ -7,8 +7,8 @@ Data, Documents and UI, Queries and transformations, and Schema authoring folder
 Examples remain ordinary cloneable projects with resources and configurations.
 Folder listings reuse existing projects. The
 [catalog README/capability audit](studio-catalog-coverage.md) records 22 authored
-projects and 210 configurations, plus the generated Schema examples project and
-the starter. All 215 inventory rows (210 authored and five portable workbenches)
+projects and 213 configurations, plus the generated Schema examples project and
+the starter. All 218 inventory rows (213 authored and five portable workbenches)
 are checked against their actual resource/configuration references. The 32
 generated package validations remain a separate registry matrix. These counts
 describe declared coverage, not uniform native conformance or UI runnability.
@@ -299,6 +299,9 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `xpath-catalog` | `filter-query` | `inspect-filter` | Inspect the typed XPath source owner, EQNames and original UTF-8 ranges through the shared CEM-ML presentation. |
 | `xpath-catalog` | `filter-query` | `format-filter` | Run the registered lexical-lossless native XPath formatter, preserving comments, EQNames and whitespace with the shared text EOF policy. |
 | `xpath-catalog` | `filter-query` | `color-filter` | Produce escaped semantic HTML source presentation through the native XPath colorizer without evaluating the expression or granting resource access. |
+| `xpath-catalog` | `join-query` | `validate-join` | Validate the original prefixed source with a saved caller namespace binding; removing that binding preserves native unknown-prefix errors. |
+| `xpath-catalog` | `join-query` | `parse-join` | Inspect native source syntax and ranges under the caller's saved static namespace context. |
+| `xpath-catalog` | `join-query` | `format-join` | Preserve original prefix spelling and whitespace while formatting with the saved caller namespace binding. |
 | `xpath-catalog` | `catalog-source` | `query-filter` | Use namespace-qualified paths, native numeric comparison and a simple map to report products with stock at least four. |
 | `xpath-catalog` | `catalog-source` | `query-nodes` | Export genuine retained product nodes with stable native identities, original input URI, original opening-element ranges and source maps. |
 | `xpath-catalog` | `catalog-source` | `query-join` | Evaluate dependent for bindings over the same original XML owner, joining supplier IDs with an explicit static namespace binding. |
@@ -494,8 +497,11 @@ fixtures and repeated builds within each host remain byte-stable.
 The XPath catalog project filters products, joins suppliers and constructs/looks
 up native maps and arrays from an owned XML selection/options subtree. This is
 data-driven parameter authoring, not an external XPath variable-binding grant.
-Query namespace bindings work; standalone source validation currently omits caller
-prefix bindings, so its independently validated source uses explicit EQNames.
+Query and standalone source operations consume their caller's named namespaces
+and default element namespace. Namespace-configured validation/Parse/format
+commands are saved as native authored argv; bare file validation does not inherit
+another configuration's bindings. Missing prefixes still diagnose at original
+source ranges. EQNames remain useful for context-independent source.
 Standalone XPath Parse/Inspect consume the native source owner and expose
 original expression/token ranges as CEM-ML. Formatting/coloring run the registered
 native lexical-lossless pipeline without evaluating the query or granting
@@ -609,7 +615,7 @@ runtime authority.
 | Documents and UI | HTML, CEM-ML, native/element templates, runtime data island | Reuse Login and `html-cem-card` for semantic comparisons, shared card declarations/slots, local slice bindings and data-to-HTML generation. Keep project declaration authority and automatic DCE compilation limits explicit. |
 | Documents and UI | SVG and MathML variants | `svg-diagram` and `mathml-formula` cover native retained inspection/query/formatting, validation/repair, HTML artifacts, original provenance and bounded actual vector/presentation-math rendering. Content MathML is validated separately without an algebra or presentation claim. |
 | Documents and UI | CSS and SCSS aliases | `css-stylesheet` and `scss-stylesheet` cover native inspection, validation/repair, exact CSS output, scoped styles, owned-module expansion, native HTML/CSS graphs and shared previews. Keep unavailable SCSS source-export/loader cases explicit. |
-| Queries and transformations | CSS selectors, XPath source aliases, CEM-QL modules/expressions | `css-selector`, `xpath-catalog` and `cemql-orders` cover native selections, namespace context, joins, input-derived/native parameter maps, typed results and original selected-node ranges. XPath and CEM-QL source operations consume their typed owners; CSS-selector and XPath formatting/coloring preserve lexical source. XPath caller namespace validation remains a separate limit. |
+| Queries and transformations | CSS selectors, XPath source aliases, CEM-QL modules/expressions | `css-selector`, `xpath-catalog` and `cemql-orders` cover native selections, namespace context, joins, input-derived/native parameter maps, typed results and original selected-node ranges. XPath and CEM-QL source operations consume their typed owners; CSS-selector and XPath formatting/coloring preserve lexical source. XPath source commands retain their saved caller namespace bindings. |
 | Queries and transformations | CEM transformation and XSLT source/custom-element selectors | `cem-transform` and `xslt-transform` compare ordinary multi-step native builds, explicit HTML entries, source controls, parameter maps and provenance. XSLT execution requires the complete profile; custom-element mode is not a universal XSLT alias. |
 | Schema authoring | CEM schema and schema package | `cem-schema` separates schema/package authoring from valid/invalid note instances, with explicit namespace claims and required-field diagnostics. |
 | Schema authoring | JSON Schema and both Relax NG syntaxes | `json-schema` and `relax-ng` cover source validation, supported formatting/typed Parse, dialect/start/delimiter repairs and rejected external references. Their data examples validate syntax only. |

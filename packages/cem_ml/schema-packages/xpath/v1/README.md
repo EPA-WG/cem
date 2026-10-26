@@ -647,9 +647,14 @@ retains hard diagnostics and publishes no successful replacement. Parsing,
 inspection and source formatting do not evaluate the expression, fetch resources
 or grant evaluator capabilities.
 
-Standalone source validation still does not receive the CLI query caller's
-namespace bindings. Use EQNames for context-independent source configurations;
-unbound prefixes continue to diagnose rather than gaining implicit bindings.
+Standalone source operations retain the caller's named namespaces and default
+element namespace in the native XPath attachment, as query compilation does.
+CLI `--namespace` / `--default-namespace` and structured input `rootScope` bindings
+reach validation, Parse/Inspect and source export. Bindings resolve names without
+rewriting source prefixes or granting resource, variable or function capabilities.
+Default element namespaces do not apply to unprefixed attributes or change the
+default function namespace. Missing prefixes still produce the original native
+diagnostic and range; independent requests never inherit another source's map.
 
 ## Safety
 

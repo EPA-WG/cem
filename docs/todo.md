@@ -248,11 +248,16 @@ Completed 2026-10-26: [typed XPath Parse, Inspect and source export](archive/tod
 covers native syntax/token projections, declared shared fields and monotonic
 events, borrowed lexical formatter/colorizer ownership, original source ranges
 and hard-diagnostic refusal. Five ordinary Studio source configurations pass
-shared WASM and deployed saved/offline checks. Caller namespace bindings remain
-the next item; credential recovery refusal and disabled automatic recovery stay
-unchanged.
+shared WASM and deployed saved/offline checks. Caller namespace bindings are
+covered by the follow-up below; credential recovery refusal and disabled
+automatic recovery stay unchanged.
 
-- [ ] Pass caller namespace bindings into standalone XPath source validation. The CLI's `--namespace` bindings reach native query execution but are currently omitted by the source loader. Keep missing/unbound-prefix diagnostics; add native static-context tests before changing validation. Current standalone sample validation uses explicit EQNames.
+Completed 2026-10-26: [caller namespaces for XPath source operations](archive/todo-completed-xpath-caller-namespaces-2026-10-26.md)
+covers named/default static context on native owners, original ranges and hard
+refusals, CLI and structured input scopes, preserved authored validation argv and
+selected-command execution. The ordinary XPath project passes namespace-command
+repair, independent-copy and offline checks without changing shared controls or
+credential privacy policy.
 
 - [ ] Align original input provenance across native query languages. `query_fixture_runs_all_languages_with_the_same_native_nodes_and_report_shape` at `query_cli.rs:390` compares CSS-selector ContentTypeTransform-only maps with CEM-QL maps that also retain a SourceBoundary URI. The unchanged `5ca43f31` reproduces this failure under a clean non-incremental build. Preserve the original assertion, URI frames and exact source ranges; add retained-owner/import regressions before changing query adapters or claiming a green complete selector-package gate.
 

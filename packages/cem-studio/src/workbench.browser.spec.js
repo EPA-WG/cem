@@ -58,6 +58,34 @@ const schemaSourceAdmissionCases = [
 
 
 describe('CEM Studio Feature Tour workbench', () => {
+    it('validates the selected saved source with its authored namespace command', async () => {
+        const response = await fetch(new URL('../generated/feature-tour/examples/xpath-catalog.cem-studio.json', import.meta.url));
+        const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
+        const repository = await repositoryWithSource('unrelated project');
+        await repository.execute(request('import-project', { bundle }));
+        const validator = validatorFor(validResult());
+        validator.decodeResourceCommand = () => ({ commandPath: ['validate'], positionals: { inputs: ['queries/supplier-join.xpath'] } });
+        validator.executeAuthoredResourceCommand = vi.fn(async () => validResult());
+        const workbench = await createCemStudioProjectWorkbench({ repository, validator,
+            selection: { projectId: bundle.project.id, entryId: 'validate-join' } });
+        workbenches.push(workbench);
+        await workbench.validatePersisted();
+        expect(workbench.snapshot().status).toBe('valid');
+        expect(validator.executeAuthoredResourceCommand).toHaveBeenCalledTimes(1);
+        expect(validator.validateResource).not.toHaveBeenCalled();
+        const invocation = validator.executeAuthoredResourceCommand.mock.calls[0][0];
+        const command = JSON.parse(new TextDecoder().decode(invocation.commandResource));
+        expect(command.argv).toContain('c=urn:example:catalog');
+        expect(invocation.uri).toBe(`studio://${bundle.project.id}/queries/supplier-join.xpath`);
+        expect(invocation.resourceRevision).toBe(workbench.snapshot().resourceRevision);
+        const file = await createCemStudioProjectWorkbench({ repository, validator,
+            selection: { projectId: bundle.project.id, resourceId: 'join-query' } });
+        workbenches.push(file);
+        await file.validatePersisted();
+        expect(validator.validateResource).toHaveBeenCalledTimes(1);
+        expect(validator.executeAuthoredResourceCommand).toHaveBeenCalledTimes(1);
+    });
+
     it.each([
         ['login', 'login-html', 'text/html'],
         ['supplier-pipeline', 'supplier-view', 'application/vnd.cem.template+cem'],

@@ -14058,6 +14058,85 @@ active: true
     }
 
     #[test]
+    fn xpath_source_caller_namespace_bindings_flow_through_cli_commands() {
+        use cem_ml::schema::registry::{XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI};
+        let source = "(: Café 茶 :)\r\n/c:catalog/book/@id\r\n";
+        let input = write_fixture("xpath-caller-namespaces.xpath", source);
+        for (operation, extra) in [
+            ("validate", vec!["--format", "json"]),
+            ("parse", vec!["--format", "ast"]),
+            ("parse", vec!["--format", "events"]),
+            ("inspect", vec!["--show", "ast"]),
+            ("convert", vec!["--to-content-type", XPATH_CONTENT_TYPE, "--to-schema", XPATH_SCHEMA_URI, "--cemt-formatter", "xpath.format-expression", "--cemt-formatter-profile", "tabular"]),
+        ] {
+            let mut argv = vec![operation, input.to_str().unwrap(), "--no-color", "--content-type", XPATH_CONTENT_TYPE,
+                "--schema", XPATH_SCHEMA_URI, "--namespace", "c=urn:catalog", "--default-namespace", "urn:books"];
+            argv.extend(extra);
+            let (outcome, stdout, stderr) = run(&RealCemMlEngine::new(), &argv);
+            assert_eq!(outcome.exit_code, EXIT_OK, "{operation}: {stderr}");
+            assert!(stderr.is_empty(), "{operation}: {stderr}");
+            match operation {
+                "validate" => {
+                    let report: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+                    assert_eq!(report["summary"]["hardViolationCount"], 0);
+                    assert_eq!(report["diagnostics"], serde_json::json!([]));
+                }
+                "convert" => assert_eq!(stdout.as_bytes(), source.as_bytes()),
+                _ => {
+                    assert!(stdout.starts_with("@doc cem-ml 1\n"), "{stdout}");
+                    assert!(stdout.contains("c:catalog") && stdout.contains("Café"), "{stdout}");
+                    assert!(stdout.contains(XPATH_SCHEMA_URI), "{stdout}");
+                }
+            }
+        }
+        assert_eq!(std::fs::read(&input).unwrap(), source.as_bytes());
+    }
+
+    #[test]
+    fn xpath_source_caller_namespace_config_changes_and_refusals_stay_native() {
+        use cem_ml::schema::registry::{XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI};
+        let source = "(: Café :)\r\n/c:catalog/missing:book";
+        let input = write_fixture("xpath-caller-missing-prefix.xpath", source);
+        let (outcome, stdout, _) = run(&RealCemMlEngine::new(), &["validate", input.to_str().unwrap(),
+            "--content-type", XPATH_CONTENT_TYPE, "--schema", XPATH_SCHEMA_URI, "--namespace", "c=urn:catalog", "--format", "json", "--no-color"]);
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE);
+        let report: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        let diagnostic = report["diagnostics"].as_array().unwrap().iter().find(|d| d["code"] == "cem.xpath.unknown_namespace_prefix").unwrap();
+        assert_eq!(diagnostic["byteOffset"], source.find("missing:book").unwrap());
+        assert_eq!(diagnostic["uri"], input.to_str().unwrap());
+        assert!(diagnostic["sourceMap"]["frames"].as_array().is_some_and(|frames| !frames.is_empty()));
+
+        let valid = write_fixture("xpath-caller-configured.xpath", "/c:catalog/@id\n");
+        let config = std::env::temp_dir().join("cem-ml-cli-tests/xpath-caller-config.json");
+        let mut body = serde_json::json!({"inputs":[{"uri":valid.to_str().unwrap(),"rootScope":{
+            "defaultContentType":XPATH_CONTENT_TYPE,"schema":XPATH_SCHEMA_URI,
+            "namespaces":{"c":"urn:catalog"},"defaultNamespace":"urn:books"}}]});
+        for bound in [true, false, true] {
+            body["inputs"][0]["rootScope"]["namespaces"] = if bound { serde_json::json!({"c":"urn:catalog"}) } else { serde_json::json!({}) };
+            std::fs::write(&config, serde_json::to_vec_pretty(&body).unwrap()).unwrap();
+            let (outcome, stdout, stderr) = run(&RealCemMlEngine::new(), &["validate", "--config", config.to_str().unwrap(), "--format", "json", "--no-color"]);
+            assert_eq!(outcome.exit_code, if bound { EXIT_OK } else { EXIT_HARD_FAILURE }, "{stderr}");
+            let report: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+            assert_eq!(report["summary"]["hardViolationCount"], if bound { 0 } else { 1 });
+            if !bound { assert_eq!(report["diagnostics"][0]["code"], "cem.xpath.unknown_namespace_prefix"); }
+        }
+        let resource = write_fixture("xpath-caller-resource-policy.xpath", "io:doc('secret.xml')");
+        let destination = std::env::temp_dir().join("cem-ml-cli-tests/xpath-caller-refused.out");
+        std::fs::write(&destination, b"previous output").unwrap();
+        let (outcome, _, stderr) = run(&RealCemMlEngine::new(), &["convert", resource.to_str().unwrap(),
+            "--content-type", XPATH_CONTENT_TYPE, "--schema", XPATH_SCHEMA_URI,
+            "--namespace", "io=http://www.w3.org/2005/xpath-functions", "--to-content-type", XPATH_CONTENT_TYPE,
+            "--to-schema", XPATH_SCHEMA_URI, "--out", destination.to_str().unwrap(), "--no-color"]);
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        assert!(stderr.contains("cem.xpath.external_resource_denied"), "{stderr}");
+        assert_eq!(std::fs::read(&destination).unwrap(), b"previous output");
+        let (outcome, _, stderr) = run(&RealCemMlEngine::new(), &["validate", valid.to_str().unwrap(),
+            "--content-type", XPATH_CONTENT_TYPE, "--schema", XPATH_SCHEMA_URI, "--namespace", "xml=urn:invalid", "--no-color"]);
+        assert_ne!(outcome.exit_code, EXIT_OK);
+        assert!(stderr.contains("xml"), "{stderr}");
+    }
+
+    #[test]
     fn xpath_source_parse_and_inspect_use_native_cem_presentations() {
         use cem_ml::schema::registry::{XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI};
         let source = "(: Café (: 茶 :) :)\r\n/Q{urn:shop}catalog/Q{urn:shop}product[@label = \"O\"\"Brien <&>\"]";
