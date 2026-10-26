@@ -2,7 +2,7 @@
   "id": "xpath-catalog",
   "name": "XPath catalog queries",
   "version": "1.0.0",
-  "description": "Filter namespaced product data, join suppliers, inspect retained nodes and native map/array results, change owned selection parameters and repair XPath source.",
+  "description": "Parse, inspect and format typed XPath source; filter namespaced product data, join suppliers, inspect retained nodes and native map/array results, and repair saved query source.",
   "collections": [
     "content-types-queries-transformations",
     "content-types-data"
@@ -135,6 +135,134 @@
         "errorCount": 0,
         "warningCount": 0
       }
+    },
+    {
+      "id": "parse-filter",
+      "name": "Parse the typed XPath source",
+      "kind": "inspection",
+      "source": "filter-query",
+      "description": "Present the native XPath expression and original token ranges as CEM-ML without interpreting EQNames as CEM structure.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.xpath",
+        "--schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@schema=https://cem.dev/ns/query/xpath/1",
+        "Q{urn:example:catalog}",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "parse-filter-events",
+      "name": "Parse the original XPath token events",
+      "kind": "inspection",
+      "source": "filter-query",
+      "description": "Present lossless native XPath token events, including the original comment and source byte positions, without evaluating the query.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.xpath",
+        "--schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--format",
+        "events",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@schema=https://cem.dev/ns/query/xpath/1",
+        "Select namespace-qualified products",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "inspect-filter",
+      "name": "Inspect the native XPath source",
+      "kind": "inspection",
+      "source": "filter-query",
+      "description": "Inspect the typed XPath source owner, EQNames and original UTF-8 ranges through the shared CEM-ML presentation.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.xpath",
+        "--schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@schema=https://cem.dev/ns/query/xpath/1",
+        "Q{urn:example:catalog}",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "format-filter",
+      "name": "Format the XPath source",
+      "kind": "conversion",
+      "source": "filter-query",
+      "description": "Run the registered lexical-lossless native XPath formatter, preserving comments, EQNames and whitespace with the shared text EOF policy.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.xpath",
+        "--schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--to-content-type",
+        "application/vnd.cem.xpath",
+        "--to-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--cemt-formatter",
+        "xpath.format-expression",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedOutput": "filter-query"
+    },
+    {
+      "id": "color-filter",
+      "name": "Color the XPath source as HTML",
+      "kind": "conversion",
+      "source": "filter-query",
+      "description": "Produce escaped semantic HTML source presentation through the native XPath colorizer without evaluating the expression or granting resource access.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.xpath",
+        "--schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--to-content-type",
+        "application/vnd.cem.xpath",
+        "--to-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--cemt-formatter",
+        "xpath.format-expression",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--cemt-colorizer",
+        "xpath.color-expression",
+        "--cemt-color-profile",
+        "html"
+      ],
+      "expectedText": [
+        "<span",
+        "data-role=\"syntax.name\"",
+        "Q{urn:example:catalog}",
+        "&gt;"
+      ]
     },
     {
       "id": "query-filter",

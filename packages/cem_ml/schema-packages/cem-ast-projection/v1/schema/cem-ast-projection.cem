@@ -27,7 +27,7 @@
         {element @name="chunk" @required-attributes="id sealed" @optional-attributes="parent-id root-id byte-offset byte-length hash" @children="child-link* source-map-delta*"}
         {element @name="child-link" @required-attributes="chunk-id root-id"}
         {element @name="source-map-delta" @required-attributes="source-id byte-offset byte-length transform"}
-        {element @name="node" @required-attributes="id kind" @optional-attributes="parent-id order name namespace target value expression context-id evaluation-state target-ids source-id byte-offset byte-length line column chunk-id"}
+        {element @name="node" @required-attributes="id kind" @optional-attributes="parent-id order name namespace target value expression context-id evaluation-state target-ids source-id byte-offset byte-length line column chunk-id role depth"}
         {element @name="token" @required-attributes="id kind lexeme" @optional-attributes="source-id byte-offset byte-length chunk-id"}
         {element @name="diagnostic" @required-attributes="code severity" @optional-attributes="source-id byte-offset byte-length message"}
     }
@@ -43,6 +43,8 @@
         {attribute @name="chunk-id" @type="schema:identifier"}
         {attribute @name="order" @type="cemml:integer"}
         {attribute @name="kind" @type="schema:identifier"}
+        {attribute @name="role" @type="schema:string"}
+        {attribute @name="depth" @type="cemml:integer"}
         {attribute @name="name" @type="schema:qualified-name"}
         {attribute @name="namespace" @type="schema:string"}
         {attribute @name="target" @type="schema:string"}

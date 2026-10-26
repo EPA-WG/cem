@@ -413,14 +413,14 @@
     {
       "id": "xpath-catalog",
       "name": "XPath catalog queries",
-      "description": "Filter namespaced product data, join suppliers, inspect retained nodes and native map/array results, change owned selection parameters and repair XPath source.",
+      "description": "Parse, inspect and format typed XPath source; filter namespaced product data, join suppliers, inspect retained nodes and native map/array results, and repair saved query source.",
       "version": "1.0.0",
       "collections": [
         "content-types-queries-transformations",
         "content-types-data"
       ],
       "archive": "./examples/xpath-catalog.cem-studio.json",
-      "sha256": "dd613c7d7baa06fc6531f1d3a9572201a4514c551281377788e76c675b35c879"
+      "sha256": "2d3d9fbfa60c1b6964c3c7b3267bbe5a7c3914365e69c5d6c6cd1637c90e6549"
     },
     {
       "id": "xslt-transform",

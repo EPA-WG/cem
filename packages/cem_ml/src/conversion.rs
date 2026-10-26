@@ -50,7 +50,7 @@ use crate::schema::registry::{
     JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
     MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI,
     SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
-    XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -74,7 +74,7 @@ use crate::transform_artifact::{
     GenericDataYamlDocumentCemtSubjectRef, JsonDocumentCemtSubjectRef,
     JsonSchemaDocumentCemtSubjectRef, MarkdownDocumentCemtSubjectRef,
     RelaxNgDocumentCemtSubjectRef, TransformArtifactBody, TransformNativeArtifact,
-    XmlFamilyDocumentCemtSubjectRef, YamlDocumentCemtSubjectRef,
+    XmlFamilyDocumentCemtSubjectRef, XPathExpressionCemtSubjectRef, YamlDocumentCemtSubjectRef,
     CEMT_MATERIALIZED_TREE_REPRESENTATION_ID, CEMT_TREE_REPRESENTATION_ID,
 };
 #[cfg(test)]
@@ -121,6 +121,7 @@ use crate::validation::relax_ng::{RelaxNgDocumentAst, RelaxNgSyntaxKind};
 use crate::validation::svg::SvgDocumentAst;
 use crate::validation::xhtml::XhtmlDocumentAst;
 use crate::validation::xml::XmlDocumentAst;
+use crate::validation::xpath::XPathExpressionAst;
 use crate::validation::xslt::XsltStylesheetAst;
 use crate::validation::yaml::YamlDocumentAst;
 use serde_json::Value;
@@ -2612,6 +2613,24 @@ const CSS_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputS
     declaration_element: "{color-function",
     function_kind: TransformTemplateOutputFunctionKind::Color,
     function_name: "css.color-document",
+    role: "colorizer",
+};
+
+const XPATH_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "xpath-format-cemt",
+    artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
+    declaration_element: "{format-function",
+    function_kind: TransformTemplateOutputFunctionKind::Format,
+    function_name: "xpath.format-expression",
+    role: "formatter",
+};
+
+const XPATH_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "xpath-color-cemt",
+    artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
+    declaration_element: "{color-function",
+    function_kind: TransformTemplateOutputFunctionKind::Color,
+    function_name: "xpath.color-expression",
     role: "colorizer",
 };
 
@@ -10106,6 +10125,22 @@ impl XmlDocumentOutputSubject for CssDocumentAst {
     }
 }
 
+impl XmlDocumentOutputSubject for XPathExpressionAst {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.line_ending.as_deref()
+    }
+
+    fn input_representation_id(&self) -> &'static str {
+        "cem.xpath-expression-ast"
+    }
+
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        Some(CemtEvaluatorValue::borrowed(
+            XPathExpressionCemtSubjectRef::new(self).evaluator_view(),
+        ))
+    }
+}
+
 impl XmlDocumentOutputSubject for CssSelectorExpressionAst {
     fn source_line_ending(&self) -> Option<&str> {
         // The lexical formatter writes the original tokens, including their
@@ -10233,6 +10268,21 @@ pub fn execute_css_document_output_pipeline_with_environment(
     )
 }
 
+pub fn execute_xpath_expression_output_pipeline_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    expression: XPathExpressionAst,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    execute_xml_family_document_output_pipeline_with_environment(
+        environment,
+        expression,
+        target_scope,
+        diagnostic_uri,
+        XmlFamilyOutputSpec::xpath(),
+    )
+}
+
 pub fn execute_css_selector_output_pipeline_with_environment(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     expression: CssSelectorExpressionAst,
@@ -10323,6 +10373,21 @@ struct XmlFamilyOutputSpec {
 }
 
 impl XmlFamilyOutputSpec {
+    const fn xpath() -> Self {
+        Self {
+            label: "XPath",
+            formatter: XPATH_FORMAT_CEMT_STAGE_SPEC,
+            colorizer: XPATH_COLOR_CEMT_STAGE_SPEC,
+            content_type: XPATH_CONTENT_TYPE,
+            schema: XPATH_SCHEMA_URI,
+            category: "xpath-expression",
+            subject_kind: "xpath-expression",
+            formatter_option_prefix: "xpath.",
+            converter_id: "xpath-direct-output",
+            diagnostic_node: "xpath",
+        }
+    }
+
     const fn css_selector() -> Self {
         Self {
             label: "CSS selector",
@@ -15015,6 +15080,7 @@ fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
         MARKDOWN_SCHEMA_URI,
         CSS_SCHEMA_URI,
         CSS_SELECTOR_SCHEMA_URI,
+        XPATH_SCHEMA_URI,
         RELAX_NG_SCHEMA_URI,
         XHTML_SCHEMA_URI,
         SVG_SCHEMA_URI,
@@ -25178,6 +25244,128 @@ mod tests {
             colored_markup_text_content(output.strip_suffix('\n').unwrap_or(output)),
             std::str::from_utf8(source).unwrap()
         );
+    }
+
+    #[test]
+    fn xpath_output_profiles_preserve_source_and_original_token_origins() {
+        use crate::validation::xpath::{
+            validate_xpath_expression_ast, xpath_expression_ast_from_source_bytes, XPathAttachment,
+            XPathSchemaContractCatalog, XPathSourceRequest,
+        };
+        let source =
+            "(: Café (: nested :) :)\r\n/Q{urn:catalog}catalog/Q{urn:catalog}π[@title=\"茶<&>\"]";
+        let uri = "studio://queries/original.xpath";
+        let expression = xpath_expression_ast_from_source_bytes(
+            XPathSourceRequest {
+                bytes: source.as_bytes(),
+                source_uri: uri,
+                content_type: Some(XPATH_CONTENT_TYPE),
+                source_range_projector: None,
+            },
+            XPathAttachment::Standalone { source_id: 77 },
+        );
+        let diagnostics =
+            validate_xpath_expression_ast(&expression, XPathSchemaContractCatalog::from_builtin());
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let original = expression
+            .tokens
+            .iter()
+            .find(|token| token.lexeme == "\"茶<&>\"")
+            .unwrap()
+            .source_range
+            .source_map(77, &expression.source.media_type);
+        let schemas = SchemaRegistry::with_builtin_schemas();
+        let converters = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schemas,
+            conversion_registry: &converters,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        for formatter in ["compact", "pretty", "tabular"] {
+            for color in [None, Some("terminal"), Some("html"), Some("md")] {
+                let result = execute_xpath_expression_output_pipeline_with_environment(
+                    &environment,
+                    expression.clone(),
+                    &ScopeConfig {
+                        cemt_formatter_profile: Some(formatter.to_owned()),
+                        cemt_color_profile: color.map(str::to_owned),
+                        ..ScopeConfig::default()
+                    },
+                    Some(uri),
+                );
+                assert!(
+                    result.diagnostics.is_empty(),
+                    "{formatter}/{color:?}: {:?}",
+                    result.diagnostics
+                );
+                let output = result
+                    .output
+                    .as_ref()
+                    .and_then(Value::as_str)
+                    .expect("native XPath source text");
+                let visible = match color {
+                    Some("terminal") => {
+                        assert!(output.contains('\u{1b}'));
+                        strip_ansi_codes(output)
+                    }
+                    Some("html") => {
+                        assert!(output.contains("<span"));
+                        assert!(output.contains("&lt;"));
+                        assert!(output.contains("&amp;"));
+                        colored_markup_text_content(output)
+                    }
+                    _ => output.to_owned(),
+                };
+                let expected = if color == Some("html") {
+                    source.to_owned()
+                } else {
+                    format!("{source}\r\n")
+                };
+                assert_eq!(visible, expected, "{formatter}/{color:?}");
+                assert!(result
+                    .output_spans
+                    .iter()
+                    .any(|span| span.origin == original));
+                assert!(result
+                    .output_spans
+                    .iter()
+                    .all(
+                        |span| span.output_range.start + u64::from(span.output_range.len)
+                            <= output.len() as u64
+                    ));
+                assert!(result.formatted_materialized_cemt_tree.is_some());
+                assert_eq!(
+                    result.colored_materialized_cemt_tree.is_some(),
+                    color.is_some()
+                );
+                assert!(matches!(result.format_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter { ref function_name, .. })
+                    if function_name == "xpath.format-expression"));
+            }
+        }
+        for scope in [
+            ScopeConfig {
+                cemt_formatter_profile: Some("unknown".to_owned()),
+                ..ScopeConfig::default()
+            },
+            ScopeConfig {
+                cemt_color_profile: Some("unknown".to_owned()),
+                ..ScopeConfig::default()
+            },
+        ] {
+            let result = execute_xpath_expression_output_pipeline_with_environment(
+                &environment,
+                expression.clone(),
+                &scope,
+                Some(uri),
+            );
+            assert!(result.output.is_none());
+            assert!(result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity.is_hard_violation()));
+        }
     }
 
     #[test]

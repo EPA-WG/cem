@@ -1,6 +1,9 @@
 //! Source-language adapters share the same presentation boundary as documents.
 use super::*;
 mod native_projection;
+mod xpath;
+#[cfg(test)]
+mod xpath_tests;
 
 /// Retain source-language lifecycle results instead of validating them as CEM.
 pub(super) fn native_lifecycle_parse(
@@ -197,7 +200,8 @@ pub(super) fn load(input: &EngineInput, context: &EngineContext) -> Option<Sourc
     let mut source = context
         .source_inspection_stages
         .iter()
-        .find_map(|stage| stage.inspect(input))?;
+        .find_map(|stage| stage.inspect(input))
+        .or_else(|| xpath::load(input, context))?;
     source.diagnostics.extend(root_scope_execution_diagnostics(
         &input.uri,
         &input.root_scope,

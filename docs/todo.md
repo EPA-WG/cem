@@ -244,7 +244,13 @@ format/color configurations with saved-copy and offline acceptance. The existing
 cross-query provenance failure remains a separate open item below; the complete
 selector-package gate is not green.
 
-- [ ] Route standalone XPath Parse, Inspect and source export through the typed XPath owner. EQName source is currently interpreted as CEM by generic source operations, and same-schema conversion refuses the target adapter. Preserve query execution, exact source bytes and hard diagnostics; add native round-trip and exit-status regressions before enabling these source operations.
+Completed 2026-10-26: [typed XPath Parse, Inspect and source export](archive/todo-completed-xpath-source-operations-2026-10-26.md)
+covers native syntax/token projections, declared shared fields and monotonic
+events, borrowed lexical formatter/colorizer ownership, original source ranges
+and hard-diagnostic refusal. Five ordinary Studio source configurations pass
+shared WASM and deployed saved/offline checks. Caller namespace bindings remain
+the next item; credential recovery refusal and disabled automatic recovery stay
+unchanged.
 
 - [ ] Pass caller namespace bindings into standalone XPath source validation. The CLI's `--namespace` bindings reach native query execution but are currently omitted by the source loader. Keep missing/unbound-prefix diagnostics; add native static-context tests before changing validation. Current standalone sample validation uses explicit EQNames.
 

@@ -23,11 +23,11 @@
     }
 
     {elements |
-        {element @name="event-stream" @required-attributes="schema content-type hash-scheme" @children="chunk* event* checkpoint*"}
+        {element @name="event-stream" @required-attributes="schema content-type hash-scheme" @optional-attributes="source-id" @children="chunk* event* checkpoint*"}
         {element @name="chunk" @required-attributes="id sealed" @optional-attributes="parent-id root-id first-sequence last-sequence byte-offset byte-length hash" @children="child-link* source-map-delta*"}
         {element @name="child-link" @required-attributes="chunk-id root-id"}
         {element @name="source-map-delta" @required-attributes="source-id byte-offset byte-length transform"}
-        {element @name="event" @required-attributes="sequence kind" @optional-attributes="name value source-id byte-offset byte-length chunk-id"}
+        {element @name="event" @required-attributes="sequence kind" @optional-attributes="name value source-id byte-offset byte-length chunk-id event-domain native-sequence token-kind token-index node-kind depth"}
         {element @name="checkpoint" @required-attributes="sequence state" @optional-attributes="chunk-id hash"}
     }
 
@@ -39,7 +39,13 @@
         {attribute @name="sequence" @type="cemml:integer"}
         {attribute @name="first-sequence" @type="cemml:integer"}
         {attribute @name="last-sequence" @type="cemml:integer"}
-        {attribute @name="kind" @type="schema:identifier" @values="open close name value trivia processing-instruction separator mode-switch error"}
+        {attribute @name="kind" @type="schema:identifier" @values="open close name value trivia processing-instruction separator mode-switch error start-expression token end-expression start-node end-node"}
+        {attribute @name="event-domain" @type="schema:identifier" @values="lexical syntax"}
+        {attribute @name="native-sequence" @type="cemml:integer"}
+        {attribute @name="token-kind" @type="schema:identifier"}
+        {attribute @name="token-index" @type="cemml:integer"}
+        {attribute @name="node-kind" @type="schema:identifier"}
+        {attribute @name="depth" @type="cemml:integer"}
         {attribute @name="name" @type="schema:qualified-name"}
         {attribute @name="value" @type="schema:string"}
         {attribute @name="schema" @type="schema:uri"}

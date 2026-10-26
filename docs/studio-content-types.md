@@ -1,14 +1,14 @@
 # Studio content types and schema inventory
 
-Audited 2026-10-25. This is the implementation map for the **Content types and
+Audited 2026-10-26. This is the implementation map for the **Content types and
 schemas** sample collection in [the active checklist](todo.md#studio-samples-supported-content-types-and-schemas).
 The collection is available under **Examples → Content types and schemas**, with
 Data, Documents and UI, Queries and transformations, and Schema authoring folders.
 Examples remain ordinary cloneable projects with resources and configurations.
 Folder listings reuse existing projects. The
 [catalog README/capability audit](studio-catalog-coverage.md) records 22 authored
-projects and 203 configurations, plus the generated Schema examples project and
-the starter. All 208 inventory rows (203 authored and five portable workbenches)
+projects and 210 configurations, plus the generated Schema examples project and
+the starter. All 215 inventory rows (210 authored and five portable workbenches)
 are checked against their actual resource/configuration references. The 32
 generated package validations remain a separate registry matrix. These counts
 describe declared coverage, not uniform native conformance or UI runnability.
@@ -130,8 +130,8 @@ artifacts; the mere presence of a manifest artifact is insufficient.
 | CSS | Native retained CSS import and stylesheet validation. | Typed CSS inspection and native formatter/colorizer pipeline. | Scoped stylesheet preparation. It is not a query language or a general Sass compiler. |
 | SCSS | Explicit MIME/schema selects passive source validation; generic import and filename inference are unavailable. | Parse AST/events inspect expanded typed CSS with SCSS origin frames. | Bounded resolver/context-owned expansion to plain CSS. Passive validation does not fetch modules or expand. Same-schema SCSS source export, source DomJson/Json and command HTML-colored CSS export are unavailable. |
 | SVG, MathML | Dedicated family import retains the original XML-backed owner, namespace, source positions and profile policy. SVG and all three MathML MIME identities resolve before generic `+xml`. | Native same-schema formatting and default CEM-ML inspection. Explicit JSON inspection retains the existing compatibility projection. | Shared native queries/templates and bounded inline artifact previews. Complete vocabulary/geometry/algebra validation is not implied; browser admission is independent of source validation. |
-| CSS selector | Source/expression validation; not data. | Registered source profiles; command source conversion is currently unavailable, and Inspect AST is a generic text envelope. | Explicit canonical MIME or schema selects element-tree query dispatch; supplied MIME/schema must agree. No general-purpose transformation language. |
-| XPath | Expression validation and native query compilation; not generic data. | Native typed query results and registered source-profile assets; command source Parse/Inspect/format are not admitted as typed XPath source operations yet. | XPath/XDM-tree query or direct transformation. Binary artifacts and JSON results are not XPath source text. Supported native subset applies. |
+| CSS selector | Source/expression validation; not data. | Native command source formatting/coloring use registered lexical-lossless profiles. Parse/Inspect do not expose a typed selector source AST; Inspect AST remains a generic text envelope. | Explicit canonical MIME or schema selects element-tree query dispatch; supplied MIME/schema must agree. Source formatting does not evaluate selectors or grant namespace/host capabilities. No general-purpose transformation language. |
+| XPath | Expression validation and native query compilation; not generic data. Standalone source validation still omits caller prefix bindings. | Typed source Parse/Inspect retain native expression/token owners and original ranges; source formatting/coloring use the registered lexical-lossless pipeline. | XPath/XDM-tree query or direct transformation. Binary artifacts and JSON results are not XPath source text. Supported native subset applies. |
 | CEM-QL | Query modules and standalone expressions have explicit native source handling. | Native Parse/Inspect, formatting/coloring, source ranges. | Native-items query/evaluation, parameters and template integration. Module, expression and binary artifact selectors have distinct contracts. |
 | CEM native/element templates | CEM source plus the selected template contract; element declarations run through shared `cem-elements`. | CEM-native formatting/inspection. | Native templates render data; element templates also bind declarative browser state. Source validation alone does not execute browser bindings. |
 | CEM transformation | CEM configuration source validation. | CEM formatting/source projections. | Authored direct/graph execution, dependency resolution, parameters, artifacts and provenance. Run/transform config schemas remain explicit. |
@@ -294,6 +294,11 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `cemql-orders` | `ready-graph` | `report-ready` | Bind declared status/minimum parameters, construct a native CEM-QL options record and publish an application JSON table through the native generic-data writer. |
 | `cemql-orders` | `draft-graph` | `report-draft` | Bind declared status/minimum parameters, construct a native CEM-QL options record and publish an application JSON table through the native generic-data writer. |
 | `xpath-catalog` | `filter-query` | `validate-filter` | Validate standalone XPath grammar, explicit namespace names and supported source policy without running a document query. |
+| `xpath-catalog` | `filter-query` | `parse-filter` | Present the native XPath expression and original token ranges as CEM-ML without interpreting EQNames as CEM structure. |
+| `xpath-catalog` | `filter-query` | `parse-filter-events` | Present lossless native XPath token events, including the original comment and source byte positions, without evaluating the query. |
+| `xpath-catalog` | `filter-query` | `inspect-filter` | Inspect the typed XPath source owner, EQNames and original UTF-8 ranges through the shared CEM-ML presentation. |
+| `xpath-catalog` | `filter-query` | `format-filter` | Run the registered lexical-lossless native XPath formatter, preserving comments, EQNames and whitespace with the shared text EOF policy. |
+| `xpath-catalog` | `filter-query` | `color-filter` | Produce escaped semantic HTML source presentation through the native XPath colorizer without evaluating the expression or granting resource access. |
 | `xpath-catalog` | `catalog-source` | `query-filter` | Use namespace-qualified paths, native numeric comparison and a simple map to report products with stock at least four. |
 | `xpath-catalog` | `catalog-source` | `query-nodes` | Export genuine retained product nodes with stable native identities, original input URI, original opening-element ranges and source maps. |
 | `xpath-catalog` | `catalog-source` | `query-join` | Evaluate dependent for bindings over the same original XML owner, joining supplier IDs with an explicit static namespace binding. |
@@ -459,10 +464,13 @@ The selector project never treats a stylesheet as a query. It validates and
 executes an explicitly identified selector over native HTML/XML owners, preserves
 namespace bindings and returns real matched node identities in document order
 with duplicates removed. The selected JSON result is a human-facing export;
-no JSON tree is fed back as an execution input. Inspector text envelopes are not
-selector syntax trees, and registered selector formatters do not currently imply
-working command source export. The schema's unsupported-feature, host-capability
-and work-budget boundaries remain unchanged.
+no JSON tree is fed back as an execution input. Parse/Inspect do not expose a
+typed selector source AST, and inspector text envelopes are not selector syntax
+trees. Native command source export runs the registered formatter/colorizer
+pipeline over borrowed native token owners. Its lexical profiles preserve
+spelling, comments, escapes and whitespace without reflow or selector evaluation;
+they grant no namespace or host capabilities. The schema's unsupported-feature,
+host-capability and work-budget boundaries remain unchanged.
 
 The CEM-QL order project uses one owned JSON source for expression filtering,
 local-module inner joins and original imported-node selection. Query record
@@ -488,9 +496,11 @@ up native maps and arrays from an owned XML selection/options subtree. This is
 data-driven parameter authoring, not an external XPath variable-binding grant.
 Query namespace bindings work; standalone source validation currently omits caller
 prefix bindings, so its independently validated source uses explicit EQNames.
-Standalone XPath Parse/Inspect/format still have native routing/export gaps and
-are excluded from the project's advertised operations. The result inspector is
-an actual native query returning typed map/array items, never a replacement tree.
+Standalone XPath Parse/Inspect consume the native source owner and expose
+original expression/token ranges as CEM-ML. Formatting/coloring run the registered
+native lexical-lossless pipeline without evaluating the query or granting
+resource access. The distinct result inspector is an actual native query
+returning typed map/array items, never a replacement tree.
 Selected XPath nodes retain original XML URI/ranges; computed scalars/maps carry
 query origins without arbitrary input character mappings.
 
@@ -599,7 +609,7 @@ runtime authority.
 | Documents and UI | HTML, CEM-ML, native/element templates, runtime data island | Reuse Login and `html-cem-card` for semantic comparisons, shared card declarations/slots, local slice bindings and data-to-HTML generation. Keep project declaration authority and automatic DCE compilation limits explicit. |
 | Documents and UI | SVG and MathML variants | `svg-diagram` and `mathml-formula` cover native retained inspection/query/formatting, validation/repair, HTML artifacts, original provenance and bounded actual vector/presentation-math rendering. Content MathML is validated separately without an algebra or presentation claim. |
 | Documents and UI | CSS and SCSS aliases | `css-stylesheet` and `scss-stylesheet` cover native inspection, validation/repair, exact CSS output, scoped styles, owned-module expansion, native HTML/CSS graphs and shared previews. Keep unavailable SCSS source-export/loader cases explicit. |
-| Queries and transformations | CSS selectors, XPath source aliases, CEM-QL modules/expressions | `css-selector`, `xpath-catalog` and `cemql-orders` cover native selections, namespace context, joins, input-derived/native parameter maps, typed results and original selected-node ranges. CEM-QL source/module operations retain their explicit identities; XPath source-command limits remain visible. |
+| Queries and transformations | CSS selectors, XPath source aliases, CEM-QL modules/expressions | `css-selector`, `xpath-catalog` and `cemql-orders` cover native selections, namespace context, joins, input-derived/native parameter maps, typed results and original selected-node ranges. XPath and CEM-QL source operations consume their typed owners; CSS-selector and XPath formatting/coloring preserve lexical source. XPath caller namespace validation remains a separate limit. |
 | Queries and transformations | CEM transformation and XSLT source/custom-element selectors | `cem-transform` and `xslt-transform` compare ordinary multi-step native builds, explicit HTML entries, source controls, parameter maps and provenance. XSLT execution requires the complete profile; custom-element mode is not a universal XSLT alias. |
 | Schema authoring | CEM schema and schema package | `cem-schema` separates schema/package authoring from valid/invalid note instances, with explicit namespace claims and required-field diagnostics. |
 | Schema authoring | JSON Schema and both Relax NG syntaxes | `json-schema` and `relax-ng` cover source validation, supported formatting/typed Parse, dialect/start/delimiter repairs and rejected external references. Their data examples validate syntax only. |

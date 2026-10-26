@@ -185,7 +185,7 @@ fn compact_rng(document: &RelaxNgDocumentAst, ast: bool) -> CemTreeAstStream {
     )
 }
 
-fn wrap(
+pub(super) fn wrap(
     name: &str,
     schema: &str,
     content_type: &str,
@@ -217,7 +217,7 @@ fn wrap(
     )
 }
 
-fn event_attributes(
+pub(super) fn event_attributes(
     sequence: usize,
     kind: &str,
     value: &str,
@@ -236,7 +236,7 @@ fn event_attributes(
     ]
 }
 
-fn element(
+pub(super) fn element(
     name: &str,
     attributes: Vec<CemTreeAstAttribute>,
     children: Vec<CemTreeAstNode>,

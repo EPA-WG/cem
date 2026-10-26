@@ -623,10 +623,33 @@ introduces a generic-value or serialization bridge.
 ## Formatter And Colorizer Profiles
 
 The package registers `compact`, `pretty`, and `tabular` formatters plus
-`terminal`, `html`, and `md` colorizers. In this foundation slice all formatter
-profiles are intentionally lexical-lossless aliases. Reflow is deferred until
-grammar-node boundaries and embedded expression source maps are exercised by
-the lifecycle output pipeline.
+`terminal`, `html`, and `md` colorizers. All formatter profiles are intentionally
+lexical-lossless aliases; grammar-aware reflow remains deferred. The native
+lifecycle output pipeline runs these assets over borrowed expression/token
+owners and preserves original token source maps.
+
+Standalone `parse` and `inspect` consume the lifecycle-owned XPath expression,
+tokens and native syntax rather than sending XPath text through the CEM parser.
+Their structural presentation is CEM-ML by default; JSON is an explicit output
+boundary. Token offsets and source maps retain the original query URI and UTF-8
+coordinates. Source-owner inspection is distinct from evaluating the expression
+and inspecting its native result values.
+The event projection has one monotonic `sequence` across lexical and syntax
+domains; `event-domain` and `native-sequence` retain the original parser indexes.
+
+Same-identity `convert` executes the registered `xpath.format-expression` and
+`xpath.color-expression` assets over borrowed native token owners. It preserves
+source spelling, comments, escapes and internal whitespace. Plain and terminal
+output applies the shared final-newline policy, including CRLF when present;
+HTML coloring retains the displayed source verbatim in escaped semantic spans
+without a `pre` wrapper, and publishes HTML MIME/schema metadata. Invalid source
+retains hard diagnostics and publishes no successful replacement. Parsing,
+inspection and source formatting do not evaluate the expression, fetch resources
+or grant evaluator capabilities.
+
+Standalone source validation still does not receive the CLI query caller's
+namespace bindings. Use EQNames for context-independent source configurations;
+unbound prefixes continue to diagnose rather than gaining implicit bindings.
 
 ## Safety
 

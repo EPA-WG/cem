@@ -1111,6 +1111,14 @@ impl LifecycleAdapter for XPathAdapter {
         matches_xpath_identity(identity)
     }
 
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_xpath_identity(identity)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Cem)
+    }
+
     fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
         let content_type = identity
             .content_type

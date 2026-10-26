@@ -102,6 +102,8 @@
                     "cargo test -p cem-ml 'lifecycle::tests::xpath_schema' -- --nocapture",
                     "cargo test -p cem-ml 'real::tests::validate_xpath_source' -- --nocapture",
                     "cargo test -p cem-ml 'real::tests::convert_xpath_requires' -- --nocapture",
+                    "cargo test -p cem-ml --lib xpath_ --target-dir dist/target/cem_ml -- --nocapture",
+                    "cargo test -p cem-ml-cli --lib xpath_source_ --target-dir dist/target/cem_ml_cli -- --nocapture",
                     "cargo test -p cem-ml xpath_package -- --nocapture",
                     "cargo test -p cem-ml catalog_exposes_xpath_output_artifact_sources -- --nocapture",
                     "cargo test -p cem-ml --test schema_package_structure -- --nocapture",

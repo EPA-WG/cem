@@ -19,6 +19,7 @@ use crate::conversion::{
     execute_conversion_output_pipeline_from_typed_formatted_cem_tree_with_environment,
     execute_css_document_output_pipeline_with_environment,
     execute_css_selector_output_pipeline_with_environment,
+    execute_xpath_expression_output_pipeline_with_environment,
     execute_csv_document_output_pipeline_with_environment,
     execute_html_document_output_pipeline_with_environment,
     execute_json_document_output_pipeline_with_environment,
@@ -7682,6 +7683,83 @@ fn convert_loaded_css_selector_output(
     )
 }
 
+fn convert_loaded_xpath_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    expression: crate::validation::xpath::XPathExpressionAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    use crate::schema::registry::{XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI};
+    let metadata = convert_metadata_for_xpath_lifecycle_output(&request.target_scope);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: activated_package_artifact_reader(context),
+        artifact_cache: None,
+    };
+    let execution = execute_xpath_expression_output_pipeline_with_environment(
+        &environment,
+        expression,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics);
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+    let Some(content) = execution.output.as_ref().and_then(Value::as_str) else {
+        diagnostics.push(Diagnostic {
+            uri: Some(request.input.uri.clone()),
+            code: CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE.to_owned(),
+            severity: Severity::Fatal,
+            message: "XPath source writer did not produce text".to_owned(),
+            ..Diagnostic::default()
+        });
+        return (Value::Null, None, metadata);
+    };
+    let html = xml_direct_output_color_profile(&request.target_scope).as_deref() == Some("html");
+    let (content_type, schema, format_version) = if html {
+        (
+            HTML_CONTENT_TYPE.to_owned(),
+            HTML_SCHEMA_URI.to_owned(),
+            "xpath-html/1",
+        )
+    } else {
+        let target = request
+            .target
+            .clone()
+            .or_else(|| request.target_scope.format_identity_option())
+            .unwrap_or_default();
+        (
+            target
+                .content_type
+                .unwrap_or_else(|| XPATH_CONTENT_TYPE.to_owned()),
+            target
+                .schema
+                .unwrap_or_else(|| XPATH_SCHEMA_URI.to_owned()),
+            "xpath/1",
+        )
+    };
+    let bytes = content.as_bytes().to_vec();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version: format_version.to_owned(),
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    (
+        json!({ "kind": "document", "contentType": primary_bytes.content_type,
+        "schema": schema, "hash": primary_bytes.hash }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
 fn convert_loaded_css_ast_output(
     context: &EngineContext,
     request: &ConvertRequest,
@@ -9845,6 +9923,92 @@ fn convert_metadata_for_css_selector_lifecycle_output(
     ConvertExecutionMetadata {
         converter_id: Some("css-selector-lifecycle-output".to_owned()),
         implementation: Some("css-selector-ast-to-source-output-pipeline".to_owned()),
+        rust_fallback: None,
+        output_pipeline: Some(ConvertOutputPipelineMetadata { stages }),
+    }
+}
+
+fn convert_metadata_for_xpath_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
+    use crate::schema::registry::{XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI};
+    let color_profile = xml_direct_output_color_profile(target_scope);
+    let html = color_profile.as_deref() == Some("html");
+    let stages = [
+        (
+            "formatter",
+            Some(
+                target_scope
+                    .cemt_formatter
+                    .clone()
+                    .unwrap_or_else(|| "xpath.format-expression".to_owned()),
+            ),
+            Some(
+                target_scope
+                    .cemt_formatter_profile
+                    .clone()
+                    .unwrap_or_else(|| "compact".to_owned()),
+            ),
+        ),
+        (
+            "colorizer",
+            color_profile
+                .as_ref()
+                .map(|_| "xpath.color-expression".to_owned()),
+            color_profile.clone(),
+        ),
+        (
+            "writer",
+            None,
+            target_scope.output_color_type.clone().or(color_profile),
+        ),
+    ]
+    .into_iter()
+    .map(|(stage, function, profile)| {
+        let writer = stage == "writer";
+        ConvertOutputPipelineStageMetadata {
+            stage: stage.to_owned(),
+            function,
+            profile,
+            content_type: Some(
+                if writer && html {
+                    HTML_CONTENT_TYPE
+                } else {
+                    XPATH_CONTENT_TYPE
+                }
+                .to_owned(),
+            ),
+            schema: Some(
+                if writer && html {
+                    HTML_SCHEMA_URI
+                } else {
+                    XPATH_SCHEMA_URI
+                }
+                .to_owned(),
+            ),
+            category: Some(
+                if writer && html {
+                    "html-document"
+                } else {
+                    "xpath-expression"
+                }
+                .to_owned(),
+            ),
+            produces: Some(
+                if writer {
+                    TransformTemplateOutputProducedKind::Text
+                } else {
+                    TransformTemplateOutputProducedKind::CemTree
+                }
+                .as_str()
+                .to_owned(),
+            ),
+        }
+    })
+    .collect();
+    ConvertExecutionMetadata {
+        converter_id: Some("xpath-lifecycle-output".to_owned()),
+        implementation: Some("xpath-ast-to-source-output-pipeline".to_owned()),
         rust_fallback: None,
         output_pipeline: Some(ConvertOutputPipelineMetadata { stages }),
     }
@@ -12834,7 +12998,21 @@ impl CemMlEngine for RealCemMlEngine {
                         }
                         // Cross-schema MathML exports require an explicit registered converter.
                     }
-                    LoadedInputAstStream::XPathExpression(_) => {
+                    LoadedInputAstStream::XPathExpression(expression) => {
+                        if export_adapter_id == Some("xpath") {
+                            if diagnostics.iter().any(|diagnostic| diagnostic.severity.is_hard_violation()) {
+                                primary = Some(Value::Null);
+                                conversion = Some(convert_metadata_for_xpath_lifecycle_output(&request.target_scope));
+                                return;
+                            }
+                            let (value, bytes, metadata) = convert_loaded_xpath_output(
+                                &context, &request, expression, &mut diagnostics,
+                            );
+                            primary = Some(value);
+                            primary_bytes = bytes;
+                            conversion = Some(metadata);
+                            return;
+                        }
                         diagnostics.push(Diagnostic {
                             uri: Some(request.input.uri.clone()),
                             code: "cem.lifecycle.internal_ast_target_unsupported".to_owned(),

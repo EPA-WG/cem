@@ -150,7 +150,7 @@ impl XPathSourceRange {
         })
     }
 
-    fn source_map(self, source_id: u32, content_type: &str) -> SourceMapStack {
+    pub(crate) fn source_map(self, source_id: u32, content_type: &str) -> SourceMapStack {
         SourceMapStack {
             frames: vec![SourceMapFrame {
                 source_id: SourceId(source_id),
@@ -8836,7 +8836,7 @@ pub enum XPathAttachment {
 }
 
 impl XPathAttachment {
-    fn source_id(&self) -> u32 {
+    pub(crate) fn source_id(&self) -> u32 {
         match self {
             Self::Standalone { source_id } | Self::StandaloneStaticContext { source_id, .. } => {
                 *source_id
@@ -8845,7 +8845,7 @@ impl XPathAttachment {
         }
     }
 
-    pub(super) fn static_context(&self) -> Option<&XPathStaticContext> {
+    pub(crate) fn static_context(&self) -> Option<&XPathStaticContext> {
         match self {
             Self::Standalone { .. } => None,
             Self::StandaloneStaticContext { static_context, .. } => Some(static_context),

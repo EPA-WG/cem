@@ -3,8 +3,9 @@
 Open **Examples → Content types and schemas → Queries and transformations →
 XPath catalog queries**, or find the same ordinary project under **Data**.
 Clone it to edit its resources and configurations without changing the catalog
-original or another saved copy. It demonstrates document selection, a small
-supplier join, data-driven parameter maps and native result inspection.
+original or another saved copy. It demonstrates typed source inspection and
+formatting, document selection, a small supplier join, data-driven parameter
+maps and native result inspection.
 
 ## Authored identity reference
 
@@ -40,6 +41,11 @@ Query identity comes from metadata, not filename inference or text guessing.
 | Configuration | Typical use | Result |
 | --- | --- | --- |
 | `validate-filter` — Validate the expanded-name XPath source | Check standalone grammar, namespace names and source policy | Zero errors and warnings |
+| `parse-filter` — Parse the typed XPath source | Review the native expression and lossless tokens without CEM interpretation | CEM-ML source structure with original token ranges |
+| `parse-filter-events` — Parse the original XPath token events | Review native ordered tokens, including the source comment and whitespace | CEM-ML events with original byte positions |
+| `inspect-filter` — Inspect the native XPath source | Inspect the typed source owner and expanded names without executing it | CEM-ML source structure with original URI and UTF-8 ranges |
+| `format-filter` — Format the XPath source | Apply the native lexical-lossless tabular profile | Original source spelling, comments and whitespace with the shared text EOF policy |
+| `color-filter` — Color the XPath source as HTML | Review escaped semantic source coloring | An HTML span fragment displaying the original source verbatim |
 | `query-filter` — Filter available products | Select stock of at least four and project readable product labels | `tea:Green tea`, `cocoa:Cocoa` |
 | `query-nodes` — Inspect selected native product nodes | Inspect real retained nodes and source provenance | Two product node identities with their original opening-tag ranges |
 | `query-join` — Join products to their suppliers | Evaluate dependent `for` bindings and matching supplier IDs | Three order-preserving supplier summaries |
@@ -52,6 +58,20 @@ comparisons, XPath focus, dependent bindings, simple mapping and map lookup run
 inside the native evaluator. No browser DOM, JavaScript selector, JSON AST or
 replacement data tree participates in evaluation. JSON is the explicitly chosen
 human-facing result export.
+
+Source Parse and Inspect consume the typed XPath owner, rather than interpreting
+`Q{...}` as CEM structure. Their human-facing structural output is CEM-ML text;
+JSON requires an explicitly selected export boundary. Token ranges refer to the
+original query bytes and differ from the native XML node ranges returned by a
+query. These presentations are not replacement parser trees or executable
+inputs, and inspection fields alone do not grant Studio source navigation.
+
+The `compact`, `pretty` and `tabular` source formatter profiles are lexical
+aliases: they preserve comments, escapes and internal whitespace rather than
+reflowing an expression. Plain and terminal output follows the shared final
+newline policy, retaining CRLF when present. HTML coloring escapes source into
+semantic spans and retains the displayed source verbatim; it adds no `pre`
+wrapper. Source operations perform no query evaluation or resource fetch.
 
 ## Saved data, queries and parameters
 
@@ -137,14 +157,11 @@ reads. Runtime host capabilities, work/result budgets and resolver policy remain
 in force. Parsing or validating a source is not permission to execute arbitrary
 resource-sensitive functions.
 
-Standalone XPath command source export is currently unavailable despite its
-registered formatter assets. Native `convert` refuses the missing target/AST
-adapter; the project does not manufacture a formatted XPath fixture. Current
-command Parse/Inspect paths can present a generic CEM projection, and `Q{...}`
-can be misinterpreted as CEM structure. They are not advertised as XPath syntax
-inspection. The supported inspection configurations inspect native query result
-nodes, maps and arrays instead. These source-operation gaps are explicit native
-follow-ups, separate from the evaluator used here.
+Standalone source operations retain native syntax and policy diagnostics;
+invalid source cannot become a successful formatted replacement. They do not
+change namespace admission, evaluator capabilities or the limits above.
+Source-owner inspection and native query-result inspection remain distinct
+operations, even when both expose original source coordinates.
 
 The existing shared editor and structured result controls display this ordinary
 project. Once the runtime and project resources are cached, each saved copy can

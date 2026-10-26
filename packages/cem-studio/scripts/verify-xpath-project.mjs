@@ -20,6 +20,7 @@ export async function verifyXpathProject({ page, context, url }) {
         const current = globalThis.__cemStudioApplication.workbench.snapshot();
         return { route: current.navigation.selection, status: current.status, editable: current.editable, dirty: current.dirty,
             text: current.projection?.output?.text, outputAvailable: current.projection?.output?.available,
+            outputContentType: current.projection?.output?.contentType,
             exitCode: current.projection?.exitCode, diagnostics: current.projection?.diagnostics ?? current.validation?.diagnostics };
     });
     const save = async value => { await editor.fill(value); await settle(); await click('Save and validate'); };
@@ -60,6 +61,26 @@ export async function verifyXpathProject({ page, context, url }) {
         await page.getByRole('dialog').getByRole('button', { name: 'Clone', exact: true }).click(); await settle();
         const project = (await state()).route.project; assert.ok(project); return project;
     };
+    const assertSourcePresentation = async (result, source) => {
+        assert.equal(result.outputContentType, 'text/html');
+        const displayed = await page.evaluate(html => {
+            const document = new DOMParser().parseFromString(html, 'text/html');
+            return { text: document.body.textContent,
+                spans: document.querySelectorAll('span[data-role]').length,
+                scripts: document.querySelectorAll('script').length };
+        }, result.text);
+        assert.equal(displayed.text, source);
+        assert.ok(displayed.spans > 0);
+        assert.equal(displayed.scripts, 0);
+    };
+    const assertSourceStructure = (result, project, events = false) => {
+        assert.equal(result.status, 'projected', JSON.stringify(result));
+        assert.ok(result.text.includes(`studio://${project}/${resource('filter-query').path}`));
+        assert.ok(result.text.includes('@schema=https://cem.dev/ns/query/xpath/1'));
+        assert.ok(result.text.includes(events ? '@token-kind=name' : '@kind=xpath-expression'));
+        assert.ok(result.text.includes('@byte-offset='));
+        assert.ok(result.text.includes('Q{urn:example:catalog}'));
+    };
     const originalRoute = file => ({ collection: 'content-types-queries-transformations', sample: id, ...(file ? { file } : {}) });
     const mapValue = current => {
         const map = items(current)[0]; assert.equal(map.kind, 'map');
@@ -85,7 +106,11 @@ export async function verifyXpathProject({ page, context, url }) {
     for (const command of definition.configurations.filter(item => !item.repair)) {
         const result = await run(project, command.id);
         assert.equal(result.status, command.kind === 'validation' ? 'valid' : 'projected', JSON.stringify(result));
+        if (command.expectedOutput) assert.equal(result.text, await fixture(command.expectedOutput));
         for (const text of command.expectedText ?? []) assert.ok(result.text.includes(text), `${command.id}: missing ${text}`);
+        if (['parse-filter', 'inspect-filter'].includes(command.id)) assertSourceStructure(result, project);
+        if (command.id === 'parse-filter-events') assertSourceStructure(result, project, true);
+        if (command.id === 'color-filter') await assertSourcePresentation(result, originals['filter-query']);
         if (command.expectedSemanticContract) assert.deepEqual(values(result), await contract(command.expectedSemanticContract));
         if (command.expectedNativeNodes) {
             assert.deepEqual(items(result).map(nodeFields), await contract(command.expectedNativeNodes));
@@ -125,6 +150,12 @@ export async function verifyXpathProject({ page, context, url }) {
     await open({ project });
     const copy = await clone(`Portable ${definition.name}`); assert.notEqual(copy, project);
     const editedNodes = originals['node-query'].replace('@stock >= 4', '@stock >= 6'); assert.notEqual(editedNodes, originals['node-query']);
+    const editedFilter = originals['filter-query'].replace('@stock >= 4', '@stock >= 6'); assert.notEqual(editedFilter, originals['filter-query']);
+    await open({ project: copy, file: 'filter-query' }); await save(editedFilter);
+    assert.equal((await run(copy, 'format-filter')).text, editedFilter);
+    await assertSourcePresentation(await run(copy, 'color-filter'), editedFilter);
+    assert.deepEqual(values(await run(copy, 'query-filter')), allProducts.slice(0, 2));
+    assert.deepEqual(values(await run(project, 'query-filter')), allProducts);
     await open({ project: copy, file: 'node-query' }); await save(editedNodes);
     assertNodes(await run(copy, 'query-nodes'), copy, parameterCatalog, ['cem:node:27', 'cem:node:36']);
     assertNodes(await run(project, 'query-nodes'), project, parameterCatalog, ['cem:node:27', 'cem:node:36', 'cem:node:45']);
@@ -143,16 +174,23 @@ export async function verifyXpathProject({ page, context, url }) {
         assert.deepEqual(values(await run(copy, 'query-parameters')), parameters);
         assert.deepEqual(values(await run(copy, 'query-join')), await contract('join-summary'));
         assert.deepEqual(mapValue(await run(copy, 'inspect-parameters')), { minimum: '6', region: 'west' });
+        assertSourceStructure(await run(copy, 'parse-filter'), copy);
+        assertSourceStructure(await run(copy, 'parse-filter-events'), copy, true);
+        assertSourceStructure(await run(copy, 'inspect-filter'), copy);
+        assert.equal((await run(copy, 'format-filter')).text, editedFilter);
+        await assertSourcePresentation(await run(copy, 'color-filter'), editedFilter);
         await open({ project: copy, file: 'catalog-source' }); assert.equal(await editor.evaluate(element => element.value), parameterCatalog);
         await open({ project: copy, file: 'node-query' }); assert.equal(await editor.evaluate(element => element.value), editedNodes);
+        await open({ project: copy, file: 'filter-query' }); assert.equal(await editor.evaluate(element => element.value), editedFilter);
         await open({ project: copy, file: repair.source }); assert.equal(await editor.evaluate(element => element.value), repaired);
         for (const [name, source] of Object.entries(originals)) {
             await open(originalRoute(name)); assert.equal(await readonly.getAttribute('aria-readonly'), 'true');
             assert.equal(await readonly.evaluate(element => element.value), source);
         }
     } finally { await context.setOffline(false); }
-    console.log('[cem-studio:xpath-catalog] offline native values/nodes/maps and unchanged originals passed');
+    console.log('[cem-studio:xpath-catalog] offline native source operations, values/nodes/maps and unchanged originals passed');
     return { catalog: true, readonlyOriginals: true, nativeCommands: true, exactValueContracts: true, nativeNodeIdentity: true,
         nativeSourceRanges: true, typedMapArray: true, namespaceQuery: true, nativeRepair: true, unsavedSourceGuard: true,
-        savedData: true, savedParameterMap: true, independentCopies: true, invalidQueryRefusal: true, offline: true };
+        savedData: true, savedParameterMap: true, independentCopies: true, invalidQueryRefusal: true, offline: true,
+        typedSourceParse: true, typedSourceInspect: true, sourceFormatting: true, htmlSourceColoring: true, offlineSourceOperations: true };
 }

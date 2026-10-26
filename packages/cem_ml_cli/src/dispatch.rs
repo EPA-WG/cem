@@ -8846,7 +8846,7 @@ mod tests {
     }
 
     fn strip_ansi_codes(input: &str) -> String {
-        let mut out = String::with_capacity(input.len());
+        let mut out = Vec::with_capacity(input.len());
         let bytes = input.as_bytes();
         let mut index = 0;
         while index < bytes.len() {
@@ -8860,10 +8860,10 @@ mod tests {
                 }
                 continue;
             }
-            out.push(bytes[index] as char);
+            out.push(bytes[index]);
             index += 1;
         }
-        out
+        String::from_utf8(out).expect("removing ASCII ANSI escapes preserves UTF-8")
     }
 
     fn html_text_content(input: &str) -> String {
@@ -14054,6 +14054,559 @@ active: true
         assert_eq!(
             html_text_content(written.strip_suffix('\n').unwrap_or(&written)),
             "name: Ada\nactive: true\n"
+        );
+    }
+
+    #[test]
+    fn xpath_source_parse_and_inspect_use_native_cem_presentations() {
+        use cem_ml::schema::registry::{XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI};
+        let source = "(: Café (: 茶 :) :)\r\n/Q{urn:shop}catalog/Q{urn:shop}product[@label = \"O\"\"Brien <&>\"]";
+        let input = write_fixture("xpath-source-native-presentations.xpath", source);
+        let engine = RealCemMlEngine::new();
+        for (command, options, root) in [
+            ("parse", vec![], "{ast "),
+            ("parse", vec!["--format", "events"], "{event-stream "),
+            ("inspect", vec!["--show", "ast"], "{ast "),
+            ("inspect", vec!["--show", "tree"], "{ast "),
+            ("inspect", vec!["--show", "events"], "{event-stream "),
+        ] {
+            let mut args = vec![
+                command,
+                input.to_str().unwrap(),
+                "--content-type",
+                XPATH_CONTENT_TYPE,
+                "--schema",
+                XPATH_SCHEMA_URI,
+            ];
+            args.extend(options);
+            let (outcome, stdout, stderr) = run(&engine, &args);
+            assert_eq!(outcome.exit_code, EXIT_OK, "{args:?}: {stderr}");
+            assert!(stderr.is_empty(), "{args:?}: {stderr}");
+            assert!(stdout.contains("\u{1b}["), "{stdout:?}");
+            let visible = strip_ansi_codes(&stdout);
+            assert!(visible.starts_with("@doc cem-ml 1\n"), "{visible}");
+            assert!(visible.contains(root), "{visible}");
+            assert!(visible.contains(XPATH_SCHEMA_URI), "{visible}");
+            assert!(visible.contains("Q{urn:shop}product"), "{visible}");
+            assert!(visible.contains("Café"), "{visible}");
+            assert!(serde_json::from_str::<serde_json::Value>(&visible).is_err());
+            assert_cem_source_has_no_hard_diagnostics(&visible);
+        }
+        let destination =
+            std::env::temp_dir().join("cem-ml-cli-tests/xpath-source-presentation.cem");
+        let (outcome, stdout, stderr) = run(
+            &engine,
+            &[
+                "parse",
+                input.to_str().unwrap(),
+                "--content-type",
+                XPATH_CONTENT_TYPE,
+                "--schema",
+                XPATH_SCHEMA_URI,
+                "--out",
+                destination.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.is_empty());
+        let written = std::fs::read_to_string(&destination).unwrap();
+        assert!(written.starts_with("@doc cem-ml 1\n"), "{written}");
+        assert!(!written.contains("\u{1b}["), "{written:?}");
+        assert_cem_source_has_no_hard_diagnostics(&written);
+        assert_eq!(std::fs::read(&input).unwrap(), source.as_bytes());
+    }
+
+    #[test]
+    fn xpath_source_explicit_json_projections_keep_original_token_ranges() {
+        use cem_ml::schema::registry::{XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI};
+        fn elements<'a>(value: &'a serde_json::Value, found: &mut Vec<&'a serde_json::Value>) {
+            match value {
+                serde_json::Value::Array(values) => {
+                    for value in values {
+                        elements(value, found);
+                    }
+                }
+                serde_json::Value::Object(object) => {
+                    if object.get("kind").and_then(serde_json::Value::as_str) == Some("element") {
+                        found.push(value);
+                    }
+                    if let Some(children) = object.get("children") {
+                        elements(children, found);
+                    }
+                }
+                _ => {}
+            }
+        }
+        fn attribute<'a>(node: &'a serde_json::Value, name: &str) -> Option<&'a str> {
+            node["attributes"]
+                .as_array()?
+                .iter()
+                .find(|value| value["name"] == name)?["value"]
+                .as_str()
+        }
+        let source = "(: Café (: 茶 :) :)\r\n/Q{urn:shop}catalog/Q{urn:shop}product[@label = \"O\"\"Brien\"]";
+        let input = write_fixture("xpath-source-explicit-projections.xpath", source);
+        let engine = RealCemMlEngine::new();
+        let mut token_ranges = Vec::new();
+        for format in ["ast-json", "events-json"] {
+            let (outcome, stdout, stderr) = run(
+                &engine,
+                &[
+                    "parse",
+                    input.to_str().unwrap(),
+                    "--content-type",
+                    XPATH_CONTENT_TYPE,
+                    "--schema",
+                    XPATH_SCHEMA_URI,
+                    "--format",
+                    format,
+                ],
+            );
+            assert_eq!(outcome.exit_code, EXIT_OK, "{format}: {stderr}");
+            assert!(stderr.is_empty(), "{format}: {stderr}");
+            let projection: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+            let mut nodes = Vec::new();
+            elements(&projection, &mut nodes);
+            assert!(
+                nodes
+                    .iter()
+                    .any(|node| attribute(node, "schema") == Some(XPATH_SCHEMA_URI)),
+                "{projection:#}"
+            );
+            let tokens = nodes
+                .iter()
+                .filter(|node| {
+                    if format == "ast-json" {
+                        attribute(node, "id").is_some_and(|id| id.starts_with("token-"))
+                    } else {
+                        attribute(node, "kind") == Some("token")
+                    }
+                })
+                .collect::<Vec<_>>();
+            assert!(!tokens.is_empty(), "{projection:#}");
+            let mut reconstructed = String::new();
+            let mut ranges = Vec::new();
+            for token in tokens {
+                let offset = attribute(token, "byte-offset")
+                    .unwrap()
+                    .parse::<usize>()
+                    .unwrap();
+                let length = attribute(token, "byte-length")
+                    .unwrap()
+                    .parse::<usize>()
+                    .unwrap();
+                let lexeme = attribute(token, "value").unwrap();
+                assert_eq!(&source[offset..offset + length], lexeme, "{token:#}");
+                assert_eq!(attribute(token, "source-id"), input.to_str());
+                assert!(
+                    token["sourceMap"]["frames"]
+                        .as_array()
+                        .is_some_and(|frames| !frames.is_empty()),
+                    "{token:#}"
+                );
+                reconstructed.push_str(lexeme);
+                ranges.push((offset as u64, length as u64));
+            }
+            assert_eq!(reconstructed, source, "{format}");
+            if format == "ast-json" {
+                token_ranges = ranges;
+            } else {
+                assert_eq!(ranges, token_ranges);
+            }
+        }
+        let (outcome, stdout, stderr) = run(
+            &engine,
+            &[
+                "inspect",
+                input.to_str().unwrap(),
+                "--content-type",
+                XPATH_CONTENT_TYPE,
+                "--schema",
+                XPATH_SCHEMA_URI,
+                "--show",
+                "source-offsets",
+                "--format",
+                "json",
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let offsets: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        let ranges = offsets["offsets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| {
+                (
+                    row["byteStart"].as_u64().unwrap(),
+                    row["byteLen"].as_u64().unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(ranges, token_ranges);
+        let (outcome, stdout, stderr) = run(
+            &engine,
+            &[
+                "inspect",
+                input.to_str().unwrap(),
+                "--content-type",
+                XPATH_CONTENT_TYPE,
+                "--schema",
+                XPATH_SCHEMA_URI,
+                "--show",
+                "diagnostics",
+                "--format",
+                "json",
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let diagnostics: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(diagnostics["diagnostics"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn xpath_source_format_profiles_preserve_lexical_bytes_and_final_newline() {
+        use cem_ml::schema::registry::{XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI};
+        let source = "(: Café (: 茶 :) :)\r\n/Q{urn:shop}catalog/Q{urn:shop}product[@label = \"O\"\"Brien\"]";
+        let input = write_fixture("xpath-source-lossless.xpath", source);
+        let expected = format!("{source}\r\n");
+        for (content_type, profile) in [
+            (XPATH_CONTENT_TYPE, "compact"),
+            ("text/xpath; charset=utf-8", "pretty"),
+            (XPATH_CONTENT_TYPE, "tabular"),
+        ] {
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "convert",
+                    "--no-color",
+                    input.to_str().unwrap(),
+                    "--content-type",
+                    content_type,
+                    "--schema",
+                    XPATH_SCHEMA_URI,
+                    "--to-content-type",
+                    XPATH_CONTENT_TYPE,
+                    "--to-schema",
+                    XPATH_SCHEMA_URI,
+                    "--cemt-formatter",
+                    "xpath.format-expression",
+                    "--cemt-formatter-profile",
+                    profile,
+                ],
+            );
+            assert_eq!(outcome.exit_code, EXIT_OK, "{profile}: {stderr}");
+            assert!(stderr.is_empty(), "{profile}: {stderr}");
+            assert_eq!(stdout.as_bytes(), expected.as_bytes(), "{profile}");
+        }
+        let terminated = write_fixture("xpath-source-lossless-terminated.xpath", &expected);
+        let destination = std::env::temp_dir().join("cem-ml-cli-tests/xpath-source-lossless.out");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--no-color",
+                terminated.to_str().unwrap(),
+                "--content-type",
+                XPATH_CONTENT_TYPE,
+                "--schema",
+                XPATH_SCHEMA_URI,
+                "--to-content-type",
+                XPATH_CONTENT_TYPE,
+                "--to-schema",
+                XPATH_SCHEMA_URI,
+                "--out",
+                destination.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.is_empty());
+        assert!(stderr.is_empty(), "{stderr}");
+        assert_eq!(std::fs::read(&destination).unwrap(), expected.as_bytes());
+        assert_eq!(std::fs::read(&input).unwrap(), source.as_bytes());
+    }
+
+    #[test]
+    fn xpath_source_color_profiles_keep_visible_source_and_html_identity() {
+        use cem_ml::schema::registry::{XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI};
+        let source = "(: <script>&Café :)\r\n/Q{urn:shop}product[@label = \"茶\"]";
+        let input = write_fixture("xpath-source-color.xpath", source);
+        let common = [
+            "convert",
+            input.to_str().unwrap(),
+            "--content-type",
+            XPATH_CONTENT_TYPE,
+            "--schema",
+            XPATH_SCHEMA_URI,
+            "--to-content-type",
+            XPATH_CONTENT_TYPE,
+            "--to-schema",
+            XPATH_SCHEMA_URI,
+            "--cemt-formatter",
+            "xpath.format-expression",
+            "--cemt-formatter-profile",
+            "tabular",
+            "--cemt-colorizer",
+            "xpath.color-expression",
+        ];
+        let mut terminal = Vec::from(common);
+        terminal.extend([
+            "--cemt-color-profile",
+            "terminal",
+            "--output-color-type",
+            "ansi-256",
+        ]);
+        let (outcome, stdout, stderr) = run(&RealCemMlEngine::new(), &terminal);
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.is_empty(), "{stderr}");
+        assert!(stdout.contains("\x1b["), "{stdout:?}");
+        assert_eq!(strip_ansi_codes(&stdout), format!("{source}\r\n"));
+        let destination = std::env::temp_dir().join("cem-ml-cli-tests/xpath-source-color.html");
+        let report_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/xpath-source-color.report.json");
+        let mut html = Vec::from(common);
+        html.extend([
+            "--cemt-color-profile",
+            "html",
+            "--out",
+            destination.to_str().unwrap(),
+            "--report-json",
+            report_path.to_str().unwrap(),
+        ]);
+        let (outcome, stdout, stderr) = run(&RealCemMlEngine::new(), &html);
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.is_empty());
+        assert!(stderr.is_empty(), "{stderr}");
+        let written = std::fs::read_to_string(&destination).unwrap();
+        assert!(written.contains("<span"), "{written}");
+        assert!(
+            written.contains("data-role=\"syntax.comment\""),
+            "{written}"
+        );
+        assert!(written.contains("&lt;script&gt;&amp;Café"), "{written}");
+        assert!(!written.contains("<script>"), "{written}");
+        assert_eq!(html_text_content(&written), source);
+        let report: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&report_path).unwrap()).unwrap();
+        let output = &report["reportAst"]["convert"]["outputs"][0];
+        assert_eq!(
+            output["contentType"],
+            cem_ml::schema::registry::HTML_CONTENT_TYPE
+        );
+        assert_eq!(output["schema"], cem_ml::schema::registry::HTML_SCHEMA_URI);
+        assert_eq!(
+            output["conversion"]["converterId"],
+            "xpath-lifecycle-output"
+        );
+        assert_eq!(
+            output["conversion"]["outputPipeline"]["stages"][0]["function"],
+            "xpath.format-expression"
+        );
+        assert_eq!(
+            output["conversion"]["outputPipeline"]["stages"][1]["function"],
+            "xpath.color-expression"
+        );
+    }
+
+    #[test]
+    fn xpath_source_refusals_keep_native_diagnostics_and_admitted_output() {
+        use cem_ml::schema::registry::{XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI};
+        for (name, source, code) in [
+            (
+                "syntax",
+                b"/catalog/book[".as_slice(),
+                "cem.xpath.unclosed_delimiter",
+            ),
+            (
+                "lexical",
+                b"/catalog/`book".as_slice(),
+                "cem.xpath.lexical_error",
+            ),
+            (
+                "namespace",
+                b"/c:catalog".as_slice(),
+                "cem.xpath.unknown_namespace_prefix",
+            ),
+            (
+                "resource",
+                b"doc(\"catalog.xml\")/catalog".as_slice(),
+                "cem.xpath.external_resource_denied",
+            ),
+            ("utf8", [0xff].as_slice(), "cem.xpath.invalid_utf8"),
+        ] {
+            let input = write_binary_fixture(&format!("xpath-source-refusal-{name}.xpath"), source);
+            let destination = std::env::temp_dir()
+                .join(format!("cem-ml-cli-tests/xpath-source-refusal-{name}.out"));
+            let report_path = std::env::temp_dir().join(format!(
+                "cem-ml-cli-tests/xpath-source-refusal-{name}.report.json"
+            ));
+            let previous = b"previous admitted output";
+            std::fs::write(&destination, previous).unwrap();
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "convert",
+                    "--no-color",
+                    input.to_str().unwrap(),
+                    "--content-type",
+                    XPATH_CONTENT_TYPE,
+                    "--schema",
+                    XPATH_SCHEMA_URI,
+                    "--to-content-type",
+                    XPATH_CONTENT_TYPE,
+                    "--to-schema",
+                    XPATH_SCHEMA_URI,
+                    "--out",
+                    destination.to_str().unwrap(),
+                    "--report-json",
+                    report_path.to_str().unwrap(),
+                ],
+            );
+            assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{name}: {stderr}");
+            assert!(stdout.is_empty(), "{name}: {stdout}");
+            assert!(stderr.contains(code), "{name}: {stderr}");
+            assert!(
+                !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+                "{name}: {stderr}"
+            );
+            assert_eq!(std::fs::read(&destination).unwrap(), previous, "{name}");
+            assert_eq!(std::fs::read(&input).unwrap(), source, "{name}");
+            let report: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(&report_path).unwrap()).unwrap();
+            let diagnostic = report["diagnostics"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|diagnostic| diagnostic["code"] == code)
+                .unwrap();
+            assert_eq!(diagnostic["uri"], input.display().to_string(), "{name}");
+            if name == "syntax" {
+                assert_eq!(diagnostic["line"], 1);
+                assert_eq!(diagnostic["column"], 14);
+                assert_eq!(diagnostic["byteOffset"], 13);
+                assert!(diagnostic["sourceMap"]["frames"]
+                    .as_array()
+                    .is_some_and(|frames| !frames.is_empty()));
+            }
+            let (outcome, _, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "parse",
+                    "--no-color",
+                    input.to_str().unwrap(),
+                    "--content-type",
+                    XPATH_CONTENT_TYPE,
+                    "--schema",
+                    XPATH_SCHEMA_URI,
+                    "--fail-level",
+                    "strict",
+                    "--format",
+                    "ast-json",
+                ],
+            );
+            assert_eq!(
+                outcome.exit_code, EXIT_HARD_FAILURE,
+                "parse/{name}: {stderr}"
+            );
+            assert!(stderr.contains(code), "parse/{name}: {stderr}");
+            assert!(!stderr.contains("cem.tokenizer."), "parse/{name}: {stderr}");
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "inspect",
+                    "--no-color",
+                    input.to_str().unwrap(),
+                    "--content-type",
+                    XPATH_CONTENT_TYPE,
+                    "--schema",
+                    XPATH_SCHEMA_URI,
+                    "--show",
+                    "ast",
+                    "--out",
+                    destination.to_str().unwrap(),
+                ],
+            );
+            assert_ne!(outcome.exit_code, EXIT_OK, "inspect/{name}: {stderr}");
+            assert!(stdout.is_empty(), "inspect/{name}: {stdout}");
+            assert!(stderr.contains(code), "inspect/{name}: {stderr}");
+            assert_eq!(
+                std::fs::read(&destination).unwrap(),
+                previous,
+                "inspect/{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn xpath_source_export_and_dom_projection_refuse_unrelated_identities() {
+        use cem_ml::schema::registry::{XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI};
+        let input = write_fixture("xpath-source-unrelated-target.xpath", "/Q{urn:shop}catalog");
+        let destination =
+            std::env::temp_dir().join("cem-ml-cli-tests/xpath-source-unrelated-target.out");
+        let previous = b"previous admitted output";
+        for (content_type, schema) in [
+            (
+                cem_ml::schema::registry::CSS_SELECTOR_CONTENT_TYPE,
+                cem_ml::schema::registry::CSS_SELECTOR_SCHEMA_URI,
+            ),
+            (
+                cem_ml::schema::registry::XML_CONTENT_TYPE,
+                cem_ml::schema::registry::XML_SCHEMA_URI,
+            ),
+            (
+                cem_ml::schema::registry::XPATH_RESULT_CONTENT_TYPE,
+                XPATH_SCHEMA_URI,
+            ),
+        ] {
+            std::fs::write(&destination, previous).unwrap();
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "convert",
+                    "--no-color",
+                    input.to_str().unwrap(),
+                    "--content-type",
+                    XPATH_CONTENT_TYPE,
+                    "--schema",
+                    XPATH_SCHEMA_URI,
+                    "--to-content-type",
+                    content_type,
+                    "--to-schema",
+                    schema,
+                    "--out",
+                    destination.to_str().unwrap(),
+                ],
+            );
+            assert_eq!(
+                outcome.exit_code, EXIT_HARD_FAILURE,
+                "{content_type}: {stderr}"
+            );
+            assert!(stdout.is_empty(), "{content_type}: {stdout}");
+            assert!(
+                stderr.contains("cem.lifecycle.internal_ast_target_unsupported"),
+                "{content_type}: {stderr}"
+            );
+            assert_eq!(std::fs::read(&destination).unwrap(), previous);
+        }
+        let (outcome, _, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "parse",
+                "--no-color",
+                input.to_str().unwrap(),
+                "--content-type",
+                XPATH_CONTENT_TYPE,
+                "--schema",
+                XPATH_SCHEMA_URI,
+                "--format",
+                "dom-json",
+                "--fail-level",
+                "strict",
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        assert!(
+            stderr.contains("cem.source.dom_projection_unsupported"),
+            "{stderr}"
         );
     }
 

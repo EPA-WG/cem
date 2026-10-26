@@ -64,7 +64,9 @@ use crate::validation::xml::{
     XmlEncodingReportAst, XmlEventAst, XmlEventKind, XmlMarkupTokenAst, XmlMarkupTokenKind,
     XmlParseFact, XmlSourceRange,
 };
-use crate::validation::xpath::XPathResultArtifact;
+use crate::validation::xpath::{
+    XPathExpressionAst, XPathExpressionSource, XPathResultArtifact, XPathTokenAst, XPATH_GRAMMAR_VERSION,
+};
 use crate::validation::xslt::{XsltFact, XsltStylesheetAst};
 use crate::validation::yaml::{
     YamlCommentAst, YamlCommentPlacement, YamlDirectiveAst, YamlDocumentAst, YamlDocumentParseFact,
@@ -1495,6 +1497,11 @@ pub struct MarkdownDocumentCemtSubjectRef<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct XPathExpressionCemtSubjectRef<'a> {
+    expression: &'a XPathExpressionAst,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct CssSelectorExpressionCemtSubjectRef<'a> {
     expression: &'a CssSelectorExpressionAst,
 }
@@ -1630,6 +1637,22 @@ impl<'a> MarkdownDocumentCemtSubjectRef<'a> {
     pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
         CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::MarkdownDocument {
             document: self.document,
+        })
+    }
+}
+
+impl<'a> XPathExpressionCemtSubjectRef<'a> {
+    pub fn new(expression: &'a XPathExpressionAst) -> Self {
+        Self { expression }
+    }
+
+    pub fn expression(self) -> &'a XPathExpressionAst {
+        self.expression
+    }
+
+    pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
+        CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::Package {
+            record: self.expression,
         })
     }
 }
@@ -3540,6 +3563,10 @@ fn cemt_evaluator_node_format_sequence_matches(
 
 #[derive(Debug, Clone)]
 pub enum CemtEvaluatorRecordRef<'a> {
+    XPathToken {
+        expression: &'a XPathExpressionAst,
+        token: &'a XPathTokenAst,
+    },
     Package {
         record: &'a dyn CemtEvaluatorRecordView,
     },
@@ -3832,7 +3859,8 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::Attribute { path, .. }
             | Self::FormattedNode { path, .. }
             | Self::FormattedAttribute { path, .. } => Some(path),
-            Self::Package { .. }
+            Self::XPathToken { .. }
+            | Self::Package { .. }
             | Self::JsonDocument { .. }
             | Self::CsvDocument { .. }
             | Self::CsvSource { .. }
@@ -3928,7 +3956,8 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             Self::Attribute { attribute, .. } | Self::FormattedAttribute { attribute, .. } => {
                 Some(CemtTreeOwnerRef::Attribute(attribute))
             }
-            Self::Package { .. }
+            Self::XPathToken { .. }
+            | Self::Package { .. }
             | Self::JsonDocument { .. }
             | Self::CsvDocument { .. }
             | Self::CsvSource { .. }
@@ -4046,6 +4075,9 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn field_names(&self) -> &'static [&'static str] {
         match self {
+            Self::XPathToken { .. } => &[
+                "index", "kind", "lexeme", "depth", "role", "sourceRange", "sourceMap",
+            ],
             Self::Package { record } => record.field_names(),
             Self::CsvDocument { document } if document.line_ending.is_some() => &[
                 "kind",
@@ -4828,6 +4860,26 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn field(&self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
         match self {
+            Self::XPathToken { expression, token } => match name {
+                "index" => Some(usize_evaluator_value(token.index)),
+                "kind" => Some(CemtEvaluatorValueRef::String(token.kind.as_str())),
+                "lexeme" => Some(CemtEvaluatorValueRef::String(&token.lexeme)),
+                "depth" => Some(usize_evaluator_value(token.depth)),
+                "role" => Some(CemtEvaluatorValueRef::String(token.kind.role())),
+                "sourceRange" => Some(xml_family_source_range_evaluator_value(
+                    token.source_range.start.byte_offset,
+                    token.source_range.byte_length,
+                    token.source_range.start.line,
+                    token.source_range.start.column,
+                )),
+                "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+                    token.source_range.source_map(
+                        expression.attachment.source_id(),
+                        &expression.source.media_type,
+                    ),
+                ))),
+                _ => None,
+            },
             Self::Package { record } => (*record).field(name),
             Self::CsvDocument { document } => csv_document_evaluator_field(document, name),
             Self::CsvSource { source } => csv_source_evaluator_field(source, name),
@@ -9300,6 +9352,80 @@ pub struct TransformArtifactCollectionItem {
     pub output_spans: Vec<OutputSpan>,
 }
 
+impl CemtEvaluatorRecordView for XPathExpressionAst {
+    fn field_names(&self) -> &'static [&'static str] {
+        &[
+            "kind",
+            "contentType",
+            "schema",
+            "category",
+            "grammarVersion",
+            "source",
+            "sourceText",
+            "tokens",
+            "lineEnding",
+        ]
+    }
+
+    fn field<'a>(&'a self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
+        match name {
+            "kind" | "category" => Some(CemtEvaluatorValueRef::String("xpath-expression")),
+            "contentType" => Some(CemtEvaluatorValueRef::String(&self.source.media_type)),
+            "schema" => Some(CemtEvaluatorValueRef::String(XPATH_SCHEMA_URI)),
+            "grammarVersion" => Some(CemtEvaluatorValueRef::String(XPATH_GRAMMAR_VERSION)),
+            "source" => Some(CemtEvaluatorValueRef::Record(
+                CemtEvaluatorRecordRef::Package {
+                    record: &self.source,
+                },
+            )),
+            "sourceText" => Some(optional_string_evaluator_value(self.source_text.as_deref())),
+            "tokens" => Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::Package { sequence: self },
+            )),
+            "lineEnding" => Some(optional_string_evaluator_value(self.line_ending.as_deref())),
+            _ => None,
+        }
+    }
+}
+
+impl CemtEvaluatorRecordView for XPathExpressionSource {
+    fn field_names(&self) -> &'static [&'static str] {
+        &[
+            "uri",
+            "contentType",
+            "mediaType",
+            "parameters",
+            "byteLength",
+        ]
+    }
+
+    fn field<'a>(&'a self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
+        match name {
+            "uri" => Some(CemtEvaluatorValueRef::String(&self.uri)),
+            "contentType" => Some(CemtEvaluatorValueRef::String(&self.content_type)),
+            "mediaType" => Some(CemtEvaluatorValueRef::String(&self.media_type)),
+            "parameters" => Some(CemtEvaluatorValueRef::StringMap(&self.parameters)),
+            "byteLength" => Some(usize_evaluator_value(self.byte_length)),
+            _ => None,
+        }
+    }
+}
+
+impl CemtEvaluatorSequenceView for XPathExpressionAst {
+    fn len(&self) -> usize {
+        self.tokens.len()
+    }
+
+    fn item<'a>(&'a self, index: usize) -> Option<CemtEvaluatorValueRef<'a>> {
+        self.tokens.get(index).map(|token| {
+            CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::XPathToken {
+                expression: self,
+                token,
+            })
+        })
+    }
+}
+
 impl CemtEvaluatorRecordView for CssSelectorExpressionAst {
     fn field_names(&self) -> &'static [&'static str] {
         &[
@@ -9822,6 +9948,98 @@ mod tests {
             .expect("nested array/object path");
         assert_eq!(item.json_lexeme(), Some("1"));
         assert!(matches!(item.json_ast(), Some(JsonValueAst::Number { .. })));
+    }
+
+    #[test]
+    fn xpath_evaluator_view_borrows_original_owner_tokens_and_source_maps() {
+        use crate::validation::xpath::{
+            xpath_expression_ast_from_source_bytes, XPathAttachment, XPathSourceRequest,
+            XPathStaticContext,
+        };
+        let source = "(: Café (: nested :) :)\r\n/Q{urn:catalog}π[@title=\"茶<&>\"]";
+        let owner = Arc::new(xpath_expression_ast_from_source_bytes(
+            XPathSourceRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory:original.xpath",
+                content_type: Some("text/xpath; charset=utf-8"),
+                source_range_projector: None,
+            },
+            XPathAttachment::StandaloneStaticContext {
+                source_id: 77,
+                static_context: XPathStaticContext {
+                    namespaces: BTreeMap::from([("c".to_owned(), "urn:catalog".to_owned())]),
+                    ..XPathStaticContext::default()
+                },
+            },
+        ));
+        let subject = XPathExpressionCemtSubjectRef::new(owner.as_ref());
+        assert!(std::ptr::eq(subject.expression(), owner.as_ref()));
+        let view = CemtEvaluatorValue::borrowed(subject.evaluator_view());
+        assert_eq!(
+            view.field("kind").unwrap().as_str(),
+            Some("xpath-expression")
+        );
+        assert_eq!(
+            view.resolve_path("source.uri").unwrap().as_str(),
+            Some("memory:original.xpath")
+        );
+        assert_eq!(
+            view.resolve_path("source.contentType").unwrap().as_str(),
+            Some("text/xpath; charset=utf-8")
+        );
+        let text = view.field("sourceText").unwrap();
+        assert!(std::ptr::eq(
+            text.as_str().unwrap().as_ptr(),
+            owner.source_text.as_ref().unwrap().as_ptr()
+        ));
+        let tokens = view
+            .field("tokens")
+            .unwrap()
+            .sequence_values("native XPath tokens")
+            .unwrap();
+        assert_eq!(tokens.len(), owner.tokens.len());
+        let mut rendered = String::new();
+        for (view, token) in tokens.iter().zip(&owner.tokens) {
+            let lexeme = view.field("lexeme").unwrap();
+            let lexeme = lexeme.as_str().unwrap();
+            assert!(std::ptr::eq(lexeme.as_ptr(), token.lexeme.as_ptr()));
+            rendered.push_str(lexeme);
+            assert_eq!(
+                view.field("role").unwrap().as_str(),
+                Some(token.kind.role())
+            );
+            assert_eq!(
+                view.field("sourceMap").unwrap().as_source_map(),
+                Some(&token.source_range.source_map(77, &owner.source.media_type))
+            );
+            for (name, expected) in [
+                ("byteOffset", token.source_range.start.byte_offset),
+                ("byteLength", token.source_range.byte_length),
+                ("line", u64::from(token.source_range.start.line)),
+                ("column", u64::from(token.source_range.start.column)),
+            ] {
+                assert_eq!(
+                    view.resolve_path(&format!("sourceRange.{name}"))
+                        .unwrap()
+                        .as_number()
+                        .and_then(CemtEvaluatorNumber::as_u64),
+                    Some(expected)
+                );
+            }
+            let start = token.source_range.start.byte_offset as usize;
+            assert_eq!(
+                &source[start..start + token.source_range.byte_length as usize],
+                lexeme
+            );
+        }
+        assert_eq!(rendered, source);
+        assert!(matches!(&subject.expression().attachment,
+            XPathAttachment::StandaloneStaticContext { static_context, .. } if static_context.namespaces.get("c").map(String::as_str) == Some("urn:catalog")));
+        assert_eq!(
+            Arc::strong_count(&owner),
+            1,
+            "the source view borrows its native owner"
+        );
     }
 
     #[test]
