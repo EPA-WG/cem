@@ -1,7 +1,7 @@
 {
   "id": "supplier-pipeline",
   "name": "Supplier pipeline",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Namespace-aware XML catalog validation and selection, then XML products and CSV stock reconciled through explicit native domain rules into JSON, YAML and HTML, with failure/repair and source provenance.",
   "collections": [
     "amsterdam-2026",

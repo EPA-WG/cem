@@ -441,13 +441,17 @@ describe('CEM Studio Feature Tour copies', () => {
             expect(baseline.outputs).toHaveLength(Object.keys(configuration.expectedGraphOutputs).length);
             for (const [path, expected] of Object.entries(configuration.expectedGraphOutputs)) {
                 const bytes = baseline.outputs.find(item => item.uri.endsWith(`/${path}`)).bytes;
-                // Generic-data JSON exports retain an abstract JSON primary;
-                // CLI and worker hosts currently choose different whitespace.
-                expect(JSON.parse(new TextDecoder().decode(bytes))).toEqual(JSON.parse(decode(expected)));
+                // Native CLI and worker publication share the same JSON byte policy.
+                expect(new Uint8Array(bytes)).toEqual(bundle.contents[expected]);
             }
             for (const artifact of baseline.result.result.value.value.value.artifacts) expect(artifact.outputSpans ?? []).toEqual([]);
             const original = decode(configuration.source);
             if (configuration.id === 'report-ready') {
+                const largeIntegerData = decode('order-data').replace('"units": 3', '"units": 9007199254740993');
+                const large = await run({ 'order-data': largeIntegerData });
+                const expectedId = configuration.expectedGraphOutputs[configuration.entryArtifact];
+                const expected = decode(expectedId).replace('"units": 3', '"units": 9007199254740993');
+                expect(new TextDecoder().decode(large.outputs.find(item => item.uri.endsWith(`/${configuration.entryArtifact}`)).bytes)).toBe(expected);
                 const edited = original.replace('@name=minimum @value=30', '@name=minimum @value=45'); expect(edited).not.toBe(original);
                 const customized = await run({ [configuration.source]: edited }); expect(JSON.parse(customized.output.text)).toHaveLength(1);
             }

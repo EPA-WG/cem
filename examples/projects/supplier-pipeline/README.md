@@ -5,6 +5,11 @@ find the same project under **Amsterdam 2026**. Clone it, then open the resultin
 ordinary editable project in Studio. The catalog original remains unchanged;
 each copy owns its resources, configurations and saved revisions independently.
 
+The JSON artifact and expected fixture use the shared native graph byte policy:
+UTF-8, two-space indentation, LF and no appended newline, with native lexical
+object-key order. Native CLI and Studio builds compare these exact bytes and
+hashes; the supplier records and reconciliation rules are unchanged.
+
 ## Resources and configurations
 
 The resource identities in [example.json](example.json) are:

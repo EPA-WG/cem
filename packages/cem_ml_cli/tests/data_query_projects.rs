@@ -193,7 +193,7 @@ fn authored_query_projects_keep_typed_values_exact_exports_and_owned_node_ranges
         let project = Project::new(id);
         assert_eq!(
             project.configs().len(),
-            if id == "cemql-orders" { 14 } else { 7 }
+            if id == "cemql-orders" { 14 } else { 15 }
         );
         for config in project.configs() {
             let output = project.run(config);
@@ -447,4 +447,21 @@ fn xpath_owned_parameter_maps_and_query_edits_rebuild_from_their_original_source
         refused.stdout.is_empty(),
         "invalid query source must not publish a replacement result"
     );
+}
+
+#[test]
+fn json_graph_publication_preserves_large_integer_bytes_through_native_import_and_export() {
+    let project = Project::new("cemql-orders");
+    let graph = project.config("report-ready");
+    let source = String::from_utf8(project.read("order-data")).unwrap();
+    let edited = source.replace("\"units\": 3", "\"units\": 9007199254740993");
+    assert_ne!(edited, source);
+    fs::write(project.path("order-data"), edited).unwrap();
+    let outcome = project.run(graph);
+    assert!(outcome.status.success(), "{}", String::from_utf8_lossy(&outcome.stderr));
+    let path = graph["entryArtifact"].as_str().unwrap();
+    let fixture = graph["expectedGraphOutputs"][path].as_str().unwrap();
+    let expected = String::from_utf8(project.read(fixture)).unwrap().replace("\"units\": 3", "\"units\": 9007199254740993");
+    assert_eq!(fs::read(project.root.join(path)).unwrap(), expected.as_bytes());
+
 }

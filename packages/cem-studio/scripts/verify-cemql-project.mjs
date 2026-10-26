@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
 /** Ordinary CEM-QL source, native results and declared parameter-map builds. */
@@ -85,7 +86,10 @@ export async function verifyCemqlProject({ page, context, url }) {
         if (configuration.kind === 'transformation-graph') {
             const built = await build(project, configuration.id); assert.equal(built.buildStatus, 'succeeded', JSON.stringify(built));
             assert.equal(built.entry, configuration.entryArtifact);
-            assert.deepEqual(JSON.parse(built.buildText), await contract(configuration.expectedGraphOutputs[configuration.entryArtifact]));
+            const expected = await fixture(configuration.expectedGraphOutputs[configuration.entryArtifact]);
+            assert.equal(built.buildText, expected);
+            assert.equal(built.artifacts.find(item => item.path === configuration.entryArtifact).sha256,
+                createHash('sha256').update(expected).digest('hex'));
             assert.ok(built.artifacts.every(item => item.provenance.length === 0));
             await assertTable(JSON.parse(built.buildText).length);
         } else {
@@ -153,7 +157,7 @@ export async function verifyCemqlProject({ page, context, url }) {
         await page.reload(); await ready();
         assert.deepEqual(items(await run(copy, 'query-join')), copiedJoin); assert.deepEqual(items(await run(copy, 'query-filter')), draftItems);
         await assertNodes(await run(copy, 'query-source-nodes'), copy);
-        const offline = await build(copy); assert.equal(offline.buildStatus, 'succeeded'); assert.equal(offline.buildText, copied.buildText); await assertTable(1);
+        const offline = await build(copy); assert.equal(offline.buildStatus, 'succeeded'); assert.equal(offline.buildText, copied.buildText); assert.deepEqual(offline.artifacts, copied.artifacts); await assertTable(1);
         for (const [name, expected] of [['order-data', editedData], ['filter-expression', editedFilter], ['order-module', editedModule], ['ready-graph', editedGraph], [repair.source, repaired]]) {
             await open({ project: copy, file: name, build: 'report-ready' }); assert.equal(await editor.evaluate(element => element.value), expected);
         }

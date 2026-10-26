@@ -106,12 +106,7 @@ export async function verifyCatalogConfigurations({ page, context, url }) {
                     for (const [path, expected] of Object.entries(configuration.expectedGraphOutputs ?? {})) {
                         const output = outcome.outputs.find(item => item.path === path);
                         assert.ok(output, `${label}: missing build artifact ${path}`);
-                        // CLI indents abstract JSON; worker publication is compact.
-                        // Compare the complete explicitly exported value, retaining
-                        // the worker's actual bytes for the offline equality check.
-                        if (output.contentType.split(';')[0] === 'application/json' || output.contentType.split(';')[0].endsWith('+json')) {
-                            assert.deepEqual(JSON.parse(Buffer.from(output.bytes).toString('utf8')), JSON.parse(expectedText(expected)), `${label}/${path}`);
-                        } else assert.deepEqual(Buffer.from(output.bytes), expectedBytes(expected), `${label}/${path}: build fixture drifted`);
+                        assert.deepEqual(Buffer.from(output.bytes), expectedBytes(expected), `${label}/${path}: build fixture drifted`);
                     }
                     if (configuration.expectedGraphOutput) {
                         const output = outcome.outputs.find(item => item.path === configuration.expectedGraphOutput);

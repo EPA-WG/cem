@@ -5293,6 +5293,11 @@ fn transform_graph_output_kind(primary: &serde_json::Value) -> String {
     }
 }
 
+fn graph_primary_has_control_metadata(artifact: &eng::TransformGraphArtifact) -> bool {
+    artifact.primary_kind == eng::TransformGraphPrimaryKind::Collection
+        || !cem_ml::graph_output::is_declared_json(artifact.identity.as_ref())
+}
+
 fn transform_graph_artifact_source_map_value(
     artifact: &eng::TransformGraphArtifact,
 ) -> Option<serde_json::Value> {
@@ -5301,13 +5306,21 @@ fn transform_graph_artifact_source_map_value(
         .as_ref()
         .and_then(|source_map| serde_json::to_value(source_map).ok())
         .or_else(|| {
-            artifact
-                .primary
-                .get("sourceMap")
-                .filter(|source_map| !source_map.is_null())
-                .cloned()
+            graph_primary_has_control_metadata(artifact)
+                .then(|| {
+                    artifact
+                        .primary
+                        .get("sourceMap")
+                        .filter(|source_map| !source_map.is_null())
+                        .cloned()
+                })
+                .flatten()
         })
-        .or_else(|| transform_graph_collection_source_map_value(&artifact.primary))
+        .or_else(|| {
+            (artifact.primary_kind == eng::TransformGraphPrimaryKind::Collection)
+                .then(|| transform_graph_collection_source_map_value(&artifact.primary))
+                .flatten()
+        })
 }
 
 fn transform_graph_has_source_map(artifact: &eng::TransformGraphArtifact) -> bool {
@@ -5317,6 +5330,9 @@ fn transform_graph_has_source_map(artifact: &eng::TransformGraphArtifact) -> boo
 fn transform_graph_output_span_count(artifact: &eng::TransformGraphArtifact) -> u64 {
     if artifact.source_map.is_some() || !artifact.output_spans.is_empty() {
         return artifact.output_spans.len() as u64;
+    }
+    if !graph_primary_has_control_metadata(artifact) {
+        return 0;
     }
     artifact
         .primary
@@ -5332,6 +5348,9 @@ fn transform_graph_artifact_output_spans_value(
     if artifact.source_map.is_some() || !artifact.output_spans.is_empty() {
         return serde_json::to_value(&artifact.output_spans)
             .unwrap_or_else(|_| serde_json::json!([]));
+    }
+    if !graph_primary_has_control_metadata(artifact) {
+        return serde_json::json!([]);
     }
     artifact
         .primary
@@ -5483,7 +5502,13 @@ fn transform_graph_report_from_artifacts(
                     artifact.destination.as_deref(),
                     has_source_map,
                 ),
-                collection_items: transform_graph_collection_item_reports(&artifact.primary),
+                collection_items: if artifact.primary_kind
+                    == eng::TransformGraphPrimaryKind::Collection
+                {
+                    transform_graph_collection_item_reports(&artifact.primary)
+                } else {
+                    Vec::new()
+                },
             }
         })
         .collect::<Vec<_>>();
@@ -6953,6 +6978,29 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     }
 }
 
+fn write_graph_artifact_primary(
+    context: &eng::EngineContext,
+    artifact: &eng::TransformGraphArtifact,
+    out: Option<&Path>,
+    output_color_type: Option<&str>,
+    s: &mut Streams<'_>,
+) -> io::Result<()> {
+    if let Some(bytes) =
+        cem_ml::graph_output::graph_artifact_bytes(artifact).map_err(invalid_structured_document)?
+    {
+        write_raw_primary_bytes(context, &bytes, out, s)
+    } else {
+        write_document_primary_with_identity(
+            context,
+            &artifact.primary,
+            artifact.identity.as_ref(),
+            out,
+            output_color_type,
+            s,
+        )
+    }
+}
+
 #[cfg(test)]
 fn write_transform_graph_artifacts(
     context: &eng::EngineContext,
@@ -6966,18 +7014,7 @@ fn write_transform_graph_artifacts(
         .collect::<BTreeSet<_>>();
     for artifact in artifacts {
         let out = artifact.destination.as_deref().map(Path::new);
-        if let Some(primary_bytes) = artifact.primary_bytes.as_ref() {
-            write_raw_primary_bytes(context, &primary_bytes.bytes, out, s)?;
-        } else {
-            write_document_primary_with_identity(
-                context,
-                &artifact.primary,
-                artifact.identity.as_ref(),
-                out,
-                output_color_type,
-                s,
-            )?;
-        }
+        write_graph_artifact_primary(context, artifact, out, output_color_type, s)?;
         write_transform_graph_source_map_sidecar(context, artifact)?;
         write_transform_graph_collection_item_artifacts(
             context,
@@ -7044,14 +7081,12 @@ fn stage_transform_graph_artifacts(
                 Path::new(destination),
                 "output destination",
                 ResolvePurpose::Output,
-                artifact
-                    .primary_bytes
-                    .as_ref()
-                    .map(|primary| primary.bytes.clone())
-                    .map(Ok)
-                    .unwrap_or_else(|| {
-                        document_primary_bytes(&artifact.primary, artifact.identity.as_ref())
-                    })?,
+                match cem_ml::graph_output::graph_artifact_bytes(artifact)
+                    .map_err(invalid_structured_document)?
+                {
+                    Some(bytes) => bytes.into_owned(),
+                    None => document_primary_bytes(&artifact.primary, artifact.identity.as_ref())?,
+                },
             );
             stage_transform_graph_source_map_sidecar(batch, artifact)?;
         }
@@ -7065,12 +7100,7 @@ fn stage_transform_graph_collection_item_artifacts(
     artifact: &eng::TransformGraphArtifact,
     top_level_destinations: &BTreeSet<String>,
 ) -> io::Result<()> {
-    if artifact
-        .primary
-        .get("kind")
-        .and_then(serde_json::Value::as_str)
-        != Some("collection")
-    {
+    if artifact.primary_kind != eng::TransformGraphPrimaryKind::Collection {
         return Ok(());
     }
     let Some(items) = artifact
@@ -7214,12 +7244,7 @@ fn write_transform_graph_collection_item_artifacts(
     top_level_destinations: &BTreeSet<String>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
-    if artifact
-        .primary
-        .get("kind")
-        .and_then(serde_json::Value::as_str)
-        != Some("collection")
-    {
+    if artifact.primary_kind != eng::TransformGraphPrimaryKind::Collection {
         return Ok(());
     }
     let Some(items) = artifact
@@ -7893,10 +7918,9 @@ fn run_transform_graph<E: CemMlEngine + ?Sized>(
                 .iter()
                 .filter(|artifact| artifact.destination.is_none())
             {
-                if let Err(e) = write_document_primary_with_identity(
+                if let Err(e) = write_graph_artifact_primary(
                     &engine_context,
-                    &artifact.primary,
-                    artifact.identity.as_ref(),
+                    artifact,
                     None,
                     args.output_color_type.as_deref(),
                     s,
@@ -10549,6 +10573,7 @@ mod tests {
         let collection_output_spans = serde_json::to_value(vec![test_output_span(8)]).unwrap();
         let artifacts = vec![
             eng::TransformGraphArtifact {
+                primary_kind: Default::default(),
                 export_id: "main".to_owned(),
                 input: "html".to_owned(),
                 destination: Some("out/page.html".to_owned()),
@@ -10564,6 +10589,7 @@ mod tests {
                 output_spans: vec![test_output_span(4)],
             },
             eng::TransformGraphArtifact {
+                primary_kind: Default::default(),
                 export_id: "stdout".to_owned(),
                 input: "html".to_owned(),
                 destination: None,
@@ -10576,6 +10602,7 @@ mod tests {
                 output_spans: Vec::new(),
             },
             eng::TransformGraphArtifact {
+                primary_kind: eng::TransformGraphPrimaryKind::Collection,
                 export_id: "collection".to_owned(),
                 input: "joined".to_owned(),
                 destination: Some("out/collection.json".to_owned()),
@@ -10768,12 +10795,99 @@ mod tests {
     }
 
     #[test]
+    fn transform_graph_json_publication_matches_shared_fixture_direct_and_transactional() {
+        let expected =
+            include_bytes!("../../cem_ml/tests/fixtures/graph-output/abstract-json.json");
+        let root =
+            std::env::temp_dir().join(format!("cem-json-graph-policy-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let mut artifact = eng::TransformGraphArtifact {
+            primary_kind: Default::default(),
+            export_id: "json".into(),
+            input: "data".into(),
+            destination: None,
+            identity: Some(eng::FormatIdentity {
+                content_type: Some("application/json; charset=utf-8".into()),
+                ..Default::default()
+            }),
+            primary: serde_json::from_slice(expected).unwrap(),
+            primary_bytes: None,
+            source_map: None,
+            output_spans: Vec::new(),
+        };
+        for (value, explicit, expected) in [
+            (
+                serde_json::from_slice(expected).unwrap(),
+                None,
+                expected.as_slice(),
+            ),
+            (serde_json::json!("Café 🍒"), None, "\"Café 🍒\"".as_bytes()),
+            (serde_json::Value::Null, None, b"null".as_slice()),
+            (
+                serde_json::json!({"content":"ignored"}),
+                Some(b"{ \"z\": 1 }\r\n".as_slice()),
+                b"{ \"z\": 1 }\r\n".as_slice(),
+            ),
+            (
+                serde_json::json!({"content":"ignored"}),
+                Some(b"".as_slice()),
+                b"".as_slice(),
+            ),
+        ] {
+            artifact.destination = None;
+            artifact.primary = value;
+            artifact.primary_bytes = explicit.map(|bytes| eng::PrimaryBytes {
+                content_type: "application/json; charset=utf-8".into(),
+                schema: None,
+                format_version: "explicit-test/1".into(),
+                hash_scheme: "sha256".into(),
+                hash: cem_ml::command_service::sha256_hex(bytes),
+                bytes: bytes.to_vec(),
+            });
+            let mut stdout = Vec::new();
+            let mut stderr = Vec::new();
+            let mut streams = Streams {
+                stdout: &mut stdout,
+                stderr: &mut stderr,
+                quiet: false,
+                no_color: true,
+                abort_signal: cem_ml::scheduler::AbortSignal::new(),
+                #[cfg(feature = "debug-control")]
+                operation_control: None,
+            };
+            let context = eng::EngineContext::default();
+            write_transform_graph_artifacts(&context, &[artifact.clone()], None, &mut streams)
+                .unwrap();
+            assert_eq!(stdout, expected);
+            artifact.destination = Some(root.join("transaction.json").display().to_string());
+            let mut batch = PublicationBatch::new();
+            let mut second = artifact.clone();
+            second.export_id = "second".into();
+            second.destination = Some(root.join("transaction-copy.json").display().to_string());
+            stage_transform_graph_artifacts(&mut batch, &[artifact.clone(), second]).unwrap();
+            batch.commit(&context).unwrap();
+            assert_eq!(
+                std::fs::read(root.join("transaction.json")).unwrap(),
+                expected
+            );
+            assert_eq!(
+                std::fs::read(root.join("transaction-copy.json")).unwrap(),
+                expected
+            );
+            assert!(!root.join("transaction.json.map").exists());
+            assert!(!root.join("transaction-copy.json.map").exists());
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn transform_graph_artifact_writer_emits_source_map_sidecars() {
         let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-graph-source-map-sidecar");
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
         let out = root.join("out/page.html");
         let artifacts = vec![eng::TransformGraphArtifact {
+            primary_kind: Default::default(),
             export_id: "main".to_owned(),
             input: "html".to_owned(),
             destination: Some(out.display().to_string()),
@@ -10835,6 +10949,7 @@ mod tests {
         let source_map = serde_json::to_value(test_source_map(21)).unwrap();
         let output_spans = serde_json::to_value(vec![test_output_span(21)]).unwrap();
         let artifacts = vec![eng::TransformGraphArtifact {
+            primary_kind: eng::TransformGraphPrimaryKind::Collection,
             export_id: "joined".to_owned(),
             input: "collection".to_owned(),
             destination: Some(out.display().to_string()),
@@ -10950,6 +11065,7 @@ mod tests {
         let out = root.join("out/collection.yml");
         let item_out = root.join("out/theme.yml");
         let artifacts = vec![eng::TransformGraphArtifact {
+            primary_kind: eng::TransformGraphPrimaryKind::Collection,
             export_id: "joined".to_owned(),
             input: "collection".to_owned(),
             destination: Some(out.display().to_string()),
@@ -11036,6 +11152,7 @@ mod tests {
         let out = root.join("out/collection.xml");
         let item_out = root.join("out/theme.xml");
         let artifacts = vec![eng::TransformGraphArtifact {
+            primary_kind: eng::TransformGraphPrimaryKind::Collection,
             export_id: "joined".to_owned(),
             input: "collection".to_owned(),
             destination: Some(out.display().to_string()),

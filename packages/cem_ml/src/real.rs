@@ -14228,6 +14228,11 @@ impl CemMlEngine for RealCemMlEngine {
                         }
                     };
                     exported.push(TransformGraphArtifact {
+                        primary_kind: if matches!(&artifact.body, TransformArtifactBody::Collection(_)) {
+                            crate::engine::TransformGraphPrimaryKind::Collection
+                        } else {
+                            crate::engine::TransformGraphPrimaryKind::Value
+                        },
                         export_id: export.id.clone(),
                         input: export.input.clone(),
                         destination: export.destination.clone(),

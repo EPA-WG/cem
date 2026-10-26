@@ -1295,6 +1295,30 @@ references a native transformation graph, but a single CEM-ML document can use a
 derived one-step HTML rendering configuration without requiring an authored graph
 file. Both paths use the same native execution and result contracts.
 
+Declared JSON graph exports use the shared native publication byte policy. An
+abstract JSON primary without native writer bytes is UTF-8 JSON with two-space
+indentation, LF line endings and no BOM or appended newline. Objects use the
+native JSON value map's lexical key order; array order, native number values and
+Unicode/escaping semantics are retained. The complete value is data, including
+scalar strings and fields named `content`, `kind`, `items`, `sourceMap` or
+`outputSpans`; the encoder does not extract a document envelope or grant output
+authority from those fields. Native collection controls have a producer-owned
+runtime marker: their established CLI manifest/sidecar contract and common
+command control publication remain separate from abstract JSON data encoding. This marker is
+not read from JSON. Cross-host collection sidecar/manifest parity is a separate
+follow-up; this policy does not discard or relocate collection source metadata.
+`application/json`, `text/json` and `+json` MIME types are recognized independently of case and
+parameters. An absent identity does not implicitly select this policy.
+
+Explicit native writer bytes always win, including empty bytes, original key
+order, line endings and trailing whitespace. Native CLI stdout/file publication
+and worker/owned-fallback graph publication use the same encoder, so preview,
+download and artifact SHA-256 cover identical bytes. Native collection controls,
+reports, source exports and non-JSON formats keep their own contracts. This is a graph export
+boundary, never a JSON AST handoff or an input parser. Existing saved and pinned
+artifacts retain their stored bytes; rebuilding publishes the policy's bytes
+and computes the corresponding new hashes without rewriting old snapshots.
+
 | Project shape | Build inputs | Published artifacts |
 | --- | --- | --- |
 | Single document | CEM-ML source and its declared dependencies | One HTML document, plus any explicitly exported assets |

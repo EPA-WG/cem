@@ -377,14 +377,14 @@
       "id": "supplier-pipeline",
       "name": "Supplier pipeline",
       "description": "Namespace-aware XML catalog validation and selection, then XML products and CSV stock reconciled through explicit native domain rules into JSON, YAML and HTML, with failure/repair and source provenance.",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "collections": [
         "amsterdam-2026",
         "content-types-data",
         "content-types-queries-transformations"
       ],
       "archive": "./examples/supplier-pipeline.cem-studio.json",
-      "sha256": "2a29a6bc8b75fbdbb90e817728e486f0749394a1118c2080f4712866b63e3d8a"
+      "sha256": "5973fcf0a686ecf898f5bba5c222e1e8f5e24e73a5e210ae324881da4aa2f14b"
     },
     {
       "id": "svg-diagram",

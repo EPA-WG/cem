@@ -353,3 +353,12 @@ fn supplier_pipeline_reports_invalid_quantity_without_publication_and_repairs() 
     assert_eq!(values(&root)[0]["quantity"], 7);
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn supplier_json_publication_matches_exact_shared_byte_fixture() {
+    let root = project();
+    success(run(&root));
+    assert_eq!(fs::read(root.join("generated/availability.json")).unwrap(),
+        fs::read(root.join("expected/availability.json")).unwrap());
+    fs::remove_dir_all(root).unwrap();
+}

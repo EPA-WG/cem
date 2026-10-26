@@ -1,0 +1,32 @@
+{
+  "content": "Café 🍒\n\"quote\"\\slash\t",
+  "items": [
+    {
+      "artifactId": "ordinary data",
+      "destination": "urn:never-publish:user-data",
+      "identity": {
+        "contentType": "text/plain"
+      },
+      "outputSpans": [],
+      "primary": "not an output",
+      "sourceMap": {
+        "frames": []
+      }
+    }
+  ],
+  "kind": "collection",
+  "outputSpans": [
+    "ordinary data"
+  ],
+  "sourceMap": {
+    "ordinary": "data"
+  },
+  "z": [
+    null,
+    true,
+    false,
+    -3,
+    1.25,
+    9007199254740993
+  ]
+}

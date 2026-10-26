@@ -771,15 +771,39 @@ fn graph_product(
             ));
         }
         if let Some(uri) = artifact.destination.as_deref() {
-            items.push(publication_item(
-                &artifact.export_id,
-                uri,
-                CommandArtifactKindV1::Output,
-                ResolvePurpose::Output,
-                artifact.primary_bytes.as_ref(),
-                artifact.identity.as_ref(),
-                &artifact.primary,
-            )?);
+            if let Some(bytes) = crate::graph_output::graph_artifact_bytes(artifact)
+                .map_err(serialization_failure)?
+            {
+                items.push(CommandPublicationItemV1 {
+                    label: artifact.export_id.clone(),
+                    uri: uri.to_owned(),
+                    kind: CommandArtifactKindV1::Output,
+                    purpose: ResolvePurpose::Output,
+                    content_type: artifact
+                        .primary_bytes
+                        .as_ref()
+                        .map(|primary| primary.content_type.clone())
+                        .or_else(|| {
+                            artifact
+                                .identity
+                                .as_ref()
+                                .and_then(|identity| identity.content_type.clone())
+                        })
+                        .expect("explicit writer or declared JSON identity"),
+                    bytes: bytes.into_owned(),
+                    source_map_id: None,
+                });
+            } else {
+                items.push(publication_item(
+                    &artifact.export_id,
+                    uri,
+                    CommandArtifactKindV1::Output,
+                    ResolvePurpose::Output,
+                    artifact.primary_bytes.as_ref(),
+                    artifact.identity.as_ref(),
+                    &artifact.primary,
+                )?);
+            }
         }
     }
     let diagnostics = response.diagnostics.clone();
@@ -1287,11 +1311,91 @@ mod tests {
     use super::*;
 
     #[test]
+    fn graph_json_publication_uses_shared_exact_bytes_and_keeps_source_maps() {
+        let expected = include_bytes!("../tests/fixtures/graph-output/abstract-json.json");
+        let source_map = SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(7),
+                span: FrameSpan::Single(ByteRange::new(4, 10)),
+                transform: TransformKind::SourceBoundary {
+                    uri: "memory:original.json".into(),
+                },
+            }],
+        };
+        for (value, explicit, expected) in [
+            (
+                serde_json::from_slice(expected).unwrap(),
+                None,
+                expected.as_slice(),
+            ),
+            (serde_json::json!("Café 🍒"), None, "\"Café 🍒\"".as_bytes()),
+            (serde_json::Value::Null, None, b"null".as_slice()),
+            (
+                serde_json::json!({"content":"ignored"}),
+                Some(b"{ \"z\": 1 }\r\n".as_slice()),
+                b"{ \"z\": 1 }\r\n".as_slice(),
+            ),
+            (
+                serde_json::json!({"content":"ignored"}),
+                Some(b"".as_slice()),
+                b"".as_slice(),
+            ),
+        ] {
+            let product = graph_product(
+                TransformGraphResponse {
+                    artifacts: vec![TransformGraphArtifact {
+                        primary_kind: Default::default(),
+                        export_id: "json".into(),
+                        input: "data".into(),
+                        destination: Some("studio://copy/result.json".into()),
+                        identity: Some(FormatIdentity {
+                            content_type: Some("application/json; charset=utf-8".into()),
+                            ..Default::default()
+                        }),
+                        primary: value,
+                        primary_bytes: explicit.map(|bytes| PrimaryBytes {
+                            content_type: "application/json; charset=utf-8".into(),
+                            schema: None,
+                            format_version: "explicit-test/1".into(),
+                            hash_scheme: "sha256".into(),
+                            hash: crate::command_service::sha256_hex(bytes),
+                            bytes: bytes.to_vec(),
+                        }),
+                        source_map: Some(source_map.clone()),
+                        output_spans: Vec::new(),
+                    }],
+                    module_asset_manifest: Default::default(),
+                    diagnostics: Vec::new(),
+                    scheduler_trace: Default::default(),
+                },
+                None,
+            )
+            .unwrap_or_else(|_| panic!("JSON graph publication"));
+            assert_eq!(product.publication_items[0].bytes, expected);
+            assert_eq!(
+                product.publication_items[0].uri,
+                "studio://copy/result.json"
+            );
+            assert_eq!(product.source_maps.len(), 1);
+            let CommandPayloadV1::Inline { value } = &product.source_maps[0].source_map else {
+                panic!("inline source map")
+            };
+            assert_eq!(value, &source_map);
+            let digest = crate::command_service::sha256_hex(expected);
+            assert_eq!(
+                crate::command_service::sha256_hex(&product.publication_items[0].bytes),
+                digest
+            );
+        }
+    }
+
+    #[test]
     fn graph_publication_preserves_retained_opaque_bytes() {
         let bytes = vec![0, 255, 10, 195, 169];
         let product = graph_product(
             TransformGraphResponse {
                 artifacts: vec![TransformGraphArtifact {
+                    primary_kind: Default::default(),
                     export_id: "asset".into(),
                     input: "opaque".into(),
                     destination: Some("studio://project/output.bin".into()),
@@ -1472,6 +1576,7 @@ mod tests {
             self.record("transform-graph");
             Ok(TransformGraphResponse {
                 artifacts: vec![TransformGraphArtifact {
+                    primary_kind: Default::default(),
                     export_id: "graph-output".to_owned(),
                     input: "data".to_owned(),
                     destination: None,

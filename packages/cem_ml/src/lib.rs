@@ -20,6 +20,7 @@ pub mod dap;
 pub mod debug_control;
 pub mod diagnostics;
 pub mod engine;
+pub mod graph_output;
 pub mod report;
 pub mod report_projection;
 pub mod resumable_operation;

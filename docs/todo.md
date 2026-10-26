@@ -267,11 +267,19 @@ complete selector-package gate pass. Rebuilt WASM, ordinary Studio commands,
 Login map equality, saved/offline selector workflows and credential refusal pass
 without changing shared declarative UI or enabling automatic recovery.
 
-- [ ] Define a shared byte-format policy for abstract JSON graph primaries. Native CLI currently serializes them with indentation while common worker publication uses compact JSON; both preserve the same JSON value. Preserve explicit native writer bytes and add cross-host fixtures before promising exact byte parity for these fallback outputs.
+Completed 2026-10-26: [shared abstract JSON graph byte policy](archive/todo-completed-json-graph-byte-policy-2026-10-26.md)
+covers one native UTF-8/two-space/LF encoder, explicit writer-byte priority,
+complete application JSON values and native collection-role separation. Exact
+native/worker bytes, large integers, hashes, pinned snapshots and Supplier 1.1.1
+fixtures pass. All 250 catalog configurations pass online/offline; shared Studio
+saved-copy/preview workflows and credential refusal pass. Native collection
+manifest/sidecar parity remains a separate follow-up below.
 
 - [ ] Repair namespaced SCSS mixin default-argument lexical binding. The native module probe leaves `padding: $space` unresolved when a namespaced mixin's default references its module variable. The stylesheet project supplies an explicit argument; retain the limited Sass conformance claim and add native module-scope regressions before changing evaluation.
 
 - [ ] Preserve the admitted file URI as the module-resolution base through the native CLI graph provider. Imported local sources currently expose plain filesystem paths, so SCSS graph callers need an explicit `--base-uri` alongside their bounded read map. Keep original provenance and missing-grant refusal, and add native provider regressions before changing source identity normalization.
+
+- [ ] Unify native collection-control manifest and sidecar publication across CLI and common command hosts. The runtime-only producer role now distinguishes real collections from lookalike application JSON. Preserve existing CLI sidecars and common inline collection metadata; add native collection export/owner/source-map fixtures before claiming exact cross-host manifest bytes or moving metadata between artifacts.
 
 - [ ] Design lossless typed CEM-ML inspection of source strings containing both single and double quotes, including embedded rich-content fences. The canonical `cem-card.xhtml` XML AST currently reaches the deliberate native attribute-string encoder refusal; keep that guard and original source bytes until an admitted representation exists. Add native round-trip fixtures before changing the writer/tokenizer contract. The HTML/CEM card project explicitly requests JSON for this one AST export; it is a presentation boundary, never an internal AST handoff.
 

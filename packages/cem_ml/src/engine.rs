@@ -1344,10 +1344,21 @@ pub struct TransformGraphResponse {
     pub scheduler_trace: SchedulerTraceReport,
 }
 
+/// Native publication role, never inferred from exported JSON object fields.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TransformGraphPrimaryKind {
+    #[default]
+    Value,
+    Collection,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct TransformGraphArtifact {
+    /// Runtime-only producer metadata; the wire result is not a native AST handoff.
+    #[serde(skip)]
+    pub primary_kind: TransformGraphPrimaryKind,
     pub export_id: String,
     pub input: String,
     #[serde(default)]
