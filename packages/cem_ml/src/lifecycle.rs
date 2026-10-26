@@ -1090,6 +1090,14 @@ impl LifecycleAdapter for CssSelectorAdapter {
             adapter_id: Some(self.id()),
         }
     }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        self.matches_input(identity)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Css)
+    }
 }
 
 struct XPathAdapter;

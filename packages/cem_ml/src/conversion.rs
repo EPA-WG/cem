@@ -45,7 +45,8 @@ use crate::schema::registry::{
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_QL_SCHEMA_URI,
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
-    CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
+    CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
+    HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
     JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
     MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI,
     SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
@@ -68,7 +69,7 @@ use crate::transform_artifact::{
     CemtNodeColorOperationKind, CemtNodeFormatOperation, CemtNodeFormatOperationKind,
     CemtNodeFormatTarget, CemtOverlayProducer, CemtOverlayProvenance, CemtOwnerPath,
     CemtTreeArtifact, CemtTreeArtifactStage, CemtTreeEnvelopeMetadata, CemtTreeEnvelopeMode,
-    CemtTreeSubjectRef, CemtWriterBoundary, CsvDocumentCemtSubjectRef,
+    CemtTreeSubjectRef, CemtWriterBoundary, CssSelectorExpressionCemtSubjectRef, CsvDocumentCemtSubjectRef,
     GenericDataCsvDocumentCemtSubjectRef, GenericDataJsonDocumentCemtSubjectRef,
     GenericDataYamlDocumentCemtSubjectRef, JsonDocumentCemtSubjectRef,
     JsonSchemaDocumentCemtSubjectRef, MarkdownDocumentCemtSubjectRef,
@@ -108,6 +109,7 @@ use crate::transform_template::{
     TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE,
 };
 use crate::validation::css::CssDocumentAst;
+use crate::validation::css_selector::CssSelectorExpressionAst;
 use crate::validation::csv::{generic_data_ast_to_csv_diagnostics, CsvDocumentAst};
 use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::html::HtmlDocumentAst;
@@ -2610,6 +2612,24 @@ const CSS_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputS
     declaration_element: "{color-function",
     function_kind: TransformTemplateOutputFunctionKind::Color,
     function_name: "css.color-document",
+    role: "colorizer",
+};
+
+const CSS_SELECTOR_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "css-selector-format-cemt",
+    artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
+    declaration_element: "{format-function",
+    function_kind: TransformTemplateOutputFunctionKind::Format,
+    function_name: "css-selector.format-expression",
+    role: "formatter",
+};
+
+const CSS_SELECTOR_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "css-selector-color-cemt",
+    artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
+    declaration_element: "{color-function",
+    function_kind: TransformTemplateOutputFunctionKind::Color,
+    function_name: "css-selector.color-expression",
     role: "colorizer",
 };
 
@@ -10086,6 +10106,24 @@ impl XmlDocumentOutputSubject for CssDocumentAst {
     }
 }
 
+impl XmlDocumentOutputSubject for CssSelectorExpressionAst {
+    fn source_line_ending(&self) -> Option<&str> {
+        // The lexical formatter writes the original tokens, including their
+        // line endings, without reconstructing selector source.
+        None
+    }
+
+    fn input_representation_id(&self) -> &'static str {
+        crate::query::QueryNativeArtifact::representation_id(self)
+    }
+
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        Some(CemtEvaluatorValue::borrowed(
+            CssSelectorExpressionCemtSubjectRef::new(self).evaluator_view(),
+        ))
+    }
+}
+
 impl XmlDocumentOutputSubject for XhtmlDocumentAst {
     fn source_line_ending(&self) -> Option<&str> {
         self.line_ending.as_deref()
@@ -10195,6 +10233,21 @@ pub fn execute_css_document_output_pipeline_with_environment(
     )
 }
 
+pub fn execute_css_selector_output_pipeline_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    expression: CssSelectorExpressionAst,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    execute_xml_family_document_output_pipeline_with_environment(
+        environment,
+        expression,
+        target_scope,
+        diagnostic_uri,
+        XmlFamilyOutputSpec::css_selector(),
+    )
+}
+
 pub fn execute_xhtml_document_output_pipeline_with_environment(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     document: XhtmlDocumentAst,
@@ -10270,6 +10323,21 @@ struct XmlFamilyOutputSpec {
 }
 
 impl XmlFamilyOutputSpec {
+    const fn css_selector() -> Self {
+        Self {
+            label: "CSS selector",
+            formatter: CSS_SELECTOR_FORMAT_CEMT_STAGE_SPEC,
+            colorizer: CSS_SELECTOR_COLOR_CEMT_STAGE_SPEC,
+            content_type: CSS_SELECTOR_CONTENT_TYPE,
+            schema: CSS_SELECTOR_SCHEMA_URI,
+            category: "css-selector-expression",
+            subject_kind: "css-selector-expression",
+            formatter_option_prefix: "css-selector.",
+            converter_id: "css-selector-direct-output",
+            diagnostic_node: "css-selector",
+        }
+    }
+
     const fn css() -> Self {
         Self {
             label: "CSS",
@@ -14946,6 +15014,7 @@ fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
         YAML_SCHEMA_URI,
         MARKDOWN_SCHEMA_URI,
         CSS_SCHEMA_URI,
+        CSS_SELECTOR_SCHEMA_URI,
         RELAX_NG_SCHEMA_URI,
         XHTML_SCHEMA_URI,
         SVG_SCHEMA_URI,
@@ -25109,6 +25178,121 @@ mod tests {
             colored_markup_text_content(output.strip_suffix('\n').unwrap_or(output)),
             std::str::from_utf8(source).unwrap()
         );
+    }
+
+    #[test]
+    fn css_selector_output_profiles_preserve_source_and_original_token_origins() {
+        use crate::validation::css_selector::{
+            css_selector_expression_ast_from_source_bytes, CssSelectorSourceRequest,
+        };
+        let source = "/* Café */\r\narticle.caf\\e9 [data-label=\"茶<&>\"]:not([hidden])";
+        let uri = "studio://selectors/original.css-selector";
+        let (expression, diagnostics) =
+            css_selector_expression_ast_from_source_bytes(CssSelectorSourceRequest {
+                bytes: source.as_bytes(),
+                source_uri: uri,
+                content_type: Some(CSS_SELECTOR_CONTENT_TYPE),
+                namespace_bindings: &BTreeMap::new(),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let expression = expression.unwrap();
+        let original = expression
+            .tokens
+            .iter()
+            .find(|token| token.lexeme == "\"茶<&>\"")
+            .unwrap()
+            .source_range
+            .source_map();
+        let schemas = SchemaRegistry::with_builtin_schemas();
+        let converters = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schemas,
+            conversion_registry: &converters,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        for formatter in ["compact", "pretty", "tabular"] {
+            for color in [None, Some("terminal"), Some("html"), Some("md")] {
+                let result = execute_css_selector_output_pipeline_with_environment(
+                    &environment,
+                    expression.clone(),
+                    &ScopeConfig {
+                        cemt_formatter_profile: Some(formatter.to_owned()),
+                        cemt_color_profile: color.map(str::to_owned),
+                        ..ScopeConfig::default()
+                    },
+                    Some(uri),
+                );
+                assert!(
+                    result.diagnostics.is_empty(),
+                    "{formatter}/{color:?}: {:?}",
+                    result.diagnostics
+                );
+                let output = result
+                    .output
+                    .as_ref()
+                    .and_then(Value::as_str)
+                    .expect("native source writer text");
+                let visible = match color {
+                    Some("terminal") => {
+                        assert!(output.contains('\u{1b}'));
+                        strip_ansi_codes(output)
+                    }
+                    Some("html") => {
+                        assert!(output.contains("<span"));
+                        assert!(output.contains("&lt;"));
+                        assert!(output.contains("&amp;"));
+                        colored_markup_text_content(output)
+                    }
+                    _ => output.to_owned(),
+                };
+                // Source-preview HTML preserves the displayed source verbatim;
+                // the plain/terminal document writer enforces its EOF rule.
+                let expected = if color == Some("html") { source.to_owned() } else { format!("{source}\r\n") };
+                assert_eq!(visible, expected, "{formatter}/{color:?}");
+                assert!(result
+                    .output_spans
+                    .iter()
+                    .any(|span| span.origin == original));
+                assert!(result
+                    .output_spans
+                    .iter()
+                    .all(
+                        |span| span.output_range.start + u64::from(span.output_range.len)
+                            <= output.len() as u64
+                    ));
+                assert!(result.formatted_materialized_cemt_tree.is_some());
+                assert_eq!(
+                    result.colored_materialized_cemt_tree.is_some(),
+                    color.is_some()
+                );
+                assert!(matches!(result.format_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter { ref function_name, .. })
+                    if function_name == "css-selector.format-expression"));
+            }
+        }
+        for scope in [
+            ScopeConfig {
+                cemt_formatter_profile: Some("unknown".to_owned()),
+                ..ScopeConfig::default()
+            },
+            ScopeConfig {
+                cemt_color_profile: Some("unknown".to_owned()),
+                ..ScopeConfig::default()
+            },
+        ] {
+            let result = execute_css_selector_output_pipeline_with_environment(
+                &environment,
+                expression.clone(),
+                &scope,
+                Some(uri),
+            );
+            assert!(result.output.is_none());
+            assert!(result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity.is_hard_violation()));
+        }
     }
 
     #[test]

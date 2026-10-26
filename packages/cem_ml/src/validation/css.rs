@@ -128,24 +128,30 @@ impl CssSemanticKindAst {
 /// Source-oriented consumers use this native mirror of the schema formatter
 /// decision so an embedded CSS scope does not need a separate lexer or palette.
 pub(crate) fn css_event_semantic_role(event: &CssEventAst) -> &'static str {
-    match event.token_kind.as_str() {
-        "at-keyword" => "syntax.keyword",
-        "string" | "url" | "bad-string" | "bad-url" => "syntax.string",
-        "comment" => "syntax.comment",
-        "number" | "percentage" | "dimension" => "syntax.number",
-        "whitespace" | "presentation-gap" => "syntax.text",
-        _ => match event.semantic_kind {
+    let lexical_role = css_token_semantic_role(&event.token_kind);
+    match lexical_role {
+        "syntax.name" | "syntax.punctuation" => match event.semantic_kind {
             CssSemanticKindAst::Selector | CssSemanticKindAst::Symbol => "syntax.name",
             CssSemanticKindAst::Keyword => "syntax.keyword",
             CssSemanticKindAst::Property => "syntax.property",
             CssSemanticKindAst::CustomProperty => "syntax.attribute",
             CssSemanticKindAst::Value => "syntax.value",
             CssSemanticKindAst::Function => "syntax.function",
-            CssSemanticKindAst::Raw => match event.token_kind.as_str() {
-                "ident" | "id-hash" | "hash" => "syntax.name",
-                _ => "syntax.punctuation",
-            },
+            CssSemanticKindAst::Raw => lexical_role,
         },
+        _ => lexical_role,
+    }
+}
+
+pub(crate) fn css_token_semantic_role(token_kind: &str) -> &'static str {
+    match token_kind {
+        "at-keyword" => "syntax.keyword",
+        "string" | "url" | "bad-string" | "bad-url" => "syntax.string",
+        "comment" => "syntax.comment",
+        "number" | "percentage" | "dimension" => "syntax.number",
+        "whitespace" | "presentation-gap" => "syntax.text",
+        "ident" | "id-hash" | "hash" => "syntax.name",
+        _ => "syntax.punctuation",
     }
 }
 

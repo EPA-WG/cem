@@ -13,18 +13,22 @@ use crate::projection::{
 use crate::schema::registry::{
     content_type_essence, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
     CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_SCHEMA_URI, CSS_CONTENT_TYPE,
-    CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
-    JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
-    MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE,
-    SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
-    XML_SCHEMA_URI, XPATH_RESULT_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_NAMESPACE_URI,
-    XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    CSS_SCHEMA_URI, CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI, HTML_CONTENT_TYPE,
+    HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
+    MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI,
+    RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE,
+    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_RESULT_CONTENT_TYPE,
+    XPATH_SCHEMA_URI, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::syntax::{source_syntax_ast_stream, SourceSyntaxTokenAst};
 use crate::validation::css::{
-    CssDocumentAst, CssDocumentSource, CssEncodingReportAst, CssEventAst, CssFact,
+    css_token_semantic_role, CssDocumentAst, CssDocumentSource, CssEncodingReportAst, CssEventAst,
+    CssFact,
+};
+use crate::validation::css_selector::{
+    CssSelectorExpressionAst, CssSelectorSource, CssSelectorTokenAst,
 };
 use crate::validation::csv::{
     CsvDialectAst, CsvDocumentAst, CsvDocumentParseFact, CsvDocumentSource, CsvEncodingReportAst,
@@ -1491,6 +1495,11 @@ pub struct MarkdownDocumentCemtSubjectRef<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct CssSelectorExpressionCemtSubjectRef<'a> {
+    expression: &'a CssSelectorExpressionAst,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct RelaxNgDocumentCemtSubjectRef<'a> {
     document: &'a RelaxNgDocumentAst,
 }
@@ -1621,6 +1630,22 @@ impl<'a> MarkdownDocumentCemtSubjectRef<'a> {
     pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
         CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::MarkdownDocument {
             document: self.document,
+        })
+    }
+}
+
+impl<'a> CssSelectorExpressionCemtSubjectRef<'a> {
+    pub fn new(expression: &'a CssSelectorExpressionAst) -> Self {
+        Self { expression }
+    }
+
+    pub fn expression(self) -> &'a CssSelectorExpressionAst {
+        self.expression
+    }
+
+    pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
+        CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::Package {
+            record: self.expression,
         })
     }
 }
@@ -9275,6 +9300,114 @@ pub struct TransformArtifactCollectionItem {
     pub output_spans: Vec<OutputSpan>,
 }
 
+impl CemtEvaluatorRecordView for CssSelectorExpressionAst {
+    fn field_names(&self) -> &'static [&'static str] {
+        &[
+            "kind",
+            "contentType",
+            "schema",
+            "source",
+            "identity",
+            "languageVersion",
+            "tokens",
+            "sourceMap",
+        ]
+    }
+
+    fn field<'a>(&'a self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
+        match name {
+            "kind" => Some(CemtEvaluatorValueRef::String("css-selector-expression")),
+            "contentType" => Some(CemtEvaluatorValueRef::String(CSS_SELECTOR_CONTENT_TYPE)),
+            "schema" => Some(CemtEvaluatorValueRef::String(CSS_SELECTOR_SCHEMA_URI)),
+            "source" => Some(CemtEvaluatorValueRef::Record(
+                CemtEvaluatorRecordRef::Package {
+                    record: &self.source,
+                },
+            )),
+            "identity" => Some(CemtEvaluatorValueRef::Record(
+                CemtEvaluatorRecordRef::Package {
+                    record: &self.identity,
+                },
+            )),
+            "languageVersion" => Some(CemtEvaluatorValueRef::String(&self.language_version)),
+            "tokens" => Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::Package {
+                    sequence: &self.tokens,
+                },
+            )),
+            "sourceMap" => Some(CemtEvaluatorValueRef::SourceMap(&self.source_map)),
+            _ => None,
+        }
+    }
+}
+
+impl CemtEvaluatorRecordView for CssSelectorSource {
+    fn field_names(&self) -> &'static [&'static str] {
+        &["uri", "contentType", "byteLength"]
+    }
+
+    fn field<'a>(&'a self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
+        match name {
+            "uri" => Some(CemtEvaluatorValueRef::String(&self.uri)),
+            "contentType" => Some(CemtEvaluatorValueRef::String(&self.content_type)),
+            "byteLength" => Some(usize_evaluator_value(self.byte_length)),
+            _ => None,
+        }
+    }
+}
+
+impl CemtEvaluatorSequenceView for Vec<CssSelectorTokenAst> {
+    fn len(&self) -> usize {
+        Vec::len(self)
+    }
+
+    fn item<'a>(&'a self, index: usize) -> Option<CemtEvaluatorValueRef<'a>> {
+        self.get(index).map(|token| {
+            CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::Package { record: token })
+        })
+    }
+}
+
+impl CemtEvaluatorRecordView for CssSelectorTokenAst {
+    fn field_names(&self) -> &'static [&'static str] {
+        &[
+            "kind",
+            "lexeme",
+            "role",
+            "sourceMap",
+            "sourceRange",
+            "index",
+            "depth",
+            "value",
+            "recovered",
+        ]
+    }
+
+    fn field<'a>(&'a self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
+        match name {
+            "kind" => Some(CemtEvaluatorValueRef::String(&self.token_kind)),
+            "lexeme" => Some(CemtEvaluatorValueRef::String(&self.lexeme)),
+            "role" => Some(CemtEvaluatorValueRef::String(css_token_semantic_role(
+                &self.token_kind,
+            ))),
+            "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+                self.source_range.source_map(),
+            ))),
+            "sourceRange" => Some(xml_family_source_range_evaluator_value(
+                self.source_range.start.byte_offset,
+                self.source_range.byte_length,
+                self.source_range.start.line,
+                self.source_range.start.column,
+            )),
+            "index" => Some(usize_evaluator_value(self.index)),
+            "depth" => Some(usize_evaluator_value(self.depth)),
+            "value" => Some(optional_string_evaluator_value(self.value.as_deref())),
+            "recovered" => Some(CemtEvaluatorValueRef::Boolean(self.recovered)),
+            _ => None,
+        }
+    }
+}
+
 impl CemtEvaluatorRecordView for TransformArtifactCollection {
     fn field_names(&self) -> &'static [&'static str] {
         &["kind", "mode", "count", "bindings", "items"]
@@ -9689,6 +9822,158 @@ mod tests {
             .expect("nested array/object path");
         assert_eq!(item.json_lexeme(), Some("1"));
         assert!(matches!(item.json_ast(), Some(JsonValueAst::Number { .. })));
+    }
+
+    #[test]
+    fn css_selector_evaluator_view_borrows_original_tokens_identity_ranges_and_maps() {
+        use crate::validation::css_selector::{
+            css_selector_expression_ast_from_source_bytes, CssSelectorSourceRequest,
+        };
+
+        let source = "/* Café */\r\nsvg|svg[data-title=\"été\"] > svg|a#entry\\:one";
+        let namespaces =
+            BTreeMap::from([("svg".to_owned(), "http://www.w3.org/2000/svg".to_owned())]);
+        let (expression, diagnostics) =
+            css_selector_expression_ast_from_source_bytes(CssSelectorSourceRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory:borrowed.css-selector",
+                content_type: Some(CSS_SELECTOR_CONTENT_TYPE),
+                namespace_bindings: &namespaces,
+            });
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "CSS selector fixture diagnostics: {diagnostics:?}"
+        );
+        let owner = Arc::new(expression.expect("native CSS selector expression"));
+        let subject = CssSelectorExpressionCemtSubjectRef::new(owner.as_ref());
+        assert!(std::ptr::eq(subject.expression(), owner.as_ref()));
+
+        let expression = CemtEvaluatorValue::borrowed(subject.evaluator_view());
+        assert_eq!(
+            expression.field("kind").unwrap().as_str(),
+            Some("css-selector-expression")
+        );
+        assert_eq!(
+            expression.resolve_path("source.uri").unwrap().as_str(),
+            Some("memory:borrowed.css-selector")
+        );
+        assert_eq!(
+            expression
+                .resolve_path("identity.namespaces.svg")
+                .unwrap()
+                .as_str(),
+            Some("http://www.w3.org/2000/svg")
+        );
+        assert!(
+            expression.field("lineEnding").is_none(),
+            "the view must not invent parser metadata"
+        );
+        let source_map = expression
+            .field("sourceMap")
+            .expect("original expression map");
+        assert!(std::ptr::eq(
+            source_map.as_source_map().unwrap(),
+            &owner.source_map
+        ));
+        let tokens = expression
+            .field("tokens")
+            .unwrap()
+            .sequence_values("native selector tokens")
+            .expect("borrowed token sequence");
+        assert_eq!(tokens.len(), owner.tokens.len());
+        let mut rendered = String::new();
+        for (view, native) in tokens.iter().zip(&owner.tokens) {
+            let lexeme = view.field("lexeme").expect("original token lexeme");
+            let lexeme = lexeme.as_str().expect("borrowed lexeme");
+            assert!(std::ptr::eq(lexeme.as_ptr(), native.lexeme.as_ptr()));
+            rendered.push_str(lexeme);
+            assert_eq!(
+                view.field("kind").unwrap().as_str(),
+                Some(native.token_kind.as_str())
+            );
+            assert_eq!(
+                view.field("index")
+                    .unwrap()
+                    .as_number()
+                    .and_then(CemtEvaluatorNumber::as_u64),
+                Some(native.index as u64)
+            );
+            assert_eq!(
+                view.field("depth")
+                    .unwrap()
+                    .as_number()
+                    .and_then(CemtEvaluatorNumber::as_u64),
+                Some(native.depth as u64)
+            );
+            let range = view.field("sourceRange").expect("original token range");
+            for (name, expected) in [
+                ("byteOffset", native.source_range.start.byte_offset),
+                ("byteLength", native.source_range.byte_length),
+                ("line", u64::from(native.source_range.start.line)),
+                ("column", u64::from(native.source_range.start.column)),
+            ] {
+                assert_eq!(
+                    range
+                        .field(name)
+                        .unwrap()
+                        .as_number()
+                        .and_then(CemtEvaluatorNumber::as_u64),
+                    Some(expected)
+                );
+            }
+            let start = native.source_range.start.byte_offset as usize;
+            let end = native.source_range.end_byte_offset() as usize;
+            assert_eq!(&source[start..end], lexeme);
+            assert_eq!(
+                view.field("sourceMap").unwrap().as_source_map(),
+                Some(&native.source_range.source_map())
+            );
+        }
+        assert_eq!(rendered, source);
+        assert_eq!(
+            Arc::strong_count(&owner),
+            1,
+            "the view borrows the original owner"
+        );
+        for (kind, role) in [
+            ("comment", "syntax.comment"),
+            ("whitespace", "syntax.text"),
+            ("ident", "syntax.name"),
+            ("string", "syntax.string"),
+        ] {
+            let token = tokens
+                .iter()
+                .find(|token| token.field("kind").unwrap().as_str() == Some(kind))
+                .unwrap_or_else(|| panic!("missing {kind} token"));
+            assert_eq!(token.field("role").unwrap().as_str(), Some(role));
+        }
+    }
+
+    #[test]
+    fn css_selector_evaluator_view_has_no_serializer_or_dto_boundary() {
+        let source = include_str!("transform_artifact.rs");
+        let implementation = source
+            .split_once("impl CemtEvaluatorRecordView for CssSelectorExpressionAst")
+            .and_then(|(_, suffix)| {
+                suffix.split_once("impl CemtEvaluatorRecordView for TransformArtifactCollection")
+            })
+            .map(|(implementation, _)| implementation)
+            .expect("native CSS selector borrowed views");
+        for forbidden in [
+            "serde_json",
+            "to_json",
+            "to_value",
+            "from_value",
+            "JsonValueAst",
+            "CemtEvaluatorValueRef::Json",
+        ] {
+            assert!(
+                !implementation.contains(forbidden),
+                "selector view must not use {forbidden}"
+            );
+        }
     }
 
     #[test]

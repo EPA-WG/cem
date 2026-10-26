@@ -1,13 +1,18 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::ops::Range;
 
 use crate::diagnostics::{project_diagnostics_for_source, Diagnostic, Severity};
-use crate::schema::registry::content_type_essence;
+use crate::schema::registry::{content_type_essence, CSS_SELECTOR_CONTENT_TYPE};
 use crate::source::{BytesSource, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::{SchemaToken, SchemaTokenKind, SchemaTokenizer};
 use crate::validation::css::{
-    css_document_ast_from_source_bytes, css_event_semantic_role, CssSourceValidationRequest,
+    css_document_ast_from_source_bytes, css_event_semantic_role, css_token_semantic_role,
+    CssSourceValidationRequest,
+};
+use crate::validation::css_selector::{
+    css_selector_expression_ast_from_source_bytes, CssSelectorSourceRequest,
 };
 use crate::validation::html::{
     html_document_ast_from_source_bytes, html_event_markup_tokens, HtmlDocumentAst, HtmlEventAst,
@@ -56,6 +61,7 @@ enum SourceScopeKind {
     Html,
     CemMl,
     Css,
+    CssSelector,
 }
 
 #[derive(Debug, Default)]
@@ -359,6 +365,7 @@ fn highlight_source_scope(
         SourceScopeKind::Html => highlight_html_source(source, source_url, depth),
         SourceScopeKind::CemMl => highlight_cem_ml_source(source, source_url, depth),
         SourceScopeKind::Css => highlight_css_source(source, content_type, source_url),
+        SourceScopeKind::CssSelector => highlight_css_selector_source(source, content_type, source_url),
     };
     highlighted.content_scopes.push(ActiveContentTypeScopeAst {
         kind,
@@ -376,6 +383,7 @@ fn source_scope_kind(content_type: &str) -> Option<SourceScopeKind> {
             Some(SourceScopeKind::CemMl)
         }
         "css" | "text/css" => Some(SourceScopeKind::Css),
+        CSS_SELECTOR_CONTENT_TYPE => Some(SourceScopeKind::CssSelector),
         mime if mime.ends_with("+cem") => Some(SourceScopeKind::CemMl),
         _ => None,
     }
@@ -387,6 +395,7 @@ impl SourceScopeKind {
             Self::Html => "html.format-document",
             Self::CemMl => "cem.format-tree",
             Self::Css => "css.format-document",
+            Self::CssSelector => "css-selector.format-expression",
         }
     }
 
@@ -395,6 +404,7 @@ impl SourceScopeKind {
             Self::Html => "html.color-document",
             Self::CemMl => "cem.color-tree",
             Self::Css => "css.color-document",
+            Self::CssSelector => "css-selector.color-expression",
         }
     }
 }
@@ -514,6 +524,40 @@ fn highlight_css_source(
                 event.source_range.start.byte_offset as usize,
                 event.source_range.byte_length as usize,
                 css_event_semantic_role(event),
+            );
+        }
+    }
+    ScopeHighlight {
+        diagnostics,
+        spans,
+        content_scopes: Vec::new(),
+    }
+}
+
+fn highlight_css_selector_source(
+    source: &str,
+    content_type: &str,
+    source_url: Option<&str>,
+) -> ScopeHighlight {
+    // Paint is passive source presentation. It grants no query namespaces or
+    // host capabilities; their native diagnostics remain available separately.
+    let namespace_bindings = BTreeMap::new();
+    let (expression, diagnostics) =
+        css_selector_expression_ast_from_source_bytes(CssSelectorSourceRequest {
+            bytes: source.as_bytes(),
+            source_uri: source_url.unwrap_or("memory:cem-source-highlight.css-selector"),
+            content_type: Some(content_type),
+            namespace_bindings: &namespace_bindings,
+        });
+    let mut spans = Vec::new();
+    if let Some(expression) = expression {
+        for token in &expression.tokens {
+            push_span(
+                source,
+                &mut spans,
+                token.source_range.start.byte_offset as usize,
+                token.source_range.byte_length as usize,
+                css_token_semantic_role(&token.token_kind),
             );
         }
     }
@@ -1133,6 +1177,79 @@ fn serialize_response(response: SourceHighlightResponseV1) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn css_selector_paint_preserves_native_roles_and_original_utf16_ranges() {
+        let source = "\t/* é😀 */\r\nmain#app > article.caf\\e9 [data-label=\"茶\"]:not([hidden])";
+        let content_type = "application/vnd.cem.query-expression+css-selector";
+        let request = serde_json::json!({
+            "source": source,
+            "contentType": content_type,
+            "sourceUrl": "studio://selectors/queries/original.css-selector"
+        }).to_string();
+        let paint: serde_json::Value = serde_json::from_str(
+            &super::source_highlight_paint_v1_json(&request),
+        ).unwrap();
+        assert_eq!(paint["status"], "painted");
+        let units: Vec<u16> = source.encode_utf16().collect();
+        let ranges = paint["ranges"].as_array().unwrap();
+        let mut cursor = 0;
+        for range in ranges {
+            let start = range["start"].as_u64().unwrap() as usize;
+            let end = range["end"].as_u64().unwrap() as usize;
+            assert!(cursor <= start && start < end && end <= units.len());
+            assert!(String::from_utf16(&units[start..end]).is_ok());
+            cursor = end;
+        }
+        let text_with_role = |role: &str| ranges.iter()
+            .filter(|range| range["role"] == role)
+            .map(|range| String::from_utf16(&units[
+                range["start"].as_u64().unwrap() as usize..
+                range["end"].as_u64().unwrap() as usize
+            ]).unwrap()).collect::<Vec<_>>();
+        assert!(text_with_role("syntax.comment").iter().any(|text| text == "/* é😀 */"));
+        assert!(text_with_role("syntax.string").iter().any(|text| text == "\"茶\""));
+        let stream = super::source_syntax_ast_stream(source, content_type, None)
+            .expect("typed native selector source scope");
+        assert!(stream.diagnostics.is_empty(), "{:?}", stream.diagnostics);
+        assert_eq!(stream.tokens.iter().map(|token| token.text.as_str()).collect::<String>(), source);
+        assert!(stream.tokens.iter().all(|token| {
+            token.content_type == content_type
+                && token.formatter == "css-selector.format-expression"
+                && token.colorizer == "css-selector.color-expression"
+                && token.text == source[token.byte_offset..token.end()]
+        }));
+    }
+
+    #[test]
+    fn css_selector_paint_keeps_incomplete_source_and_namespace_diagnostics() {
+        let content_type = "application/vnd.cem.query-expression+css-selector";
+        let source_url = "studio://selectors/queries/unfinished.css-selector";
+        for (source, code) in [
+            ("\tarticle[\r\n\n", "css-selector.parse.invalid"),
+            ("svg|a[href]", "css-selector.namespace.unbound"),
+            ("a:hover", "css-selector.capability.missing"),
+        ] {
+            let request = serde_json::json!({
+                "source": source, "contentType": content_type, "sourceUrl": source_url
+            }).to_string();
+            let paint: serde_json::Value = serde_json::from_str(
+                &super::source_highlight_paint_v1_json(&request),
+            ).unwrap();
+            assert_eq!(paint["status"], "painted", "{source}");
+            assert!(!paint["ranges"].as_array().unwrap().is_empty());
+            let html = response(&request);
+            assert_eq!(html["status"], "highlighted");
+            assert_eq!(semantic_html_text(html["html"].as_str().unwrap()), source);
+            let diagnostic = html["diagnostics"].as_array().unwrap().iter()
+                .find(|diagnostic| diagnostic["code"] == code)
+                .expect("original native selector diagnostic remains available");
+            assert_eq!(diagnostic["uri"], source_url);
+            assert_eq!(diagnostic["severity"], "error");
+            assert!(diagnostic["sourceMap"]["frames"].as_array()
+                .is_some_and(|frames| !frames.is_empty()));
+        }
+    }
+
     #[test]
     fn editor_paint_accepts_structured_cem_media_types_without_formatting() {
         let source = "\t{article @label=\"é😀\" | {p | unchanged}}\r\n\n";

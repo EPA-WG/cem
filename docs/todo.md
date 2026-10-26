@@ -237,11 +237,18 @@ concurrent release scheduling remain explicit follow-ups below.
 These remain explicit follow-ups after the functional Studio sample catalog.
 Keep the original admission, provenance, privacy and verification bounds.
 
-- [ ] Wire registered CSS-selector formatter/colorizer assets into native command source export. Same-identity conversion currently reports `cem.lifecycle.target_adapter_unsupported` and a JSON fallback despite exit zero. Preserve native selector ownership and exact ranges; add failing export and diagnostic/exit-status fixtures before claiming command formatting support.
+Completed 2026-10-26: [native CSS-selector source export and shared editor paint](archive/todo-completed-css-selector-source-export-2026-10-26.md)
+covers typed formatter/colorizer ownership, exact lexical source, native ranges,
+hard-diagnostic refusal, shared worker/fallback coloring and ordinary Studio
+format/color configurations with saved-copy and offline acceptance. The existing
+cross-query provenance failure remains a separate open item below; the complete
+selector-package gate is not green.
 
 - [ ] Route standalone XPath Parse, Inspect and source export through the typed XPath owner. EQName source is currently interpreted as CEM by generic source operations, and same-schema conversion refuses the target adapter. Preserve query execution, exact source bytes and hard diagnostics; add native round-trip and exit-status regressions before enabling these source operations.
 
 - [ ] Pass caller namespace bindings into standalone XPath source validation. The CLI's `--namespace` bindings reach native query execution but are currently omitted by the source loader. Keep missing/unbound-prefix diagnostics; add native static-context tests before changing validation. Current standalone sample validation uses explicit EQNames.
+
+- [ ] Align original input provenance across native query languages. `query_fixture_runs_all_languages_with_the_same_native_nodes_and_report_shape` at `query_cli.rs:390` compares CSS-selector ContentTypeTransform-only maps with CEM-QL maps that also retain a SourceBoundary URI. The unchanged `5ca43f31` reproduces this failure under a clean non-incremental build. Preserve the original assertion, URI frames and exact source ranges; add retained-owner/import regressions before changing query adapters or claiming a green complete selector-package gate.
 
 - [ ] Define a shared byte-format policy for abstract JSON graph primaries. Native CLI currently serializes them with indentation while common worker publication uses compact JSON; both preserve the same JSON value. Preserve explicit native writer bytes and add cross-host fixtures before promising exact byte parity for these fallback outputs.
 

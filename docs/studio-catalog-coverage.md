@@ -7,8 +7,8 @@ Run `yarn nx run @epa-wg/cem-studio:verify:catalog-audit` after changing them.
 Declared catalog/documentation coverage; native/worker/deployed verification and current resource admission remain separate evidence.
 
 There are **22 authored projects**, **282 authored source resources**
-and **203 authored configurations**. The inventory names
-**208 workflows**, including five generated portable workbenches;
+and **205 authored configurations**. The inventory names
+**210 workflows**, including five generated portable workbenches;
 32 generated package validations are represented by the native package matrix.
 The starter owns no configurations. Source resources include reference fixtures
 and documentation: their presence does not establish executable format support.
@@ -20,7 +20,7 @@ and documentation: their presence does not establish executable format support.
 | `cem-schema` | [README](../examples/projects/cem-schema/README.md) | 7 | 7 | 2 | `convert`, `inspect`, `validate` |
 | `cem-transform` | [README](../examples/projects/cem-transform/README.md) | 10 | 7 | 1 | `convert`, `inspect`, `transform`, `validate` |
 | `cemql-orders` | [README](../examples/projects/cemql-orders/README.md) | 17 | 14 | 1 | `convert`, `inspect`, `parse`, `query`, `transform`, `validate` |
-| `css-selector` | [README](../examples/projects/css-selector/README.md) | 8 | 5 | 1 | `inspect`, `query`, `validate` |
+| `css-selector` | [README](../examples/projects/css-selector/README.md) | 8 | 7 | 1 | `convert`, `inspect`, `query`, `validate` |
 | `css-stylesheet` | [README](../examples/projects/css-stylesheet/README.md) | 8 | 6 | 1 | `convert`, `inspect`, `transform`, `validate` |
 | `csv-inventory` | [README](../examples/projects/csv-inventory/README.md) | 18 | 12 | 4 | `convert`, `inspect`, `query`, `transform`, `validate` |
 | `html-cem-card` | [README](../examples/projects/html-cem-card/README.md) | 11 | 8 | 1 | `inspect`, `parse`, `query`, `transform`, `validate` |
@@ -42,8 +42,8 @@ and documentation: their presence does not establish executable format support.
 
 ## Generated projects
 
-The selectable catalog has **23 projects** with **240 declared configurations**
-and **565 stored resources**. The starter adds 2 resources.
+The selectable catalog has **23 projects** with **242 declared configurations**
+and **567 stored resources**. The starter adds 2 resources.
 The legacy Feature Tour seed shares the Schema examples workflows and is not
 counted twice. Declared configurations are not a uniform UI execution guarantee.
 
@@ -66,7 +66,7 @@ negotiation does not require a source-project configuration.
 | `validate` | `available` | 110 |
 | `check` | `available` | 0 |
 | `inspect` | `available` | 29 |
-| `convert` | `available` | 36 |
+| `convert` | `available` | 38 |
 | `query` | `available` | 28 |
 | `transform` | `available` | 24 |
 | `trace` | `available` | 1 |

@@ -79,7 +79,7 @@
                 }),
                 value: {
                     formatterProfile: $profile,
-                    tokenIndex: match(exists($token.index), { true: $token.index, false: null }),
+                    index: match(exists($token.index), { true: $token.index, false: null }),
                     depth: match(exists($token.depth), { true: $token.depth, false: 0 }),
                     sourceRange: match(exists($token.sourceRange), { true: $token.sourceRange, false: null })
                 }

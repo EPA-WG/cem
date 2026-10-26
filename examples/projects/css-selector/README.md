@@ -44,6 +44,8 @@ substitute a stylesheet parser. The JSON result is a named human-facing export.
 | --- | --- | --- |
 | `inspect-selector` — Inspect the original selector source | Review original query text and byte offsets | Existing CEM text-envelope inspection, not a typed selector AST |
 | `validate-selector` — Validate the ready-card selector | Check standalone query syntax and capability facts | Zero errors and warnings |
+| `format-selector` — Format the selector source | Use the registered native lexical formatter | Exact source bytes for this already newline-terminated query |
+| `color-selector` — Color the selector as HTML | Preview escaped semantic source coloring | HTML presentation preserving the query text, without evaluating it |
 | `query-cards` — Select ready HTML product cards | Select structural document nodes | Tea and Cocoa element identities, deduplicated and in document order |
 | `query-namespaces` — Select namespaced XML products | Select native XML nodes with explicit namespace context | Tea and Cocoa product identities in source order |
 | `repair-selector` — Repair the unclosed attribute selector | Locate and repair malformed query source | `css-selector.parse.invalid`, then zero errors after repair |
@@ -91,12 +93,21 @@ errors and warnings, and the repaired source matches the valid query exactly.
 
 The query language's parser and matching semantics are native. The current
 standalone `inspect ast` command still presents a generic CEM text envelope;
-it is explicitly not a typed selector-AST export. Although the schema package
-declares formatter/colorizer assets, the current general converter has no
-same-selector lifecycle export adapter. A conversion attempt reports
-`cem.lifecycle.target_adapter_unsupported` and can return a compatibility JSON
-projection. This project therefore exposes no misleading formatting operation
-or fallback formatter. Original query source remains available in the editor.
+it is explicitly not a typed selector-AST export.
+
+The registered native selector formatter and colorizer consume the original
+typed token owner. The `compact`, `pretty` and `tabular` profiles preserve lexical
+spelling and internal whitespace; they do not reflow selectors. Plain and
+terminal text exports follow the shared final-newline rule, retaining existing
+line endings. HTML source presentation preserves the displayed source verbatim
+and escapes markup. Source ranges remain tied to the original selector bytes.
+
+Studio uses the same shared source editor for readonly examples and editable
+copies. Its native highlighting can paint an incomplete query while validation
+still reports syntax, namespace or capability errors. Formatting uses the
+admitted static context, grants no host capabilities, fetches no resources and
+performs no matching. Invalid source and unrelated export identities refuse
+without a compatibility JSON fallback.
 
 ## Bounded semantics and independent offline projects
 

@@ -120,6 +120,65 @@
       }
     },
     {
+      "id": "format-selector",
+      "name": "Format the selector source",
+      "kind": "conversion",
+      "source": "selector-source",
+      "description": "Run the registered native lexical formatter, preserving selector spelling, comments, escapes and source ranges with the shared text EOF policy.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query-expression+css-selector",
+        "--schema",
+        "https://cem.dev/ns/query/css-selector/1",
+        "--to-content-type",
+        "application/vnd.cem.query-expression+css-selector",
+        "--to-schema",
+        "https://cem.dev/ns/query/css-selector/1",
+        "--cemt-formatter",
+        "css-selector.format-expression",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedOutput": "selector-source"
+    },
+    {
+      "id": "color-selector",
+      "name": "Color the selector as HTML",
+      "kind": "conversion",
+      "source": "selector-source",
+      "description": "Produce escaped semantic HTML source presentation through the registered selector colorizer; retain original source text and native identity without evaluating the selector.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query-expression+css-selector",
+        "--schema",
+        "https://cem.dev/ns/query/css-selector/1",
+        "--to-content-type",
+        "application/vnd.cem.query-expression+css-selector",
+        "--to-schema",
+        "https://cem.dev/ns/query/css-selector/1",
+        "--cemt-formatter",
+        "css-selector.format-expression",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--cemt-colorizer",
+        "css-selector.color-expression",
+        "--cemt-color-profile",
+        "html"
+      ],
+      "expectedText": [
+        "<span",
+        "data-role=\"syntax.name\"",
+        "article",
+        "&gt;"
+      ]
+    },
+    {
       "id": "query-cards",
       "name": "Select ready HTML product cards",
       "kind": "query",

@@ -21,6 +21,7 @@ export async function verifySelectorProject({ page, context, url }) {
         const current = globalThis.__cemStudioApplication.workbench.snapshot();
         return { route: current.navigation.selection, status: current.status, editable: current.editable, dirty: current.dirty,
             text: current.projection?.output?.text, outputAvailable: current.projection?.output?.available,
+            outputContentType: current.projection?.output?.contentType,
             exitCode: current.projection?.exitCode, diagnostics: current.projection?.diagnostics ?? current.validation?.diagnostics };
     });
     const save = async value => { await editor.fill(value); await settle(); await click('Save and validate'); };
@@ -45,6 +46,18 @@ export async function verifySelectorProject({ page, context, url }) {
         await page.getByRole('dialog').getByRole('button', { name: 'Clone', exact: true }).click(); await settle();
         const project = (await state()).route.project; assert.ok(project); return project;
     };
+    const assertSourcePresentation = async (result, source) => {
+        assert.equal(result.outputContentType, 'text/html');
+        const displayed = await page.evaluate(html => {
+            const document = new DOMParser().parseFromString(html, 'text/html');
+            return { text: document.body.textContent,
+                spans: document.querySelectorAll('span[data-role]').length,
+                scripts: document.querySelectorAll('script').length };
+        }, result.text);
+        assert.equal(displayed.text, source);
+        assert.ok(displayed.spans > 0);
+        assert.equal(displayed.scripts, 0);
+    };
     const originalRoute = file => ({ collection: 'content-types-queries-transformations', sample: id, ...(file ? { file } : {}) });
 
     await page.goto(`${url}/?collection=content-types-queries-transformations`); await ready();
@@ -62,7 +75,9 @@ export async function verifySelectorProject({ page, context, url }) {
     for (const command of definition.configurations.filter(item => !item.repair)) {
         const result = await run(project, command.id);
         assert.equal(result.status, command.kind === 'validation' ? 'valid' : 'projected', JSON.stringify(result));
+        if (command.expectedOutput) assert.equal(result.text, await fixture(command.expectedOutput));
         for (const text of command.expectedText ?? []) assert.ok(result.text.includes(text), `${command.id}: missing ${text}`);
+        if (command.id === 'color-selector') await assertSourcePresentation(result, originals['selector-source']);
         if (command.expectedSemanticContract) assert.deepEqual(values(result), JSON.parse(await fixture(command.expectedSemanticContract)));
     }
     const baseline = await run(project, 'query-cards'), report = JSON.parse(baseline.text);
@@ -114,6 +129,8 @@ export async function verifySelectorProject({ page, context, url }) {
         assert.deepEqual(values(await run(copy, 'query-cards')), expectedCards.slice(0, 1));
         assert.deepEqual(values(await run(copy, 'query-namespaces')), expectedNamespace);
         assert.equal((await run(copy, 'validate-selector')).status, 'valid');
+        assert.equal((await run(copy, 'format-selector')).text, editedSelector);
+        await assertSourcePresentation(await run(copy, 'color-selector'), editedSelector);
         await open({ project: copy, file: 'document-source' }); assert.equal(await editor.evaluate(element => element.value), editedDocument);
         await open({ project: copy, file: 'selector-source' }); assert.equal(await editor.evaluate(element => element.value), editedSelector);
         await open({ project: copy, file: repair.source }); assert.equal(await editor.evaluate(element => element.value), repaired);
@@ -125,5 +142,6 @@ export async function verifySelectorProject({ page, context, url }) {
     console.log('[cem-studio:css-selector] offline native queries, repaired resource and unchanged read-only originals passed');
     return { catalog: true, readonlyOriginals: true, nativeCommands: true, exactIdentityContracts: true, nativeSourceRanges: true,
         namespaceQuery: true, nativeRepair: true, unsavedSourceGuard: true, savedDocument: true, savedSelector: true,
-        deduplication: true, invalidQueryRefusal: true, independentCopies: true, offline: true };
+        deduplication: true, invalidQueryRefusal: true, independentCopies: true, offline: true,
+        sourceFormatting: true, htmlSourceColoring: true, offlineSourceFormatting: true };
 }

@@ -1,7 +1,8 @@
 # CSS Selector Schema Package
 
 Status: schema-owned query contract, package assets, native parser, lifecycle
-element-tree adapter, evaluator, and unified CLI query execution implemented
+element-tree adapter, evaluator, CLI query/source export and shared editor paint
+implemented
 
 This package owns standalone CSS selector query expressions. It is deliberately
 separate from the `css/v1` stylesheet package and never treats `text/css` or a
@@ -34,6 +35,18 @@ The package declares `compact`, `pretty`, and `tabular` formatters plus
 deterministic lexical token-tree stages. The unified CLI routes the
 package-owned selector AST to the native query evaluator; no private source
 reparse or stylesheet AST substitution is permitted.
+
+Same-identity `convert` also dispatches the borrowed typed selector/token owner
+through those registered formatter/colorizer assets and the common native
+writer. All three profiles preserve lexical spelling, comments, escapes and
+internal line endings. Plain/terminal exports use the shared final-newline rule;
+HTML source previews retain the displayed source verbatim and escape markup.
+Formatting is passive and retains native token origins; it performs no matching
+or resource fetching. Invalid source and unrelated export targets refuse.
+
+The shared source editor recognizes the explicit selector MIME and paints native
+token ranges, including incomplete drafts. Missing namespace or host context
+remains a validation diagnostic; source paint grants no evaluation authority.
 
 The package-owned
 [`tests/selectors-4-conformance.cem`](./tests/selectors-4-conformance.cem)
@@ -81,9 +94,9 @@ are passive and perform no resolution or evaluation.
 - `colorizers/css-selector-color-expression.cemt`
 
 The checked-in selector examples use fenced source, so they require no SVG
-fallback previews. Source snapshots are used only where the current CLI cannot
-yet render package formatter/colorizer previews. Preview verification enforces
-that source-only policy.
+fallback previews. The package keeps fenced examples while CLI source export
+provides native formatter/colorizer presentations. Preview verification enforces
+that source-only documentation policy.
 
 ## Safety
 

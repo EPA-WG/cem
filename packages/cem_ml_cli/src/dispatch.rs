@@ -14058,6 +14058,330 @@ active: true
     }
 
     #[test]
+    fn convert_css_selector_profiles_preserve_original_lexical_bytes() {
+        use cem_ml::schema::registry::{CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI};
+        let source = "/* Café */\r\nmain#app > article.caf\\e9 [data-label=\"茶\"]:not([hidden]),\r\nsection:has(> h2)";
+        let expected = format!("{source}\r\n");
+        let input = write_fixture("convert-selector-lossless.css-selector", source);
+        for profile in ["compact", "pretty", "tabular"] {
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "convert",
+                    "--no-color",
+                    input.to_str().unwrap(),
+                    "--content-type",
+                    CSS_SELECTOR_CONTENT_TYPE,
+                    "--schema",
+                    CSS_SELECTOR_SCHEMA_URI,
+                    "--to-content-type",
+                    CSS_SELECTOR_CONTENT_TYPE,
+                    "--to-schema",
+                    CSS_SELECTOR_SCHEMA_URI,
+                    "--cemt-formatter",
+                    "css-selector.format-expression",
+                    "--cemt-formatter-profile",
+                    profile,
+                ],
+            );
+            assert_eq!(outcome.exit_code, EXIT_OK, "{profile}: {stderr}");
+            assert!(stderr.is_empty(), "{profile}: {stderr}");
+            assert_eq!(stdout.as_bytes(), expected.as_bytes(), "{profile}");
+            assert!(
+                stdout.ends_with("\r\n"),
+                "{profile}: required final newline"
+            );
+        }
+
+        // An existing final newline is retained, rather than duplicated.
+        let terminated_input = write_fixture(
+            "convert-selector-lossless-terminated.css-selector",
+            &expected,
+        );
+        let destination =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-selector-lossless.out");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--no-color",
+                terminated_input.to_str().unwrap(),
+                "--content-type",
+                CSS_SELECTOR_CONTENT_TYPE,
+                "--schema",
+                CSS_SELECTOR_SCHEMA_URI,
+                "--to-content-type",
+                CSS_SELECTOR_CONTENT_TYPE,
+                "--to-schema",
+                CSS_SELECTOR_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+                "--out",
+                destination.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.is_empty(), "{stderr}");
+        assert_eq!(std::fs::read(&destination).unwrap(), expected.as_bytes());
+        assert_eq!(std::fs::read(&input).unwrap(), source.as_bytes());
+        assert_eq!(
+            std::fs::read(&terminated_input).unwrap(),
+            expected.as_bytes()
+        );
+    }
+
+    #[test]
+    fn convert_css_selector_color_profiles_preserve_visible_source_and_html_identity() {
+        use cem_ml::schema::registry::{CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI};
+        let source = "/* <script>&Tea */\r\nmain.card[data-state=\"ready\"] > article:has(> h2)";
+        let expected = format!("{source}\r\n");
+        let input = write_fixture("convert-selector-color.css-selector", source);
+        let common = [
+            "convert",
+            input.to_str().unwrap(),
+            "--content-type",
+            CSS_SELECTOR_CONTENT_TYPE,
+            "--schema",
+            CSS_SELECTOR_SCHEMA_URI,
+            "--to-content-type",
+            CSS_SELECTOR_CONTENT_TYPE,
+            "--to-schema",
+            CSS_SELECTOR_SCHEMA_URI,
+            "--cemt-formatter",
+            "css-selector.format-expression",
+            "--cemt-formatter-profile",
+            "tabular",
+            "--cemt-colorizer",
+            "css-selector.color-expression",
+        ];
+        let mut terminal = Vec::from(common);
+        terminal.extend([
+            "--cemt-color-profile",
+            "terminal",
+            "--output-color-type",
+            "ansi-256",
+        ]);
+        let (outcome, stdout, stderr) = run(&RealCemMlEngine::new(), &terminal);
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.is_empty(), "{stderr}");
+        assert!(stdout.contains("\x1b["), "{stdout:?}");
+        assert_eq!(strip_ansi_codes(&stdout), expected);
+
+        let destination = std::env::temp_dir().join("cem-ml-cli-tests/convert-selector-color.html");
+        let report_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-selector-color.report.json");
+        let mut html = Vec::from(common);
+        html.extend([
+            "--cemt-color-profile",
+            "html",
+            "--out",
+            destination.to_str().unwrap(),
+            "--report-json",
+            report_path.to_str().unwrap(),
+        ]);
+        let (outcome, stdout, stderr) = run(&RealCemMlEngine::new(), &html);
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.is_empty(), "{stderr}");
+        let written = std::fs::read_to_string(&destination).unwrap();
+        assert!(written.contains("<span"), "{written}");
+        assert!(
+            written.contains(r#"data-role="syntax.comment""#),
+            "{written}"
+        );
+        assert!(written.contains("&lt;script&gt;&amp;Tea"), "{written}");
+        assert!(!written.contains("<script>"), "{written}");
+        // The HTML preview wrapper retains source text verbatim; the shared
+        // text-output EOF policy applies to plain and terminal output instead.
+        assert_eq!(html_text_content(&written), source);
+        let report: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&report_path).unwrap()).unwrap();
+        let output = &report["reportAst"]["convert"]["outputs"][0];
+        assert_eq!(
+            output["contentType"],
+            cem_ml::schema::registry::HTML_CONTENT_TYPE
+        );
+        assert_eq!(output["schema"], cem_ml::schema::registry::HTML_SCHEMA_URI);
+        assert_eq!(
+            output["conversion"]["converterId"],
+            "css-selector-lifecycle-output"
+        );
+        assert_eq!(
+            output["conversion"]["outputPipeline"]["stages"][0]["function"],
+            "css-selector.format-expression"
+        );
+        assert_eq!(
+            output["conversion"]["outputPipeline"]["stages"][1]["function"],
+            "css-selector.color-expression"
+        );
+    }
+
+    #[test]
+    fn convert_css_selector_source_uses_explicit_namespace_context_without_evaluation() {
+        use cem_ml::schema::registry::{CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI};
+        let source = "c|catalog > c|product[ready]";
+        let input = write_fixture("convert-selector-namespace.css-selector", source);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--no-color",
+                input.to_str().unwrap(),
+                "--content-type",
+                CSS_SELECTOR_CONTENT_TYPE,
+                "--schema",
+                CSS_SELECTOR_SCHEMA_URI,
+                "--to-content-type",
+                CSS_SELECTOR_CONTENT_TYPE,
+                "--to-schema",
+                CSS_SELECTOR_SCHEMA_URI,
+                "--namespace",
+                "c=urn:example:selector-source-only",
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.is_empty(), "{stderr}");
+        assert_eq!(stdout, format!("{source}\n"));
+    }
+
+    #[test]
+    fn convert_css_selector_source_refusals_keep_diagnostics_and_existing_output() {
+        use cem_ml::schema::registry::{CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI};
+        for (name, source, code) in [
+            (
+                "syntax",
+                b"article[".as_slice(),
+                "css-selector.parse.invalid",
+            ),
+            (
+                "namespace",
+                b"c|product".as_slice(),
+                "css-selector.namespace.unbound",
+            ),
+            (
+                "capability",
+                b"a:hover".as_slice(),
+                "css-selector.capability.missing",
+            ),
+            (
+                "unsupported",
+                b"article::before".as_slice(),
+                "css-selector.feature.unsupported",
+            ),
+            ("utf8", [0xff].as_slice(), "css-selector.lexical.invalid"),
+        ] {
+            let input = write_binary_fixture(
+                &format!("convert-selector-refusal-{name}.css-selector"),
+                source,
+            );
+            let destination = std::env::temp_dir().join(format!(
+                "cem-ml-cli-tests/convert-selector-refusal-{name}.out"
+            ));
+            let report_path = std::env::temp_dir().join(format!(
+                "cem-ml-cli-tests/convert-selector-refusal-{name}.report.json"
+            ));
+            let previous = b"previous admitted output";
+            std::fs::write(&destination, previous).unwrap();
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "convert",
+                    "--no-color",
+                    input.to_str().unwrap(),
+                    "--content-type",
+                    CSS_SELECTOR_CONTENT_TYPE,
+                    "--schema",
+                    CSS_SELECTOR_SCHEMA_URI,
+                    "--to-content-type",
+                    CSS_SELECTOR_CONTENT_TYPE,
+                    "--to-schema",
+                    CSS_SELECTOR_SCHEMA_URI,
+                    "--out",
+                    destination.to_str().unwrap(),
+                    "--report-json",
+                    report_path.to_str().unwrap(),
+                ],
+            );
+            assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{name}: {stderr}");
+            assert!(stdout.is_empty(), "{name}: {stdout}");
+            assert!(stderr.contains(code), "{name}: {stderr}");
+            assert!(
+                !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+                "{name}: {stderr}"
+            );
+            assert_eq!(std::fs::read(&destination).unwrap(), previous, "{name}");
+            assert_eq!(std::fs::read(&input).unwrap(), source, "{name}");
+            let report: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(&report_path).unwrap()).unwrap();
+            let diagnostic = report["diagnostics"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|diagnostic| diagnostic["code"] == code)
+                .unwrap();
+            assert_eq!(diagnostic["uri"], input.display().to_string(), "{name}");
+            if name == "syntax" {
+                assert_eq!(diagnostic["line"], 1);
+                assert_eq!(diagnostic["column"], 8);
+                assert_eq!(diagnostic["byteOffset"], 7);
+                assert!(diagnostic["sourceMap"]["frames"]
+                    .as_array()
+                    .is_some_and(|frames| !frames.is_empty()));
+            }
+        }
+    }
+
+    #[test]
+    fn convert_css_selector_and_stylesheet_identities_do_not_coerce_each_other() {
+        use cem_ml::schema::registry::{
+            CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI,
+        };
+        for (name, source, input_type, input_schema, output_type, output_schema) in [
+            (
+                "selector-to-stylesheet",
+                "article.card > h2",
+                CSS_SELECTOR_CONTENT_TYPE,
+                CSS_SELECTOR_SCHEMA_URI,
+                CSS_CONTENT_TYPE,
+                CSS_SCHEMA_URI,
+            ),
+            (
+                "stylesheet-to-selector",
+                ".card { color: red; }",
+                CSS_CONTENT_TYPE,
+                CSS_SCHEMA_URI,
+                CSS_SELECTOR_CONTENT_TYPE,
+                CSS_SELECTOR_SCHEMA_URI,
+            ),
+        ] {
+            let input = write_fixture(&format!("convert-{name}.txt"), source);
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "convert",
+                    "--no-color",
+                    input.to_str().unwrap(),
+                    "--content-type",
+                    input_type,
+                    "--schema",
+                    input_schema,
+                    "--to-content-type",
+                    output_type,
+                    "--to-schema",
+                    output_schema,
+                ],
+            );
+            assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{name}: {stderr}");
+            assert!(stdout.is_empty(), "{name}: {stdout}");
+            assert!(
+                stderr.contains("cem.lifecycle.internal_ast_target_unsupported"),
+                "{name}: {stderr}"
+            );
+        }
+    }
+
+    #[test]
     fn convert_markdown_same_schema_uses_borrowed_lifecycle_ast_stream() {
         let p = write_fixture(
             "convert-markdown-same-schema.md",

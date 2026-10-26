@@ -1925,7 +1925,7 @@ the typed run plan remains execution authority.
 | Editor                          | Advantages                                                                                     | Disadvantages                                                                                                           | Recommendation                                                            |
 | ------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | Native `<textarea>`             | Small, accessible baseline; dependable text value and selection offsets; no editor dependency. | No syntax highlighting, folding, inline widgets, or rich completion UI.                                                 | Remains the shared form-value editor and command text editor.                              |
-| `contenteditable` source editor | Native plaintext editing with retained caret, undo and IME; reusable source editor.                                                               | Shared HTML/CEM-ML/CSS coloring preserves source and undo; language services remain future work. External text replacements reset editing history. | Current source editor through shared `cem-source-editor` / `plaintext-editor`.                                |
+| `contenteditable` source editor | Native plaintext editing with retained caret, undo and IME; reusable source editor.                                                               | Shared HTML/CEM-ML/CSS/selector coloring preserves source and undo; language services remain future work. External text replacements reset editing history. | Current source editor through shared `cem-source-editor` / `plaintext-editor`.                                |
 | CodeMirror/Monaco-class editor  | Mature language UI, diagnostics, completion, and large-document ergonomics.                    | Bundle size, theming/accessibility integration, worker complexity, and another adapter contract.                        | Evaluate after the textarea workflow and language-service API are stable. |
 
 Selected text resources use the shared declarative `cem-source-editor`.
@@ -1935,7 +1935,10 @@ project resources remain editable with the existing draft/save/validation guards
 Predefined sample resources use the same editor readonly until the sample is
 cloned. Authored source is always text. The shared component supports optional native
 HTML/CEM-ML/CSS paint, including structured `+cem` template/transform media
-types. Studio binds the resource's declared `content-type` and an unambiguous
+types and `application/vnd.cem.query-expression+css-selector` query source.
+Selector paint uses its native token owner and remains available for incomplete
+drafts; namespace/capability diagnostics still govern validation and execution.
+Studio binds the resource's declared `content-type` and an unambiguous
 `source-id` tuple of stable project/resource IDs, independently of names, paths,
 revisions and the preview selection. Readonly samples use a separate sample
 identity and the same language binding. URL-driven file admission changes these

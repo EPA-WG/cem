@@ -279,9 +279,13 @@ export const LosslessColoring = meta.story({
             // Native child-language coloring and exact Unicode range boundaries.
             host.value = '😀é\r\n<style>.card { color: red }</style>';
             await waitFor(() => expect(paintedRanges(host).map(range => range.toString())).toContain('color'));
-            for (const type of ['text/css', 'text/cem-ml']) {
+            for (const [type, value] of [
+                ['text/css', '\t.card { color: red; /* incomplete é😀\n\n'],
+                ['text/cem-ml', '\t{p @title="é😀" | unfinished\n\n'],
+                ['application/vnd.cem.query-expression+css-selector', '\t/* é😀 */\r\nsvg|a[data-label="茶"]:\r\n\n'],
+            ] as const) {
                 host.setAttribute('content-type', type);
-                host.value = type === 'text/css' ? '\t.card { color: red; /* incomplete é😀\n\n' : '\t{p @title="é😀" | unfinished\n\n';
+                host.value = value;
                 const markup = control.innerHTML;
                 await runtime.whenRenderSettled(host);
                 await waitFor(() => expect(paintedRanges(host).length).toBeGreaterThan(0));

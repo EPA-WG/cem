@@ -267,6 +267,8 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `css-stylesheet` | `style-graph` | `build-html` | Publish an explicitly authored HTML wrapper and native CSS output as a two-artifact tree; the ordinary browser @scope rule is separate from DCE host scoping. |
 | `css-selector` | `selector-source` | `inspect-selector` | View the existing CEM text envelope and original query bytes/offsets. This is not a typed selector-AST export; actual matching and validation use the native selector parser. |
 | `css-selector` | `selector-source` | `validate-selector` | Validate standalone selector grammar and capability facts using its explicit query identity, independently of any host document. |
+| `css-selector` | `selector-source` | `format-selector` | Run the registered native lexical formatter, preserving selector spelling, comments, escapes and source ranges with the shared text EOF policy. |
+| `css-selector` | `selector-source` | `color-selector` | Produce escaped semantic HTML source presentation through the registered selector colorizer; retain original source text and native identity without evaluating the selector. |
 | `css-selector` | `document-source` | `query-cards` | Select actual native HTML element identities in document order; the overlapping selector list deduplicates Tea. JSON is an explicit human-facing result export. |
 | `css-selector` | `catalog-source` | `query-namespaces` | Use an explicit static namespace binding over the original native XML element tree; source prefix spelling is not query identity. |
 | `css-selector` | `invalid-selector` | `repair-selector` | Replace the incomplete attribute selector with the valid project query and revalidate the same saved resource. |

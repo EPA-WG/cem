@@ -6,13 +6,19 @@
 Its editable `pre` is a named multiline textbox in the light DOM. Source enters
 as text; HTML/CEM source is never executed or treated as editor markup.
 
-Set `content-type="text/html|text/cem-ml|text/css"` to use the playground's native
+Set `content-type="text/html|text/cem-ml|text/css"`, or the explicit selector MIME
+`application/vnd.cem.query-expression+css-selector`, to use the playground's native
 semantic coloring over exact authored source, including incomplete source and
 nested language regions. The default is `text/plain`. `highlight="auto"` is the
 default; `highlight="off"` keeps plain text. Optional `source-id` identifies a
 resource so switching files invalidates pending paint even for identical text.
 Coloring never formats source. Formatting remains an explicit caller command;
 language services, JSON/Markdown/XML/CEM-QL coloring are future work.
+
+Selector coloring consumes the native selector token owner, independently of
+stylesheet syntax and query evaluation. Incomplete source, an unbound prefix or
+missing host capabilities can still be painted; native validation retains its
+diagnostics and no matching authority is granted by coloring.
 
 The shared runtime paints CSS Custom Highlight ranges over the existing text;
 it inserts no coloring markup and leaves native undo, selection and scroll alone.

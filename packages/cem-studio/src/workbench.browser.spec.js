@@ -62,6 +62,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         ['login', 'login-html', 'text/html'],
         ['supplier-pipeline', 'supplier-view', 'application/vnd.cem.template+cem'],
         ['markdown-site', 'assets-site-css', 'text/css'],
+        ['css-selector', 'selector-source', 'application/vnd.cem.query-expression+css-selector'],
     ])('adopts shared source paint with readonly samples, URL identity and durable drafts: %s', async (name, resourceId, contentType) => {
         const response = await fetch(new URL(`../generated/feature-tour/examples/${name}.cem-studio.json`, import.meta.url));
         expect(response.ok).toBe(true);

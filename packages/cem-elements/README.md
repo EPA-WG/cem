@@ -686,7 +686,8 @@ and regenerates ranges on the fresh generation. Paint ranges and native job
 identities never enter the checkpoint; late retired replies cannot repaint.
 This is an explicit shared owner adapter, not automatic Studio recovery.
 
-With `content-type="text/html|text/cem-ml|text/css"`, the capability reuses the
+With `content-type="text/html|text/cem-ml|text/css"`, or the explicit selector MIME
+`application/vnd.cem.query-expression+css-selector`, the capability reuses the
 playground's lossless native highlighter through bounded `highlight` processing
 jobs (protocol v29). The named `sourceHighlightPaintV1` presentation DTO contains
 only schema/status and UTF-16 role ranges, never a source AST or token stream.
