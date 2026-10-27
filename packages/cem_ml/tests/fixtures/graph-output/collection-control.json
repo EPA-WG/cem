@@ -1,0 +1,17 @@
+{
+  "bindings": {"root": "Café"},
+  "count": 1,
+  "items": [{
+    "artifactId": "page",
+    "bindings": {"stem": "index"},
+    "destination": "out/index.html",
+    "identity": {"contentType": "text/html"},
+    "input": "page-source",
+    "primary": {"content": "<main>Café 🧬</main>", "kind": "document"},
+    "uri": "memory:page.cem",
+    "sourceMap": {"frames": [{"source_id": 7, "span": {"kind": "Single", "ranges": {"start": 4, "len": 10}}, "transform": {"kind": "SourceBoundary", "uri": "memory:page.cem"}}]},
+    "outputSpans": [{"outputRange": {"start": 0, "len": 12}, "origin": {"frames": [{"source_id": 7, "span": {"kind": "Single", "ranges": {"start": 4, "len": 10}}, "transform": {"kind": "SourceBoundary", "uri": "memory:page.cem"}}]}}]
+  }],
+  "kind": "collection",
+  "mode": "collect"
+}

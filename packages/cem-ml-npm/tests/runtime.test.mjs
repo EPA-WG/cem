@@ -530,6 +530,108 @@ test('async command-service binding hydrates and transactionally publishes throu
   );
 });
 
+for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
+  test(`collection graph publication shares CLI manifest bytes and inline provenance in ${runtimeKind}`, async () => {
+    const runtime = runtimeKind === 'wasm-node'
+      ? await import('@epa-wg/cem-ml/wasm')
+      : await import('../dist/wasm/browser/cem_ml.js');
+    if (runtimeKind !== 'wasm-node') {
+      await runtime.default({ module_or_path: await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url)) });
+    }
+    const base = 'studio://collection/';
+    const configUri = `${base}graph.cem`;
+    const outputUri = `${base}out/book.json`;
+    const sources = new Map([
+      [configUri, `{run |
+        {import @id=chapter @src=chapter.cem @content-type=text/cem-ml |
+          {transform @id=page @src=view.cem @template-content-type=text/cem-ml |
+            {join @id=book @mode=collect |
+              {export @id=collection @out=out/book.json @content-type=application/json}
+            }
+          }
+        }
+      }`],
+      [`${base}chapter.cem`, '{section | Source}'],
+      [`${base}view.cem`, '{article | Café 🧬}'],
+    ]);
+    const resources = new Map([...sources].map(([uri, source]) => {
+      const bytes = new TextEncoder().encode(source);
+      return [uri, { bytes, version: {
+        sha256: createHash('sha256').update(bytes).digest('hex'), revision: 1,
+      } }];
+    }));
+    const request = {
+      protocolVersion: 1,
+      requestId: `wasm-collection-manifest:${runtimeKind}`,
+      project: { projectId: 'collection-fixture', revision: 1 },
+      resourceVersions: Object.fromEntries([...resources].map(([uri, value]) => [uri, value.version])),
+      operation: { kind: 'transform', source: { kind: 'graph', configUri }, preserveSourceOffsets: true },
+      runPlan: JSON.parse(runtime.normalizeCommandRunPlanV1(JSON.stringify({ configBytes: [
+        ...new TextEncoder().encode(JSON.stringify({
+          inputs: [{ uri: `${base}chapter.cem`,
+            rootScope: { defaultContentType: 'text/cem-ml' } }],
+        })),
+      ] }))),
+      resources: {},
+      policyStamp: { resolver: 'collection-resolver', safety: 'collection-safety', budget: 'collection-budget' },
+    };
+    const writes = new Map();
+    const committed = [];
+    try {
+      const result = JSON.parse(await runtime.executeCommandServiceV1(
+        JSON.stringify(request),
+        JSON.stringify({ runtime: runtimeKind, targetIdentity: 'runtime-test:collection',
+          abiIdentity: 'runtime-test-v1', debugControlActive: false }),
+        async () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
+        async (json) => {
+          const { uri } = JSON.parse(json);
+          const source = resources.get(uri);
+          assert.ok(source, `known native graph resource: ${uri}`);
+          return JSON.stringify({ version: source.version, bytes: [...source.bytes],
+            identity: { contentType: 'text/cem-ml' } });
+        },
+        async (json, bytes) => {
+          const write = JSON.parse(json);
+          assert.equal(write.uri, outputUri, 'no implicit child or sidecar publication');
+          assert.equal(writes.size, 0);
+          writes.set('manifest', { write, bytes: Uint8Array.from(bytes) });
+          return JSON.stringify({ token: 'manifest' });
+        },
+        async (token) => {
+          committed.push(token);
+          return JSON.stringify({ uri: writes.get(token).write.uri });
+        },
+        async () => assert.fail('successful graph must not roll back'),
+      ));
+      assert.equal(result.status, 'succeeded', JSON.stringify(result));
+      assert.deepEqual(committed, ['manifest']);
+      assert.equal(result.artifacts.originalCount, 1);
+      const raw = result.result.value.value.value.artifacts[0].primary;
+      assert.equal(raw.kind, 'collection');
+      assert.equal(raw.count, 1);
+      assert.ok(raw.items[0].sourceMap.frames.length > 0);
+      assert.ok(raw.items[0].outputSpans.length > 0);
+      const published = new TextDecoder().decode(writes.get('manifest').bytes);
+      const manifest = JSON.parse(published);
+      assert.equal(manifest.items[0].primary, '<article>Café 🧬</article>');
+      assert.equal(manifest.items[0].sourceMap, undefined);
+      assert.equal(manifest.items[0].outputSpans, undefined);
+      // Compare exact native pretty-print bytes, including sorted keys and no final newline.
+      const expected = {
+        bindings: raw.bindings, count: raw.count, items: raw.items.map(item => ({
+          artifactId: item.artifactId, bindings: item.bindings, destination: item.destination ?? null,
+          identity: item.identity ?? null, input: item.input, primary: item.primary, uri: item.uri ?? null,
+        })), kind: 'collection', mode: raw.mode,
+      };
+      assert.equal(published, JSON.stringify(expected, null, 2));
+      assert.equal(result.artifacts.items[0].sha256,
+        createHash('sha256').update(writes.get('manifest').bytes).digest('hex'));
+    } finally {
+      runtime.disposeCommandArtifactsV1(request.requestId);
+    }
+  });
+}
+
 async function executeVersionCommand(runtime, runtimeKind, ledger = undefined, options = {}) {
   const request = {
     protocolVersion: 1,

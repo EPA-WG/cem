@@ -93,7 +93,7 @@ failure at `tests/reference-transport-wasm.mjs:105`, reproduced with the unchang
 unoptimized binary. The [2026-10-27 native serialization correction](archive/todo-completed-xml-reload-roundtrip-2026-10-27.md)
 repairs it without changing the strict assertion or the capability profile.
 
-### Current output after the XML reload correction (2026-10-27)
+### Output after the XML reload correction (2026-10-27)
 
 | Runtime (two deployed copies each) | Post-bindgen input, bytes | `-Oz`, bytes | MiB |
 | --- | ---: | ---: | ---: |
@@ -103,9 +103,24 @@ repairs it without changing the strict assertion or the capability profile.
 The shared native serializer now orders passive namespace/schema lookup maps,
 with runtime hash lookup and authored declaration order unchanged. The existing
 XML roundtrip fixture passes against both the new unoptimized and optimized
-WASM builds. Current deployment: **898 files, 114,563,382 bytes (109.26 MiB)**;
+WASM builds. Its deployment: **898 files, 114,563,382 bytes (109.26 MiB)**;
 all four WASM files remain below 25 MiB with all exports and schemas enabled.
 The earlier comparison table remains the measured 2026-10-26 baseline.
+
+### Current output after shared collection writers (2026-10-27)
+
+| Runtime (two deployed copies each) | Post-bindgen input, bytes | `-Oz`, bytes | MiB |
+| --- | ---: | ---: | ---: |
+| CEM-QL | 26,784,259 | **23,515,341** | **22.43** |
+| CEM-ML common-query bridge | 27,563,258 | **24,164,864** | **23.05** |
+
+Collection manifest and structured output writers now live in the shared native
+engine. The complete deployment is **898 files, 114,696,684 bytes (109.38 MiB)**.
+All four WASM files remain below 25 MiB, with the same 169/170 exports, 28 imports,
+default debug-control and complete 32-package schema surface. The pinned optimizer
+and deployment guards remain unchanged. Verification and retained test-suite
+limitations are recorded in the
+[collection publication evidence](archive/todo-completed-collection-manifests-2026-10-27.md).
 
 ## Reproducing optimizer comparisons
 

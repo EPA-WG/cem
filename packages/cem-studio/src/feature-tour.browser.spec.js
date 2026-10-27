@@ -298,6 +298,47 @@ describe('CEM Studio Feature Tour copies', () => {
         expect(decode('card-check')).not.toBe(redirected);
     }, 60_000);
 
+    it('publishes the shared collection manifest through the command worker and retains inline item origins', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const root = 'studio://collection-worker/', uri = `${root}graph.cem`;
+        const encode = text => new TextEncoder().encode(text);
+        const result = await validator.runResourceCommand({
+            bytes: encode(`{run |
+                {import @id=chapter @src=chapter.cem @content-type=text/cem-ml |
+                    {transform @id=page @src=view.cem @template-content-type=text/cem-ml |
+                        {join @id=book @mode=collect |
+                            {export @id=collection @out=out/book.json @content-type=application/json}
+                        }
+                    }
+                }
+            }`),
+            uri, contentType: 'application/cem', schema: 'https://cem.dev/ns/cli/transform-config/1',
+            projectId: 'collection-worker', projectRootUri: root,
+            argv: ['transform', '--config', uri, '--config-content-type', 'application/cem',
+                '--config-schema', 'https://cem.dev/ns/cli/transform-config/1', '--scope-budget', 'queueSize=1024'],
+            dependencies: [
+                { path: 'chapter.cem', bytes: encode('{section | Source}'), contentType: 'text/cem-ml' },
+                { path: 'view.cem', bytes: encode('{article | Café 🧬}'), contentType: 'text/cem-ml' },
+            ],
+        });
+        expect(result.result.exitCode).toBe(0);
+        expect(result.outputs).toHaveLength(1);
+        expect(result.outputs[0].uri).toBe(`${root}out/book.json`);
+        const raw = result.result.result.value.value.value.artifacts[0].primary;
+        expect(raw.items[0].sourceMap.frames.length).toBeGreaterThan(0);
+        expect(raw.items[0].outputSpans.length).toBeGreaterThan(0);
+        const text = new TextDecoder().decode(result.outputs[0].bytes), manifest = JSON.parse(text);
+        expect(manifest).toMatchObject({ kind: 'collection', count: 1, mode: 'collect' });
+        expect(manifest.items[0].primary).toBe('<article>Café 🧬</article>');
+        expect(manifest.items[0]).not.toHaveProperty('sourceMap');
+        expect(manifest.items[0]).not.toHaveProperty('outputSpans');
+        const item = raw.items[0];
+        expect(text).toBe(JSON.stringify({ bindings: raw.bindings, count: raw.count,
+            items: [{ artifactId: item.artifactId, bindings: item.bindings, destination: item.destination ?? null,
+                identity: item.identity ?? null, input: item.input, primary: item.primary, uri: item.uri ?? null }],
+            kind: raw.kind, mode: raw.mode }, null, 2));
+    }, 60_000);
+
     for (const projectId of ['cem-transform', 'xslt-transform']) {
         it(`builds ${projectId} explicit entry artifacts with native provenance and independent copies`, async () => {
             const { bundle, definition, decode } = await authoredProject(projectId);

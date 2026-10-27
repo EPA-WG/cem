@@ -1136,8 +1136,18 @@ because they do not have a stable adjacent file path.
 `cem-ml transform --source-map-summary` prints source-map refs and output-span counts to stdout after successful writes.
 For single transforms, `--source-map-summary` requires `--out` so the summary cannot be appended to document stdout.
 Collection primary JSON outputs are a stable public projection with `kind`, `mode`, `count`, `bindings`, and `items[]`
-entries containing `input`, `artifactId`, `uri`, `identity`, `primary`, and `bindings`. Per-item `sourceMap` and
+entries containing `input`, `artifactId`, `uri`, `destination`, `identity`, `primary`, and `bindings`. Per-item `sourceMap` and
 `outputSpans` are intentionally omitted from the primary output and remain in sidecar/report surfaces.
+The native engine owns this projection and its JSON/YAML/XML publication writers;
+CLI and common command-service hosts publish identical manifest bytes for the
+same artifact and output identity. Explicit native writer bytes take precedence,
+including empty output. The collection role comes from the native producer and
+is never inferred from application fields or recovered from serialized JSON.
+Common command results retain their complete inline collection metadata and
+native owners. They publish only requested graph exports; CLI child writes,
+adjacent sidecars, destination deduplication and transactional ownership retain
+their existing host contract. Sharing these writers does not broaden native
+collection exporter admission or add implicit command-service child/sidecar writes.
 When an export artifact is object-shaped and has a string `content` field, the configured output destination receives
 that document content; sidecar/report metadata remains outside the primary output body.
 

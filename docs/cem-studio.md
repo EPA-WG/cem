@@ -1303,12 +1303,15 @@ Unicode/escaping semantics are retained. The complete value is data, including
 scalar strings and fields named `content`, `kind`, `items`, `sourceMap` or
 `outputSpans`; the encoder does not extract a document envelope or grant output
 authority from those fields. Native collection controls have a producer-owned
-runtime marker: their established CLI manifest/sidecar contract and common
-command control publication remain separate from abstract JSON data encoding. This marker is
-not read from JSON. Cross-host collection sidecar/manifest parity is a separate
-follow-up; this policy does not discard or relocate collection source metadata.
+runtime marker, never read from JSON. Their manifest projection and JSON/YAML/XML
+writers are shared by CLI and common command services. Published manifests omit
+item source maps and output spans, while common command results preserve the
+complete inline metadata and native owners. CLI sidecars and child destinations
+retain their existing ownership and transaction rules; command services publish
+only requested exports, without implicit child or sidecar writes. These shared
+publication writers do not broaden native collection exporter admission.
 `application/json`, `text/json` and `+json` MIME types are recognized independently of case and
-parameters. An absent identity does not implicitly select this policy.
+parameters. An absent identity does not implicitly select the abstract-JSON policy.
 
 Explicit native writer bytes always win, including empty bytes, original key
 order, line endings and trailing whitespace. Native CLI stdout/file publication

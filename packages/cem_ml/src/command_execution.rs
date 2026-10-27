@@ -789,7 +789,10 @@ fn graph_product(
                                 .as_ref()
                                 .and_then(|identity| identity.content_type.clone())
                         })
-                        .expect("explicit writer or declared JSON identity"),
+                        .unwrap_or_else(|| {
+                            crate::graph_output::structured_content_type(artifact.identity.as_ref())
+                                .to_owned()
+                        }),
                     bytes: bytes.into_owned(),
                     source_map_id: None,
                 });
@@ -1309,6 +1312,140 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn collection_manifest_bytes_match_cli_without_moving_inline_provenance() {
+        let primary: Value = serde_json::from_slice(include_bytes!(
+            "../tests/fixtures/graph-output/collection-control.json"
+        ))
+        .unwrap();
+        let expected = include_bytes!("../tests/fixtures/graph-output/collection-manifest.json");
+        let source_map = SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(7),
+                span: FrameSpan::Single(ByteRange::new(4, 10)),
+                transform: TransformKind::SourceBoundary {
+                    uri: "memory:page.cem".into(),
+                },
+            }],
+        };
+        let product = graph_product(
+            TransformGraphResponse {
+                artifacts: vec![TransformGraphArtifact {
+                    primary_kind: crate::engine::TransformGraphPrimaryKind::Collection,
+                    export_id: "site".into(),
+                    input: "pages".into(),
+                    destination: Some("out/site.json".into()),
+                    identity: Some(FormatIdentity {
+                        content_type: Some("application/json".into()),
+                        ..Default::default()
+                    }),
+                    primary: primary.clone(),
+                    primary_bytes: None,
+                    source_map: Some(source_map.clone()),
+                    output_spans: vec![],
+                }],
+                module_asset_manifest: Default::default(),
+                diagnostics: vec![],
+                scheduler_trace: Default::default(),
+            },
+            None,
+        )
+        .unwrap_or_else(|_| panic!("collection publication"));
+        assert_eq!(
+            product.publication_items.len(),
+            1,
+            "no implicit child or sidecar writes"
+        );
+        assert_eq!(product.publication_items[0].bytes, expected);
+        assert_eq!(product.publication_items[0].uri, "out/site.json");
+        assert_eq!(product.source_maps.len(), 1);
+        assert!(matches!(
+            &product.source_maps[0].owner,
+            CommandSourceMapOwnerV1::Result
+        ));
+        let CommandPayloadV1::Inline { value } = &product.source_maps[0].source_map else {
+            panic!("inline source map")
+        };
+        assert_eq!(value, &source_map);
+        let PortableOperationResultV1::Transform(CommandTransformResultV1::Graph(response)) =
+            product.operation_result
+        else {
+            panic!("graph response")
+        };
+        assert_eq!(
+            response.artifacts[0].primary, primary,
+            "retained inline metadata is unchanged"
+        );
+        assert_eq!(response.artifacts[0].source_map.as_ref(), Some(&source_map));
+    }
+
+    #[test]
+    fn collection_formats_preserve_inline_item_maps_without_implicit_publication() {
+        let primary: Value = serde_json::from_slice(include_bytes!(
+            "../tests/fixtures/graph-output/collection-control.json"
+        ))
+        .unwrap();
+        let manifest: Value = serde_json::from_slice(include_bytes!(
+            "../tests/fixtures/graph-output/collection-manifest.json"
+        ))
+        .unwrap();
+        for (mime, schema, expected_mime) in [
+            (
+                Some(" APPLICATION/JSON ; charset=utf-8"),
+                None,
+                " APPLICATION/JSON ; charset=utf-8",
+            ),
+            (Some("application/yaml"), None, "application/yaml"),
+            (Some("application/xml"), None, "application/xml"),
+            (
+                None,
+                Some(crate::schema::registry::YAML_SCHEMA_URI),
+                "application/yaml",
+            ),
+        ] {
+            let identity = FormatIdentity {
+                content_type: mime.map(str::to_owned),
+                schema: schema.map(str::to_owned),
+                ..Default::default()
+            };
+            let expected =
+                crate::graph_output::structured_document_bytes(&manifest, Some(&identity)).unwrap();
+            let product = graph_product(
+                TransformGraphResponse {
+                    artifacts: vec![TransformGraphArtifact {
+                        primary_kind: crate::engine::TransformGraphPrimaryKind::Collection,
+                        export_id: "site".into(),
+                        input: "pages".into(),
+                        destination: Some("out/site".into()),
+                        identity: Some(identity),
+                        primary: primary.clone(),
+                        primary_bytes: None,
+                        source_map: None,
+                        output_spans: vec![],
+                    }],
+                    module_asset_manifest: Default::default(),
+                    diagnostics: vec![],
+                    scheduler_trace: Default::default(),
+                },
+                None,
+            )
+            .unwrap_or_else(|_| panic!("collection publication"));
+            assert_eq!(product.publication_items.len(), 1);
+            assert_eq!(product.publication_items[0].bytes, expected);
+            assert_eq!(product.publication_items[0].content_type, expected_mime);
+            assert!(
+                product.source_maps.is_empty(),
+                "item maps stay inline, not synthetic typed result maps"
+            );
+            let PortableOperationResultV1::Transform(CommandTransformResultV1::Graph(response)) =
+                product.operation_result
+            else {
+                panic!("graph")
+            };
+            assert_eq!(response.artifacts[0].primary, primary);
+        }
+    }
 
     #[test]
     fn graph_json_publication_uses_shared_exact_bytes_and_keeps_source_maps() {

@@ -10,21 +10,27 @@ use std::borrow::Cow;
 use crate::engine::TransformGraphArtifact;
 use crate::schema::registry::content_type_essence;
 
-/// Return explicit native bytes or the shared declared-JSON fallback. Other
-/// formats retain their existing format-owned publication paths. No content
-/// type is inferred from the value's shape or an absent output identity.
+pub mod collection;
+mod structured;
+pub use structured::{structured_content_type, structured_document_bytes};
+
+/// Return explicit native bytes, a producer-owned collection manifest, or the
+/// shared declared-JSON fallback. Collections use the established format-owned
+/// structured writers; ordinary data never acquires a collection role by shape.
 pub fn graph_artifact_bytes(
     artifact: &TransformGraphArtifact,
 ) -> Result<Option<Cow<'_, [u8]>>, serde_json::Error> {
     if let Some(primary) = artifact.primary_bytes.as_ref() {
         return Ok(Some(Cow::Borrowed(&primary.bytes)));
     }
-    if !is_declared_json(artifact.identity.as_ref()) {
-        return Ok(None);
+    if let Some(manifest) = collection::manifest(artifact) {
+        return structured_document_bytes(&manifest, artifact.identity.as_ref())
+            .map(|bytes| Some(Cow::Owned(bytes)))
+            .map_err(serde_json::Error::io);
     }
-    // Collection controls retain their established manifest/sidecar contract.
-    // They are not abstract application JSON and must not lose source metadata.
-    if artifact.primary_kind == crate::engine::TransformGraphPrimaryKind::Collection {
+    if artifact.primary_kind == crate::engine::TransformGraphPrimaryKind::Collection
+        || !is_declared_json(artifact.identity.as_ref())
+    {
         return Ok(None);
     }
     serde_json::to_vec_pretty(&artifact.primary).map(|bytes| Some(Cow::Owned(bytes)))
@@ -144,7 +150,13 @@ mod tests {
             expected
         );
         owned.primary_kind = crate::engine::TransformGraphPrimaryKind::Collection;
-        assert!(graph_artifact_bytes(&owned).unwrap().is_none());
+        let manifest = collection::manifest(&owned).unwrap();
+        assert_eq!(
+            graph_artifact_bytes(&owned).unwrap().unwrap().as_ref(),
+            serde_json::to_vec_pretty(&manifest).unwrap()
+        );
+        assert!(manifest.get("sourceMap").is_none());
+        assert!(manifest["items"][0].get("sourceMap").is_none());
         let encoded = serde_json::to_value(&owned).unwrap();
         assert!(encoded.get("primaryKind").is_none());
         let decoded: TransformGraphArtifact = serde_json::from_value(encoded).unwrap();

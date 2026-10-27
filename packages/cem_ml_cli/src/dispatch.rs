@@ -2851,83 +2851,18 @@ fn document_primary_bytes(
     if let Some(content) = document_primary_content(primary) {
         return Ok(content.as_bytes().to_vec());
     }
-    let structured = collection_primary_output_value(primary).unwrap_or_else(|| primary.clone());
-    serialize_structured_document_value(&structured, identity)
+    serialize_structured_document_value(primary, identity)
 }
 
 fn serialize_structured_document_value(
     value: &serde_json::Value,
     identity: Option<&eng::FormatIdentity>,
 ) -> io::Result<Vec<u8>> {
-    if format_identity_is_yaml(identity) {
-        return serialize_json_value_as_yaml(value);
-    }
-    if format_identity_is_xml(identity) {
-        return serialize_json_value_as_xml(value);
-    }
-    serde_json::to_vec_pretty(value).map_err(invalid_structured_document)
-}
-
-fn serialize_json_value_as_yaml(value: &serde_json::Value) -> io::Result<Vec<u8>> {
-    let yaml = json_value_to_yaml(value);
-    let mut content = String::new();
-    let mut emitter = yaml_rust2::YamlEmitter::new(&mut content);
-    emitter.multiline_strings(true);
-    emitter
-        .dump(&yaml)
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))?;
-    Ok(content.into_bytes())
-}
-
-fn json_value_to_yaml(value: &serde_json::Value) -> yaml_rust2::Yaml {
-    match value {
-        serde_json::Value::Null => yaml_rust2::Yaml::Null,
-        serde_json::Value::Bool(value) => yaml_rust2::Yaml::Boolean(*value),
-        serde_json::Value::Number(number) => {
-            if let Some(value) = number.as_i64() {
-                yaml_rust2::Yaml::Integer(value)
-            } else {
-                yaml_rust2::Yaml::Real(number.to_string())
-            }
-        }
-        serde_json::Value::String(value) => yaml_rust2::Yaml::String(value.clone()),
-        serde_json::Value::Array(values) => {
-            yaml_rust2::Yaml::Array(values.iter().map(json_value_to_yaml).collect())
-        }
-        serde_json::Value::Object(fields) => {
-            let mut out = yaml_rust2::yaml::Hash::new();
-            for (key, value) in fields {
-                out.insert(
-                    yaml_rust2::Yaml::String(key.clone()),
-                    json_value_to_yaml(value),
-                );
-            }
-            yaml_rust2::Yaml::Hash(out)
-        }
-    }
+    cem_ml::graph_output::structured_document_bytes(value, identity)
 }
 
 fn invalid_structured_document(error: serde_json::Error) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, error.to_string())
-}
-
-fn format_identity_is_yaml(identity: Option<&eng::FormatIdentity>) -> bool {
-    format_identity_text_syntax(identity) == Some(ConsoleTextSyntax::Yaml)
-}
-
-fn format_identity_is_xml(identity: Option<&eng::FormatIdentity>) -> bool {
-    let Some(identity) = identity else {
-        return false;
-    };
-    if identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence)
-        .is_some_and(|content_type| matches!(content_type.as_str(), "application/xml" | "text/xml"))
-    {
-        return true;
-    }
-    identity.schema.as_deref().map(str::trim) == Some(cem_ml::schema::registry::XML_SCHEMA_URI)
 }
 
 fn format_identity_text_syntax(
@@ -2948,87 +2883,6 @@ fn format_identity_text_syntax(
     }
 }
 
-fn serialize_json_value_as_xml(value: &serde_json::Value) -> io::Result<Vec<u8>> {
-    let root = structured_xml_root_name(value);
-    let mut out = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    write_structured_xml_value(&mut out, &root, value, 0);
-    out.push('\n');
-    Ok(out.into_bytes())
-}
-
-fn structured_xml_root_name(value: &serde_json::Value) -> String {
-    value
-        .get("kind")
-        .and_then(serde_json::Value::as_str)
-        .map(xml_element_name)
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "value".to_owned())
-}
-
-fn write_structured_xml_value(
-    out: &mut String,
-    name: &str,
-    value: &serde_json::Value,
-    depth: usize,
-) {
-    let name = xml_element_name(name);
-    let indent = cem_ml::transform_template::DEFAULT_FORMATTER_INDENT.repeat(depth);
-    match value {
-        serde_json::Value::Object(fields) => {
-            out.push_str(&indent);
-            out.push('<');
-            out.push_str(&name);
-            out.push_str(">\n");
-            for (key, child) in fields {
-                write_structured_xml_value(out, key, child, depth + 1);
-            }
-            out.push_str(&indent);
-            out.push_str("</");
-            out.push_str(&name);
-            out.push_str(">\n");
-        }
-        serde_json::Value::Array(values) => {
-            out.push_str(&indent);
-            out.push('<');
-            out.push_str(&name);
-            out.push_str(">\n");
-            for child in values {
-                write_structured_xml_value(out, "item", child, depth + 1);
-            }
-            out.push_str(&indent);
-            out.push_str("</");
-            out.push_str(&name);
-            out.push_str(">\n");
-        }
-        serde_json::Value::Null => {
-            out.push_str(&indent);
-            out.push('<');
-            out.push_str(&name);
-            out.push_str("/>\n");
-        }
-        serde_json::Value::Bool(value) => {
-            write_structured_xml_text(out, &indent, &name, if *value { "true" } else { "false" });
-        }
-        serde_json::Value::Number(value) => {
-            write_structured_xml_text(out, &indent, &name, &value.to_string());
-        }
-        serde_json::Value::String(value) => {
-            write_structured_xml_text(out, &indent, &name, value);
-        }
-    }
-}
-
-fn write_structured_xml_text(out: &mut String, indent: &str, name: &str, value: &str) {
-    out.push_str(indent);
-    out.push('<');
-    out.push_str(name);
-    out.push('>');
-    push_xml_escaped_text(out, value);
-    out.push_str("</");
-    out.push_str(name);
-    out.push_str(">\n");
-}
-
 fn push_xml_escaped_text(out: &mut String, value: &str) {
     for ch in value.chars() {
         match ch {
@@ -3039,22 +2893,6 @@ fn push_xml_escaped_text(out: &mut String, value: &str) {
             '\'' => out.push_str("&apos;"),
             _ => out.push(ch),
         }
-    }
-}
-
-fn xml_element_name(value: &str) -> String {
-    let mut out = String::with_capacity(value.len().max(1));
-    for (index, ch) in value.chars().enumerate() {
-        let valid = ch == '_' || ch == '-' || ch.is_ascii_alphanumeric();
-        if index == 0 && !(ch == '_' || ch.is_ascii_alphabetic()) {
-            out.push('_');
-        }
-        out.push(if valid { ch } else { '-' });
-    }
-    if out.is_empty() {
-        "_".to_owned()
-    } else {
-        out
     }
 }
 
@@ -3354,35 +3192,7 @@ fn invalid_binary_projection(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
-fn collection_primary_output_value(primary: &serde_json::Value) -> Option<serde_json::Value> {
-    if primary.get("kind").and_then(serde_json::Value::as_str) != Some("collection") {
-        return None;
-    }
-    let items = primary
-        .get("items")
-        .and_then(serde_json::Value::as_array)?
-        .iter()
-        .map(|item| {
-            serde_json::json!({
-                "input": item.get("input").cloned().unwrap_or(serde_json::Value::Null),
-                "artifactId": item.get("artifactId").cloned().unwrap_or(serde_json::Value::Null),
-                "uri": item.get("uri").cloned().unwrap_or(serde_json::Value::Null),
-                "destination": item.get("destination").cloned().unwrap_or(serde_json::Value::Null),
-                "identity": item.get("identity").cloned().unwrap_or(serde_json::Value::Null),
-                "primary": item.get("primary").cloned().unwrap_or(serde_json::Value::Null),
-                "bindings": item.get("bindings").cloned().unwrap_or_else(|| serde_json::json!({})),
-            })
-        })
-        .collect::<Vec<_>>();
 
-    Some(serde_json::json!({
-        "kind": "collection",
-        "mode": primary.get("mode").cloned().unwrap_or(serde_json::Value::Null),
-        "count": primary.get("count").cloned().unwrap_or_else(|| serde_json::json!(items.len())),
-        "bindings": primary.get("bindings").cloned().unwrap_or_else(|| serde_json::json!({})),
-        "items": items,
-    }))
-}
 
 fn document_primary_content(primary: &serde_json::Value) -> Option<&str> {
     match primary {
@@ -5294,33 +5104,13 @@ fn transform_graph_output_kind(primary: &serde_json::Value) -> String {
 }
 
 fn graph_primary_has_control_metadata(artifact: &eng::TransformGraphArtifact) -> bool {
-    artifact.primary_kind == eng::TransformGraphPrimaryKind::Collection
-        || !cem_ml::graph_output::is_declared_json(artifact.identity.as_ref())
+    cem_ml::graph_output::collection::has_control_metadata(artifact)
 }
 
 fn transform_graph_artifact_source_map_value(
     artifact: &eng::TransformGraphArtifact,
 ) -> Option<serde_json::Value> {
-    artifact
-        .source_map
-        .as_ref()
-        .and_then(|source_map| serde_json::to_value(source_map).ok())
-        .or_else(|| {
-            graph_primary_has_control_metadata(artifact)
-                .then(|| {
-                    artifact
-                        .primary
-                        .get("sourceMap")
-                        .filter(|source_map| !source_map.is_null())
-                        .cloned()
-                })
-                .flatten()
-        })
-        .or_else(|| {
-            (artifact.primary_kind == eng::TransformGraphPrimaryKind::Collection)
-                .then(|| transform_graph_collection_source_map_value(&artifact.primary))
-                .flatten()
-        })
+    cem_ml::graph_output::collection::source_map(artifact)
 }
 
 fn transform_graph_has_source_map(artifact: &eng::TransformGraphArtifact) -> bool {
@@ -5345,51 +5135,7 @@ fn transform_graph_output_span_count(artifact: &eng::TransformGraphArtifact) -> 
 fn transform_graph_artifact_output_spans_value(
     artifact: &eng::TransformGraphArtifact,
 ) -> serde_json::Value {
-    if artifact.source_map.is_some() || !artifact.output_spans.is_empty() {
-        return serde_json::to_value(&artifact.output_spans)
-            .unwrap_or_else(|_| serde_json::json!([]));
-    }
-    if !graph_primary_has_control_metadata(artifact) {
-        return serde_json::json!([]);
-    }
-    artifact
-        .primary
-        .get("outputSpans")
-        .filter(|value| value.as_array().is_some())
-        .cloned()
-        .unwrap_or_else(|| serde_json::json!([]))
-}
-
-fn transform_graph_collection_source_map_value(
-    primary: &serde_json::Value,
-) -> Option<serde_json::Value> {
-    if primary.get("kind").and_then(serde_json::Value::as_str) != Some("collection") {
-        return None;
-    }
-    let items = primary.get("items")?.as_array()?;
-    let items = items
-        .iter()
-        .filter_map(|item| {
-            let source_map = item.get("sourceMap").filter(|source_map| !source_map.is_null())?;
-            Some(serde_json::json!({
-                "input": item.get("input").cloned().unwrap_or(serde_json::Value::Null),
-                "artifactId": item.get("artifactId").cloned().unwrap_or(serde_json::Value::Null),
-                "uri": item.get("uri").cloned().unwrap_or(serde_json::Value::Null),
-                "destination": item.get("destination").cloned().unwrap_or(serde_json::Value::Null),
-                "identity": item.get("identity").cloned().unwrap_or(serde_json::Value::Null),
-                "sourceMap": source_map.clone(),
-                "outputSpans": item.get("outputSpans").cloned().unwrap_or_else(|| serde_json::json!([])),
-            }))
-        })
-        .collect::<Vec<_>>();
-    if items.is_empty() {
-        None
-    } else {
-        Some(serde_json::json!({
-            "kind": "collection",
-            "items": items,
-        }))
-    }
+    cem_ml::graph_output::collection::output_spans(artifact)
 }
 
 fn transform_graph_collection_item_reports(
@@ -6988,6 +6734,21 @@ fn write_graph_artifact_primary(
     if let Some(bytes) =
         cem_ml::graph_output::graph_artifact_bytes(artifact).map_err(invalid_structured_document)?
     {
+        if out.is_none()
+            && artifact.primary_bytes.is_none()
+            && artifact.primary_kind == eng::TransformGraphPrimaryKind::Collection
+        {
+            if let Some(colored) = colorize_document_body_for_console(
+                &bytes,
+                artifact.identity.as_ref(),
+                output_color_type,
+                s,
+            ) {
+                s.stdout.write_all(colored.as_bytes())?;
+                s.stdout.flush()?;
+                return Ok(());
+            }
+        }
         write_raw_primary_bytes(context, &bytes, out, s)
     } else {
         write_document_primary_with_identity(
@@ -7410,48 +7171,8 @@ fn transform_graph_collection_item_source_map_sidecar_payload(
     item: &serde_json::Value,
     destination: &str,
 ) -> serde_json::Value {
-    let mut sidecar = source_map.clone();
-    if let serde_json::Value::Object(fields) = &mut sidecar {
-        fields.insert(
-            "exportId".to_owned(),
-            serde_json::Value::String(artifact.export_id.clone()),
-        );
-        fields.insert(
-            "input".to_owned(),
-            serde_json::Value::String(
-                item.get("input")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or(artifact.input.as_str())
-                    .to_owned(),
-            ),
-        );
-        if let Some(artifact_id) = item.get("artifactId").and_then(serde_json::Value::as_str) {
-            fields.insert(
-                "artifactId".to_owned(),
-                serde_json::Value::String(artifact_id.to_owned()),
-            );
-        }
-        if let Some(uri) = item.get("uri").and_then(serde_json::Value::as_str) {
-            fields.insert("uri".to_owned(), serde_json::Value::String(uri.to_owned()));
-        }
-        if let Some(collection_destination) = artifact.destination.as_deref() {
-            fields.insert(
-                "collectionDestination".to_owned(),
-                serde_json::Value::String(collection_destination.to_owned()),
-            );
-        }
-        fields.insert(
-            "destination".to_owned(),
-            serde_json::Value::String(destination.to_owned()),
-        );
-        fields.insert(
-            "outputSpans".to_owned(),
-            item.get("outputSpans")
-                .cloned()
-                .unwrap_or_else(|| serde_json::json!([])),
-        );
-    }
-    sidecar
+    cem_ml::graph_output::collection::item_sidecar(source_map, artifact, item, destination)
+        .expect("native collection sidecar producer")
 }
 
 fn transform_graph_source_map_sidecar_payload(
@@ -7461,23 +7182,13 @@ fn transform_graph_source_map_sidecar_payload(
     destination: &str,
     output_spans: serde_json::Value,
 ) -> serde_json::Value {
-    let mut sidecar = source_map.clone();
-    if let serde_json::Value::Object(fields) = &mut sidecar {
-        fields.insert(
-            "exportId".to_owned(),
-            serde_json::Value::String(export_id.to_owned()),
-        );
-        fields.insert(
-            "input".to_owned(),
-            serde_json::Value::String(input.to_owned()),
-        );
-        fields.insert(
-            "destination".to_owned(),
-            serde_json::Value::String(destination.to_owned()),
-        );
-        fields.insert("outputSpans".to_owned(), output_spans);
-    }
-    sidecar
+    cem_ml::graph_output::collection::sidecar(
+        source_map,
+        export_id,
+        input,
+        destination,
+        output_spans,
+    )
 }
 
 fn query_diagnostic(
@@ -10936,6 +10647,113 @@ mod tests {
         assert_eq!(source_map["outputSpans"].as_array().unwrap().len(), 1);
         assert_eq!(source_map["outputSpans"][0]["outputRange"]["len"], 13);
         assert!(stdout.into_inner().is_empty());
+    }
+
+    #[test]
+    fn transform_graph_collection_bytes_match_native_manifest_for_all_formats() {
+        let primary: serde_json::Value = serde_json::from_slice(include_bytes!(
+            "../../cem_ml/tests/fixtures/graph-output/collection-control.json"
+        ))
+        .unwrap();
+        for content_type in ["application/json", "application/yaml", "application/xml"] {
+            let artifact = eng::TransformGraphArtifact {
+                primary_kind: eng::TransformGraphPrimaryKind::Collection,
+                export_id: "site".into(),
+                input: "pages".into(),
+                destination: None,
+                identity: Some(eng::FormatIdentity {
+                    content_type: Some(content_type.into()),
+                    ..Default::default()
+                }),
+                primary: primary.clone(),
+                primary_bytes: None,
+                source_map: None,
+                output_spans: vec![],
+            };
+            let manifest: serde_json::Value = serde_json::from_slice(include_bytes!(
+                "../../cem_ml/tests/fixtures/graph-output/collection-manifest.json"
+            ))
+            .unwrap();
+            let expected =
+                serialize_structured_document_value(&manifest, artifact.identity.as_ref()).unwrap();
+            if content_type == "application/json" {
+                assert_eq!(
+                    expected,
+                    include_bytes!("../../cem_ml/tests/fixtures/graph-output/collection-manifest.json")
+                );
+            }
+            let actual = cem_ml::graph_output::graph_artifact_bytes(&artifact).unwrap();
+            assert_eq!(
+                actual.as_deref(),
+                Some(expected.as_slice()),
+                "{content_type}"
+            );
+            let mut stdout = Vec::new();
+            let mut stderr = Vec::new();
+            let mut streams = Streams {
+                stdout: &mut stdout,
+                stderr: &mut stderr,
+                quiet: false,
+                no_color: true,
+                abort_signal: cem_ml::scheduler::AbortSignal::new(),
+                #[cfg(feature = "debug-control")]
+                operation_control: None,
+            };
+            write_graph_artifact_primary(
+                &eng::EngineContext::default(),
+                &artifact,
+                None,
+                None,
+                &mut streams,
+            )
+            .unwrap();
+            assert_eq!(stdout, expected, "direct CLI {content_type}");
+            assert!(stderr.is_empty());
+            let root = std::env::temp_dir().join(
+                format!(
+                    "cem-collection-publication-{}-{content_type}",
+                    std::process::id()
+                )
+                .replace('/', "-"),
+            );
+            std::fs::create_dir_all(&root).unwrap();
+            let mut staged = artifact.clone();
+            staged.destination = Some(root.join("manifest").display().to_string());
+            staged.primary["items"][0]["destination"] =
+                serde_json::json!(root.join("index.html").display().to_string());
+            let expected = serialize_structured_document_value(
+                &cem_ml::graph_output::collection::manifest(&staged).unwrap(),
+                staged.identity.as_ref(),
+            )
+            .unwrap();
+            let mut batch = PublicationBatch::new();
+            stage_transform_graph_artifacts(&mut batch, &[staged.clone()]).unwrap();
+            batch.commit(&eng::EngineContext::default()).unwrap();
+            assert_eq!(std::fs::read(root.join("manifest")).unwrap(), expected);
+            assert_eq!(
+                std::fs::read(root.join("index.html")).unwrap(),
+                "<main>Café 🧬</main>".as_bytes()
+            );
+            let item_map: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(root.join("index.html.map")).unwrap()).unwrap();
+            assert_eq!(item_map["exportId"], "site");
+            assert_eq!(item_map["artifactId"], "page");
+            assert_eq!(item_map["input"], "page-source");
+            assert_eq!(item_map["uri"], "memory:page.cem");
+            assert_eq!(
+                item_map["frames"],
+                staged.primary["items"][0]["sourceMap"]["frames"]
+            );
+            assert_eq!(
+                item_map["outputSpans"],
+                staged.primary["items"][0]["outputSpans"]
+            );
+            assert_eq!(
+                item_map["collectionDestination"],
+                staged.destination.as_deref().unwrap()
+            );
+            std::fs::remove_dir_all(root).unwrap();
+        }
     }
 
     #[test]

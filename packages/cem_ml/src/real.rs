@@ -16048,6 +16048,97 @@ mod tests {
     }
 
     #[test]
+    fn collection_manifest_publication_retains_encoded_child_owners_and_provenance() {
+        // Encoded children are an explicit export prerequisite for collection manifests.
+        let bytes = br#"{"n":1.00e+2,"n":2}"#;
+        let target = FormatIdentity {
+            content_type: Some("application/json".into()),
+            ..Default::default()
+        };
+        let context = ctx();
+        let encoded = Arc::new(
+            crate::transform_artifact::TransformEncodedArtifact::new(
+                target.clone(),
+                TransformEncoding::Json,
+                bytes.as_slice(),
+            )
+            .unwrap(),
+        );
+        let child = Arc::new(TransformTemplateDataArtifact::new(
+            "page",
+            Some("memory://page.json".into()),
+            Some(target.clone()),
+            TransformArtifactBody::Encoded(Arc::clone(&encoded)),
+        ));
+        let source_map = test_output_span(0, 1, 4).origin;
+        let collection = Arc::new(TransformArtifactCollection {
+            mode: TransformArtifactCollectionMode::Collect,
+            bindings: BTreeMap::new(),
+            items: vec![TransformArtifactCollectionItem {
+                input_name: "source".into(),
+                destination: Some("out/page.json".into()),
+                target: Some(target.clone()),
+                bindings: BTreeMap::new(),
+                artifact: Arc::clone(&child),
+                source_map: Some(source_map.clone()),
+                output_spans: vec![OutputSpan {
+                    output_range: crate::source::ByteRange::new(0, 1),
+                    origin: source_map.clone(),
+                }],
+            }],
+        });
+        let joined = TransformTemplateDataArtifact::new(
+            "site",
+            None,
+            Some(target.clone()),
+            TransformArtifactBody::Collection(Arc::clone(&collection)),
+        );
+        let (primary, primary_bytes, _, _) = transform_graph_export_primary(
+            &context,
+            &joined,
+            &Default::default(),
+            Some(&target),
+            &Default::default(),
+            TransformGraphHtmlStyleProjection::Inline,
+        )
+        .unwrap();
+        let artifact = crate::engine::TransformGraphArtifact {
+            primary_kind: crate::engine::TransformGraphPrimaryKind::Collection,
+            export_id: "site".into(),
+            input: "site".into(),
+            destination: Some("out/site.json".into()),
+            identity: Some(target),
+            primary,
+            primary_bytes,
+            source_map: None,
+            output_spans: vec![],
+        };
+        let published = crate::graph_output::graph_artifact_bytes(&artifact)
+            .unwrap()
+            .unwrap();
+        let manifest: Value = serde_json::from_slice(&published).unwrap();
+        assert_eq!(manifest["items"][0]["primary"]["n"], 2);
+        assert!(manifest["items"][0].get("sourceMap").is_none());
+        assert_eq!(
+            artifact.primary["items"][0]["sourceMap"],
+            serde_json::to_value(&source_map).unwrap()
+        );
+        assert_eq!(
+            artifact.primary["items"][0]["outputSpans"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(Arc::ptr_eq(&collection.items[0].artifact, &child));
+        let TransformArtifactBody::Encoded(retained) = &child.body else {
+            panic!("encoded owner")
+        };
+        assert!(Arc::ptr_eq(retained, &encoded));
+        assert_eq!(encoded.bytes.as_ref(), bytes);
+    }
+
+    #[test]
     fn transform_collection_binding_borrows_lossless_json_child_without_projection() {
         let child = Arc::new(lifecycle_json_bytes_test_artifact(
             "child",

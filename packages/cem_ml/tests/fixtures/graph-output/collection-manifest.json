@@ -1,0 +1,26 @@
+{
+  "bindings": {
+    "root": "Café"
+  },
+  "count": 1,
+  "items": [
+    {
+      "artifactId": "page",
+      "bindings": {
+        "stem": "index"
+      },
+      "destination": "out/index.html",
+      "identity": {
+        "contentType": "text/html"
+      },
+      "input": "page-source",
+      "primary": {
+        "content": "<main>Café 🧬</main>",
+        "kind": "document"
+      },
+      "uri": "memory:page.cem"
+    }
+  ],
+  "kind": "collection",
+  "mode": "collect"
+}

@@ -43,6 +43,14 @@ Completed [immediate persisted theme updates](archive/todo-completed-compact-stu
 
 ## Project builds and artifact previews
 
+Completed 2026-10-27: [shared collection manifests](archive/todo-completed-collection-manifests-2026-10-27.md)
+unifies native CLI/common publication with the established JSON/YAML/XML writers.
+Explicit bytes, application data, typed owners, inline provenance and CLI sidecars
+retain their contracts; common hosts add no implicit child or sidecar writes.
+Focused native, Node/browser WASM, Studio worker, credential and saved/offline demo
+checks pass. Deployment remains 898 files; WASMs are 22.43/23.05 MiB. The separate
+formatter-profile and module-asset conformance discrepancies are tracked below.
+
 Completed 2026-10-27: [native XML reload-bundle roundtrip](archive/todo-completed-xml-reload-roundtrip-2026-10-27.md)
 orders passive namespace/schema dictionaries only during native serialization,
 preserving runtime lookup, declaration order, legacy decoding and authority.
@@ -303,7 +311,7 @@ complete application JSON values and native collection-role separation. Exact
 native/worker bytes, large integers, hashes, pinned snapshots and Supplier 1.1.1
 fixtures pass. All 250 catalog configurations pass online/offline; shared Studio
 saved-copy/preview workflows and credential refusal pass. Native collection
-manifest/sidecar parity remains a separate follow-up below.
+manifest publication is now shared across hosts, as recorded above.
 
 Completed 2026-10-26: [SCSS mixin default-argument binding](archive/todo-completed-scss-mixin-defaults-2026-10-26.md)
 covers captured module variables and earlier parameters, explicit caller-scope
@@ -320,15 +328,17 @@ still refuse publication and original source URI/ranges remain intact. Native,
 CLI, rebuilt WASM/worker, saved/offline preview and credential refusal checks
 pass. Plain-path configs retain their existing identity behavior.
 
-- [ ] Unify native collection-control manifest and sidecar publication across CLI and common command hosts. The runtime-only producer role now distinguishes real collections from lookalike application JSON. Preserve existing CLI sidecars and common inline collection metadata; add native collection export/owner/source-map fixtures before claiming exact cross-host manifest bytes or moving metadata between artifacts.
-
 - [ ] Attribute Studio's aggregate-only fallback recovery module-fetch failure: the complete source cohort passes 273/274 cases but rejects the dynamic import of `cem-elements/dist/index.js` after fallback WASM initialization and before workspace construction. The unchanged file exists and returns HTTP 200; the original case passes in a fresh isolated invocation. Add loading/lifecycle evidence before changing the runtime or harness; retain original deadlines, assertions, credential privacy and the 4 MiB budget, and do not label an isolated rerun as a green full cohort.
+
+- [ ] Repair native module-asset source attributes in graph bindings: `cem_native_module_conformance::graph_config_covers_imported_module_asset_card_and_sidecar` renders the secondary `{$datadom.attributes.kind}` as empty instead of `document`. The pre-change release CLI reproduces the same missing text on the identical authored graph. Preserve the original assertion and typed source ownership; add native binding lifecycle evidence before changing evaluation or source metadata.
 
 - [ ] Design lossless typed CEM-ML inspection of source strings containing both single and double quotes, including embedded rich-content fences. The canonical `cem-card.xhtml` XML AST currently reaches the deliberate native attribute-string encoder refusal; keep that guard and original source bytes until an admitted representation exists. Add native round-trip fixtures before changing the writer/tokenizer contract. The HTML/CEM card project explicitly requests JSON for this one AST export; it is a presentation boundary, never an internal AST handoff.
 
 - [ ] Adopt the existing element-template source identity for remaining live-view examples such as Login. Its current generic CEM Parse reports hard unknown runtime-binding diagnostics despite exiting successfully; the new card sample uses the correct template identity. Verify source validation, editor behavior, live rendering, saved/offline copies and credential/recovery contracts before changing existing example metadata; preserve diagnostic severity and old saved-project identities.
 
 - [ ] Repair JSON/YAML source Parse identity and diagnostics: JSON `parse --format ast` currently exits successfully with CEM bare-brace tokenizer errors, while clean simple-data `inspect --show ast` presents an imported CEM generic-data tree. JSON Schema structural Inspect with `$defs`/`$ref` also emits embedded CEM tokenizer errors despite exit zero. Add source-identity and hard-diagnostic fixtures for these cases before enabling their sample operations. Distinguish source-format metadata from projection identity and retain original source start offsets; do not replace native parsing with application JavaScript.
+
+- [ ] Diagnose explicit CEMT formatter/colorizer presentation in `convert_cemt_profile_ambiguity_reports_and_explicit_selectors_resolve`: the unit harness expects plain CEM text but receives an HTML `pre.cem-output` wrapper when the `classes` color profile is selected. Restoring the unchanged HEAD CLI dispatch reproduces the identical failure in isolation. Keep the assertion until console/profile semantics and native writer ownership are verified; do not change collection publication to hide it.
 
 - [ ] Align native source-operation diagnostic publication with the admitted typed source owner. The catalog fixtures pin two actual zero-exit Parse limits (Login runtime bindings and Supplier XML) and ten separate Inspect companion diagnostic-view disagreements. Inspect's retained AST/tree output currently publishes no original-view diagnostics; its generic diagnostic companion is separate evidence. Add native selected-view reporting/import regressions, preserve original URI/range and warning facts (including zero/absent coordinates), and do not infer AST failure or clean conformance from the companion or reconstruct source ownership from exported fields.
 
