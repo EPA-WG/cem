@@ -632,6 +632,72 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
   });
 }
 
+for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
+  test(`native module metadata and attributes preserve CLI bytes and provenance in ${runtimeKind}`, async () => {
+    const runtime = runtimeKind === 'wasm-node'
+      ? await import('@epa-wg/cem-ml/wasm') : await import('../dist/wasm/browser/cem_ml.js');
+    if (runtimeKind !== 'wasm-node') {
+      await runtime.default({ module_or_path: await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url)) });
+    }
+    const base = 'studio://native-module-attributes/';
+    const fixture = '../../cem_ml_transform_cem_ql/tests/fixtures/native-module-attributes/';
+    const sources = new Map(await Promise.all(['asset.cem', 'build.cem', 'page.cem', 'stats.cem', 'ui.cem']
+      .map(async name => [name, new Uint8Array(await readFile(new URL(`${fixture}${name}`, import.meta.url)))])));
+    const expectedMain = await readFile(new URL(`${fixture}expected.html`, import.meta.url), 'utf8');
+    const expectedStats = await readFile(new URL(`${fixture}expected-stats.html`, import.meta.url), 'utf8');
+    for (const [index, kind] of ['asset', 'document', null].entries()) {
+      const resources = Object.fromEntries([...sources].map(([name, original]) => {
+        const bytes = name === 'asset.cem' ? new TextEncoder().encode(new TextDecoder().decode(original)
+          .replace(' @kind=asset', kind === null ? '' : ` @kind=${kind}`)) : original;
+        return [`${base}${name}`, { bytes: [...bytes], identity: { contentType: 'text/cem-ml' } }];
+      }));
+      const request = {
+        protocolVersion: 1, requestId: `native-module-attributes:${runtimeKind}:${index}`,
+        project: { projectId: 'native-module-attributes', revision: index + 1 },
+        resourceVersions: Object.fromEntries(Object.entries(resources).map(([uri, value]) => [uri, {
+          revision: index + 1, sha256: createHash('sha256').update(Uint8Array.from(value.bytes)).digest('hex'),
+        }])),
+        operation: { kind: 'transform', source: { kind: 'graph', configUri: `${base}build.cem` }, preserveSourceOffsets: true },
+        runPlan: JSON.parse(runtime.normalizeCommandRunPlanV1(JSON.stringify({ configBytes: [
+          ...new TextEncoder().encode(JSON.stringify({ inputs: [{ uri: `${base}asset.cem`, rootScope: { defaultContentType: 'text/cem-ml' } }] })),
+        ] }))), resources,
+        policyStamp: { resolver: 'module-resolver', safety: 'module-safety', budget: 'module-budget' },
+      };
+      const writes = new Map();
+      try {
+        const result = JSON.parse(await runtime.executeCommandServiceV1(
+          JSON.stringify(request), JSON.stringify({ runtime: runtimeKind, targetIdentity: 'runtime-test:native-modules',
+            abiIdentity: 'runtime-test-v1', debugControlActive: false }),
+          async () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
+          async () => assert.fail('all authored module sources are inline owned resources'),
+          async (json, bytes) => {
+            const write = JSON.parse(json), token = `write:${writes.size}`;
+            writes.set(token, { write, bytes: Uint8Array.from(bytes), committed: false });
+            return JSON.stringify({ token });
+          },
+          async token => { const item = writes.get(token); item.committed = true; return JSON.stringify({ uri: item.write.uri }); },
+          async () => assert.fail('successful native module graph must not roll back'),
+        ));
+        assert.equal(result.status, 'succeeded', JSON.stringify(result));
+        assert.equal(result.artifacts.originalCount, 2);
+        assert.equal(writes.size, 2);
+        for (const [path, golden, source] of [
+          ['out/asset.html', expectedMain, 'ui.cem'], ['out/stats.html', expectedStats, 'stats.cem'],
+        ]) {
+          const write = [...writes.values()].find(item => item.write.uri === `${base}${path}`);
+          assert.equal(write?.committed, true);
+          assert.equal(new TextDecoder().decode(write.bytes), golden.replaceAll('asset', kind ?? ''));
+          const output = result.result.value.value.value.artifacts.find(item => item.destination === `${base}${path}`);
+          assert.ok(output.outputSpans.flatMap(span => span.origin.frames).some(frame => frame.transform.uri === `${base}${source}`));
+          assert.ok(output.outputSpans.every(span => span.outputRange.start + span.outputRange.len <= write.bytes.length));
+          const handle = result.artifacts.items.find(item => item.uri === `${base}${path}`);
+          assert.equal(handle.sha256, createHash('sha256').update(write.bytes).digest('hex'));
+        }
+      } finally { runtime.disposeCommandArtifactsV1(request.requestId); }
+    }
+  });
+}
+
 async function executeVersionCommand(runtime, runtimeKind, ledger = undefined, options = {}) {
   const request = {
     protocolVersion: 1,

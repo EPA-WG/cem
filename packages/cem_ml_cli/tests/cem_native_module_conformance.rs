@@ -250,7 +250,7 @@ fn graph_config_covers_imported_module_asset_card_and_sidecar() {
         &stats,
         r#"{@doc cem-ml 1}
 {module |
-  {body | {span | {$datadom.attributes.kind}}}
+  {body | {span | {$input.kind}}}
 }"#,
     );
     write(
@@ -303,6 +303,87 @@ fn graph_config_covers_imported_module_asset_card_and_sidecar() {
         report["reportAst"]["transformGraph"]["exports"][0]["sourceMapRef"],
         sidecar
     );
+}
+
+#[test]
+fn graph_config_separates_native_metadata_authored_attributes_and_module_parameters() {
+    macro_rules! fixture {
+        ($file:literal) => {
+            include_str!(concat!(
+                "../../cem_ml_transform_cem_ql/tests/fixtures/native-module-attributes/",
+                $file
+            ))
+        };
+    }
+    for kind in [Some("asset"), Some("document"), None] {
+        let root = fixture_root("native-module-attributes");
+        for (file, contents) in [
+            ("asset.cem", fixture!("asset.cem")),
+            ("build.cem", fixture!("build.cem")),
+            ("page.cem", fixture!("page.cem")),
+            ("stats.cem", fixture!("stats.cem")),
+            ("ui.cem", fixture!("ui.cem")),
+        ] {
+            let text = if file == "asset.cem" {
+                contents.replace(
+                    " @kind=asset",
+                    &kind
+                        .map(|value| format!(" @kind={value}"))
+                        .unwrap_or_default(),
+                )
+            } else {
+                contents.to_owned()
+            };
+            write(&root.join(file), &text);
+        }
+        let graph = root.join("build.cem");
+        let report_path = root.join("report.json");
+        let output = cem_ml(&[
+            "transform",
+            "--config",
+            graph.to_str().unwrap(),
+            "--report-json",
+            report_path.to_str().unwrap(),
+        ]);
+        assert_eq!(output.status.code(), Some(EXIT_OK), "{}", stderr(&output));
+        assert!(stdout(&output).is_empty());
+        assert!(stderr(&output).is_empty(), "{}", stderr(&output));
+        for (path, golden, source) in [
+            ("out/asset.html", fixture!("expected.html"), "ui.cem"),
+            (
+                "out/stats.html",
+                fixture!("expected-stats.html"),
+                "stats.cem",
+            ),
+        ] {
+            let bytes = fs::read(root.join(path)).unwrap();
+            assert_eq!(
+                bytes,
+                golden.replace("asset", kind.unwrap_or("")).as_bytes()
+            );
+            let map: serde_json::Value =
+                serde_json::from_slice(&fs::read(root.join(format!("{path}.map"))).unwrap())
+                    .unwrap();
+            let spans = map["outputSpans"].as_array().unwrap();
+            assert!(!spans.is_empty());
+            assert!(spans
+                .iter()
+                .all(|span| span["outputRange"]["start"].as_u64().unwrap()
+                    + span["outputRange"]["len"].as_u64().unwrap()
+                    <= bytes.len() as u64));
+            assert!(
+                spans
+                    .iter()
+                    .flat_map(|span| span["origin"]["frames"].as_array().unwrap())
+                    .any(|frame| frame["transform"]["uri"]
+                        .as_str()
+                        .is_some_and(|uri| uri.ends_with(source))),
+                "missing original module URI: {map}"
+            );
+        }
+        assert_eq!(report(&report_path)["summary"]["hardViolationCount"], 0);
+        fs::remove_dir_all(root).unwrap();
+    }
 }
 
 #[test]

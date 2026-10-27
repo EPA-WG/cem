@@ -49,7 +49,7 @@ Explicit bytes, application data, typed owners, inline provenance and CLI sideca
 retain their contracts; common hosts add no implicit child or sidecar writes.
 Focused native, Node/browser WASM, Studio worker, credential and saved/offline demo
 checks pass. Deployment remains 898 files; WASMs are 22.43/23.05 MiB. The separate
-formatter-profile and module-asset conformance discrepancies are tracked below.
+formatter-profile discrepancy is tracked below; module-asset conformance is completed below.
 
 Completed 2026-10-27: [native XML reload-bundle roundtrip](archive/todo-completed-xml-reload-roundtrip-2026-10-27.md)
 orders passive namespace/schema dictionaries only during native serialization,
@@ -272,6 +272,19 @@ concurrent release scheduling remain explicit follow-ups below.
 
 ## Native and release follow-ups
 
+Completed 2026-10-27: [native module-asset attribute conformance](archive/todo-completed-native-module-attributes-2026-10-27.md)
+corrects a stale fixture to read existing native document metadata through
+`input.kind`, retaining the original exact HTML assertion. Authored attributes,
+metadata and explicit parameters stay distinct. Native owner/source-span checks,
+all eight CLI conformance cases, 14 WASM cases, five selected Studio worker cases,
+credential refusal, full package integrity and saved/offline demo gates pass.
+Production runtime and shared declarative UI behavior are unchanged.
+
+- [x] Add shared native module-attribute fixtures and native owner/immutability
+      checks for authored, changed and absent attributes, explicit parameters,
+      imported public templates, secondary assets, exact bytes and provenance
+      across native CLI, Node/browser WASM and Studio command workers.
+
 Investigated 2026-10-27: [Studio module-load diagnostics](studio-module-load-diagnostics.md)
 adds opt-in script/network/frame metadata capture through public test APIs and a
 controlled failed-import/redaction/teardown fixture. Two complete current source
@@ -341,8 +354,6 @@ names, bounded local globs and safe rooted-folder bindings. SCSS stylesheet
 still refuse publication and original source URI/ranges remain intact. Native,
 CLI, rebuilt WASM/worker, saved/offline preview and credential refusal checks
 pass. Plain-path configs retain their existing identity behavior.
-
-- [ ] Repair native module-asset source attributes in graph bindings: `cem_native_module_conformance::graph_config_covers_imported_module_asset_card_and_sidecar` renders the secondary `{$datadom.attributes.kind}` as empty instead of `document`. The pre-change release CLI reproduces the same missing text on the identical authored graph. Preserve the original assertion and typed source ownership; add native binding lifecycle evidence before changing evaluation or source metadata.
 
 - [ ] Design lossless typed CEM-ML inspection of source strings containing both single and double quotes, including embedded rich-content fences. The canonical `cem-card.xhtml` XML AST currently reaches the deliberate native attribute-string encoder refusal; keep that guard and original source bytes until an admitted representation exists. Add native round-trip fixtures before changing the writer/tokenizer contract. The HTML/CEM card project explicitly requests JSON for this one AST export; it is a presentation boundary, never an internal AST handoff.
 

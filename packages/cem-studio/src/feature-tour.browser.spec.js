@@ -298,6 +298,36 @@ describe('CEM Studio Feature Tour copies', () => {
         expect(decode('card-check')).not.toBe(redirected);
     }, 60_000);
 
+    it('keeps native module attributes distinct from metadata and named parameters in the command worker', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const base = new URL('../../cem_ml_transform_cem_ql/tests/fixtures/native-module-attributes/asset.cem', import.meta.url);
+        const fixtures = new Map(await Promise.all(['asset.cem', 'build.cem', 'page.cem', 'stats.cem', 'ui.cem', 'expected.html', 'expected-stats.html']
+            .map(async file => { const response = await fetch(new URL(file, base)); expect(response.ok).toBe(true); return [file, await response.text()]; })));
+        const root = 'studio://native-module-attributes/', uri = `${root}build.cem`, encode = text => new TextEncoder().encode(text);
+        for (const [index, kind] of ['asset', 'document', null].entries()) {
+            const result = await validator.runResourceCommand({
+                bytes: encode(fixtures.get('build.cem')), uri, projectId: 'native-module-attributes', projectRootUri: root,
+                resourceRevision: index + 1, contentType: 'application/cem', schema: 'https://cem.dev/ns/cli/transform-config/1',
+                argv: ['transform', '--config', uri, '--config-content-type', 'application/cem', '--config-schema',
+                    'https://cem.dev/ns/cli/transform-config/1', '--scope-budget', 'queueSize=1024'],
+                dependencies: ['asset.cem', 'page.cem', 'stats.cem', 'ui.cem'].map(path => ({ path,
+                    bytes: encode(path === 'asset.cem' ? fixtures.get(path).replace(' @kind=asset', kind === null ? '' : ` @kind=${kind}`) : fixtures.get(path)),
+                    contentType: 'text/cem-ml' })),
+            });
+            expect(result.result.exitCode).toBe(0); expect(result.outputs).toHaveLength(2);
+            const artifacts = result.result.result.value.value.value.artifacts;
+            for (const [path, golden, source] of [
+                ['out/asset.html', 'expected.html', 'ui.cem'], ['out/stats.html', 'expected-stats.html', 'stats.cem'],
+            ]) {
+                const output = result.outputs.find(item => item.uri === `${root}${path}`);
+                expect(new TextDecoder().decode(output.bytes)).toBe(fixtures.get(golden).replaceAll('asset', kind ?? ''));
+                expect(artifacts.find(item => item.destination === output.uri).outputSpans.flatMap(span => span.origin.frames))
+                    .toEqual(expect.arrayContaining([expect.objectContaining({ transform: expect.objectContaining({ uri: `${root}${source}` }) })]));
+            }
+        }
+        expect(fixtures.get('asset.cem')).toContain('@kind=asset');
+    }, 60_000);
+
     it('publishes the shared collection manifest through the command worker and retains inline item origins', async () => {
         const validator = await createCemStudioBrowserValidator(); validators.push(validator);
         const root = 'studio://collection-worker/', uri = `${root}graph.cem`;

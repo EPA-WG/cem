@@ -1,0 +1,3 @@
+{module |
+  {body | {span | {$input.kind}:{$seq:where(input.children.attributes, fn(a) => a.name == "kind").value}:{$seq:count(datadom.attributes.kind)}}}
+}

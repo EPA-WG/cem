@@ -1,0 +1,6 @@
+{module |
+  {template @name=card @visibility=public |
+    {param @name=kind @required=true}
+    {body | {article | {$kind}:{$input.kind}:{$seq:where(input.children.attributes, fn(a) => a.name == "kind").value}:{$seq:where(input.children.attributes, fn(a) => a.name == "label").value}}}
+  }
+}

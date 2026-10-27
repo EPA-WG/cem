@@ -1,0 +1,7 @@
+{module |
+  {import @as=ui @src=ui.cem @content-type=text/cem-ml}
+  {template @name=page @visibility=public |
+    {param @name=kind @required=true}
+    {body | {main | {header | {$kind}:{$input.kind}}{call @from=ui @template=card @with:kind=card}{aside | {$stats}}}}
+  }
+}

@@ -22,6 +22,22 @@ structural projections. Native document metadata can be read through
 `input.kind`; the former record view's automatic metadata bindings are not
 installed by native ingress.
 
+Document metadata and authored attributes occupy separate native fields.
+`input.kind` is `document`; an element's `kind` is `element`. Its authored
+attributes are native attribute nodes in `input.children.attributes`. For a
+source such as `{article @kind=asset}`, read the authored value with
+`seq:where(input.children.attributes, fn(a) => a.name == "kind").value`.
+An absent attribute stays empty. `datadom.attributes.kind` is not an implicit
+alias for document metadata; explicit host bindings retain their own contract.
+A declared parameter named `kind` also stays separate from the native input,
+including during named calls into imported modules.
+
+The [module-attribute conformance fixtures](tests/fixtures/native-module-attributes/)
+exercise this distinction with a primary source, imported public template,
+scoped parameters and an independently exported secondary asset. Native CLI,
+Node/browser WASM and Studio worker tests share the same exact output fixtures
+and check original source provenance. No record projection is required.
+
 Rust callers needing the former record shape can explicitly call
 `cem_document_record_query_stream(document)`. Its element children and attributes
 remain array-wrapped records, and those records are not unary `#` operands.

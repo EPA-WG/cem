@@ -452,6 +452,11 @@ CEM-native runtime and the bounded XSLT parity substrate:
 - Data bindings are explicit adapter inputs. The stable binding set for the native
   module layer should include the primary artifact under `input`, named secondary
   artifacts under their `@with:*` labels, and declared params under their names.
+  Native document metadata is read through `input.kind`; an authored `kind`
+  attribute is a separate native attribute node in `input.children.attributes`.
+  The former automatic `datadom.attributes.kind` metadata binding is absent.
+  Explicit host bindings and module parameters named `kind` retain their own
+  scope and do not replace native document metadata or source attributes.
   The CEM-QL data document also exposes these host bindings as top-level fields
   while retaining the legacy `datadom.attributes.*` projection. Any direct
   convenience bindings derived from the primary object are adapter compatibility

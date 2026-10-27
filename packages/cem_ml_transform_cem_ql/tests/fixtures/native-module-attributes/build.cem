@@ -1,0 +1,11 @@
+{run |
+  {import @id=asset @src=asset.cem @content-type=text/cem-ml |
+    {transform @id=stats @src=stats.cem @template-content-type=text/cem-ml @template-schema=https://cem.dev/ns/template/cem-native/1 |
+      {export @id=stats-output @out=out/stats.html @content-type=text/html}
+    }
+    {transform @id=html @src=page.cem @template-content-type=text/cem-ml @template-schema=https://cem.dev/ns/template/cem-native/1 @entrypoint=page @with:stats=stats |
+      {param @name=kind @value=host}
+      {export @id=main @out=out/asset.html @content-type=text/html}
+    }
+  }
+}
