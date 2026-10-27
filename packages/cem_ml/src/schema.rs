@@ -38,6 +38,7 @@ pub mod reference_traversal;
 pub mod reference_policy;
 pub mod registry;
 pub mod scoping;
+mod serialization;
 pub mod scope_references;
 pub mod scope_controls;
 pub mod uri_loading;

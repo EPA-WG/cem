@@ -69,10 +69,12 @@ pub struct SchemaScopeFrame {
     pub scope_id: u32,
     pub active: SchemaSource,
     /// Inline-schema declarations introduced at this scope.
+    #[serde(serialize_with = "super::serialization::serialize_string_map")]
     pub declared_inlines: HashMap<String, InlineSchemaDeclaration>,
     /// Snapshot of inherited inlines visible from this scope (declared
     /// at ancestors). Resolution walks this map then falls back to the
     /// declared map.
+    #[serde(serialize_with = "super::serialization::serialize_string_map")]
     pub inherited_inlines: HashMap<String, InlineSchemaDeclaration>,
 }
 
@@ -191,6 +193,36 @@ mod tests {
             source_node: None,
             cache_identity: inline_cache_identity(b""),
             source_map: SourceMapStack::default(),
+        }
+    }
+
+    #[test]
+    fn schema_snapshot_bytes_survive_fresh_hash_maps_and_keep_shadowing() {
+        let make = || {
+            let mut parent = SchemaScopeFrame::new_root(1);
+            for i in 0..16 {
+                parent.declare_inline(decl(&format!("s{i:02}"), ByteRange::new(i, 1)));
+            }
+            let mut child = SchemaScopeFrame::child_of(&parent, 2);
+            for i in (0..16).rev() {
+                child.declare_inline(decl(&format!("s{i:02}"), ByteRange::new(32 + i, 1)));
+            }
+            child
+        };
+        let original = make();
+        let bytes = rmp_serde::to_vec_named(&original).unwrap();
+        for _ in 0..8 {
+            assert_eq!(rmp_serde::to_vec_named(&make()).unwrap(), bytes);
+            let restored: SchemaScopeFrame = rmp_serde::from_slice(&bytes).unwrap();
+            assert_eq!(rmp_serde::to_vec_named(&restored).unwrap(), bytes);
+            assert_eq!(
+                restored.resolve_name("s04").unwrap().body_byte_range,
+                ByteRange::new(36, 1)
+            );
+            assert_eq!(
+                restored.inherited_inlines["s04"].body_byte_range,
+                ByteRange::new(4, 1)
+            );
         }
     }
 

@@ -209,3 +209,38 @@ fn cem_and_xml_reload_keep_expression_slots_and_literal_attribute_boundaries() {
         }
     }
 }
+
+#[test]
+fn xml_reload_reexports_identical_bytes_without_reusing_the_previous_owner() {
+    let limits = ReloadLimits::default();
+    for expression in ["#items", "items"] {
+        let text = format!("<item xmlns:c='https://cem.dev/ns/core/1' xmlns:p='urn:vendor' c:expression-attributes='target' target='{{{expression}}}' literal='{{#items}}'/>");
+        let original = RetainedReferenceSource::parse(
+            text.as_bytes(),
+            "application/xml",
+            "memory:slots.xml",
+            limits,
+        )
+        .unwrap();
+        let bytes = original.export_bundle(limits).unwrap();
+        let mut source = original;
+        for _ in 0..8 {
+            let loaded = RetainedReferenceSource::reload(&bytes, 1, limits).unwrap();
+            assert!(!Arc::ptr_eq(
+                source.ingress().source().ast_owner(),
+                loaded.ingress().source().ast_owner()
+            ));
+            assert_eq!(loaded.export_bundle(limits).unwrap(), bytes);
+            assert_eq!(
+                loaded
+                    .ingress()
+                    .reloaded()
+                    .source_text(cem_ml::source::SourceId(1))
+                    .unwrap(),
+                Some(text.as_str())
+            );
+            assert!(loaded.ingress().source().ast().nodes.iter().any(|node| matches!(node, cem_ml::parser::CemAstNode::Attribute { value: Some(value), value_nodes, .. } if value == "{#items}" && value_nodes.is_empty())));
+            source = loaded;
+        }
+    }
+}

@@ -89,10 +89,23 @@ outputs. The bounded optimizer process has a 30-minute deadline for slower
 build hosts, independent of runtime recovery deadlines.
 
 The broader CEM-QL checks exposed an existing XML reload-bundle byte-roundtrip
-failure at `tests/reference-transport-wasm.mjs:105`. It also reproduces with the
-unchanged unoptimized binary; its strict assertion remains intact and the native
-serialization follow-up is recorded in [todo.md](todo.md). It is not a new
-optimizer regression or a removed capability.
+failure at `tests/reference-transport-wasm.mjs:105`, reproduced with the unchanged
+unoptimized binary. The [2026-10-27 native serialization correction](archive/todo-completed-xml-reload-roundtrip-2026-10-27.md)
+repairs it without changing the strict assertion or the capability profile.
+
+### Current output after the XML reload correction (2026-10-27)
+
+| Runtime (two deployed copies each) | Post-bindgen input, bytes | `-Oz`, bytes | MiB |
+| --- | ---: | ---: | ---: |
+| CEM-QL | 26,753,663 | **23,481,853** | **22.39** |
+| CEM-ML common-query bridge | 27,533,204 | **24,131,701** | **23.01** |
+
+The shared native serializer now orders passive namespace/schema lookup maps,
+with runtime hash lookup and authored declaration order unchanged. The existing
+XML roundtrip fixture passes against both the new unoptimized and optimized
+WASM builds. Current deployment: **898 files, 114,563,382 bytes (109.26 MiB)**;
+all four WASM files remain below 25 MiB with all exports and schemas enabled.
+The earlier comparison table remains the measured 2026-10-26 baseline.
 
 ## Reproducing optimizer comparisons
 

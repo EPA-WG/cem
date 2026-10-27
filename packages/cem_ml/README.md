@@ -307,6 +307,14 @@ returns the verified decoded owner with the envelope, avoiding a second decode.
 Primary source manifest ID is explicit; each node retains its mapped URI and
 unknown coordinates when its source bytes are absent.
 Runtime contexts, package/crossing grants and pending sessions are supplied afresh.
+Passive namespace and inline-schema lookup maps serialize in key order, while
+runtime hash lookup and authored declaration order remain unchanged. Newly
+exported bundles therefore retain identical bytes across decode/re-export and
+independent captures of the same source with equivalent passive metadata.
+Historical unordered wire maps remain
+readable; re-exports use canonical ordering without a protocol-version change.
+This normalization does not change the AST payload, source bytes/fingerprint,
+lexical ownership or admission of runtime contexts and crossing grants.
 CEMV's materialized value transport has a separate acyclic graph contract and
 does not preserve executable source references; see the design's
 [transport matrix](../../docs/cem-ql-cem-ml-node-references-design.md#graph-export-and-native-transport-adopted-2026-10-06).

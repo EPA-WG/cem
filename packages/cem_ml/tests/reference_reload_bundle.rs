@@ -30,6 +30,81 @@ fn bundle(text: &str, include_bytes: bool) -> ReferenceReloadBundle {
 }
 
 #[test]
+fn xml_bundle_bytes_are_stable_across_fresh_capture_reload_and_passive_attachment() {
+    let text = "<root xmlns:c='https://cem.dev/ns/core/1' xmlns:p='urn:outer' xmlns:q='urn:other'>\r\n<item xmlns:p='urn:inner' c:expression-attributes='target' target='{#items}' literal='{#items}'>Café 🧬</item></root>";
+    let limits = ReloadLimits::default();
+    let make = || {
+        let imported = import_bytes_with_lexical_scopes(
+            text.as_bytes(),
+            "application/xml",
+            "memory:é.xml",
+            CompiledSchema::cem_core(),
+        )
+        .unwrap();
+        ReferenceReloadBundle::export(
+            &imported.captured,
+            vec![ReloadSource::new(
+                SourceId(1),
+                "memory:é.xml",
+                text.as_bytes(),
+                true,
+            )],
+            limits,
+        )
+        .unwrap()
+    };
+    let original = make();
+    let bytes = original.encode(limits).unwrap();
+    let retained = original.reload(limits).unwrap();
+    for _ in 0..8 {
+        assert_eq!(make().encode(limits).unwrap(), bytes);
+        let (decoded, restored) =
+            ReferenceReloadBundle::decode_with_document(&bytes, limits).unwrap();
+        assert_eq!(decoded.encode(limits).unwrap(), bytes);
+        assert_eq!(decoded.payload, original.payload);
+        assert_eq!(decoded.payload_fingerprint, original.payload_fingerprint);
+        assert!(!Arc::ptr_eq(&restored.document, &retained.document));
+        assert_eq!(restored.source_text(SourceId(1)).unwrap(), Some(text));
+        for node in &restored.document.nodes {
+            if let CemAstNode::Reference { targets, .. } = node {
+                assert!(targets.is_none());
+            }
+        }
+        let (attached, same_owner) =
+            ReferenceReloadBundle::attach_to(&bytes, &original, &retained, limits).unwrap();
+        assert_eq!(attached.encode(limits).unwrap(), bytes);
+        assert!(Arc::ptr_eq(&same_owner.document, &retained.document));
+        assert!(Arc::ptr_eq(
+            same_owner.require_lexical().unwrap(),
+            retained.require_lexical().unwrap()
+        ));
+    }
+    let mut changed = ReferenceReloadBundle::decode(&bytes, limits).unwrap();
+    changed
+        .lexical
+        .as_mut()
+        .unwrap()
+        .attribute_namespaces
+        .values_mut()
+        .next()
+        .unwrap()
+        .namespaces
+        .declare(
+            "p",
+            "urn:tampered",
+            cem_ml::source::ByteRange::new(0, 0),
+            cem_ml::source::ByteRange::new(0, 0),
+            Default::default(),
+        );
+    let untrusted = rmp_serde::to_vec_named(&changed).unwrap();
+    assert!(matches!(
+        ReferenceReloadBundle::attach_to(&untrusted, &original, &retained, limits),
+        Err(cem_ml::ast::reload::ReloadError::InvalidMetadata)
+    ));
+    assert_eq!(original.encode(limits).unwrap(), bytes);
+}
+
+#[test]
 fn reload_rebinds_passive_snapshots_to_a_fresh_owner() {
     let text = "@ns cem = https://cem.dev/ns/core/1\n@ns p = urn:outer\n{cem:schema @src=first.cem | {#p:item}}\n{cem:schema @src=next.cem}\n{host @xmlns:p={#library} |\n@default p\n{p:item} {pending} {#p:item}}";
     let original = source(text);

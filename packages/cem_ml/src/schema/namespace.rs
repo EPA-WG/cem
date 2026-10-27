@@ -56,12 +56,14 @@ pub struct NsContext {
     /// from a parent, the parent's bindings are pre-populated here so
     /// resolution is O(1). Shadowing replaces the entry; pop on close
     /// restores the parent's entry from `inherited_overrides`.
+    #[serde(serialize_with = "super::serialization::serialize_string_map")]
     active: HashMap<String, NamespaceBinding>,
     /// Distinguish an unavailable declaration from an unknown literal alias.
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     deferred: BTreeSet<String>,
     /// Previous (parent) entries replaced by a local binding at this
     /// scope. Used to restore parent state when this scope closes.
+    #[serde(serialize_with = "super::serialization::serialize_string_map")]
     inherited_overrides: HashMap<String, Option<NamespaceBinding>>,
     next_binding_id: NamespaceBindingId,
 }
@@ -188,6 +190,119 @@ mod tests {
 
     fn smap() -> SourceMapStack {
         SourceMapStack::default()
+    }
+
+    #[test]
+    fn namespace_snapshot_bytes_survive_fresh_hash_maps_and_preserve_declaration_order() {
+        let make = || {
+            let mut parent = NsContext::new(1);
+            for i in (0..16).rev() {
+                parent.declare(
+                    format!("p{i:02}"),
+                    format!("urn:parent:{i}"),
+                    range(i, 1),
+                    range(i, 0),
+                    smap(),
+                );
+            }
+            let mut child = NsContext::child_of(&parent, 2);
+            for i in (0..16).rev() {
+                child.declare(
+                    format!("p{i:02}"),
+                    format!("urn:child:{i}"),
+                    range(32 + i, 1),
+                    range(32 + i, 0),
+                    smap(),
+                );
+            }
+            child.defer_binding("p03");
+            child
+        };
+        let original = make();
+        let bytes = rmp_serde::to_vec_named(&original).unwrap();
+        for _ in 0..8 {
+            assert_eq!(rmp_serde::to_vec_named(&make()).unwrap(), bytes);
+            let restored: NsContext = rmp_serde::from_slice(&bytes).unwrap();
+            assert_eq!(rmp_serde::to_vec_named(&restored).unwrap(), bytes);
+            assert!(restored.valid_snapshot());
+            assert!(restored.is_deferred("p03"));
+            assert!(restored.binding("p03").is_none());
+            assert_eq!(
+                restored.resolve("p04:item").namespace_uri.as_deref(),
+                Some("urn:child:4")
+            );
+            assert_eq!(
+                restored.inherited_overrides["p04"]
+                    .as_ref()
+                    .unwrap()
+                    .namespace_uri,
+                "urn:parent:4"
+            );
+            assert_eq!(
+                restored
+                    .local_bindings()
+                    .iter()
+                    .map(|b| b.name.as_str())
+                    .collect::<Vec<_>>(),
+                (0..16)
+                    .rev()
+                    .map(|i| format!("p{i:02}"))
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_unordered_namespace_wire_maps_remain_readable() {
+        // The predecessor's named-map shape, deliberately without canonical map serialization.
+        #[derive(Serialize)]
+        struct LegacySnapshot<'a> {
+            scope_id: u32,
+            bindings: &'a Vec<NamespaceBinding>,
+            active: &'a HashMap<String, NamespaceBinding>,
+            deferred: &'a BTreeSet<String>,
+            inherited_overrides: &'a HashMap<String, Option<NamespaceBinding>>,
+            next_binding_id: NamespaceBindingId,
+        }
+        let mut parent = NsContext::new(1);
+        for i in (0..16).rev() {
+            parent.declare(
+                format!("p{i:02}"),
+                format!("urn:parent:{i}"),
+                range(i, 1),
+                range(i, 0),
+                smap(),
+            );
+        }
+        let mut original = NsContext::child_of(&parent, 2);
+        original.declare("p04", "urn:child", range(32, 1), range(32, 0), smap());
+        original.defer_binding("p03");
+        let legacy = LegacySnapshot {
+            scope_id: original.scope_id,
+            bindings: &original.bindings,
+            active: &original.active,
+            deferred: &original.deferred,
+            inherited_overrides: &original.inherited_overrides,
+            next_binding_id: original.next_binding_id,
+        };
+        let bytes = rmp_serde::to_vec_named(&legacy).unwrap();
+        let restored: NsContext = rmp_serde::from_slice(&bytes).unwrap();
+        assert!(restored.valid_snapshot());
+        assert!(restored.is_deferred("p03"));
+        assert_eq!(
+            restored.resolve("p04:item").namespace_uri.as_deref(),
+            Some("urn:child")
+        );
+        assert_eq!(
+            restored.inherited_overrides["p04"]
+                .as_ref()
+                .unwrap()
+                .namespace_uri,
+            "urn:parent:4"
+        );
+        let canonical = rmp_serde::to_vec_named(&restored).unwrap();
+        let roundtrip: NsContext = rmp_serde::from_slice(&canonical).unwrap();
+        assert_eq!(rmp_serde::to_vec_named(&roundtrip).unwrap(), canonical);
     }
 
     #[test]

@@ -566,6 +566,13 @@ source/capture for explicit parsing, bundle reload/export and inert native queri
 under a caller's fresh `StandaloneExpressionContext`. `attach_bundle` atomically
 attaches missing verified metadata/bytes to the same arena; existing result/session clones keep their previous view. Shared engine
 reload admission and CLI `validate`/`check --reload-bundle` are implemented.
+Namespace and inline-schema snapshot dictionaries use the shared native
+canonical serializer. Fresh XML bundles re-export byte-for-byte across fresh
+owners and validation/context use, including authored expression slots and
+literal attributes. Legacy unordered dictionaries still decode; subsequent
+exports normalize only dictionary ordering. Source declaration order, original
+source bytes/locations, payload fingerprints and fresh authority requirements
+remain intact.
 
 `api::reference_lifecycle::ReferenceValidationSession` is an explicit native
 schema/namespace validation consumer. It retains input and schema source owners,
