@@ -2,7 +2,7 @@
 
 Measured on 2026-09-13 using the broader demo assembled in `~/cem-bin`.
 Sizes below are MiB (1,048,576 bytes). Release builds, metadata removal, and
-sharing one runtime are implemented in `yarn copy:demo`.
+sharing the CEM-QL gallery runtime are implemented in `yarn copy:demo`.
 
 ## Release build commands
 
@@ -10,6 +10,7 @@ sharing one runtime are implemented in `yarn copy:demo`.
 yarn build:demo                       # build all demo dependencies
 yarn copy:demo                        # build, then copy to ~/cem-bin
 yarn copy:demo /tmp/cem-site           # optional destination
+yarn serve:demo                       # serve ~/cem-bin at localhost:8081
 yarn nx run cem_ql:build:wasm          # CEM-QL browser release artifacts
 yarn nx run @epa-wg/cem-ml:build       # CEM-ML browser and Node release artifacts
 ```
@@ -22,6 +23,22 @@ Theme cache inputs include dependent runtime outputs so cached builds cannot
 silently restore an older debug runtime.
 
 These commands build locally. They do not publish packages or upload the site.
+
+Current demo assembly has a 999-file limit. It omits 122 duplicate component
+HTML pages and replaces the 123-file theme-vendored runtime with imports from
+the primary runtime. Canonical playgrounds, component declarations/styles,
+token documentation and Studio's complete 333-file deployment remain present.
+`demo-deployment.json` records managed file hashes; unchanged obsolete outputs
+are retired while modified obsolete files and unrelated files are preserved and counted.
+The first migration uses hash-proven previous outputs, never a recursive purge.
+The reduced deployment contains 898 files, including the inventory.
+
+The demo build now also includes CEM Studio at `/studio/`. Its complete native
+graph deployment keeps its own runtime assets, cache inventory and scoped
+service worker; gallery runtime adapters do not replace Studio's emitted
+files. The historical measurements below describe the gallery-only deployment
+and predate the separate common-query bridge and Studio assets. The copy command reports current
+per-file WASM sizes and the complete deployment total.
 
 ## Measured sizes
 
@@ -60,47 +77,51 @@ it already exposes `highlightSourceToHtmlV1` and `renderCemMlToHtmlV1`: the two
 functions used by the demo viewer's
 [`cem-ml-runtime.ts`](../packages/cem-demo-element/src/cem-ml-runtime.ts).
 
-Consequently, this demo does not require a separate CEM-ML binary. Its functions
-are already present in the CEM-QL binary. Keeping the standalone CEM-ML package
-still benefits consumers that only need its smaller API and implementation.
-There is no need to merge the Rust crates to share a deployed browser artifact.
+That historical deployment did not require a separate CEM-ML binary. The
+current common-query bridge adds native startup registration through
+`initialize_common_query_runtime`; the bare CEM-QL build does not export that
+initializer. Current assembly therefore preserves the CEM-ML loader/binary pair
+and shares only matching CEM-QL artifacts. It does not replace native startup
+registration with a JavaScript compatibility stub.
 
 ## Implemented deployment sharing
 
 The [copy script](../tools/scripts/copy-demo-site.mjs) assembles one canonical
 CEM-QL browser loader/binary pair under `packages/cem_ql/dist/wasm/` and routes
-the element, component, theme-generator, and demo-viewer imports through
+the element, component and theme-generator imports through
 `runtime.js` in that directory. Package-local bundles remain available for
 independent package distribution; deduplication happens during site assembly.
 
 The generated JavaScript and its matching WASM are copied together. Replacing just the
 CEM-ML binary while keeping its old JavaScript glue is not an ABI-safe substitution.
-The primary and theme-vendored `cem_ql.js` files and the demo viewer's `cem_ml.js`
-become small ES-module re-export shims. Their relative imports also work when
-the site is mounted below a URL prefix. Before writing, the script checks the
-generated CEM-QL export names/types against CEM-ML and rejects unexpected extra
-WASM dependencies. This guards API availability; browser checks establish the
-behavior used by these demos.
+The primary and theme-vendored `cem_ql.js` files become small ES-module re-export
+shims. Their factory modules re-export the canonical generation factory, whose
+binary URL resolves next to the canonical WASM. Each factory call still creates
+an independent memory. Their relative imports also work below a URL prefix.
+Before writing, the script checks the packaged CEM-QL bytes against release
+outputs, verifies the generation factory and rejects unexpected extra WASM
+dependencies. The CEM-ML bridge and the complete Studio subtree keep their
+matching native loaders/binaries.
 
-All asynchronous consumers in a JavaScript realm use one initialization promise.
+Legacy CEM-QL consumers in a JavaScript realm use one initialization promise.
 This avoids racing the asynchronous initializer and replacing the module's
 retained-template state. Each worker still has its own runtime instance and
 memory; sharing the URL reduces shipped/downloaded bytes, not worker isolation.
 Observers and resolver registrations also become shared within that realm;
 this needs an explicit contract for consumers beyond the demo viewer.
 
-After copying the shared runtime and adapters, the script removes exactly the
-three obsolete package-local WASM files from previous deployments. It checks
-destination paths for symlinks before any writes or removals and preserves
-unrelated files. A fresh destination remains the way to remove other stale
-assets after source files are renamed or deleted.
+After copying the shared runtime and adapters, inventory-based cleanup retires
+unchanged obsolete outputs, including superseded CEM-QL files. It checks
+destination paths for symlinks before writes or removals and preserves modified
+and unrelated files. Future renamed/deleted managed outputs are cleaned up on
+the next copy without clearing the destination.
 
-Browser verification against the assembled directory covers the NPM picker,
+Historical gallery-only browser verification covered the NPM picker,
 all eight component workflows, the demo viewer, syntax highlighting/error
 example, and all ten theme generators (14 pages). The syntax-coloring page's
 deliberately invalid example retains its expected error state. All eight
-navigation targets return HTTP 200. Separate checks confirm that concurrent
-initializers return the same promise and instance, retained templates survive
+navigation targets returned HTTP 200. Separate checks confirmed that concurrent
+initializers returned the same promise and instance, retained templates survived
 calls through different adapters, and a module worker can initialize/render
 using the shared URL. The runtime checks also run under `/preview/` to verify
 relative module URLs. No removed WASM URL is requested. This is deployment

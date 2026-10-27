@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { copyFile, lstat, mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
+import { lstat, readFile, readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { publishDemoDeployment } from './demo-deployment.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const defaultDestination = join(homedir(), 'cem-bin');
@@ -13,12 +14,12 @@ const args = process.argv.slice(2);
 if (args.length === 1 && ['--help', '-h'].includes(args[0])) {
     console.log(`Usage: node tools/scripts/copy-demo-site.mjs [destination]
 
-Build and copy the CEM elements, theme, component, and demo-viewer galleries with release WASM dependencies.
+Build and copy CEM Studio and the elements, theme, component, and demo-viewer galleries with release WASM dependencies.
 Default destination: ${defaultDestination}
 Runs yarn build:demo first; Nx reuses cached outputs when up to date.
-Shares one release WASM binary across all galleries.
-Existing matching files are overwritten and superseded WASM copies are removed;
-unrelated destination files are kept.`);
+Shares the CEM-QL gallery runtime; the CEM-ML bridge and Studio retain their own deployments.
+Records managed files in demo-deployment.json and enforces a 999-file total.
+Unchanged obsolete managed files are removed; modified and unrelated files are kept.`);
 } else if (args.length > 1 || args.some((arg) => arg.startsWith('-'))) {
     console.error('Usage: node tools/scripts/copy-demo-site.mjs [destination]');
     process.exitCode = 1;
@@ -32,13 +33,18 @@ unrelated destination files are kept.`);
 }
 
 async function copyDemoSite(destination) {
+    const studioSource = 'packages/cem-studio/dist/static';
+    const themeVendor = 'packages/cem-theme/dist/vendor/@epa-wg/cem-elements/dist';
+    const retired = file => file.startsWith(`${themeVendor}/`)
+        || (file.startsWith('packages/cem-components/dist/') && extname(file) === '.html');
+    const legacyEntries = [];
+    const deploymentPath = file => file.startsWith(`${studioSource}/`) ? `studio/${file.slice(studioSource.length + 1)}` : file;
     // Preserve existing module URLs with shims to one deployment-only runtime.
     const sharedDirectory = 'packages/cem_ql/dist/wasm';
     const sharedRuntime = `${sharedDirectory}/runtime.js`;
     const runtimeCopies = [
         ['packages/cem-elements/dist/lib/internal/runtime-support/vendor', 'cem_ql'],
         ['packages/cem-theme/dist/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor', 'cem_ql'],
-        ['packages/cem-ml-npm/dist/wasm/browser', 'cem_ml'],
     ];
     const supersededBinaries = new Set(runtimeCopies.map(([directory, name]) => `${directory}/${name}_bg.wasm`));
     const runtimeExtensions = new Set(['.js', '.mjs', '.wasm', '.json', '.css']);
@@ -63,8 +69,10 @@ async function copyDemoSite(destination) {
         ['packages/cem-theme/dist/lib/tokens', new Set([...demoExtensions, '.md'])],
         ['packages/cem-theme/dist/vendor/@epa-wg/cem-elements/dist', runtimeExtensions],
         ['packages/custom-element/material', demoExtensions],
+        [studioSource, null],
     ];
     const navigation = [
+        ['CEM Studio', 'studio/', `${studioSource}/index.html`],
         ['CEM elements demo gallery', 'packages/cem-elements/index.html'],
         ['Component workflow examples', 'packages/cem-components/index.html'],
         ['Theme CSS generators and demos', 'packages/cem-theme/dist/lib/css-generators/index.html'],
@@ -85,11 +93,13 @@ async function copyDemoSite(destination) {
         'packages/custom-element/demo/wc-square.svg',
         'docs/cem-elements-http-request-design.md',
         `${sharedDirectory}/cem_ql.js`,
+        `${sharedDirectory}/cem_ql_factory.js`,
         `${sharedDirectory}/cem_ql_bg.wasm`,
         `${sharedDirectory}/package.json`,
     ];
     const requiredBuildFiles = [
-        ...navigation.map(([, file]) => file),
+        ...navigation.map(([, file, source]) => source ?? file),
+        ...['build.json', 'cache-inventory.json', 'security-headers.json', 'module-map.json', 'manifest.webmanifest', 'service-worker.js', 'samples/index.json'].map(file => `${studioSource}/${file}`),
         'packages/cem-elements/dist/index.js',
         'packages/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql.js',
         'packages/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm',
@@ -149,14 +159,11 @@ async function copyDemoSite(destination) {
             }
         }
     }
-    // Import the generated glue without initializing WASM. Fail before copying
-    // if a future build stops exposing the CEM-ML API through CEM-QL.
-    const ql = await import(pathToFileURL(resolve(repoRoot, sharedDirectory, 'cem_ql.js')).href);
-    const ml = await import(pathToFileURL(resolve(repoRoot, 'packages/cem-ml-npm/dist/wasm/browser/cem_ml.js')).href);
-    const missing = Object.keys(ml).filter((name) => typeof ql[name] !== typeof ml[name]);
-    if (missing.length) {
-        throw new Error(`The shared CEM-QL runtime cannot provide CEM-ML exports: ${missing.join(', ')}.`);
-    }
+    // The common-query bridge installs native command adapters at startup; the
+    // bare CEM-QL artifact is no longer a substitute for that paired deployment.
+    // Share only identical CEM-QL bindings and keep each factory call isolated.
+    const factory = await import(pathToFileURL(resolve(repoRoot, sharedDirectory, 'cem_ql_factory.js')).href);
+    if (typeof factory.createCemQlWasmGeneration !== 'function') throw new Error('The shared CEM-QL generation factory is unavailable.');
 
     const generated = new Map([
         [sharedRuntime, `// Shared initialization preserves retained runtime state across concurrent consumers.
@@ -172,23 +179,42 @@ export default function initialize(options) {
         const file = `${directory}/${name}.js`;
         const modulePath = relative(dirname(file), sharedRuntime).split(sep).join('/');
         const specifier = JSON.stringify(modulePath.startsWith('.') ? modulePath : `./${modulePath}`);
-        generated.set(file, `// Deployment adapter: the generated glue and WASM are shared by all demos.
+        const shim = `// Deployment adapter: CEM-QL gallery consumers share matching glue and WASM.
 export * from ${specifier};
 export { default } from ${specifier};
-`);
+`;
+        const factoryFile = `${directory}/${name}_factory.js`;
+        const factoryPath = relative(dirname(factoryFile), `${sharedDirectory}/cem_ql_factory.js`).split(sep).join('/');
+        const factoryShim = `// Share factory code and binary URLs, preserving a new heap per generation.\nexport * from ${JSON.stringify(factoryPath.startsWith('.') ? factoryPath : `./${factoryPath}`)};\n`;
+        if (retired(file)) {
+            legacyEntries.push({ path: file, content: shim }, { path: factoryFile, content: factoryShim },
+                { path: file, content: shim.replace('CEM-QL gallery consumers share matching glue and WASM.', 'the generated glue and WASM are shared by all demos.') });
+        } else { generated.set(file, shim); generated.set(factoryFile, factoryShim); }
     }
+    // Consumer-only rebasing: standalone package outputs retain their vendor tree.
+    const generatorFile = 'packages/cem-theme/dist/lib/css-generators/cem-css-generator.js';
+    const generator = await readFile(resolve(repoRoot, generatorFile), 'utf8');
+    const oldPrefix = '../../vendor/@epa-wg/cem-elements/dist/';
+    if (generator.split(oldPrefix).length - 1 !== 3) throw new Error('Review the theme generator runtime imports before deploying.');
+    const newPrefix = `${relative(dirname(generatorFile), 'packages/cem-elements/dist').split(sep).join('/')}/`;
+    generated.set(generatorFile, generator.replaceAll(oldPrefix, newPrefix));
     for (const [tree, extensions] of trees) {
         await collectFiles(tree, extensions, files);
     }
     const sources = [];
     for (const file of files.sort()) {
+        if (retired(file) || supersededBinaries.has(file)) {
+            legacyEntries.push({ path: deploymentPath(file), source: resolve(repoRoot, file) });
+            continue;
+        }
         if (supersededBinaries.has(file) || generated.has(file)) continue;
-        if (extname(file) === '.wasm' && file !== `${sharedDirectory}/cem_ql_bg.wasm`) {
+        if (extname(file) === '.wasm' && file !== `${sharedDirectory}/cem_ql_bg.wasm`
+            && file !== 'packages/cem-ml-npm/dist/wasm/browser/cem_ml_bg.wasm' && !file.startsWith(`${studioSource}/`)) {
             throw new Error(`Unexpected WASM dependency; review shared runtime packaging: ${file}`);
         }
         const info = await lstat(resolve(repoRoot, file));
         if (!info.isFile()) throw new Error(`Expected a regular source file: ${file}`);
-        sources.push({ file, size: info.size });
+        sources.push({ file: deploymentPath(file), source: file, size: info.size });
     }
 
     generated.set('index.html', `<!doctype html>
@@ -210,59 +236,23 @@ ${navigation.map(([label, file]) => `  <li><a href="./${file}">${label}</a></li>
 <p><a href="/">Return to the CEM demos</a></p>
 </html>
 `);
+    const studioSecurity = JSON.parse(await readFile(resolve(repoRoot, studioSource, 'security-headers.json'), 'utf8'));
     generated.set('_headers', `/*
   Cache-Control: public, max-age=0, must-revalidate
   Access-Control-Allow-Origin: *
   X-Robots-Tag: noindex
+
+/studio/*
+${Object.entries(studioSecurity.headers).map(([name, value]) => `  ${name}: ${value}`).join('\n')}
 `);
 
-    // Refuse symlinks before writing or removing any destination file. Only
-    // remove the three known obsolete binaries; never recursively clean up.
-    const checked = new Set();
-    async function checkDestination(path) {
-        if (checked.has(path)) return;
-        checked.add(path);
-        const parent = dirname(path);
-        if (parent !== path) await checkDestination(parent);
-        const info = await lstat(path).catch((error) => {
-            if (error.code !== 'ENOENT') throw error;
-            return null;
-        });
-        if (info?.isSymbolicLink()) throw new Error(`Destination contains a symbolic link: ${path}`);
-    }
-    for (const file of new Set([...files, ...generated.keys(), ...supersededBinaries])) {
-        await checkDestination(join(destination, file));
-        const info = await lstat(join(destination, file)).catch((error) => {
-            if (error.code !== 'ENOENT') throw error;
-            return null;
-        });
-        if (info && !info.isFile()) throw new Error(`Expected a regular destination file: ${file}`);
-    }
-
-    for (const { file } of sources) {
-        const target = join(destination, file);
-        await mkdir(dirname(target), { recursive: true });
-        await copyFile(resolve(repoRoot, file), target);
-    }
-    for (const [file, content] of generated) {
-        const target = join(destination, file);
-        await mkdir(dirname(target), { recursive: true });
-        await writeFile(target, content);
-    }
-    let removed = 0;
-    for (const file of supersededBinaries) {
-        try {
-            await unlink(join(destination, file));
-            removed++;
-        } catch (error) {
-            if (error.code !== 'ENOENT') throw error;
-        }
-    }
-
-    const bytes = sources.reduce((sum, { size }) => sum + size, 0)
-        + [...generated.values()].reduce((sum, content) => sum + Buffer.byteLength(content), 0);
-    console.log(`Copied ${sources.length} files and generated ${generated.size} files (${mib(bytes)} MiB) to ${destination}`);
-    if (removed) console.log(`Removed ${removed} superseded WASM copies.`);
+    const publication = await publishDemoDeployment({ destination, legacyEntries, entries: [
+        ...sources.map(({ file, source }) => ({ path: file, source: resolve(repoRoot, source) })),
+        ...[...generated].map(([path, content]) => ({ path, content })),
+    ] });
+    console.log(`Published ${publication.inventory.fileCount} managed files, ${publication.totalFileCount} total (${mib(publication.bytes)} MiB) to ${destination}`);
+    console.log(`Removed ${publication.removed.length} unchanged obsolete managed files.`);
+    for (const file of publication.preserved) console.warn(`Preserved modified obsolete file: ${file}`);
     for (const { file, size } of sources.filter(({ file }) => extname(file) === '.wasm')) {
         console.log(`WASM: ${file} (${mib(size)} MiB)`);
         if (size > 25 * 1024 * 1024) {
@@ -278,11 +268,11 @@ async function collectFiles(directory, extensions, files) {
         'cem.tokens.intermediate.json', 'cem.tokens.resolved.json',
     ]);
     for (const entry of await readdir(resolve(repoRoot, directory), { withFileTypes: true })) {
-        if (entry.name.startsWith('.') || entry.name.includes(':') || excluded.has(entry.name)) continue;
+        if (extensions && (entry.name.startsWith('.') || entry.name.includes(':') || excluded.has(entry.name))) continue;
         const file = `${directory}/${entry.name}`;
         if (entry.isSymbolicLink()) throw new Error(`Source contains a symbolic link: ${file}`);
         if (entry.isDirectory()) await collectFiles(file, extensions, files);
-        else if (entry.isFile() && extensions.has(extname(entry.name))) files.push(file);
+        else if (entry.isFile() && (!extensions || extensions.has(extname(entry.name)))) files.push(file);
     }
 }
 

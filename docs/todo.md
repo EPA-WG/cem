@@ -43,6 +43,19 @@ Completed [immediate persisted theme updates](archive/todo-completed-compact-stu
 
 ## Project builds and artifact previews
 
+Completed 2026-10-26: [demo deployment file budget and owned cleanup](archive/todo-completed-demo-file-budget-2026-10-26.md)
+reduces `cem-bin` from 1,142 to 898 files, including its deterministic SHA-256
+inventory. Cleanup preserves modified obsolete and unrelated files; the 999-file
+preflight limit includes them. Clean, migrated and repeated copies match.
+Studio's complete bytes, offline builds, native gallery factories, all ten theme
+generators, canonical playgrounds and credential refusal pass.
+
+Completed 2026-10-26: [Studio in the assembled demo site](archive/todo-completed-demo-site-studio-2026-10-26.md)
+adds Studio to `build:demo`, the home-page links and `/studio/`. Complete native
+deployment bytes, scoped headers/service worker, gallery factory ownership,
+native preview and saved/offline builds pass. `serve:demo` provides the local
+site and `verify:demo` checks the assembled deployment without clearing user data.
+
 Completed [Studio accordion delivery check](archive/todo-completed-compact-studio-2026-10-23.md#studio-accordion-delivery-check-2026-10-24)
 confirms the layout source is unchanged, restores the stopped local preview, and
 verifies styled accordion/collapse behavior across a stale-worker reload with

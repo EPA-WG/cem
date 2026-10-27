@@ -196,6 +196,12 @@ Project/file URLs stay at the same origin and their data and draft journals rema
 intact. No cache, IndexedDB or local storage clearing is required. The preview does
 not change the production graph output or its guarded offline update lifecycle.
 
+Studio is also part of the assembled demo site: run `yarn copy:demo` and then
+`yarn serve:demo` from the workspace root. Open `http://localhost:8081/studio/`
+or follow **CEM Studio** from the demo home page. This copies the complete
+Studio deployment under its own subpath, preserving its runtime assets,
+security headers and service-worker scope.
+
 
 ```bash
 yarn nx run @epa-wg/cem-studio:build

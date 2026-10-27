@@ -164,14 +164,19 @@ To build and assemble the broader demo site for static hosting:
 yarn build:demo               # build demo dependencies with release WASM
 yarn copy:demo                # build, then copy into ~/cem-bin (Nx caches builds)
 yarn copy:demo /tmp/cem-site   # build and copy to an optional destination
+yarn serve:demo               # serve ~/cem-bin at http://localhost:8081/
+yarn serve:demo /tmp/cem-site  # serve an optional destination
+yarn verify:demo              # verify the running demo and Studio deployment
 ```
 
 The [copy script](tools/scripts/copy-demo-site.mjs) includes the CEM elements
 gallery, all eight component workflow examples and their runtime/styles,
-theme CSS generators and token documentation, and the demo viewer's examples.
-It copies their templates, local data and images, and browser JavaScript. All
-galleries share one release CEM-QL WASM binary, which also provides the demo
-viewer's CEM-ML rendering and highlighting functions. Small module adapters
+theme CSS generators and token documentation, the demo viewer's examples, and
+the complete CEM Studio deployment linked at `/studio/`.
+It copies their templates, local data and images, and browser JavaScript. The
+CEM-QL galleries share one release WASM binary. The demo viewer keeps its
+matching CEM-ML common-query bridge loader and binary, including native startup
+registration. Small CEM-QL module adapters
 preserve existing import URLs and share one initialization promise per browser
 realm. The canonical loader and binary live in `packages/cem_ql/dist/wasm/`.
 It preserves repository-relative paths and adds navigation in `index.html`,
@@ -181,13 +186,26 @@ and omit the WASM name and producer sections. The standalone CEM-QL browser buil
 is `yarn nx run cem_ql:build:wasm`; the CEM-ML browser build is
 `yarn nx run @epa-wg/cem-ml:build`. Before copying, the script builds all required
 packages, checks both bundled CEM-QL loaders/binaries against the release output,
-and verifies that CEM-QL exposes the CEM-ML browser API. Standalone package builds
+and verifies the shared CEM-QL generation factory. Standalone package builds
 retain their own runtimes; sharing happens only in the assembled demo site.
-The script overwrites matching files, removes the three superseded WASM copies
-from previous deployments, and keeps unrelated destination files;
-use a fresh destination for a clean deployment. Source maps, TypeScript files,
+Studio retains its graph-emitted assets, WASM runtimes, cache inventory and
+service worker as a self-contained deployment under `/studio/`. Its security
+headers apply only to that subtree; its service worker stays scoped there.
+The local `serve:demo` command applies those same headers and serves WASM with
+the required MIME type. It defaults to port 8081; set `PORT` to choose another.
+The demo uses the canonical component pages under `playgrounds/` and omits their
+duplicate built HTML copies. Theme generators reuse the primary `cem-elements`
+runtime through three rebased imports; standalone package outputs stay intact.
+`demo-deployment.json` records owned paths, byte sizes and SHA-256 hashes. Each
+copy removes unchanged obsolete owned files and preserves modified obsolete
+files and unrelated files. Matching current outputs are overwritten as before.
+The first migration recognizes the previous copier's known outputs by
+hash. A preflight guard refuses an update exceeding **999 total files**, including
+unrelated files, before writing or deleting deployment files.
+Source maps, TypeScript files,
 dependency trees, debug token artifacts, Figma exports, build reports, and native
-compiler output are excluded. The script reports
+compiler output are excluded from the gallery trees. Studio's complete graph
+outputs are copied intact. The script reports
 WASM sizes and flags files above the hosting limit recorded in the size analysis.
 See the [WASM deployment size analysis](docs/wasm-deployment-size.md) for measured
 release sizes, shared-runtime verification, and further optimization options.
