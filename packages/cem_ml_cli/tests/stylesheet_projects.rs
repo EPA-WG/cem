@@ -49,6 +49,9 @@ impl Project {
         self.definition["configurations"].as_array().unwrap()
     }
     fn run(&self, config: &Value) -> Output {
+        self.run_with_module_grant(config, true)
+    }
+    fn run_with_module_grant(&self, config: &Value, admit_modules: bool) -> Output {
         let scss = self.definition["id"] == "scss-stylesheet";
         let mut args: Vec<String> = config["argv"]
             .as_array()
@@ -70,15 +73,11 @@ impl Project {
                 }
             })
             .collect();
-        if scss {
+        if scss && admit_modules {
             let prefix = reqwest::Url::from_directory_path(&self.root).unwrap();
             args.extend([
                 "--resolver-read-map".into(),
                 format!("{prefix}={}", self.root.display()),
-                "--base-uri".into(),
-                reqwest::Url::from_directory_path(self.root.join("styles"))
-                    .unwrap()
-                    .to_string(),
             ]);
         }
         Command::new(env!("CARGO_BIN_EXE_cem-ml"))
@@ -345,6 +344,103 @@ fn stylesheet_builds_keep_owned_origins_edits_and_independent_outputs() {
             fs::write(source, original).unwrap();
             success(&project.run(graph));
         }
+    }
+}
+
+#[test]
+fn scss_file_uri_graph_uses_its_source_base_but_still_requires_module_read_grants() {
+    let mut project = Project::new("scss-stylesheet");
+    let original_root = project.root.clone();
+    project.root = original_root.with_file_name(format!(
+        "{} café % space",
+        original_root.file_name().unwrap().to_string_lossy()
+    ));
+    fs::rename(original_root, &project.root).unwrap();
+    let graph = project.graph().unwrap();
+    let denied = project.run_with_module_grant(graph, false);
+    assert!(!denied.status.success());
+    let diagnostics = String::from_utf8_lossy(&denied.stderr);
+    assert!(
+        diagnostics.contains("cem.scss.resolver_denied"),
+        "{diagnostics}"
+    );
+    assert!(
+        diagnostics.contains(
+            &reqwest::Url::from_file_path(project.path("scss-source"))
+                .unwrap()
+                .to_string()
+        ),
+        "{diagnostics}"
+    );
+    for path in graph["expectedGraphOutputs"].as_object().unwrap().keys() {
+        assert!(
+            !project.root.join(path).exists(),
+            "a missing module grant cannot publish {path}"
+        );
+    }
+    let admitted = project.run(graph);
+    success(&admitted);
+    for (path, expected) in graph["expectedGraphOutputs"].as_object().unwrap() {
+        assert_eq!(
+            fs::read(project.root.join(path)).unwrap(),
+            fs::read(project.path(expected.as_str().unwrap())).unwrap()
+        );
+    }
+    let map_path = project.root.join("generated/cards.css.map");
+    let map: Value = serde_json::from_slice(&fs::read(map_path).unwrap()).unwrap();
+    let encoded = serde_json::to_string(&map).unwrap();
+    for id in ["scss-source", "scss-tokens"] {
+        let uri = reqwest::Url::from_file_path(project.path(id))
+            .unwrap()
+            .to_string();
+        assert!(
+            encoded.contains(&uri),
+            "source-map sidecar lost {uri}: {encoded}"
+        );
+    }
+    assert!(!map["outputSpans"].as_array().unwrap().is_empty());
+    let spans: Vec<cem_ml::interpreter::OutputSpan> =
+        serde_json::from_value(map["outputSpans"].clone()).unwrap();
+    let module_uri = reqwest::Url::from_file_path(project.path("scss-tokens"))
+        .unwrap()
+        .to_string();
+    let module = fs::read_to_string(project.path("scss-tokens")).unwrap();
+    let definition = "$space: 0.75rem;";
+    assert!(spans.iter().flat_map(|span| &span.origin.frames).any(|frame| {
+        matches!(&frame.transform, cem_ml::source_map::TransformKind::ScssOrigin { module_uri: uri, origin_kind: cem_ml::source_map::ScssOriginKind::Definition, name: Some(name) } if uri == &module_uri && name == "space")
+            && frame.span == cem_ml::source_map::FrameSpan::Single(cem_ml::source::ByteRange::new(module.find(definition).unwrap() as u64, definition.len() as u32))
+    }), "module definition must retain its original file URI and byte range");
+}
+
+#[test]
+fn scss_file_uri_graph_retains_localhost_module_grants() {
+    let project = Project::new("scss-stylesheet");
+    let graph = project.graph().unwrap();
+    let config_uri = reqwest::Url::from_file_path(project.path(graph["source"].as_str().unwrap()))
+        .unwrap()
+        .to_string()
+        .replacen("file:///", "file://localhost/", 1);
+    let prefix = reqwest::Url::from_directory_path(&project.root)
+        .unwrap()
+        .to_string()
+        .replacen("file:///", "file://localhost/", 1);
+    let output = Command::new(env!("CARGO_BIN_EXE_cem-ml"))
+        .args([
+            "transform",
+            "--config",
+            &config_uri,
+            "--resolver-read-map",
+            &format!("{prefix}={}", project.root.display()),
+        ])
+        .current_dir(&project.root)
+        .output()
+        .unwrap();
+    success(&output);
+    for (path, expected) in graph["expectedGraphOutputs"].as_object().unwrap() {
+        assert_eq!(
+            fs::read(project.root.join(path)).unwrap(),
+            fs::read(project.path(expected.as_str().unwrap())).unwrap()
+        );
     }
 }
 

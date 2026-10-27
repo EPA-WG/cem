@@ -290,6 +290,9 @@ impl<'a> FilesystemTransformGraphResourceProvider<'a> {
         {
             return reference.to_owned();
         }
+        if let Some(uri) = resolve_local_file_graph_reference(&self.config_uri, reference) {
+            return uri;
+        }
         if let Some(config_dir) = self.config_local_path.as_deref().and_then(Path::parent) {
             return config_dir.join(reference).display().to_string();
         }
@@ -354,7 +357,8 @@ impl<'a> FilesystemTransformGraphResourceProvider<'a> {
     fn local_import_paths(&self, pattern: &str) -> Result<Vec<String>, TransformGraphRequestError> {
         validate_transform_graph_import_glob(pattern, &self.config_uri)?;
         let resolved = self.resolved(pattern);
-        let pattern_path = Path::new(&resolved);
+        let local_path = local_file_uri_to_path(&resolved);
+        let pattern_path = local_path.as_deref().unwrap_or_else(|| Path::new(&resolved));
         let file = pattern_path
             .file_name()
             .map(|value| value.to_string_lossy().into_owned())
@@ -371,10 +375,26 @@ impl<'a> FilesystemTransformGraphResourceProvider<'a> {
         )?;
         self.context.ensure_active()?;
         validate_import_match_count(pattern, &self.config_uri, matches.len())?;
-        Ok(matches
+        matches
             .into_iter()
-            .map(|path| path.display().to_string())
-            .collect())
+            .map(|path| {
+                if local_path.is_some() {
+                    local_graph_file_uri(&path, &resolved)
+                        .ok_or_else(|| {
+                            EngineError::Io {
+                                path,
+                                source: io::Error::new(
+                                    io::ErrorKind::InvalidInput,
+                                    "cannot represent local import as a file URI",
+                                ),
+                            }
+                            .into()
+                        })
+                } else {
+                    Ok(path.display().to_string())
+                }
+            })
+            .collect()
     }
 
     fn resolver_import_uris(
@@ -425,7 +445,10 @@ impl TransformGraphResourceProvider for FilesystemTransformGraphResourceProvider
             vec![self.resolved(reference)]
         } else {
             let resolved = self.resolved(reference);
-            if uri_scheme(&resolved).is_some() && !is_windows_drive_path(&resolved) {
+            if uri_scheme(&resolved).is_some()
+                && !is_windows_drive_path(&resolved)
+                && local_file_uri_to_path(&resolved).is_none()
+            {
                 self.resolver_import_uris(reference)?
             } else {
                 self.local_import_paths(reference)?
@@ -452,7 +475,8 @@ impl TransformGraphResourceProvider for FilesystemTransformGraphResourceProvider
         purpose: ResolvePurpose,
         content_type_hint: Option<&str>,
     ) -> Result<TransformGraphResource, TransformGraphRequestError> {
-        let resolved = resolve_transform_graph_reference(base_uri, reference);
+        let resolved = resolve_local_file_graph_reference(base_uri, reference)
+            .unwrap_or_else(|| resolve_transform_graph_reference(base_uri, reference));
         self.read_resolved(&resolved, purpose, content_type_hint)
     }
 
@@ -462,11 +486,52 @@ impl TransformGraphResourceProvider for FilesystemTransformGraphResourceProvider
 
     fn binding_uri(&self, uri: &str) -> String {
         if let Some(config_dir) = self.config_local_path.as_deref().and_then(Path::parent) {
-            if let Ok(relative) = Path::new(uri).strip_prefix(config_dir) {
+            let local_path = local_file_uri_to_path(uri);
+            let path = local_path.as_deref().unwrap_or_else(|| Path::new(uri));
+            if let Ok(relative) = path.strip_prefix(config_dir) {
                 return path_display_slash(relative);
             }
         }
         relative_transform_graph_reference(&self.config_uri, uri)
+    }
+}
+
+// File-URI configs still use local filesystem references, but their imported
+// source addresses must retain the scheme/escaping needed by module resolvers.
+// Keep explicit URIs and plain-path configs on their existing identity paths.
+fn resolve_local_file_graph_reference(base_uri: &str, reference: &str) -> Option<String> {
+    if uri_scheme(reference).is_some()
+        || Path::new(reference).is_absolute()
+        || is_windows_drive_path(reference)
+    {
+        return None;
+    }
+    let base = local_file_uri_to_path(base_uri)?;
+    local_graph_file_uri(&base.parent()?.join(reference), base_uri)
+        .map(|uri| normalize_transform_graph_uri(&uri))
+}
+
+fn local_graph_file_uri(path: &Path, base_uri: &str) -> Option<String> {
+    // Match the URL library's filesystem capability. Browser WASM has no
+    // filesystem provider; its command host uses the manifest provider.
+    #[cfg(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit"))]
+    {
+        url::Url::from_file_path(path).ok().map(|uri| {
+            let uri = String::from(uri);
+            // Read-map prefixes are explicit capabilities, not URL aliases.
+            // Keep the admitted local authority even though URL canonicalizers
+            // commonly serialize localhost as an empty file authority.
+            if base_uri.starts_with("file://localhost/") {
+                uri.replacen("file:///", "file://localhost/", 1)
+            } else {
+                uri
+            }
+        })
+    }
+    #[cfg(not(any(unix, windows, target_os = "redox", target_os = "wasi", target_os = "hermit")))]
+    {
+        let _ = (path, base_uri);
+        None
     }
 }
 
@@ -2305,6 +2370,18 @@ fn rooted_resource_path(
             format!("import resource `{uri}` cannot provide safe folder path bindings"),
         ));
     }
+    // Validate the URI-relative spelling before decoding, then validate the
+    // filesystem binding too. Escaped separators/traversal cannot bypass the
+    // existing root guard, and filenames must not be escaped a second time.
+    if let (Some(root), Some(source)) =
+        (local_file_uri_to_path(root), local_file_uri_to_path(uri))
+    {
+        return rooted_resource_path(
+            &path_display_slash(&root),
+            &path_display_slash(&source),
+            config_uri,
+        );
+    }
     Ok(relative.to_owned())
 }
 
@@ -3776,6 +3853,168 @@ mod tests {
         );
         assert_eq!(manifest_request.imports[0].scheduler_scope_id, 0);
         assert_eq!(manifest_request.exports[0].scheduler_scope_id, 6);
+    }
+
+    #[test]
+    fn file_uri_configs_keep_import_and_relative_resource_addresses() {
+        let fixture = FixtureDir::new();
+        let folder = "project café % space";
+        let config = fixture.write(&format!("{folder}/graph.cem"), b"{run}");
+        let source = fixture.write(&format!("{folder}/inputs/cards.scss"), b"@use \"tokens\";");
+        let module = fixture.write(&format!("{folder}/inputs/_tokens.scss"), b"$space: 1rem;");
+        let explicit = fixture.write(&format!("{folder}/inputs/café data.cem"), b"{data}");
+        let uri = |path: &str| url::Url::from_file_path(path).unwrap().to_string();
+        let config_uri = uri(&config);
+        let context = EngineContext::default();
+        let provider = FilesystemTransformGraphResourceProvider::new(&context, &config_uri);
+        let resource = provider
+            .import_resources("inputs/cards.scss", None)
+            .unwrap()
+            .remove(0);
+        assert_eq!(resource.uri, uri(&source));
+        assert_eq!(resource.bytes, b"@use \"tokens\";");
+        assert_eq!(
+            provider
+                .import_resources("inputs/../inputs/cards.scss", None)
+                .unwrap()[0]
+                .uri,
+            uri(&source)
+        );
+        assert_eq!(provider.binding_uri(&resource.uri), "inputs/cards.scss");
+        let dependency = provider
+            .read_resource_relative_to(&resource.uri, "_tokens.scss", ResolvePurpose::Input, None)
+            .unwrap();
+        assert_eq!(dependency.uri, uri(&module));
+        assert_eq!(dependency.bytes, b"$space: 1rem;");
+        let explicit_uri = uri(&explicit);
+        let resource = provider
+            .read_resource(&explicit_uri, ResolvePurpose::Input, None)
+            .unwrap();
+        assert_eq!(
+            resource.uri, explicit_uri,
+            "explicit source identities are not rewritten"
+        );
+        assert_eq!(provider.binding_uri(&resource.uri), "inputs/café data.cem");
+        assert_eq!(
+            provider
+                .read_resource("inputs/café data.cem", ResolvePurpose::Input, None)
+                .unwrap()
+                .uri,
+            explicit_uri
+        );
+        assert_eq!(
+            provider.output_uri("generated/cards.css").unwrap(),
+            uri(&format!(
+                "{}/generated/cards.css",
+                Path::new(&config).parent().unwrap().display()
+            ))
+        );
+    }
+
+    #[test]
+    fn file_uri_config_globs_keep_local_discovery_and_uri_source_identities() {
+        let fixture = FixtureDir::new();
+        let config = fixture.write("project café % space/graph.cem", b"{run}");
+        let first = fixture.write("project café % space/inputs/a.cem", b"{a}");
+        let second = fixture.write("project café % space/inputs/nested/café data.cem", b"{b}");
+        let uri = |path: &str| url::Url::from_file_path(path).unwrap().to_string();
+        let context = EngineContext::default();
+        let provider = FilesystemTransformGraphResourceProvider::new(&context, uri(&config));
+        let resources = provider.import_resources("inputs/**/*.cem", None).unwrap();
+        assert_eq!(
+            resources
+                .iter()
+                .map(|item| item.uri.clone())
+                .collect::<Vec<_>>(),
+            vec![uri(&first), uri(&second)]
+        );
+        assert_eq!(
+            resources
+                .iter()
+                .map(|item| provider.binding_uri(&item.uri))
+                .collect::<Vec<_>>(),
+            vec!["inputs/a.cem", "inputs/nested/café data.cem"]
+        );
+        assert_eq!(
+            resources
+                .iter()
+                .map(|item| item.bytes.clone())
+                .collect::<Vec<_>>(),
+            vec![b"{a}".to_vec(), b"{b}".to_vec()]
+        );
+        let config_uri = uri(&config);
+        let graph_bytes = br#"{run | {import @id=files @src="inputs/**/*.cem" @root="inputs" @content-type="application/cem+xml" | {export @id=copy @out="generated/{path}" @content-type="application/cem+xml"}}}"#;
+        let request = lower_transform_graph_request(
+            &context,
+            &graph(&config_uri, graph_bytes),
+            &provider,
+            &config_uri,
+            true,
+        )
+        .unwrap();
+        assert_eq!(
+            request
+                .imports
+                .iter()
+                .map(|item| item.input.uri.clone())
+                .collect::<Vec<_>>(),
+            vec![uri(&first), uri(&second)]
+        );
+        let root = Path::new(&config).parent().unwrap();
+        assert_eq!(
+            request
+                .exports
+                .iter()
+                .map(|item| item.destination.clone().unwrap())
+                .collect::<Vec<_>>(),
+            vec![
+                url::Url::from_file_path(root.join("generated/a.cem"))
+                    .unwrap()
+                    .to_string(),
+                url::Url::from_file_path(root.join("generated/nested/café data.cem"))
+                    .unwrap()
+                    .to_string()
+            ]
+        );
+        assert!(rooted_resource_path(
+            &uri(&root.join("inputs").display().to_string()),
+            &format!(
+                "{}/%2e%2e/escape.cem",
+                uri(&root.join("inputs").display().to_string())
+            ),
+            &config_uri
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn localhost_file_uri_configs_keep_the_admitted_authority() {
+        let fixture = FixtureDir::new();
+        let config = fixture.write("project café/graph.cem", b"{run}");
+        let source = fixture.write("project café/inputs/cards.cem", b"{card}");
+        let uri = |path: &str| {
+            url::Url::from_file_path(path)
+                .unwrap()
+                .to_string()
+                .replacen("file:///", "file://localhost/", 1)
+        };
+        let context = EngineContext::default();
+        let provider = FilesystemTransformGraphResourceProvider::new(&context, uri(&config));
+        assert_eq!(
+            provider.import_resources("inputs/cards.cem", None).unwrap()[0].uri,
+            uri(&source)
+        );
+        assert_eq!(
+            provider.import_resources("inputs/*.cem", None).unwrap()[0].uri,
+            uri(&source)
+        );
+        assert_eq!(
+            provider
+                .read_resource_relative_to(&uri(&source), "cards.cem", ResolvePurpose::Input, None)
+                .unwrap()
+                .uri,
+            uri(&source)
+        );
     }
 
     #[test]

@@ -1,7 +1,7 @@
 {
   "id": "scss-stylesheet",
   "name": "SCSS stylesheet",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Validate passive SCSS, inspect its expanded CSS, resolve a project-owned module, repair source syntax and build an independent HTML/CSS preview.",
   "collections": [
     "content-types-documents-ui",

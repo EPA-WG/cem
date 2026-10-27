@@ -111,19 +111,20 @@ cem-ml convert file:///absolute/project/styles/cards.scss \
   --cemt-formatter-profile tabular --output-color-type none
 ```
 
-For a native CLI graph build, also set the explicit module load-path base:
+For a native CLI graph build, use a file-URI configuration address. Relative
+imports keep file-URI source identities, which supply their module-resolution
+bases:
 
 ```sh
 cem-ml transform --config file:///absolute/project/graphs/styles.cem \
-  --resolver-read-map file:///absolute/project/=/absolute/project \
-  --base-uri file:///absolute/project/styles/
+  --resolver-read-map file:///absolute/project/=/absolute/project
 ```
 
-The current CLI graph provider exposes imported local sources as filesystem
-paths, so this base supplies their module-resolution context. The base itself
-grants no file reads; the separate bounded read map remains required. Portable
-project commands keep relative resource references, and Studio's owned virtual
-source URIs supply their own module context.
+The configuration's file URI grants no module reads; the separate bounded read
+map remains required. Existing plain-path configurations and explicit
+`--base-uri` overrides retain their behavior. Portable project commands keep
+relative resource references, and Studio's owned virtual source URIs supply
+their own module context.
 
 Studio supplies the owned virtual resources through its existing resolver. A
 file URI, MIME identity or schema identity alone grants no read capability.

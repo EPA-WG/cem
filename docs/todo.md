@@ -282,7 +282,13 @@ SCSS stylesheet 1.0.1 now uses the omitted default with unchanged exact CSS.
 Native, CLI, worker, saved/offline preview and credential refusal checks pass;
 full lexical/function/content-block compatibility remains outside this profile.
 
-- [ ] Preserve the admitted file URI as the module-resolution base through the native CLI graph provider. Imported local sources currently expose plain filesystem paths, so SCSS graph callers need an explicit `--base-uri` alongside their bounded read map. Keep original provenance and missing-grant refusal, and add native provider regressions before changing source identity normalization.
+Completed 2026-10-26: [file-URI graph module-resolution bases](archive/todo-completed-file-uri-graph-bases-2026-10-26.md)
+covers relative file-URI imports/dependencies, localhost-prefix grants, encoded
+names, bounded local globs and safe rooted-folder bindings. SCSS stylesheet
+1.0.2 documents native builds without an extra base URI; missing module grants
+still refuse publication and original source URI/ranges remain intact. Native,
+CLI, rebuilt WASM/worker, saved/offline preview and credential refusal checks
+pass. Plain-path configs retain their existing identity behavior.
 
 - [ ] Unify native collection-control manifest and sidecar publication across CLI and common command hosts. The runtime-only producer role now distinguishes real collections from lookalike application JSON. Preserve existing CLI sidecars and common inline collection metadata; add native collection export/owner/source-map fixtures before claiming exact cross-host manifest bytes or moving metadata between artifacts.
 

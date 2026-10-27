@@ -241,6 +241,16 @@ Current implementation slice:
   one-to-one binding propagation through transform stages. Resolver
   glob expansion requires an explicit list-capable resolver and is bounded by a
   deterministic max-entry guard.
+- Local `file://` graph configuration addresses retain file-URI identities for
+  relative imports, templates and exports. Relative local references resolve
+  dot segments and preserve URI escaping; decoded paths are used for filesystem
+  I/O and source-derived folder/output bindings. Local file-URI globs retain
+  bounded filesystem discovery. Explicit source URIs and existing plain-path
+  configurations keep their identity behavior. Imported source URIs provide
+  module-resolution bases without an additional `--base-uri`; module reads
+  still require an explicit resolver grant such as `--resolver-read-map`.
+  The admitted `file://localhost/` authority is retained on derived addresses
+  so read-map prefix grants continue to match.
 
 ### Static web dependency transformation target
 
