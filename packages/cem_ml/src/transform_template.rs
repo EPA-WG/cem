@@ -5571,14 +5571,6 @@ pub(crate) fn transform_template_encode_options_line_ending(
         .to_owned()
 }
 
-pub(crate) fn transform_template_encode_options_line_ending_data(
-    options: &TransformTemplateEncodeOptions,
-) -> String {
-    transform_template_line_ending_data_from_selector(
-        transform_template_encode_options_line_ending_option(options),
-    )
-}
-
 fn transform_template_line_ending_data_from_selector(value: Option<&str>) -> String {
     match transform_template_non_empty_formatter_option(value) {
         Some("crlf") | Some("\\r\\n") => "\r\n".to_owned(),
@@ -8212,19 +8204,29 @@ pub(crate) fn transform_template_apply_output_final_newline_policy(
     transform_template_ensure_text_ends_with_newline(output);
 }
 
-fn transform_template_output_context_uses_html_preview_wrapper(
+pub(crate) fn transform_template_output_context_uses_html_preview_wrapper(
     context: &TransformTemplateEncodedArtifactInsertionContext,
 ) -> bool {
-    context
-        .color_profile
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|profile| profile == "html")
-        || context
-            .output_color_type
+    transform_template_html_preview_color_profile(context).is_some()
+}
+
+fn transform_template_html_preview_color_profile(
+    context: &TransformTemplateEncodedArtifactInsertionContext,
+) -> Option<TransformTemplateColorOutputProfile> {
+    // A package palette selects a CEMT colorizer, not a byte encoding. Only an
+    // output selector (or the legacy explicit `html` profile) requests preview
+    // markup. An explicit output selector always wins, including `none`.
+    let selector = context.output_color_type.as_deref().or_else(|| {
+        context
+            .color_profile
             .as_deref()
-            .map(str::trim)
-            .is_some_and(|output_color_type| output_color_type.contains("html"))
+            .filter(|profile| profile.trim() == "html")
+    })?;
+    let selection = parse_transform_template_output_color_type(selector).ok()?;
+    if selection.target.category != "html-color" {
+        return None;
+    }
+    TransformTemplateColorOutputProfile::html_from_selector(&selection.output_color_type).ok()
 }
 
 fn text_composition_artifact_for_evaluated_encode(
@@ -9837,16 +9839,7 @@ fn transform_template_typed_cem_tree_html_color_profile(
     {
         return None;
     }
-    context
-        .output_color_type
-        .as_deref()
-        .or(context.color_profile.as_deref())
-        .and_then(|selector| parse_transform_template_output_color_type(selector).ok())
-        .filter(|selection| selection.target.category == "html-color")
-        .and_then(|selection| {
-            TransformTemplateColorOutputProfile::html_from_selector(&selection.output_color_type)
-                .ok()
-        })
+    transform_template_html_preview_color_profile(context)
 }
 
 fn transform_template_typed_cem_tree_to_rendered_text(

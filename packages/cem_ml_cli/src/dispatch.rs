@@ -24488,6 +24488,40 @@ start =
         assert!(stderr.contains("acme.format-b"), "{stderr}");
         assert!(stderr.contains("--cemt-formatter"), "{stderr}");
 
+        // Choosing the formatter alone must still diagnose the independent
+        // colorizer ambiguity; no primary artifact is published on refusal.
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "cem",
+                "--resolver-read-map",
+                &resolver_map,
+                "--schema-package",
+                "cem+vfs://workspace/packages/cem-ml/v1/package.cem",
+                "--schema-package-replacement-grant",
+                r#"{"packageId":"cem-ml","expectedOrigin":{"kind":"builtin"},"replacementManifestUri":"cem+vfs://workspace/packages/cem-ml/v1/package.cem"}"#,
+                "--cemt-formatter",
+                "acme.format-a",
+                "--cemt-formatter-profile",
+                "acme.ambiguous",
+                "--cemt-color-profile",
+                "classes",
+                input.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        assert!(stdout.is_empty(), "{stdout}");
+        for expected in [
+            "multiple `colorizer` CEMT artifacts",
+            "acme.color-a",
+            "acme.color-b",
+            "--cemt-colorizer",
+        ] {
+            assert!(stderr.contains(expected), "{stderr}");
+        }
+        let report_path = root.join("selected.report.json");
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
             &[
@@ -24508,6 +24542,8 @@ start =
                 "acme.color-a",
                 "--cemt-color-profile",
                 "classes",
+                "--report-json",
+                report_path.to_str().unwrap(),
                 input.to_str().unwrap(),
             ],
         );
@@ -24515,6 +24551,62 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stderr.trim().is_empty(), "{stderr}");
         assert_eq!(stdout, "@doc cem-ml 1{main}\n");
+        let report: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&report_path).unwrap()).unwrap();
+        let output = &report["reportAst"]["convert"]["outputs"][0];
+        assert_eq!(output["contentType"], "application/cem");
+        let stages = output["conversion"]["outputPipeline"]["stages"]
+            .as_array()
+            .unwrap();
+        assert!(stages
+            .iter()
+            .any(|stage| stage["stage"] == "formatter" && stage["function"] == "acme.format-a"));
+        assert!(stages
+            .iter()
+            .any(|stage| stage["stage"] == "colorizer" && stage["function"] == "acme.color-a"));
+
+        // The same selected bodies must retain their language on file output;
+        // HTML DOM output must still materialize the chosen colorizer's class.
+        for (format, destination) in [
+            ("cem", root.join("selected.cem")),
+            ("html", root.join("selected.html")),
+        ] {
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "--no-color",
+                    "convert",
+                    "--to-format",
+                    format,
+                    "--resolver-read-map",
+                    &resolver_map,
+                    "--schema-package",
+                    "cem+vfs://workspace/packages/cem-ml/v1/package.cem",
+                    "--schema-package-replacement-grant",
+                    r#"{"packageId":"cem-ml","expectedOrigin":{"kind":"builtin"},"replacementManifestUri":"cem+vfs://workspace/packages/cem-ml/v1/package.cem"}"#,
+                    "--cemt-formatter",
+                    "acme.format-b",
+                    "--cemt-formatter-profile",
+                    "acme.ambiguous",
+                    "--cemt-colorizer",
+                    "acme.color-b",
+                    "--cemt-color-profile",
+                    "classes",
+                    "--out",
+                    destination.to_str().unwrap(),
+                    input.to_str().unwrap(),
+                ],
+            );
+            assert_eq!(outcome.exit_code, EXIT_OK, "{format}: {stderr}");
+            assert!(stderr.is_empty(), "{stderr}");
+            assert!(stdout.is_empty(), "{stdout}");
+            let text = std::fs::read_to_string(destination).unwrap();
+            if format == "cem" {
+                assert_eq!(text, "@doc cem-ml 1{main}\n");
+            } else {
+                assert!(text.contains("<main class=\"selected-color-b\""), "{text}");
+            }
+        }
     }
 
     #[test]

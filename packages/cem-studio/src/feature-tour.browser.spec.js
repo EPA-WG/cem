@@ -1370,10 +1370,10 @@ describe('CEM Studio Feature Tour copies', () => {
             expect(entry.resourceIds).toContain(source.id);
             const command = JSON.parse(new TextDecoder().decode(bundle.contents[entry.runConfigResourceId]));
             expect(command.argv).toContain(profile);
-            const format = async (text, projectId) => {
+            const format = async (text, projectId, argv = command.argv) => {
                 const result = await validator.runResourceCommand({ bytes: new TextEncoder().encode(text),
                     uri: `studio://${projectId}/${source.path}`, contentType: source.contentType, schema: source.schema,
-                    projectId, projectRootUri: `studio://${projectId}/`, argv: command.argv });
+                    projectId, projectRootUri: `studio://${projectId}/`, argv });
                 expect(result.result.exitCode).toBe(0);
                 expect(result.output.contentType).toBe('application/cem');
                 expect(result.output.text).not.toContain('\u001b');
@@ -1386,6 +1386,12 @@ describe('CEM Studio Feature Tour copies', () => {
                 .toBe(baseline.replace('Sign in', 'Bienvenue 🍒'));
             expect(await format(original, 'independent-copy')).toBe(baseline);
             expect(new TextDecoder().decode(bundle.contents[source.id])).toBe(original);
+            for (const palette of ['classes', 'inline-style', 'css-custom-properties']) {
+                const argv = command.argv.filter((argument, index) => argument !== '--no-color'
+                    && argument !== '--output-color-type' && command.argv[index - 1] !== '--output-color-type');
+                argv.push('--cemt-color-profile', palette);
+                expect(await format(original, `palette-${palette}`, argv)).toBe(baseline);
+            }
             layouts.push(baseline);
         }
         expect(layouts[0]).not.toBe(layouts[1]);
@@ -1411,6 +1417,7 @@ describe('CEM Studio Feature Tour copies', () => {
             const plain = await run('format-tabular', text);
             const output = await run('source-colors', text);
             expect(output.contentType).toBe('text/html');
+            expect(output.text.endsWith('</pre>')).toBe(true);
             const document = new DOMParser().parseFromString(output.text, 'text/html');
             expect(document.querySelector('pre').textContent).toBe(plain.text);
             expect(document.querySelectorAll('form, input, script')).toHaveLength(0);

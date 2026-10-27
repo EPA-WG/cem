@@ -924,3 +924,65 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
     }
   });
 }
+
+for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
+  test(`CEMT package palettes and writer encodings stay separate in ${runtimeKind}`, async () => {
+    const runtime = runtimeKind === 'wasm-node'
+      ? await import('@epa-wg/cem-ml/wasm') : await import('../dist/wasm/browser/cem_ml.js');
+    if (runtimeKind !== 'wasm-node') await runtime.default({ module_or_path: await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url)) });
+    const source = '@doc cem-ml 1\n{main @title="Café & <tag>" | <script>literal</script> 🧬}\n';
+    const uri = 'studio://profile-boundary/source.cem', bytes = new TextEncoder().encode(source);
+    const version = { revision: 1, sha256: createHash('sha256').update(bytes).digest('hex') };
+    let sequence = 0;
+    const execute = async (profile, outputColorType) => {
+      const request = {
+        protocolVersion: 1, requestId: `profile-boundary:${runtimeKind}:${++sequence}`,
+        project: { projectId: 'profile-boundary', revision: 1 }, resourceVersions: { [uri]: version },
+        operation: { kind: 'convert', inputId: 'input:0', toFormat: 'cem', preserveSourceOffsets: true },
+        runPlan: JSON.parse(runtime.normalizeCommandRunPlanV1(JSON.stringify({ configBytes: [
+          ...new TextEncoder().encode(JSON.stringify({
+            inputs: [{ uri, rootScope: { defaultContentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1' } }],
+            outputs: [{ destination: `${uri}.out`, rootScope: { defaultContentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1',
+              cemtFormatterProfile: 'tabular', cemtColorProfile: profile, ...(outputColorType ? { outputColorType } : {}) } }],
+          })),
+        ] }))),
+        resources: { [uri]: { bytes: [...bytes], identity: { contentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1' } } },
+        policyStamp: { resolver: 'profile-resolver', safety: 'profile-safety', budget: 'profile-budget' },
+      };
+      let published;
+      try {
+        const result = JSON.parse(await runtime.executeCommandServiceV1(JSON.stringify(request),
+          JSON.stringify({ runtime: runtimeKind, targetIdentity: 'runtime-test:profiles', abiIdentity: 'runtime-test-v1', debugControlActive: false }),
+          async () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
+          async () => assert.fail('owned inline source must not fetch'),
+          async (json, output) => { assert.equal(published, undefined); published = Uint8Array.from(output); return JSON.stringify({ token: 'profile' }); },
+          async () => JSON.stringify({ uri: `${uri}.out` }), async () => assert.fail('valid conversion must not roll back'),
+        ));
+        assert.equal(result.status, 'succeeded', JSON.stringify(result));
+        assert.deepEqual(result.diagnostics.items, []);
+        const artifact = result.artifacts.items[0];
+        assert.equal(result.artifacts.originalCount, 1);
+        assert.equal(artifact.sha256, createHash('sha256').update(published).digest('hex'));
+        return { text: new TextDecoder().decode(published), contentType: artifact.contentType };
+      } finally { runtime.disposeCommandArtifactsV1(request.requestId); }
+    };
+    const plain = await execute('none', 'none');
+    assert.equal(plain.contentType, 'application/cem');
+    for (const profile of ['classes', 'inline-style', 'css-custom-properties']) {
+      assert.deepEqual(await execute(profile), plain, `${profile} is a package selector`);
+    }
+    assert.deepEqual(await execute('html', 'none'), plain, 'explicit none wins over the legacy preview profile');
+    for (const selector of ['html-classes', 'classes', 'css-vars', 'inline-style']) {
+      const output = await execute('classes', selector);
+      assert.equal(output.contentType, 'text/html');
+      assert.ok(output.text.startsWith('<pre') && output.text.endsWith('</pre>'), selector);
+      assert.ok(output.text.includes('data-role='));
+      assert.ok(output.text.includes('&lt;script&gt;') && !output.text.includes('<script>'));
+      assert.ok(!output.text.includes('\u001b'));
+    }
+    const terminal = await execute('terminal', 'ansi-256');
+    assert.equal(terminal.contentType, 'application/cem');
+    assert.ok(terminal.text.includes('\u001b['));
+    assert.equal(terminal.text.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, ''), plain.text);
+  });
+}

@@ -103,7 +103,6 @@ use crate::transform_template::{
     evaluate_transform_template_typed_encode_expressions, parse_cem_native_template_module_options,
     parse_transform_template_output_color_type, transform_template_call_argument_is_dynamic,
     transform_template_encode_html_attribute, transform_template_encode_html_text,
-    transform_template_encode_options_line_ending_data,
     transform_template_ensure_text_ends_with_newline, TransformTemplateAdapter,
     TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
@@ -303,13 +302,9 @@ fn convert_metadata_for_direct_output_pipeline(
 
 fn cem_output_pipeline_is_html(pipeline: &ConversionOutputPipeline) -> bool {
     pipeline.writer_insertion_context.content_type == CEM_ML_CONTENT_TYPE
-        && pipeline
-            .writer_insertion_context
-            .output_color_type
-            .as_deref()
-            .or(pipeline.writer_insertion_context.color_profile.as_deref())
-            .and_then(|selector| parse_transform_template_output_color_type(selector).ok())
-            .is_some_and(|selection| selection.target.category == "html-color")
+        && crate::transform_template::transform_template_output_context_uses_html_preview_wrapper(
+            &pipeline.writer_insertion_context,
+        )
 }
 
 fn cem_output_identity(pipeline: &ConversionOutputPipeline) -> (&'static str, &'static str) {
@@ -1705,12 +1700,9 @@ fn convert_cem_tree_stream_with_cemt_pipeline(
         ));
         return Err(diagnostics);
     };
-    let mut content = output.to_owned();
-    if !content.is_empty() && !content.ends_with('\n') {
-        content.push_str(&transform_template_encode_options_line_ending_data(
-            &pipeline.cemt_options,
-        ));
-    }
+    // The typed writer owns final-newline policy, including newlines inside
+    // HTML source previews. Do not append source syntax outside its artifact.
+    let content = output.to_owned();
     let source_map = pipeline_execution
         .source_map
         .and_then(|source_map| serde_json::to_value(source_map).ok())

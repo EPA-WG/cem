@@ -49,7 +49,7 @@ Explicit bytes, application data, typed owners, inline provenance and CLI sideca
 retain their contracts; common hosts add no implicit child or sidecar writes.
 Focused native, Node/browser WASM, Studio worker, credential and saved/offline demo
 checks pass. Deployment remains 898 files; WASMs are 22.43/23.05 MiB. The separate
-formatter-profile discrepancy is tracked below; module-asset conformance is completed below.
+formatter-profile discrepancy and module-asset conformance are completed below.
 
 Completed 2026-10-27: [native XML reload-bundle roundtrip](archive/todo-completed-xml-reload-roundtrip-2026-10-27.md)
 orders passive namespace/schema dictionaries only during native serialization,
@@ -385,7 +385,14 @@ are retired; other source limits remain pinned. Complete Login recovery retains
 credential refusal, 4 MiB/witness/deadline guards and disabled automatic recovery.
 The assembled demo retains 898 files and four WASMs below 25 MiB.
 
-- [ ] Diagnose explicit CEMT formatter/colorizer presentation in `convert_cemt_profile_ambiguity_reports_and_explicit_selectors_resolve`: the unit harness expects plain CEM text but receives an HTML `pre.cem-output` wrapper when the `classes` color profile is selected. Restoring the unchanged HEAD CLI dispatch reproduces the identical failure in isolation. Keep the assertion until console/profile semantics and native writer ownership are verified; do not change collection publication to hide it.
+Completed 2026-10-27: [CEMT profiles and writer encoding](archive/todo-completed-cemt-profile-encoding-2026-10-27.md)
+separates package colorizer selection from source-preview encoding in the shared
+native writer. Explicit output aliases, legacy HTML requests, selector precedence,
+public MIME/schema, original spans and final-newline ownership remain consistent.
+The original raw-CEM assertion passes, including stripped CLI; all 548 CLI library
+tests pass. Native/WASM, Studio formatting and credential-recovery checks pass
+without UI behavior changes or relaxed limits. Deployment retains 898 files and
+four WASMs below 25 MiB.
 
 - [ ] Align native source-operation diagnostic publication with the admitted typed source owner. The catalog fixtures pin the remaining actual zero-exit Parse limit (Supplier XML) and five remaining Inspect companion diagnostic-view disagreements. Inspect's retained AST/tree output currently publishes no original-view diagnostics; its generic diagnostic companion is separate evidence. Add native selected-view reporting/import regressions, preserve original URI/range and warning facts (including zero/absent coordinates), and do not infer AST failure or clean conformance from the companion or reconstruct source ownership from exported fields.
   - [ ] Align element-template semantic validation across CLI and the Studio worker host. Replacing `dom:text(heading)` with `dom:text(not_declared)` in Login fails CLI Validate with `cem.ql.render.compile_failed` at original byte 655, while worker Validate returns zero errors and 15 advisory attribute warnings. Preserve this observed discrepancy, actual runtime-binding/deferred-compilation policy and original diagnostics; do not claim strict undeclared-binding conformance from worker success. Add native command-context fixtures before changing shared preparation/validation; malformed source must continue to refuse.
@@ -424,7 +431,7 @@ The assembled demo retains 898 files and four WASMs below 25 MiB.
 
 - [ ] Stabilize concurrent release-verifier scheduling around the existing 30-second cold Login source-paint case; retain its assertions and deadline. The unchanged complete release passes with `--parallel=1`. The 283-case Studio source invocation overlapping deployed browser gates passes 276 cases with seven deadline failures; all seven pass in an isolated Nx rerun, including complete live Login recovery on worker/fallback. Pending-build cancellation then passes three isolated runs after public navigation-readiness ordering is repaired. Keep the original five-second resume deadline, test bounds, privacy assertions and 4 MiB checkpoint budget; do not treat overlapping execution as a green full-cohort invocation.
 
-- [ ] Repair the existing native conversion baselines independently of recovery: `cross_surface_conversion_rules::cem_fixture_preserves_anonymous_scope_expression_avt_comments_and_rich_content` loses the expected `{.busy}` value in both default and stripped tests, and stripped CLI `convert_cemt_profile_ambiguity_reports_and_explicit_selectors_resolve` expects raw CEM where the current renderer returns a `<pre>` wrapper. Preserve the intended native semantics and assertions when resolving the mismatch.
+- [ ] Repair the existing native conversion baseline independently of recovery: `cross_surface_conversion_rules::cem_fixture_preserves_anonymous_scope_expression_avt_comments_and_rich_content` loses the expected `{.busy}` value in both default and stripped tests. Preserve the intended native semantics and assertion when resolving the mismatch. The separate CEMT profile/writer mismatch is completed above.
 
 - [ ] Investigate the existing stripped WASM binary-size gate: current stripped output is 27,264,508 bytes versus 27,033,499 default bytes, despite the stripped capability contract rejecting debug control. Establish actual debugger-code omission and the correct size baseline without weakening the gate to hide retention.
 

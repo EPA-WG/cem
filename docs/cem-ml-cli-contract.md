@@ -715,7 +715,16 @@ Current implementation status:
   is no formatted-source reparse or JSON AST handoff. This presents CEM-ML source,
   independently of converting a document to live HTML. The legacy `html` color
   profile remains supported; an explicit `--output-color-type none` selects plain
-  CEM-ML. Class output needs a host stylesheet; CSS-variable output uses the
+  CEM-ML. Package colorizer profiles such as `classes`, `inline-style` and
+  `css-custom-properties` select stage artifacts and do not implicitly request
+  an HTML preview of CEM source. Explicit `--cemt-formatter` / `--cemt-colorizer`
+  resolve their respective package ambiguities without changing source encoding.
+  The same palette name can be a writer selector when supplied through
+  `--output-color-type` (for example `classes` aliases `html-classes`). Writer
+  selection, public MIME/schema and final-newline policy use the same native
+  decision; previews retain source newlines inside `<pre>`, without appending
+  a source-only newline outside it. No CLI HTML stripping is used.
+  Class output needs a host stylesheet; CSS-variable output uses the
   shared palette fallbacks and accepts inherited `--cem-color-*` overrides.
   Generic XML remains an explicit conversion/export target and is not inferred
   as a presentation for CEM-ML AST, DOM, or event projections.

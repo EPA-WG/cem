@@ -191,6 +191,17 @@ The colorizer profiles map to writer-boundary behavior:
 - `none`, `classes`, `inline-style`, and `css-custom-properties` are manifest
   selectors for current package-local output pipelines.
 
+For a CEM source target, selecting `classes`, `inline-style` or
+`css-custom-properties` through `--cemt-color-profile` does not change the byte
+encoding or MIME/schema. Those names select package colorizer artifacts;
+`--cemt-formatter` and `--cemt-colorizer` resolve stage ambiguity independently.
+Use `--output-color-type html-classes`, `html-inline-style` or `html-css-vars`
+for an escaped HTML source preview. In that output option, `classes` and
+`inline-style` are admitted aliases. An explicit output option, including
+`none`, wins over the legacy `html` profile shorthand. A live HTML conversion
+target still materializes the colorizer's writer attributes. Preview newlines
+belong inside the container, and source maps retain their native owners.
+
 Formatters produce formatted CEM tree output, colorizers enrich that tree, and
 only the writer emits terminal, HTML, Markdown, or source bytes. Token arrays,
 ANSI codes, and HTML spans are writer-boundary implementation details.

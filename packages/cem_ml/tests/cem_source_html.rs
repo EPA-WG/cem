@@ -209,3 +209,97 @@ fn html_source_colors_retain_formatter_options_and_original_source_frames() {
     }
     assert!(unicode_origin);
 }
+
+#[test]
+fn package_color_profiles_preserve_cem_encoding_and_original_writer_spans() {
+    let plain = convert("tabular", Some("none"), false);
+    let plain_bytes = plain.primary_bytes.unwrap().bytes;
+    for profile in ["classes", "inline-style", "css-custom-properties"] {
+        let result = convert_scope(ScopeConfig {
+            cemt_formatter_profile: Some("tabular".into()),
+            cemt_color_profile: Some(profile.into()),
+            ..Default::default()
+        });
+        assert!(
+            result.diagnostics.is_empty(),
+            "{profile}: {:?}",
+            result.diagnostics
+        );
+        let output = result.primary_bytes.unwrap();
+        assert_eq!(output.content_type, "application/cem", "{profile}");
+        assert_eq!(
+            output.schema.as_deref(),
+            Some("https://cem.dev/ns/cem-ml/1")
+        );
+        assert_eq!(
+            output.bytes, plain_bytes,
+            "{profile} must not request an HTML preview"
+        );
+        assert_eq!(
+            result.primary["outputSpans"], plain.primary["outputSpans"],
+            "{profile}: source writer ownership must remain intact"
+        );
+        let stages = result.conversion.unwrap().output_pipeline.unwrap().stages;
+        let colorizer = stages
+            .iter()
+            .find(|stage| stage.stage == "colorizer")
+            .unwrap();
+        assert_eq!(colorizer.profile.as_deref(), Some(profile));
+        assert_eq!(
+            stages.last().unwrap().content_type.as_deref(),
+            Some("application/cem")
+        );
+    }
+}
+
+#[test]
+fn explicit_writer_encoding_overrides_package_profile_and_html_aliases_are_exact() {
+    let plain = convert("tabular", Some("none"), false)
+        .primary_bytes
+        .unwrap()
+        .bytes;
+    for profile in ["classes", "inline-style", "css-custom-properties", "html"] {
+        let output = convert_scope(ScopeConfig {
+            cemt_formatter_profile: Some("tabular".into()),
+            cemt_color_profile: Some(profile.into()),
+            output_color_type: Some("none".into()),
+            ..Default::default()
+        });
+        assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+        let output = output.primary_bytes.unwrap();
+        assert_eq!(output.content_type, "application/cem");
+        assert_eq!(
+            output.bytes, plain,
+            "{profile}: explicit none has precedence"
+        );
+    }
+    for selector in [
+        "html-classes",
+        "classes",
+        "class-based",
+        "html.classes",
+        "html-css-vars",
+        "css-vars",
+        "css-custom-properties",
+        "html-inline-style",
+        "inline-style",
+    ] {
+        let response = convert("tabular", Some(selector), false);
+        assert!(
+            response.diagnostics.is_empty(),
+            "{selector}: {:?}",
+            response.diagnostics
+        );
+        let output = response.primary_bytes.unwrap();
+        assert_eq!(output.content_type, "text/html", "{selector}");
+        let html = String::from_utf8(output.bytes).unwrap();
+        assert!(html.starts_with("<pre"), "{selector}: {html}");
+        assert!(
+            html.ends_with("</pre>"),
+            "{selector}: no source-only newline outside the preview: {html:?}"
+        );
+        assert_eq!(visible_text(&html).as_bytes(), plain, "{selector}");
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;"));
+    }
+}
