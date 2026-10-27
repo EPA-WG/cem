@@ -240,52 +240,45 @@
    }
 }
    {cem-tab @label=Execution @value=metadata |
- {cem-stack @gap=md |
-    {div @data-cem-studio-projection-metadata="" |
+ {div @data-cem-studio-projection-metadata="" |
      {call @template=projection-metadata @with:projection="{$projection}"}
-   }}
+   }
 }
    {cem-tab @label=Expected @value=expected |
- {cem-stack @gap=md |
-    {div @data-cem-studio-projection-expected="" |
+ {div @data-cem-studio-projection-expected="" |
      {call @template=projection-expected @with:projection="{$projection}" @with:state="{$state}"}
-   }}
+   }
 }
    {cem-tab @label=Trace @value=trace |
- {cem-stack @gap=md |
-    {div @data-cem-studio-projection-trace="" |
+ {div @data-cem-studio-projection-trace="" |
      {call @template=operation-records @with:emptyLabel="No operation trace records"
       @with:label="Operation trace" @with:records="{$projection.trace}"}
-   }}
+   }
 }
    {cem-tab @label=Graph @value=graph |
- {cem-stack @gap=md |
-    {div @data-cem-studio-projection-graph="" |
+ {div @data-cem-studio-projection-graph="" |
      {call @template=operation-records
       @with:emptyLabel="No transformation graph execution overlay records"
       @with:label="Transformation graph execution overlay" @with:records="{$projection.graph}"}
-  }}
+  }
 }}
   {cem:variable @name=diagnostics @select="projection.diagnostics ?? state.validation.diagnostics"}
   {cem:variable @name=provenance @select="projection.provenance ?? state.validation.provenance"}
   {cem-tabs @label="Validation results" @value=diagnostics |
    {cem-tab @label=Diagnostics @value=diagnostics |
- {cem-stack @gap=md |
-    {div @data-cem-studio-diagnostics="" |
+ {div @data-cem-studio-diagnostics="" |
      {call @template=result-diagnostics @with:diagnostics="{$diagnostics}"}
-   }}
+   }
 }
    {cem-tab @label=Report @value=report |
- {cem-stack @gap=md |
-    {div @data-cem-studio-report="" |
+ {div @data-cem-studio-report="" |
      {call @template=validation-report @with:summary="{$state.validation.reportSummary}"}
-   }}
+   }
 }
    {cem-tab @label=Provenance @value=provenance |
- {cem-stack @gap=md |
-    {div @data-cem-studio-provenance="" |
+ {div @data-cem-studio-provenance="" |
      {call @template=result-provenance @with:provenance="{$provenance}"}
-}}
+}
 }}}
 }}
 

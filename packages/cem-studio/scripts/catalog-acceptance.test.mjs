@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { catalogAcceptanceInputs, assertCatalogConfigurationEvidence, assertCatalogNavigationEvidence, assertAcceptanceStamp, nativeQueryRangeEvidence, loginLiveDiagnosticOffsets } from './catalog-acceptance.mjs';
+import { catalogAcceptanceInputs, assertCatalogConfigurationEvidence, assertCatalogNavigationEvidence, assertAcceptanceStamp, nativeQueryRangeEvidence } from './catalog-acceptance.mjs';
 import { nativeCatalogReceipt, nativeCatalogDiagnosticLimit, assertWorkerSupplierDiagnosticLimit } from './native-catalog-execution.mjs';
 import { createCemStudioPreview } from '../src/preview.js';
 import { resolve } from 'node:path';
@@ -46,14 +46,19 @@ test('native binary header validation does not imply worker source execution', (
     data.receipts = data.receipts.map(row => ({ ...row, host: 'native', ...(row.configuration === 'binary' ? { status: 'passed', exitCode: 0, executed: true } : {}) }));
     assert.equal(assertCatalogConfigurationEvidence(data.projects, data.receipts, { host: 'native' }).executed, 3);
 });
-test('bounds the Login source identity limit to its exact original hard diagnostics', () => {
+test('Login element-template acceptance has no generic-source diagnostic exception', () => {
     const projects = [{ id: 'login', configurations: [{ id: 'live-view' }] }];
-    const receipt = { project: 'login', configuration: 'live-view', host: 'native', status: 'known-limit', exitCode: 0, executed: true,
-        diagnosticCodes: Array(4).fill('cem.ql.compile_failed'), diagnosticOffsets: [...loginLiveDiagnosticOffsets] };
-    assert.equal(assertCatalogConfigurationEvidence(projects, [receipt], { host: 'native' }).knownLimits, 1);
-    assert.throws(() => assertCatalogConfigurationEvidence(projects, [{ ...receipt, diagnosticOffsets: [0, 1, 2, 3] }], { host: 'native' }));
-    assert.throws(() => assertCatalogConfigurationEvidence(projects, [{ ...receipt, status: 'passed' }], { host: 'native' }));
-    assert.throws(() => assertCatalogConfigurationEvidence(projects, [{ ...receipt, executed: false }], { host: 'native' }));
+    assert.equal(nativeCatalogDiagnosticLimit('login', 'live-view', 'command-report'), undefined);
+    const receipt = { project: 'login', configuration: 'live-view', host: 'native', status: 'passed', exitCode: 0, executed: true, diagnosticCodes: [] };
+    assert.equal(assertCatalogConfigurationEvidence(projects, [receipt], { host: 'native' }).knownLimits, 0);
+    const legacy = { ...receipt, status: 'known-limit', diagnosticCodes: Array(4).fill('cem.ql.compile_failed'), diagnosticOffsets: [196, 657, 1147, 1187] };
+    assert.throws(() => assertCatalogConfigurationEvidence(projects, [legacy], { host: 'native' }));
+    assert.throws(() => nativeCatalogReceipt('login', 'live-view', { operation: 'parse', diagnosticEvidence: 'command-report', exitCode: 0,
+        diagnostics: legacy.diagnosticCodes.map((code, index) => ({ code, severity: 'error', byteOffset: legacy.diagnosticOffsets[index] })) }));
+    const warnings = Array.from({ length: 15 }, () => ({ severity: 'warning', code: 'cem.schema.unknown_html_attribute' }));
+    const passed = nativeCatalogReceipt('login', 'live-view', { operation: 'parse', diagnosticEvidence: 'command-report', exitCode: 0, stdout: 'native CEM', diagnostics: warnings },
+        { errorCount: 0, warningCount: 15, warningCode: 'cem.schema.unknown_html_attribute' });
+    assert.equal(passed.status, 'passed');
 });
 test('native success requires absence of hard diagnostics, independently of the process exit', () => {
     assert.throws(() => nativeCatalogReceipt('demo', 'parse', { exitCode: 0, stdout: 'partial native output',

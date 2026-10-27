@@ -37,8 +37,6 @@ export async function catalogAcceptanceInputs(root) {
         definitions: [...definitions.entries()].sort(([a], [b]) => a.localeCompare(b)) })).digest('hex') };
 }
 
-export const loginLiveDiagnosticOffsets = Object.freeze([196, 657, 1147, 1187]);
-
 export async function catalogAcceptanceStamp(root) {
     const output = resolve(root, 'packages/cem-studio/dist/static'), paths = [];
     const visit = async (path = '') => {

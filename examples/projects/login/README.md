@@ -274,13 +274,30 @@ own source URI/ranges. Production template artifacts still strip source maps.
 
 ### Login live view
 
-`views/login.cem` currently declares the generic CEM-ML source identity. Native
-standalone Parse can therefore report hard unknown runtime-binding diagnostics
-even when its default exit status is zero. Interactive preview and standalone
-source validation are distinct contracts: this configuration is not evidence of
-clean template-source validation. Adopting the registered element-template
-identity is an explicit follow-up; the [shared card project](../html-cem-card/README.md)
-already demonstrates that identity without changing this saved resource's contract.
+`views/login.cem` declares the registered
+`application/vnd.cem.element-template+cem` source type and
+`https://cem.dev/ns/template/cem-element/1` schema. The **Login live view**
+configuration uses these same selectors, so native Parse and Validate recognize
+runtime `datadom`, slice and declared-variable bindings without evaluating the
+live view. Both operations retain the 15 advisory
+`cem.schema.unknown_html_attribute` warnings; no hard binding errors are waived.
+The source editor uses the shared native CEM-ML colorer for this media type.
+The CLI and Studio's existing validation host still differ for an intentionally
+undeclared expression variable: CLI Validate rejects it, while the worker
+currently defers that error. This separate [semantic-validation follow-up](../../../docs/todo.md)
+does not make worker success proof of strict binding conformance. Malformed CEM
+source is rejected on both paths.
+
+`data/login.cem` remains generic CEM-ML data, and `templates/view.cemt` remains a
+native build template. These are separate source contracts. Project 2.8.1 keeps
+all resource/configuration IDs, paths and authored template bytes. Newly cloned
+projects use the corrected selectors. Existing saved copies, commands and
+drafts retain their own identities; they are not migrated automatically. A saved
+copy can adopt both selectors explicitly. Generic CEM Parse still reports its
+original hard binding diagnostics for this template; a zero default Parse exit
+alone does not establish source validity. The
+[shared card project](../html-cem-card/README.md) uses the same element-template
+contract.
 
 Open **Login live view** in an ordinary Studio project copy. Its configuration parses
 `views/login.cem`, then the shared `cem-media-preview` renders that saved template

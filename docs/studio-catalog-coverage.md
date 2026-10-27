@@ -90,7 +90,7 @@ authored identities, not a second package registry.
 | `cem-ast-projection` | `native-projections` | `native-projections`, `schema-examples` | 2/2 |
 | `cem-data-island` | — | `schema-examples` | 1/1 |
 | `cem-dom-projection` | `native-projections` | `native-projections`, `schema-examples` | 2/2 |
-| `cem-element-template` | `html-cem-card` | `html-cem-card`, `schema-examples` | 1/1 |
+| `cem-element-template` | `html-cem-card`, `login` | `html-cem-card`, `login`, `schema-examples` | 1/1 |
 | `cem-events-projection` | `native-projections` | `native-projections`, `schema-examples` | 2/2 |
 | `cem-ml` | `html-cem-card`, `login`, `native-projections` | `html-cem-card`, `login`, `native-projections`, `schema-examples` | 1/4 |
 | `cem-native-template` | `cem-transform`, `cemql-orders`, `css-stylesheet`, `csv-inventory`, `html-cem-card`, `json-yaml-report`, `login`, `mathml-formula`, `portable-config`, `scss-stylesheet`, `supplier-pipeline`, `svg-diagram`, `xhtml-document`, `xslt-transform` | `cem-transform`, `cemql-orders`, `schema-examples` | 1/5 |

@@ -1,7 +1,7 @@
 {
   "id": "login",
   "name": "Login",
-  "version": "2.8.0",
+  "version": "2.8.1",
   "description": "Login sources, module and standalone queries, formatting, validation, native templates, a transformation graph with source provenance and an interactive light-DOM view.",
   "sources": [
     {
@@ -102,8 +102,8 @@
       "id": "login-live-view",
       "source": "examples/projects/login/views/login.cem",
       "path": "views/login.cem",
-      "contentType": "application/cem",
-      "schema": "https://cem.dev/ns/cem-ml/1",
+      "contentType": "application/vnd.cem.element-template+cem",
+      "schema": "https://cem.dev/ns/template/cem-element/1",
       "role": "template"
     },
     {
@@ -582,9 +582,9 @@
         "parse",
         "$source",
         "--content-type",
-        "application/cem",
+        "application/vnd.cem.element-template+cem",
         "--schema",
-        "https://cem.dev/ns/cem-ml/1",
+        "https://cem.dev/ns/template/cem-element/1",
         "--format",
         "ast",
         "--no-color"
@@ -592,7 +592,13 @@
       "expectedText": [
         "@name=cem-text-field",
         "@name=cem-action"
-      ]
+      ],
+      "description": "Parse the saved element-template source with its registered runtime bindings, then preview it through shared light-DOM components. Open-content attribute warnings remain advisory.",
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 15,
+        "warningCode": "cem.schema.unknown_html_attribute"
+      }
     },
     {
       "id": "expression-html",

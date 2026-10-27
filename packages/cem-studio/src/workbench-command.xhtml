@@ -60,7 +60,7 @@
         {param @name=application}
         {param @name=busy}
         {body |
-            {cem-stack @data-cem-studio-command-target-detail="" |
+            {div @part=command-target-detail @data-cem-studio-command-target-detail="" |
                 {cem:choose |
                     {cem:when @test='application.target.mode == "current"' |
                         {cem-alert @label={if application.targets.current { str:concat((application.targets.current.name, "; ", application.targets.current.kind, if application.targets.current.compatible { "; compatible" } else { "; replacement confirmation required" }), "") } else { "No current configuration is available" }} @tone={if application.targets.current.compatible { "success" } else { "warning" }}}
@@ -102,7 +102,7 @@
         {param @name=applyDisabled}
         {body |
             {section @aria-label="Apply Studio command" @data-cem-studio-command-application="" |
- {cem-stack @gap=md |
+ {div @part=command-application |
                 {cem:choose |
                     {cem:when @test=application |
                         {cem-select @data-cem-studio-command-target-mode="" @disabled={if busy { true } else { null }}
@@ -194,6 +194,11 @@
                                         {$ | afterDisplay}
     }   }   }   }   }   }   }   }   }
     {body |
+{style @type=text/css |```
+[part~='command-target-detail'], [part~='command-application'], [part~='command-content'] { display: grid; gap: var(--cem-layout-stack-gap); min-inline-size: 0; }
+[part~='operation-introduction'] { display: grid; gap: var(--cem-gap-related); min-inline-size: 0; }
+```}
+
         {cem:variable @name=command @select=datadom.slices.command}
         {cem:variable @name=application @select=command.application}
         {cem:variable @name=busy
@@ -203,10 +208,9 @@
         {cem:variable @name=applyDisabled
             @select='busy || !command || !application || ((application.target.mode == "new") &amp;&amp; (str:length(str:trim(application.newPageName ?? "")) == 0)) || (command.status == "invalid") || (command.status == "checking")'}
         {section @aria-label="CLI Command" |
- {cem-stack @gap=md |
             {cem-tabs @label="CLI Command" @value=command |
                 {cem-tab @label="Studio command" @value=command |
- {cem-stack @gap=md |
+ {div @part=command-content |
                     {cem-alert @data-cem-studio-command-alert="" @label={commandLabel} @tone={if (command.copy.status == "failed") || (command.status == "invalid") { "danger" } else { if command.status == "changed" { "warning" } else { if (command.copy.status == "success") || (command.status == "current") { "success" } else { "info" } } }}}
                     {cem-textarea @data-cem-studio-command-editor="" @host-command=edit
                         @host-command-event=input @label="Studio command (literal argv)"
@@ -224,14 +228,11 @@
                 }
 }
                 {cem-tab @label="Semantic changes" @value=changes |
- {cem-stack @gap=md |
                     {call @template=command-changes @with:command="{$command}"
                         @with:commandLabel="{$commandLabel}"}
-}
 }   }
-}
                 {section @aria-label="Operation form" |
- {cem-stack @gap=sm |
+ {div @part=operation-introduction |
                     {h3 | Operation form}
                     {cem-alert @label="Choose one option or a small related group. Keep preserves an option; Set uses its value; Reset restores native defaults. Grouped Set validates every change together. Apply and Run remain explicit. Unlisted and repeated options remain in the literal command editor."}
                     {cem:if @test=command.formError | {cem-alert @tone=danger @label={command.formError.message}}}

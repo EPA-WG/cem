@@ -1242,6 +1242,46 @@ describe('CEM Studio Feature Tour copies', () => {
         expect(decode('login-expression')).toBe(expression);
     }, 60_000);
 
+    it('validates and parses the packaged Login element-template on independent saved sources', async () => {
+        const { bundle, definition, decode } = await authoredProject('login');
+        const source = bundle.project.resources.find(item => item.id === 'login-live-view');
+        const entry = bundle.project.entries.find(item => item.id === 'live-view');
+        expect(source).toMatchObject({ path: 'views/login.cem', role: 'template',
+            contentType: 'application/vnd.cem.element-template+cem', schema: 'https://cem.dev/ns/template/cem-element/1' });
+        const command = JSON.parse(decode(entry.runConfigResourceId));
+        expect(command.argv).toContain(source.contentType); expect(command.argv).toContain(source.schema);
+        const original = decode(source.id);
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const check = (outcome, project) => {
+            expect(outcome.result.exitCode).toBe(0);
+            expect(outcome.result.diagnostics.items).toHaveLength(15);
+            for (const diagnostic of outcome.result.diagnostics.items) expect(diagnostic).toMatchObject({
+                severity: 'warning', code: 'cem.schema.unknown_html_attribute', uri: `studio://${project}/views/login.cem`, byteOffset: 0,
+            });
+        };
+        for (const [project, text] of [['login-live-one', original.replace('Sign in locally', 'Continue locally')], ['login-live-two', original]]) {
+            const options = { ...projectCommandOptions(bundle, entry, project), bytes: new TextEncoder().encode(text) };
+            const parsed = await validator.executeAuthoredResourceCommand({ ...options, commandResource: bundle.contents[entry.runConfigResourceId] });
+            check(parsed, project);
+            expect(parsed.output.text).toContain(project === 'login-live-one' ? 'Continue locally' : 'Sign in locally');
+            check(await validator.parseResource(options), project);
+            check(await validator.validateResource(options), project);
+            // Preserve the observed host-semantic gap as separate evidence:
+            // CLI rejects this undeclared binding; worker validation defers it.
+            // This is tracked in TODO and is not strict binding conformance.
+            const undeclared = text.replace('dom:text(heading)', 'dom:text(not_declared)');
+            check(await validator.validateResource({ ...options, bytes: new TextEncoder().encode(undeclared) }), project);
+            const malformed = text.slice(0, -2);
+            await expect(validator.validateResource({ ...options, bytes: new TextEncoder().encode(malformed) })).rejects.toMatchObject({ result: {
+                exitCode: 1, diagnostics: { items: expect.arrayContaining([expect.objectContaining({
+                    code: 'cem.tokenizer.unterminated_node', severity: 'error', uri: `studio://${project}/views/login.cem`, byteOffset: malformed.length,
+                })]) },
+            } });
+        }
+        expect(decode(source.id)).toBe(original);
+        expect(definition.sources.find(item => item.id === 'login-cem').schema).toBe('https://cem.dev/ns/cem-ml/1');
+    }, 60_000);
+
     it('formats and inspects the packaged Login expression without evaluating or wrapping it', async () => {
         const response = await fetch(new URL('../generated/feature-tour/examples/login.cem-studio.json', import.meta.url));
         expect(response.ok).toBe(true);

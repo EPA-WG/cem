@@ -280,7 +280,7 @@
       "id": "login",
       "name": "Login",
       "description": "Login sources, module and standalone queries, formatting, validation, native templates, a transformation graph with source provenance and an interactive light-DOM view.",
-      "version": "2.8.0",
+      "version": "2.8.1",
       "collections": [
         "amsterdam-2026",
         "content-types-documents-ui",
@@ -288,7 +288,7 @@
         "content-types-schema-authoring"
       ],
       "archive": "./examples/login.cem-studio.json",
-      "sha256": "6ef8a111b78f1b2c68035a7c6cbe1f42005710f05aedb293938bf4c1fa926e38"
+      "sha256": "17f94aaf669116d8e7aee9d9739bf89c42c2ca7ba6bf4979fa5faf16c11b9b58"
     },
     {
       "id": "markdown-site",

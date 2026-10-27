@@ -9,6 +9,7 @@
 :scope { display: block; block-size: 100%; min-block-size: 0; }
 [part~='root'] { display: grid; grid-template-rows: minmax(0, 1fr); gap: var(--cem-gap-related); block-size: 100%; min-block-size: 0; overflow-wrap: anywhere; }
 [part~='root']:where([data-project][data-section='all']) { grid-template-rows: minmax(0, auto) minmax(20vb, 1fr); }
+[part~='build-content'] { display: grid; gap: var(--cem-layout-stack-gap); min-inline-size: 0; }
 [part~='build-controls'] { min-block-size: 0; overflow: auto; }
 [part~='preview'] { display: flex; flex-direction: column; gap: var(--cem-gap-related); block-size: 100%; min-block-size: 0; overflow: auto; }
 [part~='preview'] > cem-media-preview { flex: 1 1 auto; min-block-size: 0; }
@@ -23,7 +24,7 @@
   {div @part=root @data-project={if project { "" } else { null }} @data-section={section} |
   {cem:if @test='project &amp;&amp; section != "preview"' |
    {div @part=build-controls |
-   {cem-stack @gap=md |
+   {div @part=build-content |
     {cem:if @test=project.projectId |
      {cem-select @label="Build configuration" @value={project.configurationId ?? ""} @disabled={if project.busy { true } else { null }} @host-command=select-build @host-command-event=change |
       {option @value="" | Choose build configuration}

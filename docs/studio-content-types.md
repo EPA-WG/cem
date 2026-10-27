@@ -396,13 +396,13 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `json-yaml-report` | `api-payload` | `validate-json` | Validate native source syntax; this is not an authored application-schema instance check. |
 | `json-yaml-report` | `api-payload` | `format-json` | Format saved source with the native package tabular profile without overwriting it. |
 | `json-yaml-report` | `report-settings` | `inspect-yaml` | Inspect the retained generic-data CEM tree and original source offsets, rather than a format-specific source AST. |
-| `login` | `login-cem` | `read-edit` | Parse the saved Login source. Its existing generic CEM source identity retains the documented runtime-binding/diagnostic limits; command availability alone is not source conformance. |
-| `login` | `login-cem` | `validate` | Validate the saved Login source. Its existing generic CEM source identity retains the documented runtime-binding/diagnostic limits; command availability alone is not source conformance. |
-| `login` | `login-cem` | `inspect` | Inspect the saved Login source. Its existing generic CEM source identity retains the documented runtime-binding/diagnostic limits; command availability alone is not source conformance. |
-| `login` | `login-cem` | `format-pretty` | Format saved data/login.cem with the native pretty profile. Plain output is available for copy/download; formatting does not overwrite the source. Existing generic CEM source identity retains the documented runtime-binding/diagnostic limits; command availability alone is not source conformance. |
-| `login` | `login-cem` | `format-tabular` | Format saved data/login.cem with the native tabular profile. Plain output is available for copy/download; formatting does not overwrite the source. Existing generic CEM source identity retains the documented runtime-binding/diagnostic limits; command availability alone is not source conformance. |
-| `login` | `login-cem` | `source-colors` | Export the saved Login source as escaped, colored HTML. Copy/download preserves the native source colors; the sandboxed Studio preview blocks styles. Existing generic CEM source identity retains the documented runtime-binding/diagnostic limits; command availability alone is not source conformance. |
-| `login` | `login-html` | `html-conversion` | Convert HTML to CEM-ML. The existing generic CEM source identity retains the documented runtime-binding/diagnostic limits; command availability alone is not source conformance. |
+| `login` | `login-cem` | `read-edit` | Parse the saved Login source. The generic data source retains three advisory unresolved-reference warnings; the live view uses a separate element-template identity. |
+| `login` | `login-cem` | `validate` | Validate the saved Login source. The generic data source retains three advisory unresolved-reference warnings; the live view uses a separate element-template identity. |
+| `login` | `login-cem` | `inspect` | Inspect the saved Login source. The generic data source retains three advisory unresolved-reference warnings; the live view uses a separate element-template identity. |
+| `login` | `login-cem` | `format-pretty` | Format saved data/login.cem with the native pretty profile. Plain output is available for copy/download; formatting does not overwrite the source. The generic data source retains three advisory unresolved-reference warnings; the live view uses a separate element-template identity. |
+| `login` | `login-cem` | `format-tabular` | Format saved data/login.cem with the native tabular profile. Plain output is available for copy/download; formatting does not overwrite the source. The generic data source retains three advisory unresolved-reference warnings; the live view uses a separate element-template identity. |
+| `login` | `login-cem` | `source-colors` | Export the saved Login source as escaped, colored HTML. Copy/download preserves the native source colors; the sandboxed Studio preview blocks styles. The generic data source retains three advisory unresolved-reference warnings; the live view uses a separate element-template identity. |
+| `login` | `login-html` | `html-conversion` | Convert HTML to CEM-ML. The converted form is generic CEM-ML data; the live view uses a separate element-template identity. |
 | `login` | `login-cem` | `semantics-cem` | Run the shared 21-field Login contract and compare with expected/semantics.json. Source wrappers and HTML mirrors are mapped explicitly by the query. |
 | `login` | `login-html` | `semantics-html-cemql` | Run the equivalent CEM-QL module against the same 21-field contract. Consume ready namespace names explicitly with a bounded navigation budget; source declarations remain inert. |
 | `login` | `login-html` | `render-html` | Generate an HTML Login form from the saved source. Edit the template instruction or a source field, save, and rerun. |
@@ -418,6 +418,15 @@ provenance where the native operation establishes them. Shared command-result
 provenance controls open those source resources and ranges. Relative image/link
 references remain references in standalone HTML; the full site's artifact tree
 supplies the admitted pages and assets without granting ambient network access.
+
+Login's live resource `views/login.cem` and **Login live view** configuration
+use the registered element-template MIME/schema pair. Native Parse and Validate
+recognize runtime bindings and retain 15 advisory open-content attribute warnings;
+no hard binding errors are accepted as a successful catalog receipt. The shared
+source editor, live preview and saved/offline commands consume that same resource
+identity. Its data and native build-template identities remain separate. Login
+2.8.1 preserves resource/configuration IDs and source bytes; existing saved copies
+and drafts keep their own metadata and are not automatically migrated.
 
 The HTML/CEM card project reuses `cem-card` from the production shared component
 library. Its declaration resource is an XML source snapshot; the live view loads

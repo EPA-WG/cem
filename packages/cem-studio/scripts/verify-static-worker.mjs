@@ -1467,6 +1467,22 @@ async function exerciseExampleProjects(page, context) {
     const themeBefore = await page.evaluate(() => localStorage.getItem('cem-studio-theme'));
     await selectConfiguration(firstId, 'live-view');
     const originalLive = (await snapshot()).draft;
+    const assertLiveIdentity = async projectId => {
+        const actual = await page.evaluate(async projectId => {
+            const app = globalThis.__cemStudioApplication;
+            const bundle = (await app.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'export-project', requestRevision: 1, parameters: { projectId } })).value;
+            const resource = bundle.project.resources.find(item => item.id === 'login-live-view');
+            const entry = bundle.project.entries.find(item => item.id === 'live-view');
+            const command = JSON.parse(new TextDecoder().decode(bundle.contents[entry.runConfigResourceId]));
+            return { contentType: resource.contentType, schema: resource.schema, path: resource.path, argv: command.argv,
+                editorType: document.querySelector('cem-source-editor[data-cem-studio-editor]')?.getAttribute('content-type') };
+        }, projectId);
+        assert.equal(actual.contentType, 'application/vnd.cem.element-template+cem');
+        assert.equal(actual.schema, 'https://cem.dev/ns/template/cem-element/1');
+        assert.equal(actual.path, 'views/login.cem'); assert.equal(actual.editorType, actual.contentType);
+        assert.ok(actual.argv.includes(actual.contentType) && actual.argv.includes(actual.schema));
+    };
+    await assertLiveIdentity(firstId);
     // Inspect through the parent realm: injected child-realm event helpers cannot
     // execute in a script-disabled frame. Keep genuine pointer/keyboard input.
     const liveFrame = () => page.locator('[data-cem-studio-operation-preview] iframe[part~="live-document"]');
@@ -1521,6 +1537,7 @@ async function exerciseExampleProjects(page, context) {
     await page.waitForFunction(() => globalThis.__cemStudioApplication?.workbench?.snapshot().home && globalThis.__cemStudioApplication.workbench.snapshot().status !== 'loading'); await settle();
     await selectConfiguration(firstId, 'live-view'); await sourcePane(); await click('Run configuration'); await liveReady();
     assert.equal((await snapshot()).draft, editedLive);
+    await assertLiveIdentity(firstId);
     assert.equal((await liveView()).heading, 'Welcome Amsterdam');
     for (const [index, profile] of ['pretty', 'tabular'].entries()) {
         await selectConfiguration(secondId, `format-${profile}`); await sourcePane(); await click('Run configuration');
@@ -1530,6 +1547,7 @@ async function exerciseExampleProjects(page, context) {
     assert.equal((await snapshot()).projection.text, sourceColors);
     await selectConfiguration(secondId, 'live-view'); await sourcePane(); await click('Run configuration'); await liveReady();
     assert.equal((await snapshot()).draft, originalLive);
+    await assertLiveIdentity(secondId);
     assert.equal((await liveView()).heading, 'Sign in');
     assert.equal((await liveView()).email, '');
     for (const id of ['expression-html', 'expression-cem']) {

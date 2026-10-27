@@ -88,10 +88,11 @@ describe('CEM Studio Feature Tour workbench', () => {
 
     it.each([
         ['login', 'login-html', 'text/html'],
+        ['login', 'login-live-view', 'application/vnd.cem.element-template+cem'],
         ['supplier-pipeline', 'supplier-view', 'application/vnd.cem.template+cem'],
         ['markdown-site', 'assets-site-css', 'text/css'],
         ['css-selector', 'selector-source', 'application/vnd.cem.query-expression+css-selector'],
-    ])('adopts shared source paint with readonly samples, URL identity and durable drafts: %s', async (name, resourceId, contentType) => {
+    ])('adopts shared source paint with readonly samples, URL identity and durable drafts: %s/%s', async (name, resourceId, contentType) => {
         const response = await fetch(new URL(`../generated/feature-tour/examples/${name}.cem-studio.json`, import.meta.url));
         expect(response.ok).toBe(true);
         const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));

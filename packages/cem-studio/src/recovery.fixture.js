@@ -328,7 +328,20 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
         operation.acknowledge();
         check(coordinator.inspectRecovery().unknownOperations === 0, 'explicit acknowledgment was lost');
         return { ...(privacy ? { privacyRefusals: 2, checkpointBytes, groupBytes } : {}), recoveries: complete ? 3 : 0, refusedRecoveries: complete ? 0 : 3, edits, unknownRefused: true, unavailable: [...new Set(blockers().map(owner => owner.tag))].sort() };
-    } catch (error) { throw Error(`${mode}/${stage}: ${error.stack || error}`, { cause: error }); }
+    } catch (error) {
+        const counts = new Map(), visit = node => {
+            if (counts.has(node)) return counts.get(node);
+            const children = [...node.childNodes, ...(node instanceof HTMLTemplateElement ? [node.content] : [])];
+            const entries = children.map(visit);
+            const entry = { units: 1 + entries.reduce((sum, value) => sum + value.units, 0), depth: entries.length ? 1 + Math.max(...entries.map(value => value.depth)) : 0,
+                length: (node.nodeValue?.length ?? 0) + (node instanceof Element ? [...node.attributes].reduce((sum, value) => sum + value.name.length + value.value.length, 0) : 0) + entries.reduce((sum, value) => sum + value.length, 0) };
+            counts.set(node, entry); return entry;
+        };
+        visit(document.body);
+        const inventory = [...document.body.querySelectorAll('*')].filter(node => node.localName.includes('-'))
+            .map(node => ({ tag: node.localName, ...counts.get(node) })).sort((a,b) => b.units - a.units).slice(0, 12);
+        throw Error(`${mode}/${stage}: ${error.stack || error} DOM ${JSON.stringify(inventory)}`, { cause: error });
+    }
     finally {
         shell?.recovery.dispose(); releaseStatus?.(); view?.dispose(); shell?.dispose(); workbench?.dispose(); session?.dispose(); await validator?.close(); repository.close();
         admission?.revoke(); combined?.dispose(); coordinator.dispose(); scope.dispose(); recoveryScope.dispose();

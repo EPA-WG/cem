@@ -102,7 +102,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.equal(record.description, definition.description);
         assert.equal(bundle.project.entries.length, definition.configurations.length);
         for (const source of definition.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
-        assert.equal(record.version, '2.8.0');
+        assert.equal(record.version, '2.8.1');
         const contract = JSON.parse(new TextDecoder().decode(bundle.contents['login-semantic-contract']));
         assert.equal(contract.length, 21);
         for (const id of ['semantics-html', 'semantics-cem']) {
@@ -592,27 +592,16 @@ async function verifyLoginNativeConfigurations(bundle, definition) {
                 assert.ok(outcome.diagnostics.every(item => item.uri === 'data/login.cem'));
             }
             if (configuration.id === 'live-view') {
-                // Keep the existing generic source identity and its actual hard
-                // diagnostics visible until the separate native/template work.
-                expectation = { knownLimit: true, errorCount: 4, warningCount: 0 };
-                assert.equal(outcome.exitCode, 0, 'Default Parse exits successfully despite the known source-identity diagnostics');
-                assert.deepEqual(outcome.diagnostics.map(item => item.code), Array(4).fill('cem.ql.compile_failed'));
-                assert.deepEqual(outcome.diagnostics.map(item => item.byteOffset), [196, 657, 1147, 1187]);
-                const ranges = [{ start: 196, len: 184 }, { start: 657, len: 38 }, { start: 1147, len: 23 }, { start: 1187, len: 48 }];
-                for (const [index, diagnostic] of outcome.diagnostics.entries()) {
-                    assert.equal(diagnostic.severity, 'error'); assert.equal(diagnostic.uri, 'views/login.cem');
-                    assert.equal(diagnostic.line, null); assert.equal(diagnostic.column, null);
-                    const frames = diagnostic.sourceMap.frames;
-                    assert.deepEqual(frames[0].span.ranges, { start: 0, len: bundle.contents[configuration.source].byteLength });
-                    assert.equal(frames.at(-1).source_id, frames[0].source_id);
-                    assert.equal(frames.at(-1).transform.kind, 'TemplateEmbedding');
-                    assert.deepEqual(frames.at(-1).span.ranges, ranges[index]);
-                    assert.deepEqual(frames.at(-1).transform.host, ranges[index]);
-                }
+                assert.equal(outcome.exitCode, 0);
+                assert.deepEqual(outcome.diagnostics.map(item => item.code), Array(15).fill('cem.schema.unknown_html_attribute'));
+                assert.ok(outcome.diagnostics.every(item => item.severity === 'warning' && item.uri === 'views/login.cem' && item.byteOffset === 0));
+                const resource = bundle.project.resources.find(item => item.id === configuration.source);
+                assert.equal(resource.contentType, 'application/vnd.cem.element-template+cem');
+                assert.equal(resource.schema, 'https://cem.dev/ns/template/cem-element/1');
+                assert.ok(args.includes(resource.contentType) && args.includes(resource.schema));
             }
             const receipt = nativeCatalogReceipt('login', configuration.id, outcome, expectation);
             if (configuration.id === 'read-edit') receipt.status = 'passed';
-            if (configuration.id === 'live-view') Object.assign(receipt, { diagnosticOffsets: [196, 657, 1147, 1187], diagnosticSource: 'views/login.cem' });
             let actual = outcome.stdout;
             if (configuration.expectedGraphOutput) {
                 actual = await readFile(resolve(directory, configuration.expectedGraphOutput), 'utf8');

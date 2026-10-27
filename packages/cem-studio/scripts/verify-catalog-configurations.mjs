@@ -77,7 +77,7 @@ export async function verifyCatalogConfigurations({ page, context, url }) {
                         ...(outcome.output && { outputSha256: digest(Buffer.from(outcome.output.bytes)) }) };
                     if (label === 'login/live-view') {
                         assert.equal(outcome.previewKind, 'live-cem', label);
-                        assert.deepEqual(hard, [], 'The worker supplies the live processing bindings; CLI generic Parse remains a separate limit');
+                        assert.deepEqual(hard, [], 'The registered element-template identity must have no hard source diagnostics');
                     }
                     if (label === 'supplier-pipeline/catalog-source') {
                         receipt.diagnosticOffsets = assertWorkerSupplierDiagnosticLimit(diagnostics, `studio://${copies.get(project.id)}/`);

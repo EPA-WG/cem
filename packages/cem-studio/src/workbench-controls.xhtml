@@ -6,6 +6,7 @@
     {slice @name=pending | false}
 {body |
  {style @type=text/css |```
+[part~='editor-details'] { display: grid; gap: var(--cem-gap-related); min-inline-size: 0; }
 :scope { display: block; min-inline-size: 0; min-block-size: 0; }
 [part~='editor'] { display: grid; gap: var(--cem-gap-related); min-inline-size: 0; min-block-size: 0; }
 @container (min-width: 840px) {
@@ -39,7 +40,7 @@
                     @host-command-event=input @label="CEM source"
                     @selection-end={state.selection.end ?? null} @selection-focus={if state.selection { true } else { null }} @selection-request={datadom.slices.selectionRequest} @selection-start={state.selection.start ?? null} @value={state.draft}}
    {cem-expansion @label="Editor details" |
-    {cem-stack @gap=sm |
+    {div @part=editor-details |
 {cem:if @test=state.description | {cem-alert @label={state.description} @tone=info}}
 {cem:if @test='!state.runnable' | {cem-alert @label="Validate saved source, or parse/inspect it to prepare a command configuration."}}
 {cem-alert @data-cem-studio-workbench-alert="" @label={if state.error { str:concat((state.error.code, ": ", state.error.message), "") } else { if state.validation.stale { "This result belongs to an older draft or durable revision." } else { if state.validation { str:concat((seq:count(state.validation.diagnostics.code), " diagnostics; ", state.validation.hardViolationCount, " hard violations."), "") } else { str:concat((state.path, "; ", state.contentType), "") } } }} @tone={if state.error || (state.status == "invalid") || (state.status == "conflict") { "danger" } else { "info" }}}
