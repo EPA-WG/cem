@@ -568,6 +568,12 @@ can supply the original shared runtime via
 See [the admission contract](../../docs/committed-checkpoints.md#complete-studio-admission-acceptance)
 and [active recovery tasks](../../docs/todo.md).
 
+For intermittent startup-import failures, use the opt-in
+[module-load diagnostics](../../docs/studio-module-load-diagnostics.md). It records
+script status, network failures and frame lifetimes without bodies or control
+values. The guide distinguishes complete-cohort evidence, fresh-cache checks and
+the controlled diagnostic fixture from attribution of the historical failure.
+
 ### Recovery status
 
 The status bar uses shared declarative `cem-recovery-status` and the shared

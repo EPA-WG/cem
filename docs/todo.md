@@ -272,6 +272,20 @@ concurrent release scheduling remain explicit follow-ups below.
 
 ## Native and release follow-ups
 
+Investigated 2026-10-27: [Studio module-load diagnostics](studio-module-load-diagnostics.md)
+adds opt-in script/network/frame metadata capture through public test APIs and a
+controlled failed-import/redaction/teardown fixture. Two complete current source
+cohorts pass **275/275**, including recovery and credential privacy: observed with
+the normal development cache, then unobserved with a separate fresh cache. The
+historical fetch failure remains unattributed; its conditional recurrence task
+is retained under the Studio startup watch below. Original assertions/deadlines,
+4 MiB limits, shared declarative UI and disabled automatic recovery are preserved.
+
+- [x] Add and verify the controlled HTTP-failure/fresh-iframe diagnostic fixture
+      for original import-error propagation, metadata redaction, frame ownership,
+      recorder teardown and absence of retries; keep it distinct from reproducing
+      the historical Studio failure.
+
 These remain explicit follow-ups after the functional Studio sample catalog.
 Keep the original admission, provenance, privacy and verification bounds.
 
@@ -327,8 +341,6 @@ names, bounded local globs and safe rooted-folder bindings. SCSS stylesheet
 still refuse publication and original source URI/ranges remain intact. Native,
 CLI, rebuilt WASM/worker, saved/offline preview and credential refusal checks
 pass. Plain-path configs retain their existing identity behavior.
-
-- [ ] Attribute Studio's aggregate-only fallback recovery module-fetch failure: the complete source cohort passes 273/274 cases but rejects the dynamic import of `cem-elements/dist/index.js` after fallback WASM initialization and before workspace construction. The unchanged file exists and returns HTTP 200; the original case passes in a fresh isolated invocation. Add loading/lifecycle evidence before changing the runtime or harness; retain original deadlines, assertions, credential privacy and the 4 MiB budget, and do not label an isolated rerun as a green full cohort.
 
 - [ ] Repair native module-asset source attributes in graph bindings: `cem_native_module_conformance::graph_config_covers_imported_module_asset_card_and_sidecar` renders the secondary `{$datadom.attributes.kind}` as empty instead of `document`. The pre-change release CLI reproduces the same missing text on the identical authored graph. Preserve the original assertion and typed source ownership; add native binding lifecycle evidence before changing evaluation or source metadata.
 
@@ -470,6 +482,18 @@ physical-device or spoken assistive-technology coverage.
       semantics and relationship grants into each separate contract. Labels must
       not rewrite numeric values; token edits must preserve caret, separators and
       composition; one provider owns each adopted surface.
+
+## Studio startup failure watch
+
+- [ ] On recurrence, attribute the historical aggregate fallback entry-module
+      fetch failure before changing the loader or test lifecycle. The old cohort
+      passed 273/274 and an isolated rerun passed; current observed and fresh-cache
+      full cohorts each pass 275/275. Use the
+      [script/network/frame capture](studio-module-load-diagnostics.md) to retain
+      the actual failed request and owning frame, add a failing cause-specific
+      regression, then repair and rerun the complete cohort. Passing repeats and
+      a later HTTP 200 do not establish the historical cause. Preserve recovery
+      assertions/deadlines, credential refusal, user storage and the 4 MiB budget.
 
 ## Browser failures observed during placement verification
 
