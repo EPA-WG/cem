@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { catalogAcceptanceInputs, assertCatalogConfigurationEvidence, nativeQueryRangeEvidence } from './catalog-acceptance.mjs';
-import { assertWorkerSupplierDiagnosticLimit } from './native-catalog-execution.mjs';
+import { assertWorkerNativeDiagnosticLimit, nativeCatalogDiagnosticLimit } from './native-catalog-execution.mjs';
 
 /** Exercise the public owned-workbench command path in the deployed worker. */
 export async function verifyCatalogConfigurations({ page, context, url }) {
@@ -72,15 +72,15 @@ export async function verifyCatalogConfigurations({ page, context, url }) {
                     assert.ok(outcome.output || outcome.operation === 'validate-source', `${label}: missing native output`);
                     const diagnostics = outcome.diagnostics ?? [], hard = diagnostics.filter(item => ['error', 'fatal'].includes(item.severity));
                     const receipt = { project: project.id, configuration: configuration.id, host: 'worker', phase, executed: true,
-                        status: label === 'supplier-pipeline/catalog-source' ? 'known-limit' : (configuration.expectedExit ?? 0) ? 'intentional-diagnostic' : 'passed',
+                        status: nativeCatalogDiagnosticLimit(project.id, configuration.id, 'command-report') ? 'known-limit' : (configuration.expectedExit ?? 0) ? 'intentional-diagnostic' : 'passed',
                         exitCode: outcome.exitCode, diagnosticCodes: hard.map(item => item.code), operation: outcome.operation,
                         ...(outcome.output && { outputSha256: digest(Buffer.from(outcome.output.bytes)) }) };
                     if (label === 'login/live-view') {
                         assert.equal(outcome.previewKind, 'live-cem', label);
                         assert.deepEqual(hard, [], 'The registered element-template identity must have no hard source diagnostics');
                     }
-                    if (label === 'supplier-pipeline/catalog-source') {
-                        receipt.diagnosticOffsets = assertWorkerSupplierDiagnosticLimit(diagnostics, `studio://${copies.get(project.id)}/`);
+                    if (nativeCatalogDiagnosticLimit(project.id, configuration.id, 'command-report')) {
+                        receipt.diagnosticOffsets = assertWorkerNativeDiagnosticLimit(project.id, configuration.id, diagnostics, `studio://${copies.get(project.id)}/`);
                     }
                     if (configuration.expectedValidation) {
                         const expected = configuration.expectedValidation;

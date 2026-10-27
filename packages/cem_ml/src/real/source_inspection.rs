@@ -68,10 +68,11 @@ pub(super) fn native_lifecycle_parse(
             LoadedInputAstStream::CssDocument(_)
                 | LoadedInputAstStream::XsltStylesheet(_)
                 | LoadedInputAstStream::RelaxNgDocument(_)
+                | LoadedInputAstStream::MarkdownDocument(_)
         )
     ) && !matches!(
         loaded.adapter_id,
-        Some("css" | "scss" | "xslt" | "relax-ng")
+        Some("css" | "scss" | "xslt" | "relax-ng" | "markdown")
     ) && !refused_source
     {
         return None;
@@ -84,6 +85,59 @@ pub(super) fn native_lifecycle_parse(
     ));
     project_diagnostics_for_source(&mut diagnostics, &input.bytes);
     project_diagnostic_uris(&mut diagnostics, input, context);
+    let ranges: Vec<_> = match loaded.ast_stream.as_ref() {
+        Some(LoadedInputAstStream::CssDocument(doc)) => doc
+            .events
+            .iter()
+            .map(|event| {
+                (
+                    event.source_range.start.byte_offset,
+                    event.source_range.byte_length,
+                )
+            })
+            .collect(),
+        Some(LoadedInputAstStream::XsltStylesheet(doc)) => doc
+            .xml_document
+            .events
+            .iter()
+            .map(|event| {
+                (
+                    event.source_range.start.byte_offset,
+                    event.source_range.byte_length,
+                )
+            })
+            .collect(),
+        Some(LoadedInputAstStream::RelaxNgDocument(doc)) => {
+            if let Some(xml) = doc.xml_document.as_ref() {
+                xml.events
+                    .iter()
+                    .map(|event| {
+                        (
+                            event.source_range.start.byte_offset,
+                            event.source_range.byte_length,
+                        )
+                    })
+                    .collect()
+            } else {
+                doc.compact_tokens
+                    .iter()
+                    .map(|token| {
+                        (
+                            token.source_range.start.byte_offset,
+                            token.source_range.byte_length,
+                        )
+                    })
+                    .collect()
+            }
+        }
+        Some(LoadedInputAstStream::MarkdownDocument(doc)) => doc.events.iter().map(|event|
+            (event.source_range.start.byte_offset, event.source_range.byte_length)).collect(),
+        _ => Vec::new(),
+    };
+    let offsets = ranges
+        .into_iter()
+        .map(|(offset, length)| ByteRange::new(offset, u32::try_from(length).unwrap_or(u32::MAX)))
+        .collect();
     let projected = if has_hard_diagnostics {
         None
     } else {
@@ -115,8 +169,7 @@ pub(super) fn native_lifecycle_parse(
         identity,
         ast,
         events,
-        // Parse only consumes the requested typed projection, not offset records.
-        offsets: Vec::new(),
+        offsets,
         diagnostics,
     })
 }
@@ -360,15 +413,6 @@ pub(super) fn inspect(
     mut source: SourceInspection,
     started: Instant,
 ) -> EngineResult<InspectResponse> {
-    if (matches!(request.show, InspectView::Ast | InspectView::Tree) && source.ast.is_none())
-        || (request.show == InspectView::Events && source.events.is_none())
-    {
-        return Err(EngineError::Internal(format!(
-            "Cannot inspect source {}: {}",
-            input_uri(&request.input, &request.context),
-            source.diagnostics.iter().map(|d| format!("{}: {}", d.code, d.message)).collect::<Vec<_>>().join("; "),
-        )));
-    }
     source.diagnostics.extend(time_budget_diagnostics(
         &request.input.root_scope,
         &["inspectms", "inspecttimebudgetms"],
@@ -376,6 +420,17 @@ pub(super) fn inspect(
     ));
     project_diagnostic_uris(&mut source.diagnostics, &request.input, &request.context);
     let uri = input_uri(&request.input, &request.context);
+    if (matches!(request.show, InspectView::Ast | InspectView::Tree) && source.ast.is_none())
+        || (request.show == InspectView::Events && source.events.is_none())
+    {
+        request.context.ensure_active()?;
+        return Ok(InspectResponse {
+            view: request.show,
+            body: Value::Null,
+            primary_bytes: None,
+            diagnostics: source.diagnostics,
+        });
+    }
     let (stream, schema) = stream(&source, request.show, &uri);
     let body = match request.show {
         InspectView::Summary => {
@@ -398,6 +453,7 @@ pub(super) fn inspect(
         .transpose()?;
     request.context.ensure_active()?;
     Ok(InspectResponse {
+        diagnostics: source.diagnostics,
         view: request.show,
         body,
         primary_bytes,

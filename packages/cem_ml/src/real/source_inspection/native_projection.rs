@@ -21,6 +21,7 @@ pub(super) fn project(
         LoadedInputAstStream::CssDocument(css) => {
             projection::css_events_cem_presentation_stream(&css)
         }
+        LoadedInputAstStream::MarkdownDocument(document) => markdown(&document, ast),
         LoadedInputAstStream::XsltStylesheet(xslt) => xml(xslt.xml_document, XSLT_SCHEMA_URI, ast)?,
         LoadedInputAstStream::RelaxNgDocument(mut rng) => match rng.xml_document.take() {
             Some(document) => xml(document, RELAX_NG_SCHEMA_URI, ast)?,
@@ -28,6 +29,96 @@ pub(super) fn project(
         },
         _ => return Ok(None),
     }))
+}
+
+fn markdown(
+    document: &crate::validation::markdown::MarkdownDocumentAst,
+    ast: bool,
+) -> CemTreeAstStream {
+    let nodes = document
+        .events
+        .iter()
+        .map(|event| {
+            let source = event
+                .source_range
+                .source_map()
+                .with_source_uri(&document.source.uri);
+            let mut attributes = Vec::new();
+            for (key, value) in [
+                ("native-kind", Some(event.kind.as_str())),
+                ("tag", event.tag.as_deref()),
+                ("destination", event.destination.as_deref()),
+                ("title", event.title.as_deref()),
+                ("info", event.info.as_deref()),
+                ("lexical-source", event.lexical_source.as_deref()),
+            ] {
+                if let Some(value) = value {
+                    attributes.push(projection::projection_attribute(key, value, &source));
+                }
+            }
+            if ast {
+                let mut node = projection::projection_node(
+                    &format!("markdown-event-{}", event.index),
+                    "markdown-event",
+                    None,
+                    event.index,
+                    event.tag.as_deref(),
+                    event.text.as_deref(),
+                    &document.source.uri,
+                    Some((
+                        event.source_range.start.byte_offset,
+                        event.source_range.byte_length,
+                    )),
+                    source.clone(),
+                );
+                if let CemTreeAstNode::Element {
+                    attributes: fields, ..
+                } = &mut node
+                {
+                    fields.extend(attributes);
+                }
+                node
+            } else {
+                let mut event_fields = event_attributes(
+                    event.index,
+                    match event.kind.as_str() {
+                        "start" => "open",
+                        "end" => "close",
+                        _ => "value",
+                    },
+                    event.text.as_deref().unwrap_or_default(),
+                    &document.source.uri,
+                    event.source_range.start.byte_offset,
+                    event.source_range.byte_length,
+                    &source,
+                );
+                event_fields.extend(attributes);
+                element("event", event_fields, Vec::new(), source)
+            }
+        })
+        .collect();
+    let source = SourceMapStack {
+        frames: vec![SourceMapFrame {
+            source_id: SourceId(1),
+            span: FrameSpan::Single(ByteRange::new(
+                0,
+                u32::try_from(document.source.byte_length).unwrap_or(u32::MAX),
+            )),
+            transform: TransformKind::ContentTypeTransform {
+                content_type: document.source.content_type.clone(),
+            },
+        }],
+    }
+    .with_source_uri(&document.source.uri);
+    wrap(
+        if ast { "ast" } else { "event-stream" },
+        MARKDOWN_SCHEMA_URI,
+        &document.source.content_type,
+        &document.source.uri,
+        nodes,
+        source,
+        ast,
+    )
 }
 
 fn xml(document: XmlDocumentAst, schema: &str, ast: bool) -> Result<CemTreeAstStream, String> {

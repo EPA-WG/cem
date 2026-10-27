@@ -467,8 +467,11 @@ fn public_inspection_rejects_invalid_external_input_without_a_partial_tree() {
             }),
             context: EngineContext::default(),
         });
-        assert!(result.is_err(), "{content_type}: {result:?}");
-        assert!(result.unwrap_err().to_string().contains(URI));
+        let result = result.unwrap();
+        assert!(result.body.is_null(), "{content_type}: {result:?}");
+        assert!(result.primary_bytes.is_none(), "{content_type}: {result:?}");
+        assert!(result.diagnostics.iter().any(|d| d.severity.is_hard_violation()), "{content_type}: {result:?}");
+        assert!(result.diagnostics.iter().all(|d| d.uri.as_deref() == Some(URI)), "{content_type}: {result:?}");
     }
 }
 

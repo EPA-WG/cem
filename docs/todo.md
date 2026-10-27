@@ -394,8 +394,18 @@ tests pass. Native/WASM, Studio formatting and credential-recovery checks pass
 without UI behavior changes or relaxed limits. Deployment retains 898 files and
 four WASMs below 25 MiB.
 
-- [ ] Align native source-operation diagnostic publication with the admitted typed source owner. The catalog fixtures pin the remaining actual zero-exit Parse limit (Supplier XML) and five remaining Inspect companion diagnostic-view disagreements. Inspect's retained AST/tree output currently publishes no original-view diagnostics; its generic diagnostic companion is separate evidence. Add native selected-view reporting/import regressions, preserve original URI/range and warning facts (including zero/absent coordinates), and do not infer AST failure or clean conformance from the companion or reconstruct source ownership from exported fields.
-  - [ ] Align element-template semantic validation across CLI and the Studio worker host. Replacing `dom:text(heading)` with `dom:text(not_declared)` in Login fails CLI Validate with `cem.ql.render.compile_failed` at original byte 655, while worker Validate returns zero errors and 15 advisory attribute warnings. Preserve this observed discrepancy, actual runtime-binding/deferred-compilation policy and original diagnostics; do not claim strict undeclared-binding conformance from worker success. Add native command-context fixtures before changing shared preparation/validation; malformed source must continue to refuse.
+Completed 2026-10-27: [source-operation diagnostics and original owners](archive/todo-completed-source-operation-diagnostics-2026-10-27.md)
+uses admitted native source owners for Parse/Inspect and publishes diagnostics
+with the selected Inspect operation through CLI reports and common services.
+XML-family/data sources retain literal input semantics; Markdown source views
+retain native events/ranges before HTML lowering. The obsolete Supplier XML and
+four Inspect exceptions are retired. Portable Studio project CEM remains an
+explicit generic-source limitation. Native/WASM, Studio source and complete
+worker/fallback Login recovery checks pass without relaxing credential privacy,
+checkpoint budgets or deadlines. The demo retains 898 files and four WASMs below
+25 MiB.
+
+- [ ] Align element-template semantic validation across CLI and the Studio worker host. Replacing `dom:text(heading)` with `dom:text(not_declared)` in Login fails CLI Validate with `cem.ql.render.compile_failed` at original byte 655, while worker Validate returns zero errors and 15 advisory attribute warnings. Preserve this observed discrepancy, actual runtime-binding/deferred-compilation policy and original diagnostics; do not claim strict undeclared-binding conformance from worker success. Add native command-context fixtures before changing shared preparation/validation; malformed source must continue to refuse.
 
 - [ ] Expose typed native source operations for CLI command/run-config and Studio control encodings without duplicating their grammar in JavaScript. CLI command envelope validation works, but generic Parse/Inspect/format still route to unsupported or erroneous source paths; run configs currently have only their real CLI loader/normalizer, not a registered standalone source adapter. Studio source conversion and CEM structural Inspect work; generic Studio-control JSON/CEM Parse and JSON Inspect retain source-identity gaps. Add failing native source/exit-status fixtures before enabling these operations; preserve existing native command/plan inspection and preparation refusals.
 

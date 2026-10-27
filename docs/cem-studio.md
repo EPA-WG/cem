@@ -3463,6 +3463,18 @@ Malformed syntax produces original-source diagnostics and no formatted output.
 Module/expression relabeling is rejected; HTML remains an explicit presentation
 target. Existing formatter profiles and line-ending options apply.
 
+Source Inspect commands carry the selected operation's original diagnostics in
+the common result, independently of the view body. The Results diagnostics use
+that native set, with its original source URI, maps and coordinates. Catalog
+acceptance reads the same operation's report rather than substituting a second
+diagnostics view. Retained XML-family and data imports do not acquire CEM
+namespace or binding errors from a generic reparse. Markdown source inspection
+uses its native events before HTML lowering, so source offsets describe the
+authored Markdown. Refused structural inspections publish diagnostics without a
+partial output; their diagnostics view remains available. Ordinary previews and
+document conversion retain their existing rendering pipeline. Portable Studio
+project control-source adapters remain a separate tracked limitation.
+
 The native template is an ordinary editable project resource. Its two render
 configurations produce the complete `expected/view.html` contract through the
 existing CEMT adapter and native HTML writer. Source heading/label/method edits

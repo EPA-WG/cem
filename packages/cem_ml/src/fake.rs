@@ -108,6 +108,7 @@ impl CemMlEngine for FakeEngine {
             "input": request.input.uri,
         });
         Ok(InspectResponse {
+            diagnostics: Vec::new(),
             view: request.show,
             body,
             primary_bytes: request.presentation_scope.as_ref().map(|_| {

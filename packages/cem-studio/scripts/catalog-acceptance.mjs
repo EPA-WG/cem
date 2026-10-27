@@ -107,23 +107,11 @@ export function assertCatalogConfigurationEvidence(projects, receipts, { host, p
         if (host === 'worker' && configuration.expectedNativeRanges) assert.equal(receipt.outputComparison, 'original-source-facts-without-owner-local-identity', label);
         else assert.equal(receipt.outputComparison, undefined, `${label}: undeclared output comparison exception`);
         if (host === 'native' && configuration.argv?.[0] === 'inspect') {
-            assert.equal(receipt.executed, true, label);
-            assert.equal(receipt.status, 'verified-output', label);
-            assert.equal(receipt.exitCode, 0, label);
-            assert.equal(receipt.diagnosticEvidence, 'companion-source-diagnostics', label);
-            assert.equal(receipt.diagnosticCodes, null, 'Inspect does not publish original-view diagnostic evidence');
-            const limit = nativeCatalogDiagnosticLimit(receipt.project, receipt.configuration, 'companion-source-diagnostics');
-            const hard = limit?.diagnostics.filter(item => ['error', 'fatal'].includes(item.severity)) ?? [];
-            assert.equal(receipt.diagnosticProbe.status, limit ? 'known-limit' : 'passed', label);
-            assert.equal(receipt.diagnosticProbe.exitCode, 0, label);
-            assert.deepEqual(receipt.diagnosticProbe.diagnosticCodes, hard.map(item => item.code), label);
-            assert.deepEqual(receipt.diagnosticProbe.diagnosticOffsets, hard.map(item => item.byteOffset), label);
-            assert.deepEqual(receipt.diagnosticProbe.diagnosticUris, hard.map(item => item.uri), label);
-            continue;
+            assert.equal(receipt.diagnosticEvidence, 'command-report', label);
+            assert.equal(receipt.diagnosticProbe, undefined, 'A second view cannot supply selected-view evidence');
         }
         assert.ok(Array.isArray(receipt.diagnosticCodes), `${label}: missing hard diagnostic receipt`);
-        const nativeLimit = (host === 'native' || host === 'worker' && label === 'supplier-pipeline/catalog-source')
-            && nativeCatalogDiagnosticLimit(receipt.project, receipt.configuration, 'command-report');
+        const nativeLimit = nativeCatalogDiagnosticLimit(receipt.project, receipt.configuration, 'command-report');
         if (host === 'worker' && configuration.binary) {
             assert.equal(receipt.status, 'policy-refusal', label);
             assert.equal(receipt.executed, false, label);

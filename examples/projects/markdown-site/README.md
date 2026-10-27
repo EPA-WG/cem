@@ -54,9 +54,12 @@ Studio's own theme. No JavaScript assembles or renders the site.
 - **Preview Markdown article** (`preview-article`) converts that saved article body on its own.
   Its exact HTML matches `expected/article-body.html`; front matter is omitted.
   The full build supplies the shared layout and assets.
-- **Inspect generated article structure** (`inspect-article`) inspects the generated HTML tree, its
-  XHTML element names, attributes and retained source information. It is an HTML
-  projection of the Markdown body, not the Markdown parser's source AST.
+- **Inspect Markdown source events** (`inspect-article`) presents the native Markdown
+  events and original source ranges before HTML lowering, including front matter,
+  text and link destinations. Its heading text starts at original UTF-8 byte 171.
+  This event projection is not a complete Markdown language AST. Use **Preview
+  Markdown article** for the generated HTML. Version **1.1.1** retains resource and
+  configuration IDs and paths; existing saved projects keep their own settings.
 - **Query the generated article outline** (`query-article-outline`) runs `queries/article-outline.xpath`
   over the same generated HTML using the explicit namespace binding
   `h=http://www.w3.org/1999/xhtml`. Its four result strings match

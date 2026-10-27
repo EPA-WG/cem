@@ -922,6 +922,43 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
       assert.ok(!result.diagnostics.items.some(d => d.code.startsWith('cem.tokenizer.')));
       assert.equal(text, undefined, 'malformed source must not publish a partial tree');
     }
+    for (const [source, contentType, schema] of [
+      ["<catalog xmlns='urn:supplier'><name>🥝 {#inert}</name></catalog>", 'application/xml', 'https://cem.dev/ns/data/xml/1'],
+      ["<svg xmlns='http://www.w3.org/2000/svg'><text>🥝 {#inert}</text></svg>", 'image/svg+xml', 'https://cem.dev/ns/data/svg/1'],
+      ["<math xmlns='http://www.w3.org/1998/Math/MathML'><mi>x</mi></math>", 'application/mathml+xml', 'https://cem.dev/ns/data/mathml/1'],
+    ]) {
+      const parsed = await execute(source, contentType, schema, { kind: 'parse', projection: 'ast', preserveSourceOffsets: true });
+      assert.equal(parsed.result.status, 'succeeded');
+      const originalDiagnostics = parsed.result.diagnostics.items;
+      if (contentType === 'image/svg+xml') {
+        assert.equal(originalDiagnostics.length, 1);
+        assert.equal(originalDiagnostics[0].code, 'cem.svg.accessible_name_missing');
+        assert.equal(originalDiagnostics[0].severity, 'warning');
+        assert.equal(originalDiagnostics[0].uri, 'studio://structured-source/source');
+        assert.equal(originalDiagnostics[0].byteOffset, 0);
+        assert.ok(originalDiagnostics[0].sourceMap.frames.length > 0);
+      } else assert.deepEqual(originalDiagnostics, []);
+      for (const show of ['ast', 'tree', 'events', 'summary', 'source-offsets', 'diagnostics']) {
+        const { result, text } = await execute(source, contentType, schema, { kind: 'inspect', show });
+        assert.equal(result.status, 'succeeded', JSON.stringify(result));
+        assert.deepEqual(result.diagnostics.items, originalDiagnostics);
+        assert.deepEqual(result.result.value.value.diagnostics, originalDiagnostics);
+        assert.ok(text.includes(schema) && text.includes(contentType), text);
+        assert.ok(!text.includes('cem.schema.unresolved_namespace'), text);
+      }
+    }
+    const invalidXml = '<r>🥝\r\n<x></r>';
+    const structural = await execute(invalidXml, 'application/xml', 'https://cem.dev/ns/data/xml/1', { kind: 'inspect', show: 'ast' });
+    assert.equal(structural.result.status, 'failed');
+    assert.equal(structural.text, undefined);
+    assert.equal(structural.result.artifacts.originalCount, 0);
+    const diagnostic = await execute(invalidXml, 'application/xml', 'https://cem.dev/ns/data/xml/1', { kind: 'inspect', show: 'diagnostics' });
+    assert.equal(diagnostic.result.status, 'succeeded', 'diagnostic inspection is not validation');
+    assert.deepEqual(diagnostic.result.diagnostics.items, structural.result.diagnostics.items);
+    assert.deepEqual(diagnostic.result.result.value.value.diagnostics, structural.result.diagnostics.items);
+    assert.ok(diagnostic.result.diagnostics.items.some(d => d.code === 'cem.xml.parse_error'
+      && d.uri === 'studio://structured-source/source' && d.line === 2));
+    assert.ok(diagnostic.text.includes('cem.xml.parse_error'));
   });
 }
 

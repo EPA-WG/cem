@@ -179,14 +179,17 @@ pub async fn execute_prepared_command_with_artifacts_v1<E: CemMlEngine + ?Sized>
         }
         Ok(product) => {
             let semantic_failure = product.force_hard_failure
-                || diagnostics_fail(
+                || (!matches!(
+                    product.operation_result,
+                    PortableOperationResultV1::Inspect(_)
+                ) && diagnostics_fail(
                     request
                         .run_plan
                         .plan()
                         .map(|plan| plan.diagnostics_mode.fail_level)
                         .unwrap_or(FailLevel::Validate),
                     &product.diagnostics,
-                );
+                ));
             let mut result = result_envelope(
                 &request,
                 operation_kind,
@@ -539,15 +542,23 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
         }
         PreparedPortableOperationV1::Inspect(engine_request) => {
             let response = engine.inspect(engine_request).map_err(engine_failure)?;
-            let items = if matches!(
+            let diagnostics = response.diagnostics.clone();
+            let refused = response.primary_bytes.is_none()
+                && response.body.is_null()
+                && response
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.severity.is_hard_violation());
+            let items = if refused {
+                Vec::new()
+            } else if matches!(
                 request.operation,
                 PortableOperationRequestV1::Inspect {
                     format: Some(CommandInspectFormatV1::Json),
                     ..
                 }
             ) {
-                let bytes =
-                    serde_json::to_vec_pretty(&response.body).map_err(serialization_failure)?;
+                let bytes = serde_json::to_vec_pretty(&response.body).map_err(serialization_failure)?;
                 let mut items = encoded_output_items(plan, "application/json", &bytes);
                 for item in &mut items {
                     if item.uri == crate::command_invocation::STDOUT_RESOURCE_URI {
@@ -563,13 +574,17 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
                     "inspect-output",
                 )?
             };
-            Ok(product(
+            let mut product = product(
                 PortableOperationResultV1::Inspect(response),
-                Vec::new(),
+                diagnostics,
                 plan,
                 items,
                 Vec::new(),
-            )?)
+            )?;
+            // Inspect reports source errors without becoming a validation
+            // command. A refused structural presentation still fails.
+            product.force_hard_failure = refused;
+            Ok(product)
         }
         PreparedPortableOperationV1::Convert(outputs) => {
             let mut results = Vec::with_capacity(outputs.len());
@@ -1680,6 +1695,7 @@ mod tests {
         fn inspect(&self, request: InspectRequest) -> EngineResult<InspectResponse> {
             self.record("inspect");
             Ok(InspectResponse {
+                diagnostics: Vec::new(),
                 view: request.show,
                 body: json!({"input": request.input.uri}),
                 primary_bytes: None,
@@ -1951,6 +1967,64 @@ mod tests {
                 project: request.project.clone(),
                 resource_versions: request.resource_versions.clone(),
             },
+        }
+    }
+
+    #[test]
+    fn selected_inspect_diagnostics_reach_the_common_product_without_null_artifacts() {
+        for (text, refused) in [
+            ("<r xmlns='urn:owned'>🥝 {#inert}</r>", false),
+            ("<r>🥝\r\n<x></r>", true),
+        ] {
+            let mut request = fixture_request(false);
+            let bytes = text.as_bytes().to_vec();
+            request.resources.get_mut(DATA_URI).unwrap().bytes = bytes.clone();
+            request.resource_versions.get_mut(DATA_URI).unwrap().sha256 = sha256_hex(&bytes);
+            request.operation = PortableOperationRequestV1::Inspect {
+                input_id: "input:0".into(),
+                show: InspectView::Ast,
+                format: Some(CommandInspectFormatV1::Json),
+            };
+            request.run_plan = parse_normalized_run_plan(NormalizedRunPlanRequest {
+                input_records: vec![format!("uri={DATA_URI},contentType=application/xml,schema=https://cem.dev/ns/data/xml/1")],
+                output_records: vec![format!("input={DATA_URI},dest={OUTPUT_URI},contentType=application/json")],
+                ..Default::default() }).unwrap().into();
+            let prepared = crate::command_operation::prepare_command_operation_v1(
+                &request,
+                CommandServiceLimitsV1::default(),
+                &EngineContext::default(),
+                &capability(),
+            )
+            .unwrap();
+            let product = execute_operation(
+                &crate::real::RealCemMlEngine::new(),
+                &request,
+                prepared,
+                &QueryResultExporterRegistry::new(),
+                CommandServiceLimitsV1::default(),
+            )
+            .unwrap_or_else(|_| panic!("inspection must retain native diagnostics"));
+            let PortableOperationResultV1::Inspect(response) = product.operation_result else {
+                panic!("typed response")
+            };
+            assert_eq!(
+                serde_json::to_value(&product.diagnostics).unwrap(),
+                serde_json::to_value(&response.diagnostics).unwrap()
+            );
+            if refused {
+                assert!(response.body.is_null());
+                assert!(product.publication_items.is_empty());
+                assert!(
+                    product
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.code == "cem.xml.parse_error"
+                            && d.uri.as_deref() == Some(DATA_URI))
+                );
+            } else {
+                assert!(product.diagnostics.is_empty());
+                assert_eq!(product.publication_items.len(), 1);
+            }
         }
     }
 

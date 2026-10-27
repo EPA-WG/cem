@@ -1556,6 +1556,38 @@ describe('CEM Studio Feature Tour copies', () => {
         await expect(format('module "urn:wrong" 1')).rejects.toMatchObject({ result: { exitCode: 1 } });
     }, 60_000);
 
+    it('keeps source-operation diagnostics with the original native owner in the worker', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const uri = 'studio://source-owner-copy/data/catalog.xml';
+        const options = { bytes: new TextEncoder().encode("<catalog xmlns='urn:supplier'><name>🥝 {#inert}</name></catalog>"), uri,
+            contentType: 'application/xml', schema: 'https://cem.dev/ns/data/xml/1', resourceScheme: 'studio', projectId: 'source-owner-copy',
+            projectRootUri: 'studio://source-owner-copy/' };
+        const parsed = await validator.parseResource(options);
+        expect(parsed.result.diagnostics.items).toEqual([]);
+        for (const view of ['ast', 'tree', 'events', 'summary', 'source-offsets', 'diagnostics']) {
+            const inspected = await validator.inspectResource({ ...options, view });
+            expect(inspected.result.exitCode).toBe(0);
+            expect(inspected.result.diagnostics.items).toEqual([]);
+            expect(inspected.output.text).toContain(uri);
+            expect(inspected.output.text).toContain(options.schema);
+        }
+        const broken = { ...options, bytes: new TextEncoder().encode('<r>🥝\r\n<x></r>') };
+        await expect(validator.inspectResource({ ...broken, view: 'ast' })).rejects.toMatchObject({ result: {
+            exitCode: 1, diagnostics: { items: expect.arrayContaining([
+                expect.objectContaining({ code: 'cem.xml.parse_error', uri, line: 2 }),
+            ]) }, artifacts: { originalCount: 0 },
+        } });
+        const diagnosed = await validator.inspectResource({ ...broken, view: 'diagnostics' });
+        expect(diagnosed.result.exitCode).toBe(0);
+        expect(diagnosed.result.diagnostics.items).toEqual(expect.arrayContaining([
+            expect.objectContaining({ code: 'cem.xml.parse_error', uri, line: 2 }),
+        ]));
+        expect(diagnosed.output.text).toContain('cem.xml.parse_error');
+        const repaired = await validator.inspectResource({ ...options, view: 'ast' });
+        expect(repaired.result.diagnostics.items).toEqual([]);
+        expect(repaired.output.text).toContain('🥝 {#inert}');
+    }, 60_000);
+
     it('parses and inspects native Login query sources without evaluating or wrapping expressions', async () => {
         const validator = await createCemStudioBrowserValidator(); validators.push(validator);
         const uri = 'studio://inspection-copy/queries/semantics.cemql';

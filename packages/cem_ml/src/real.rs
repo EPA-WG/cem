@@ -11956,7 +11956,13 @@ impl CemMlEngine for RealCemMlEngine {
             project_diagnostic_uris(&mut source.diagnostics, &request.input, &request.context);
             return source_inspection::parse(&request, source);
         }
-        let mut loaded = load_document_input(&request.input, &request.context);
+        let mut loaded = if matches!(
+            request.projection, ParseProjection::Ast | ParseProjection::Events
+        ) {
+            load_source_input_through_lifecycle(&request.input, &request.context)
+        } else {
+            load_document_input(&request.input, &request.context)
+        };
         if let Some(source) = imported_source::load(&request.input, &request.context, &loaded, match request.projection {
             ParseProjection::Ast => Some(InspectView::Ast),
             ParseProjection::Events => Some(InspectView::Events),
@@ -12109,8 +12115,21 @@ impl CemMlEngine for RealCemMlEngine {
         if let Some(source) = source_inspection::load(&request.input, &request.context) {
             return source_inspection::inspect(&request, source, started_at);
         }
-        let loaded = load_document_input(&request.input, &request.context);
+        let mut loaded = load_source_input_through_lifecycle(&request.input, &request.context);
         if let Some((source, _)) = imported_source::load(&request.input, &request.context, &loaded, Some(request.show)) {
+            return source_inspection::inspect(&request, source, started_at);
+        }
+        let projection = if request.show == InspectView::Events {
+            ParseProjection::Events
+        } else {
+            ParseProjection::Ast
+        };
+        if let Some(source) = source_inspection::native_lifecycle_parse(
+            &request.input,
+            &request.context,
+            &mut loaded,
+            projection,
+        ) {
             return source_inspection::inspect(&request, source, started_at);
         }
         let from_format = loaded.from_format;
@@ -12207,6 +12226,7 @@ impl CemMlEngine for RealCemMlEngine {
         };
         request.context.ensure_active()?;
         Ok(InspectResponse {
+            diagnostics,
             view: request.show,
             body,
             primary_bytes,

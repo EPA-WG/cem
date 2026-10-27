@@ -21,26 +21,13 @@ export async function executeNativeCatalogCommand(cli, args, directory, expected
     const operation = args[0];
     const reportIndex = args.indexOf('--report-json');
     const reportPath = reportIndex < 0 ? diagnosticReportPath ?? resolve(directory, 'catalog-command.report.json') : args[reportIndex + 1];
-    const reported = !['inspect', 'trace'].includes(operation);
+    const reported = operation !== 'trace';
     const invocation = reported && reportIndex < 0 ? [...args, '--report-json', reportPath] : args;
     const actual = execute(cli, invocation, directory, expectedExit, encoding);
-    let report, diagnosticProbeExitCode;
-    if (operation === 'inspect') {
-        // Inspect has no report sidecar. Request its explicit diagnostic export;
-        // never extract diagnostics from CEM-ML source or inspector presentation.
-        const diagnostics = replaceOption(replaceOption(args, '--show', 'diagnostics'), '--format', 'json');
-        const probe = execute(cli, diagnostics, directory, expectedExit, 'utf8');
-        report = JSON.parse(probe.stdout);
-        diagnosticProbeExitCode = probe.exitCode;
-    } else if (operation === 'trace') {
-        report = JSON.parse(actual.stdout).report;
-    } else {
-        report = JSON.parse(await readFile(reportPath, 'utf8'));
-    }
+    const report = operation === 'trace' ? JSON.parse(actual.stdout).report
+        : JSON.parse(await readFile(reportPath, 'utf8'));
     assert.ok(Array.isArray(report?.diagnostics), `${operation} must publish its native diagnostics`);
-    return { ...actual, operation, report, diagnostics: report.diagnostics,
-        diagnosticEvidence: operation === 'inspect' ? 'companion-source-diagnostics' : 'command-report',
-        ...(diagnosticProbeExitCode === undefined ? {} : { diagnosticProbeExitCode }) };
+    return { ...actual, operation, report, diagnostics: report.diagnostics, diagnosticEvidence: 'command-report' };
 }
 
 /** Receipts name observed native outcomes; a default zero Parse exit is not conformance. */
@@ -51,7 +38,7 @@ export function nativeCatalogReceipt(project, configuration, outcome, expected =
     if (limit) {
         assert.equal(outcome.operation, limit.operation, `${project}/${configuration} diagnostic operation drifted`);
         assert.equal(outcome.diagnosticEvidence, limit.diagnosticEvidence, `${project}/${configuration} diagnostic evidence drifted`);
-        assert.equal(outcome.operation === 'inspect' ? outcome.diagnosticProbeExitCode : outcome.exitCode, limit.exitCode);
+        assert.equal(outcome.exitCode, limit.exitCode);
         assert.deepEqual(outcome.diagnostics.map(item => diagnosticFacts(item, limit.sourceMapFacts)), limit.diagnostics,
             `${project}/${configuration} pinned native diagnostic evidence drifted`);
     } else {
@@ -66,17 +53,8 @@ export function nativeCatalogReceipt(project, configuration, outcome, expected =
         status: limit ? 'known-limit' : outcome.exitCode !== 0 ? 'intentional-diagnostic' : 'passed',
         exitCode: outcome.exitCode, diagnosticCodes: hard.map(item => item.code),
         outputSha256: createHash('sha256').update(outcome.stdout).digest('hex') };
-    if (outcome.operation === 'inspect') {
-        assert.equal(outcome.diagnosticEvidence, 'companion-source-diagnostics');
-        assert.equal(outcome.exitCode, 0);
-        // The native InspectResponse carries the chosen output, not diagnostics.
-        // Its companion view has its own bounded evidence and cannot establish
-        // that the original retained-tree presentation failed or was clean.
-        Object.assign(receipt, { status: 'verified-output', diagnosticCodes: null,
-            diagnosticProbe: { status: limit ? 'known-limit' : 'passed', exitCode: outcome.diagnosticProbeExitCode,
-                diagnosticCodes: hard.map(item => item.code), diagnosticOffsets: hard.map(item => item.byteOffset),
-                diagnosticUris: hard.map(item => item.uri), warningCount: warnings.length } });
-    } else if (limit) {
+    if (outcome.operation === 'inspect') assert.equal(outcome.diagnosticEvidence, 'command-report');
+    if (limit) {
         Object.assign(receipt, { diagnosticOffsets: hard.map(item => item.byteOffset),
             diagnosticSource: [...new Set(hard.map(item => item.uri))].length === 1 ? hard[0].uri : undefined });
     }
@@ -90,12 +68,13 @@ function diagnosticFacts(item, sourceMapFacts) {
     return facts;
 }
 
-/** The same native Supplier Parse limit through an owned Studio source binding. */
-export function assertWorkerSupplierDiagnosticLimit(diagnostics, projectRootUri) {
+/** Compare a pinned original-operation limit through an owned Studio source binding. */
+export function assertWorkerNativeDiagnosticLimit(project, configuration, diagnostics, projectRootUri) {
     const root = new URL(projectRootUri);
     assert.equal(root.protocol, 'studio:'); assert.equal(root.pathname, '/');
     assert.equal(root.username, ''); assert.equal(root.password, '');
-    const limit = nativeCatalogDiagnosticLimit('supplier-pipeline', 'catalog-source', 'command-report');
+    const limit = nativeCatalogDiagnosticLimit(project, configuration, 'command-report');
+    assert.ok(limit, 'Only an explicitly pinned native operation can be a known limit');
     assert.equal(diagnostics.length, limit.diagnostics.length);
     const relativeFacts = diagnostics.map((item, index) => {
         assert.equal(item.uri, `${projectRootUri}${limit.diagnostics[index].uri}`);
@@ -105,15 +84,8 @@ export function assertWorkerSupplierDiagnosticLimit(diagnostics, projectRootUri)
                 : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, normalizeOwnedUris(entry)])) : value;
         return normalizeOwnedUris(facts);
     });
-    assert.deepEqual(relativeFacts, limit.diagnostics, 'Owned worker Supplier Parse diagnostic facts drifted');
+    assert.deepEqual(relativeFacts, limit.diagnostics, 'Owned worker operation diagnostic facts drifted');
     return diagnostics.filter(item => ['error', 'fatal'].includes(item.severity)).map(item => item.byteOffset);
-}
-
-function replaceOption(args, name, value) {
-    const index = args.indexOf(name), result = [...args];
-    if (index < 0) result.push(name, value);
-    else result[index + 1] = value;
-    return result;
 }
 
 function execute(cli, args, cwd, expectedExit, encoding) {

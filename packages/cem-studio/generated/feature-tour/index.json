@@ -294,13 +294,13 @@
       "id": "markdown-site",
       "name": "Markdown site",
       "description": "Inspect and query an article, repair typed YAML metadata and preview its HTML, then build a portable folder-based Markdown + CEM-ML site with exact static assets and source provenance.",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "collections": [
         "amsterdam-2026",
         "content-types-documents-ui"
       ],
       "archive": "./examples/markdown-site.cem-studio.json",
-      "sha256": "030b821a88dc765b6d2e6dc679912aece88029fbc2c4ebf773ce385dc2e4bbb7"
+      "sha256": "6f78eff73283719adabd08012ebd4e7cd1e86cd51505009a270cf8e92bf61b59"
     },
     {
       "id": "mathml-formula",

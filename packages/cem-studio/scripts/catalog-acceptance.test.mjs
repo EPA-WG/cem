@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { catalogAcceptanceInputs, assertCatalogConfigurationEvidence, assertCatalogNavigationEvidence, assertAcceptanceStamp, nativeQueryRangeEvidence } from './catalog-acceptance.mjs';
-import { nativeCatalogReceipt, nativeCatalogDiagnosticLimit, assertWorkerSupplierDiagnosticLimit } from './native-catalog-execution.mjs';
+import { nativeCatalogReceipt, nativeCatalogDiagnosticLimit, assertWorkerNativeDiagnosticLimit } from './native-catalog-execution.mjs';
 import { createCemStudioPreview } from '../src/preview.js';
 import { resolve } from 'node:path';
 
@@ -64,14 +64,14 @@ test('native success requires absence of hard diagnostics, independently of the 
     assert.throws(() => nativeCatalogReceipt('demo', 'parse', { exitCode: 0, stdout: 'partial native output',
         diagnostics: [{ severity: 'error', code: 'native.parse_failed' }] }));
 });
-test('native Inspect artifact evidence stays separate from a diagnostic companion view', () => {
+test('native Inspect requires diagnostics from the original selected operation', () => {
     const projects = [{ id: 'demo', configurations: [{ id: 'inspect', argv: ['inspect'] }] }];
     const receipt = { project: 'demo', configuration: 'inspect', host: 'native', executed: true, exitCode: 0,
-        status: 'verified-output', diagnosticCodes: null, diagnosticEvidence: 'companion-source-diagnostics',
-        diagnosticProbe: { status: 'passed', exitCode: 0, diagnosticCodes: [], diagnosticOffsets: [], diagnosticUris: [] } };
-    assert.equal(assertCatalogConfigurationEvidence(projects, [receipt], { host: 'native' }).verifiedOutputs, 1);
-    assert.throws(() => assertCatalogConfigurationEvidence(projects, [{ ...receipt, diagnosticCodes: [] }], { host: 'native' }));
-    assert.throws(() => assertCatalogConfigurationEvidence(projects, [{ ...receipt, status: 'passed' }], { host: 'native' }));
+        status: 'passed', diagnosticCodes: [], diagnosticEvidence: 'command-report' };
+    assert.equal(assertCatalogConfigurationEvidence(projects, [receipt], { host: 'native' }).passed, 1);
+    assert.throws(() => assertCatalogConfigurationEvidence(projects, [{ ...receipt, diagnosticCodes: null }], { host: 'native' }));
+    assert.throws(() => assertCatalogConfigurationEvidence(projects, [{ ...receipt, diagnosticEvidence: 'companion-source-diagnostics' }], { host: 'native' }));
+    assert.throws(() => assertCatalogConfigurationEvidence(projects, [{ ...receipt, diagnosticProbe: {} }], { host: 'native' }));
 });
 test('native warning counts remain checked without relabeling successful source validation', () => {
     const outcome = { exitCode: 0, stdout: 'native output', diagnostics: [{ severity: 'warning', code: 'native.warning' }] };
@@ -96,16 +96,23 @@ test('fresh native query owners preserve every source fact while opaque identiti
     const extra = value('fresh'); extra.result.items[0].newFact = 'retained';
     assert.notDeepEqual(evidence(extra), evidence(value('fresh')));
 });
-test('worker Supplier source diagnostics retain exact coordinates and owned project URIs', () => {
-    const root = 'studio://copy/', limit = nativeCatalogDiagnosticLimit('supplier-pipeline', 'catalog-source', 'command-report');
-    const bind = value => typeof value === 'string' && value === 'data/catalog.xml' ? `${root}${value}`
-        : Array.isArray(value) ? value.map(bind) : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, bind(item)])) : value;
-    const diagnostics = limit.diagnostics.map(({ sourceMapFacts, ...facts }) => bind({ ...facts, sourceMap: { frames: sourceMapFacts } }));
-    assert.equal(assertWorkerSupplierDiagnosticLimit(diagnostics, root).length, 18);
-    assert.throws(() => assertWorkerSupplierDiagnosticLimit(diagnostics, 'studio://other/'));
+test('retired source diagnostic exceptions cannot classify fresh native results', () => {
+    assert.equal(nativeCatalogDiagnosticLimit('supplier-pipeline', 'catalog-source', 'command-report'), undefined);
+    for (const [project, configuration] of [['html-cem-card', 'inspect-component'], ['svg-diagram', 'inspect-svg'],
+        ['mathml-formula', 'inspect-mathml'], ['xslt-transform', 'inspect-template']]) {
+        assert.equal(nativeCatalogDiagnosticLimit(project, configuration, 'command-report'), undefined);
+        assert.equal(nativeCatalogDiagnosticLimit(project, configuration, 'companion-source-diagnostics'), undefined);
+    }
+});
+test('the remaining control-source diagnostic limit retains exact original coordinates and owned URIs', () => {
+    const root = 'studio://copy/', limit = nativeCatalogDiagnosticLimit('portable-config', 'inspect-project-cem', 'command-report');
+    const diagnostics = limit.diagnostics.map(facts => ({ ...facts, uri: `${root}${facts.uri}` }));
+    const check = (items, uri = root) => assertWorkerNativeDiagnosticLimit('portable-config', 'inspect-project-cem', items, uri);
+    assert.ok(check(diagnostics).length > 0);
+    assert.throws(() => check(diagnostics, 'studio://other/'));
     const changed = structuredClone(diagnostics); changed[0].byteOffset++;
-    assert.throws(() => assertWorkerSupplierDiagnosticLimit(changed, root));
-    assert.throws(() => assertWorkerSupplierDiagnosticLimit([...diagnostics, diagnostics[0]], root));
+    assert.throws(() => check(changed));
+    assert.throws(() => check([...diagnostics, diagnostics[0]]));
 });
 test('requires complete routes, clones, offline observations and unchanged originals', () => {
     const projects = fixture().projects;

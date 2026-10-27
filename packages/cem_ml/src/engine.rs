@@ -1246,6 +1246,10 @@ pub struct CheckResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct InspectResponse {
+    /// Diagnostics from the admitted source owner for this selected view.
+    /// This is independent of the presentation body's syntax and shape.
+    #[serde(default)]
+    pub diagnostics: Vec<Diagnostic>,
     pub view: InspectView,
     pub body: Value,
     /// Target-native CEM-ML presentation bytes. They are deliberately outside

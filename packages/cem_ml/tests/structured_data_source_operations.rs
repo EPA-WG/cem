@@ -251,14 +251,14 @@ fn unsupported_yaml_and_import_depth_refuse_without_fallback_or_partial_trees() 
             .iter()
             .any(|d| d.code.starts_with("cem.tokenizer.")));
         let input = source(text, mime, schema);
-        assert!(RealCemMlEngine::new()
+        let refused = RealCemMlEngine::new()
             .inspect(InspectRequest {
-                input: input.clone(),
-                show: InspectView::Ast,
-                presentation_scope: Some(scope()),
-                context: EngineContext::default()
-            })
-            .is_err());
+                input: input.clone(), show: InspectView::Ast,
+                presentation_scope: Some(scope()), context: EngineContext::default(),
+            }).unwrap();
+        assert!(refused.body.is_null());
+        assert!(refused.primary_bytes.is_none());
+        assert_eq!(serde_json::to_value(&refused.diagnostics).unwrap(), serde_json::to_value(&result.diagnostics).unwrap());
         let diagnostics = RealCemMlEngine::new()
             .inspect(InspectRequest {
                 input,

@@ -1,7 +1,7 @@
 {
   "id": "markdown-site",
   "name": "Markdown site",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Inspect and query an article, repair typed YAML metadata and preview its HTML, then build a portable folder-based Markdown + CEM-ML site with exact static assets and source provenance.",
   "collections": [
     "amsterdam-2026",
@@ -267,10 +267,10 @@
     },
     {
       "id": "inspect-article",
-      "name": "Inspect generated article structure",
+      "name": "Inspect Markdown source events",
       "kind": "inspection",
       "source": "content-articles-first-build-md",
-      "description": "Inspect the retained generated HTML projection of the saved Markdown body. This is not the Markdown parser source AST.",
+      "description": "Inspect native Markdown source events and original ranges before HTML lowering. Preview Markdown article remains the generated HTML presentation; this event projection is not a complete Markdown language AST.",
       "argv": [
         "inspect",
         "$source",
@@ -283,10 +283,11 @@
         "--no-color"
       ],
       "expectedText": [
-        "http://www.w3.org/1999/xhtml",
+        "https://cem.dev/ns/data/markdown/1",
+        "@kind=markdown-event",
         "Build a small site",
         "../images/harbor.svg",
-        "@byte-offset="
+        "@byte-offset=171"
       ]
     },
     {

@@ -668,6 +668,9 @@ pub struct InspectArgs {
     pub out: Option<PathBuf>,
 
     #[command(flatten)]
+    pub report: ReportOptions,
+
+    #[command(flatten)]
     pub context: ContextOptions,
     #[command(flatten)]
     pub run: RunOptions,

@@ -1,7 +1,10 @@
 //! Source operations over the shared retained data import, never a second parser.
 use super::*;
 use crate::parser::tree::RetainedCemTree;
-use crate::schema::registry::{JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, YAML_SCHEMA_URI};
+use crate::schema::registry::{
+    CSV_SCHEMA_URI, HTML_SCHEMA_URI, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
+    MATHML_SCHEMA_URI, SVG_SCHEMA_URI, XHTML_SCHEMA_URI, XML_SCHEMA_URI, YAML_SCHEMA_URI,
+};
 
 type ImportedSource = (SourceInspection, Option<Arc<RetainedCemTree>>);
 
@@ -19,7 +22,17 @@ pub(super) fn load(
         .any(|d| d.severity.is_hard_violation())
         && (matches!(
             identity.schema.as_deref().map(str::trim),
-            Some(JSON_VALUE_SCHEMA_URI | JSON_SCHEMA_SCHEMA_URI | YAML_SCHEMA_URI)
+            Some(
+                JSON_VALUE_SCHEMA_URI
+                    | JSON_SCHEMA_SCHEMA_URI
+                    | YAML_SCHEMA_URI
+                    | XML_SCHEMA_URI
+                    | HTML_SCHEMA_URI
+                    | XHTML_SCHEMA_URI
+                    | SVG_SCHEMA_URI
+                    | MATHML_SCHEMA_URI
+                    | CSV_SCHEMA_URI
+            )
         ) || matches!(
             identity
                 .content_type
@@ -34,6 +47,13 @@ pub(super) fn load(
                     | "application/x-yaml"
                     | "text/yaml"
                     | "text/x-yaml"
+                    | "application/xml"
+                    | "text/xml"
+                    | "text/html"
+                    | "application/xhtml+xml"
+                    | "image/svg+xml"
+                    | "application/mathml+xml"
+                    | "text/csv"
             )
         ));
     let defaults = match loaded.ast_stream.as_ref() {
@@ -46,7 +66,49 @@ pub(super) fn load(
         Some(LoadedInputAstStream::YamlDocument(doc)) => {
             (YAML_SCHEMA_URI, doc.source.content_type.as_str())
         }
-        _ if matches!(loaded.adapter_id, Some("json" | "json-schema" | "yaml")) => ("", ""),
+        Some(LoadedInputAstStream::XmlDocument(doc)) => {
+            (XML_SCHEMA_URI, doc.source.media_type.as_str())
+        }
+        Some(LoadedInputAstStream::HtmlDocument(doc)) => {
+            (HTML_SCHEMA_URI, doc.source.content_type.as_str())
+        }
+        Some(LoadedInputAstStream::XhtmlDocument(doc)) => {
+            (XHTML_SCHEMA_URI, doc.source.content_type.as_str())
+        }
+        Some(LoadedInputAstStream::SvgDocument(doc)) => {
+            (SVG_SCHEMA_URI, doc.source.content_type.as_str())
+        }
+        Some(LoadedInputAstStream::MathMlDocument(doc)) => (
+            MATHML_SCHEMA_URI,
+            doc.xml_document.source.content_type.as_str(),
+        ),
+        Some(LoadedInputAstStream::CsvDocument(doc)) => {
+            (CSV_SCHEMA_URI, doc.source.media_type.as_str())
+        }
+        Some(LoadedInputAstStream::CssDocument(doc)) if show == Some(InspectView::Tree) => {
+            (CSS_SCHEMA_URI, doc.source.media_type.as_str())
+        }
+        _ if loaded
+            .diagnostics
+            .iter()
+            .any(|d| d.severity.is_hard_violation())
+            && matches!(
+                loaded.adapter_id,
+                Some(
+                    "json"
+                        | "json-schema"
+                        | "yaml"
+                        | "xml"
+                        | "html"
+                        | "xhtml"
+                        | "svg"
+                        | "mathml"
+                        | "csv"
+                )
+            ) =>
+        {
+            ("", "")
+        }
         _ if refused => ("", ""),
         _ => return None,
     };

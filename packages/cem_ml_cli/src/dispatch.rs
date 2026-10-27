@@ -6523,6 +6523,7 @@ pub fn run_inspect<E: CemMlEngine + ?Sized>(
         Ok(i) => i,
         Err(err) => return handle_cli_request_error(err, s),
     };
+    let input_uri = input.uri.clone();
     let req = eng::InspectRequest {
         input,
         show: to_engine_inspect_view(args.show),
@@ -6531,33 +6532,61 @@ pub fn run_inspect<E: CemMlEngine + ?Sized>(
     };
     match engine.inspect(req) {
         Ok(resp) => {
-            let write_result = match presentation_format {
-                cli::InspectFormat::Cem => resp
-                    .primary_bytes
-                    .as_ref()
-                    .ok_or_else(|| {
-                        io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            "engine omitted requested CEM-ML inspect presentation",
-                        )
-                    })
-                    .and_then(|primary| {
-                        write_raw_primary_bytes(
-                            &engine_context,
-                            &primary.bytes,
-                            args.out.as_deref(),
-                            s,
-                        )
-                    }),
-                cli::InspectFormat::Json => {
-                    write_primary(&engine_context, &resp.body, args.out.as_deref(), s)
+            let refused = resp.primary_bytes.is_none()
+                && resp.body.is_null()
+                && resp
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.severity.is_hard_violation());
+            let write_result = if refused {
+                Ok(())
+            } else {
+                match presentation_format {
+                    cli::InspectFormat::Cem => resp
+                        .primary_bytes
+                        .as_ref()
+                        .ok_or_else(|| {
+                            io::Error::new(
+                                io::ErrorKind::InvalidData,
+                                "engine omitted requested CEM-ML inspect presentation",
+                            )
+                        })
+                        .and_then(|primary| {
+                            write_raw_primary_bytes(
+                                &engine_context,
+                                &primary.bytes,
+                                args.out.as_deref(),
+                                s,
+                            )
+                        }),
+                    cli::InspectFormat::Json => {
+                        write_primary(&engine_context, &resp.body, args.out.as_deref(), s)
+                    }
                 }
             };
             if let Err(e) = write_result {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
-            Outcome::ok()
+            write_diagnostics(&resp.diagnostics, s);
+            if report_requested(&args.report) {
+                let report = cem_ml::report::Report::deterministic(
+                    vec![input_uri],
+                    resp.diagnostics,
+                    report_options_snapshot(cli::FailLevel::Validate, &args.context),
+                );
+                if let Err(e) =
+                    write_report_files(&engine_context, &report, &args.report, "inspect-report")
+                {
+                    let _ = writeln!(s.stderr, "cem-ml: inspect report write failure: {e}");
+                    return Outcome::code(EXIT_IO);
+                }
+            }
+            if refused {
+                Outcome::code(EXIT_HARD_FAILURE)
+            } else {
+                Outcome::ok()
+            }
         }
         Err(e) => handle_engine_error(e, s),
     }
@@ -17957,6 +17986,108 @@ start =
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.xslt.not_well_formed_xml"));
+    }
+
+    #[test]
+    fn source_operation_diagnostics_keep_the_selected_native_owner_and_refusal() {
+        let input = write_fixture(
+            "inspect-selected-owner.xml",
+            "<r xmlns='urn:owner'>🥝 {#inert}</r>",
+        );
+        for show in [
+            "ast",
+            "tree",
+            "events",
+            "summary",
+            "source-offsets",
+            "diagnostics",
+        ] {
+            let report = input.with_extension(format!("{show}.report.json"));
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "inspect",
+                    "--show",
+                    show,
+                    "--format",
+                    "json",
+                    "--content-type",
+                    "application/xml",
+                    "--schema",
+                    cem_ml::schema::registry::XML_SCHEMA_URI,
+                    "--report-json",
+                    report.to_str().unwrap(),
+                    input.to_str().unwrap(),
+                ],
+            );
+            assert_eq!(outcome.exit_code, EXIT_OK, "{show}: {stderr}");
+            assert!(stderr.is_empty(), "{show}: {stderr}");
+            let body: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+            assert!(!body.is_null());
+            let report: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(report).unwrap()).unwrap();
+            assert_eq!(report["diagnostics"], serde_json::json!([]));
+            assert_eq!(report["summary"]["hardViolationCount"], 0);
+        }
+        let malformed = write_fixture("inspect-selected-owner-invalid.xml", "<r>🥝\r\n<x></r>");
+        let mut original = None;
+        for show in ["ast", "tree", "events", "diagnostics"] {
+            let report = malformed.with_extension(format!("{show}.report.json"));
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "inspect",
+                    "--show",
+                    show,
+                    "--format",
+                    "json",
+                    "--content-type",
+                    "application/xml",
+                    "--schema",
+                    cem_ml::schema::registry::XML_SCHEMA_URI,
+                    "--report-json",
+                    report.to_str().unwrap(),
+                    malformed.to_str().unwrap(),
+                ],
+            );
+            assert_eq!(
+                outcome.exit_code,
+                if show == "diagnostics" {
+                    EXIT_OK
+                } else {
+                    EXIT_HARD_FAILURE
+                },
+                "{stderr}"
+            );
+            assert!(
+                !stderr.contains("write failure") && !stderr.contains("internal error"),
+                "{stderr}"
+            );
+            let report: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(report).unwrap()).unwrap();
+            let diagnostics = &report["diagnostics"];
+            assert!(diagnostics
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|d| d["uri"] == malformed.to_str().unwrap()));
+            assert!(diagnostics
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|d| d["code"] == "cem.xml.parse_error" && d["line"] == 2));
+            if let Some(expected) = original.as_ref() {
+                assert_eq!(diagnostics, expected);
+            } else {
+                original = Some(diagnostics.clone());
+            }
+            if show == "diagnostics" {
+                let body: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+                assert_eq!(&body["diagnostics"], diagnostics);
+            } else {
+                assert!(stdout.is_empty(), "{stdout}");
+            }
+        }
     }
 
     #[test]

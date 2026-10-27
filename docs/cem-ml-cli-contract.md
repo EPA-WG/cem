@@ -679,6 +679,23 @@ Current implementation status:
   colorizer; `--out` writes the same CEM-ML syntax without ANSI escapes.
   `parse --format ast-json|events-json|dom-json|json` and
   `inspect --format json` are the explicit JSON presentation boundaries.
+  Inspect responses publish diagnostics from the selected operation separately
+  from the presentation body. CLI `inspect --report-json`, `--report` and
+  `--report-md` export that same diagnostic set; callers do not need a second
+  `--show diagnostics` invocation. Original URI, severity, source maps and
+  absent or zero coordinates are preserved. Inspect displays source errors
+  without becoming a validation command; a refused structural view returns a
+  failure with diagnostics and no partial or `null` output artifact. The
+  diagnostics view remains available for a refused source.
+  Admitted XML, HTML/XHTML, SVG, MathML, CSV, JSON/YAML and native stylesheet
+  source views consume their retained import owners instead of applying CEM
+  namespace/binding rules to literal source data. CSS AST inspection retains its
+  lexical view and tree inspection its semantic import. Markdown source views
+  use native events and original ranges before HTML lowering; ordinary document
+  conversion and preview still lower Markdown through the existing pipeline.
+  Native source tooling does not imply a complete control-format source adapter:
+  portable Studio project CEM inspection still exposes its pinned generic-source
+  limitation until that adapter is implemented.
   The composed CEM-QL runtime registers native source Parse/Inspect for
   `application/vnd.cem.query+cem-ql` (alias `text/cem-ql`) with
   `https://cem.dev/ns/query/cem-ql/1`, and

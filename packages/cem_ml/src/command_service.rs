@@ -2148,6 +2148,9 @@ mod tests {
 
     #[test]
     fn inspect_presentation_wire_keeps_legacy_defaults_and_checks_named_formats() {
+        let legacy_response: InspectResponse = serde_json::from_value(json!({ "view": "summary", "body": {} })).unwrap();
+        assert!(legacy_response.diagnostics.is_empty());
+
         let legacy = json!({"kind": "inspect", "inputId": "input:0", "show": "ast"});
         let operation: PortableOperationRequestV1 = serde_json::from_value(legacy.clone()).unwrap();
         assert!(matches!(
@@ -2198,6 +2201,7 @@ mod tests {
         let mut result = empty_result(CommandServiceStatusV1::Succeeded, Some(0));
         result.result = Some(CommandPayloadV1::Inline {
             value: PortableOperationResultV1::Inspect(InspectResponse {
+                diagnostics: Vec::new(),
                 view: InspectView::Summary,
                 body: json!({ "nodes": 1 }),
                 primary_bytes: None,
