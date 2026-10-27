@@ -1,8 +1,10 @@
 import { ownedWasmFactory, ownedWasmFactoryTypes } from '../../../tools/scripts/cem-ql-wasm-factory.mjs';
+import { optimizeWasm } from '../../../tools/scripts/wasm-opt.mjs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   cpSync,
+  copyFileSync,
   mkdirSync,
   readFileSync,
   readdirSync,
@@ -114,6 +116,16 @@ for (const [target, outputRoot] of [
     '--remove-producers-section',
   ]);
 }
+const browserBinary = resolve(browserRoot, 'cem_ml_bg.wasm');
+const nodeBinary = resolve(nodeRoot, 'cem_ml_bg.wasm');
+const identicalBinaries = readFileSync(browserBinary).equals(readFileSync(nodeBinary));
+const browserOptimization = optimizeWasm(browserBinary);
+// Reuse work only for byte-identical bindgen outputs; their glue stays target-specific.
+if (identicalBinaries) copyFileSync(browserBinary, nodeBinary);
+const nodeOptimization = identicalBinaries ? browserOptimization : optimizeWasm(nodeBinary);
+const reportRoot = resolve(workspaceRoot, 'dist/reports/wasm-optimization');
+mkdirSync(reportRoot, { recursive: true });
+writeFileSync(resolve(reportRoot, `cem-ml-${requestedProfile}.json`), `${JSON.stringify({ browser: browserOptimization, node: nodeOptimization }, null, 2)}\n`);
 writeFileSync(resolve(browserRoot, 'cem_ml_factory.js'), ownedWasmFactory(readFileSync(resolve(browserRoot, 'cem_ml.js'), 'utf8'), 'cem_ml', 'CemMl'));
 writeFileSync(resolve(browserRoot, 'cem_ml_factory.d.ts'), ownedWasmFactoryTypes('cem_ml', 'CemMl'));
 

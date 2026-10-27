@@ -16,6 +16,8 @@
         "{projectRoot}/package.json",
         "{projectRoot}/scripts/build.mjs",
         "{workspaceRoot}/tools/scripts/cem-ql-wasm-factory.mjs",
+        "{workspaceRoot}/tools/scripts/wasm-opt.mjs",
+        { "externalDependencies": ["binaryen"] },
         "{workspaceRoot}/Cargo.lock",
         "{workspaceRoot}/Cargo.toml",
         "{workspaceRoot}/rust-toolchain.toml",
@@ -27,7 +29,7 @@
         "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
         "{workspaceRoot}/packages/cem_ml/schema-packages/**/*"
       ],
-      "outputs": ["{projectRoot}/dist"]
+      "outputs": ["{projectRoot}/dist", "{workspaceRoot}/dist/reports/wasm-optimization/cem-ml-default.json"]
     },
     "build:stripped": {
       "cache": true,
@@ -40,6 +42,8 @@
         "{projectRoot}/package.json",
         "{projectRoot}/scripts/build.mjs",
         "{workspaceRoot}/tools/scripts/cem-ql-wasm-factory.mjs",
+        "{workspaceRoot}/tools/scripts/wasm-opt.mjs",
+        { "externalDependencies": ["binaryen"] },
         "{workspaceRoot}/Cargo.lock",
         "{workspaceRoot}/Cargo.toml",
         "{workspaceRoot}/rust-toolchain.toml",
@@ -51,7 +55,7 @@
         "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
         "{workspaceRoot}/packages/cem_ml/schema-packages/**/*"
       ],
-      "outputs": ["{projectRoot}/dist-stripped"]
+      "outputs": ["{projectRoot}/dist-stripped", "{workspaceRoot}/dist/reports/wasm-optimization/cem-ml-stripped.json"]
     },
     "build:schema-assets": {
       "cache": true,

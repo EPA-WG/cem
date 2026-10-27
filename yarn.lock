@@ -1442,6 +1442,7 @@ __metadata:
     "@vitest/browser-playwright": "npm:4.1.5"
     "@vitest/coverage-v8": "npm:4.1.5"
     ajv: "npm:8.18.0"
+    binaryen: "npm:132.0.0"
     dom-accessibility-api: "npm:^0.6.3"
     eslint: "npm:10.2.1"
     eslint-config-prettier: "npm:10.1.8"
@@ -4151,6 +4152,23 @@ __metadata:
   version: 2.4.3
   resolution: "bcryptjs@npm:2.4.3"
   checksum: 10c0/b969467087ed7a01ff905a1c6a0c45014ec586248a448ea08370c8ed8bb314bda16a870ca23e0961d7d23bdce1a04c76fa70a9d680be814fa9ac7d8fc61870a3
+  languageName: node
+  linkType: hard
+
+"binaryen@npm:132.0.0":
+  version: 132.0.0
+  resolution: "binaryen@npm:132.0.0"
+  bin:
+    wasm-as: bin/wasm-as
+    wasm-ctor-eval: bin/wasm-ctor-eval
+    wasm-dis: bin/wasm-dis
+    wasm-merge: bin/wasm-merge
+    wasm-metadce: bin/wasm-metadce
+    wasm-opt: bin/wasm-opt
+    wasm-reduce: bin/wasm-reduce
+    wasm-shell: bin/wasm-shell
+    wasm2js: bin/wasm2js
+  checksum: 10c0/05e23f27ef67b705bfe9fdfe11f8be58eb9f83511704735aec2027ed8588a3aaaa60423adb0ff8641c450417b7e3078f876a91d453f40a4f001258cdaabc581b
   languageName: node
   linkType: hard
 

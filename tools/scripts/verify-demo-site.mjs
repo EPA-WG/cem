@@ -7,7 +7,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { DEMO_FILE_LIMIT, listDemoFiles, readDemoInventory } from './demo-deployment.mjs';
+import { DEMO_FILE_LIMIT, DEMO_FILE_SIZE_LIMIT, listDemoFiles, readDemoInventory } from './demo-deployment.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const destination = resolve(process.argv[2] ?? join(homedir(), 'cem-bin'));
@@ -16,6 +16,8 @@ const inventory = await readDemoInventory(destination);
 assert.ok(inventory, 'Deployment inventory is required.');
 const totalFiles = await listDemoFiles(destination);
 assert.ok(totalFiles.length <= DEMO_FILE_LIMIT, `${totalFiles.length} files exceeds ${DEMO_FILE_LIMIT}`);
+for (const path of totalFiles) assert.ok((await readFile(join(destination, path))).length < DEMO_FILE_SIZE_LIMIT, `Demo file must be below 25 MiB: ${path}`);
+assert.equal(totalFiles.filter(path => path.endsWith('.wasm')).length, 4, 'Expected four separately paired deployed WASM files.');
 for (const entry of inventory.files) {
     const bytes = await readFile(join(destination, entry.path));
     assert.equal(bytes.length, entry.bytes, entry.path);

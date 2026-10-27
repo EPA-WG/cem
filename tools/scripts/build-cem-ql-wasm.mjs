@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { cemQlWasmFactory, cemQlWasmFactoryTypes } from './cem-ql-wasm-factory.mjs';
+import { optimizeWasm } from './wasm-opt.mjs';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -53,6 +54,11 @@ run('wasm-bindgen', [
     '--remove-name-section',
     '--remove-producers-section',
 ]);
+
+const optimization = optimizeWasm(resolve(repoRoot, outDir, 'cem_ql_bg.wasm'));
+const reportRoot = resolve(repoRoot, 'dist/reports/wasm-optimization');
+mkdirSync(reportRoot, { recursive: true });
+writeFileSync(resolve(reportRoot, 'cem-ql.json'), `${JSON.stringify(optimization, null, 2)}\n`);
 
 // Owned wasm-bindgen classes expose Symbol.dispose; keep ES2022 consumers
 // compatible by declaring its ambient library in the generated artifact.

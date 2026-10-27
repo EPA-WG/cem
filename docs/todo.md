@@ -43,6 +43,15 @@ Completed [immediate persisted theme updates](archive/todo-completed-compact-stu
 
 ## Project builds and artifact previews
 
+Completed 2026-10-26: [complete-runtime WASM size budget](archive/todo-completed-wasm-size-budget-2026-10-26.md)
+pins post-bindgen Binaryen `-Oz`, retains all exports/capabilities and embedded
+schemas, and publishes 898 files with four WASM assets at 22.33/22.95 MiB.
+Strict size/count guards refuse before deployment mutation. Measured and regular
+build hashes match; deployed Studio, offline builds, galleries, themes and
+credential privacy checks pass. The archive distinguishes the source cohort's
+273/274 result and passing fallback rerun from the separate pre-existing XML
+byte-roundtrip defect; both follow-ups remain below.
+
 Completed 2026-10-26: [demo deployment file budget and owned cleanup](archive/todo-completed-demo-file-budget-2026-10-26.md)
 reduces `cem-bin` from 1,142 to 898 files, including its deterministic SHA-256
 inventory. Cleanup preserves modified obsolete and unrelated files; the 999-file
@@ -304,6 +313,10 @@ CLI, rebuilt WASM/worker, saved/offline preview and credential refusal checks
 pass. Plain-path configs retain their existing identity behavior.
 
 - [ ] Unify native collection-control manifest and sidecar publication across CLI and common command hosts. The runtime-only producer role now distinguishes real collections from lookalike application JSON. Preserve existing CLI sidecars and common inline collection metadata; add native collection export/owner/source-map fixtures before claiming exact cross-host manifest bytes or moving metadata between artifacts.
+
+- [ ] Repair XML reference reload-bundle byte roundtrips at `packages/cem_ql/tests/reference-transport-wasm.mjs:105`. Namespace/attribute ordering differs after export/import; the unchanged unoptimized CEM-QL release (`06b202cdf4ec0083497092b416361bb197d395fe71907ec1bafc2d9083c723b4`) and Binaryen `-Oz` output both fail the original assertion. Add native deterministic-order/roundtrip fixtures before repairing serialization; preserve exact-byte assertions, authored slots, source ownership and crossing-grant refusal. Keep this baseline defect separate from deployment optimization.
+
+- [ ] Attribute Studio's aggregate-only fallback recovery module-fetch failure: the complete source cohort passes 273/274 cases but rejects the dynamic import of `cem-elements/dist/index.js` after fallback WASM initialization and before workspace construction. The unchanged file exists and returns HTTP 200; the original case passes in a fresh isolated invocation. Add loading/lifecycle evidence before changing the runtime or harness; retain original deadlines, assertions, credential privacy and the 4 MiB budget, and do not label an isolated rerun as a green full cohort.
 
 - [ ] Design lossless typed CEM-ML inspection of source strings containing both single and double quotes, including embedded rich-content fences. The canonical `cem-card.xhtml` XML AST currently reaches the deliberate native attribute-string encoder refusal; keep that guard and original source bytes until an admitted representation exists. Add native round-trip fixtures before changing the writer/tokenizer contract. The HTML/CEM card project explicitly requests JSON for this one AST export; it is a presentation boundary, never an internal AST handoff.
 

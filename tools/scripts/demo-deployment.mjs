@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 
 export const DEMO_INVENTORY = 'demo-deployment.json';
 export const DEMO_FILE_LIMIT = 999;
+export const DEMO_FILE_SIZE_LIMIT = 25 * 1024 * 1024;
 const producer = 'cem-demo-site';
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const missing = error => { if (error.code === 'ENOENT') return undefined; throw error; };
@@ -48,9 +49,13 @@ export async function readDemoInventory(root) {
 }
 
 /** Publish explicit build outputs; only matching previously owned bytes may be retired. */
-export async function publishDemoDeployment({ destination, entries, legacyEntries = [], fileLimit = DEMO_FILE_LIMIT }) {
+export async function publishDemoDeployment({ destination, entries, legacyEntries = [], fileLimit = DEMO_FILE_LIMIT, fileSizeLimit = DEMO_FILE_SIZE_LIMIT }) {
     destination = resolve(destination);
     if (!Number.isSafeInteger(fileLimit) || fileLimit < 1) throw new Error('Invalid demo file limit.');
+    if (!Number.isSafeInteger(fileSizeLimit) || fileSizeLimit < 1) throw new Error('Invalid demo file size limit.');
+    const checkSize = (path, size) => {
+        if (size >= fileSizeLimit) throw new Error(`Demo file ${path} has ${size} bytes (must be below ${fileSizeLimit}). Destination was not updated.`);
+    };
     const checked = new Set();
     async function checkPath(path) {
         if (checked.has(path)) return;
@@ -79,6 +84,7 @@ export async function publishDemoDeployment({ destination, entries, legacyEntrie
     for (const entry of entries) {
         if (paths.has(entry.path)) throw new Error(`Duplicate deployment path: ${entry.path}`);
         paths.add(entry.path); records.push(await record(entry)); await checkFile(entry.path);
+        checkSize(entry.path, records.at(-1).bytes);
     }
     const oldRecords = previous?.files ?? await Promise.all(legacyEntries.map(record));
     const ownership = new Map();
@@ -100,6 +106,15 @@ export async function publishDemoDeployment({ destination, entries, legacyEntrie
     for (const path of paths) projected.add(path);
     projected.add(DEMO_INVENTORY);
     if (projected.size > fileLimit) throw new Error(`Demo would contain ${projected.size} files (limit ${fileLimit}); unrelated and modified files were preserved. Destination was not updated.`);
+    for (const path of projected) {
+        if (paths.has(path) || path === DEMO_INVENTORY) continue;
+        const info = await lstat(join(destination, path));
+        if (info.isFile()) checkSize(path, info.size);
+    }
+    records.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+    const inventory = { schemaVersion: 1, producer, fileCount: records.length + 1, files: records };
+    const content = `${JSON.stringify(inventory, null, 2)}\n`;
+    checkSize(DEMO_INVENTORY, Buffer.byteLength(content));
 
     await mkdir(destination, { recursive: true });
     for (const entry of entries) {
@@ -120,9 +135,6 @@ export async function publishDemoDeployment({ destination, entries, legacyEntrie
     }
     const totalFileCount = new Set([...(await listDemoFiles(destination)), DEMO_INVENTORY]).size;
     if (totalFileCount > fileLimit) throw new Error('Demo file count changed during publication.');
-    records.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
-    const inventory = { schemaVersion: 1, producer, fileCount: records.length + 1, files: records };
-    const content = `${JSON.stringify(inventory, null, 2)}\n`;
     const temporary = join(destination, `.demo-deployment-${randomUUID()}.tmp`);
     let created = false;
     try {

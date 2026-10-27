@@ -18,7 +18,7 @@ Build and copy CEM Studio and the elements, theme, component, and demo-viewer ga
 Default destination: ${defaultDestination}
 Runs yarn build:demo first; Nx reuses cached outputs when up to date.
 Shares the CEM-QL gallery runtime; the CEM-ML bridge and Studio retain their own deployments.
-Records managed files in demo-deployment.json and enforces a 999-file total.
+Records managed files in demo-deployment.json, enforces a 999-file total and files below 25 MiB.
 Unchanged obsolete managed files are removed; modified and unrelated files are kept.`);
 } else if (args.length > 1 || args.some((arg) => arg.startsWith('-'))) {
     console.error('Usage: node tools/scripts/copy-demo-site.mjs [destination]');
@@ -255,9 +255,6 @@ ${Object.entries(studioSecurity.headers).map(([name, value]) => `  ${name}: ${va
     for (const file of publication.preserved) console.warn(`Preserved modified obsolete file: ${file}`);
     for (const { file, size } of sources.filter(({ file }) => extname(file) === '.wasm')) {
         console.log(`WASM: ${file} (${mib(size)} MiB)`);
-        if (size > 25 * 1024 * 1024) {
-            console.warn(`  Exceeds the 25 MiB per-file hosting limit listed in docs/wasm-deployment-size.md.`);
-        }
     }
     console.log(`Serve ${destination} as the HTTP document root; open /index.html.`);
 }

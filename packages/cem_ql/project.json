@@ -126,9 +126,11 @@
                 "{projectRoot}/Cargo.toml",
                 "rustDependencies",
                 "{workspaceRoot}/tools/scripts/build-cem-ql-wasm.mjs",
-                "{workspaceRoot}/tools/scripts/cem-ql-wasm-factory.mjs"
+                "{workspaceRoot}/tools/scripts/cem-ql-wasm-factory.mjs",
+                "{workspaceRoot}/tools/scripts/wasm-opt.mjs",
+                { "externalDependencies": ["binaryen"] }
             ],
-            "outputs": ["{workspaceRoot}/dist/target/cem_ql/wasm32-unknown-unknown", "{projectRoot}/dist/wasm"]
+            "outputs": ["{workspaceRoot}/dist/target/cem_ql/wasm32-unknown-unknown", "{projectRoot}/dist/wasm", "{workspaceRoot}/dist/reports/wasm-optimization/cem-ql.json"]
         },
         "bench": {
             "cache": false,

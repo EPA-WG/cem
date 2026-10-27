@@ -182,7 +182,10 @@ realm. The canonical loader and binary live in `packages/cem_ql/dist/wasm/`.
 It preserves repository-relative paths and adds navigation in `index.html`,
 `404.html`, and `_headers`. Serve the destination as the HTTP document root with
 `.wasm` served as `application/wasm`. Both WASM builds use Cargo's release profile
-and omit the WASM name and producer sections. The standalone CEM-QL browser build
+and omit the WASM name and producer sections, then run pinned Binaryen 132.0.0
+`wasm-opt -Oz` before generating integrity records and deployment pins. All
+runtime exports, default capabilities and embedded schemas remain enabled.
+The standalone CEM-QL browser build
 is `yarn nx run cem_ql:build:wasm`; the CEM-ML browser build is
 `yarn nx run @epa-wg/cem-ml:build`. Before copying, the script builds all required
 packages, checks both bundled CEM-QL loaders/binaries against the release output,
@@ -201,12 +204,14 @@ copy removes unchanged obsolete owned files and preserves modified obsolete
 files and unrelated files. Matching current outputs are overwritten as before.
 The first migration recognizes the previous copier's known outputs by
 hash. A preflight guard refuses an update exceeding **999 total files**, including
-unrelated files, before writing or deleting deployment files.
+unrelated files, or containing a file **at or above 25 MiB**, before writing or
+deleting deployment files. The current deployment has 898 files and four WASM
+assets at 22.33 MiB (two copies) and 22.95 MiB (two copies).
 Source maps, TypeScript files,
 dependency trees, debug token artifacts, Figma exports, build reports, and native
 compiler output are excluded from the gallery trees. Studio's complete graph
-outputs are copied intact. The script reports
-WASM sizes and flags files above the hosting limit recorded in the size analysis.
+outputs are copied intact. The script reports the final WASM sizes after both
+hosting bounds pass.
 See the [WASM deployment size analysis](docs/wasm-deployment-size.md) for measured
 release sizes, shared-runtime verification, and further optimization options.
 

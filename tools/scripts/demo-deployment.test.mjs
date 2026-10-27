@@ -77,3 +77,49 @@ test('rejects symlinked managed paths and inventory files without changing outsi
     await assert.rejects(publishDemoDeployment({ destination, entries: [entry('index.html', 'bad')] }), /symbolic link/);
     assert.equal(await readFile(join(outside, 'secret'), 'utf8'), 'keep');
 });
+test('size limit is strict for generated and source bytes and refuses before mutation', async t => {
+    const { destination, parent } = await fixture(t);
+    await publishDemoDeployment({ destination, entries: [entry('old.html', 'keep')] });
+    const previous = await readFile(join(destination, DEMO_INVENTORY));
+    const source = join(parent, 'large.wasm'); await writeFile(source, Buffer.alloc(2048));
+    for (const oversized of [entry('large.wasm', Buffer.alloc(2048)), { path: 'large.wasm', source }]) {
+        await assert.rejects(publishDemoDeployment({ destination, fileSizeLimit: 2048,
+            entries: [entry('index.html', 'new'), oversized] }), /must be below 2048/);
+        assert.deepEqual(await readFile(join(destination, DEMO_INVENTORY)), previous);
+        assert.equal(await readFile(join(destination, 'old.html'), 'utf8'), 'keep');
+        assert.equal((await listDemoFiles(destination)).includes('index.html'), false);
+    }
+    const result = await publishDemoDeployment({ destination, fileSizeLimit: 2048, entries: [entry('fits.wasm', Buffer.alloc(2047))] });
+    assert.equal(result.inventory.files[0].bytes, 2047);
+});
+test('retained unrelated or edited oversized files block publication without being removed', async t => {
+    for (const path of ['personal.bin', 'edited.js']) {
+        const { destination } = await fixture(t);
+        await publishDemoDeployment({ destination, entries: [entry('edited.js', 'old')] });
+        await writeFile(join(destination, path), Buffer.alloc(2048));
+        const previous = await readFile(join(destination, DEMO_INVENTORY));
+        await assert.rejects(publishDemoDeployment({ destination, fileSizeLimit: 2048, entries: [entry('new.js', 'new')] }), /must be below 2048/);
+        assert.deepEqual(await readFile(join(destination, DEMO_INVENTORY)), previous);
+        assert.equal((await readFile(join(destination, path))).length, 2048);
+    }
+});
+test('inventory size and invalid size limits are checked before publication', async t => {
+    const { destination } = await fixture(t);
+    await assert.rejects(publishDemoDeployment({ destination, fileSizeLimit: 64, entries: [entry('a', 'a')] }), /demo-deployment.json/);
+    for (const fileSizeLimit of [0, -1, NaN, 1.5]) await assert.rejects(publishDemoDeployment({ destination, fileSizeLimit, entries: [] }), /Invalid/);
+    assert.deepEqual(await listDemoFiles(destination), []);
+});
+test('the default hosting policy refuses a file of exactly 25 MiB', async t => {
+    const { destination, parent } = await fixture(t);
+    const source = join(parent, 'limit.wasm'); await writeFile(source, Buffer.alloc(25 * 1024 * 1024));
+    await assert.rejects(publishDemoDeployment({ destination, entries: [{ path: 'limit.wasm', source }] }), /must be below 26214400/);
+    assert.deepEqual(await listDemoFiles(destination), []);
+});
+test('a compliant deployment may replace oversized owned files and retire unchanged oversized stale files', async t => {
+    const { destination } = await fixture(t);
+    await publishDemoDeployment({ destination, entries: [entry('runtime.wasm', Buffer.alloc(2048)), entry('stale.wasm', Buffer.alloc(2048))] });
+    const result = await publishDemoDeployment({ destination, fileSizeLimit: 2048, entries: [entry('runtime.wasm', Buffer.alloc(2047))] });
+    assert.deepEqual(result.removed, ['stale.wasm']);
+    assert.equal((await readFile(join(destination, 'runtime.wasm'))).length, 2047);
+    assert.deepEqual(await listDemoFiles(destination), [DEMO_INVENTORY, 'runtime.wasm']);
+});
