@@ -206,25 +206,27 @@ fn element_template_identity_still_rejects_an_undeclared_login_binding() {
     let broken = original.replace("dom:text(heading)", "dom:text(not_declared)");
     assert_ne!(broken, original);
     fs::write(&path, &broken).unwrap();
-    let (output, report) = execute("validate", &path, ELEMENT_TYPE, ELEMENT_SCHEMA, &scratch.0);
-    assert_eq!(output.status.code(), Some(1));
-    let errors: Vec<_> = report["diagnostics"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|item| item["severity"] == "error")
-        .collect();
-    assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0]["code"], "cem.ql.render.compile_failed");
-    assert_eq!(errors[0]["uri"], path.to_str().unwrap());
-    assert_eq!(
-        errors[0]["byteOffset"],
-        broken.find("{$str:normalize_space").unwrap()
-    );
-    assert!(errors[0]["message"]
-        .as_str()
-        .unwrap()
-        .contains("not_declared"));
+    for operation in ["validate", "check"] {
+        let (output, report) = execute(operation, &path, ELEMENT_TYPE, ELEMENT_SCHEMA, &scratch.0);
+        assert_eq!(output.status.code(), Some(1));
+        let errors: Vec<_> = report["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|item| item["severity"] == "error")
+            .collect();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0]["code"], "cem.ql.render.compile_failed");
+        assert_eq!(errors[0]["uri"], path.to_str().unwrap());
+        assert_eq!(
+            errors[0]["byteOffset"],
+            broken.find("{$str:normalize_space").unwrap()
+        );
+        assert!(errors[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("not_declared"));
+    }
     fs::write(&path, original).unwrap();
     assert!(
         execute("validate", &path, ELEMENT_TYPE, ELEMENT_SCHEMA, &scratch.0)

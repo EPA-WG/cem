@@ -3475,6 +3475,17 @@ partial output; their diagnostics view remains available. Ordinary previews and
 document conversion retain their existing rendering pipeline. Portable Studio
 project control-source adapters remain a separate tracked limitation.
 
+Login element-template validation now uses the same native embedding compiler
+in CLI and worker command services. Changing `dom:text(heading)` to
+`dom:text(not_declared)` produces one `cem.ql.render.compile_failed` error at
+original byte **655**, with its original URI and source maps. The 15 existing
+attribute warnings remain advisory. Restoring the declared `heading` clears the
+error in independent saved sources. Declared locals and the existing runtime
+host binding policy remain admitted; this is compile-time validation and does
+not fetch Login data, evaluate bindings or send credentials. Source admission,
+reload ownership, cancellation and validation budgets keep their existing
+guards. Entered passwords and one-time codes still block recovery until cleared.
+
 The native template is an ordinary editable project resource. Its two render
 configurations produce the complete `expected/view.html` contract through the
 existing CEMT adapter and native HTML writer. Source heading/label/method edits

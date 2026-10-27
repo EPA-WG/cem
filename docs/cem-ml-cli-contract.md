@@ -679,6 +679,16 @@ Current implementation status:
   colorizer; `--out` writes the same CEM-ML syntax without ANSI escapes.
   `parse --format ast-json|events-json|dom-json|json` and
   `inspect --format json` are the explicit JSON presentation boundaries.
+  Element-template Validate and Check use the shared composed runtime's admitted
+  source stage to compile CEM-QL embeddings after lifecycle/schema validation.
+  CLI and common command services therefore report the same undeclared lexical
+  names, original URI, byte offset and source maps. The CLI does not run a second
+  element-template embedding pass. Declared locals and the existing runtime host
+  binding policy remain available; validation compiles expressions without
+  evaluating them or fetching template data. Malformed or unadmitted sources,
+  pending validation and native reload ingress do not enter this byte-source
+  supplement. Cancellation checks surround the stage, and its work is included
+  in the existing validation time budget.
   Inspect responses publish diagnostics from the selected operation separately
   from the presentation body. CLI `inspect --report-json`, `--report` and
   `--report-md` export that same diagnostic set; callers do not need a second

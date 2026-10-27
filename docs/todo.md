@@ -372,7 +372,8 @@ errors retain their severity and ranges, and old saved identities are not
 rewritten. Declarative layout containers keep complete worker/fallback recovery
 within the existing DOM/4 MiB guards. Native catalog, editing/live view,
 credential refusal, independent saved/offline copies and assembled demos pass.
-The separately observed CLI/worker undeclared-binding gap remains actionable below.
+The separately observed CLI/worker undeclared-binding gap is corrected in the
+[Login validation parity work](archive/todo-completed-login-validation-parity-2026-10-27.md).
 
 Completed 2026-10-27: [JSON/YAML source Parse identities and diagnostics](archive/todo-completed-structured-data-source-identity-2026-10-27.md)
 routes JSON, YAML and JSON Schema Parse/Inspect through retained native import,
@@ -405,7 +406,17 @@ worker/fallback Login recovery checks pass without relaxing credential privacy,
 checkpoint budgets or deadlines. The demo retains 898 files and four WASMs below
 25 MiB.
 
-- [ ] Align element-template semantic validation across CLI and the Studio worker host. Replacing `dom:text(heading)` with `dom:text(not_declared)` in Login fails CLI Validate with `cem.ql.render.compile_failed` at original byte 655, while worker Validate returns zero errors and 15 advisory attribute warnings. Preserve this observed discrepancy, actual runtime-binding/deferred-compilation policy and original diagnostics; do not claim strict undeclared-binding conformance from worker success. Add native command-context fixtures before changing shared preparation/validation; malformed source must continue to refuse.
+Completed 2026-10-27: [Login validation parity](archive/todo-completed-login-validation-parity-2026-10-27.md)
+runs element-template embedding checks in the shared admitted-source engine path,
+retiring the duplicate CLI Validate/Check pass. CLI and worker now reject the
+same undeclared Login binding at original byte 655, preserving source maps,
+15 advisory warnings, declared/runtime bindings and repair. Native admission,
+reload ownership, cancellation and validation budgets remain guarded. All 549
+CLI library tests, WASM/Studio source checks, complete worker/fallback Login
+recovery, native and online/offline catalog acceptance and demo checks pass.
+Credential refusal, original checkpoint/deadline limits and shared declarative
+UI principles remain intact; deployment retains 898 files and four WASMs below
+25 MiB.
 
 - [ ] Expose typed native source operations for CLI command/run-config and Studio control encodings without duplicating their grammar in JavaScript. CLI command envelope validation works, but generic Parse/Inspect/format still route to unsupported or erroneous source paths; run configs currently have only their real CLI loader/normalizer, not a registered standalone source adapter. Studio source conversion and CEM structural Inspect work; generic Studio-control JSON/CEM Parse and JSON Inspect retain source-identity gaps. Add failing native source/exit-status fixtures before enabling these operations; preserve existing native command/plan inspection and preparation refusals.
 

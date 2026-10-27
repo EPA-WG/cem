@@ -35,6 +35,15 @@ impl InputValidationStage for Stage {
         })
     }
 }
+#[derive(Debug)]
+struct ReloadByteSupplement;
+impl cem_ml::engine::SourceValidationStage for ReloadByteSupplement {
+    fn validate(&self, _: &EngineInput) -> Option<Vec<cem_ml::diagnostics::Diagnostic>> { None }
+    fn validate_admitted(&self, _: &EngineInput, _: &cem_ml::engine::FormatIdentity, _: cem_ml::engine::InputFormat) -> Vec<cem_ml::diagnostics::Diagnostic> {
+        panic!("reload ingress must not be reinterpreted as source bytes")
+    }
+}
+
 #[test]
 fn engine_admission_reuses_the_owner_and_guards_missing_capture_before_the_stage() {
     let limits = ReloadLimits::default();
@@ -46,6 +55,7 @@ fn engine_admission_reuses_the_owner_and_guards_missing_capture_before_the_stage
         calls: AtomicUsize::new(0),
     });
     let mut context = EngineContext::default();
+    context.source_validation_stages.push(Arc::new(ReloadByteSupplement));
     context.schema = Some("memory:schema".into());
     context
         .schema_document_models

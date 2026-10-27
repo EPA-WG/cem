@@ -225,6 +225,18 @@ impl Default for EngineContext {
 /// Returning None leaves the input to the normal lifecycle/schema pipeline.
 pub trait SourceValidationStage: std::fmt::Debug + Send + Sync {
     fn validate(&self, input: &EngineInput) -> Option<Vec<Diagnostic>>;
+
+    /// Supplement an ordinary byte source after lifecycle/schema admission has
+    /// completed without hard diagnostics. This does not claim its grammar or
+    /// replace schema validation, and is not called for native reload ingress.
+    fn validate_admitted(
+        &self,
+        _input: &EngineInput,
+        _identity: &FormatIdentity,
+        _from_format: InputFormat,
+    ) -> Vec<Diagnostic> {
+        Vec::new()
+    }
 }
 
 /// Native source-language tooling before document-data import. A claimed but

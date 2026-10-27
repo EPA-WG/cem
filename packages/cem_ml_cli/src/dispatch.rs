@@ -3279,16 +3279,19 @@ fn collect_embedding_diagnostics(
     let mut diagnostics = Vec::new();
     for input in inputs {
         let from = input.from_format.unwrap_or(eng::InputFormat::Cem);
-        diagnostics.extend(
-            cem_ml_transform_cem_ql::validate_cem_ql_template_embedding_source_bytes(
-                CemQlTemplateEmbeddingValidationRequest {
-                    bytes: &input.bytes,
-                    from_format: from,
-                    source_uri: Some(&input.uri),
-                    identity: CemQlTemplateEmbeddingIdentity::from(input.identity.as_ref()),
-                },
-            ),
-        );
+        let identity = CemQlTemplateEmbeddingIdentity::from(input.identity.as_ref());
+        if !cem_ml_transform_cem_ql::cem_ql_template_embedding_is_engine_owned(identity) {
+            diagnostics.extend(
+                cem_ml_transform_cem_ql::validate_cem_ql_template_embedding_source_bytes(
+                    CemQlTemplateEmbeddingValidationRequest {
+                        bytes: &input.bytes,
+                        from_format: from,
+                        source_uri: Some(&input.uri),
+                        identity: CemQlTemplateEmbeddingIdentity::from(input.identity.as_ref()),
+                    },
+                ),
+            );
+        }
         diagnostics.extend(collect_cem_native_template_expression_diagnostics(input));
     }
     diagnostics

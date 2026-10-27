@@ -11300,6 +11300,25 @@ fn run_scheduled_validation_document(
             }
         }
     }
+    if complete
+        && pending.is_none()
+        && !context.reload_validation_sources.contains_key(&input.uri)
+        && !input_diags
+            .iter()
+            .chain(&runtime_diagnostics)
+            .any(|d| d.severity.is_hard_violation())
+    {
+        let identity = effective_input_identity(input, context);
+        for stage in &context.source_validation_stages {
+            context.ensure_active()?;
+            runtime_diagnostics.extend(stage.validate_admitted(
+                input,
+                &identity,
+                loaded.from_format,
+            ));
+            context.ensure_active()?;
+        }
+    }
     context.ensure_active()?;
     let aliases = budget_aliases
         .iter()

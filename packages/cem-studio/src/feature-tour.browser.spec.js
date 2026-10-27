@@ -1266,11 +1266,18 @@ describe('CEM Studio Feature Tour copies', () => {
             expect(parsed.output.text).toContain(project === 'login-live-one' ? 'Continue locally' : 'Sign in locally');
             check(await validator.parseResource(options), project);
             check(await validator.validateResource(options), project);
-            // Preserve the observed host-semantic gap as separate evidence:
-            // CLI rejects this undeclared binding; worker validation defers it.
-            // This is tracked in TODO and is not strict binding conformance.
             const undeclared = text.replace('dom:text(heading)', 'dom:text(not_declared)');
-            check(await validator.validateResource({ ...options, bytes: new TextEncoder().encode(undeclared) }), project);
+            const refused = await validator.validateResource({ ...options, bytes: new TextEncoder().encode(undeclared) }).catch(error => error);
+            expect(refused.result.exitCode).toBe(1);
+            const errors = refused.result.diagnostics.items.filter(item => item.severity === 'error' || item.severity === 'fatal');
+            expect(errors).toHaveLength(1);
+            expect(errors[0]).toMatchObject({ code: 'cem.ql.render.compile_failed', severity: 'error',
+                uri: `studio://${project}/views/login.cem`, byteOffset: 655 });
+            expect(errors[0].message).toContain('not_declared');
+            expect(errors[0].line ?? null).toBe(null); expect(errors[0].column ?? null).toBe(null);
+            expect(errors[0].sourceMap.frames.length).toBeGreaterThan(0);
+            expect(refused.result.diagnostics.items.filter(item => item.severity === 'warning')).toHaveLength(15);
+            check(await validator.validateResource(options), project);
             const malformed = text.slice(0, -2);
             await expect(validator.validateResource({ ...options, bytes: new TextEncoder().encode(malformed) })).rejects.toMatchObject({ result: {
                 exitCode: 1, diagnostics: { items: expect.arrayContaining([expect.objectContaining({

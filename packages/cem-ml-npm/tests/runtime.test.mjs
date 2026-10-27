@@ -1023,3 +1023,66 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
     assert.equal(terminal.text.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, ''), plain.text);
   });
 }
+
+for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
+  test(`Login element-template validation parity in ${runtimeKind}`, async () => {
+    const runtime = runtimeKind === 'wasm-node'
+      ? await import('@epa-wg/cem-ml/wasm') : await import('../dist/wasm/browser/cem_ml.js');
+    if (runtimeKind !== 'wasm-node') await runtime.default({ module_or_path: await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url)) });
+    const source = await readFile(new URL('../../../examples/projects/login/views/login.cem', import.meta.url), 'utf8');
+    const uri = 'studio://login-validation/views/login.cem';
+    const contentType = 'application/vnd.cem.element-template+cem', schema = 'https://cem.dev/ns/template/cem-element/1';
+    let sequence = 0;
+    const execute = async (text, kind = 'validate') => {
+      const bytes = new TextEncoder().encode(text);
+      const request = {
+        protocolVersion: 1, requestId: `login-validation:${runtimeKind}:${++sequence}`,
+        project: { projectId: 'login-validation', revision: 1 },
+        resourceVersions: { [uri]: { revision: 1, sha256: createHash('sha256').update(bytes).digest('hex') } },
+        operation: { kind, inputIds: ['input:0'], projection: 'json', ...(kind === 'check' ? { zeroHardViolations: true } : {}) },
+        runPlan: JSON.parse(runtime.normalizeCommandRunPlanV1(JSON.stringify({ configBytes: [
+          ...new TextEncoder().encode(JSON.stringify({ inputs: [{ uri, rootScope: { defaultContentType: contentType, schema } }], outputs: [] })),
+        ] }))),
+        resources: { [uri]: { bytes: [...bytes], identity: { contentType, schema } } },
+        policyStamp: { resolver: 'login-resolver', safety: 'login-safety', budget: 'login-budget' },
+      };
+      let publication;
+      try {
+        return JSON.parse(await runtime.executeCommandServiceV1(JSON.stringify(request),
+          JSON.stringify({ runtime: runtimeKind, targetIdentity: 'runtime-test:login', abiIdentity: 'runtime-test-v1', debugControlActive: false }),
+          async () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
+          async () => assert.fail('validation must not fetch Login data or send credentials'),
+          async (json) => { publication = JSON.parse(json); return JSON.stringify({ token: 'validation' }); },
+          async () => JSON.stringify({ uri: publication.uri }), async () => {},
+        ));
+      } finally { runtime.disposeCommandArtifactsV1(request.requestId); }
+    };
+    const valid = await execute(source);
+    assert.equal(valid.exitCode, 0, JSON.stringify(valid));
+    assert.equal(valid.diagnostics.items.length, 15);
+    assert.ok(valid.diagnostics.items.every(d => d.severity === 'warning'));
+    const broken = source.replace('dom:text(heading)', 'dom:text(not_declared)');
+    assert.notEqual(broken, source);
+    for (const kind of ['validate', 'check']) {
+      const result = await execute(broken, kind);
+      assert.equal(result.status, 'failed', JSON.stringify(result));
+      assert.equal(result.exitCode, 1);
+      const errors = result.diagnostics.items.filter(d => ['error', 'fatal'].includes(d.severity));
+      assert.equal(errors.length, 1);
+      assert.equal(errors[0].code, 'cem.ql.render.compile_failed');
+      assert.equal(errors[0].uri, uri);
+      assert.equal(errors[0].byteOffset, 655);
+      assert.equal(errors[0].line ?? null, null);
+      assert.equal(errors[0].column ?? null, null);
+      assert.ok(errors[0].message.includes('not_declared'));
+      assert.ok(errors[0].sourceMap.frames.length > 0);
+      assert.equal(result.diagnostics.items.filter(d => d.severity === 'warning').length, 15);
+    }
+    const malformed = await execute(source.slice(0, -2));
+    assert.equal(malformed.exitCode, 1);
+    assert.ok(malformed.diagnostics.items.some(d => d.code === 'cem.tokenizer.unterminated_node' && d.uri === uri));
+    const repaired = await execute(source);
+    assert.equal(repaired.exitCode, 0);
+    assert.deepEqual(repaired.diagnostics.items, valid.diagnostics.items);
+  });
+}

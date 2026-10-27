@@ -1927,6 +1927,24 @@ pub fn register_cem_ql_runtime_adapters(context: &mut EngineContext) {
 struct CemQlSourceValidationStage;
 
 impl cem_ml::engine::SourceValidationStage for CemQlSourceValidationStage {
+    fn validate_admitted(
+        &self,
+        input: &cem_ml::engine::EngineInput,
+        identity: &FormatIdentity,
+        from_format: InputFormat,
+    ) -> Vec<Diagnostic> {
+        let identity = CemQlTemplateEmbeddingIdentity::from(Some(identity));
+        if !cem_ql_template_embedding_is_engine_owned(identity) {
+            return Vec::new();
+        }
+        validate_cem_ql_template_embedding_source_bytes(CemQlTemplateEmbeddingValidationRequest {
+            bytes: &input.bytes,
+            from_format,
+            source_uri: Some(&input.uri),
+            identity,
+        })
+    }
+
     fn validate(&self, input: &cem_ml::engine::EngineInput) -> Option<Vec<Diagnostic>> {
         let identity = input
             .identity
@@ -2943,6 +2961,14 @@ fn cem_ql_template_identity_is_native_template(
                 cem_ml::schema::registry::CEM_NATIVE_TEMPLATE_CONTENT_TYPE
             )
         })
+}
+
+/// Element-template semantics run in admitted engine validation for every host.
+/// Other CLI embedding checks retain their existing consumer-specific paths.
+pub fn cem_ql_template_embedding_is_engine_owned(
+    identity: CemQlTemplateEmbeddingIdentity<'_>,
+) -> bool {
+    cem_ql_template_identity_is_cem_element(identity)
 }
 
 fn cem_ql_template_identity_is_cem_element(identity: CemQlTemplateEmbeddingIdentity<'_>) -> bool {
