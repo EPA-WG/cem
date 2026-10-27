@@ -1,7 +1,7 @@
 {
   "id": "module-maps",
   "name": "Module-map deployments",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Compare native v1/v2/v3 paired deployment maps, explicit resource copying and declared module-edge rewrites, with syntax/source controls, semantic planning refusals, native asset hashes and independent offline builds.",
   "collections": [
     "content-types-schema-authoring",
@@ -295,9 +295,10 @@
         "--no-color"
       ],
       "expectedText": [
-        "@schema=https://cem.dev/ns/cem-ml/1",
+        "@schema=https://cem.dev/ns/data/module-map/1",
         "imports",
-        "@byte-offset="
+        "@byte-offset=",
+        "@content-type=\"application/vnd.cem.module-map+json\""
       ]
     },
     {
@@ -453,9 +454,10 @@
         "--no-color"
       ],
       "expectedText": [
-        "@schema=https://cem.dev/ns/cem-ml/1",
+        "@schema=https://cem.dev/ns/data/module-map/2",
         "imports",
-        "@byte-offset="
+        "@byte-offset=",
+        "@content-type=\"application/vnd.cem.module-map+json\""
       ]
     },
     {
@@ -623,9 +625,10 @@
         "--no-color"
       ],
       "expectedText": [
-        "@schema=https://cem.dev/ns/cem-ml/1",
+        "@schema=https://cem.dev/ns/data/module-map/3",
         "imports",
-        "@byte-offset="
+        "@byte-offset=",
+        "@content-type=\"application/vnd.cem.module-map+json\""
       ]
     },
     {

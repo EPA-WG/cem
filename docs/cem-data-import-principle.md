@@ -69,6 +69,18 @@ semantic canonicalization. This is structural presentation, not a second query
 tree or an implicit JSON export. Original lexical XML spelling stays in the
 import-owned provenance.
 
+JSON, YAML and JSON Schema source Parse/Inspect consume this retained import,
+without passing original data bytes through the CEM tokenizer or compiling
+query-looking strings. JSON Schema retains its original schema owner while
+mapping its native JSON values through generic-data import; its dialect
+admission remains enforced. AST/events presentation identities describe the
+output vocabulary, while root metadata identifies the selected source
+schema/MIME, original URI and ranges. Events describe the imported common tree,
+not lexical JSON/YAML tokens. Native syntax/admission errors and import limits
+refuse structural publication; diagnostic inspection remains available. Named
+DOM/AST/events JSON exports stay explicit output boundaries. CLI failure policy
+still determines exit status; strict source examples select `--fail-level validate`.
+
 XML PI target/data fields are resolved at import for both inspection and
 CEM-QL. Consumers use the imported target (`node.name` in CEM-QL) and `value`
 directly, never split a raw PI body.
@@ -94,6 +106,7 @@ layer; they are not implemented by dropping or remapping rows in an evaluator.
 | SVG | Select the dedicated SVG owner before generic `+xml`; apply stored family and XML safety facts, then reuse XML semantic import under the same bounds. | Expanded-name queries, retained nodes and source maps with SVG attribute case and original ranges; no external-resource or script grant. |
 | MathML | Retain the generic/presentation/content MIME identity and selected profile; apply existing family/XML hard facts without promoting annotation warnings or replacing the owner. | The same CEM navigation and native templates with original namespaces/ranges. Source validation does not sanitize arbitrary markup or provide algebra/rendering conformance. |
 | JSON | Select generic-data or standard JSON-to-XML vocabulary; preserve member order, null and numeric spelling under the declared import policy. | The same node operations, including nodes retained inside XPath arrays/maps. |
+| JSON Schema | Retain the native schema document and its JSON owner; enforce source/dialect facts and ordinary JSON import limits before mapping to generic-data nodes. | Structural source operations preserve schema/MIME and original ranges; `$defs`/`$ref` are inert data, without instance validation or reference resolution. |
 | YAML | Parse native YAML and import generic-data nodes; enforce the bounded profile and reject unsupported aliases, anchors and explicit tags. | The same node operations and source coordinates. |
 | CSV | Parse native rows and headers; import generic-data nodes with string-valued fields. | The same node operations; numeric casts remain explicitly authored. |
 

@@ -788,6 +788,7 @@ pub fn try_retain_lifecycle(
             | LoadedInputAstStream::MathMlDocument(_)
             | LoadedInputAstStream::HtmlDocument(_)
             | LoadedInputAstStream::JsonDocument(_)
+            | LoadedInputAstStream::JsonSchemaDocument(_)
             | LoadedInputAstStream::CsvDocument(_)
             | LoadedInputAstStream::YamlDocument(_)
             | LoadedInputAstStream::CssDocument(_)
@@ -824,6 +825,9 @@ pub fn retain_lifecycle(native: Arc<LoadedInputAstStream>) -> Result<Arc<Retaine
             doc.source.uri.clone(),
             doc.source.media_type.clone(),
             doc.source.byte_length,
+        ),
+        LoadedInputAstStream::JsonSchemaDocument(doc) => (
+            doc.source.uri.clone(), doc.source.media_type.clone(), doc.source.byte_length,
         ),
         LoadedInputAstStream::CsvDocument(doc) => (
             doc.source.uri.clone(),
@@ -884,31 +888,13 @@ fn validate_data_ast(native: &LoadedInputAstStream, max_values: usize) -> Result
             }
         }
         LoadedInputAstStream::XmlDocument(doc) => validate_xml_limits(doc, max_values)?,
-        LoadedInputAstStream::JsonDocument(doc) => {
-            if let Some(fact) = doc.parse_facts.iter().find(|fact| fact.fatal) {
+        LoadedInputAstStream::JsonSchemaDocument(doc) => {
+            validate_json_limits(&doc.json, max_values)?;
+            if let Some(fact) = doc.dialect_facts.iter().find(|fact| fact.fatal) {
                 return Err(ImportFailure::new(Malformed, fact.message.clone()));
             }
-            let mut pending: Vec<_> = doc.root.iter().map(|value| (value, 0)).collect();
-            let mut count = 0;
-            while let Some((value, depth)) = pending.pop() {
-                count += 1;
-                if depth > MAX_DEPTH || count > max_values {
-                    return Err(ImportFailure::new(
-                        Limit,
-                        format!("JSON exceeds the 64-level / {max_values}-value import limit."),
-                    ));
-                }
-                match value {
-                    json::JsonValueAst::Object { members, .. } => {
-                        pending.extend(members.iter().map(|m| (&m.value, depth + 1)))
-                    }
-                    json::JsonValueAst::Array { items, .. } => {
-                        pending.extend(items.iter().map(|v| (v, depth + 1)))
-                    }
-                    _ => {}
-                }
-            }
         }
+        LoadedInputAstStream::JsonDocument(doc) => validate_json_limits(doc, max_values)?,
         LoadedInputAstStream::YamlDocument(doc) => {
             if let Some(fact) = doc.parse_facts.iter().find(|fact| fact.fatal) {
                 return Err(ImportFailure::new(Malformed, fact.message.clone()));
@@ -948,6 +934,37 @@ fn validate_data_ast(native: &LoadedInputAstStream, max_values: usize) -> Result
             }
         }
         _ => {}
+    }
+    Ok(())
+}
+
+fn validate_json_limits(
+    doc: &json::JsonDocumentAst,
+    max_values: usize,
+) -> Result<(), ImportFailure> {
+    use ImportFailureKind::*;
+    if let Some(fact) = doc.parse_facts.iter().find(|fact| fact.fatal) {
+        return Err(ImportFailure::new(Malformed, fact.message.clone()));
+    }
+    let mut pending: Vec<_> = doc.root.iter().map(|value| (value, 0)).collect();
+    let mut count = 0;
+    while let Some((value, depth)) = pending.pop() {
+        count += 1;
+        if depth > MAX_DEPTH || count > max_values {
+            return Err(ImportFailure::new(
+                Limit,
+                format!("JSON exceeds the 64-level / {max_values}-value import limit."),
+            ));
+        }
+        match value {
+            json::JsonValueAst::Object { members, .. } => {
+                pending.extend(members.iter().map(|m| (&m.value, depth + 1)))
+            }
+            json::JsonValueAst::Array { items, .. } => {
+                pending.extend(items.iter().map(|v| (v, depth + 1)))
+            }
+            _ => {}
+        }
     }
     Ok(())
 }
@@ -1005,6 +1022,7 @@ fn project_native(
         ("cem", owner) => {
             let data = match owner {
                 LoadedInputAstStream::JsonDocument(doc) => doc.to_generic_data_ast(),
+                LoadedInputAstStream::JsonSchemaDocument(doc) => doc.json.to_generic_data_ast(),
                 LoadedInputAstStream::CsvDocument(doc) => doc.to_generic_data_ast(),
                 LoadedInputAstStream::YamlDocument(doc) => doc.to_generic_data_ast(),
                 _ => return Err("Unsupported CEM data import.".into()),

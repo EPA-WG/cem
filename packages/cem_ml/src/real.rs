@@ -6,6 +6,7 @@
 //! replaces `NotImplementedEngine` in `cem-ml-cli/src/main.rs`.
 
 mod source_inspection;
+mod imported_source;
 mod projection_source_validation;
 #[cfg(not(target_arch = "wasm32"))]
 mod validation_resources;
@@ -11964,6 +11965,13 @@ impl CemMlEngine for RealCemMlEngine {
             return source_inspection::parse(&request, source);
         }
         let mut loaded = load_document_input(&request.input, &request.context);
+        if let Some(source) = imported_source::load(&request.input, &request.context, &loaded, match request.projection {
+            ParseProjection::Ast => Some(InspectView::Ast),
+            ParseProjection::Events => Some(InspectView::Events),
+            _ => None,
+        }) {
+            return imported_source::parse(&request, source, started_at);
+        }
         if let Some(mut source) = source_inspection::native_lifecycle_parse(
             &request.input,
             &request.context,
@@ -12110,6 +12118,9 @@ impl CemMlEngine for RealCemMlEngine {
             return source_inspection::inspect(&request, source, started_at);
         }
         let loaded = load_document_input(&request.input, &request.context);
+        if let Some((source, _)) = imported_source::load(&request.input, &request.context, &loaded, Some(request.show)) {
+            return source_inspection::inspect(&request, source, started_at);
+        }
         let from_format = loaded.from_format;
         let run = run_pipeline_as_scoped_with_context_and_source_uri(
             &loaded.bytes,

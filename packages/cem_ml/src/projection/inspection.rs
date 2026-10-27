@@ -213,3 +213,123 @@ fn covering_range(source: &SourceMapStack) -> Option<(u64, u64)> {
     }
     (start != u64::MAX).then(|| (start, end.saturating_sub(start)))
 }
+
+/// Normalized events of the imported common tree, not lexical source tokens.
+/// The original native owner and source ranges remain retained throughout.
+pub(crate) fn cem_tree_events_with_identity(
+    owner: Arc<RetainedCemTree>,
+    schema: &str,
+    content_type: &str,
+) -> CemTreeAstStream {
+    use super::CEM_EVENTS_PROJECTION_SCHEMA_URI;
+    let source = owner
+        .node(0)
+        .expect("retained document root")
+        .source
+        .clone();
+    let mut pending = vec![(0, false)];
+    let mut rows = Vec::new();
+    while let Some((id, closing)) = pending.pop() {
+        let Some(node) = owner.ast().get(id) else {
+            continue;
+        };
+        let (kind, node_kind, name, value) = match node {
+            CemAstNode::Document { root_children, .. } => {
+                pending.extend(root_children.iter().rev().map(|&id| (id, false)));
+                continue;
+            }
+            CemAstNode::Element {
+                expanded_name,
+                attributes,
+                children,
+                ..
+            } => {
+                if !closing {
+                    pending.push((id, true));
+                    pending.extend(children.iter().rev().map(|&id| (id, false)));
+                    pending.extend(attributes.iter().rev().map(|&id| (id, false)));
+                }
+                (
+                    if closing { "close" } else { "open" },
+                    "element",
+                    Some(expanded_name.local_name.as_str()),
+                    None,
+                )
+            }
+            CemAstNode::Attribute {
+                expanded_name,
+                value,
+                ..
+            } => (
+                "value",
+                "attribute",
+                Some(expanded_name.local_name.as_str()),
+                value.as_deref(),
+            ),
+            CemAstNode::Text { data, .. } => ("value", "text", None, Some(data.as_str())),
+            CemAstNode::Whitespace { data, .. } => {
+                ("trivia", "whitespace", None, Some(data.as_str()))
+            }
+            CemAstNode::Cdata { data, .. } => ("value", "cdata", None, Some(data.as_str())),
+            CemAstNode::RawText { data, .. } => ("value", "raw-text", None, Some(data.as_str())),
+            CemAstNode::Comment { data, .. } => ("trivia", "comment", None, Some(data.as_str())),
+            CemAstNode::ProcessingInstruction { target, data, .. } => (
+                "processing-instruction",
+                "processing-instruction",
+                Some(target.as_str()),
+                Some(data.as_str()),
+            ),
+            CemAstNode::Error { code, .. } => ("error", "error", None, Some(code.as_str())),
+            CemAstNode::Reference { expression, .. } => {
+                ("value", "reference", None, Some(expression.as_str()))
+            }
+        };
+        let origin = ast_node_source_map(node);
+        let mut attributes = vec![
+            projection_attribute("sequence", rows.len().to_string(), origin),
+            projection_attribute("kind", kind, origin),
+            projection_attribute("node-kind", node_kind, origin),
+            projection_attribute("event-domain", "syntax", origin),
+            projection_attribute("source-id", owner.source_uri(), origin),
+        ];
+        if let Some(range) = owner.source_node_range(id) {
+            attributes.push(projection_attribute(
+                "byte-offset",
+                range.offset.to_string(),
+                origin,
+            ));
+            attributes.push(projection_attribute(
+                "byte-length",
+                range.length.to_string(),
+                origin,
+            ));
+        }
+        if let Some(name) = name {
+            attributes.push(projection_attribute("name", name, origin));
+        }
+        if let Some(value) = value {
+            attributes.push(projection_attribute("value", value, origin));
+        }
+        rows.push(projection_element(
+            "event",
+            attributes,
+            Vec::new(),
+            origin.clone(),
+        ));
+    }
+    let root = projection_element(
+        "event-stream",
+        vec![
+            projection_attribute("schema", schema, &source),
+            projection_attribute("content-type", content_type, &source),
+            projection_attribute("hash-scheme", "blake3", &source),
+            projection_attribute("source-id", owner.source_uri(), &source),
+        ],
+        rows,
+        source.clone(),
+    );
+    let mut stream =
+        projection_vocabulary_document("cemevents", CEM_EVENTS_PROJECTION_SCHEMA_URI, root, source);
+    stream.source_owner = Some(owner);
+    stream
+}

@@ -29,8 +29,18 @@ fields in older requests retain the default CEM-ML presentation. Shared command
 lowering preserves an explicitly requested JSON inspection through preparation
 and worker execution, with JSON output identity and no terminal color encoding.
 This is a named structural export for callers; retained native trees remain the
-runtime handoff. JSON inspection can represent embedded template strings that
-the current CEM-ML attribute-string encoder deliberately refuses.
+runtime handoff. CEM-ML presentation uses native collision-free attribute literal fences for
+embedded template strings; explicit JSON remains a separate named export.
+
+JSON/YAML/JSON Schema Parse and Inspect use `import::retain_lifecycle` rather
+than reinterpreting their source bytes as CEM. Their AST/events output identity
+is the presentation vocabulary; root metadata carries the selected source
+schema/MIME, original URI and ranges. Events describe the common imported tree.
+The original native owner retains lexical details; the imported projection is
+not a lossless language-specific AST. Literal query-looking strings stay inert.
+Malformed sources, unsupported YAML features/dialects and import limits produce
+no structural artifact; diagnostic inspection remains available. Existing CLI
+failure levels are unchanged, and strict source examples select `validate`.
 
 ## Native document I/O
 

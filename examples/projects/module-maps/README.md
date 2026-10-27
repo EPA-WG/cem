@@ -54,9 +54,11 @@ For each `N` in `1`, `2`, `3`:
   paired deployment contract is enforced.
 
 `validate-graph` and `inspect-graph` cover the v3 graph source separately from
-reading its maps or running deployment. Standalone JSON-family Parse currently
-emits embedded CEM tokenizer errors despite exit zero and is not advertised.
-The standalone Inspect coordinates remain presentation facts. They do not
+reading its maps or running deployment. JSON-backed Parse and Inspect use the
+retained native data import and preserve the selected map schema/MIME, without
+retokenizing JSON as CEM. These structural operations do not validate the
+version-specific deployment contract. The standalone Inspect coordinates remain
+presentation facts. They do not
 populate Studio's Provenance selector, whose owned source-map references are
 absent from current common Inspect publication.
 

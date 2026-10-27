@@ -1,7 +1,7 @@
 {
   "id": "json-schema",
   "name": "JSON Schema source authoring",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Author Draft 2020-12 declarations with local definitions and reference syntax, format native schema source and repair an unsupported dialect without claiming instance validation.",
   "collections": [
     "content-types-schema-authoring"
@@ -49,6 +49,56 @@
     }
   ],
   "configurations": [
+    {
+      "id": "parse-schema",
+      "name": "Parse imported JSON Schema tree",
+      "kind": "inspection",
+      "source": "note-schema",
+      "description": "Parse through the retained native import; present the common data tree with original source identity and ranges, without evaluating literal strings.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/schema+json",
+        "--schema",
+        "https://cem.dev/ns/data/json-schema/1",
+        "--format",
+        "ast",
+        "--fail-level",
+        "validate",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@schema=https://cem.dev/ns/data/json-schema/1",
+        "@content-type=\"application/schema+json\"",
+        "@namespace=cem:generic-data",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "inspect-schema",
+      "name": "Inspect imported JSON Schema tree",
+      "kind": "inspection",
+      "source": "note-schema",
+      "description": "Parse through the retained native import; present the common data tree with original source identity and ranges, without evaluating literal strings.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/schema+json",
+        "--schema",
+        "https://cem.dev/ns/data/json-schema/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@schema=https://cem.dev/ns/data/json-schema/1",
+        "@content-type=\"application/schema+json\"",
+        "@namespace=cem:generic-data",
+        "@byte-offset="
+      ]
+    },
     {
       "id": "validate-schema",
       "name": "Validate Draft 2020-12 schema source",

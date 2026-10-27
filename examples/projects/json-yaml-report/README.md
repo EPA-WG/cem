@@ -31,6 +31,7 @@ contract; other configurations use the versioned native command contract.
 
 | Configuration | Result |
 | --- | --- |
+| **Parse imported JSON tree** (`parse-json`) / **Parse imported YAML tree** (`parse-yaml`) | Strict Parse of the retained native import; CEM-ML AST presentation with source schema/MIME and original ranges. |
 | **Inspect imported JSON tree** (`inspect-json`) / **Inspect imported YAML tree** (`inspect-yaml`) | CEM-ML AST presentation of the imported generic-data tree, with original source start offsets. |
 | **Validate JSON source** (`validate-json`) / **Validate YAML source** (`validate-yaml`) | Native source diagnostics; both valid inputs pass. |
 | **Format JSON source** (`format-json`) / **Format YAML source** (`format-yaml`) | Native package formatting using the `tabular` profile, without overwriting saved source. |
@@ -46,16 +47,18 @@ The standalone JSON query deliberately selects the literal status `active`;
 the report graph instead reads its status from the saved YAML configuration.
 
 Tree inspection describes the imported CEM data projection, rather than a
-lossless JSON/YAML language AST. Its current inspection envelope identifies that
-CEM projection; the selected input identities are declared explicitly above.
+lossless JSON/YAML language AST. The presentation schema identifies the CEM AST vocabulary; its root metadata
+identifies the selected source schema and MIME, with original source URI and
+byte ranges. Parse and Inspect use the same retained import without retokenizing
+JSON/YAML as CEM. Event views describe that imported common tree, not lexical
+JSON/YAML tokens. Malformed sources and unsupported YAML aliases, anchors or
+explicit tags cannot publish a partial tree.
 Source validation is a separate operation. In particular, these configurations
 check JSON/YAML syntax and native source contracts. They do not validate payload
 instances against an authored JSON Schema, require business fields, or implement
 a general application-configuration schema validator. Arbitrary JSON Schema
 instance assertions are currently unavailable.
-Generic JSON/YAML Parse source identity still has a known native gap, so these
-configurations use the supported imported-tree Inspect path instead. Displayed
-inspection coordinates do not populate owned artifact-source references in the
+Displayed Parse/Inspect coordinates do not populate owned artifact-source references in the
 Provenance panel; the report graph's output maps are a separate native contract.
 
 ## Build and preview

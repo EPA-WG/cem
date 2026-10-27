@@ -257,24 +257,24 @@
       "id": "json-schema",
       "name": "JSON Schema source authoring",
       "description": "Author Draft 2020-12 declarations with local definitions and reference syntax, format native schema source and repair an unsupported dialect without claiming instance validation.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "collections": [
         "content-types-schema-authoring"
       ],
       "archive": "./examples/json-schema.cem-studio.json",
-      "sha256": "0928987cb7eecc050e14bc4ca130befa68867d3e9aeabbe633fa8a31d2f9d8b2"
+      "sha256": "d8f4d6161561955aefb2beb9a01ce74f69f0a9f9752ce739480d4ae05754503b"
     },
     {
       "id": "json-yaml-report",
       "name": "JSON and YAML report",
       "description": "Inspect a JSON API payload and YAML configuration through retained native trees, filter service records and generate HTML, JSON and YAML reports with syntax failure and repair.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "collections": [
         "content-types-data",
         "content-types-queries-transformations"
       ],
       "archive": "./examples/json-yaml-report.cem-studio.json",
-      "sha256": "4ad6e251d01c931646869c37ee667e813cfa08ae098c7dbee63dbc2d44d490ae"
+      "sha256": "b50c8b8c34d1ae02f79cc45b3c6e84fec0d5a3263508f526a5f238ac19952461"
     },
     {
       "id": "login",
@@ -318,13 +318,13 @@
       "id": "module-maps",
       "name": "Module-map deployments",
       "description": "Compare native v1/v2/v3 paired deployment maps, explicit resource copying and declared module-edge rewrites, with syntax/source controls, semantic planning refusals, native asset hashes and independent offline builds.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "collections": [
         "content-types-schema-authoring",
         "content-types-queries-transformations"
       ],
       "archive": "./examples/module-maps.cem-studio.json",
-      "sha256": "484deed8e93d45ccd57e62d0cf4a50fa153025e4dd2eabebeecdcd145b136b04"
+      "sha256": "bff9b49133f14dd839ec44f94c8db4c57b2aba6611ea60bda3f598bb0c36d532"
     },
     {
       "id": "native-projections",

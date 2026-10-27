@@ -360,19 +360,14 @@ pub(super) fn inspect(
     mut source: SourceInspection,
     started: Instant,
 ) -> EngineResult<InspectResponse> {
-    if matches!(
-        request.show,
-        InspectView::Ast | InspectView::Tree | InspectView::Events
-    ) && source.ast.is_none()
+    if (matches!(request.show, InspectView::Ast | InspectView::Tree) && source.ast.is_none())
+        || (request.show == InspectView::Events && source.events.is_none())
     {
-        return Err(EngineError::Internal(
-            source
-                .diagnostics
-                .iter()
-                .map(|d| format!("{}: {}", d.code, d.message))
-                .collect::<Vec<_>>()
-                .join("; "),
-        ));
+        return Err(EngineError::Internal(format!(
+            "Cannot inspect source {}: {}",
+            input_uri(&request.input, &request.context),
+            source.diagnostics.iter().map(|d| format!("{}: {}", d.code, d.message)).collect::<Vec<_>>().join("; "),
+        )));
     }
     source.diagnostics.extend(time_budget_diagnostics(
         &request.input.root_scope,

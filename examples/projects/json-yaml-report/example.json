@@ -1,7 +1,7 @@
 {
   "id": "json-yaml-report",
   "name": "JSON and YAML report",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Inspect a JSON API payload and YAML configuration through retained native trees, filter service records and generate HTML, JSON and YAML reports with syntax failure and repair.",
   "collections": [
     "content-types-data",
@@ -146,6 +146,58 @@
     }
   ],
   "configurations": [
+    {
+      "id": "parse-json",
+      "name": "Parse imported JSON tree",
+      "kind": "inspection",
+      "source": "api-payload",
+      "description": "Parse through the retained native import; present the common data tree with original source identity and ranges, without evaluating literal strings.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/data/json/1",
+        "--format",
+        "ast",
+        "--fail-level",
+        "validate",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@schema=https://cem.dev/ns/data/json/1",
+        "@content-type=application/json",
+        "@namespace=cem:generic-data",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "parse-yaml",
+      "name": "Parse imported YAML tree",
+      "kind": "inspection",
+      "source": "report-settings",
+      "description": "Parse through the retained native import; present the common data tree with original source identity and ranges, without evaluating literal strings.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/yaml",
+        "--schema",
+        "https://cem.dev/ns/data/yaml/1",
+        "--format",
+        "ast",
+        "--fail-level",
+        "validate",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@schema=https://cem.dev/ns/data/yaml/1",
+        "@content-type=application/yaml",
+        "@namespace=cem:generic-data",
+        "@byte-offset="
+      ]
+    },
     {
       "id": "inspect-json",
       "name": "Inspect imported JSON tree",

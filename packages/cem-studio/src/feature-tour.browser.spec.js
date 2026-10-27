@@ -1282,6 +1282,48 @@ describe('CEM Studio Feature Tour copies', () => {
         expect(definition.sources.find(item => item.id === 'login-cem').schema).toBe('https://cem.dev/ns/cem-ml/1');
     }, 60_000);
 
+    it('parses and inspects JSON and YAML saved sources with original native identities and strict failures', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        for (const [projectId, sourceId, configurationId] of [
+            ['json-yaml-report', 'api-payload', 'parse-json'],
+            ['json-yaml-report', 'report-settings', 'parse-yaml'],
+            ['json-schema', 'note-schema', 'parse-schema'],
+        ]) {
+            const { bundle, decode } = await authoredProject(projectId);
+            const source = bundle.project.resources.find(item => item.id === sourceId);
+            const entry = bundle.project.entries.find(item => item.id === configurationId);
+            const original = decode(source.id);
+            for (const copy of ['one', 'two']) {
+                const project = `data-identity-${copy}`;
+                const options = projectCommandOptions(bundle, entry, project);
+                const parsed = await validator.executeAuthoredResourceCommand({ ...options, commandResource: bundle.contents[entry.runConfigResourceId] });
+                expect(parsed.result.exitCode).toBe(0);
+                expect(parsed.result.diagnostics.items).toEqual([]);
+                expect(parsed.output.text).toContain(`@schema=${source.schema}`);
+                expect(parsed.output.text).toContain(source.contentType);
+                expect(parsed.output.text).toContain('@content-type=');
+                expect(parsed.output.text).toContain('@namespace=cem:generic-data');
+                expect(parsed.output.text).toContain(`studio://${project}/${source.path}`);
+                expect(parsed.output.text).toContain('@byte-offset=');
+                for (const view of ['ast', 'events', 'diagnostics']) {
+                    const outcome = await validator.inspectResource({ ...options, view });
+                    expect(outcome.result.exitCode).toBe(0);
+                    expect(outcome.output.text).toContain(source.schema);
+                    expect(outcome.output.text).not.toContain('cem.tokenizer.');
+                    expect(outcome.output.text).not.toContain('cem.ql.');
+                }
+            }
+            expect(decode(source.id)).toBe(original);
+            const invalid = source.contentType.includes('yaml') ? 'café: [1, 2\r\n' : '{\r\n"café":[1,}';
+            await expect(validator.runResourceCommand({ ...projectCommandOptions(bundle, entry, 'data-invalid'),
+                bytes: new TextEncoder().encode(invalid), argv: JSON.parse(decode(entry.runConfigResourceId)).argv,
+            })).rejects.toMatchObject({ result: { exitCode: 1, diagnostics: { items: expect.arrayContaining([
+                expect.objectContaining({ severity: 'error', code: sourceId === 'note-schema' ? 'cem.json_schema.parse_error' : source.contentType.includes('yaml') ? 'cem.yaml.parse_error' : 'cem.json.parse_error',
+                    uri: `studio://data-invalid/${source.path}` }),
+            ]) } } });
+        }
+    }, 60_000);
+
     it('formats and inspects the packaged Login expression without evaluating or wrapping it', async () => {
         const response = await fetch(new URL('../generated/feature-tour/examples/login.cem-studio.json', import.meta.url));
         expect(response.ok).toBe(true);

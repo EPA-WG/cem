@@ -883,32 +883,6 @@
   ],
   "inspectorDiagnosticLimits": [
     {
-      "project": "cemql-orders",
-      "configuration": "inspect-data",
-      "operation": "inspect",
-      "diagnosticEvidence": "companion-source-diagnostics",
-      "exitCode": 0,
-      "sourceMapFacts": false,
-      "diagnostics": [
-        {
-          "code": "cem.tokenizer.bare_brace_text",
-          "severity": "error",
-          "uri": "data/orders.json",
-          "byteOffset": 0,
-          "line": 1,
-          "column": 1
-        },
-        {
-          "code": "cem.tokenizer.bare_brace_text",
-          "severity": "error",
-          "uri": "data/orders.json",
-          "byteOffset": 0,
-          "line": 1,
-          "column": 1
-        }
-      ]
-    },
-    {
       "project": "html-cem-card",
       "configuration": "inspect-component",
       "operation": "inspect",
@@ -952,32 +926,6 @@
           "code": "cem.lint.relaxed_content_boundary",
           "severity": "warning",
           "uri": "components/cem-card.xhtml",
-          "byteOffset": 0,
-          "line": 1,
-          "column": 1
-        }
-      ]
-    },
-    {
-      "project": "json-yaml-report",
-      "configuration": "inspect-json",
-      "operation": "inspect",
-      "diagnosticEvidence": "companion-source-diagnostics",
-      "exitCode": 0,
-      "sourceMapFacts": false,
-      "diagnostics": [
-        {
-          "code": "cem.tokenizer.bare_brace_text",
-          "severity": "error",
-          "uri": "data/payload.json",
-          "byteOffset": 0,
-          "line": 1,
-          "column": 1
-        },
-        {
-          "code": "cem.tokenizer.bare_brace_text",
-          "severity": "error",
-          "uri": "data/payload.json",
           "byteOffset": 0,
           "line": 1,
           "column": 1
@@ -1212,84 +1160,6 @@
           "code": "cem.lint.relaxed_content_boundary",
           "severity": "warning",
           "uri": "data/formula.mml",
-          "byteOffset": 0,
-          "line": 1,
-          "column": 1
-        }
-      ]
-    },
-    {
-      "project": "module-maps",
-      "configuration": "inspect-v1",
-      "operation": "inspect",
-      "diagnosticEvidence": "companion-source-diagnostics",
-      "exitCode": 0,
-      "sourceMapFacts": false,
-      "diagnostics": [
-        {
-          "code": "cem.tokenizer.bare_brace_text",
-          "severity": "error",
-          "uri": "maps/source-v1.json",
-          "byteOffset": 0,
-          "line": 1,
-          "column": 1
-        },
-        {
-          "code": "cem.tokenizer.bare_brace_text",
-          "severity": "error",
-          "uri": "maps/source-v1.json",
-          "byteOffset": 0,
-          "line": 1,
-          "column": 1
-        }
-      ]
-    },
-    {
-      "project": "module-maps",
-      "configuration": "inspect-v2",
-      "operation": "inspect",
-      "diagnosticEvidence": "companion-source-diagnostics",
-      "exitCode": 0,
-      "sourceMapFacts": false,
-      "diagnostics": [
-        {
-          "code": "cem.tokenizer.bare_brace_text",
-          "severity": "error",
-          "uri": "maps/source-v2.json",
-          "byteOffset": 0,
-          "line": 1,
-          "column": 1
-        },
-        {
-          "code": "cem.tokenizer.bare_brace_text",
-          "severity": "error",
-          "uri": "maps/source-v2.json",
-          "byteOffset": 0,
-          "line": 1,
-          "column": 1
-        }
-      ]
-    },
-    {
-      "project": "module-maps",
-      "configuration": "inspect-v3",
-      "operation": "inspect",
-      "diagnosticEvidence": "companion-source-diagnostics",
-      "exitCode": 0,
-      "sourceMapFacts": false,
-      "diagnostics": [
-        {
-          "code": "cem.tokenizer.bare_brace_text",
-          "severity": "error",
-          "uri": "maps/source-v3.json",
-          "byteOffset": 0,
-          "line": 1,
-          "column": 1
-        },
-        {
-          "code": "cem.tokenizer.bare_brace_text",
-          "severity": "error",
-          "uri": "maps/source-v3.json",
           "byteOffset": 0,
           "line": 1,
           "column": 1

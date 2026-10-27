@@ -6149,29 +6149,39 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
     };
     match engine.parse(req) {
         Ok(mut resp) => {
-            let write_result = match presentation_format {
-                cli::ParseFormat::Ast | cli::ParseFormat::Events => resp
-                    .primary_bytes
-                    .as_ref()
-                    .ok_or_else(|| {
-                        io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            "engine omitted requested CEM-ML parse presentation",
-                        )
-                    })
-                    .and_then(|primary| {
-                        write_raw_primary_bytes(
-                            &engine_context,
-                            &primary.bytes,
-                            args.out.as_deref(),
-                            s,
-                        )
-                    }),
-                cli::ParseFormat::DomJson
-                | cli::ParseFormat::Json
-                | cli::ParseFormat::AstJson
-                | cli::ParseFormat::EventsJson => {
-                    write_primary(&engine_context, &resp.primary, args.out.as_deref(), s)
+            // A refused native import has diagnostics but no publishable tree.
+            // Preserve its report and requested failure policy without turning
+            // the absent presentation into an unrelated write/IO failure.
+            let refused = resp.primary_bytes.is_none()
+                && resp.primary.is_null()
+                && diagnostics_have_hard_violation(&resp.diagnostics);
+            let write_result = if refused {
+                Ok(())
+            } else {
+                match presentation_format {
+                    cli::ParseFormat::Ast | cli::ParseFormat::Events => resp
+                        .primary_bytes
+                        .as_ref()
+                        .ok_or_else(|| {
+                            io::Error::new(
+                                io::ErrorKind::InvalidData,
+                                "engine omitted requested CEM-ML parse presentation",
+                            )
+                        })
+                        .and_then(|primary| {
+                            write_raw_primary_bytes(
+                                &engine_context,
+                                &primary.bytes,
+                                args.out.as_deref(),
+                                s,
+                            )
+                        }),
+                    cli::ParseFormat::DomJson
+                    | cli::ParseFormat::Json
+                    | cli::ParseFormat::AstJson
+                    | cli::ParseFormat::EventsJson => {
+                        write_primary(&engine_context, &resp.primary, args.out.as_deref(), s)
+                    }
                 }
             };
             if let Err(e) = write_result {

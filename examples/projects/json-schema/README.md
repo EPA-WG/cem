@@ -20,6 +20,8 @@ operation.
 
 | Configuration | Purpose |
 | --- | --- |
+| `parse-schema` | Strict Parse through the retained native JSON Schema import, with source identity and byte ranges. |
+| `inspect-schema` | Inspect the common imported data tree; `$defs` and `$ref` remain inert source data. |
 | `validate-schema` | Parse JSON Schema source and validate its Draft 2020-12 dialect declaration. |
 | `format-schema` | Format through the native JSON Schema lifecycle writer and compare the complete expected source bytes. |
 | `validate-data-syntax` | Parse `data/note.json` as ordinary JSON syntax only. |
@@ -37,10 +39,14 @@ has no schema-package or domain-schema binding. Successful JSON parsing does not
 mean the data satisfies the authored schema. Source and instance validation must
 remain visibly distinct until a native instance-validator contract is available.
 
-Parse/Inspect configurations are deliberately absent: the current shared source
-routing can expose embedded generic CEM tokenizer errors despite a zero exit
-status. Same-schema native formatting and schema-source validation work without
-that projection. The source editor still supports editing these files.
+Parse and Inspect retain the native JSON Schema owner and present its imported
+common CEM data tree. The presentation uses the AST projection schema; root
+metadata retains the selected JSON Schema schema/MIME, original source URI and
+byte ranges. It is not a lossless lexical schema AST. `$defs`, `$ref` and strings
+that resemble CEM expressions remain literal data; no schema reference or
+expression is evaluated. Event views describe the common imported tree.
+Malformed sources, unsupported dialects and import-limit failures refuse without
+publishing a partial tree.
 
 ## Failure, repair and edits
 

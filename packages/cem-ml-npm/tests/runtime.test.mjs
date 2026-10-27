@@ -869,3 +869,58 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
     }
   });
 }
+
+for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
+  test(`structured data Parse identities and diagnostics in ${runtimeKind}`, async () => {
+    const runtime = runtimeKind === 'wasm-node'
+      ? await import('@epa-wg/cem-ml/wasm') : await import('../dist/wasm/browser/cem_ml.js');
+    if (runtimeKind !== 'wasm-node') await runtime.default({ module_or_path: await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url)) });
+    let sequence = 0;
+    const execute = async (source, contentType, schema, operation) => {
+      const uri = 'studio://structured-source/source';
+      const bytes = new TextEncoder().encode(source);
+      const version = { revision: 1, sha256: createHash('sha256').update(bytes).digest('hex') };
+      const request = {
+        protocolVersion: 1, requestId: `structured-source:${runtimeKind}:${++sequence}`,
+        project: { projectId: 'structured-source', revision: 1 }, resourceVersions: { [uri]: version },
+        operation: { ...operation, inputId: 'input:0' },
+        runPlan: JSON.parse(runtime.normalizeCommandRunPlanV1(JSON.stringify({ configBytes: [
+          ...new TextEncoder().encode(JSON.stringify({ inputs: [{ uri, rootScope: { defaultContentType: contentType, schema } }],
+            outputs: [{ destination: `${uri}.out`, rootScope: { defaultContentType: 'application/cem' } }] })),
+        ] }))),
+        resources: { [uri]: { bytes: [...bytes], identity: { contentType, schema } } },
+        policyStamp: { resolver: 'data-resolver', safety: 'data-safety', budget: 'data-budget' },
+      };
+      let published;
+      try {
+        const result = JSON.parse(await runtime.executeCommandServiceV1(JSON.stringify(request),
+          JSON.stringify({ runtime: runtimeKind, targetIdentity: 'runtime-test:data', abiIdentity: 'runtime-test-v1', debugControlActive: false }),
+          async () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
+          async () => assert.fail('inline owned resource must not fetch'),
+          async (json, output) => { published = { write: JSON.parse(json), bytes: Uint8Array.from(output) }; return JSON.stringify({ token: 'data' }); },
+          async () => JSON.stringify({ uri: published.write.uri }), async () => {},
+        ));
+        return { result, text: published ? new TextDecoder().decode(published.bytes) : undefined };
+      } finally { runtime.disposeCommandArtifactsV1(request.requestId); }
+    };
+    for (const [source, contentType, schema, invalid, code] of [
+      ['{"literal":"{#never} {$never()} Café 🧬"}', 'application/json', 'https://cem.dev/ns/data/json/1', '{\r\n"café":[1,}', 'cem.json.parse_error'],
+      ["literal: '{#never} {$never()} Café 🧬'\r\n", 'text/x-yaml; charset=utf-8', 'https://cem.dev/ns/data/yaml/1', 'café: [1, 2\r\n', 'cem.yaml.parse_error'],
+      ['{"$schema":"https://json-schema.org/draft/2020-12/schema","$defs":{"note":{"type":"string"}},"$ref":"#/$defs/note"}', 'application/json', 'https://cem.dev/ns/data/json-schema/1', '{\r\n"$defs":[}', 'cem.json_schema.parse_error'],
+    ]) {
+      for (const operation of [{ kind: 'parse', projection: 'ast', preserveSourceOffsets: true }, { kind: 'parse', projection: 'events', preserveSourceOffsets: true }, { kind: 'inspect', show: 'ast' }, { kind: 'inspect', show: 'diagnostics' }]) {
+        const { result, text } = await execute(source, contentType, schema, operation);
+        assert.equal(result.status, 'succeeded', JSON.stringify(result));
+        assert.deepEqual(result.diagnostics.items, []);
+        assert.ok(text.includes(schema) && text.includes(contentType), text);
+        assert.ok(!text.includes('cem.tokenizer.') && !text.includes('cem.ql.'), text);
+        if (operation.show !== 'diagnostics') assert.ok(text.includes('@byte-offset='), text);
+      }
+      const { result, text } = await execute(invalid, contentType, schema, { kind: 'parse', projection: 'ast', preserveSourceOffsets: true });
+      assert.equal(result.exitCode, 1, JSON.stringify(result));
+      assert.ok(result.diagnostics.items.some(d => d.code === code && d.severity === 'error'), JSON.stringify(result));
+      assert.ok(!result.diagnostics.items.some(d => d.code.startsWith('cem.tokenizer.')));
+      assert.equal(text, undefined, 'malformed source must not publish a partial tree');
+    }
+  });
+}

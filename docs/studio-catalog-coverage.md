@@ -7,8 +7,8 @@ Run `yarn nx run @epa-wg/cem-studio:verify:catalog-audit` after changing them.
 Declared catalog/documentation coverage; native/worker/deployed verification and current resource admission remain separate evidence.
 
 There are **22 authored projects**, **282 authored source resources**
-and **213 authored configurations**. The inventory names
-**218 workflows**, including five generated portable workbenches;
+and **217 authored configurations**. The inventory names
+**222 workflows**, including five generated portable workbenches;
 32 generated package validations are represented by the native package matrix.
 The starter owns no configurations. Source resources include reference fixtures
 and documentation: their presence does not establish executable format support.
@@ -24,8 +24,8 @@ and documentation: their presence does not establish executable format support.
 | `css-stylesheet` | [README](../examples/projects/css-stylesheet/README.md) | 8 | 6 | 1 | `convert`, `inspect`, `transform`, `validate` |
 | `csv-inventory` | [README](../examples/projects/csv-inventory/README.md) | 18 | 12 | 4 | `convert`, `inspect`, `query`, `transform`, `validate` |
 | `html-cem-card` | [README](../examples/projects/html-cem-card/README.md) | 11 | 8 | 1 | `inspect`, `parse`, `query`, `transform`, `validate` |
-| `json-schema` | [README](../examples/projects/json-schema/README.md) | 5 | 4 | 1 | `convert`, `validate` |
-| `json-yaml-report` | [README](../examples/projects/json-yaml-report/README.md) | 17 | 11 | 2 | `convert`, `inspect`, `query`, `transform`, `validate` |
+| `json-schema` | [README](../examples/projects/json-schema/README.md) | 5 | 6 | 1 | `convert`, `inspect`, `parse`, `validate` |
+| `json-yaml-report` | [README](../examples/projects/json-yaml-report/README.md) | 17 | 13 | 2 | `convert`, `inspect`, `parse`, `query`, `transform`, `validate` |
 | `login` | [README](../examples/projects/login/README.md) | 15 | 20 | 1 | `convert`, `inspect`, `parse`, `query`, `transform`, `validate` |
 | `markdown-site` | [README](../examples/projects/markdown-site/README.md) | 21 | 6 | 1 | `convert`, `inspect`, `query`, `transform`, `validate` |
 | `mathml-formula` | [README](../examples/projects/mathml-formula/README.md) | 10 | 7 | 1 | `convert`, `inspect`, `query`, `transform`, `validate` |
@@ -42,8 +42,8 @@ and documentation: their presence does not establish executable format support.
 
 ## Generated projects
 
-The selectable catalog has **23 projects** with **250 declared configurations**
-and **575 stored resources**. The starter adds 2 resources.
+The selectable catalog has **23 projects** with **254 declared configurations**
+and **579 stored resources**. The starter adds 2 resources.
 The legacy Feature Tour seed shares the Schema examples workflows and is not
 counted twice. Declared configurations are not a uniform UI execution guarantee.
 
@@ -62,10 +62,10 @@ negotiation does not require a source-project configuration.
 
 | Operation | Browser availability | Declared configurations |
 | --- | --- | --- |
-| `parse` | `available` | 15 |
+| `parse` | `available` | 18 |
 | `validate` | `available` | 111 |
 | `check` | `available` | 0 |
-| `inspect` | `available` | 30 |
+| `inspect` | `available` | 31 |
 | `convert` | `available` | 41 |
 | `query` | `available` | 28 |
 | `transform` | `available` | 24 |

@@ -491,12 +491,14 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
         PreparedPortableOperationV1::Parse(engine_request) => {
             let response = engine.parse(engine_request).map_err(engine_failure)?;
             let diagnostics = response.diagnostics.clone();
-            let items = output_items(
-                plan,
-                response.primary_bytes.as_ref(),
-                &response.primary,
-                "parse-output",
-            )?;
+            let refused = response.primary_bytes.is_none()
+                && response.primary.is_null()
+                && diagnostics.iter().any(|d| d.severity.is_hard_violation());
+            let items = if refused {
+                Vec::new()
+            } else {
+                output_items(plan, response.primary_bytes.as_ref(), &response.primary, "parse-output")?
+            };
             Ok(product(
                 PortableOperationResultV1::Parse(response),
                 diagnostics,
