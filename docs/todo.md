@@ -355,7 +355,14 @@ still refuse publication and original source URI/ranges remain intact. Native,
 CLI, rebuilt WASM/worker, saved/offline preview and credential refusal checks
 pass. Plain-path configs retain their existing identity behavior.
 
-- [ ] Design lossless typed CEM-ML inspection of source strings containing both single and double quotes, including embedded rich-content fences. The canonical `cem-card.xhtml` XML AST currently reaches the deliberate native attribute-string encoder refusal; keep that guard and original source bytes until an admitted representation exists. Add native round-trip fixtures before changing the writer/tokenizer contract. The HTML/CEM card project explicitly requests JSON for this one AST export; it is a presentation boundary, never an internal AST handoff.
+Completed 2026-10-27: [lossless mixed-quote CEM-ML inspection](archive/todo-completed-mixed-quote-inspection-2026-10-27.md)
+admits line-fenced literal attributes through the shared native tokenizer/writer,
+with collision-free fences, exact LF/CRLF payloads, original UTF-8 ranges and
+literal ownership. Ordinary quotes/backslashes and control/unterminated-value
+refusals remain intact. Native/editor parity and incremental edits pass; the
+HTML/CEM card 1.0.1 uses default CEM inspection again. CLI, both WASM bindings,
+Studio saved edits, credential refusal and assembled-demo/offline acceptance
+pass, with all capabilities, 898 files and four WASMs below 25 MiB preserved.
 
 - [ ] Adopt the existing element-template source identity for remaining live-view examples such as Login. Its current generic CEM Parse reports hard unknown runtime-binding diagnostics despite exiting successfully; the new card sample uses the correct template identity. Verify source validation, editor behavior, live rendering, saved/offline copies and credential/recovery contracts before changing existing example metadata; preserve diagnostic severity and old saved-project identities.
 

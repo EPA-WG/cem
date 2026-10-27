@@ -284,6 +284,16 @@ fn walk_children(node: Node<'_>, src: &[u8], in_content: bool, out: &mut Vec<Str
 fn attribute_value_text(node: Node<'_>, src: &[u8]) -> String {
     match node.kind() {
         "bare_value" => node.utf8_text(src).unwrap_or("").to_owned(),
+        "fenced_string" => {
+            let raw = node.utf8_text(src).unwrap();
+            let fence = raw.bytes().take_while(|byte| *byte == b'`').count();
+            let newline = if raw[fence..].starts_with("\r\n") {
+                2
+            } else {
+                1
+            };
+            raw[fence + newline..raw.len() - fence - newline].to_owned()
+        }
         "quoted_string" => {
             // Strip surrounding quotes to match the Rust event stream,
             // which records the inner scalar value only.
@@ -298,6 +308,46 @@ fn attribute_value_text(node: Node<'_>, src: &[u8]) -> String {
         }
         "cem_ql_span" => node.utf8_text(src).unwrap_or("").to_owned(),
         _ => node.utf8_text(src).unwrap_or("").to_owned(),
+    }
+}
+
+#[test]
+fn line_fenced_attribute_literals_preserve_native_and_editor_values() {
+    use cem_ml::transform_template::transform_template_encode_cem_string_literal;
+    for value in [
+        "can't \"quote\"",
+        "\"'```",
+        "```\"'",
+        "\"'\r",
+        "\"'\r\n",
+        "\"'\n````\n{#never} {$never()} Café 🧬",
+    ] {
+        let encoded = transform_template_encode_cem_string_literal(value).unwrap();
+        let source = format!("{{row @value={encoded} @after=ok | {{after}}}}");
+        let document = CemAstBuilder::new(CemEventNormalizer::new(CemTokenizer::from_source(
+            BytesSource::new(SourceId(1), source.as_bytes().to_vec()),
+        )))
+        .build();
+        assert!(
+            document.diagnostics.is_empty(),
+            "{:?}",
+            document.diagnostics
+        );
+        assert_eq!(
+            project_rust(&document),
+            project_tree_sitter(&source),
+            "{source}"
+        );
+    }
+    let mut parser = Parser::new();
+    parser
+        .set_language(&tree_sitter_cem::LANGUAGE.into())
+        .unwrap();
+    for source in [
+        "{row @value=```\nunterminated",
+        "{row @value=````\nshort\n```}",
+    ] {
+        assert!(parser.parse(source, None).unwrap().root_node().has_error());
     }
 }
 
@@ -490,4 +540,57 @@ fn incremental_query_string_edit_keeps_following_native_slots_and_siblings() {
             .unwrap(),
         r#"{#nodes["}"]}"#
     );
+}
+
+#[test]
+fn incremental_fenced_literal_edit_preserves_boundary_and_following_sibling() {
+    for eol in ["\n", "\r\n"] {
+        let before = format!(
+            "{{row @value=````{eol}can't \"quote\" ```literal```{eol}```` @after=ok | {{after}}}}"
+        );
+        let after = before.replacen("literal", "{#never}", 1);
+        let edit = before.find("literal").unwrap();
+        let line_start = before[..edit].rfind('\n').unwrap() + 1;
+        let column = edit - line_start;
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_cem::LANGUAGE.into())
+            .unwrap();
+        let mut old = parser.parse(&before, None).unwrap();
+        old.edit(&tree_sitter::InputEdit {
+            start_byte: edit,
+            old_end_byte: edit + 7,
+            new_end_byte: edit + 8,
+            start_position: tree_sitter::Point::new(1, column),
+            old_end_position: tree_sitter::Point::new(1, column + 7),
+            new_end_position: tree_sitter::Point::new(1, column + 8),
+        });
+        let incremental = parser.parse(&after, Some(&old)).unwrap();
+        let fresh = parser.parse(&after, None).unwrap();
+        assert!(!incremental.root_node().has_error());
+        assert_eq!(
+            incremental.root_node().to_sexp(),
+            fresh.root_node().to_sexp()
+        );
+        let mut events = Vec::new();
+        let root = incremental.root_node();
+        let mut cursor = root.walk();
+        for child in root.children(&mut cursor) {
+            visit_ts(child, after.as_bytes(), false, &mut events);
+        }
+        assert_eq!(project_rust(&parse_rust(&after)), events);
+        let value = incremental
+            .root_node()
+            .named_child(0)
+            .unwrap()
+            .named_child(1)
+            .unwrap()
+            .child_by_field_name("value")
+            .unwrap();
+        assert_eq!(value.kind(), "fenced_string");
+        assert_eq!(
+            value.utf8_text(after.as_bytes()).unwrap(),
+            format!("````{eol}can't \"quote\" ```{{#never}}```{eol}````")
+        );
+    }
 }

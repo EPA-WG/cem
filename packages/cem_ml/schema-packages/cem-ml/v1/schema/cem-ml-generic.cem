@@ -43,7 +43,7 @@
         {rule @name="wildcard-type-reference" @value="prefix:local-name | prefix:* | prefix:local-name:*"}
         {rule @name="attribute-name" @value="@ qualified-name"}
         {rule @name="bare-value" @value="identifier | number | boolean"}
-        {rule @name="quoted-value" @value="single-quoted or double-quoted text"}
+        {rule @name="quoted-value" @value="single-quoted, double-quoted or matching line-fenced literal text"}
         {rule @name="expression-node" @value="dollar expression content scope"}
         {rule @name="reference-node" @value="hash CEM-QL expression content scope; retains expression without executing on load"}
         {rule @name="reference-operand" @value="AST node or ordered AST node sequence; no scalar lookup or implicit evaluation"}
@@ -97,7 +97,7 @@
         {constraint @kind="doc-version-resolved" @target="directive" @diagnostic="cem.doc.version_resolved" @behavior="cem-ml-doc-report-fact" @fact-kind="doc-version-resolved" @policy="successful @doc resolution records the canonical document format identity"}
         {constraint @kind="tokenizer-unterminated-block-comment" @target="comment" @diagnostic="cem.tokenizer.unterminated_block_comment" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-block-comment" @policy="block comments must close before end of input"}
         {constraint @kind="tokenizer-bare-brace-text" @target="text" @diagnostic="cem.tokenizer.bare_brace_text" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-bare-brace-text" @policy="bare brace interpolation in content is rejected; expression content must use {$ ...} or {#...}"}
-        {constraint @kind="tokenizer-unterminated-string" @target="attribute" @diagnostic="cem.tokenizer.unterminated_string" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-string" @policy="quoted attribute values must close with their opening quote character"}
+        {constraint @kind="tokenizer-unterminated-string" @target="attribute" @diagnostic="cem.tokenizer.unterminated_string" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-string" @policy="literal attribute values must close with their opening quote or matching line-fence boundary"}
         {constraint @kind="tokenizer-unterminated-avt-span" @target="attribute" @diagnostic="cem.tokenizer.unterminated_avt_span" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-avt-span" @policy="attribute CEM-QL spans must close their brace scope"}
         {constraint @kind="tokenizer-unterminated-node" @target="element" @diagnostic="cem.tokenizer.unterminated_node" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-node" @policy="node scopes must close before end of input"}
         {constraint @kind="tokenizer-invalid-processing-instruction" @target="processing-instruction" @diagnostic="cem.tokenizer.invalid_processing_instruction" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-invalid-processing-instruction" @policy="processing instructions must declare a target name"}

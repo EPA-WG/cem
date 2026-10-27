@@ -222,48 +222,96 @@ fn html_cem_card_inspects_the_canonical_shared_declaration_without_expanding_dce
         .unwrap();
     assert_eq!(resource["contentType"], "application/xml");
     assert_eq!(resource["schema"], "https://cem.dev/ns/data/xml/1");
-    assert!(
-        configuration["argv"]
-            .as_array()
-            .unwrap()
-            .windows(2)
-            .any(|pair| { pair[0] == "--format" && pair[1] == "json" }),
-        "JSON source inspection must be an explicitly named presentation boundary"
-    );
+    assert!(!configuration["argv"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|arg| arg == "--format"));
     let output = project.run("inspect-component");
     success(&output);
-    let nodes: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    let declaration = nodes
-        .as_array()
-        .unwrap()
+    use cem_ml::{
+        events::cem::CemEventNormalizer,
+        parser::{builder::CemAstBuilder, CemAstNode},
+        source::{BytesSource, SourceId},
+        tokenizer::cem::CemTokenizer,
+    };
+    let document = CemAstBuilder::new(CemEventNormalizer::new(CemTokenizer::from_source(
+        BytesSource::new(SourceId(1), output.stdout),
+    )))
+    .build();
+    assert!(
+        document.diagnostics.is_empty(),
+        "{:?}",
+        document.diagnostics
+    );
+    // Navigate the native inspection vocabulary by its explicit parent identities.
+    // Printed source IDs/coordinates never become an application tree handoff.
+    let rows: Vec<_> = document
+        .nodes
         .iter()
-        .find(|node| node["kind"] == "element" && node["name"] == "cem-element")
+        .filter_map(|node| {
+            let CemAstNode::Element {
+                expanded_name,
+                attributes,
+                ..
+            } = node
+            else {
+                return None;
+            };
+            if expanded_name.local_name != "node" {
+                return None;
+            }
+            Some(
+                attributes
+                    .iter()
+                    .filter_map(|id| match document.get(*id) {
+                        Some(CemAstNode::Attribute {
+                            expanded_name,
+                            value: Some(value),
+                            value_nodes,
+                            ..
+                        }) => {
+                            assert!(value_nodes.is_empty());
+                            Some((expanded_name.local_name.as_str(), value.as_str()))
+                        }
+                        _ => None,
+                    })
+                    .collect::<std::collections::BTreeMap<_, _>>(),
+            )
+        })
+        .collect();
+    let declaration = rows
+        .iter()
+        .find(|row| row.get("kind") == Some(&"element") && row.get("name") == Some(&"cem-element"))
         .unwrap();
-    assert!(declaration["attributes"]
-        .as_array()
-        .unwrap()
+    let declaration_id = declaration["id"];
+    assert!(rows
         .iter()
-        .any(|attribute| { attribute["name"] == "tag" && attribute["value"] == "cem-card" }));
-    let template = declaration["children"]
-        .as_array()
-        .unwrap()
+        .any(|row| row.get("parent-id") == Some(&declaration_id)
+            && row.get("name") == Some(&"tag")
+            && row.get("value") == Some(&"cem-card")));
+    let template = rows
         .iter()
-        .find(|node| node["kind"] == "element" && node["name"] == "template")
+        .find(|row| {
+            row.get("parent-id") == Some(&declaration_id) && row.get("name") == Some(&"template")
+        })
         .unwrap();
+    let template_id = template["id"];
     for (name, value) in [("id", "cem-card"), ("type", "text/cem-ml")] {
-        assert!(template["attributes"]
-            .as_array()
-            .unwrap()
+        assert!(rows
             .iter()
-            .any(|attribute| { attribute["name"] == name && attribute["value"] == value }));
+            .any(|row| row.get("parent-id") == Some(&template_id)
+                && row.get("name") == Some(&name)
+                && row.get("value") == Some(&value)));
     }
-    let text = template["children"]
-        .as_array()
-        .unwrap()
+    let text_rows: Vec<_> = rows
         .iter()
-        .filter(|node| node["kind"] == "text")
-        .map(|node| node["value"].as_str().unwrap())
-        .collect::<String>();
+        .filter(|row| {
+            row.get("parent-id") == Some(&template_id) && row.get("kind") == Some(&"text")
+        })
+        .collect();
+    assert_eq!(text_rows.len(), 1);
+    let text = text_rows[0]["value"];
     let expected = canonical_source
         .split_once("<template id=\"cem-card\" type=\"text/cem-ml\">")
         .unwrap()
@@ -278,8 +326,6 @@ fn html_cem_card_inspects_the_canonical_shared_declaration_without_expanding_dce
     assert!(text.contains("attribute @name=label"));
     assert!(text.contains("var(--cem-palette-comfort)"));
     assert!(text.contains('\'') && text.contains('"') && text.contains("```"));
-    // This explicitly exported source AST never becomes a renderer's data handoff.
-    assert_eq!(template["children"].as_array().unwrap().len(), 1);
 }
 
 #[test]

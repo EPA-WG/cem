@@ -52,6 +52,21 @@ const oniguruma = require('vscode-oniguruma');
       assert(scopesAt(source.lastIndexOf('after')).includes('entity.name.tag.cem-ml'), source);
     }
   }
+  for (const eol of ['\n', '\r\n']) {
+    const source = `{row @value=\`\`\`\`${eol}can't "quote" \`\`\` {#never} {$never()}${eol}\`\`\`\` @after=ok | {after}}`;
+    let stack;
+    const lines = source.split('\n');
+    const tokenized = lines.map(line => {
+      const result = grammar.tokenizeLine(line, stack);
+      stack = result.ruleStack;
+      return result.tokens;
+    });
+    const scopesAt = (line, index) => tokenized[line].find(token => token.startIndex <= index && token.endIndex > index)?.scopes || [];
+    const payload = scopesAt(1, lines[1].indexOf('{#never}'));
+    assert(payload.includes('string.quoted.other.fenced.cem-ml'), source);
+    assert(!payload.includes('meta.expression-node.cem-ml'), source);
+    assert(scopesAt(2, lines[2].lastIndexOf('after')).includes('entity.name.tag.cem-ml'), source);
+  }
   registry.dispose();
-  console.log(`TextMate parity: ${queries.length * 2} expression/attribute cases passed`);
+  console.log(`TextMate parity: ${queries.length * 2} expression/attribute cases and 2 fenced literal cases passed`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

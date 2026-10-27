@@ -423,10 +423,10 @@ The HTML/CEM card project reuses `cem-card` from the production shared component
 library. Its declaration resource is an XML source snapshot; the live view loads
 the trusted packaged declaration. Edits to the snapshot do not replace runtime
 code or grant new registration authority. The component inspection configuration
-names JSON explicitly because the current CEM-ML attribute-string writer refuses
-mixed single/double quotes in that embedded template source. This structural
-export is a human-facing result, never an AST handoff. Other inspection commands
-retain their normal CEM-ML presentation. The native HTML artifact is a separately
+uses the default native CEM-ML presentation. Line-fenced literal attributes
+preserve both quote styles and embedded rich-content fences without evaluating
+the source. Explicit JSON remains a named human-facing export, never an AST
+handoff. The native HTML artifact is a separately
 authored CEMT projection, rather than whole-page DCE compilation. Login retains
 the larger form/semantic comparison and credential recovery policy examples.
 

@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <wctype.h>
 
-enum TokenType { EXPRESSION_BODY, REFERENCE_BODY, QUERY_SPAN_BODY };
+enum TokenType { EXPRESSION_BODY, REFERENCE_BODY, QUERY_SPAN_BODY, FENCED_STRING };
 
 void *tree_sitter_cem_external_scanner_create(void) { return NULL; }
 void tree_sitter_cem_external_scanner_destroy(void *payload) { (void)payload; }
@@ -13,10 +13,39 @@ void tree_sitter_cem_external_scanner_deserialize(void *payload, const char *buf
   (void)payload; (void)buffer; (void)length;
 }
 
+// Whole-value capture is stateless: delimiter length and boundary style belong
+// to this token, including during incremental rescans.
+static bool scan_fenced_string(TSLexer *lexer) {
+  while (iswspace(lexer->lookahead)) lexer->advance(lexer, true);
+  uint32_t fence = 0;
+  while (lexer->lookahead == '`') { fence++; lexer->advance(lexer, false); }
+  if (fence < 3) return false;
+  bool crlf = lexer->lookahead == '\r';
+  if (crlf) lexer->advance(lexer, false);
+  if (lexer->lookahead != '\n') return false;
+  lexer->advance(lexer, false);
+  while (!lexer->eof(lexer)) {
+    bool boundary = lexer->lookahead == (crlf ? '\r' : '\n');
+    lexer->advance(lexer, false);
+    if (!boundary) continue;
+    if (crlf) {
+      if (lexer->lookahead != '\n') continue;
+      lexer->advance(lexer, false);
+    }
+    uint32_t ticks = 0;
+    while (lexer->lookahead == '`') { ticks++; lexer->advance(lexer, false); }
+    if (ticks == fence) {
+      lexer->mark_end(lexer); lexer->result_symbol = FENCED_STRING; return true;
+    }
+  }
+  return false;
+}
+
 // Stateless opaque capture mirrors CemTokenizer::scan_query_brace_body.
 // The host closing brace stays available to the structural grammar.
 bool tree_sitter_cem_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   (void)payload;
+  if (valid_symbols[FENCED_STRING]) return scan_fenced_string(lexer);
   unsigned valid_count = 0;
   enum TokenType token = EXPRESSION_BODY;
   for (unsigned i = 0; i < 3; i++) {

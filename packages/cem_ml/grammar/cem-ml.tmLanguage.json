@@ -94,6 +94,21 @@
     "attribute": {
       "patterns": [
         {
+          "name": "string.quoted.other.fenced.cem-ml",
+          "begin": "(?<==)[ \\t]*(`{3,})(?=\\r?$)",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.string.begin.cem-ml"
+            }
+          },
+          "end": "^\\1(?!`)",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.cem-ml"
+            }
+          }
+        },
+        {
           "match": "(@)([A-Za-z_][A-Za-z0-9_-]*)(:)([A-Za-z_][A-Za-z0-9_-]*)\\s*(=)?",
           "captures": {
             "1": { "name": "punctuation.definition.attribute.cem-ml" },

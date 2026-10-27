@@ -6449,10 +6449,20 @@ pub fn transform_template_encode_cem_string_literal(value: &str) -> Result<Strin
     if !value.contains('\'') {
         return Ok(format!("'{value}'"));
     }
-    Err(
-        "CEM string literal cannot contain both single and double quotes with the current tokenizer"
-            .to_owned(),
-    )
+    // Separate LF boundaries keep payload-leading/trailing backticks and CRs
+    // unambiguous. The tokenizer removes only these two framing line endings.
+    let mut longest = 0_usize;
+    let mut run = 0_usize;
+    for ch in value.chars() {
+        if ch == '`' {
+            run += 1;
+            longest = longest.max(run);
+        } else {
+            run = 0;
+        }
+    }
+    let fence = "`".repeat(longest.saturating_add(1).max(3));
+    Ok(format!("{fence}\n{value}\n{fence}"))
 }
 
 fn transform_template_cem_string_control_is_unsupported(ch: char) -> bool {
@@ -36884,13 +36894,13 @@ mod tests {
             .expect_err("CEM token encoder rejects mismatched category");
         assert!(category_error.contains("expected category `cem-attribute-value`"));
 
-        let quote_error = registry
+        let mixed_quotes = registry
             .encode(
                 &attr_binding,
                 &Value::String("can't \"quote\" this".to_owned()),
             )
-            .expect_err("CEM attribute-value encoder refuses unrepresentable quotes");
-        assert!(quote_error.contains("both single and double quotes"));
+            .expect("mixed quotes use an admitted literal attribute fence");
+        assert_eq!(mixed_quotes, Value::String("```\ncan't \"quote\" this\n```".into()));
 
         let control_error = registry
             .encode(&attr_binding, &Value::String("unsafe\0value".to_owned()))

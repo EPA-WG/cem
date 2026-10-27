@@ -18,7 +18,7 @@ module.exports = grammar({
     $.block_comment,
   ],
 
-  externals: $ => [$.expression_body, $._reference_body, $._query_span_body],
+  externals: $ => [$.expression_body, $._reference_body, $._query_span_body, $.fenced_string],
 
   word: $ => $._name_token,
 
@@ -93,6 +93,7 @@ module.exports = grammar({
     _attribute_value: $ => choice(
       $.bare_value,
       $.quoted_string,
+      $.fenced_string,
       $.cem_ql_span,
     ),
 

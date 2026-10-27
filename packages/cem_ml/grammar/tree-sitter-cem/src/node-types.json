@@ -65,6 +65,10 @@
             "named": true
           },
           {
+            "type": "fenced_string",
+            "named": true
+          },
+          {
             "type": "quoted_string",
             "named": true
           }
@@ -243,6 +247,10 @@
   },
   {
     "type": "expression_body",
+    "named": true
+  },
+  {
+    "type": "fenced_string",
     "named": true
   },
   {

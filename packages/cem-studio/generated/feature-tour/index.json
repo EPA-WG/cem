@@ -245,13 +245,13 @@
       "id": "html-cem-card",
       "name": "HTML and CEM card",
       "description": "Compare HTML and CEM-ML card semantics, inspect the canonical shared declaration, generate native HTML and reuse packaged declarative cards in an independent live view.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "collections": [
         "content-types-documents-ui",
         "content-types-queries-transformations"
       ],
       "archive": "./examples/html-cem-card.cem-studio.json",
-      "sha256": "d2b1d9799f4343bf16380bcd870f9fe89fb43bb486443d00ea5d34fbfd468236"
+      "sha256": "a73b60c5adb024ef95b72ea146531533dbb40c622a9505bbf013188af574a5a0"
     },
     {
       "id": "json-schema",

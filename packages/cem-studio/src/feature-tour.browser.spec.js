@@ -917,6 +917,13 @@ describe('CEM Studio Feature Tour copies', () => {
                 const values = report.language === 'xpath' ? report.result.sequence.items.map(item => item.value.lexicalValue) : report.result.items.map(item => item.value);
                 expect(values).toEqual(JSON.parse(decode(configuration.expectedSemanticContract)));
             }
+            if (configuration.id === 'inspect-component') {
+                expect(command.argv).not.toContain('--format');
+                expect(outcome.output.text).toContain('@value=````\n');
+                const declaration = decode(configuration.source);
+                const template = declaration.split('<template id="cem-card" type="text/cem-ml">')[1].split('</template>')[0];
+                expect(outcome.output.text).toContain(`\n${template}\n\`\`\`\``);
+            }
             const expected = configuration.expectedValidation;
             if (expected) {
                 const diagnostics = outcome.result.diagnostics.items;

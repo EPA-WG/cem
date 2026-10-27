@@ -27,12 +27,18 @@ anonymous_scope  = "{" , attribute , { attribute } , [ content_boundary ] , { it
 attribute        = "@" , qname , [ "=" , value ] ;
 value            = bare_value
                  | quoted_string
+                 | fenced_string
                  | cem_ql_span ;
 
 bare_value       = bare_char , { bare_char } ;
 quoted_string    = '"' , { quoted_char_double } , '"'
                  | "'" , { quoted_char_single } , "'" ;
 cem_ql_span      = "{" , expression_body , "}" ;
+fenced_string    = fence , boundary_eol , { opaque_scalar } , boundary_eol , fence ;
+                 (* Attribute literal only. fence is an exact run of >=3 backticks;
+                    boundary_eol is LF or CRLF, identical at both ends.
+                    The first matching boundary_eol+fence closes the literal.
+                    No escaping, expression evaluation, trimming or dedentation. *)
 
 content_boundary = "|" | "▷" ;      (* `▷` Unicode equivalent *)
 
@@ -72,6 +78,9 @@ query_double_char = ? any scalar except double quote or backslash ? ;
 query_single_char = ? any scalar except single quote or backslash ? ;
 query_comment_char = ? any scalar not starting "(:" or ":)" ? ;
 cem_ql_char      = ? any scalar except braces or quotes, and not starting "(:" ? ;
+fence            = "```" , { "`" } ;
+boundary_eol     = "\n" | "\r\n" ;
+opaque_scalar    = ? any Unicode scalar not starting the matching boundary_eol+fence ? ;
 rich_char        = ? any scalar except triple-backtick ? ;
 comment_inner    = ? any scalar except "*" "/" pair ? ;
 end_of_input     = ? EOF marker ? ;

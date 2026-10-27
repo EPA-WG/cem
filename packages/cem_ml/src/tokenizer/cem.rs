@@ -17,7 +17,7 @@
 //! - Line comments `// ...` and block comments `/* ... */`.
 //! - Rich-content enclosures using triple backticks ```` ``` ```` (body
 //!   emitted as a single `RichContent` token, brace contents preserved).
-//! - Attribute values: bare identifier/number, `"..."`, `'...'`, and
+//! - Attribute values: bare identifier/number, line-fenced literals, `"..."`, `'...'`, and
 //!   cem-ql AVT spans `{...}` (template-aware: emitted as the literal span;
 //!   AVT parsing happens in a later layer).
 //! - Bare `{...}` text interpolation in content is rejected with
@@ -531,12 +531,68 @@ impl CemTokenizer {
     }
 
     fn scan_attribute_value(&mut self) -> (String, ByteRange) {
+        if let Some((fence, newline)) = self.attribute_literal_fence() {
+            return self.scan_fenced_attribute_string(fence, newline);
+        }
         match self.peek() {
             Some('"') => self.scan_quoted_string('"'),
             Some('\'') => self.scan_quoted_string('\''),
             Some('{') => self.scan_avt_span(),
             _ => self.scan_bare_value(),
         }
+    }
+
+    // A line-fenced scalar is literal attribute data, not a query slot or a
+    // content-plane rich enclosure. Inline bare backticks keep their old meaning.
+    fn attribute_literal_fence(&self) -> Option<(usize, usize)> {
+        let mut fence = 0;
+        while self.peek_at(fence) == Some('`') {
+            fence += 1;
+        }
+        if fence < 3 {
+            return None;
+        }
+        match (self.peek_at(fence), self.peek_at(fence + 1)) {
+            (Some('\n'), _) => Some((fence, 1)),
+            (Some('\r'), Some('\n')) => Some((fence, 2)),
+            _ => None,
+        }
+    }
+
+    fn scan_fenced_attribute_string(&mut self, fence: usize, newline: usize) -> (String, ByteRange) {
+        let start = self.cursor;
+        self.cursor += fence + newline;
+        let body_start = self.cursor;
+        while self.peek().is_some() {
+            let boundary = if newline == 1 {
+                self.peek() == Some('\n')
+            } else {
+                self.peek() == Some('\r') && self.peek_at(1) == Some('\n')
+            };
+            if boundary
+                && (0..fence).all(|index| self.peek_at(newline + index) == Some('`'))
+                && self.peek_at(newline + fence) != Some('`')
+            {
+                let data = self.scalars[body_start..self.cursor]
+                    .iter()
+                    .map(|(ch, _)| *ch)
+                    .collect();
+                self.cursor += newline + fence;
+                return (data, self.range_from(start, self.cursor));
+            }
+            self.cursor += 1;
+        }
+        self.parser_fact(
+            CemMlParserFactKind::TokenizerUnterminatedString,
+            "line-fenced attribute literal is not terminated with its matching boundary".into(),
+            self.point_range(self.current_offset()),
+        );
+        let mut data: String = self.scalars[body_start..self.cursor]
+            .iter()
+            .map(|(ch, _)| *ch)
+            .collect();
+        data.push('\u{FFFD}');
+        (data, self.range_from(start, self.cursor))
     }
 
     fn scan_quoted_string(&mut self, quote: char) -> (String, ByteRange) {

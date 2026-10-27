@@ -178,9 +178,35 @@ XML convention:
 ```
 
 Attribute values may be unquoted when they are simple identifiers or numbers.
-Quoted string values may use either `"..."` or `'...'` as equivalent local
-delimiter choices. Canonical serialization may quote all string values with one
-chosen quote style.
+Quoted string values may use either `"..."` or `'...'`. Their contents are
+literal: backslashes are preserved, with no C/JSON escape decoding. The native
+writer keeps these delimiters when the value fits either quote style.
+
+### Line-fenced attribute literals
+
+A value containing both quote styles can use a line-fenced literal. For example:
+
+`````cem
+{note @value=````
+can't "quote" ```embedded rich content``` {#literal}
+```` @kind=example}
+`````
+
+The opening delimiter is an exact run of at least three backticks immediately
+followed by LF or CRLF. The closing delimiter is an equal-length run at the
+start of a line, preceded by the same line-ending style. A longer or shorter
+backtick run does not close it. Only these two framing line endings are removed;
+the payload is preserved without escaping, trimming or indentation removal.
+The native writer chooses LF boundaries and a delimiter longer than every
+backtick run in the value. Payload CRLFs, trailing CRs, Unicode, quotes and
+backslashes therefore round-trip unchanged. Missing or mismatched closing
+boundaries produce the existing unterminated-string diagnostic.
+
+This is a literal attribute value, including when its contents look like
+references or calls. It does not create native expression slots or query nodes.
+Unsupported control characters remain refused by the native writer. Inline
+backticks without an opening line ending keep their existing bare-value meaning;
+content-plane triple-backtick rich-content syntax is unchanged.
 
 Attribute values may also contain cem-ql expression spans. In attribute-value
 mode, `{...}` is not CEM-ML structural syntax and cannot open a CEM-ML node; it

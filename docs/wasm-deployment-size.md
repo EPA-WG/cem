@@ -107,7 +107,7 @@ WASM builds. Its deployment: **898 files, 114,563,382 bytes (109.26 MiB)**;
 all four WASM files remain below 25 MiB with all exports and schemas enabled.
 The earlier comparison table remains the measured 2026-10-26 baseline.
 
-### Current output after shared collection writers (2026-10-27)
+### Output after shared collection writers (2026-10-27)
 
 | Runtime (two deployed copies each) | Post-bindgen input, bytes | `-Oz`, bytes | MiB |
 | --- | ---: | ---: | ---: |
@@ -121,6 +121,22 @@ default debug-control and complete 32-package schema surface. The pinned optimiz
 and deployment guards remain unchanged. Verification and retained test-suite
 limitations are recorded in the
 [collection publication evidence](archive/todo-completed-collection-manifests-2026-10-27.md).
+
+### Current output after lossless mixed-quote inspection (2026-10-27)
+
+| Runtime (two deployed copies each) | Post-bindgen input, bytes | `-Oz`, bytes | MiB |
+| --- | ---: | ---: | ---: |
+| CEM-QL | 26,780,955 | **23,513,463** | **22.42** |
+| CEM-ML common-query bridge | 27,560,486 | **24,163,453** | **23.04** |
+
+The complete deployment has **898 files, 114,690,057 bytes (109.38 MiB)**,
+including the inventory and all **333 Studio files**. Both pairs retain their
+169/170 exports and 28 imports, default debug-control and all 32 schema packages.
+Pinned Binaryen 132.0.0 `-Oz` took approximately 574/586 seconds for these builds;
+all four files remain strictly below 25 MiB with no added chunks or removed
+capabilities. Original optimizer comparison tables above remain historical
+measurements. Verification is recorded in the
+[mixed-quote inspection evidence](archive/todo-completed-mixed-quote-inspection-2026-10-27.md).
 
 ## Reproducing optimizer comparisons
 

@@ -206,7 +206,7 @@ The first migration recognizes the previous copier's known outputs by
 hash. A preflight guard refuses an update exceeding **999 total files**, including
 unrelated files, or containing a file **at or above 25 MiB**, before writing or
 deleting deployment files. The current deployment has 898 files and four WASM
-assets at 22.43 MiB (two copies) and 23.05 MiB (two copies).
+assets at 22.42 MiB (two copies) and 23.04 MiB (two copies).
 Source maps, TypeScript files,
 dependency trees, debug token artifacts, Figma exports, build reports, and native
 compiler output are excluded from the gallery trees. Studio's complete graph

@@ -1734,8 +1734,7 @@ mod tests {
             );
             let response = crate::real::RealCemMlEngine::new().inspect(inspect);
             if format == Some("json") {
-                let response =
-                    response.expect("explicit JSON does not invoke the CEM scalar writer");
+                let response = response.expect("explicit JSON does not invoke the CEM scalar writer");
                 assert!(response.primary_bytes.is_none());
                 let root = response
                     .body
@@ -1746,13 +1745,27 @@ mod tests {
                     .unwrap();
                 assert_eq!(root["children"][0]["value"], literal);
             } else {
+                let response = response.expect("default CEM admits a fenced source scalar");
+                let bytes = response
+                    .primary_bytes
+                    .expect("typed CEM writer bytes")
+                    .bytes;
+                let document = crate::parser::builder::CemAstBuilder::new(
+                    crate::events::cem::CemEventNormalizer::new(
+                        crate::tokenizer::cem::CemTokenizer::from_source(
+                            crate::source::BytesSource::new(crate::source::SourceId(17), bytes),
+                        ),
+                    ),
+                )
+                .build();
                 assert!(
-                    response
-                        .unwrap_err()
-                        .to_string()
-                        .contains("both single and double quotes"),
-                    "default CEM keeps its deliberate scalar refusal"
+                    document.diagnostics.is_empty(),
+                    "{:?}",
+                    document.diagnostics
                 );
+                assert!(document.nodes.iter().any(|node| matches!(node,
+                    crate::parser::CemAstNode::Attribute { expanded_name, value: Some(value), value_nodes, .. }
+                    if expanded_name.local_name == "value" && value == literal && value_nodes.is_empty())));
             }
         }
     }

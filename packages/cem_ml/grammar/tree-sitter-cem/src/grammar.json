@@ -358,6 +358,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "fenced_string"
+        },
+        {
+          "type": "SYMBOL",
           "name": "cem_ql_span"
         }
       ]
@@ -565,6 +569,10 @@
     {
       "type": "SYMBOL",
       "name": "_query_span_body"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "fenced_string"
     }
   ],
   "inline": [],

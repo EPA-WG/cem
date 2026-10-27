@@ -20,7 +20,7 @@ larger comparison with forms, labels and required controls, use the existing
 | `semantics-cem` — Card semantics from CEM-ML | `data/card.cem` and the same query | The same nine-string contract |
 | `build-html` — Build the card as HTML | `graphs/card.cem`, the HTML data and native template | `generated/card.html`, matching `expected/card.html` |
 | `live-view` — Shared card live view | `views/card.cem` and the same HTML data | Two shared `cem-card` instances and a local action |
-| `inspect-component` — Inspect component declaration (JSON) | `components/cem-card.xhtml` | Explicit JSON source-AST presentation of the packaged XML declaration snapshot |
+| `inspect-component` — Inspect component declaration | `components/cem-card.xhtml` | Native CEM-ML source-AST presentation retaining the complete mixed-quote template |
 | `repair-html-policy` — Repair inline HTML policy | `failures/inline-handler.html` | Native event-handler refusal and exact source repair |
 
 `data/card.html` uses `text/html` and `https://cem.dev/ns/data/html/1`.
@@ -126,11 +126,11 @@ named by the configuration's `preview-component:*` tags. Project-emitted
 `cem-element` declarations and arbitrary new registration authority remain
 outside this preview's policy.
 
-The inspection command explicitly requests `--format json`: the CEM-ML writer
-currently refuses a source text scalar containing both quote styles, as found
-in this unchanged declaration. JSON here is a named human-facing source-AST
-export, with original source-map fields. It is not used as a runtime tree handoff
-or as a replacement component implementation.
+The inspection command uses the default native CEM-ML source-AST presentation.
+Line-fenced literal attributes preserve the complete template text, including
+both quote styles and embedded rich-content delimiters, without evaluating it.
+The original source-map fields remain available. An explicitly requested JSON
+export remains a named presentation boundary, never a runtime tree handoff.
 The Parse/Inspect command publication currently supplies no owned artifact-source
 references to the Provenance panel. Its printed coordinate fields do not become
 links; use `build-html`'s real output maps or the native policy diagnostic for

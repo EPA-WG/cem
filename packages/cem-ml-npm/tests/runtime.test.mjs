@@ -788,3 +788,84 @@ test('owned retirement preparation freezes native mutation and aborts only its o
   factory.dispose();
   assert.equal(factory.memory(), undefined);
 });
+
+for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
+  test(`mixed-quote inspection reimports exact literal source in ${runtimeKind}`, async () => {
+    const runtime = runtimeKind === 'wasm-node'
+      ? await import('@epa-wg/cem-ml/wasm') : await import('../dist/wasm/browser/cem_ml.js');
+    if (runtimeKind !== 'wasm-node') {
+      await runtime.default({ module_or_path: await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url)) });
+    }
+    const literal = 'can\'t "quote" ```{#never} {$never()} ``` Café 🧬\r\n';
+    const execute = async (source, contentType, show, format, sequence) => {
+      const uri = `studio://mixed-quotes/source-${sequence}`;
+      const bytes = new TextEncoder().encode(source);
+      const version = { revision: 1, sha256: createHash('sha256').update(bytes).digest('hex') };
+      const request = {
+        protocolVersion: 1, requestId: `mixed-quotes:${runtimeKind}:${sequence}`,
+        project: { projectId: 'mixed-quotes', revision: 1 }, resourceVersions: { [uri]: version },
+        operation: { kind: 'inspect', inputId: 'input:0', show, ...(format ? { format } : {}) },
+        runPlan: JSON.parse(runtime.normalizeCommandRunPlanV1(JSON.stringify({ configBytes: [
+          ...new TextEncoder().encode(JSON.stringify({
+            inputs: [{ uri, rootScope: { defaultContentType: contentType } }],
+            outputs: [{ destination: `${uri}.out`, rootScope: {
+              defaultContentType: format === 'json' ? 'application/json' : 'application/cem',
+            } }],
+          })),
+        ] }))), resources: { [uri]: { bytes: [...bytes], identity: { contentType } } },
+        policyStamp: { resolver: 'literal-resolver', safety: 'literal-safety', budget: 'literal-budget' },
+      };
+      let published;
+      try {
+        const result = JSON.parse(await runtime.executeCommandServiceV1(
+          JSON.stringify(request), JSON.stringify({ runtime: runtimeKind, targetIdentity: 'runtime-test:mixed-quotes',
+            abiIdentity: 'runtime-test-v1', debugControlActive: false }),
+          async () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
+          async () => assert.fail('source is an inline owned resource'),
+          async (json, output) => {
+            assert.equal(published, undefined);
+            published = { write: JSON.parse(json), bytes: Uint8Array.from(output) };
+            return JSON.stringify({ token: 'inspection' });
+          },
+          async token => {
+            assert.equal(token, 'inspection');
+            return JSON.stringify({ uri: published.write.uri });
+          },
+          async () => assert.fail('successful inspection must not roll back'),
+        ));
+        assert.equal(result.status, 'succeeded', JSON.stringify(result));
+        assert.equal(result.artifacts.originalCount, 1);
+        assert.equal(result.artifacts.items[0].sha256, createHash('sha256').update(published.bytes).digest('hex'));
+        return new TextDecoder().decode(published.bytes);
+      } finally {
+        runtime.disposeCommandArtifactsV1(request.requestId);
+      }
+    };
+    for (const show of ['ast', 'tree']) {
+      const cem = await execute(`<note><![CDATA[${literal}]]></note>`, 'application/xml', show, undefined, show);
+      assert.ok(cem.includes(`\`\`\`\`\n${literal}\n\`\`\`\``), 'writer chooses a collision-free literal fence');
+      const highlighted = JSON.parse(runtime.highlightSourceToHtmlV1(JSON.stringify({
+        source: cem, contentType: 'application/cem',
+      })));
+      assert.equal(highlighted.status, 'highlighted');
+      assert.deepEqual(highlighted.diagnostics, []);
+      assert.ok(highlighted.spans.some(span => span.role === 'syntax.string'
+        && new TextDecoder().decode(new TextEncoder().encode(cem).slice(span.byteOffset, span.byteOffset + span.byteLength)).includes(literal)));
+      // Explicitly named JSON is a test-visible source export of native reimport,
+      // never an AST handoff to an application or a replacement JavaScript parser.
+      const exported = JSON.parse(await execute(cem, 'application/cem', 'ast', 'json', `${show}-reimport`));
+      const pending = [exported];
+      let matching = 0;
+      while (pending.length) {
+        const node = pending.pop();
+        if (!node || typeof node !== 'object') continue;
+        if (node.kind === 'attribute' && ['value', 'data'].includes(node.name) && node.value === literal) {
+          matching++;
+          assert.equal((node.children ?? []).length, 0, 'reference-looking payload stays literal');
+        }
+        pending.push(...Object.values(node));
+      }
+      assert.equal(matching, 1);
+    }
+  });
+}

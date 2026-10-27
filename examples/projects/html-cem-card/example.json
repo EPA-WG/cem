@@ -1,7 +1,7 @@
 {
   "id": "html-cem-card",
   "name": "HTML and CEM card",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Compare HTML and CEM-ML card semantics, inspect the canonical shared declaration, generate native HTML and reuse packaged declarative cards in an independent live view.",
   "collections": [
     "content-types-documents-ui",
@@ -271,7 +271,7 @@
     },
     {
       "id": "inspect-component",
-      "name": "Inspect component declaration (JSON)",
+      "name": "Inspect component declaration",
       "kind": "inspection",
       "source": "card-component",
       "argv": [
@@ -283,18 +283,16 @@
         "https://cem.dev/ns/data/xml/1",
         "--show",
         "ast",
-        "--no-color",
-        "--format",
-        "json"
+        "--no-color"
       ],
       "expectedText": [
         "http://www.w3.org/1999/xhtml",
-        "\"name\": \"cem-element\"",
-        "\"name\": \"template\"",
-        "\"value\": \"cem-card\"",
-        "sourceMap"
+        "@name=cem-element",
+        "@name=template",
+        "@value=cem-card",
+        "@byte-offset="
       ],
-      "description": "Inspect the unchanged packaged declaration snapshot through an explicitly selected JSON source-AST export. The default CEM-ML writer currently refuses mixed-quote text; JSON is a named human-facing presentation, never a runtime AST handoff."
+      "description": "Inspect the unchanged packaged declaration as native CEM-ML source-AST vocabulary. Line-fenced literal attributes preserve complete mixed-quote template text without evaluating it or expanding DCEs."
     },
     {
       "id": "repair-html-policy",
