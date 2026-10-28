@@ -536,6 +536,35 @@ See [portable checkpoints](../../docs/committed-checkpoints.md). Run
 `cargo test -p cem-ml --test committed_checkpoint` and, after building WASM,
 `node packages/cem_ql/tests/committed-checkpoint-wasm.mjs`.
 
+## Formatter artifact-reader freshness
+
+Formatter/colorizer function discovery and execution independently consult the
+supplied package-artifact reader. Parsed module options may be reused only after
+current admission and source reading, with a cache key containing the complete
+artifact descriptor, actual source URI, returned content type and SHA-256 of the
+original bytes. A warm cache never replaces source admission. Authoritative
+reader refusal cannot select embedded or previously cached sources; legacy
+readers retain their documented embedded fallback policy.
+
+For the four-artifact format/color fixture, the ordered reads are:
+
+| Phase | Artifact reads |
+| --- | --- |
+| Format function discovery | Formatter helper, colorizer helper |
+| Formatter execution | Formatter body, formatter helper |
+| Color function discovery | Formatter helper, colorizer helper |
+| Colorizer execution | Colorizer body, colorizer helper |
+
+The shared registry discovers both helper kinds at each binding phase. Repeated
+helper reads revalidate current bytes before cache reuse; they are distinct from
+reparsing admitted unchanged bytes. Fixture checks cover changed declarations,
+malformed sources, revoked reads, restored admission and URI/MIME changes at
+execution, with automatic local and explicit caches and legacy/authoritative
+readers. A refusal produces no native/public writer output. This preserves native
+CEMT ownership and existing command, source-provenance and credential policies.
+Run `cargo test -p cem-ml --lib conversion_output_pipeline` and
+`cargo test -p cem-ml --lib conversion::schema_asset_pack_tests::`.
+
 ## Versioned deployment-map source validation and AST JSON exports
 
 Explicit module-map v1/v2/v3 identities use shared native deployment-map decoding

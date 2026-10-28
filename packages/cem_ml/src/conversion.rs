@@ -15177,6 +15177,10 @@ fn rust_edge(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod formatter_freshness_tests {
+        include!("conversion/formatter_freshness_tests.rs");
+    }
     use crate::engine::{EngineContext, TransformTemplateKind};
     use crate::schema::registry::{
         NamespaceClaim, SchemaContentType, SchemaDescriptor, AI_CONTEXT_JSON_CONTENT_TYPE,
@@ -20247,172 +20251,7 @@ mod tests {
 
     #[test]
     fn conversion_output_pipeline_reads_cemt_artifacts_through_environment_reader() {
-        let schema_registry = SchemaRegistry::with_builtin_schemas();
-        let mut conversion_registry = ConversionRegistry::new();
-        let formatter_path = "cem+test://packages/cem-ml/v1/formatters/cem-format-tree.cemt";
-        let formatter_helper_path =
-            "cem+test://packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt";
-        let colorizer_path = "cem+test://packages/cem-ml/v1/colorizers/cem-color-tree.cemt";
-        let colorizer_helper_path =
-            "cem+test://packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt";
-        conversion_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
-            package_id: "cem-ml".to_owned(),
-            kind: "formatter".to_owned(),
-            path: formatter_path.to_owned(),
-            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
-            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
-            target_content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
-            target_schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
-            target_category: Some("cem-tree".to_owned()),
-            function_name: Some("cem.format-tree".to_owned()),
-            function_profile: None,
-            formatter_profile: Some("compact".to_owned()),
-            color_profile: None,
-            generated: false,
-        });
-        conversion_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
-            package_id: "cem-ml".to_owned(),
-            kind: CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND.to_owned(),
-            path: formatter_helper_path.to_owned(),
-            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
-            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
-            target_content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
-            target_schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
-            target_category: Some("cem-tree".to_owned()),
-            function_name: Some("cem.format-tree.apply-stage".to_owned()),
-            function_profile: Some("cem.format-tree".to_owned()),
-            formatter_profile: Some("compact".to_owned()),
-            color_profile: None,
-            generated: false,
-        });
-        conversion_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
-            package_id: "cem-ml".to_owned(),
-            kind: "colorizer".to_owned(),
-            path: colorizer_path.to_owned(),
-            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
-            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
-            target_content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
-            target_schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
-            target_category: Some("cem-tree".to_owned()),
-            function_name: Some("cem.color-tree".to_owned()),
-            function_profile: Some("css-custom-properties".to_owned()),
-            formatter_profile: None,
-            color_profile: Some("classes".to_owned()),
-            generated: false,
-        });
-        conversion_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
-            package_id: "cem-ml".to_owned(),
-            kind: CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND.to_owned(),
-            path: colorizer_helper_path.to_owned(),
-            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
-            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
-            target_content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
-            target_schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
-            target_category: Some("cem-tree".to_owned()),
-            function_name: Some("cem.color-tree.apply-stage".to_owned()),
-            function_profile: Some("css-custom-properties".to_owned()),
-            formatter_profile: None,
-            color_profile: None,
-            generated: false,
-        });
-        let formatter_source = builtin_schema_package_artifact_source(
-            "cem-ml",
-            "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt",
-        )
-        .expect("embedded formatter source");
-        let formatter_helper_source = builtin_schema_package_artifact_source(
-            "cem-ml",
-            "schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt",
-        )
-        .expect("embedded formatter helper source");
-        let colorizer_source = builtin_schema_package_artifact_source(
-            "cem-ml",
-            "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt",
-        )
-        .expect("embedded colorizer source");
-        let colorizer_helper_source = builtin_schema_package_artifact_source(
-            "cem-ml",
-            "schema-packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt",
-        )
-        .expect("embedded colorizer helper source");
-        let reads = std::cell::RefCell::new(Vec::new());
-        let package_artifact_reader =
-            |artifact: &ConversionPackageArtifactDescriptor| -> Result<ConversionPackageArtifactRead, String> {
-                reads.borrow_mut().push(artifact.path.clone());
-                let source = match artifact.path.as_str() {
-                    path if path == formatter_path => formatter_source.source,
-                    path if path == formatter_helper_path => formatter_helper_source.source,
-                    path if path == colorizer_path => colorizer_source.source,
-                    path if path == colorizer_helper_path => colorizer_helper_source.source,
-                    other => return Err(format!("unexpected artifact path `{other}`")),
-                };
-                Ok(ConversionPackageArtifactRead {
-                    uri: artifact.path.clone(),
-                    bytes: source.as_bytes().to_vec(),
-                    content_type: artifact.content_type.clone(),
-                })
-            };
-        let environment = ConversionOutputPipelineEnvironment {
-            schema_registry: &schema_registry,
-            conversion_registry: &conversion_registry,
-            package_artifact_reader: Some(&package_artifact_reader),
-            artifact_cache: None,
-        };
-
-        let execution = execute_conversion_output_pipeline_with_environment(
-            &environment,
-            &direct_html_output_pipeline(),
-            serde_json::json!({
-                "kind": "element",
-                "name": "main",
-                "children": [{"kind": "text", "value": "Ready"}]
-            }),
-            None,
-            Vec::new(),
-            "test-dom-to-html-cemt",
-            Some("output"),
-            Some("test.cem"),
-        );
-
-        assert!(
-            execution.diagnostics.is_empty(),
-            "{:?}",
-            execution.diagnostics
-        );
-        assert_eq!(
-            reads.into_inner(),
-            vec![
-                formatter_helper_path.to_owned(),
-                colorizer_helper_path.to_owned(),
-                formatter_path.to_owned(),
-                colorizer_path.to_owned(),
-            ]
-        );
-        assert_eq!(
-            execution.format_execution,
-            Some(ConversionOutputPipelineStageExecution::CemtAdapter {
-                adapter_id: CEM_TREE_FORMAT_CEMT_ADAPTER_ID.to_owned(),
-                function_name: "cem.format-tree".to_owned(),
-                body_function_name: Some("cem.format-tree".to_owned()),
-                fallback_function_name: None,
-            })
-        );
-        assert_eq!(
-            execution.color_execution,
-            Some(ConversionOutputPipelineStageExecution::CemtAdapter {
-                adapter_id: CEM_TREE_COLOR_CEMT_ADAPTER_ID.to_owned(),
-                function_name: "cem.color-tree".to_owned(),
-                body_function_name: Some("cem.color-tree".to_owned()),
-                fallback_function_name: None,
-            })
-        );
-        let output = execution
-            .output
-            .as_ref()
-            .and_then(Value::as_str)
-            .expect("writer output text");
-        assert!(output.contains("<main"));
-        assert!(output.contains("cem-color-syntax-name"));
+        formatter_freshness_tests::assert_environment_reader_trace();
     }
 
     #[test]

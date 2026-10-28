@@ -506,7 +506,14 @@ Node/browser-worker WASM, Studio configuration/artifact checks and isolated Logi
 recovery pass. All Rust edits are test-only; production validation, shared
 components, credential refusal and recovery budgets/deadlines are unchanged.
 
-- [ ] Reconcile the native formatter artifact-reader trace contract in `conversion_output_pipeline_reads_cemt_artifacts_through_environment_reader`. Its four-read expectation receives eight ordered reads including repeated helper reads on unchanged `457f3818` and the formatter-provenance change. Determine which preparation/execution freshness reads are required, then retain strict original URI/byte admission in the trace fixture; do not remove revalidation merely to satisfy an obsolete once-only expectation.
+Completed 2026-10-28: [formatter artifact-reader freshness](archive/todo-completed-formatter-reader-freshness-2026-10-28.md)
+traces the eight discovery/execution reads and closes the obsolete four-read
+fixture without removing admission checks. The expanded fixture exercises 58
+pipeline runs, including late source changes/refusals, re-admission and URI/MIME
+cache qualification. Pipeline, asset/cache, native provenance, public WASM,
+Studio formatting and isolated Login recovery checks pass. All edits are tests
+and documentation; production code, shared components, credential privacy,
+cache bounds and recovery limits/deadlines remain unchanged.
 
 - [ ] Separate constructed XML document URI from source provenance URI. `uri_accessors_share_native_metadata_and_enforce_optional_node_arguments` expects `data:document_uri(data:parse("<r/>", "xml"))` to be empty, while the unchanged pre-CSV-fix runtime returns `data:parse/source`. Preserve original source locations and the existing assertion when repairing the accessor.
 
