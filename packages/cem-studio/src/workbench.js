@@ -57,7 +57,10 @@ export async function createCemStudioProjectWorkbench({ repository, validator, s
     if (supported) {
         try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { /* binary stays read-only */ }
     }
-    if (text === undefined) {
+    const binarySource = available && entry && commandRecord?.schema === 'https://cem.dev/ns/cli/command/1'
+        && ['inline', 'project-file'].includes(resource.sourceKind) && mediaType.endsWith('+cem-bin')
+        && bytes.byteLength <= CEM_STUDIO_LIMITS.sourceBytes;
+    if (text === undefined && !binarySource) {
         const state = Object.freeze({ status: resource ? 'read-only' : 'empty', projectId: project.id,
             entryId: entry?.id, resourceId: resource?.id ?? '', path: resource?.path ?? '',
             contentType: resource?.contentType ?? '', schema: resource?.schema ?? '',
@@ -71,7 +74,7 @@ export async function createCemStudioProjectWorkbench({ repository, validator, s
                 await download({ filename: resource.path?.split('/').pop() ?? resource.id, contentType: resource.contentType, bytes: bytes.slice() });
             } });
     }
-    const example = { ...sample, id: entry?.id ?? resource.id, name: entry?.name ?? resource.path,
+    const example = { ...sample, binarySource: Boolean(binarySource), id: entry?.id ?? resource.id, name: entry?.name ?? resource.path,
         resourceId: resource.id, referenceUri: projectResourceUri(project, resource), projectRootUri: project.rootUri, path: resource.path, contentType: resource.contentType, schema: resource.schema,
         description: entry?.description,
         expectedResourceId: entry?.resourceIds?.find(id => project.resources.find(resource => resource.id === id)?.role === 'expected'),
@@ -298,6 +301,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
         navigationError = undefined;
         try {
             if (!frame) throw new RangeError(`provenance frame ${index} is unavailable`);
+            if (state.binarySource) throw new Error('Binary source ranges are byte offsets; download the exact source bytes instead of opening a text selection.');
             if (frame.requiresSourceIdentity && !frame.uri) throw new Error('Query source identity is unavailable or ambiguous. Rerun the configuration before following it.');
             if (!frame.uri) {
                 session.activeWorkbench().navigateProvenance(index);
@@ -438,13 +442,14 @@ export async function createCemStudioWorkbench(options) {
     const commandFormId = crypto.randomUUID();
     let graphCache;
     const graphUndo = [], graphRedo = [];
-    const isGraphConfiguration = () => typeof validator.authorGraph === 'function' && (example.graphConfiguration || example.schema === 'https://cem.dev/ns/cli/transform-config/1' || (!example.projectOwned && example.kind === 'transformation-graph'));
+    const isGraphConfiguration = () => !example.binarySource && typeof validator.authorGraph === 'function' && (example.graphConfiguration || example.schema === 'https://cem.dev/ns/cli/transform-config/1' || (!example.projectOwned && example.kind === 'transformation-graph'));
     let commandTargetVersion = 0;
     let state = freezeState({
         status: 'loading',
         projectId,
         entryId: example.entryId,
-        editable: true,
+        editable: !example.binarySource,
+        binarySource: Boolean(example.binarySource),
         runnable: !example.projectOwned,
         resourceId: example.resourceId,
         path: example.path,
@@ -513,7 +518,8 @@ export async function createCemStudioWorkbench(options) {
         if (currentEntries.length > 1) {
             throw new Error(`Resource ${example.resourceId} resolves to more than one current configuration`);
         }
-        example = { ...example, path: resource.path, referenceUri: projectResourceUri(bundle.project, resource) };
+        example = { ...example, path: resource.path, referenceUri: projectResourceUri(bundle.project, resource), contentType: resource.contentType, schema: resource.schema };
+        if (example.binarySource && (!['inline','project-file'].includes(resource.sourceKind) || bundle.contents[resource.id] === undefined)) throw new Error('Binary command source bytes are unavailable or not locally owned');
         const bytes = toBytes(bundle.contents[example.resourceId]);
         if (example.projectOwned && example.entryId && currentEntries.length !== 1) throw new Error(`Configuration ${example.entryId} is missing`);
         const dependencyDescriptors = example.projectOwned
@@ -541,7 +547,7 @@ export async function createCemStudioWorkbench(options) {
         return {
             commandBytes: commandRecord?.schema === 'https://cem.dev/ns/cli/command/1' ? toBytes(bundle.contents[commandRecord.id]) : undefined,
             bytes,
-            text: textDecoder.decode(bytes),
+            text: example.binarySource ? undefined : textDecoder.decode(bytes),
             dependencies,
             projectRevision: bundle.project.revision,
             resourceRevision: resource.revision,
@@ -580,23 +586,35 @@ export async function createCemStudioWorkbench(options) {
     async function reload() {
         commandEditVersion += 1;
         const persisted = await readPersisted();
-        const command = await commandForPersisted(persisted, true);
+        let command, admissionError;
+        try {
+            command = await commandForPersisted(persisted, true);
+            if (example.binarySource && !command?.current?.semantic?.binaryInputs?.some(input => input.uri === example.referenceUri && input.byteLength === persisted.bytes.byteLength && input.sha256 === persisted.sha256)) {
+                throw new Error('The saved configuration does not admit this owned binary input');
+            }
+        } catch (error) {
+            if (!example.binarySource) throw error;
+            admissionError = normalizedError(error);
+        }
         editVersion += 1;
         graphUndo.length = 0; graphRedo.length = 0; graphCache = undefined;
         return publish({
             ...state,
-            status: 'loaded',
+            status: example.binarySource ? 'read-only' : 'loaded',
             path: example.path,
-            runnable: !example.projectOwned || Boolean(persisted.commandBytes) || Boolean(example.commandArguments),
+            contentType: example.contentType, schema: example.schema,
+            resourceAvailable: true, byteLength: persisted.bytes.byteLength,
+            runnable: example.binarySource ? !admissionError : !example.projectOwned || Boolean(persisted.commandBytes) || Boolean(example.commandArguments),
             projectRevision: persisted.projectRevision,
             resourceRevision: persisted.resourceRevision,
             repositoryRevision: persisted.repositoryRevision,
-            persistedText: persisted.text,
-            draft: persisted.text,
+            persistedText: persisted.text ?? '',
+            draft: persisted.text ?? '',
             dirty: false,
             validation: undefined,
             projection: state.projection ? freezeProjection({ ...state.projection, stale: true }) : undefined,
-            command,
+            command: command && example.binarySource ? { ...command, readOnly: true } : command,
+            admissionError,
             selection: undefined,
             error: undefined,
             graphConfiguration: undefined,
@@ -927,6 +945,11 @@ export async function createCemStudioWorkbench(options) {
         if (example.projectOwned) {
             const persisted = await readPersisted();
             if (persisted.commandBytes) {
+                if (example.binarySource) {
+                    if (!state.runnable || persisted.projectRevision !== state.projectRevision || persisted.resourceRevision !== state.resourceRevision || persisted.sha256 !== state.command?.revision?.sha256) throw new Error('Reload the saved binary configuration before running changed or unadmitted bytes');
+                    const checked = await commandForPersisted(persisted, true);
+                    if (!checked?.current?.semantic?.binaryInputs?.some(input => input.uri === example.referenceUri && input.sha256 === persisted.sha256)) throw new Error('The saved command does not admit the selected binary source');
+                }
                 const version = editVersion;
                 const commandVersion = commandEditVersion;
                 publish({ ...state, status: 'projecting', error: undefined });
@@ -938,7 +961,7 @@ export async function createCemStudioWorkbench(options) {
                         if (!error?.result || !error?.output || !error?.parsed) throw error;
                         outcome = { result: error.result, presentation: error.presentation, output: error.output, outputs: error.outputs, admission: error.admission, parsed: error.parsed };
                     }
-                    const live = persisted.currentEntry?.tags?.includes('live-preview')
+                    const live = !example.binarySource && persisted.currentEntry?.tags?.includes('live-preview')
                         && persisted.project.resources.find(resource => resource.id === example.resourceId)?.role === 'template'
                         && outcome.result.exitCode === 0
                         ? await createCemStudioLivePreview({ source: persisted.text, sourceUri: example.referenceUri, dependencies: persisted.dependencies,
@@ -948,7 +971,7 @@ export async function createCemStudioWorkbench(options) {
                     const stale = version !== editVersion || commandVersion !== commandEditVersion || state.dirty
                         || latest.projectRevision !== persisted.projectRevision || latest.resourceRevision !== persisted.resourceRevision || Boolean(outcome.result.stale);
                     const projection = freezeProjection({ ...projectCommandProjection(operation, commandProjectionMode(outcome.parsed, operation), outcome,
-                        persisted.text, { projectRevision: persisted.projectRevision, resourceRevision: persisted.resourceRevision, sha256: persisted.sha256 }, persisted.expected, captureBuild(persisted)), ...(live ? { preview: live } : {}), stale });
+                        persisted.text ?? persisted.bytes, { projectRevision: persisted.projectRevision, resourceRevision: persisted.resourceRevision, sha256: persisted.sha256 }, persisted.expected, captureBuild(persisted)), ...(live ? { preview: live } : {}), stale });
                     return publish({ ...state, status: stale ? 'projection-stale' : projection.exitCode === 0 ? 'projected' : 'projection-invalid', projection, operation });
                 } catch (error) { publish({ ...state, status: 'failed', error: normalizedError(error) }); throw error; }
             }
@@ -1749,6 +1772,14 @@ export async function createCemStudioWorkbench(options) {
     }
 
     await reload();
+    if (example.binarySource) return Object.freeze({ snapshot, subscribe, reload, runPersistedOperation,
+        copyCommand, copyProjection, downloadProjection, selectArtifact,
+        async downloadSource(download = browserDownload) {
+            const loaded = (await repository.query(repositoryRequest('export-project', { projectId }))).value;
+            const resource = loaded?.project.resources.find(item => item.id === example.resourceId);
+            if (!resource || loaded.contents[resource.id] === undefined) throw new Error('No local resource bytes are available');
+            await download({ filename: resource.path.split('/').pop(), contentType: resource.contentType, bytes: toBytes(loaded.contents[resource.id]).slice() });
+        }, dispose() { subscribers.clear(); } });
     return Object.freeze({
         snapshot,
         subscribe,
@@ -1984,7 +2015,7 @@ export async function mountCemStudioWorkbench({
         root: host.querySelector('[data-cem-studio-workbench-command-mount]'),
         element: host.querySelector('cem-studio-workbench-command'),
         tag: 'cem-studio-workbench-command',
-        state: { command: workbenchCommandState(workbench.snapshot().command, workbench.snapshot().transition), pending, busy: workbenchBusy(workbench.snapshot()) },
+        state: { sourceReadOnly: Boolean(workbench.snapshot().binarySource), command: workbenchCommandState(workbench.snapshot().command, workbench.snapshot().transition), pending, busy: workbenchBusy(workbench.snapshot()) },
         commands: {
             edit: ({ value }) => {
                 const edit = workbench.updateCommandDraft(value ?? '').catch(() => undefined);
@@ -2040,7 +2071,7 @@ export async function mountCemStudioWorkbench({
             navigation.update({ state: workbenchNavigationState(current), pending });
             navigationActions.update({ state: workbenchNavigationState(current, true), pending });
             controls.update({ state: workbenchControlState(current), selectionRequest: selection ? String(selectionRequest) : '', pending });
-            commandView.update({ command: workbenchCommandState(current.command, current.transition), pending, busy: workbenchBusy(current) });
+            commandView.update({ sourceReadOnly: Boolean(current.binarySource), command: workbenchCommandState(current.command, current.transition), pending, busy: workbenchBusy(current) });
             results.update({ state: workbenchResultState(current), pending });
             previewView.update({ state: workbenchPreviewState(current) });
             buildView.update({ state: workbenchPreviewState(current, false) });
@@ -2199,7 +2230,7 @@ function projectValidation(result, presentation, source, revision) {
         diagnostics: Object.freeze(diagnostics),
         provenance: Object.freeze(provenance),
         presentation,
-        sourceByteLength: textEncoder.encode(source).byteLength,
+        sourceByteLength: source instanceof Uint8Array ? source.byteLength : textEncoder.encode(source).byteLength,
         stale: false,
     };
 }
@@ -2304,7 +2335,7 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
         provenance: artifacts.some(artifact => artifact.provenance.length) || nativeOutputs.length
             ? artifacts.find(artifact => artifact.id === selectedArtifactId)?.provenance ?? Object.freeze([]) : Object.freeze(provenance),
         presentation: outcome.presentation,
-        sourceByteLength: textEncoder.encode(source).byteLength,
+        sourceByteLength: source instanceof Uint8Array ? source.byteLength : textEncoder.encode(source).byteLength,
         summary: Object.freeze(summary),
         expected: expected === undefined ? undefined : Object.freeze({ ...expected }),
         expectedMatches,
@@ -2837,6 +2868,7 @@ function workbenchControlState(state) {
         validation: validation && { stale: validation.stale, hardViolationCount: validation.hardViolationCount,
             diagnostics: (validation.diagnostics ?? []).map(({ code }) => ({ code })) },
         sourceId: JSON.stringify([projectId, resourceId]),
+        binarySource: Boolean(state.binarySource), byteLength: state.byteLength, admissionError: state.admissionError,
         editable: state.editable !== false, runnable: state.runnable !== false,
         resourceAvailable: state.resourceAvailable ?? Boolean(resourceId),
         command: { status: state.command?.status, application: { status: state.command?.application?.status } } };
@@ -2851,7 +2883,7 @@ function workbenchCommandState(command, transition) {
     if (status !== 'invalid') {
         try { fields = describeCemStudioOperationFields(draftText); groups = describeCemStudioOperationGroups(draftText); } catch { /* Invalid literal text stays repairable in the command editor. */ }
     }
-    return { fields, groups, formVersion: command.formVersion, formError: command.formError, status, draftText, copy, diagnostic, revision, current: { commonVersion: current.commonVersion },
+    return { readOnly: Boolean(command.readOnly), fields, groups, formVersion: command.formVersion, formError: command.formError, status, draftText, copy, diagnostic, revision, current: { commonVersion: current.commonVersion },
         changes: changes.map(({ category, path, kind, before, after }) => ({ category, path, kind,
             beforeText: text(before), afterText: text(after) })),
         application: application ? { ...targeting, navigationPending: Boolean(transition), result: result && {
@@ -2959,7 +2991,7 @@ function workbenchResultState(state) {
         ({ sourceId, uri, transform, range, outputRange }));
     const records = values => (values ?? []).slice(0, CEM_STUDIO_LIMITS.structuredRows)
         .map(({ path, value }) => ({ path, text: typeof value === 'string' ? value : JSON.stringify(value) }));
-    return { status, error, operation, path, contentType, schema, expected, expectedRows,
+    return { binarySource: Boolean(state.binarySource), status, error, operation, path, contentType, schema, expected, expectedRows,
         validation: validation && { reportSummary: validation.reportSummary, diagnostics: validation.diagnostics,
             provenance: frames(validation.provenance) },
         command: { current: { argv: command?.current?.argv }, application: { status: command?.application?.status } },

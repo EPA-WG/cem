@@ -2,7 +2,7 @@
  <!-- Keep adjacent CEM-ML instructions contiguous: body indentation adds checkpoint witness nodes. -->
   <template id="cem-studio-workbench-command" type="text/cem-ml">
 {module |
-    {slice @name=command}
+    {slice @name=command}{slice @name=sourceReadOnly | false}
     {slice @name=pending | false}
     {slice @name=busy | false}
     {slice @name=fieldId | }
@@ -166,15 +166,10 @@
 [part~='operation-introduction'] { display: grid; gap: var(--cem-gap-related); min-inline-size: 0; }
 ```}
 
-        {cem:variable @name=command @select=datadom.slices.command}
-        {cem:variable @name=application @select=command.application}
-        {cem:variable @name=busy
-            @select='datadom.slices.pending || datadom.slices.busy || (command.status == "checking") || (application.status == "applying") || (application.status == "running")'}
-        {cem:variable @name=commandLabel
-            @select='if !command { "No command is prepared. Parse or inspect a text resource to begin." } else { if command.copy.message { command.copy.message } else { if command.status == "checking" { "Checking command with the shared CEM-ML grammar." } else { if command.status == "invalid" { str:concat((command.diagnostic.code ?? "cem.command.invalid", ": ", command.diagnostic.message ?? "Command is invalid."), "") } else { if command.status == "changed" { str:concat((seq:count(command.changes.path), " semantic changes; project records remain unchanged."), "") } else { str:concat(("Generated Studio command for project ", command.revision.projectRevision, ", resource ", command.revision.resourceRevision, "; CEM-ML ", command.current.commonVersion, "."), "") } } } } }'}
-        {cem:variable @name=applyDisabled
-            @select='busy || !command || !application || ((application.target.mode == "new") &amp;&amp; (str:length(str:trim(application.newPageName ?? "")) == 0)) || (command.status == "invalid") || (command.status == "checking")'}
-        {section @aria-label="CLI Command" |
+        {cem:variable @name=command @select=datadom.slices.command}{cem:variable @name=application @select=command.application}{cem:variable @name=busy
+            @select='datadom.slices.pending || datadom.slices.busy || (command.status == "checking") || (application.status == "applying") || (application.status == "running")'}{cem:variable @name=commandLabel
+            @select='if !command { "No command is prepared. Parse or inspect a text resource to begin." } else { if command.copy.message { command.copy.message } else { if command.status == "checking" { "Checking command with the shared CEM-ML grammar." } else { if command.status == "invalid" { str:concat((command.diagnostic.code ?? "cem.command.invalid", ": ", command.diagnostic.message ?? "Command is invalid."), "") } else { if command.status == "changed" { str:concat((seq:count(command.changes.path), " semantic changes; project records remain unchanged."), "") } else { str:concat(("Generated Studio command for project ", command.revision.projectRevision, ", resource ", command.revision.resourceRevision, "; CEM-ML ", command.current.commonVersion, "."), "") } } } } }'}{cem:variable @name=applyDisabled
+            @select='busy || !command || !application || ((application.target.mode == "new") &amp;&amp; (str:length(str:trim(application.newPageName ?? "")) == 0)) || (command.status == "invalid") || (command.status == "checking")'}{cem:if @test=datadom.slices.sourceReadOnly |{cem-alert @label="Binary source bytes remain read-only. Edit the saved command resource in the project tree to change its configuration."}{cem:if @test=command |{cem-source-editor @label="Saved command" @content-type=text/plain @readonly @value={command.draftText}}{cem-action @host-command=copy @disabled={if busy { true } else { null }} | Copy command}}}{cem:if @test='!datadom.slices.sourceReadOnly' |{section @aria-label="CLI Command" |
             {cem-tabs @label="CLI Command" @value=command |
                 {cem-tab @label="Studio command" @value=command |
  {div @part=command-content |
@@ -252,6 +247,6 @@
                         }
                     }
                 }
-}   }   }
+}}}}
   </template>
 </cem-element>

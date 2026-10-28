@@ -470,7 +470,14 @@ demo inventory and isolated worker/fallback Login recovery pass. Binary Studio
 command admission remains below; credential refusal and all recovery bounds are
 unchanged. Deployment retains 898 files with all four WASMs below 25 MiB.
 
-- [ ] Design explicit owned native command execution for read-only binary Studio resources. Binary sources currently remain non-editable and non-runnable with exact downloads; preserve that admission boundary until the shared command service and declarative controls can validate an owned binary configuration without treating binary bytes as text or granting execution implicitly.
+Completed 2026-10-28: [owned binary Studio commands](archive/todo-completed-owned-binary-commands-2026-10-28.md)
+admits explicit saved configurations through shared native byte/identity checks
+and execution revalidation. Sources remain immutable, with exact downloads and
+read-only declarative controls. All six binary configurations pass online and
+offline; native/WASM, all 283 catalog configurations, deployed demos and isolated
+Login recovery pass. Layout-only whitespace was removed to retain the unchanged
+32,768-unit witness limit. Credential privacy, 4 MiB groups and all deadlines
+remain unchanged; deployment stays at 898 files with all four WASMs below 25 MiB.
 
 - [ ] Apply the catalog file text-admission policy to direct configuration URLs. That older branch still decodes missing bytes as empty text and invalid UTF-8 with replacement characters. Add missing/invalid configuration-resource fixtures, preserve exact-byte downloads and refuse fabricated source preparation; reuse the owned file transport policy without parsing configurations in JavaScript.
 

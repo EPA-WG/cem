@@ -152,6 +152,9 @@ pub struct CommandPresentationPlanV1 {
 #[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandInvocationV1 {
+    /// Informational byte-bound admission facts; execution revalidates snapshots.
+    #[serde(default,skip_serializing_if="Vec::is_empty")]
+    pub binary_inputs: Vec<crate::command_operation::BinaryInputAdmissionV1>,
     pub request: CommandServiceRequestV1,
     pub presentation: CommandPresentationPlanV1,
 }
@@ -247,6 +250,7 @@ fn build_command_invocation(
             CommandRunPlanV1::Null(()),
         );
         return Ok(BuildOutcome::Ready(Box::new(CommandInvocationV1 {
+            binary_inputs:vec![],
             request,
             presentation: CommandPresentationPlanV1 {
                 stdout_artifact_uri: None,
@@ -288,7 +292,10 @@ fn build_command_invocation(
     // sources are inserted while lowering and are hashed by the same path.
     plan.diagnostics_mode.report_destinations.clear();
     let request = command_request(environment, resources, operation, plan.into());
+    let binary_inputs=crate::command_operation::admit_binary_inputs(&request,request.run_plan.plan().expect("lowered plan"))
+        .map_err(|e|usage("cem.command.binary_input",e.to_string()))?;
     Ok(BuildOutcome::Ready(Box::new(CommandInvocationV1 {
+        binary_inputs,
         request,
         presentation,
     })))
@@ -2304,3 +2311,6 @@ mod tests {
         assert!(projected.writes[1].bytes.starts_with(b"# cem-ml report"));
     }
 }
+
+#[cfg(test)]
+mod binary_input_tests;

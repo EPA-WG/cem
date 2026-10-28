@@ -329,14 +329,14 @@
     {
       "id": "native-projections",
       "name": "Native DOM, AST and events",
-      "description": "Compare original source parsing and owned projection-source imports, CEM/HTML/XML conversions, exact JSON/binary exports and repairs with artifact-owned source navigation and passive event/reference semantics.",
-      "version": "1.0.4",
+      "description": "Compare retained JSON and owned binary projection-source commands, passive event records, native structural conversions and exact exports with explicit source ownership and read-only binary resources.",
+      "version": "1.0.5",
       "collections": [
         "content-types-schema-authoring",
         "content-types-queries-transformations"
       ],
       "archive": "./examples/native-projections.cem-studio.json",
-      "sha256": "fe8341762d725bb17cca472482818551eeae3f1af731cd4655a762e38555ede9"
+      "sha256": "a1c2e978ad14a80318e0b9ee9a96e5ce0eb7f5f29b124d0523959a176cb04b80"
     },
     {
       "id": "portable-config",

@@ -4,6 +4,10 @@
 //! normalized run-plan data into common engine/query request types without
 //! invoking a host resolver, publishing output, or selecting a process policy.
 
+mod binary_input;
+pub use binary_input::BinaryInputAdmissionV1;
+pub(crate) use binary_input::admit as admit_binary_inputs;
+
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -141,6 +145,7 @@ pub enum CommandOperationPreparationError {
     InputMissing {
         input_id: String,
     },
+    BinaryInput {uri:String,message:String},
     QueryIdentityMissing {
         uri: String,
     },
@@ -171,6 +176,7 @@ impl CommandOperationPreparationError {
                 "cem.command_service.resource_identity_mismatch"
             }
             Self::InputMissing { .. } => "cem.command_service.input_missing",
+            Self::BinaryInput { .. } => "cem.command_service.binary_input",
             Self::QueryIdentityMissing { .. } => "cem.command_service.query_identity_missing",
             Self::TransformIdentity { .. } => "cem.command_service.transform_identity",
             Self::TransformSurface { .. } => "cem.command_service.transform_surface",
@@ -194,6 +200,7 @@ impl fmt::Display for CommandOperationPreparationError {
                 formatter,
                 "command-service resource identity for `{uri}` conflicts with the normalized run plan"
             ),
+            Self::BinaryInput{uri,message}=>write!(formatter,"Binary input `{uri}` refused: {message}"),
             Self::InputMissing { input_id } => write!(
                 formatter,
                 "command-service normalized input `{input_id}` is missing"
@@ -256,6 +263,7 @@ pub fn prepare_command_operation_v1(
         .run_plan
         .plan()
         .expect("validated non-capability request has a normalized run plan");
+    admit_binary_inputs(request,plan)?;
     let context = context_from_plan(request, plan, base_context)?;
     let fail_level = plan.diagnostics_mode.fail_level;
 
@@ -959,6 +967,7 @@ fn merge_identity(
     plan: &FormatIdentity,
     resource: Option<&FormatIdentity>,
 ) -> Result<FormatIdentity, CommandOperationPreparationError> {
+    if binary_input::binary(plan) || resource.is_some_and(binary_input::binary) { return binary_input::merged_identity(uri,plan,resource); }
     if identity_option(plan).is_some()
         && resource.and_then(identity_option).is_some()
         && resource != Some(plan)

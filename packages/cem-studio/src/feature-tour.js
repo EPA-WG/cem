@@ -227,10 +227,10 @@ export async function createCemStudioBrowserValidator({ recoveryScope, packageDe
             ]),
         );
         const availableResources = new Map([
-            [inputResourceUri, { uri: inputResourceUri, bytes: source }],
+            [inputResourceUri, { uri: inputResourceUri, bytes: source, ...binaryResourceIdentity(options) }],
             ...dependencies.map((dependency) => {
                 const dependencyUri = dependencyUris.get(dependency.path);
-                return [dependencyUri, { uri: dependencyUri, bytes: dependency.bytes }];
+                return [dependencyUri, { uri: dependencyUri, bytes: dependency.bytes, ...binaryResourceIdentity(dependency) }];
             }),
         ]);
         const invocation = await invocationBinding.buildInvocation(
@@ -272,7 +272,7 @@ export async function createCemStudioBrowserValidator({ recoveryScope, packageDe
                 ...resource,
                 // Explicit native input/package/query scopes own effective identity;
                 // other dependencies use their declared project identities.
-                identity: scopedIdentities.get(dependencyUri) ?? {
+                identity: resource.identity?.contentType?.split(';')[0].trim().toLowerCase().endsWith('+cem-bin') ? resource.identity : scopedIdentities.get(dependencyUri) ?? {
                     contentType: dependency.contentType,
                     schema: dependency.schema,
                     baseUri: dependencyUri,
@@ -735,6 +735,13 @@ function resourceCommandArguments(operation, options, inputResourceUri) {
     throw new TypeError(`unsupported CEM Studio resource command: ${operation}`);
 }
 
+// Immutable project binary identity is transport metadata; native admission
+// compares it with the command's effective input identity and original bytes.
+function binaryResourceIdentity(resource) {
+    return resource.contentType?.split(';')[0].trim().toLowerCase().endsWith('+cem-bin')
+        ? { identity: { contentType: resource.contentType, schema: resource.schema } } : {};
+}
+
 function projectCommandSemanticPreview(invocation) {
     const { request, presentation } = invocation;
     const plan = request.runPlan;
@@ -747,6 +754,7 @@ function projectCommandSemanticPreview(invocation) {
         }));
     return freezeCommandValue({
         operation: request.operation,
+        binaryInputs: invocation.binaryInputs ?? [],
         inputs: {
             normalized: plan?.inputs ?? [],
             resources: resourceIdentities,

@@ -55,7 +55,10 @@ export async function verifyNativeProjectionProject({ page, context, url }) {
     const save = async value => { await edit(value); await click('Save and validate'); };
     const run = async (project, name) => {
         const configuration = operation(name); assert.ok(configuration);
-        await open({ project, configuration: name }); assert.equal((await state()).editable, true);
+        await open({ project, configuration: name });
+        const binary = resource(configuration.source).contentType.endsWith('+cem-bin');
+        assert.equal((await state()).editable, !binary);
+        if (binary) assert.equal((await state()).runnable, true);
         const button = configuration.kind === 'validation' ? 'Validate persisted revision' : 'Run configuration';
         if (!await page.getByRole('button', { name: button, exact: true }).isVisible()) {
             await page.locator('cem-expansion[label="Editor details"] > [part~=root] [part~=header]').first().click(); await settle();
@@ -227,6 +230,10 @@ export async function verifyNativeProjectionProject({ page, context, url }) {
     }
     const parsed = await run(project, 'parse-events'); assert.ok(parsed.text.includes(editedText));
     assert.ok(parsed.text.includes(`studio://${project}/data/dispatch.cem`));
+    for (const name of ['parse-dom-binary', 'inspect-ast-binary', 'inspect-events-binary', 'import-dom-binary-html', 'import-ast-binary-xml', 'import-events-binary-cem']) {
+        const configuration = operation(name), current = await run(project, name); await assertSuccess(current, configuration);
+        assert.equal(current.editable, false); assert.equal(await editor.count(), 0); await downloadSource(configuration.source);
+    }
     console.log('[cem-studio:native-projections] readonly binary sources, native diagnostic navigation and saved Unicode/range invalidation passed');
 
     await open({ project }); const copy = await clone(`Portable ${definition.name}`); assert.notEqual(copy, project);
@@ -258,6 +265,10 @@ export async function verifyNativeProjectionProject({ page, context, url }) {
             await followOwnedPresentation(copy, configuration, resource, text(resource));
         }
 
+        for (const name of ['parse-dom-binary', 'inspect-ast-binary', 'inspect-events-binary', 'import-dom-binary-html', 'import-ast-binary-xml', 'import-events-binary-cem']) {
+            const configuration = operation(name), current = await run(copy, name); await assertSuccess(current, configuration);
+            assert.equal(current.editable, false); assert.equal(await editor.count(), 0); await downloadSource(configuration.source);
+        }
         unicodeEvent(await run(copy, 'export-events-json'), copiedSource, copiedText);
         for (const configuration of definition.configurations.filter(item => item.repair)) assert.equal((await run(copy, configuration.id)).status, 'valid');
         for (const [name, expected] of Object.entries({ ...repaired, 'cem-source': copiedSource })) {
@@ -271,7 +282,7 @@ export async function verifyNativeProjectionProject({ page, context, url }) {
     return { catalog: true, readonlyOriginals: true, nativeCemPresentation: true, retainedXmlInspection: true, plainTextInspection: true,
         explicitJsonExports: true, exactBinaryExports: true, binaryCopyRefusal: true, exactDownloads: true,
         nativeSourceRanges: true, formatterAndMarkupNavigation: true, offlineFormatterAndMarkupNavigation: true, diagnosticSourceNavigation: true, projectionShapeValidation: true, originalRepairs: true,
-        binarySourceReadonly: true, binarySourceNotRunnable: true, savedUnicodeSource: true, changedProjectionRanges: true,
+        binarySourceReadonly: true, binaryFileNotRunnable: true, ownedBinaryConfigurations: true, offlineBinaryConfigurations: true, savedUnicodeSource: true, changedProjectionRanges: true,
         unsavedSourceGuard: true, independentCopies: true, persistedRepairs: true, offlineCommands: true,
         offlineBinaryExports: true, offlineDownloads: true, unchangedCatalog: true };
 }

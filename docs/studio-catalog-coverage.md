@@ -7,8 +7,8 @@ Run `yarn nx run @epa-wg/cem-studio:verify:catalog-audit` after changing them.
 Declared catalog/documentation coverage; native/worker/deployed verification and current resource admission remain separate evidence.
 
 There are **22 authored projects**, **285 authored source resources**
-and **240 authored configurations**. The inventory names
-**245 workflows**, including five generated portable workbenches;
+and **246 authored configurations**. The inventory names
+**251 workflows**, including five generated portable workbenches;
 32 generated package validations are represented by the native package matrix.
 The starter owns no configurations. Source resources include reference fixtures
 and documentation: their presence does not establish executable format support.
@@ -30,7 +30,7 @@ and documentation: their presence does not establish executable format support.
 | `markdown-site` | [README](../examples/projects/markdown-site/README.md) | 21 | 6 | 1 | `convert`, `inspect`, `query`, `transform`, `validate` |
 | `mathml-formula` | [README](../examples/projects/mathml-formula/README.md) | 10 | 7 | 1 | `convert`, `inspect`, `query`, `transform`, `validate` |
 | `module-maps` | [README](../examples/projects/module-maps/README.md) | 34 | 20 | 6 | `convert`, `inspect`, `transform`, `validate` |
-| `native-projections` | [README](../examples/projects/native-projections/README.md) | 15 | 29 | 4 | `convert`, `inspect`, `parse`, `validate` |
+| `native-projections` | [README](../examples/projects/native-projections/README.md) | 15 | 35 | 4 | `convert`, `inspect`, `parse`, `validate` |
 | `portable-config` | [README](../examples/projects/portable-config/README.md) | 17 | 21 | 2 | `convert`, `inspect`, `parse`, `transform`, `validate` |
 | `relax-ng` | [README](../examples/projects/relax-ng/README.md) | 9 | 10 | 3 | `convert`, `parse`, `validate` |
 | `scss-stylesheet` | [README](../examples/projects/scss-stylesheet/README.md) | 10 | 7 | 1 | `convert`, `parse`, `transform`, `validate` |
@@ -42,8 +42,8 @@ and documentation: their presence does not establish executable format support.
 
 ## Generated projects
 
-The selectable catalog has **23 projects** with **277 declared configurations**
-and **605 stored resources**. The starter adds 2 resources.
+The selectable catalog has **23 projects** with **283 declared configurations**
+and **611 stored resources**. The starter adds 2 resources.
 The legacy Feature Tour seed shares the Schema examples workflows and is not
 counted twice. Declared configurations are not a uniform UI execution guarantee.
 
@@ -62,11 +62,11 @@ negotiation does not require a source-project configuration.
 
 | Operation | Browser availability | Declared configurations |
 | --- | --- | --- |
-| `parse` | `available` | 23 |
+| `parse` | `available` | 24 |
 | `validate` | `available` | 116 |
 | `check` | `available` | 0 |
-| `inspect` | `available` | 36 |
-| `convert` | `available` | 49 |
+| `inspect` | `available` | 38 |
+| `convert` | `available` | 52 |
 | `query` | `available` | 28 |
 | `transform` | `available` | 24 |
 | `trace` | `available` | 1 |

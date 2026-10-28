@@ -393,5 +393,24 @@ and CEM/HTML/XML conversions through the [shared native import contract](../../d
 DOM/AST retain passive common trees; events retain literal records. Source links
 address the imported artifact, never reported source-map fields. Complete native
 binary and sealed-envelope validation grants no runtime replay authority.
-Studio binary sources remain read-only/non-runnable with exact downloads. Existing
+Studio binary files remain read-only with exact downloads; saved binary configurations use native admission. Existing
 declarative controls, credential refusal and recovery budgets remain unchanged.
+
+### Owned binary Studio commands
+
+An explicit saved configuration can use a locally owned binary source after
+native invocation admission validates its original bytes, declared/effective
+identity and supported input codec. Informational `binaryInputs` facts bind the
+input ID, URI, size and SHA-256; they contain no runtime handles and grant no
+execution authority. Common operation preparation independently rechecks the
+snapshot digest, scope, identity and full payload before execution. Unsupported
+compiled identities, malformed bytes and text relabeling are refused.
+
+A binary file selection has no implicit command or text editor. A selected
+configuration exposes Run, Reload, exact downloads and existing results through
+production declarative CEM controls. Source edits, ad-hoc Parse/Inspect, command
+replacement and text-coordinate navigation are unavailable in that view; edit
+the command resource through the project tree. External changes require reload,
+and changes during execution mark results stale. Source byte counts refer to
+actual bytes, never a decoded placeholder. All existing source/resource-set and
+recovery budgets, credential refusals and timeouts remain unchanged.

@@ -132,9 +132,19 @@ structural validation does not detect arbitrary otherwise-valid value edits.
 CEM, XML, HTML and named DOM/AST JSON or binary exports are supported;
 executable event replay and runtime recovery are separate ownership contracts.
 
-Studio still keeps binary sources read-only and non-runnable, with exact-byte
-downloads. The native binary library/CLI contract does not silently open Studio's
-separate owned-command admission boundary.
+Binary file selections remain read-only with exact downloads and no implicit
+operation. The six explicitly saved `parse-dom-binary`, `inspect-ast-binary`,
+`inspect-events-binary`, `import-dom-binary-html`, `import-ast-binary-xml` and
+`import-events-binary-cem` configurations use their original owned bytes after
+native admission. Select a configuration, then **Run configuration**. Run and
+Reload do not create a text draft or enable source edits. Edit the saved command
+resource from the project tree to change its operation.
+
+Native admission binds input URI, length, SHA-256 and identity; execution checks
+the snapshot and full payload again. Corrupt/unsupported inputs or MIME/schema
+relabeling stay closed. Source changes require reload; late results are marked
+stale. Binary offsets are not text selections, so range navigation stays disabled.
+These ordinary configurations also work in independent saved and offline copies.
 
 Exported `byteRange` and `sourceMap` fields describe a projection's values. Once
 loaded as JSON source, their numbers confer no association with the original

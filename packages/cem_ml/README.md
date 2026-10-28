@@ -612,6 +612,24 @@ exports, without a serialized AST handoff or executable normalized-event replay.
 
 The ordinary `native-projections` Studio project exercises JSON inputs through
 existing declarative editor, command/result and source-selection controls.
-Binary Studio files stay read-only and non-runnable pending separately owned
-command admission. Entered Login passwords/one-time codes continue to block
+Binary Studio files stay read-only; explicit saved configurations use the owned native command admission described below. Entered Login passwords/one-time codes continue to block
 recovery until cleared; automatic recovery and all existing budgets are unchanged.
+
+### Owned binary Studio commands
+
+An explicit saved configuration can use a locally owned binary source after
+native invocation admission validates its original bytes, declared/effective
+identity and supported input codec. Informational `binaryInputs` facts bind the
+input ID, URI, size and SHA-256; they contain no runtime handles and grant no
+execution authority. Common operation preparation independently rechecks the
+snapshot digest, scope, identity and full payload before execution. Unsupported
+compiled identities, malformed bytes and text relabeling are refused.
+
+A binary file selection has no implicit command or text editor. A selected
+configuration exposes Run, Reload, exact downloads and existing results through
+production declarative CEM controls. Source edits, ad-hoc Parse/Inspect, command
+replacement and text-coordinate navigation are unavailable in that view; edit
+the command resource through the project tree. External changes require reload,
+and changes during execution mark results stale. Source byte counts refer to
+actual bytes, never a decoded placeholder. All existing source/resource-set and
+recovery budgets, credential refusals and timeouts remain unchanged.

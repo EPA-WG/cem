@@ -79,6 +79,9 @@ export interface CemStudioWorkbenchState {
     readonly entryId?: string;
     readonly editable?: boolean;
     readonly runnable?: boolean;
+    readonly binarySource?: boolean;
+    readonly byteLength?: number;
+    readonly admissionError?: Readonly<{ code: string; message: string }>;
     readonly resourceId: string;
     readonly path: string;
     readonly description?: string;

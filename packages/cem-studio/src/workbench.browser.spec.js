@@ -58,6 +58,73 @@ const schemaSourceAdmissionCases = [
 
 
 describe('CEM Studio Feature Tour workbench', () => {
+    async function binaryCommandFixture() {
+        const response = await fetch(new URL('../generated/feature-tour/examples/native-projections.cem-studio.json', import.meta.url));
+        const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
+        const entry = bundle.project.entries.find(item => item.id === 'parse-dom-input');
+        const resource = bundle.project.resources.find(item => item.id === 'dom-binary');
+        // A project tag/role must never turn opaque source bytes into a live template.
+        resource.role = 'template'; entry.tags = ['live-preview'];
+        entry.resourceIds = entry.resourceIds.map(id => id === 'dom-json' ? resource.id : id);
+        const command = JSON.parse(new TextDecoder().decode(bundle.contents[entry.runConfigResourceId]));
+        command.argv = command.argv.map(value => value === 'projections/dispatch.dom.json' ? resource.path : value === 'application/vnd.cem.dom+json' ? resource.contentType : value);
+        bundle.contents[entry.runConfigResourceId] = new TextEncoder().encode(JSON.stringify(command));
+        const record = bundle.project.resources.find(item => item.id === entry.runConfigResourceId);
+        record.sha256 = await digest(bundle.contents[record.id]); record.byteLength = bundle.contents[record.id].length;
+        const repository = await repositoryWithSource('unrelated data'); await repository.execute(request('import-project', { bundle }));
+        const validator = validatorFor(validResult());
+        validator.decodeResourceCommand = bytes => ({ commandPath: ['parse'], positionals: { input: JSON.parse(new TextDecoder().decode(bytes)).argv[1] } });
+        validator.previewResourceCommand = vi.fn(async options => ({ ...commandPreviewOutcome(options), semantic: {
+            ...commandPreviewOutcome(options).semantic, binaryInputs: [{ uri: options.uri, byteLength: options.bytes.length, sha256: await digest(options.bytes) }] } }));
+        return { repository, validator, bundle, entry, resource };
+    }
+    it('OwnedBinaryCommand keeps source immutable while running only an explicit byte-bound configuration', async () => {
+        const { repository, validator, bundle, entry, resource } = await binaryCommandFixture();
+        const file = await createCemStudioProjectWorkbench({ repository, validator, selection: { projectId: bundle.project.id, resourceId: resource.id } }); workbenches.push(file);
+        expect(file.snapshot()).toMatchObject({ editable: false, runnable: false }); expect(file.runPersistedOperation).toBeUndefined();
+        const workbench = await createCemStudioProjectWorkbench({ repository, validator, selection: { projectId: bundle.project.id, entryId: entry.id } }); workbenches.push(workbench);
+        expect(workbench.snapshot()).toMatchObject({ binarySource: true, editable: false, runnable: true, persistedText: '', draft: '', dirty: false });
+        expect(workbench.updateDraft).toBeUndefined(); expect(workbench.saveSource).toBeUndefined(); expect(workbench.parsePersisted).toBeUndefined(); expect(workbench.applyCommand).toBeUndefined();
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        expect(root.querySelector('cem-source-editor[label="CEM source"]')).toBeNull();
+        expect(root.querySelector('cem-source-editor[label="Saved command"]').hasAttribute('readonly')).toBe(true);
+        expect(root.querySelector('[data-cem-studio-command-editor]')).toBeNull();
+        await workbench.runPersistedOperation();
+        expect(workbench.snapshot()).toMatchObject({ status: 'projected', editable: false, dirty: false, projection: { sourceByteLength: bundle.contents[resource.id].length, stale: false } });
+        expect(validator.executeAuthoredResourceCommand.mock.calls[0][0].bytes).toEqual(bundle.contents[resource.id]);
+        expect(workbench.snapshot().projection.preview.kind).not.toBe('live-cem');
+        let downloaded; await workbench.downloadSource(async value => { downloaded = value; }); expect(downloaded.bytes).toEqual(bundle.contents[resource.id]);
+        const stored = (await repository.query(request('export-project', { projectId: bundle.project.id }))).value;
+        expect(new Uint8Array(stored.contents[resource.id])).toEqual(bundle.contents[resource.id]);
+    });
+    it('OwnedBinaryCommand requires reload for external edits and marks late execution stale', async () => {
+        const { repository, validator, bundle, entry, resource } = await binaryCommandFixture();
+        const workbench = await createCemStudioProjectWorkbench({ repository, validator, selection: { projectId: bundle.project.id, entryId: entry.id } }); workbenches.push(workbench);
+        const before = workbench.snapshot();
+        await repository.execute(request('save-resource', { projectId: bundle.project.id, resourceId: entry.runConfigResourceId,
+            expectedProjectRevision: before.projectRevision, expectedResourceRevision: 1, content: bundle.contents[entry.runConfigResourceId] }));
+        await expect(workbench.runPersistedOperation()).rejects.toThrow(/Reload/);
+        expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
+        await workbench.reload();
+        let finish;
+        validator.executeAuthoredResourceCommand = vi.fn(options => new Promise(resolve => { finish = () => resolve(authoredCommandOutcome(options)); }));
+        const pending = workbench.runPersistedOperation();
+        await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+        const current = workbench.snapshot();
+        await repository.execute(request('save-resource', { projectId: bundle.project.id, resourceId: resource.id,
+            expectedProjectRevision: current.projectRevision, expectedResourceRevision: current.resourceRevision, content: bundle.contents[resource.id] }));
+        finish(); await pending;
+        expect(workbench.snapshot()).toMatchObject({ status: 'projection-stale', editable: false, dirty: false, projection: { stale: true } });
+    });
+    it.each(['missing', 'foreign', 'digest'])('OwnedBinaryCommand refuses a %s native source admission', async mode => {
+        const { repository, validator, bundle, entry } = await binaryCommandFixture();
+        validator.previewResourceCommand = vi.fn(async options => ({ ...commandPreviewOutcome(options), semantic: { binaryInputs: mode === 'missing' ? [] : [{ uri: mode === 'foreign' ? 'studio://foreign/source' : options.uri, byteLength: options.bytes.length, sha256: mode === 'digest' ? 'forged' : await digest(options.bytes) }] } }));
+        const workbench = await createCemStudioProjectWorkbench({ repository, validator, selection: { projectId: bundle.project.id, entryId: entry.id } }); workbenches.push(workbench);
+        expect(workbench.snapshot()).toMatchObject({ editable: false, runnable: false });
+        await expect(workbench.runPersistedOperation()).rejects.toThrow(/unadmitted/);
+        expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
+    });
     it('validates the selected saved source with its authored namespace command', async () => {
         const response = await fetch(new URL('../generated/feature-tour/examples/xpath-catalog.cem-studio.json', import.meta.url));
         const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
@@ -3470,12 +3537,15 @@ describe('Project-owned workbench loading', () => {
             const workbench = await createCemStudioProjectWorkbench({ repository, validator, selection }); workbenches.push(workbench);
             expect(workbench.snapshot()).toMatchObject({ status: 'read-only', editable: false, runnable: false,
                 contentType, byteLength: bytes.byteLength, draft: '', persistedText: '' });
-            expect(workbench.updateDraft).toBeUndefined(); expect(workbench.runPersistedOperation).toBeUndefined();
+            expect(workbench.updateDraft).toBeUndefined();
+            if (workbench.snapshot().binarySource) await expect(workbench.runPersistedOperation()).rejects.toThrow(/unadmitted/);
+            else expect(workbench.runPersistedOperation).toBeUndefined();
             let downloaded; await workbench.downloadSource(async value => { downloaded = value; });
             expect(downloaded.contentType).toBe(contentType); expect(downloaded.bytes.byteLength).toBe(bytes.byteLength);
             expect(await digest(downloaded.bytes)).toBe(await digest(bytes));
         }
-        expect(validator.previewResourceCommand).not.toHaveBeenCalled();
+        if (!contentType.split(';')[0].trim().toLowerCase().endsWith('+cem-bin')) expect(validator.previewResourceCommand).not.toHaveBeenCalled();
+        else expect(validator.previewResourceCommand).toHaveBeenCalledTimes(1);
         expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
     });
 

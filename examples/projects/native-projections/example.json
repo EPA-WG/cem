@@ -1,8 +1,8 @@
 {
   "id": "native-projections",
   "name": "Native DOM, AST and events",
-  "version": "1.0.4",
-  "description": "Compare original source parsing and owned projection-source imports, CEM/HTML/XML conversions, exact JSON/binary exports and repairs with artifact-owned source navigation and passive event/reference semantics.",
+  "version": "1.0.5",
+  "description": "Compare retained JSON and owned binary projection-source commands, passive event records, native structural conversions and exact exports with explicit source ownership and read-only binary resources.",
   "collections": [
     "content-types-schema-authoring",
     "content-types-queries-transformations"
@@ -384,7 +384,7 @@
       "name": "Export native DOM binary bytes",
       "kind": "conversion",
       "source": "cem-source",
-      "description": "Request exact native binary projection bytes from the original source for download. Studio does not execute configurations whose input is a binary projection.",
+      "description": "Request exact native binary projection bytes from the original source for download. Binary source execution requires an explicitly selected saved configuration and native byte admission.",
       "argv": [
         "convert",
         "$source",
@@ -437,7 +437,7 @@
       "name": "Export native AST binary bytes",
       "kind": "conversion",
       "source": "cem-source",
-      "description": "Request exact native binary projection bytes from the original source for download. Studio does not execute configurations whose input is a binary projection.",
+      "description": "Request exact native binary projection bytes from the original source for download. Binary source execution requires an explicitly selected saved configuration and native byte admission.",
       "argv": [
         "convert",
         "$source",
@@ -490,7 +490,7 @@
       "name": "Export native EVENTS binary bytes",
       "kind": "conversion",
       "source": "cem-source",
-      "description": "Request exact native binary projection bytes from the original source for download. Studio does not execute configurations whose input is a binary projection.",
+      "description": "Request exact native binary projection bytes from the original source for download. Binary source execution requires an explicitly selected saved configuration and native byte admission.",
       "argv": [
         "convert",
         "$source",
@@ -861,6 +861,151 @@
         "$source",
         "--content-type",
         "application/vnd.cem.events+json",
+        "--schema",
+        "https://cem.dev/ns/projection/events/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "Café Noord",
+        "@kind=value",
+        "event"
+      ]
+    },
+    {
+      "id": "parse-dom-binary",
+      "name": "Parse owned DOM binary",
+      "kind": "inspection",
+      "source": "dom-binary",
+      "description": "Run the explicit persisted configuration against exact owned binary bytes after native input admission. The source stays read-only; no executable stream replay or text reinterpretation is allowed.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.dom+cem-bin",
+        "--schema",
+        "https://cem.dev/ns/projection/dom/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "dispatch.dom.cem-bin",
+        "Café Noord",
+        "@name=article"
+      ]
+    },
+    {
+      "id": "inspect-ast-binary",
+      "name": "Inspect owned AST binary",
+      "kind": "inspection",
+      "source": "ast-binary",
+      "description": "Run the explicit persisted configuration against exact owned binary bytes after native input admission. The source stays read-only; no executable stream replay or text reinterpretation is allowed.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.ast+cem-bin",
+        "--schema",
+        "https://cem.dev/ns/projection/ast/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "dispatch.ast.cem-bin",
+        "Café Noord",
+        "@name=article"
+      ]
+    },
+    {
+      "id": "inspect-events-binary",
+      "name": "Inspect owned event binary records",
+      "kind": "inspection",
+      "source": "events-binary",
+      "description": "Run the explicit persisted configuration against exact owned binary bytes after native input admission. The source stays read-only; no executable stream replay or text reinterpretation is allowed.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.events+cem-bin",
+        "--schema",
+        "https://cem.dev/ns/projection/events/1",
+        "--show",
+        "tree",
+        "--no-color"
+      ],
+      "expectedText": [
+        "dispatch.events.cem-bin",
+        "Café Noord",
+        "event"
+      ]
+    },
+    {
+      "id": "import-dom-binary-html",
+      "name": "Convert owned DOM binary to HTML",
+      "kind": "conversion",
+      "source": "dom-binary",
+      "description": "Run the explicit persisted configuration against exact owned binary bytes after native input admission. The source stays read-only; no executable stream replay or text reinterpretation is allowed.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.dom+cem-bin",
+        "--schema",
+        "https://cem.dev/ns/projection/dom/1",
+        "--to-content-type",
+        "text/html",
+        "--to-schema",
+        "https://cem.dev/ns/data/html/1",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "Café Noord",
+        "article"
+      ]
+    },
+    {
+      "id": "import-ast-binary-xml",
+      "name": "Convert owned AST binary to XML",
+      "kind": "conversion",
+      "source": "ast-binary",
+      "description": "Run the explicit persisted configuration against exact owned binary bytes after native input admission. The source stays read-only; no executable stream replay or text reinterpretation is allowed.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.ast+cem-bin",
+        "--schema",
+        "https://cem.dev/ns/projection/ast/1",
+        "--to-content-type",
+        "application/xml",
+        "--to-schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "Café Noord",
+        "article"
+      ]
+    },
+    {
+      "id": "import-events-binary-cem",
+      "name": "Present owned binary event records as CEM",
+      "kind": "conversion",
+      "source": "events-binary",
+      "description": "Run the explicit persisted configuration against exact owned binary bytes after native input admission. The source stays read-only; no executable stream replay or text reinterpretation is allowed.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.events+cem-bin",
         "--schema",
         "https://cem.dev/ns/projection/events/1",
         "--to-content-type",

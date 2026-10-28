@@ -190,7 +190,8 @@ describe('CEM Studio Feature Tour copies', () => {
             expect((await validator.validateResource(validation)).result.exitCode).toBe(0);
             const corrupt = native.output.bytes.slice(); corrupt[0] = 0;
             await expect(validator.validateResource({ ...validation, bytes: corrupt })).rejects.toMatchObject({
-                result: { exitCode: 1, diagnostics: { items: expect.arrayContaining([expect.objectContaining({ code: `cem.projection.${family}.binary_magic` })]) } },
+                code: 'cem.command.binary_input', exitCode: 2,
+                message: expect.stringContaining('binary_magic'),
             });
             const readonly = await createCemStudioProjectWorkbench({ repository, validator, selection: { projectId: bundle.project.id, resourceId: resource.id } });
             try {
@@ -210,6 +211,18 @@ describe('CEM Studio Feature Tour copies', () => {
             const resource = bundle.project.resources.find(item => item.id === `${family}-json`);
             expect((await validator.validateResource({ bytes: bundle.contents[resource.id], uri: `studio://projection-boundaries/${resource.path}`,
                 contentType: resource.contentType, schema: resource.schema, resourceScheme: 'studio', projectId: 'projection-boundaries', projectRootUri: 'studio://projection-boundaries/' })).result.exitCode).toBe(0);
+        }
+        for (const id of ['parse-dom-binary', 'inspect-ast-binary', 'inspect-events-binary', 'import-dom-binary-html', 'import-ast-binary-xml', 'import-events-binary-cem']) {
+            const result = await run(id); expect(result.result.exitCode).toBe(0); expect(result.output.text).toContain('Café Noord');
+        }
+        for (const [family, id] of [['dom', 'parse-dom-binary'], ['ast', 'inspect-ast-binary'], ['events', 'inspect-events-binary']]) {
+            const workbench = await createCemStudioProjectWorkbench({ repository, validator, selection: { projectId: bundle.project.id, entryId: id } });
+            try {
+                expect(workbench.snapshot()).toMatchObject({ editable: false, runnable: true, binarySource: true, draft: '', persistedText: '' });
+                expect(workbench.updateDraft).toBeUndefined(); expect(workbench.parsePersisted).toBeUndefined();
+                await workbench.runPersistedOperation(); expect(workbench.snapshot()).toMatchObject({ status: 'projected', dirty: false, projection: { sourceByteLength: bundle.contents[`${family}-binary`].length, stale: false } });
+                let copied; await workbench.downloadSource(async value => { copied = value; }); expect(copied.bytes).toEqual(bundle.contents[`${family}-binary`]);
+            } finally { workbench.dispose(); }
         }
         const ast = bundle.project.resources.find(item => item.id === 'ast-export');
         const exported = await run('export-ast-json');

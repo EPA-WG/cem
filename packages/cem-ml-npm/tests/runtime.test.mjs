@@ -1336,9 +1336,21 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
         if (format === 'json') assert.ok(result.sourceMaps.items.length > 0);
       }
       if (format === 'cem-bin') {
+        const parsed = { schemaVersion: 1, commonVersion: runtime.version(), commandPath: ['parse'], globalOptions: {},
+          options: { content_type: mime, schema, format: 'ast' }, positionals: { input: uri } };
+        const environment = { requestId: 'binary-admission', projectId: 'owned-source', projectRevision: 1, resourceRevision: 1,
+          cwd: 'studio://owned-source/', resolverPolicyStamp: 'owned-resolver', safetyPolicyStamp: 'owned-safety', budgetPolicyStamp: 'owned-budget', stdoutIsTerminal: false };
+        const resources = { [uri]: { bytes: [...bytes], identity: { contentType: mime, schema } } };
+        const admission = JSON.parse(runtime.buildCommandInvocationV1(JSON.stringify(parsed), JSON.stringify(environment), JSON.stringify(resources)));
+        assert.equal(admission.state, 'ready');
+        assert.equal(admission.invocation.binaryInputs[0].sha256, createHash('sha256').update(bytes).digest('hex'));
+        assert.equal(admission.invocation.binaryInputs[0].byteLength, bytes.length);
+        resources[uri].identity.contentType = 'application/cem';
+        assert.equal(JSON.parse(runtime.buildCommandInvocationV1(JSON.stringify(parsed), JSON.stringify(environment), JSON.stringify(resources))).state, 'error');
         for (const corrupted of [bytes.slice(0, -1), Uint8Array.from([...bytes, 0])]) {
           const result = await execute(corrupted, mime, schema, { kind: 'parse', projection: 'ast', preserveSourceOffsets: true });
-          assert.equal(result.result.exitCode, 1); assert.equal(result.published, undefined); assert.deepEqual(result.result.sourceMaps.items, []);
+          assert.equal(result.result.error.code, 'cem.command_service.binary_input');
+          assert.equal(result.published, undefined); assert.equal(result.result.sourceMaps, undefined); assert.equal(result.result.artifacts, undefined);
         }
       }
     }
