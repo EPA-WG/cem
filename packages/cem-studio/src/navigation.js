@@ -20,6 +20,17 @@ const normalizedOutputFolder = value => {
 const node = (route, name, kind, description = '', children = []) => ({ key: routeKey(route), route, name, kind, description, children,
     icon: kind });
 
+// File and configuration routes share byte availability, declared preview policy
+// and full-source UTF-8 admission. This is transport, not configuration parsing.
+function sampleResourceText(resource, value) {
+    if (value === undefined) return { text: undefined, textReason: 'Resource bytes are unavailable.' };
+    const source = value instanceof Uint8Array ? value : new Uint8Array(value);
+    const preview = createCemStudioPreview({ bytes: source, contentType: resource.contentType });
+    if (preview.kind === 'download') return { text: undefined, textReason: preview.reason };
+    try { return { text: new TextDecoder('utf-8', { fatal: true }).decode(source) }; }
+    catch { return { text: undefined, textReason: 'The resource is not valid UTF-8; download its exact bytes.' }; }
+}
+
 /** Navigation is domain data. Views render this model; browser history is only a transport. */
 export async function createCemStudioNavigation({ workbench, repository, examples = [], collections = [], browser, validator, openBuildWorkbench }) {
     const subscribers = new Set();
@@ -272,30 +283,12 @@ export async function createCemStudioNavigation({ workbench, repository, example
                 if (route.collection !== undefined && !memberships(example).includes(route.collection)) throw new Error('The requested sample is not in this samples folder.');
                 const bundle = await loadSample(example);
                 nextOpened = { project: bundle.project, bundle, route: { ...(route.collection !== undefined ? { collection: route.collection } : {}), sample: example.id }, text: '' };
-                if (route.file) {
-                    const resource = bundle.project.resources.find(item => item.id === route.file);
-                    if (!resource) throw new Error('The requested sample file is unavailable.');
-                    const bytes = bundle.contents[resource.id];
-                    nextOpened.resource = resource;
-                    nextOpened.text = undefined;
-                    if (bytes === undefined) nextOpened.textReason = 'Resource bytes are unavailable.';
-                    else {
-                        const source = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-                        const preview = createCemStudioPreview({ bytes: source, contentType: resource.contentType });
-                        nextOpened.textReason = preview.reason;
-                        if (preview.kind !== 'download') {
-                            try { nextOpened.text = new TextDecoder('utf-8', { fatal: true }).decode(source); }
-                            catch { nextOpened.textReason = 'The resource is not valid UTF-8; download its exact bytes.'; }
-                        }
-                    }
-                }
-                if (route.configuration) {
-                    const entry = bundle.project.entries.find(item => item.id === route.configuration);
-                    if (!entry) throw new Error('The requested configuration is unavailable.');
-                    const resource = bundle.project.resources.find(item => item.id === entry.runConfigResourceId);
-                    const bytes = bundle.contents[resource?.id];
-                    nextOpened.resource = resource;
-                    nextOpened.text = new TextDecoder().decode(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes ?? []));
+                if (route.file || route.configuration) {
+                    const entry = route.configuration && bundle.project.entries.find(item => item.id === route.configuration);
+                    if (route.configuration && !entry) throw new Error('The requested configuration is unavailable.');
+                    const resource = bundle.project.resources.find(item => item.id === (route.file ?? entry.runConfigResourceId));
+                    if (!resource) throw new Error(route.configuration ? 'The requested configuration resource is unavailable.' : 'The requested sample file is unavailable.');
+                    Object.assign(nextOpened, { resource }, sampleResourceText(resource, bundle.contents[resource.id]));
                 }
             } else if (route.project) {
                 const record = (await repository.query(request('get-project', { projectId: route.project }))).value;

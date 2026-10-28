@@ -75,6 +75,13 @@ workspace checkpoints retain the existing aggregate 4 MiB budget.
   `cem-media-preview` declaration. Text remains literal; HTML, XHTML, and SVG
   use an empty opaque-origin iframe sandbox plus a deny-all preview CSP;
   binary, invalid UTF-8, and oversized active markup remain download-only.
+  Catalog `file=` and `configuration=` URLs share this admission policy: bytes
+  must exist and the entire source must decode as strict UTF-8 before a read-only
+  editor is shown. Missing bytes stay unavailable; binary/unknown or inadmissible
+  text stays download-only with original bytes and MIME preserved. Valid empty
+  text remains available. Missing configuration resources refuse navigation while
+  retaining the previous selection and saved-project drafts. Configuration syntax
+  and execution admission remain native responsibilities.
 - `@epa-wg/cem-studio/manifest.webmanifest` exposes the generated application
   manifest.
 - `@epa-wg/cem-studio/static/*` exposes the graph-emitted deployable tree.

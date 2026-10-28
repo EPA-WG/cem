@@ -1772,6 +1772,18 @@ Discard and Cancel guard. Cancelling history navigation restores the accepted UR
 Missing projects/files and conflicting roots show an error while retaining the
 previous selection (Examples on initial load). Unrelated URL parameters survive.
 
+Catalog `file=` and direct `configuration=` URLs use the same original-resource
+text admission. An existing resource with available bytes, an admitted declared
+preview type and complete strict UTF-8 decoding may appear in the read-only
+source editor. Empty valid text is distinct from unavailable bytes. Invalid
+UTF-8 anywhere in the source (including beyond the bounded preview prefix),
+binary/unknown identities and oversized active markup have no text source or
+source preview; their original bytes remain downloadable when available. A
+missing configuration resource refuses navigation and preserves the admitted
+selection and drafts. The routing service does not parse configuration syntax or
+manufacture source-preparation input. Native command admission remains required
+for execution. Credential privacy and all resource/checkpoint limits are unchanged.
+
 Build selection is independent of source navigation. Activating a new source
 clears unrelated prior artifact intent and uses native provenance or its declared
 transformation. An explicit legacy file/artifact URL retains that preview choice.

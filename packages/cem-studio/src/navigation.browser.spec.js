@@ -13,7 +13,7 @@ const services = [];
 afterEach(() => { for (const service of services.splice(0)) service.dispose(); });
 
 async function fixture(url = 'https://studio.test/?project=demo&file=article', readOnly = false, { ambiguousSource = false, alternateBuild = false, plaintextSource = false, tabularSource = false, validator,
-    sampleCollections = ['nested'], collections = [{ id: 'nested', name: 'Nested examples' }], binarySource = false, sourceBytes, missingSource = false } = {}) {
+    sampleCollections = ['nested'], collections = [{ id: 'nested', name: 'Nested examples' }], binarySource = false, sourceBytes, missingSource = false, commandBytes, missingCommand = false, missingCommandResource = false, commandContentType = 'application/cem' } = {}) {
     const encoder = new TextEncoder();
     const sourceResource = binarySource
         ? { id: 'article', path: 'projection.cem-bin', contentType: 'application/vnd.cem.ast+cem-bin', schema: 'https://cem.dev/ns/projection/ast/1' }
@@ -24,11 +24,11 @@ async function fixture(url = 'https://studio.test/?project=demo&file=article', r
     const project = { id: 'demo', name: 'Demo', rootUri: 'studio://demo/', revision: 1, resources: [
         { ...sourceResource, revision: 1, sha256: 'article' },
         { id: 'other', path: 'content/other.md', contentType: 'text/markdown', revision: 1, sha256: 'other' },
-        { id: 'command', path: 'config/build.cem', contentType: 'application/cem', schema: 'https://cem.dev/ns/cli/command/1', revision: 1, sha256: 'command' },
+        ...(!missingCommandResource ? [{ id: 'command', path: 'config/build.cem', contentType: commandContentType, schema: 'https://cem.dev/ns/cli/command/1', revision: 1, sha256: 'command' }] : []),
     ], entries: [{ id: 'build', name: 'Build site', kind: 'transformation-graph', runConfigResourceId: 'command', entryArtifact: 'generated/index.html' },
         ...(alternateBuild ? [{ id: 'alternate', name: 'Alternate build', kind: 'transformation-graph', runConfigResourceId: 'command', entryArtifact: 'generated/index.html' }] : [])] };
     const sourceText = tabularSource ? 'id,name\n1,Ada\n' : '# Article';
-    const bundle = { project, contents: { ...(missingSource ? {} : { article: sourceBytes ?? (binarySource ? new Uint8Array([67, 69, 77, 0, 255]) : encoder.encode(sourceText)) }), other: encoder.encode('# Other'), command: encoder.encode('{}') } };
+    const bundle = { project, contents: { ...(missingSource ? {} : { article: sourceBytes ?? (binarySource ? new Uint8Array([67, 69, 77, 0, 255]) : encoder.encode(sourceText)) }), other: encoder.encode('# Other'), ...(missingCommand ? {} : { command: commandBytes ?? encoder.encode('{}') }) } };
     const repository = { async query({ operation }) {
         if (operation === 'list-projects') return { value: [project] };
         if (operation === 'get-project') return { value: project };
@@ -211,6 +211,70 @@ describe('Studio compact navigation service', () => {
         const save = vi.fn(async () => undefined);
         if (missing) { await expect(service.downloadSource(save)).rejects.toThrow('No owned sample resource bytes'); expect(save).not.toHaveBeenCalled(); }
         else { await service.downloadSource(save); expect(save.mock.calls[0][0].bytes).toEqual(bytes); }
+    });
+
+    const invalidCommandTail = new Uint8Array(300_000).fill(65); invalidCommandTail[invalidCommandTail.length - 1] = 255;
+    for (const [name, options, reason] of [
+        ['missing bytes', { missingCommand: true }, /unavailable/],
+        ['invalid UTF-8', { commandBytes: new Uint8Array([255, 0]) }, /UTF-8/],
+        ['invalid UTF-8 beyond the preview prefix', { commandBytes: invalidCommandTail }, /UTF-8/],
+        ['binary identity with valid UTF-8 bytes', { commandContentType: 'application/vnd.cem.ast+cem-bin', commandBytes: new TextEncoder().encode('CEMPROJ') }, /Binary or unknown/],
+        ['unknown identity', { commandContentType: 'application/octet-stream' }, /Binary or unknown/],
+        ['oversized active markup', { commandContentType: 'text/html', commandBytes: new Uint8Array(262_145).fill(65) }, /inline preview limit/],
+    ]) it(`ConfigurationTextAdmission refuses fabricated text for ${name}`, async () => {
+        const prepareResource = vi.fn(async () => undefined);
+        const { service, browser, workbench } = await fixture('https://studio.test/?collection=nested&sample=demo&configuration=build', false, { ...options, validator: { prepareResource } });
+        const current = service.snapshot().navigation;
+        expect(current).toMatchObject({ content: 'sample-file', selection: { collection: 'nested', sample: 'demo', configuration: 'build' }, sampleTextAvailable: false, sampleAvailable: !options.missingCommand, sampleText: '' });
+        expect(current.sampleReason).toMatch(reason); expect(current.error).toBeUndefined();
+        expect(current.sourcePreview).toBeUndefined(); expect(prepareResource).not.toHaveBeenCalled();
+        expect(browser.location.searchParams.get('configuration')).toBe('build');
+        workbench.updateDraft('retained saved-project draft');
+        const save = vi.fn(async () => undefined);
+        if (options.missingCommand) { await expect(service.downloadSource(save)).rejects.toThrow('No owned sample resource bytes'); expect(save).not.toHaveBeenCalled(); }
+        else {
+            await service.downloadSource(save);
+            expect(save.mock.calls[0][0]).toMatchObject({ filename: 'build.cem', contentType: options.commandContentType ?? 'application/cem' });
+            expect(save.mock.calls[0][0].bytes).toEqual(options.commandBytes ?? new TextEncoder().encode('{}'));
+        }
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench: service });
+        onTestFinished(() => { view.dispose(); root.remove(); }); await view.whenSettled();
+        const picker = root.querySelector('cem-studio-project-picker');
+        expect(picker.querySelector('cem-source-editor')).toBeNull();
+        const button = [...picker.querySelectorAll('button')].find(button => button.textContent.trim() === 'Download resource');
+        expect(button).toBeDefined(); expect(button.disabled).toBe(Boolean(options.missingCommand));
+        expect(service.snapshot().draft).toBe('retained saved-project draft');
+        expect(prepareResource).not.toHaveBeenCalled();
+    });
+
+    it.each(['', '{command | Café Noord 🌍}\r\n'])('ConfigurationTextAdmission retains exact admitted text %j', async text => {
+        const prepareResource = vi.fn(async () => undefined), bytes = new TextEncoder().encode(text);
+        const { service, browser } = await fixture('https://studio.test/?sample=demo&configuration=build', false, { commandBytes: bytes, validator: { prepareResource } });
+        expect(service.snapshot().navigation).toMatchObject({ sampleTextAvailable: true, sampleAvailable: true, sampleText: text });
+        expect(service.snapshot().navigation.sourcePreview).toBeUndefined(); expect(prepareResource).not.toHaveBeenCalled();
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench: service });
+        onTestFinished(() => { view.dispose(); root.remove(); }); await view.whenSettled();
+        const editor = root.querySelector('cem-studio-project-picker cem-source-editor[readonly] [role=textbox]');
+        expect(editor).not.toBeNull(); expect(editor.value).toBe(text);
+        await service.openEntity('sample=demo&file=command');
+        expect(service.snapshot().navigation.sampleText).toBe(text);
+        await service.openEntity('sample=demo&configuration=build');
+        expect(service.snapshot().navigation.sampleText).toBe(text);
+        expect(browser.location.searchParams.get('configuration')).toBe('build');
+        const save = vi.fn(async () => undefined); await service.downloadSource(save);
+        expect(save.mock.calls[0][0].bytes).toEqual(bytes);
+    });
+
+    it('ConfigurationTextAdmission refuses a missing configuration resource without losing selection or drafts', async () => {
+        const { service, browser, workbench } = await fixture('https://studio.test/?sample=demo&file=article', false, { missingCommandResource: true });
+        const selected = browser.location.href; workbench.updateDraft('retained draft');
+        await service.openEntity('sample=demo&configuration=build');
+        expect(service.snapshot().navigation.error.message).toMatch(/resource.*unavailable/);
+        expect(browser.location.href).toBe(selected);
+        expect(service.snapshot().navigation.selection.file).toBe('article');
+        expect(service.snapshot().navigation.sampleText).toBe('# Article'); expect(service.snapshot().draft).toBe('retained draft');
     });
 
     it('keeps section openness and per-tree selection/expansion independent across publications and collapse', async () => {

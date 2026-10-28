@@ -479,7 +479,14 @@ Login recovery pass. Layout-only whitespace was removed to retain the unchanged
 32,768-unit witness limit. Credential privacy, 4 MiB groups and all deadlines
 remain unchanged; deployment stays at 898 files with all four WASMs below 25 MiB.
 
-- [ ] Apply the catalog file text-admission policy to direct configuration URLs. That older branch still decodes missing bytes as empty text and invalid UTF-8 with replacement characters. Add missing/invalid configuration-resource fixtures, preserve exact-byte downloads and refuse fabricated source preparation; reuse the owned file transport policy without parsing configurations in JavaScript.
+Completed 2026-10-28: [direct configuration URL text admission](archive/todo-completed-configuration-text-admission-2026-10-28.md)
+shares catalog file admission: available bytes, declared preview policy and full
+strict UTF-8 decoding. Missing bytes remain unavailable; invalid/unsupported
+sources retain exact downloads, and missing resources preserve selection/drafts.
+All 37 navigation tests, deployed configuration/draft/offline checks, demo
+verification and isolated worker/fallback Login recovery pass. Existing shared
+CEM controls, native parsing, credential policy and all limits are unchanged.
+Deployment remains 898 files, with all four WASMs below 25 MiB.
 
 - [ ] Investigate Chromium/CDP multiline `insertText` performance separately from native bulk paste. The deployed 24,585-character projection source takes about 29.3 seconds through driver fill (1,987 DOM/input fragments), while native paste takes 93 ms and one text node. Both containment experiments fail to improve the existing timeout. Preserve native undo, source text and shared editor ownership; do not introduce DOM-replacement or timeout workarounds.
 
