@@ -50,6 +50,18 @@ claim that these lexical source views are identical.
 CEM-ML inspection path. Plain text has no registered schema package here; the
 example claims neither standalone schema validation nor a general formatter.
 
+## Formatting and HTML/XML conversion
+
+`format-xml` formats the original XML resource through its native document view.
+`render-html` and `render-xml` convert the original CEM resource into actual
+markup. These configurations publish the final writer bytes and native source
+ranges together. Use **Results → Provenance** to open the original resource and
+select its UTF-8 range, including after saving, cloning or offline reload.
+Generated indentation and markup delimiters have no invented source endpoint;
+escaped output is not a character-for-character copy of its original range.
+HTML output uses the shared guarded preview. No application-specific parser or
+JavaScript navigation implementation is involved.
+
 ## Named JSON and binary exports
 
 | Configuration | Output resource | Contract |
@@ -114,7 +126,7 @@ CEM buffer and no right to navigate it. This project's source navigation uses
 native diagnostic ranges and admitted buffer identities separately. Shape
 validation grants no resource read, code execution or HTML preview authority.
 
-Native CEM-ML Parse/Inspect presentations now publish bounded artifact-owned
+Native CEM-ML Parse/Inspect, XML formatting and CEM-to-HTML/XML outputs publish bounded artifact-owned
 source references through the common command result. Results → Provenance opens
 the admitted original resource and its native UTF-8 range. Writer spans and input
 identity are retained natively; Studio never reads AST data fields to invent a

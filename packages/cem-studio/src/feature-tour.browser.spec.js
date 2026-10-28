@@ -147,10 +147,11 @@ describe('CEM Studio Feature Tour copies', () => {
         const text = events.find(item => item.kind === 'value' && item.value === 'Café Noord');
         expect(text.byteRange).toEqual({ start: 147, len: 11 });
         expect(new TextDecoder().decode(bundle.contents['cem-source'].slice(text.byteRange.start, text.byteRange.start + text.byteRange.len))).toBe('Café Noord');
-        for (const id of ['parse-ast', 'parse-events', 'inspect-xml', 'inspect-text']) {
+        for (const id of ['parse-ast', 'parse-events', 'inspect-xml', 'inspect-text', 'format-xml', 'render-html', 'render-xml']) {
             const outcome = await run(id);
-            expect(outcome.output.contentType).toBe('application/cem'); expect(outcome.output.text).not.toContain('\u001b[');
-            expect(outcome.output.text).toContain('studio://projection-boundaries/');
+            expect(outcome.output.contentType).toBe(id === 'render-html' ? 'text/html' : ['format-xml', 'render-xml'].includes(id) ? 'application/xml' : 'application/cem');
+            expect(outcome.output.text).not.toContain('\u001b[');
+            if (id.startsWith('parse') || id.startsWith('inspect')) expect(outcome.output.text).toContain('studio://projection-boundaries/');
             const artifact = outcome.result.artifacts.items[0], maps = outcome.result.sourceMaps.items;
             expect(maps.length).toBeGreaterThan(0);
             expect(maps.some(reference => reference.sourceMapId === artifact.sourceMapId)).toBe(true);

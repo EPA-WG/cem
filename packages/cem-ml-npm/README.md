@@ -352,7 +352,7 @@ The prepared retirement permit remains visible as one live `native-entries`
 root until abort or physical worker termination; a held barrier never produces
 a misleading empty resource census.
 
-## Owned Parse/Inspect provenance
+## Owned source-operation provenance
 
 Native CEM-ML Parse/Inspect presentations retain typed writer spans with an
 original-source witness through common command publication. A witness binds the
@@ -366,9 +366,18 @@ The common result exposes bounded `sourceMaps` references owned by the published
 artifact, with an optional representative `outputRange`. Repeated native source
 ranges are coalesced; counts disclose truncation, and each published output keeps
 its primary reference within the negotiated cap. These ranges do not assert
-linear character equality through formatting or escaping. Native direct CEM
-conversion and source formatters retain typed writer spans too; unnamed formatter
-origins remain non-navigable until their native producer provides a source URI.
+linear character equality through formatting or escaping. Native CEM, XML, HTML, JSON, YAML, CSV, CSS, XPath and Markdown formatter
+views bind their original source URI before package formatting. CEM-to-HTML/XML
+conversion carries typed final writer bytes and spans through direct pipelines,
+registered converters and native fallback. JSON/YAML conversion and CSV-to-XML
+retain their original input identity. Markdown tokens with native source maps
+also retain ranges when they lack an explicit output span. Generated layout
+stays unmapped; an existing foreign/module boundary is never rebound to the
+input. Terminal coloring and HTML escaping use actual final output byte ranges.
+SCSS expansion keeps its dedicated module-origin frames: only a native frame
+whose module URI matches the admitted input can supply that input's coordinates.
+Foreign module offsets are never relabeled as root-input ranges.
+Public/debug JSON fields never supply the writer witness.
 
 Studio projects these references through its existing declarative results and
 source-selection controls. Saved edits invalidate captured revisions; rerun

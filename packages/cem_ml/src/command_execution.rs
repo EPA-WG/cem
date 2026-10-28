@@ -1424,6 +1424,8 @@ mod tests {
 
     use super::*;
 
+    include!("command_execution/formatter_provenance_tests.rs");
+
     #[test]
     fn owned_native_presentations_publish_original_source_provenance() {
         for (mime, schema, text) in [

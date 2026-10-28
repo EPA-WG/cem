@@ -8954,6 +8954,7 @@ pub(crate) fn execute_transform_template_materialized_cemt_writer(
             role,
             style,
             output_span,
+            source,
             ..
         } = node
         else {
@@ -8981,6 +8982,11 @@ pub(crate) fn execute_transform_template_materialized_cemt_writer(
             generated_span.output_range =
                 ByteRange::new(text.len() as u64, rendered_token_text.len() as u32);
             output_spans.push(generated_span);
+        } else if !source.frames.is_empty() && !rendered_token_text.is_empty() {
+            output_spans.push(OutputSpan {
+                output_range: ByteRange::new(text.len() as u64, rendered_token_text.len() as u32),
+                origin: source.clone(),
+            });
         }
         text.push_str(&rendered_token_text);
     }

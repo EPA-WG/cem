@@ -1229,7 +1229,7 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
     if (runtimeKind !== 'wasm-node') await runtime.default({ module_or_path: await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url)) });
     let sequence = 0;
     const uri = 'studio://owned-source/original', destination = 'studio://owned-source/view.cem';
-    const execute = async (source, contentType, schema, operation, stale = false) => {
+    const execute = async (source, contentType, schema, operation, stale = false, outputIdentity = { defaultContentType: 'application/cem' }) => {
       const bytes = new TextEncoder().encode(source);
       const request = {
         protocolVersion: 1, requestId: `owned-source:${runtimeKind}:${++sequence}`,
@@ -1238,7 +1238,7 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
         operation: { ...operation, inputId: 'input:0' },
         runPlan: JSON.parse(runtime.normalizeCommandRunPlanV1(JSON.stringify({ configBytes: [...new TextEncoder().encode(JSON.stringify({
           inputs: [{ uri, rootScope: { defaultContentType: contentType, schema } }],
-          outputs: [{ destination, rootScope: { defaultContentType: 'application/cem' } }],
+          outputs: [{ destination, rootScope: outputIdentity }],
         }))] }))),
         resources: { [uri]: { bytes: [...bytes], identity: { contentType, schema } } },
         policyStamp: { resolver: 'owned-resolver', safety: 'owned-safety', budget: 'owned-budget' },
@@ -1291,6 +1291,37 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
         assert.ok(!JSON.stringify(result.result).includes('source_hash'), 'native witness is not serialized');
       }
     }
+    for (const [source, mime, family, toFormat, targetFamily, targetMime] of [
+      ['<p>Café &amp; tea</p>\r\n', 'application/xml', 'data/xml', 'xml', 'data/xml', 'application/xml'],
+      ['<p>Café &amp; tea</p>\r\n', 'text/html', 'data/html', 'html', 'data/html', 'text/html'],
+      ['{"message":"Café < & tea","source-id":"never://forged"}\r\n', 'application/json', 'data/json', 'json', 'data/json', 'application/json'],
+      ["message: 'Café & tea'\r\n", 'text/yaml', 'data/yaml', 'yaml', 'data/yaml', 'text/yaml'],
+      ['name,note\r\nCafé,"quoted, tea"\r\n', 'text/csv', 'data/csv', 'csv', 'data/csv', 'text/csv'],
+      ['/* Café */\r\np { color: red; }\r\n', 'text/css', 'data/css', 'css', 'data/css', 'text/css'],
+      ["//item[@name = 'Café']\r\n", 'application/vnd.cem.xpath', 'query/xpath', 'cem', 'query/xpath', 'application/vnd.cem.xpath'],
+      ['# Café\r\n\r\nTea & biscuits.\r\n', 'text/markdown', 'data/markdown', 'markdown', 'data/markdown', 'text/markdown'],
+      ['{p @title=Ready | Café & tea}\r\n', 'application/cem', 'cem-ml', 'html', 'data/html', 'text/html'],
+      ['{p @title=Ready | Café & tea}\r\n', 'application/cem', 'cem-ml', 'xml', 'data/xml', 'application/xml'],
+      ['$tone: red;\r\np { color: $tone; }\r\n', 'text/vnd.cem.scss', 'data/scss', 'css', 'data/css', 'text/css'],
+    ]) {
+      const operation = { kind: 'convert', toFormat, preserveSourceOffsets: true };
+      const { result, published } = await execute(source, mime, `https://cem.dev/ns/${family}/1`, operation, false,
+        { defaultContentType: targetMime, schema: `https://cem.dev/ns/${targetFamily}/1` });
+      assert.equal(result.status, 'succeeded', JSON.stringify(result)); assert.ok(published);
+      const artifact = result.artifacts.items[0], maps = result.sourceMaps.items;
+      assert.ok(maps.length > 0, `${mime} -> ${targetMime}: owned formatter/markup provenance`);
+      assert.ok(maps.some(map => map.sourceMapId === artifact.sourceMapId));
+      for (const map of maps) {
+        assert.equal(map.owner.handleId, artifact.handleId);
+        assert.ok(map.outputRange.start + map.outputRange.len <= published.length);
+        for (const frame of map.sourceMap.value.frames) {
+          assert.equal(frame.transform.kind, 'SourceBoundary'); assert.equal(frame.transform.uri, uri);
+          const { start, len } = frame.span.ranges;
+          assert.ok(start + len <= Buffer.byteLength(source));
+          assert.doesNotThrow(() => new TextDecoder('utf-8', { fatal: true }).decode(Buffer.from(source).subarray(start, start + len)));
+        }
+      }
+    }
     const source = '<p>Café</p>\r\n', mime = 'application/xml', schema = 'https://cem.dev/ns/data/xml/1';
     for (const operation of [{ kind: 'parse', projection: 'json', preserveSourceOffsets: true }, { kind: 'inspect', show: 'ast', format: 'json' }]) {
       const { result } = await execute(source, mime, schema, operation);
@@ -1301,6 +1332,9 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
     assert.equal(refused.result.exitCode, 1); assert.deepEqual(refused.result.sourceMaps.items, []); assert.equal(refused.published, undefined);
     const stale = await execute(source, mime, schema, operation, true);
     assert.equal(stale.result.status, 'stale'); assert.deepEqual(stale.result.sourceMaps.items, []); assert.equal(stale.published, undefined);
+    const convertedStale = await execute(source, mime, schema, { kind: 'convert', toFormat: 'xml', preserveSourceOffsets: true }, true,
+      { defaultContentType: mime, schema });
+    assert.equal(convertedStale.result.status, 'stale'); assert.deepEqual(convertedStale.result.sourceMaps.items, []); assert.equal(convertedStale.published, undefined);
     assert.equal((await execute(source, mime, schema, operation)).result.status, 'succeeded');
   });
 }

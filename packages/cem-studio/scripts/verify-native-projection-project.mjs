@@ -204,6 +204,7 @@ export async function verifyNativeProjectionProject({ page, context, url }) {
     };
     await followOwnedPresentation(project, 'inspect-xml', 'xml-source', text('xml-source'));
     await followOwnedPresentation(project, 'parse-ast', 'cem-source', text('cem-source'));
+    for (const configuration of ['format-xml', 'render-html', 'render-xml']) await followOwnedPresentation(project, configuration, configuration === 'format-xml' ? 'xml-source' : 'cem-source', text(configuration === 'format-xml' ? 'xml-source' : 'cem-source'));
 
     const originalEvents = await run(project, 'export-events-json'), oldRange = unicodeEvent(originalEvents, text('cem-source'), 'Café Noord');
     const editedText = 'Café Haven and Århus', edited = text('cem-source').replace('Café Noord', editedText);
@@ -246,6 +247,7 @@ export async function verifyNativeProjectionProject({ page, context, url }) {
         }
         await followOwnedPresentation(copy, 'parse-events', 'cem-source', copiedSource);
         await followOwnedPresentation(copy, 'inspect-xml', 'xml-source', text('xml-source'));
+        for (const configuration of ['format-xml', 'render-html', 'render-xml']) await followOwnedPresentation(copy, configuration, configuration === 'format-xml' ? 'xml-source' : 'cem-source', configuration === 'format-xml' ? text('xml-source') : copiedSource);
         unicodeEvent(await run(copy, 'export-events-json'), copiedSource, copiedText);
         for (const configuration of definition.configurations.filter(item => item.repair)) assert.equal((await run(copy, configuration.id)).status, 'valid');
         for (const [name, expected] of Object.entries({ ...repaired, 'cem-source': copiedSource })) {
@@ -258,7 +260,7 @@ export async function verifyNativeProjectionProject({ page, context, url }) {
     console.log('[cem-studio:native-projections] independent copies, all-family offline exports/transfers, retained repairs and unchanged originals passed');
     return { catalog: true, readonlyOriginals: true, nativeCemPresentation: true, retainedXmlInspection: true, plainTextInspection: true,
         explicitJsonExports: true, exactBinaryExports: true, binaryCopyRefusal: true, exactDownloads: true,
-        nativeSourceRanges: true, diagnosticSourceNavigation: true, projectionShapeValidation: true, originalRepairs: true,
+        nativeSourceRanges: true, formatterAndMarkupNavigation: true, offlineFormatterAndMarkupNavigation: true, diagnosticSourceNavigation: true, projectionShapeValidation: true, originalRepairs: true,
         binarySourceReadonly: true, binarySourceNotRunnable: true, savedUnicodeSource: true, changedProjectionRanges: true,
         unsavedSourceGuard: true, independentCopies: true, persistedRepairs: true, offlineCommands: true,
         offlineBinaryExports: true, offlineDownloads: true, unchangedCatalog: true };

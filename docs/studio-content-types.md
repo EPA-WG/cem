@@ -1,14 +1,14 @@
 # Studio content types and schema inventory
 
-Audited 2026-10-26. This is the implementation map for the **Content types and
+Audited 2026-10-28. This is the implementation map for the **Content types and
 schemas** sample collection in [the active checklist](todo.md#studio-samples-supported-content-types-and-schemas).
 The collection is available under **Examples → Content types and schemas**, with
 Data, Documents and UI, Queries and transformations, and Schema authoring folders.
 Examples remain ordinary cloneable projects with resources and configurations.
 Folder listings reuse existing projects. The
 [catalog README/capability audit](studio-catalog-coverage.md) records 22 authored
-projects and 213 configurations, plus the generated Schema examples project and
-the starter. All 218 inventory rows (213 authored and five portable workbenches)
+projects and 234 configurations, plus the generated Schema examples project and
+the starter. All 239 inventory rows (234 authored and five portable workbenches)
 are checked against their actual resource/configuration references. The 32
 generated package validations remain a separate registry matrix. These counts
 describe declared coverage, not uniform native conformance or UI runnability.
@@ -393,6 +393,9 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `native-projections` | `xml-source` | `validate-xml` | Check XML well-formedness independently from importing its retained structural view. |
 | `native-projections` | `cem-source` | `parse-ast` | Present the original native source nodes and source-frame ranges as CEM-ML text. No JSON AST handoff is used. |
 | `native-projections` | `cem-source` | `parse-events` | Present the original native source ordered lexical events, trivia and byte ranges as CEM-ML text. No JSON AST handoff is used. |
+| `native-projections` | `xml-source` | `format-xml` | Publish exact native writer bytes and original source ranges; select Results → Provenance to return to the owned input. |
+| `native-projections` | `cem-source` | `render-html` | Publish exact native writer bytes and original source ranges; select Results → Provenance to return to the owned input. |
+| `native-projections` | `cem-source` | `render-xml` | Publish exact native writer bytes and original source ranges; select Results → Provenance to return to the owned input. |
 | `native-projections` | `xml-source` | `inspect-xml` | Inspect the shared imported CEM tree, retaining XML namespace, comments, CDATA and original byte/line positions. This differs from parsing a serialized projection artifact. |
 | `native-projections` | `plain-source` | `inspect-text` | Inspect native text/plain import as one retained text node with its original buffer. This family has no registered schema package or generic source-validation claim. |
 | `native-projections` | `cem-source` | `export-dom-json` | Request a named JSON debug export from the original native source. The exported byteRange/sourceMap fields are data; revalidating them does not restore the original source owner. |

@@ -2385,6 +2385,8 @@ fn conversion_output_boundary_value(
 
 #[derive(Debug, Clone, Default)]
 pub struct ConversionOutputPipelineExecution {
+    /// Final native writer payload before the explicit public/debug projection.
+    pub native_writer_output: Option<TransformTemplateEncodedArtifact>,
     pub output: Option<Value>,
     pub raw_cem_tree: Option<Arc<CemtTreeArtifact>>,
     pub formatted_cemt_tree: Option<Arc<CemtTreeArtifact>>,
@@ -5983,6 +5985,7 @@ pub fn execute_conversion_output_pipeline_from_typed_cemt_subject_with_environme
         )
     });
     ConversionOutputPipelineExecution {
+        native_writer_output: Some(writer_output.clone()),
         output: Some(
             writer_output
                 .value
@@ -6314,7 +6317,9 @@ impl CsvDocumentOutputSubject for CsvDocumentAst {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            CsvDocumentCemtSubjectRef::new(self).evaluator_view(),
+            CsvDocumentCemtSubjectRef::new(self)
+                .evaluator_view()
+                .with_native_source_uri(&self.source.uri),
         ))
     }
 }
@@ -6342,7 +6347,9 @@ impl CsvDocumentOutputSubject for GenericDataCsvDocumentOutputSubject {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            GenericDataCsvDocumentCemtSubjectRef::new(&self.ast).evaluator_view(),
+            GenericDataCsvDocumentCemtSubjectRef::new(&self.ast)
+                .evaluator_view()
+                .with_native_source_uri(&self.ast.source.uri),
         ))
     }
 }
@@ -6697,6 +6704,7 @@ fn execute_native_csv_document_output_pipeline(
         )
     });
     ConversionOutputPipelineExecution {
+        native_writer_output: Some(writer_output.clone()),
         output: Some(
             writer_output
                 .value
@@ -7032,7 +7040,9 @@ impl YamlDocumentOutputSubject for YamlDocumentAst {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            YamlDocumentCemtSubjectRef::new(self).evaluator_view(),
+            YamlDocumentCemtSubjectRef::new(self)
+                .evaluator_view()
+                .with_native_source_uri(&self.source.uri),
         ))
     }
 }
@@ -7059,7 +7069,9 @@ impl YamlDocumentOutputSubject for GenericDataYamlDocumentOutputSubject {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            GenericDataYamlDocumentCemtSubjectRef::new(&self.ast).evaluator_view(),
+            GenericDataYamlDocumentCemtSubjectRef::new(&self.ast)
+                .evaluator_view()
+                .with_native_source_uri(&self.ast.source.uri),
         ))
     }
 }
@@ -7412,6 +7424,7 @@ fn execute_native_yaml_document_output_pipeline(
         )
     });
     ConversionOutputPipelineExecution {
+        native_writer_output: Some(writer_output.clone()),
         output: Some(
             writer_output
                 .value
@@ -7672,7 +7685,9 @@ impl JsonDocumentOutputSubject for JsonDocumentAst {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            JsonDocumentCemtSubjectRef::new(self).evaluator_view(),
+            JsonDocumentCemtSubjectRef::new(self)
+                .evaluator_view()
+                .with_native_source_uri(&self.source.uri),
         ))
     }
 }
@@ -7695,7 +7710,9 @@ impl JsonDocumentOutputSubject for GenericDataJsonDocumentOutputSubject {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            GenericDataJsonDocumentCemtSubjectRef::new(&self.ast).evaluator_view(),
+            GenericDataJsonDocumentCemtSubjectRef::new(&self.ast)
+                .evaluator_view()
+                .with_native_source_uri(&self.ast.source.uri),
         ))
     }
 }
@@ -7714,7 +7731,9 @@ impl JsonSchemaDocumentOutputSubject for JsonSchemaDocumentAst {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            JsonSchemaDocumentCemtSubjectRef::new(self).evaluator_view(),
+            JsonSchemaDocumentCemtSubjectRef::new(self)
+                .evaluator_view()
+                .with_native_source_uri(&self.json.source.uri),
         ))
     }
 }
@@ -8049,6 +8068,7 @@ fn execute_native_json_document_output_pipeline(
         )
     });
     ConversionOutputPipelineExecution {
+        native_writer_output: Some(writer_output.clone()),
         output: Some(
             writer_output
                 .value
@@ -9055,6 +9075,7 @@ fn execute_native_json_schema_document_output_pipeline(
         )
     });
     ConversionOutputPipelineExecution {
+        native_writer_output: Some(writer_output.clone()),
         output: Some(
             writer_output
                 .value
@@ -9464,7 +9485,9 @@ impl MarkdownDocumentOutputSubject for MarkdownDocumentAst {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            MarkdownDocumentCemtSubjectRef::new(self).evaluator_view(),
+            MarkdownDocumentCemtSubjectRef::new(self)
+                .evaluator_view()
+                .with_native_source_uri(&self.source.uri),
         ))
     }
 }
@@ -9821,6 +9844,7 @@ fn execute_native_markdown_document_output_pipeline(
         )
     });
     ConversionOutputPipelineExecution {
+        native_writer_output: Some(writer_output.clone()),
         output: Some(
             writer_output
                 .value
@@ -10088,7 +10112,9 @@ impl XmlDocumentOutputSubject for XmlDocumentAst {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            XmlFamilyDocumentCemtSubjectRef::xml(self).evaluator_view(),
+            XmlFamilyDocumentCemtSubjectRef::xml(self)
+                .evaluator_view()
+                .with_native_source_uri(&self.source.uri),
         ))
     }
 }
@@ -10104,7 +10130,9 @@ impl XmlDocumentOutputSubject for HtmlDocumentAst {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            XmlFamilyDocumentCemtSubjectRef::html(self).evaluator_view(),
+            XmlFamilyDocumentCemtSubjectRef::html(self)
+                .evaluator_view()
+                .with_native_source_uri(&self.source.uri),
         ))
     }
 }
@@ -10120,7 +10148,9 @@ impl XmlDocumentOutputSubject for CssDocumentAst {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            XmlFamilyDocumentCemtSubjectRef::css(self).evaluator_view(),
+            XmlFamilyDocumentCemtSubjectRef::css(self)
+                .evaluator_view()
+                .with_native_source_uri(&self.source.uri),
         ))
     }
 }
@@ -10136,7 +10166,9 @@ impl XmlDocumentOutputSubject for XPathExpressionAst {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            XPathExpressionCemtSubjectRef::new(self).evaluator_view(),
+            XPathExpressionCemtSubjectRef::new(self)
+                .evaluator_view()
+                .with_native_source_uri(&self.source.uri),
         ))
     }
 }
@@ -10154,7 +10186,9 @@ impl XmlDocumentOutputSubject for CssSelectorExpressionAst {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            CssSelectorExpressionCemtSubjectRef::new(self).evaluator_view(),
+            CssSelectorExpressionCemtSubjectRef::new(self)
+                .evaluator_view()
+                .with_native_source_uri(&self.source.uri),
         ))
     }
 }
@@ -10170,7 +10204,9 @@ impl XmlDocumentOutputSubject for XhtmlDocumentAst {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            XmlFamilyDocumentCemtSubjectRef::xhtml(self).evaluator_view(),
+            XmlFamilyDocumentCemtSubjectRef::xhtml(self)
+                .evaluator_view()
+                .with_native_source_uri(&self.source.uri),
         ))
     }
 }
@@ -10186,7 +10222,9 @@ impl XmlDocumentOutputSubject for SvgDocumentAst {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            XmlFamilyDocumentCemtSubjectRef::svg(self).evaluator_view(),
+            XmlFamilyDocumentCemtSubjectRef::svg(self)
+                .evaluator_view()
+                .with_native_source_uri(&self.xml_document.source.uri),
         ))
     }
 }
@@ -10202,7 +10240,9 @@ impl XmlDocumentOutputSubject for MathMlDocumentAst {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            XmlFamilyDocumentCemtSubjectRef::mathml(self).evaluator_view(),
+            XmlFamilyDocumentCemtSubjectRef::mathml(self)
+                .evaluator_view()
+                .with_native_source_uri(&self.xml_document.source.uri),
         ))
     }
 }
@@ -10218,7 +10258,9 @@ impl XmlDocumentOutputSubject for XsltStylesheetAst {
 
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         Some(CemtEvaluatorValue::borrowed(
-            XmlFamilyDocumentCemtSubjectRef::xslt(self).evaluator_view(),
+            XmlFamilyDocumentCemtSubjectRef::xslt(self)
+                .evaluator_view()
+                .with_native_source_uri(&self.xml_document.source.uri),
         ))
     }
 }
@@ -10960,6 +11002,7 @@ fn execute_native_xml_family_document_output_pipeline(
         )
     });
     ConversionOutputPipelineExecution {
+        native_writer_output: Some(writer_output.clone()),
         output: Some(
             writer_output
                 .value
@@ -11227,7 +11270,9 @@ pub fn execute_relax_ng_document_output_pipeline_with_environment(
     execute_native_xml_family_document_output_pipeline(
         environment,
         CemtEvaluatorValue::borrowed(
-            RelaxNgDocumentCemtSubjectRef::new(&document).evaluator_view(),
+            RelaxNgDocumentCemtSubjectRef::new(&document)
+                .evaluator_view()
+                .with_native_source_uri(&document.source.uri),
         ),
         pipeline,
         diagnostic_uri,
@@ -11413,6 +11458,7 @@ fn execute_conversion_output_pipeline_from_typed_formatted_artifact(
         .as_ref()
         .map(|tree| cemt_tree_public_projection(tree, &writer_binding.identity));
     ConversionOutputPipelineExecution {
+        native_writer_output: Some(artifact.clone()),
         output: Some(
             artifact
                 .value
@@ -19036,7 +19082,9 @@ mod tests {
             .expect("native typed CEMT evaluator dispatch boundary")
             .0;
         assert!(native_dispatch.contains("execute_transform_template_typed_cemt_body_expression"));
-        assert!(native_dispatch.contains("artifact.evaluator_view()"));
+        assert!(native_dispatch
+            .replace(char::is_whitespace, "")
+            .contains("artifact.evaluator_view()"));
         assert!(native_dispatch.contains("CemtTreeArtifactStage::Formatted"));
         assert!(native_dispatch.contains("colorizer input requires a formatted CEMT tree artifact"));
         assert!(native_dispatch.contains("lower_typed_formatted_cemt_tree_artifact"));
@@ -19234,7 +19282,9 @@ mod tests {
             })
             .map(|(implementation, _)| implementation)
             .expect("lossless JSON output subject implementation");
-        assert!(json_subject.contains("JsonDocumentCemtSubjectRef::new(self).evaluator_view()"));
+        assert!(json_subject
+            .replace(char::is_whitespace, "")
+            .contains("JsonDocumentCemtSubjectRef::new(self).evaluator_view()"));
         assert!(!json_subject.contains("to_cemt_subject"));
 
         let generic_subject = source
@@ -19243,6 +19293,7 @@ mod tests {
             .map(|(implementation, _)| implementation)
             .expect("generic-data JSON output subject implementation");
         assert!(generic_subject
+            .replace(char::is_whitespace, "")
             .contains("GenericDataJsonDocumentCemtSubjectRef::new(&self.ast).evaluator_view()"));
         for forbidden in [
             "into_test_compatibility_cemt_subject",
@@ -19316,6 +19367,7 @@ mod tests {
             .map(|(implementation, _)| implementation)
             .expect("JSON Schema output subject implementation");
         assert!(json_schema_subject
+            .replace(char::is_whitespace, "")
             .contains("JsonSchemaDocumentCemtSubjectRef::new(self).evaluator_view()"));
         for forbidden in ["into_cemt_subject", "serde_json", "Option<Value>"] {
             assert!(
@@ -19410,7 +19462,9 @@ mod tests {
             })
             .map(|(implementation, _)| implementation)
             .expect("native CSV output subject implementation");
-        assert!(native_subject.contains("CsvDocumentCemtSubjectRef::new(self).evaluator_view()"));
+        assert!(native_subject
+            .replace(char::is_whitespace, "")
+            .contains("CsvDocumentCemtSubjectRef::new(self).evaluator_view()"));
         for forbidden in ["to_cemt_subject", "serde_json", "Option<Value>"] {
             assert!(
                 !native_subject.contains(forbidden),
@@ -19426,6 +19480,7 @@ mod tests {
             .map(|(implementation, _)| implementation)
             .expect("generic-data CSV output subject implementation");
         assert!(generic_subject
+            .replace(char::is_whitespace, "")
             .contains("GenericDataCsvDocumentCemtSubjectRef::new(&self.ast).evaluator_view()"));
         for forbidden in [
             "generic_data_ast_to_csv_cemt_subject",
@@ -19505,7 +19560,9 @@ mod tests {
             .map(|(implementation, _)| implementation)
             .expect("native Markdown output subject implementation");
         assert!(
-            native_subject.contains("MarkdownDocumentCemtSubjectRef::new(self).evaluator_view()")
+            native_subject
+                .replace(char::is_whitespace, "")
+                .contains("MarkdownDocumentCemtSubjectRef::new(self).evaluator_view()")
         );
         for forbidden in ["to_cemt_subject", "serde_json", "Option<Value>"] {
             assert!(
@@ -19615,7 +19672,7 @@ mod tests {
             "cem.xslt-stylesheet-ast",
         ] {
             assert!(
-                native_subjects.contains(required),
+                native_subjects.replace(char::is_whitespace, "").contains(required),
                 "missing native XML-family subject contract `{required}`"
             );
         }
@@ -19737,7 +19794,7 @@ mod tests {
             "cem.relax-ng-document-ast",
         ] {
             assert!(
-                pipeline.contains(required),
+                pipeline.replace(char::is_whitespace, "").contains(required),
                 "missing `{required}` native RELAX NG handoff"
             );
         }
@@ -19832,7 +19889,9 @@ mod tests {
             })
             .map(|(implementation, _)| implementation)
             .expect("native YAML output subject implementation");
-        assert!(native_subject.contains("YamlDocumentCemtSubjectRef::new(self).evaluator_view()"));
+        assert!(native_subject
+            .replace(char::is_whitespace, "")
+            .contains("YamlDocumentCemtSubjectRef::new(self).evaluator_view()"));
         for forbidden in ["to_cemt_subject", "serde_json", "Option<Value>"] {
             assert!(
                 !native_subject.contains(forbidden),
@@ -19848,6 +19907,7 @@ mod tests {
             .map(|(implementation, _)| implementation)
             .expect("generic-data YAML output subject implementation");
         assert!(generic_subject
+            .replace(char::is_whitespace, "")
             .contains("GenericDataYamlDocumentCemtSubjectRef::new(&self.ast).evaluator_view()"));
         for forbidden in [
             "generic_data_ast_to_yaml_cemt_subject",
@@ -23415,7 +23475,10 @@ mod tests {
         assert_eq!(formatted.value["contentType"], JSON_CONTENT_TYPE);
         assert_eq!(formatted.value["category"], "json-document");
         assert_eq!(formatted.value["formatterProfile"], "tabular");
-        let expected_name_origin = json_test_source_map(1, 6);
+        let expected_name_origin = {
+            let source: SourceMapStack = serde_json::from_value(json_test_source_map(1, 6)).unwrap();
+            serde_json::to_value(source.with_source_uri("builtin:json-output")).unwrap()
+        };
         let has_formatted_name_span = formatted.value["nodes"]
             .as_array()
             .expect("formatted JSON CEM tree nodes")
@@ -25273,7 +25336,8 @@ mod tests {
             .find(|token| token.lexeme == "\"茶<&>\"")
             .unwrap()
             .source_range
-            .source_map(77, &expression.source.media_type);
+            .source_map(77, &expression.source.media_type)
+            .with_source_uri(uri);
         let schemas = SchemaRegistry::with_builtin_schemas();
         let converters = ConversionRegistry::with_builtin_converters();
         let environment = ConversionOutputPipelineEnvironment {
@@ -25390,7 +25454,8 @@ mod tests {
             .find(|token| token.lexeme == "\"茶<&>\"")
             .unwrap()
             .source_range
-            .source_map();
+            .source_map()
+            .with_source_uri(uri);
         let schemas = SchemaRegistry::with_builtin_schemas();
         let converters = ConversionRegistry::with_builtin_converters();
         let environment = ConversionOutputPipelineEnvironment {

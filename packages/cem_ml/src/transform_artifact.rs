@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod projection_profile_tests;
 
+mod source_view;
+
 use crate::engine::FormatIdentity;
 use crate::interpreter::OutputSpan;
 use crate::lifecycle::LoadedInputAstStream;
@@ -2837,6 +2839,8 @@ where
 
 #[derive(Debug, Clone)]
 pub enum CemtEvaluatorSequenceRef<'a> {
+    /// Original native producer context; never a source-ID resolver.
+    NativeSource { value: Box<CemtEvaluatorSequenceRef<'a>>, source_uri: &'a str },
     Package {
         sequence: &'a dyn CemtEvaluatorSequenceView,
     },
@@ -3037,6 +3041,7 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
 
     pub fn len(&self) -> usize {
         match self {
+            Self::NativeSource { value, .. } => value.len(),
             Self::Package { sequence } => sequence.len(),
             Self::Empty => 0,
             Self::Strings { values } => values.len(),
@@ -3114,6 +3119,9 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
 
     pub fn item(&self, index: usize) -> Option<CemtEvaluatorValueRef<'a>> {
         match self {
+            Self::NativeSource { value, source_uri } => value
+                .item(index)
+                .map(|child| child.with_native_source_uri(source_uri)),
             Self::Package { sequence } => (*sequence).item(index),
             Self::Empty => None,
             Self::Strings { values } => values
@@ -3563,6 +3571,8 @@ fn cemt_evaluator_node_format_sequence_matches(
 
 #[derive(Debug, Clone)]
 pub enum CemtEvaluatorRecordRef<'a> {
+    /// Original native producer context; never a source-ID resolver.
+    NativeSource { value: Box<CemtEvaluatorRecordRef<'a>>, source_uri: &'a str },
     XPathToken {
         expression: &'a XPathExpressionAst,
         token: &'a XPathTokenAst,
@@ -3855,6 +3865,7 @@ pub enum CemtEvaluatorRecordRef<'a> {
 impl<'a> CemtEvaluatorRecordRef<'a> {
     pub fn owner_path(&self) -> Option<&CemtOwnerPath> {
         match self {
+            Self::NativeSource { value, .. } => value.owner_path(),
             Self::Node { path, .. }
             | Self::Attribute { path, .. }
             | Self::FormattedNode { path, .. }
@@ -3950,6 +3961,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn owner(&self) -> Option<CemtTreeOwnerRef<'a>> {
         match self {
+            Self::NativeSource { value, .. } => value.owner(),
             Self::Node { node, .. } | Self::FormattedNode { node, .. } => {
                 Some(CemtTreeOwnerRef::Node(node))
             }
@@ -4047,6 +4059,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn format_operation_index(&self) -> Option<usize> {
         match self {
+            Self::NativeSource { value, .. } => value.format_operation_index(),
             Self::FormatOperation { index, .. } => Some(*index),
             _ => None,
         }
@@ -4054,6 +4067,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn format_operation(&self) -> Option<&'a CemtFormatOperation> {
         match self {
+            Self::NativeSource { value, .. } => value.format_operation(),
             Self::FormatOperation { operation, .. } => Some(operation),
             _ => None,
         }
@@ -4061,6 +4075,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn node_format_operation_index(&self) -> Option<usize> {
         match self {
+            Self::NativeSource { value, .. } => value.node_format_operation_index(),
             Self::NodeFormatOperation { index, .. } => Some(*index),
             _ => None,
         }
@@ -4068,6 +4083,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn node_format_operation(&self) -> Option<&'a CemtNodeFormatOperation> {
         match self {
+            Self::NativeSource { value, .. } => value.node_format_operation(),
             Self::NodeFormatOperation { operation, .. } => Some(operation),
             _ => None,
         }
@@ -4075,6 +4091,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn field_names(&self) -> &'static [&'static str] {
         match self {
+            Self::NativeSource { value, .. } => value.field_names(),
             Self::XPathToken { .. } => &[
                 "index", "kind", "lexeme", "depth", "role", "sourceRange", "sourceMap",
             ],
@@ -4860,6 +4877,9 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn field(&self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
         match self {
+            Self::NativeSource { value, source_uri } => value
+                .field(name)
+                .map(|child| child.with_native_source_uri(source_uri)),
             Self::XPathToken { expression, token } => match name {
                 "index" => Some(usize_evaluator_value(token.index)),
                 "kind" => Some(CemtEvaluatorValueRef::String(token.kind.as_str())),

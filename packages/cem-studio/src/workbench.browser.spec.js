@@ -2576,6 +2576,8 @@ describe('Project-owned workbench loading', () => {
         await workbench.navigateProvenance(0);
         expect(workbench.snapshot().navigationError.message).toContain('stale');
         expect(workbench.snapshot().selection).toBeUndefined();
+        // Settle repository-driven navigation before closing this test's database.
+        await workbench.refreshNavigation();
     });
 
     async function queryProvenanceFixture({ frames, stacks, diagnosticFrames, range = { start: 9, len: 11 } } = {}) {

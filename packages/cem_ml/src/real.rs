@@ -6,6 +6,8 @@
 //! replaces `NotImplementedEngine` in `cem-ml-cli/src/main.rs`.
 
 mod source_inspection;
+mod output_provenance;
+use output_provenance::native_text_primary;
 mod imported_source;
 mod projection_source_validation;
 #[cfg(not(target_arch = "wasm32"))]
@@ -453,6 +455,8 @@ fn render_export_conversion_template(
     from_format: InputFormat,
     target_scope: &ScopeConfig,
     diagnostics: &mut Vec<Diagnostic>,
+    input: &EngineInput,
+    captured: &mut Option<PrimaryBytes>,
 ) -> ExportConversionTemplateResult {
     let mut local_diagnostics = Vec::new();
     // Even a registered native execution fallback cannot replace missing
@@ -461,7 +465,9 @@ fn render_export_conversion_template(
         .converter_registry
         .converter(&conversion.converter_id)
         .filter(|descriptor| {
-            context.schema_asset_activation.as_ref()
+            context
+                .schema_asset_activation
+                .as_ref()
                 .is_some_and(|binding| binding.owns_package(&descriptor.package_id))
         })
         .and_then(|descriptor| descriptor.template.as_ref());
@@ -550,16 +556,16 @@ fn render_export_conversion_template(
 
     let primary_input = TransformTemplateDataArtifact {
         artifact_id: "input".to_owned(),
-        uri: None,
+        uri: Some(input_uri(input, context)),
         identity: Some(FormatIdentity {
             content_type: Some(CEM_AST_PROJECTION_CONTENT_TYPE.to_owned()),
             schema: Some(CEM_AST_PROJECTION_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
         }),
-        body: TransformArtifactBody::CemTree(Arc::new(projection::ast_stream(
-            document,
-            Some(input_format_content_type(from_format)),
-        ))),
+        body: TransformArtifactBody::CemTree(Arc::new(
+            projection::ast_stream(document, Some(input_format_content_type(from_format)))
+                .with_original_source_uri(&input_uri(input, context)),
+        )),
     };
     let secondary_inputs = BTreeMap::new();
     let render_target = conversion
@@ -640,7 +646,7 @@ fn render_export_conversion_template(
                 diagnostics,
             );
         }
-        let Some(value) = pipeline_execution.output else {
+        let Some(writer) = pipeline_execution.native_writer_output.as_ref() else {
             return publish_converter_cemt_diagnostics(
                 conversion,
                 "CEMT output pipeline produced no writer artifact",
@@ -648,7 +654,7 @@ fn render_export_conversion_template(
                 diagnostics,
             );
         };
-        let Some(text) = value.as_str() else {
+        let Some(text) = writer.value.as_str() else {
             return publish_converter_cemt_diagnostics(
                 conversion,
                 "CEMT output pipeline writer did not produce encoded text",
@@ -686,6 +692,33 @@ fn render_export_conversion_template(
         output
     };
 
+    let native_primary = match &output.body {
+        TransformArtifactBody::Encoded(encoded) if encoded.encoding == TransformEncoding::Text => {
+            output.encoded_text_value().ok().map(|text| {
+                native_text_primary(
+                    Some(context),
+                    input,
+                    text,
+                    encoded.identity.content_type.as_deref().unwrap_or(
+                        if to_format == LayerFormat::Html {
+                            HTML_CONTENT_TYPE
+                        } else {
+                            XML_CONTENT_TYPE
+                        },
+                    ),
+                    encoded.identity.schema.as_deref().unwrap_or(
+                        if to_format == LayerFormat::Html {
+                            HTML_SCHEMA_URI
+                        } else {
+                            XML_SCHEMA_URI
+                        },
+                    ),
+                    output.output_spans.clone(),
+                )
+            })
+        }
+        _ => None,
+    };
     let Some(primary) = convert_primary_from_template_output(output, to_format) else {
         return publish_converter_cemt_diagnostics(
             conversion,
@@ -696,6 +729,7 @@ fn render_export_conversion_template(
     };
 
     diagnostics.append(&mut local_diagnostics);
+    *captured = native_primary;
     ExportConversionTemplateResult::Rendered(primary)
 }
 
@@ -2097,10 +2131,17 @@ fn convert_primary_to_markup_with_cemt_pipeline(
     converter_id: &str,
     target_scope: &ScopeConfig,
     diagnostic_uri: Option<&str>,
+    capture: Option<(&EngineInput, &mut Option<PrimaryBytes>)>,
 ) -> Result<Value, Vec<Diagnostic>> {
     convert_markup_tree_stream_with_cemt_pipeline(
-        context, cem_tree_nodes_for_markup_output(document, from_format),
-        pipeline, kind, converter_id, target_scope, diagnostic_uri,
+        context,
+        cem_tree_nodes_for_markup_output(document, from_format),
+        pipeline,
+        kind,
+        converter_id,
+        target_scope,
+        diagnostic_uri,
+        capture,
     )
 }
 
@@ -2112,8 +2153,17 @@ fn convert_markup_tree_stream_with_cemt_pipeline(
     converter_id: &str,
     target_scope: &ScopeConfig,
     diagnostic_uri: Option<&str>,
+    capture: Option<(&EngineInput, &mut Option<PrimaryBytes>)>,
 ) -> Result<Value, Vec<Diagnostic>> {
     let pipeline = cemt_output_pipeline_for_scope(pipeline, target_scope);
+    let stream = if let Some((input, _)) = &capture {
+        let uri = context
+            .map(|context| input_uri(input, context))
+            .unwrap_or_else(|| input.uri.clone());
+        stream.with_original_source_uri(&uri)
+    } else {
+        stream
+    };
     let pipeline_execution = execute_cem_tree_output_pipeline_with_context(
         context,
         &pipeline,
@@ -2131,7 +2181,7 @@ fn convert_markup_tree_stream_with_cemt_pipeline(
     {
         return Err(diagnostics);
     }
-    let Some(output) = pipeline_execution.output else {
+    let Some(writer) = pipeline_execution.native_writer_output.as_ref() else {
         diagnostics.push(direct_markup_output_pipeline_diagnostic(
             diagnostic_uri,
             kind,
@@ -2139,7 +2189,7 @@ fn convert_markup_tree_stream_with_cemt_pipeline(
         ));
         return Err(diagnostics);
     };
-    let Some(output) = output.as_str() else {
+    let Some(output) = writer.value.as_str() else {
         diagnostics.push(direct_markup_output_pipeline_diagnostic(
             diagnostic_uri,
             kind,
@@ -2147,6 +2197,16 @@ fn convert_markup_tree_stream_with_cemt_pipeline(
         ));
         return Err(diagnostics);
     };
+    if let Some((input, captured)) = capture {
+        *captured = Some(native_text_primary(
+            context,
+            input,
+            output,
+            &writer.identity.target.content_type,
+            &writer.identity.target.schema,
+            writer.output_spans.clone(),
+        ));
+    }
     let source_map = pipeline_execution
         .source_map
         .and_then(|source_map| serde_json::to_value(source_map).ok())
@@ -12606,6 +12666,7 @@ impl CemMlEngine for RealCemMlEngine {
                                 convert_markup_tree_stream_with_cemt_pipeline(
                                     Some(&context), projection::imported_data_xml_tree_nodes(tree, CSV_CONTENT_TYPE),
                                     base_pipeline, "xml", converter_id, &request.target_scope, Some(&request.input.uri),
+                                    Some((&request.input, &mut primary_bytes)),
                                 )
                             } else {
                                 convert_cem_tree_stream_with_cemt_pipeline(
@@ -12615,7 +12676,7 @@ impl CemMlEngine for RealCemMlEngine {
                             };
                             match result {
                                 Ok(value) => {
-                                    if let Some(content) = value.get("content").and_then(Value::as_str) {
+                                    if let Some(content) = value.get("content").and_then(Value::as_str).filter(|_| primary_bytes.is_none()) {
                                         primary_bytes = Some(primary_bytes_from_text_document(
                                             content,
                                             if is_xml { XML_CONTENT_TYPE } else { cem_output_identity(&pipeline).0 },
@@ -13386,6 +13447,8 @@ impl CemMlEngine for RealCemMlEngine {
                             from_format,
                             &request.target_scope,
                             &mut diagnostics,
+                            &request.input,
+                            &mut primary_bytes,
                         );
                         match render_result {
                             ExportConversionTemplateResult::Rendered(primary) => {
@@ -13412,7 +13475,20 @@ impl CemMlEngine for RealCemMlEngine {
                             ExportConversionTemplateResult::UseRustFallback => {
                                 conversion =
                                     Some(convert_metadata_for_rust_fallback(export_conversion));
-                                let rendered = LightDomInterpreter::new().render(&run.document);
+                                let mut rendered = LightDomInterpreter::new().render(&run.document);
+                                for span in &mut rendered.output_spans {
+                                    span.origin = span.origin.clone().with_source_uri(
+                                        &input_uri(&request.input, &context),
+                                    );
+                                }
+                                primary_bytes = Some(native_text_primary(
+                                    Some(&context),
+                                    &request.input,
+                                    &rendered.rendered,
+                                    HTML_CONTENT_TYPE,
+                                    HTML_SCHEMA_URI,
+                                    rendered.output_spans.clone(),
+                                ));
                                 let output_spans = rendered
                                     .output_spans
                                     .iter()
@@ -13455,6 +13531,7 @@ impl CemMlEngine for RealCemMlEngine {
                                     &export_conversion.converter_id,
                                     &request.target_scope,
                                     Some(&request.input.uri),
+                                    Some((&request.input, &mut primary_bytes)),
                                 )
                                 .unwrap_or_else(
                                     |mut cemt_diagnostics| {
@@ -13483,6 +13560,7 @@ impl CemMlEngine for RealCemMlEngine {
                             "direct-html-output",
                             &request.target_scope,
                             Some(&request.input.uri),
+                            Some((&request.input, &mut primary_bytes)),
                         )
                         .unwrap_or_else(|mut cemt_diagnostics| {
                             diagnostics.append(&mut cemt_diagnostics);
@@ -13500,6 +13578,8 @@ impl CemMlEngine for RealCemMlEngine {
                             from_format,
                             &request.target_scope,
                             &mut diagnostics,
+                            &request.input,
+                            &mut primary_bytes,
                         );
                         match render_result {
                             ExportConversionTemplateResult::Rendered(primary) => {
@@ -13526,7 +13606,20 @@ impl CemMlEngine for RealCemMlEngine {
                             ExportConversionTemplateResult::UseRustFallback => {
                                 conversion =
                                     Some(convert_metadata_for_rust_fallback(export_conversion));
-                                let rendered = XmlInterpreter::new().render(&run.document);
+                                let mut rendered = XmlInterpreter::new().render(&run.document);
+                                for span in &mut rendered.output_spans {
+                                    span.origin = span.origin.clone().with_source_uri(
+                                        &input_uri(&request.input, &context),
+                                    );
+                                }
+                                primary_bytes = Some(native_text_primary(
+                                    Some(&context),
+                                    &request.input,
+                                    &rendered.rendered,
+                                    XML_CONTENT_TYPE,
+                                    XML_SCHEMA_URI,
+                                    rendered.output_spans.clone(),
+                                ));
                                 let output_spans = rendered
                                     .output_spans
                                     .iter()
@@ -13569,6 +13662,7 @@ impl CemMlEngine for RealCemMlEngine {
                                     &export_conversion.converter_id,
                                     &request.target_scope,
                                     Some(&request.input.uri),
+                                    Some((&request.input, &mut primary_bytes)),
                                 )
                                 .unwrap_or_else(
                                     |mut cemt_diagnostics| {
@@ -13597,6 +13691,7 @@ impl CemMlEngine for RealCemMlEngine {
                             "direct-xml-output",
                             &request.target_scope,
                             Some(&request.input.uri),
+                            Some((&request.input, &mut primary_bytes)),
                         )
                         .unwrap_or_else(|mut cemt_diagnostics| {
                             diagnostics.append(&mut cemt_diagnostics);
@@ -24863,6 +24958,11 @@ mod tests {
 
         let resp = RealCemMlEngine::new().convert(req).unwrap();
 
+        let bytes = resp.primary_bytes.as_ref().expect("fallback native writer bytes");
+        assert_eq!(bytes.bytes, b"<p>Hi</p>");
+        let proof = bytes.provenance.as_ref().expect("fallback source witness");
+        assert!(!proof.admitted_spans(b"@doc cem-ml 1\n{p | Hi}", &bytes.bytes).is_empty());
+        assert_eq!(proof.source_uri(), "in.cem");
         assert_eq!(resp.primary["kind"], "html");
         assert_eq!(resp.primary["content"], "<p>Hi</p>");
         assert!(resp.diagnostics.iter().any(|diag| {

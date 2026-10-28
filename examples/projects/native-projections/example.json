@@ -1,8 +1,8 @@
 {
   "id": "native-projections",
   "name": "Native DOM, AST and events",
-  "version": "1.0.2",
-  "description": "Compare native source AST/event presentations, retained XML/plain-text inspection and explicit DOM/AST/event JSON or binary exports, with original ranges, shape repairs and clear import/ownership boundaries.",
+  "version": "1.0.3",
+  "description": "Compare native source AST/event presentations, retained XML/plain-text inspection and explicit DOM/AST/event JSON or binary exports, with formatter/HTML/XML source navigation, original ranges, shape repairs and clear import/ownership boundaries.",
   "collections": [
     "content-types-schema-authoring",
     "content-types-queries-transformations"
@@ -226,6 +226,78 @@
         "@sequence=28",
         "@byte-offset=147",
         "@byte-length=11"
+      ]
+    },
+    {
+      "id": "format-xml",
+      "name": "Format original XML",
+      "kind": "conversion",
+      "source": "xml-source",
+      "description": "Publish exact native writer bytes and original source ranges; select Results → Provenance to return to the owned input.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--to-content-type",
+        "application/xml",
+        "--to-schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "Café Noord"
+      ]
+    },
+    {
+      "id": "render-html",
+      "name": "Render CEM as HTML",
+      "kind": "conversion",
+      "source": "cem-source",
+      "description": "Publish exact native writer bytes and original source ranges; select Results → Provenance to return to the owned input.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "text/html",
+        "--to-schema",
+        "https://cem.dev/ns/data/html/1",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "Café Noord"
+      ]
+    },
+    {
+      "id": "render-xml",
+      "name": "Render CEM as XML",
+      "kind": "conversion",
+      "source": "cem-source",
+      "description": "Publish exact native writer bytes and original source ranges; select Results → Provenance to return to the owned input.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/xml",
+        "--to-schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "Café Noord"
       ]
     },
     {

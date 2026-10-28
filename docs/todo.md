@@ -449,9 +449,17 @@ reading AST data fields as authority. Native CLI/WASM, complete catalog,
 saved/offline navigation and isolated worker/fallback Login recovery pass.
 Declaration whitespace and unused view metadata were reduced to keep every
 provenance row available within the unchanged node/byte limits. Remaining
-formatter/markup endpoints and native projection input adapters follow below.
+formatter/markup endpoints are completed below; native projection input adapters remain.
 
-- [ ] Complete named original-source boundaries for remaining native formatter token projections and direct markup Convert outputs. Typed writer witnesses are retained, but anonymous formatter IDs and debug `primary.outputSpans` cannot supply source endpoints. Bind URIs/ranges at native owner/view producers and carry typed output metadata through HTML/XML publication; add source/output-byte, imported-module, color/escape and saved/offline navigation fixtures before exposing links. Reuse the guarded primary-artifact publication path without JSON AST handoffs or fabricated whole-input fallbacks.
+Completed 2026-10-28: [formatter and HTML/XML conversion provenance](archive/todo-completed-formatter-markup-provenance-2026-10-28.md)
+names original native formatter views, retains typed final markup writer bytes
+and spans, and preserves SCSS module/callsite coordinates. The ordinary native
+projection project includes XML formatting and CEM-to-HTML/XML configurations
+using the existing declarative result/source controls. Native CLI/WASM, all 271
+native catalog configurations, saved/offline source selection, demo and isolated
+worker/fallback Login recovery pass. Credential refusal and all recovery bounds
+remain unchanged. The separate existing artifact-reader trace failure is
+recorded below.
 
 - [ ] Complete native DOM/AST/event projection input adapters and binary payload validation. Their registered validators currently check JSON shape or binary headers, while generic lifecycle conversion adapters are output-only. Preserve original owners, schema/kind/MIME refusals and bounded chunks; add native payload-integrity/replay fixtures before enabling decoder or hash-integrity claims.
 
@@ -460,6 +468,8 @@ formatter/markup endpoints and native projection input adapters follow below.
 - [ ] Apply the catalog file text-admission policy to direct configuration URLs. That older branch still decodes missing bytes as empty text and invalid UTF-8 with replacement characters. Add missing/invalid configuration-resource fixtures, preserve exact-byte downloads and refuse fabricated source preparation; reuse the owned file transport policy without parsing configurations in JavaScript.
 
 - [ ] Investigate Chromium/CDP multiline `insertText` performance separately from native bulk paste. The deployed 24,585-character projection source takes about 29.3 seconds through driver fill (1,987 DOM/input fragments), while native paste takes 93 ms and one text node. Both containment experiments fail to improve the existing timeout. Preserve native undo, source text and shared editor ownership; do not introduce DOM-replacement or timeout workarounds.
+
+- [ ] Reconcile the native formatter artifact-reader trace contract in `conversion_output_pipeline_reads_cemt_artifacts_through_environment_reader`. Its four-read expectation receives eight ordered reads including repeated helper reads on unchanged `457f3818` and the formatter-provenance change. Determine which preparation/execution freshness reads are required, then retain strict original URI/byte admission in the trace fixture; do not remove revalidation merely to satisfy an obsolete once-only expectation.
 
 - [ ] Separate constructed XML document URI from source provenance URI. `uri_accessors_share_native_metadata_and_enforce_optional_node_arguments` expects `data:document_uri(data:parse("<r/>", "xml"))` to be empty, while the unchanged pre-CSV-fix runtime returns `data:parse/source`. Preserve original source locations and the existing assertion when repairing the accessor.
 

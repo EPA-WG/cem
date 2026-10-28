@@ -3904,3 +3904,28 @@ invocation, command-service workers, rendering workers and owned fallback adapte
 now participate in the shared Studio demand group. Each physical heap still
 requires its own admitted context. See the [shared demand evidence](archive/todo-completed-studio-package-demand-2026-10-24.md)
 and [original handoff contract](archive/todo-completed-package-resource-handoff-2026-10-24.md).
+
+
+### Formatter and HTML/XML source navigation
+
+Native source formatting and CEM-to-HTML/XML conversion publish bounded,
+artifact-owned source references through the shared command service. The native
+producer binds an original URI; its writer retains final bytes and UTF-8 source
+ranges. The witness validates the admitted original bytes and exact final
+output, including terminal coloring, HTML escaping and wrappers. Anonymous IDs,
+JSON fields, generated indentation and foreign/module boundaries cannot name a
+Studio resource. These representative output ranges do not imply linear text
+mapping. SCSS native module-origin frames retain their original URI and ranges;
+only a matching module frame may name the root input. Failed or stale
+publications supply no usable artifact ownership.
+
+The ordinary **Native DOM, AST and events** project includes `format-xml`,
+`render-html` and `render-xml`. Clone it, run a configuration, then use
+**Results → Provenance** to select an original source range. Saved Unicode edits,
+independent copies and offline reload use the same declarative result controls
+and guarded HTML preview. Projection JSON/binary exports keep their separate
+contracts; these changes grant no native projection-input decoder authority.
+
+Entered Login passwords or one-time codes still block recovery until cleared.
+Automatic recovery remains disabled, with the existing 4 MiB checkpoint budget,
+node limit and deadlines.

@@ -329,14 +329,14 @@
     {
       "id": "native-projections",
       "name": "Native DOM, AST and events",
-      "description": "Compare native source AST/event presentations, retained XML/plain-text inspection and explicit DOM/AST/event JSON or binary exports, with original ranges, shape repairs and clear import/ownership boundaries.",
-      "version": "1.0.2",
+      "description": "Compare native source AST/event presentations, retained XML/plain-text inspection and explicit DOM/AST/event JSON or binary exports, with formatter/HTML/XML source navigation, original ranges, shape repairs and clear import/ownership boundaries.",
+      "version": "1.0.3",
       "collections": [
         "content-types-schema-authoring",
         "content-types-queries-transformations"
       ],
       "archive": "./examples/native-projections.cem-studio.json",
-      "sha256": "21c415d0b5a02c36d31f8da0337d9d7b7fc6662aa348f0c68eb97606c2e0251c"
+      "sha256": "e77eabd506d66d7ff9d0dadeb9556c77d4ee81c3a5e675bcec971f44e7306610"
     },
     {
       "id": "portable-config",

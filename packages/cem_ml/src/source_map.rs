@@ -102,7 +102,22 @@ impl SourceMapStack {
                 .iter()
                 .any(|frame| matches!(frame.transform, TransformKind::SourceBoundary { .. }))
         {
-            if let Some(frame) = self.frames.last() {
+            // Expanded SCSS retains coordinates in named module buffers. A
+            // producer may name only an actual frame for this input URI, never
+            // reinterpret a foreign module's last frame as root-input offsets.
+            let frame = if self
+                .frames
+                .iter()
+                .any(|frame| matches!(frame.transform, TransformKind::ScssOrigin { .. }))
+            {
+                self.frames.iter().rev().find(|frame| {
+                    matches!(&frame.transform,
+                        TransformKind::ScssOrigin { module_uri, .. } if module_uri == uri)
+                })
+            } else {
+                self.frames.last()
+            };
+            if let Some(frame) = frame {
                 self.frames.push(SourceMapFrame {
                     source_id: frame.source_id,
                     span: frame.span.clone(),
