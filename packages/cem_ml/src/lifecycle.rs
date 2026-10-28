@@ -2874,22 +2874,36 @@ mod tests {
         );
     }
 
+    fn versioned_module_map_sources() -> [(&'static str, &'static [u8]); 3] {
+        [
+            (
+                MODULE_MAP_SCHEMA_URI,
+                include_bytes!("../schema-packages/module-map/v1/examples/source.module-map.json"),
+            ),
+            (
+                MODULE_MAP_V2_SCHEMA_URI,
+                include_bytes!("../schema-packages/module-map-v2/v1/examples/source.module-map.json"),
+            ),
+            (
+                MODULE_MAP_V3_SCHEMA_URI,
+                include_bytes!("../schema-packages/module-map-v3/v1/examples/source.module-map.json"),
+            ),
+        ]
+    }
+
     #[test]
     fn builtins_load_versioned_module_maps_through_json_syntax_adapter() {
-        for schema in [
-            MODULE_MAP_SCHEMA_URI,
-            MODULE_MAP_V2_SCHEMA_URI,
-            MODULE_MAP_V3_SCHEMA_URI,
-        ] {
+        for (schema, bytes) in versioned_module_map_sources() {
             let mut context = context(MODULE_MAP_CONTENT_TYPE);
             context.schema = Some(schema.to_owned());
-            let loaded = LifecycleRegistry::with_builtin_adapters().load(
-                &input(br#"{"imports":{"@example/runtime":"./assets/runtime.js"}}"#),
-                &context,
-            );
-
+            let loaded = LifecycleRegistry::with_builtin_adapters().load(&input(bytes), &context);
             assert_eq!(loaded.adapter_id, Some("json"), "{schema}");
-            assert!(loaded.diagnostics.is_empty(), "{schema}");
+            assert!(
+                loaded.diagnostics.is_empty(),
+                "{schema}: {:?}",
+                loaded.diagnostics
+            );
+            assert_eq!(loaded.bytes, bytes);
             let document = match loaded
                 .ast_stream
                 .expect("module-map adapter emits internal JSON AST stream")
@@ -2897,8 +2911,215 @@ mod tests {
                 LoadedInputAstStream::JsonDocument(document) => document,
                 other => panic!("module-map adapter emitted unexpected AST stream: {other:?}"),
             };
+            assert_eq!(document.source.uri, "test-input");
+            assert_eq!(document.source.byte_length, bytes.len());
             assert_eq!(document.source.content_type, MODULE_MAP_CONTENT_TYPE);
             assert_eq!(document.source.media_type, MODULE_MAP_CONTENT_TYPE);
+            let crate::validation::json::JsonValueAst::Object { members, .. } =
+                document.root.expect("module-map object")
+            else {
+                panic!("module map must retain its native JSON object");
+            };
+            let declared = &members
+                .iter()
+                .find(|member| member.name == "$schema")
+                .expect("explicit fixture version")
+                .value;
+            assert!(
+                matches!(declared, crate::validation::json::JsonValueAst::String { value, .. } if value == schema)
+            );
+        }
+    }
+
+    fn assert_module_map_refusal(
+        bytes: &[u8],
+        schema: Option<&str>,
+        code: &str,
+        path: &[&str],
+        fragment: &str,
+    ) {
+        let mut context = context(MODULE_MAP_CONTENT_TYPE);
+        context.schema = schema.map(str::to_owned);
+        let source = input(bytes);
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(&source, &context);
+        assert_eq!(loaded.adapter_id, Some("json"));
+        assert_eq!(loaded.bytes, bytes);
+        // Semantic refusal preserves syntax inspection; this AST grants no execution.
+        assert!(matches!(
+            loaded.ast_stream,
+            Some(LoadedInputAstStream::JsonDocument(_))
+        ));
+        assert_eq!(loaded.diagnostics.len(), 1, "{:?}", loaded.diagnostics);
+        let diagnostic = &loaded.diagnostics[0];
+        assert_eq!(diagnostic.code, code, "{}", diagnostic.message);
+        assert_eq!(diagnostic.severity, Severity::Error);
+        assert_eq!(diagnostic.uri.as_deref(), Some(source.uri.as_str()));
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["fieldPath"],
+            json!(path)
+        );
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["lifecycle"]["adapterId"],
+            "json"
+        );
+        let offset = bytes
+            .windows(fragment.len())
+            .position(|part| part == fragment.as_bytes())
+            .expect("original diagnostic fragment");
+        assert_eq!(diagnostic.byte_offset, Some(offset as u64));
+        assert_eq!(
+            diagnostic.line,
+            Some(
+                1 + bytes[..offset]
+                    .iter()
+                    .filter(|byte| **byte == b'\n')
+                    .count() as u32
+            )
+        );
+        let line_start = bytes[..offset]
+            .iter()
+            .rposition(|byte| *byte == b'\n')
+            .map_or(0, |position| position + 1);
+        assert_eq!(diagnostic.column, Some((offset - line_start + 1) as u32));
+        let maps = diagnostic
+            .source_map
+            .as_ref()
+            .expect("original native source map");
+        assert!(maps.frames.iter().any(|frame| matches!(&frame.transform, crate::source_map::TransformKind::SourceBoundary { uri } if uri == &source.uri)));
+        for frame in &maps.frames {
+            let crate::source_map::FrameSpan::Single(range) = frame.span else {
+                panic!("single JSON source range");
+            };
+            assert_eq!(range.start as usize, offset);
+            assert!(range.end() <= bytes.len() as u64);
+        }
+    }
+
+    #[test]
+    fn builtins_refuse_module_map_selected_embedded_and_missing_versions() {
+        for (selected, _) in versioned_module_map_sources() {
+            for (declared, bytes) in versioned_module_map_sources() {
+                if declared != selected {
+                    assert_module_map_refusal(
+                        bytes,
+                        Some(selected),
+                        "cem.module_map.schema_invalid",
+                        &["$schema"],
+                        &format!("\"{declared}\""),
+                    );
+                }
+            }
+            assert_module_map_refusal(
+                br#"{"imports":{"@example/runtime":"./runtime.js"}}"#,
+                Some(selected),
+                "cem.module_map.schema_invalid",
+                &["$schema"],
+                "{",
+            );
+            assert_module_map_refusal(
+                br#"{"$schema":"https://cem.dev/ns/data/module-map/4","imports":{}}"#,
+                Some(selected),
+                "cem.module_map.schema_unsupported",
+                &["$schema"],
+                r#""https://cem.dev/ns/data/module-map/4""#,
+            );
+        }
+    }
+
+    #[test]
+    fn builtins_refuse_module_map_version_specific_entry_grammars() {
+        for schema in [MODULE_MAP_SCHEMA_URI, MODULE_MAP_V2_SCHEMA_URI] {
+            let bytes = format!(
+                r#"{{"$schema":"{schema}","imports":{{"@example/runtime":{{"path":"./runtime.js","contentType":"text/javascript"}}}}}}"#
+            );
+            assert_module_map_refusal(
+                bytes.as_bytes(),
+                Some(schema),
+                "cem.module_map.import_entry_invalid",
+                &[],
+                "{",
+            );
+        }
+        for (schema, body, code, path, fragment) in [
+            (
+                MODULE_MAP_SCHEMA_URI,
+                r#""imports":{},"resources":{}"#,
+                "cem.module_map.resources_unsupported",
+                vec![],
+                "{",
+            ),
+            (
+                MODULE_MAP_V2_SCHEMA_URI,
+                r#""imports":{},"resources":{"@example/view":{"path":"./view.xhtml","contentType":"application/xhtml+xml"}}"#,
+                "cem.module_map.resource_type_unsupported",
+                vec!["resources", "@example/view", "contentType"],
+                r#""application/xhtml+xml""#,
+            ),
+            (
+                MODULE_MAP_V3_SCHEMA_URI,
+                r#""imports":{"@example/runtime":"./runtime.js"}"#,
+                "cem.module_map.import_entry_invalid",
+                vec!["imports", "@example/runtime"],
+                r#""./runtime.js""#,
+            ),
+            (
+                MODULE_MAP_V3_SCHEMA_URI,
+                r#""imports":{"@example/app":{"path":"./app.js","contentType":"text/javascript","moduleImports":{"@example/dependency":"@example/missing"}}}"#,
+                "cem.module_map.module_import_target_missing",
+                vec![
+                    "imports",
+                    "@example/app",
+                    "moduleImports",
+                    "@example/dependency",
+                ],
+                r#""@example/missing""#,
+            ),
+        ] {
+            let bytes = format!(r#"{{"$schema":"{schema}",{body}}}"#);
+            assert_module_map_refusal(bytes.as_bytes(), Some(schema), code, &path, fragment);
+        }
+    }
+
+    #[test]
+    fn builtins_default_mime_only_module_maps_to_v1() {
+        for (schema, bytes) in versioned_module_map_sources() {
+            if schema == MODULE_MAP_SCHEMA_URI {
+                let loaded = LifecycleRegistry::with_builtin_adapters()
+                    .load(&input(bytes), &context(MODULE_MAP_CONTENT_TYPE));
+                assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
+                assert!(matches!(
+                    loaded.ast_stream,
+                    Some(LoadedInputAstStream::JsonDocument(_))
+                ));
+            } else {
+                assert_module_map_refusal(
+                    bytes,
+                    None,
+                    "cem.module_map.schema_invalid",
+                    &["$schema"],
+                    &format!("\"{schema}\""),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn builtins_keep_module_map_declarations_in_generic_json_inert() {
+        let legacy_v3 = br#"{"$schema":"https://cem.dev/ns/data/module-map/3","imports":{"@example/runtime":"./runtime.js"}}"#;
+        for bytes in versioned_module_map_sources()
+            .map(|(_, bytes)| bytes)
+            .into_iter()
+            .chain([legacy_v3.as_slice()])
+        {
+            let loaded = LifecycleRegistry::with_builtin_adapters()
+                .load(&input(bytes), &context(JSON_CONTENT_TYPE));
+            assert_eq!(loaded.adapter_id, Some("json"));
+            assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
+            let Some(LoadedInputAstStream::JsonDocument(document)) = loaded.ast_stream else {
+                panic!("retained generic JSON");
+            };
+            assert_eq!(document.source.media_type, JSON_CONTENT_TYPE);
+            assert_eq!(loaded.bytes, bytes);
         }
     }
 

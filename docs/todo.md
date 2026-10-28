@@ -498,7 +498,13 @@ stories (including large native paste/selection/undo), deployed diagnostics,
 demo checks and isolated Login recovery pass. Production editor/CSS behavior,
 credential refusal, all recovery limits and the 898-file deployment are unchanged.
 
-- [ ] Update the existing versioned module-map lifecycle fixture to the native version-specific source contract. `builtins_load_versioned_module_maps_through_json_syntax_adapter` expects no diagnostics for one shared legacy imports buffer across v1/v2/v3; it fails for v1 on clean `32144d1a` as well as the projection-input work. Preserve semantic version checks and actual admission diagnostics; use valid version-specific fixtures rather than removing validation.
+Completed 2026-10-28: [version-specific module-map lifecycle fixtures](archive/todo-completed-versioned-module-map-fixtures-2026-10-28.md)
+replaces the obsolete shared success buffer with canonical v1/v2/v3 examples and
+covers 28 source/admission/refusal cases with original native diagnostics/ranges.
+All 103 lifecycle tests, both 33-test module-map cohorts, three CLI checks,
+Node/browser-worker WASM, Studio configuration/artifact checks and isolated Login
+recovery pass. All Rust edits are test-only; production validation, shared
+components, credential refusal and recovery budgets/deadlines are unchanged.
 
 - [ ] Reconcile the native formatter artifact-reader trace contract in `conversion_output_pipeline_reads_cemt_artifacts_through_environment_reader`. Its four-read expectation receives eight ordered reads including repeated helper reads on unchanged `457f3818` and the formatter-provenance change. Determine which preparation/execution freshness reads are required, then retain strict original URI/byte admission in the trace fixture; do not remove revalidation merely to satisfy an obsolete once-only expectation.
 

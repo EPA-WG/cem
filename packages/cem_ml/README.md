@@ -547,6 +547,18 @@ reads. Pair matching, destination containment and asset reads remain planning
 operations. Root-scope alias maps and ordinary browser import maps are separate.
 Diagnostics use original native JSON key/value ranges and source maps.
 
+The lifecycle success fixtures load each version's canonical schema-package
+`examples/source.module-map.json` through the JSON syntax adapter, preserving
+original bytes and document identity. Native refusal fixtures cover all selected
+versus embedded version mismatches, missing/unsupported declarations, v1/v2
+string versus v3 typed import shapes, version-specific resources and declared
+edges. They assert actual diagnostics, field paths and original source ranges;
+semantic refusal retains the syntax AST for inspection. A MIME-only map selects
+v1, while generic JSON stays inert even when its `$schema` names an invalid v3
+map. These tests change no production admission or execution policy. Run
+`cargo test -p cem-ml --lib module_map` and the same cohort with
+`--no-default-features`.
+
 `projection::ast_json` and explicit AST conversion export the registered semantic
 document envelope, sharing native node projection with DOM JSON. Namespaces,
 text `data`, attribute `valueNodes`, native references, original ranges and maps
