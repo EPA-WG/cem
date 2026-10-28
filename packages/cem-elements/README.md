@@ -675,6 +675,17 @@ slice remains serializable; DOM nodes, browser Selection and undo state are
 transient. This capability does not add a form-associated host or language
 services. See the [source editor contract](../cem-components/docs/source-editor-contract.md).
 
+Multiline clipboard input and Chromium/CDP `fill` are measured separately in the
+[Studio diagnostic](../cem-studio/README.md#multiline-editor-input-measurements).
+The same 24,585 UTF-16-unit input can produce 1,987 nodes/notifications through
+CDP while native paste produces one text node. Shared editor admission publishes
+one final value and retains native control identity, source, selection and undo.
+The component's `NativeBulkPaste` story verifies large literal source and native
+undo/redo; `NativeBulkPublication` retains coverage of the distinct driver path
+and observable synthetic input. Measurement does not authorize runtime DOM
+replacement, a theme policy change, larger deadlines or checkpoint budgets.
+
+
 Explicit checkpoint resume now admits this shared editor on fresh workers and
 owned fallback heaps. Native-validated control text and UTF-16 selection must
 match the retained browser owner, including focus, readonly/disabled state and

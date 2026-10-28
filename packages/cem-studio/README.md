@@ -660,3 +660,29 @@ the command resource through the project tree. External changes require reload,
 and changes during execution mark results stale. Source byte counts refer to
 actual bytes, never a decoded placeholder. All existing source/resource-set and
 recovery budgets, credential refusals and timeouts remain unchanged.
+
+## Multiline editor input measurements
+
+After `yarn copy:demo` and `yarn serve:demo`, run:
+
+```bash
+node packages/cem-studio/scripts/verify-editor-input.mjs http://127.0.0.1:8081/
+```
+
+This isolated diagnostic measures the original native-projection fixture through
+bare native, shared CEM and live Studio editors, plus a static Studio DOM with
+runtime listeners absent and a separate stylesheet-disabled attribution case.
+It keeps CDP `fill` and real clipboard paste as distinct input paths. Reports
+under `dist/reports/cem-studio/editor-input/` include browser version, fixture
+hash/size, latency, trusted event counts, publications, editable node counts,
+focus/selection and native paste undo/redo. Set `CEM_EDITOR_INPUT_PROFILE=1` to
+write separate Chromium CPU profiles. Run alone for comparable timings.
+
+The original 30-second action deadline stays in effect. Timing is diagnostic;
+node/event counts describe this browser, rather than requiring its fragmentation
+behavior forever. No source is assigned or DOM rebuilt during an insertion.
+Static DOM/style isolation is measurement setup only. Actual input uses native
+editing in the production component, retaining theme semantics and history.
+Contexts contain temporary copies of public fixtures and do not access existing
+user projects, drafts or credentials. Login recovery keeps its credential refusal
+and existing budgets independently of these measurements.

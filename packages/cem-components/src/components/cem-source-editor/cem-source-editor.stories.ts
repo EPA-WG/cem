@@ -102,6 +102,39 @@ export const NativeBulkPublication = meta.story({
     },
 });
 
+export const NativeBulkPaste = meta.story({
+    parameters: { docs: { description: { story: 'Browser-runner-only: a large multiline clipboard paste publishes once, keeps source literal, and retains native selection and undo/redo through status renders. CDP fill performance is measured separately.' } } },
+    render: () => '<cem-source-editor value="initial" highlight="off"></cem-source-editor>',
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
+        const host = canvasElement.querySelector('cem-source-editor') as Editor;
+        await whenCemRendered(host);
+        const control = editor(host), changes: string[] = [];
+        host.addEventListener('input', () => changes.push(host.value));
+        const source = Array.from({ length: 994 }, (_, index) => `"row${index}": "Café 🚲 <b>literal</b>"`).join('\n') + '\n';
+        const clipboard = document.createElement('textarea'); canvasElement.append(clipboard);
+        try {
+            clipboard.value = source; clipboard.focus(); clipboard.select(); await userEvent.copy();
+            control.focus(); await userEvent.keyboard('{Control>}a{/Control}'); await userEvent.paste();
+            expect(host.value).toBe(source); expect(changes).toEqual([source]);
+            expect(editor(host)).toBe(control); expect(document.activeElement).toBe(control);
+            expect(control.querySelector('b')).toBeNull();
+            expect([control.selectionStart, control.selectionEnd]).toEqual([source.length, source.length]);
+            const start = source.indexOf('🚲'), end = start + '🚲'.length;
+            control.setSelectionRange(start, end, 'backward');
+            const markup = control.innerHTML;
+            host.setAttribute('label', 'Unsaved multiline source'); await whenCemRendered(host);
+            expect(editor(host)).toBe(control); expect(control.innerHTML).toBe(markup);
+            expect([control.selectionStart, control.selectionEnd, control.selectionDirection]).toEqual([start, end, 'backward']);
+            expect(document.getSelection()?.toString()).toBe('🚲');
+            await userEvent.keyboard('{Control>}z{/Control}'); expect(host.value).toBe('initial');
+            await userEvent.keyboard('{Control>}y{/Control}'); expect(host.value).toBe(source);
+            expect(editor(host)).toBe(control); expect(document.activeElement).toBe(control);
+        } finally { clipboard.remove(); }
+    },
+});
+
 export const TrailingNewlines = meta.story({
     parameters: { docs: { description: { story: 'Browser-runner-only: terminal caret placeholders must not enter source values after Enter, paste or rendering updates.' } } },
     render: () => '<cem-source-editor value="one"></cem-source-editor>',

@@ -488,7 +488,15 @@ verification and isolated worker/fallback Login recovery pass. Existing shared
 CEM controls, native parsing, credential policy and all limits are unchanged.
 Deployment remains 898 files, with all four WASMs below 25 MiB.
 
-- [ ] Investigate Chromium/CDP multiline `insertText` performance separately from native bulk paste. The deployed 24,585-character projection source takes about 29.3 seconds through driver fill (1,987 DOM/input fragments), while native paste takes 93 ms and one text node. Both containment experiments fail to improve the existing timeout. Preserve native undo, source text and shared editor ownership; do not introduce DOM-replacement or timeout workarounds.
+Completed 2026-10-28: [multiline editor-driver attribution](archive/todo-completed-editor-driver-performance-2026-10-28.md)
+reproduces the dominant browser edit/style cost with runtime listeners absent.
+The permanent six-case diagnostic records original bytes, events, nodes, latency
+and optional CPU profiles while preserving the 30-second action deadline. Live
+fill remains 23.9 seconds with 1,987 nodes/events; fresh native paste takes 38 ms
+and one node/event. Shared CEM publishes once on both paths. All ten editor
+stories (including large native paste/selection/undo), deployed diagnostics,
+demo checks and isolated Login recovery pass. Production editor/CSS behavior,
+credential refusal, all recovery limits and the 898-file deployment are unchanged.
 
 - [ ] Update the existing versioned module-map lifecycle fixture to the native version-specific source contract. `builtins_load_versioned_module_maps_through_json_syntax_adapter` expects no diagnostics for one shared legacy imports buffer across v1/v2/v3; it fails for v1 on clean `32144d1a` as well as the projection-input work. Preserve semantic version checks and actual admission diagnostics; use valid version-specific fixtures rather than removing validation.
 
