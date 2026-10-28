@@ -16,6 +16,7 @@ pub(super) fn load(
 ) -> Option<ImportedSource> {
     let mut identity = effective_input_identity(input, context);
     // A refused native admission must not fall back to CEM tokenization either.
+    let projection_identity = crate::import::projection::ProjectionKind::identity(identity.schema.as_deref(), identity.content_type.as_deref()).is_some();
     let refused = loaded
         .diagnostics
         .iter()
@@ -57,6 +58,7 @@ pub(super) fn load(
             )
         ));
     let defaults = match loaded.ast_stream.as_ref() {
+        Some(LoadedInputAstStream::ProjectionDocument(doc)) => (doc.kind.schema(), doc.content_type.as_str()),
         Some(LoadedInputAstStream::ControlDocument(doc)) => (doc.schema, doc.content_type.as_str()),
         Some(LoadedInputAstStream::JsonDocument(doc)) => {
             (JSON_VALUE_SCHEMA_URI, doc.source.content_type.as_str())
@@ -110,7 +112,7 @@ pub(super) fn load(
         {
             ("", "")
         }
-        _ if refused || crate::control_source::is_control_identity(&identity) => ("", ""),
+        _ if refused || projection_identity || crate::control_source::is_control_identity(&identity) => ("", ""),
         _ => return None,
     };
     if identity
@@ -147,6 +149,10 @@ pub(super) fn load(
             message: "Control source tooling requires its registered source identity".into(),
             ..Default::default()
         });
+    }
+    if projection_identity && loaded.ast_stream.is_none() && !diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
+        diagnostics.push(Diagnostic { uri: Some(input.uri.clone()), code: "cem.source.identity_unsupported".into(), severity: Severity::Error,
+            message: "Projection source requires its matching native MIME/schema adapter".into(), ..Default::default() });
     }
     let owner = if diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
         None

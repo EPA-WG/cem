@@ -162,6 +162,23 @@ describe('CEM Studio Feature Tour copies', () => {
                     && frame.transform.uri.startsWith('studio://projection-boundaries/'))).toBe(true);
             }
         }
+        for (const [id, source, mime] of [
+            ['parse-dom-input', 'dom-json', 'application/cem'], ['inspect-ast-input', 'ast-export', 'application/cem'],
+            ['inspect-events-input', 'events-json', 'application/cem'], ['import-dom-html', 'dom-json', 'text/html'],
+            ['import-ast-xml', 'ast-export', 'application/xml'], ['import-events-cem', 'events-json', 'application/cem'],
+        ]) {
+            const outcome = await run(id), resource = bundle.project.resources.find(item => item.id === source);
+            expect(outcome.result.exitCode).toBe(0); expect(outcome.output.contentType).toBe(mime);
+            expect(outcome.output.text).toContain('Café Noord');
+            const maps = outcome.result.sourceMaps.items;
+            expect(maps.length).toBeGreaterThan(0);
+            for (const map of maps) for (const frame of map.sourceMap.value.frames) {
+                expect(frame.transform).toEqual({ kind: 'SourceBoundary', uri: `studio://projection-boundaries/${resource.path}` });
+                const range = frame.span.ranges;
+                expect(range.start + range.len).toBeLessThanOrEqual(bundle.contents[source].length);
+                expect(() => new TextDecoder('utf-8', { fatal: true }).decode(bundle.contents[source].slice(range.start, range.start + range.len))).not.toThrow();
+            }
+        }
         for (const family of ['dom', 'ast', 'events']) {
             const resource = bundle.project.resources.find(item => item.id === `${family}-binary`);
             const native = await run(`export-${family}-binary`);

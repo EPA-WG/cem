@@ -206,6 +206,11 @@ export async function verifyNativeProjectionProject({ page, context, url }) {
     await followOwnedPresentation(project, 'parse-ast', 'cem-source', text('cem-source'));
     for (const configuration of ['format-xml', 'render-html', 'render-xml']) await followOwnedPresentation(project, configuration, configuration === 'format-xml' ? 'xml-source' : 'cem-source', text(configuration === 'format-xml' ? 'xml-source' : 'cem-source'));
 
+    for (const [configuration, resource] of [['parse-dom-input', 'dom-json'], ['inspect-ast-input', 'ast-export'],
+        ['inspect-events-input', 'events-json'], ['import-dom-html', 'dom-json'], ['import-ast-xml', 'ast-export'], ['import-events-cem', 'events-json']]) {
+        await followOwnedPresentation(project, configuration, resource, text(resource));
+    }
+
     const originalEvents = await run(project, 'export-events-json'), oldRange = unicodeEvent(originalEvents, text('cem-source'), 'Café Noord');
     const editedText = 'Café Haven and Århus', edited = text('cem-source').replace('Café Noord', editedText);
     assert.notEqual(edited, text('cem-source')); await edit(edited); await click('Run configuration');
@@ -248,6 +253,11 @@ export async function verifyNativeProjectionProject({ page, context, url }) {
         await followOwnedPresentation(copy, 'parse-events', 'cem-source', copiedSource);
         await followOwnedPresentation(copy, 'inspect-xml', 'xml-source', text('xml-source'));
         for (const configuration of ['format-xml', 'render-html', 'render-xml']) await followOwnedPresentation(copy, configuration, configuration === 'format-xml' ? 'xml-source' : 'cem-source', configuration === 'format-xml' ? text('xml-source') : copiedSource);
+        for (const [configuration, resource] of [['parse-dom-input', 'dom-json'], ['inspect-ast-input', 'ast-export'],
+            ['inspect-events-input', 'events-json'], ['import-dom-html', 'dom-json'], ['import-ast-xml', 'ast-export'], ['import-events-cem', 'events-json']]) {
+            await followOwnedPresentation(copy, configuration, resource, text(resource));
+        }
+
         unicodeEvent(await run(copy, 'export-events-json'), copiedSource, copiedText);
         for (const configuration of definition.configurations.filter(item => item.repair)) assert.equal((await run(copy, configuration.id)).status, 'valid');
         for (const [name, expected] of Object.entries({ ...repaired, 'cem-source': copiedSource })) {

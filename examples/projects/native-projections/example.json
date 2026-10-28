@@ -1,8 +1,8 @@
 {
   "id": "native-projections",
   "name": "Native DOM, AST and events",
-  "version": "1.0.3",
-  "description": "Compare native source AST/event presentations, retained XML/plain-text inspection and explicit DOM/AST/event JSON or binary exports, with formatter/HTML/XML source navigation, original ranges, shape repairs and clear import/ownership boundaries.",
+  "version": "1.0.4",
+  "description": "Compare original source parsing and owned projection-source imports, CEM/HTML/XML conversions, exact JSON/binary exports and repairs with artifact-owned source navigation and passive event/reference semantics.",
   "collections": [
     "content-types-schema-authoring",
     "content-types-queries-transformations"
@@ -730,6 +730,151 @@
         "errorCount": 0,
         "warningCount": 0
       }
+    },
+    {
+      "id": "parse-dom-input",
+      "name": "Parse imported DOM JSON",
+      "kind": "inspection",
+      "source": "dom-json",
+      "description": "Import original projection bytes through the shared native boundary. Reported source maps and runtime IDs remain passive data; source navigation addresses this JSON artifact.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.dom+json",
+        "--schema",
+        "https://cem.dev/ns/projection/dom/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "dispatch.dom.json",
+        "Café Noord",
+        "@name=article"
+      ]
+    },
+    {
+      "id": "inspect-ast-input",
+      "name": "Inspect imported AST JSON",
+      "kind": "inspection",
+      "source": "ast-export",
+      "description": "Import original projection bytes through the shared native boundary. Reported source maps and runtime IDs remain passive data; source navigation addresses this JSON artifact.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.ast+json",
+        "--schema",
+        "https://cem.dev/ns/projection/ast/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "dispatch.ast.json",
+        "Café Noord",
+        "@name=article"
+      ]
+    },
+    {
+      "id": "inspect-events-input",
+      "name": "Inspect imported event records",
+      "kind": "inspection",
+      "source": "events-json",
+      "description": "Import original projection bytes through the shared native boundary. Reported source maps and runtime IDs remain passive data; source navigation addresses this JSON artifact.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.events+json",
+        "--schema",
+        "https://cem.dev/ns/projection/events/1",
+        "--show",
+        "tree",
+        "--no-color"
+      ],
+      "expectedText": [
+        "dispatch.events.json",
+        "Café Noord",
+        "event"
+      ]
+    },
+    {
+      "id": "import-dom-html",
+      "name": "Convert imported DOM to HTML",
+      "kind": "conversion",
+      "source": "dom-json",
+      "description": "Import original projection bytes through the shared native boundary. Reported source maps and runtime IDs remain passive data; source navigation addresses this JSON artifact.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.dom+json",
+        "--schema",
+        "https://cem.dev/ns/projection/dom/1",
+        "--to-content-type",
+        "text/html",
+        "--to-schema",
+        "https://cem.dev/ns/data/html/1",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "Café Noord",
+        "article"
+      ]
+    },
+    {
+      "id": "import-ast-xml",
+      "name": "Convert imported AST to XML",
+      "kind": "conversion",
+      "source": "ast-export",
+      "description": "Import original projection bytes through the shared native boundary. Reported source maps and runtime IDs remain passive data; source navigation addresses this JSON artifact.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.ast+json",
+        "--schema",
+        "https://cem.dev/ns/projection/ast/1",
+        "--to-content-type",
+        "application/xml",
+        "--to-schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "Café Noord",
+        "article"
+      ]
+    },
+    {
+      "id": "import-events-cem",
+      "name": "Present imported event records as CEM",
+      "kind": "conversion",
+      "source": "events-json",
+      "description": "Import original projection bytes through the shared native boundary. Reported source maps and runtime IDs remain passive data; source navigation addresses this JSON artifact.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.events+json",
+        "--schema",
+        "https://cem.dev/ns/projection/events/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "Café Noord",
+        "@kind=value",
+        "event"
+      ]
     }
   ]
 }

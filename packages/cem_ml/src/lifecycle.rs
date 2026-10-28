@@ -129,6 +129,7 @@ pub struct LoadedInput {
 
 #[derive(Debug, Clone)]
 pub enum LoadedInputAstStream {
+    ProjectionDocument(std::sync::Arc<crate::import::projection::ProjectionDocument>),
     HtmlDocument(HtmlDocumentAst),
     CssDocument(CssDocumentAst),
     CssSelectorExpression(CssSelectorExpressionAst),
@@ -2141,6 +2142,31 @@ fn lifecycle_diagnostic_dedup_key(diagnostic: &Diagnostic) -> (String, String, O
     )
 }
 
+fn load_projection_source(
+    input: &EngineInput,
+    identity: &FormatIdentity,
+    kind: crate::import::projection::ProjectionKind,
+    id: &'static str,
+) -> LoadedInput {
+    let result = crate::import::projection::load(
+        &input.bytes,
+        &input.uri,
+        identity.content_type.as_deref(),
+        kind,
+    );
+    let (ast_stream, diagnostics) = match result {
+        Ok(doc) => (Some(LoadedInputAstStream::ProjectionDocument(doc)), vec![]),
+        Err(error) => (None, vec![error.diagnostic(kind, &input.uri)]),
+    };
+    LoadedInput {
+        bytes: input.bytes.clone(),
+        from_format: InputFormat::Cem,
+        ast_stream,
+        diagnostics,
+        adapter_id: Some(id),
+    }
+}
+
 struct DomJsonProjectionAdapter;
 
 struct DomBinaryProjectionAdapter;
@@ -2150,16 +2176,12 @@ impl LifecycleAdapter for DomBinaryProjectionAdapter {
         "dom-binary-projection"
     }
 
-    fn matches_input(&self, _: &FormatIdentity) -> bool {
-        false
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_projection_binary_artifact(identity, &[DOM_PROJECTION_SCHEMA], &[CEM_DOM_PROJECTION_CONTENT_TYPE])
     }
 
-    fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
-        passthrough_load(
-            input,
-            input.from_format.unwrap_or(InputFormat::Cem),
-            Some(self.id()),
-        )
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        load_projection_source(input, identity, crate::import::projection::ProjectionKind::Dom, self.id())
     }
 
     fn matches_target(&self, identity: &FormatIdentity) -> bool {
@@ -2180,16 +2202,12 @@ impl LifecycleAdapter for DomJsonProjectionAdapter {
         "dom-json-projection"
     }
 
-    fn matches_input(&self, _: &FormatIdentity) -> bool {
-        false
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_projection_json_view(identity, &[DOM_PROJECTION_SCHEMA, DOM_JSON_PROJECTION_SCHEMA], &[CEM_DOM_JSON_PROJECTION_CONTENT_TYPE])
     }
 
-    fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
-        passthrough_load(
-            input,
-            input.from_format.unwrap_or(InputFormat::Cem),
-            Some(self.id()),
-        )
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        load_projection_source(input, identity, crate::import::projection::ProjectionKind::Dom, self.id())
     }
 
     fn matches_target(&self, identity: &FormatIdentity) -> bool {
@@ -2214,16 +2232,12 @@ impl LifecycleAdapter for AstBinaryProjectionAdapter {
         "ast-binary-projection"
     }
 
-    fn matches_input(&self, _: &FormatIdentity) -> bool {
-        false
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_projection_binary_artifact(identity, &[AST_PROJECTION_SCHEMA], &[CEM_AST_PROJECTION_CONTENT_TYPE])
     }
 
-    fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
-        passthrough_load(
-            input,
-            input.from_format.unwrap_or(InputFormat::Cem),
-            Some(self.id()),
-        )
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        load_projection_source(input, identity, crate::import::projection::ProjectionKind::Ast, self.id())
     }
 
     fn matches_target(&self, identity: &FormatIdentity) -> bool {
@@ -2244,16 +2258,12 @@ impl LifecycleAdapter for AstProjectionAdapter {
         "ast-projection"
     }
 
-    fn matches_input(&self, _: &FormatIdentity) -> bool {
-        false
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_projection_json_view(identity, &[AST_PROJECTION_SCHEMA], &[CEM_AST_JSON_PROJECTION_CONTENT_TYPE])
     }
 
-    fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
-        passthrough_load(
-            input,
-            input.from_format.unwrap_or(InputFormat::Cem),
-            Some(self.id()),
-        )
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        load_projection_source(input, identity, crate::import::projection::ProjectionKind::Ast, self.id())
     }
 
     fn matches_target(&self, identity: &FormatIdentity) -> bool {
@@ -2278,16 +2288,12 @@ impl LifecycleAdapter for EventsBinaryProjectionAdapter {
         "events-binary-projection"
     }
 
-    fn matches_input(&self, _: &FormatIdentity) -> bool {
-        false
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_projection_binary_artifact(identity, &[EVENTS_PROJECTION_SCHEMA], &[CEM_EVENTS_PROJECTION_CONTENT_TYPE])
     }
 
-    fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
-        passthrough_load(
-            input,
-            input.from_format.unwrap_or(InputFormat::Cem),
-            Some(self.id()),
-        )
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        load_projection_source(input, identity, crate::import::projection::ProjectionKind::Events, self.id())
     }
 
     fn matches_target(&self, identity: &FormatIdentity) -> bool {
@@ -2308,16 +2314,12 @@ impl LifecycleAdapter for EventsProjectionAdapter {
         "events-projection"
     }
 
-    fn matches_input(&self, _: &FormatIdentity) -> bool {
-        false
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_projection_json_view(identity, &[EVENTS_PROJECTION_SCHEMA], &[CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE])
     }
 
-    fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
-        passthrough_load(
-            input,
-            input.from_format.unwrap_or(InputFormat::Cem),
-            Some(self.id()),
-        )
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        load_projection_source(input, identity, crate::import::projection::ProjectionKind::Events, self.id())
     }
 
     fn matches_target(&self, identity: &FormatIdentity) -> bool {

@@ -385,3 +385,13 @@ before following old links. Failed or stale publication exports no artifact
 ownership. Entered Login passwords and one-time codes still block recovery until
 cleared; automatic recovery stays disabled and the existing 4 MiB and node/time
 limits are unchanged.
+
+## Passive projection-source imports
+
+The ordinary `native-projections` project now includes JSON-input Parse/Inspect
+and CEM/HTML/XML conversions through the [shared native import contract](../../docs/cem-data-import-principle.md#passive-projection-source-imports).
+DOM/AST retain passive common trees; events retain literal records. Source links
+address the imported artifact, never reported source-map fields. Complete native
+binary and sealed-envelope validation grants no runtime replay authority.
+Studio binary sources remain read-only/non-runnable with exact downloads. Existing
+declarative controls, credential refusal and recovery budgets remain unchanged.

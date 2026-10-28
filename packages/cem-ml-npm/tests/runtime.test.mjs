@@ -1230,7 +1230,7 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
     let sequence = 0;
     const uri = 'studio://owned-source/original', destination = 'studio://owned-source/view.cem';
     const execute = async (source, contentType, schema, operation, stale = false, outputIdentity = { defaultContentType: 'application/cem' }) => {
-      const bytes = new TextEncoder().encode(source);
+      const bytes = source instanceof Uint8Array ? source : new TextEncoder().encode(source);
       const request = {
         protocolVersion: 1, requestId: `owned-source:${runtimeKind}:${++sequence}`,
         project: { projectId: 'owned-source', revision: 1 },
@@ -1319,6 +1319,26 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
           const { start, len } = frame.span.ranges;
           assert.ok(start + len <= Buffer.byteLength(source));
           assert.doesNotThrow(() => new TextDecoder('utf-8', { fatal: true }).decode(Buffer.from(source).subarray(start, start + len)));
+        }
+      }
+    }
+    for (const family of ['dom', 'ast', 'events']) for (const format of ['json', 'cem-bin']) {
+      const mime = `application/vnd.cem.${family}+${format}`, schema = `https://cem.dev/ns/projection/${family}/1`;
+      const bytes = new Uint8Array(await readFile(new URL(`../../../examples/projects/native-projections/projections/dispatch.${family}.${format}`, import.meta.url)));
+      for (const operation of [{ kind: 'parse', projection: 'ast', preserveSourceOffsets: true }, { kind: 'inspect', show: 'ast' },
+        { kind: 'convert', toFormat: 'cem', preserveSourceOffsets: true }]) {
+        const { result, published } = await execute(bytes, mime, schema, operation);
+        assert.equal(result.status, 'succeeded', JSON.stringify(result)); assert.ok(published);
+        assert.match(new TextDecoder().decode(published), /Café Noord/);
+        for (const map of result.sourceMaps.items) for (const frame of map.sourceMap.value.frames) {
+          assert.equal(frame.transform.uri, uri); assert.ok(frame.span.ranges.start + frame.span.ranges.len <= bytes.length);
+        }
+        if (format === 'json') assert.ok(result.sourceMaps.items.length > 0);
+      }
+      if (format === 'cem-bin') {
+        for (const corrupted of [bytes.slice(0, -1), Uint8Array.from([...bytes, 0])]) {
+          const result = await execute(corrupted, mime, schema, { kind: 'parse', projection: 'ast', preserveSourceOffsets: true });
+          assert.equal(result.result.exitCode, 1); assert.equal(result.published, undefined); assert.deepEqual(result.result.sourceMaps.items, []);
         }
       }
     }

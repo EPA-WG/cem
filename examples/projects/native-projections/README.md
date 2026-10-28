@@ -109,16 +109,32 @@ registered source-shape validator. Re-export them from the original source.
 CEM-ML Parse/Inspect presentation and its optional `parse --format ast-json`
 CEMT subject remain a distinct inspection contract. Use explicit `convert`
 AST export for registered semantic interchange. Binary bytes and runtime
-ownership are unchanged. Successful JSON source validation is a structural
-round trip; it does not decode or rehydrate a native execution owner.
+ownership are unchanged. Successful JSON source validation admits a retained passive tree; it does not
+rehydrate an execution owner.
 
-These native projection lifecycle adapters are output-only. JSON validation does
-not make a projection a supported generic Parse/Inspect/convert/query input.
-Generic imported-projection inspection/conversion currently follows unsupported
-or erroneous fallback paths, so those operations are not configurations here.
-Likewise native binary source validation currently checks the envelope header,
-not complete payload/chunk integrity; a successful header check is not a claim
-of safe replay. Binary and JSON projection resources remain data.
+The six native projection MIME identities now share a bounded retained importer.
+`parse-dom-input`, `inspect-ast-input` and `inspect-events-input` load JSON
+artifacts once at that boundary; the latter presents **event records**, not a
+replayed document. `import-dom-html`, `import-ast-xml` and `import-events-cem`
+convert their common trees with native writers and artifact-owned source links.
+DOM/AST names, attributes, values and passive references are retained. Event
+expressions, typed preludes and mode switches stay literal record fields.
+Serialized schema IDs are discarded; reference context/targets are not restored.
+
+Binary imports validate every record, version, tag, UTF-8 string, length, range,
+ID and owning edge, rejecting truncation, cycles, unreachable nodes and trailing
+bytes. Limits are 16 MiB, 65,536 materialized nodes/JSON values and 64 levels.
+CEMPROJ versions 1 and 2 are supported; v2 adds attribute value nodes, references
+and typed preludes. Sealed JSON envelopes additionally require payload bytes,
+contiguous record chunks, matching BLAKE3 hashes, boundaries and ownership links.
+Metadata-only envelopes cannot supply a source. Bare binary has no checksum, so
+structural validation does not detect arbitrary otherwise-valid value edits.
+CEM, XML, HTML and named DOM/AST JSON or binary exports are supported;
+executable event replay and runtime recovery are separate ownership contracts.
+
+Studio still keeps binary sources read-only and non-runnable, with exact-byte
+downloads. The native binary library/CLI contract does not silently open Studio's
+separate owned-command admission boundary.
 
 Exported `byteRange` and `sourceMap` fields describe a projection's values. Once
 loaded as JSON source, their numbers confer no association with the original

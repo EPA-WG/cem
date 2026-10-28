@@ -624,3 +624,13 @@ that also count toward checkpoint witnesses. Compact declarations and a view
 projection limited to fields actually rendered keep all bounded provenance rows
 accessible within the existing 32768-node witness limit. Full references remain
 in the service; no source rows or credential guards are removed.
+
+## Passive projection-source imports
+
+The ordinary `native-projections` project now includes JSON-input Parse/Inspect
+and CEM/HTML/XML conversions through the [shared native import contract](../../docs/cem-data-import-principle.md#passive-projection-source-imports).
+DOM/AST retain passive common trees; events retain literal records. Source links
+address the imported artifact, never reported source-map fields. Complete native
+binary and sealed-envelope validation grants no runtime replay authority.
+Studio binary sources remain read-only/non-runnable with exact downloads. Existing
+declarative controls, credential refusal and recovery budgets remain unchanged.

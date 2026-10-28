@@ -565,6 +565,7 @@ fn ast_node_children(node: &CemAstNode) -> Vec<AstNodeId> {
             .chain(children.iter())
             .copied()
             .collect::<Vec<_>>(),
+        CemAstNode::Attribute { value_nodes, .. } => value_nodes.clone(),
         _ => Vec::new(),
     }
 }

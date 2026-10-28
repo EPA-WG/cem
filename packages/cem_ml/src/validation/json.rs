@@ -685,9 +685,35 @@ pub(crate) fn json_document_ast_for_xml(
     )
 }
 
+/// Bound the ordinary JSON grammar while allocating its native owner. This does
+/// not enable the separate JSON-to-XML codepoint/number compatibility profile.
+pub(crate) fn json_document_ast_from_source_bytes_bounded(
+    request: JsonSourceValidationRequest<'_>,
+    max_depth: usize,
+    max_values: usize,
+) -> (Option<JsonDocumentAst>, Vec<Diagnostic>) {
+    let report = extract_json_report_with_limits(request, None, Some((max_depth, max_values)));
+    let diagnostics =
+        validate_json_parse_report(&report, &JsonSchemaContractCatalog::from_builtin());
+    let document =
+        if report.root.is_some() && !diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
+            json_document_ast_from_parse_report(request, &report)
+        } else {
+            None
+        };
+    (document, diagnostics)
+}
+
 fn extract_json_report(
     request: JsonSourceValidationRequest<'_>,
     limits: Option<(usize, usize)>,
+) -> JsonParseReport {
+    extract_json_report_with_limits(request,limits,limits)
+}
+fn extract_json_report_with_limits(
+    request: JsonSourceValidationRequest<'_>,
+    limits: Option<(usize,usize)>,
+    resource_limits: Option<(usize,usize)>,
 ) -> JsonParseReport {
     let parameters = content_type_parameters(request.content_type);
     let mut report = JsonParseReport {
@@ -719,6 +745,7 @@ fn extract_json_report(
     report.line_ending = json_detect_line_ending_style(source).map(str::to_owned);
     let mut parser = JsonParser::new(source);
     parser.xml_limits = limits;
+    parser.resource_limits = resource_limits;
     if limits.is_some() && source.starts_with('\u{feff}') {
         parser.byte = '\u{feff}'.len_utf8();
     }
@@ -870,6 +897,7 @@ struct JsonParser<'a> {
     byte: usize,
     facts: Vec<JsonParseFact>,
     xml_limits: Option<(usize, usize)>,
+    resource_limits: Option<(usize, usize)>,
     depth: usize,
     values: usize,
 }
@@ -882,6 +910,7 @@ impl<'a> JsonParser<'a> {
             byte: 0,
             facts: Vec::new(),
             xml_limits: None,
+            resource_limits: None,
             depth: 0,
             values: 0,
         }
@@ -900,7 +929,7 @@ impl<'a> JsonParser<'a> {
     fn parse_value(&mut self) -> Result<JsonValueAst, JsonParseFact> {
         self.values += 1;
         if self
-            .xml_limits
+            .resource_limits
             .is_some_and(|(depth, values)| self.depth > depth || self.values > values)
         {
             let mut error = self.error_here("JSON import exceeds its depth/value limit");

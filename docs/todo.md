@@ -461,13 +461,22 @@ worker/fallback Login recovery pass. Credential refusal and all recovery bounds
 remain unchanged. The separate existing artifact-reader trace failure is
 recorded below.
 
-- [ ] Complete native DOM/AST/event projection input adapters and binary payload validation. Their registered validators currently check JSON shape or binary headers, while generic lifecycle conversion adapters are output-only. Preserve original owners, schema/kind/MIME refusals and bounded chunks; add native payload-integrity/replay fixtures before enabling decoder or hash-integrity claims.
+Completed 2026-10-28: [native projection-source imports](archive/todo-completed-projection-source-imports-2026-10-28.md)
+loads six explicit JSON/binary identities into retained native common trees,
+validates full payloads and sealed chunk hashes/topology, and preserves actual
+artifact provenance with passive references/events. Ordinary Studio JSON input
+configurations, all 277 native catalog configurations, saved/offline selection,
+demo inventory and isolated worker/fallback Login recovery pass. Binary Studio
+command admission remains below; credential refusal and all recovery bounds are
+unchanged. Deployment retains 898 files with all four WASMs below 25 MiB.
 
 - [ ] Design explicit owned native command execution for read-only binary Studio resources. Binary sources currently remain non-editable and non-runnable with exact downloads; preserve that admission boundary until the shared command service and declarative controls can validate an owned binary configuration without treating binary bytes as text or granting execution implicitly.
 
 - [ ] Apply the catalog file text-admission policy to direct configuration URLs. That older branch still decodes missing bytes as empty text and invalid UTF-8 with replacement characters. Add missing/invalid configuration-resource fixtures, preserve exact-byte downloads and refuse fabricated source preparation; reuse the owned file transport policy without parsing configurations in JavaScript.
 
 - [ ] Investigate Chromium/CDP multiline `insertText` performance separately from native bulk paste. The deployed 24,585-character projection source takes about 29.3 seconds through driver fill (1,987 DOM/input fragments), while native paste takes 93 ms and one text node. Both containment experiments fail to improve the existing timeout. Preserve native undo, source text and shared editor ownership; do not introduce DOM-replacement or timeout workarounds.
+
+- [ ] Update the existing versioned module-map lifecycle fixture to the native version-specific source contract. `builtins_load_versioned_module_maps_through_json_syntax_adapter` expects no diagnostics for one shared legacy imports buffer across v1/v2/v3; it fails for v1 on clean `32144d1a` as well as the projection-input work. Preserve semantic version checks and actual admission diagnostics; use valid version-specific fixtures rather than removing validation.
 
 - [ ] Reconcile the native formatter artifact-reader trace contract in `conversion_output_pipeline_reads_cemt_artifacts_through_environment_reader`. Its four-read expectation receives eight ordered reads including repeated helper reads on unchanged `457f3818` and the formatter-provenance change. Determine which preparation/execution freshness reads are required, then retain strict original URI/byte admission in the trace fixture; do not remove revalidation merely to satisfy an obsolete once-only expectation.
 

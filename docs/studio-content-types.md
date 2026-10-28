@@ -143,7 +143,7 @@ artifacts; the mere presence of a manifest artifact is insufficient.
 | CLI command | Native validation checks the versioned literal-argv envelope; the executing host checks actual argv grammar separately. | Typed-admitted original JSON Parse AST/events, Inspect views/ranges and native JSON formatting. The command/plan inspector still uses native decoded controls for execution preparation. | Source operations do not execute argv, normalize a command plan or grant resource reads. |
 | CLI run configuration | Explicit run-config schema selects the native authored parser and semantic validator; `--config` separately prepares a normalized execution plan. | Typed-admitted original JSON Parse/Inspect and native source formatting preserve submitted fields and literal paths. | Source duplicate/policy diagnostics retain native severity; source inspection does not read configured inputs, resolve paths or grant execution. |
 | Studio project | Explicit portable control contract with CEM and JSON encodings and native project validation. | Typed-admitted original CEM/JSON Parse/Inspect retain source identity/ranges; CEM inspection shares the codec parser allocation. Native formatting and cross-encoding conversion retain reference-path normalization. | Source tooling does not import the inner project or execute its resources. Repository import/export and builds preserve captured resource identities. |
-| DOM/AST/events projections | Registered JSON shape and binary-header validation; projection input adapters remain output-only. | Original CEM Parse AST/events and retained imported-tree Inspect default to native CEM-ML; JSON/binary exports require explicit targets. | Explicit DOM/AST/events JSON exports validate their registered source shapes. AST export uses the semantic document envelope; Parse/Inspect CEMT subjects retain their separate presentation contract. Binary validation does not establish payload integrity or safe replay. Numeric fields in imported JSON do not grant source ownership. |
+| DOM/AST/events projections | Bounded retained JSON/binary input adapters with complete record and sealed-envelope integrity validation. | Original CEM and imported projection Parse/Inspect default to native CEM-ML; passive common-tree conversion supports CEM/HTML/XML and named DOM/AST JSON/binary exports. | DOM/AST import semantic trees; events import literal records, never executable replay. Artifact-owned provenance addresses actual input bytes; reported maps/schema/runtime IDs confer no ownership. Studio binary sources remain read-only/non-runnable. |
 | Runtime data island | Declared CEM runtime-state envelope validation. | CEM source inspection. | Shared runtime hydration/state contract; not a standalone data query language or a portable secret store. |
 
 The generic retained-document
@@ -389,6 +389,12 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `portable-config` | `invalid-command` | `repair-command` | Restore command schemaVersion 1 after reviewing the native envelope diagnostic. This does not grant unknown argv syntax execution. |
 | `portable-config` | `invalid-project` | `repair-project` | Restore portable project schemaVersion 1. Native reference, path, hash and forbidden-state checks remain active. |
 | `portable-config` | `card-graph` | `build-card` | Execute the project-relative graph with an explicit heading parameter and HTML entry. Native output spans identify the actual CEM template; source validation alone does not run this build. |
+| `native-projections` | `dom-json` | `parse-dom-input` | Import original projection bytes through the shared native boundary. Reported source maps and runtime IDs remain passive data; source navigation addresses this JSON artifact. |
+| `native-projections` | `ast-export` | `inspect-ast-input` | Import original projection bytes through the shared native boundary. Reported source maps and runtime IDs remain passive data; source navigation addresses this JSON artifact. |
+| `native-projections` | `events-json` | `inspect-events-input` | Import original projection bytes through the shared native boundary. Reported source maps and runtime IDs remain passive data; source navigation addresses this JSON artifact. |
+| `native-projections` | `dom-json` | `import-dom-html` | Import original projection bytes through the shared native boundary. Reported source maps and runtime IDs remain passive data; source navigation addresses this JSON artifact. |
+| `native-projections` | `ast-export` | `import-ast-xml` | Import original projection bytes through the shared native boundary. Reported source maps and runtime IDs remain passive data; source navigation addresses this JSON artifact. |
+| `native-projections` | `events-json` | `import-events-cem` | Import original projection bytes through the shared native boundary. Reported source maps and runtime IDs remain passive data; source navigation addresses this JSON artifact. |
 | `native-projections` | `cem-source` | `validate-source` | Validate the original source before creating projections; this is not validation of an exported AST or DOM record. |
 | `native-projections` | `xml-source` | `validate-xml` | Check XML well-formedness independently from importing its retained structural view. |
 | `native-projections` | `cem-source` | `parse-ast` | Present the original native source nodes and source-frame ranges as CEM-ML text. No JSON AST handoff is used. |
@@ -630,9 +636,13 @@ or anonymous origins have no fabricated endpoint.
 DOM/AST/events JSON exports pass their registered shape validators. Native AST
 export uses the semantic document envelope and native node fields; the separate
 authored AST fixture is retained. `validate-ast-export` validates the actual
-export without application wrapping, while legacy arrays must be regenerated. Projection input adapters remain output-only, and binary validators
-currently check headers rather than payload/chunk integrity. Unsupported
-projection-source Inspect/conversion/replay configurations are omitted.
+export without application wrapping, while legacy arrays must be regenerated.
+Six ordinary JSON-input configurations now exercise shared native Parse/Inspect,
+CEM/HTML/XML conversion and actual artifact source selection. Binary v1/v2
+validation checks complete payloads; sealed JSON envelopes additionally validate
+BLAKE3 hashes and record ownership links. Passive references and event records
+restore no runtime context. Binary Studio command admission and executable
+replay remain separate work. See the [import contract](cem-data-import-principle.md#passive-projection-source-imports).
 
 Catalog and saved binary sources use the shared preview admission policy, remain
 non-editable/non-runnable and download exact owned bytes. Catalog file transport

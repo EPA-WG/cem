@@ -209,3 +209,31 @@ For implementation details and parity cases, see
 [the shared XPath view design](cem-tree-xpath-view.md). The loader first publishes
 a materialized CEM tree; progressive consumption of a CEM-ML AST stream is an
 accepted later phase, recorded in the loader plan and [wishlist.md](wishlist.md#cem-ml-runtime).
+
+## Passive projection-source imports
+
+The shared native import boundary accepts explicit DOM, AST and event projection
+JSON/binary identities. It retains original bytes and native JSON owners, maps
+source operations to actual artifact bytes and never adopts reported source maps,
+schema IDs or reference context/target handles. DOM/AST become common semantic
+CEM trees; events become ordered literal `event` records in the events namespace,
+including passive expression/prelude fields. This does not replay event streams
+or restore execution, resources, credentials or recovery authority.
+
+Admission bounds are 16 MiB, 65,536 materialized nodes/JSON values and 64 levels;
+string imports retain their smaller existing limits. Binary v1/v2 require complete
+record/UTF-8/tag/count/range/ID and tree validation, exact consumption and matching
+family/schema/MIME. Sealed JSON envelopes require original payload, per-chunk and
+whole BLAKE3 hashes, contiguous record boundaries and matching ownership links.
+Metadata-only envelopes, malformed graphs, semantic error nodes and trailing
+bytes are refused. Bare binary provides structural integrity, not a checksum.
+JSON is UTF-8. Refusals retain the actual input URI and never fall back to CEM
+text tokenization. Reported offsets, including chunk source-map deltas, remain
+data. Conversion supports passive CEM/XML/HTML and explicit DOM/AST JSON/binary
+exports, without a serialized AST handoff or executable normalized-event replay.
+
+The ordinary `native-projections` Studio project exercises JSON inputs through
+existing declarative editor, command/result and source-selection controls.
+Binary Studio files stay read-only and non-runnable pending separately owned
+command admission. Entered Login passwords/one-time codes continue to block
+recovery until cleared; automatic recovery and all existing budgets are unchanged.

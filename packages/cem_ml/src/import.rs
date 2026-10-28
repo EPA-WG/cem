@@ -19,6 +19,7 @@ use crate::{
 use std::sync::Arc;
 
 pub mod documents;
+pub mod projection;
 pub mod element_tree;
 mod css;
 mod html;
@@ -34,6 +35,8 @@ mod strings;
 mod string_options;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod projection_input_tests;
 pub use string_options::{resolve_string_import, ImportStringConfig, ImportStringOption};
 pub use crate::validation::json_xml::{JsonXmlDuplicates, JsonXmlProjectionOptions};
 pub use strings::{
@@ -714,6 +717,13 @@ pub fn import_data_bytes_with_context(
         ));
         return RetainedCemTree::new(builder.ast, source_uri, text, builder.semantics, None);
     }
+    if let Some(kind) = projection::ProjectionKind::identity(None, Some(content_type)) {
+        if !matches!(projection, "cem" | "xpath") { return Err("Projection artifacts support the common CEM tree only".into()); }
+        if let Some(native) = load_context_data(bytes, content_type, source_uri, context).map_err(|failure| failure.to_string())? {
+            return retain_lifecycle(Arc::new(native));
+        }
+        return projection::load(bytes, source_uri, Some(content_type), kind).map(|doc| doc.tree.clone()).map_err(|e|e.to_string());
+    }
     let (_, normalized) = import_content_type(content_type)?;
     let native = if let Some(native) = load_context_data(bytes, &normalized, source_uri, context)
         .map_err(|failure| failure.to_string())? {
@@ -757,6 +767,11 @@ fn import_data_with_context(
     if source.len() > MAX_BYTES {
         return Err("Source exceeds the 32 KiB import limit.".into());
     }
+    if projection::ProjectionKind::identity(None, Some(format)).is_some() {
+        let tree = import_data_bytes_with_context(source.as_bytes(), format, projection, source_uri, context)?;
+        if tree.ast().nodes.len() > MAX_VALUES { return Err("Projection exceeds the string import value limit".into()); }
+        return Ok(tree);
+    }
     let (_, normalized) = import_content_type(format)?;
     let native = if let Some(native) = load_context_data(source.as_bytes(), &normalized, source_uri, context)
         .map_err(|failure| failure.to_string())? {
@@ -782,7 +797,8 @@ pub fn try_retain_lifecycle(
 ) -> Result<Option<Arc<RetainedCemTree>>, String> {
     if matches!(
         native.as_ref(),
-        LoadedInputAstStream::XmlDocument(_)
+        LoadedInputAstStream::ProjectionDocument(_)
+            | LoadedInputAstStream::XmlDocument(_)
             | LoadedInputAstStream::XhtmlDocument(_)
             | LoadedInputAstStream::SvgDocument(_)
             | LoadedInputAstStream::MathMlDocument(_)
@@ -801,6 +817,7 @@ pub fn try_retain_lifecycle(
 
 /// Import a retained parser AST into the same tree used by the data reader.
 pub fn retain_lifecycle(native: Arc<LoadedInputAstStream>) -> Result<Arc<RetainedCemTree>, String> {
+    if let LoadedInputAstStream::ProjectionDocument(doc) = native.as_ref() { return Ok(doc.tree.clone()); }
     if let LoadedInputAstStream::ControlDocument(doc) = native.as_ref() {
         if doc.byte_length > MAX_DOCUMENT_BYTES {
             return Err("Source exceeds the 16 MiB document import limit.".into());

@@ -10,6 +10,7 @@ mod output_provenance;
 use output_provenance::native_text_primary;
 mod imported_source;
 mod projection_source_validation;
+mod projection_input;
 #[cfg(not(target_arch = "wasm32"))]
 mod validation_resources;
 
@@ -12546,8 +12547,34 @@ impl CemMlEngine for RealCemMlEngine {
                 primary = Some(Value::Null);
                 return;
             }
+            let projection_identity = effective_input_identity(&request.input, &context);
+            if crate::import::projection::ProjectionKind::identity(
+                projection_identity.schema.as_deref(),
+                projection_identity.content_type.as_deref(),
+            ).is_some() && loaded.ast_stream.is_none() {
+                if !diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
+                    diagnostics.push(Diagnostic {
+                        uri: Some(request.input.uri.clone()),
+                        code: "cem.source.identity_unsupported".into(),
+                        severity: Severity::Error,
+                        message: "Projection source requires its native adapter".into(),
+                        ..Default::default()
+                    });
+                }
+                primary = Some(Value::Null);
+                return;
+            }
             if let Some(ast_stream) = loaded.ast_stream.take() {
                 match ast_stream {
+                    LoadedInputAstStream::ProjectionDocument(document) => {
+                        primary = Some(Value::Null);
+                        if diagnostics.iter().any(|d| d.severity.is_hard_violation()) { return; }
+                        match projection_input::convert(&request, &document, to_format) {
+                            Ok(bytes) => { primary = Some(json!({ "kind": "document", "contentType": bytes.content_type })); primary_bytes = Some(bytes); },
+                            Err(message) => diagnostics.push(Diagnostic { uri: Some(request.input.uri.clone()), code: "cem.lifecycle.internal_ast_target_unsupported".into(), severity: Severity::Error, message, ..Default::default() }),
+                        }
+                        return;
+                    }
                     LoadedInputAstStream::ControlDocument(document) => {
                         if diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
                             primary = Some(Value::Null);
