@@ -266,6 +266,48 @@ describe('CEM Studio Feature Tour copies', () => {
         }, 60_000);
     }
 
+    it('inspects typed portable control sources in independent roots without executing their resources', async () => {
+        const { bundle, decode } = await authoredProject('portable-config');
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        for (const project of ['portable-source-one', 'portable-source-two']) {
+            for (const id of ['card-command', 'card-check', 'project-json', 'project-cem']) {
+                const resource = bundle.project.resources.find(item => item.id === id);
+                const uri = `studio://${project}/${resource.path}`;
+                const options = { uri, bytes: bundle.contents[id], contentType: resource.contentType, schema: resource.schema,
+                    projectId: project, projectRootUri: `studio://${project}/`, resourceScheme: 'studio' };
+                const parsed = await validator.parseResource(options);
+                expect(parsed.result.diagnostics.items).toEqual([]);
+                expect(parsed.output.text).toContain(resource.schema); expect(parsed.output.text).toContain(uri);
+                for (const view of ['ast', 'source-offsets']) {
+                    const inspected = await validator.inspectResource({ ...options, view });
+                    expect(inspected.result.diagnostics.items).toEqual([]);
+                    expect(inspected.output.text).toContain(uri);
+                    expect(inspected.output.text).toContain(resource.schema);
+                }
+                const original = decode(id);
+                const invalid = id === 'card-check' ? decode('invalid-run') : id === 'project-cem'
+                    ? original.replace('@schema-version=1', '@schema-version=2') : original.replace('"schemaVersion": 1', '"schemaVersion": 2');
+                expect(invalid).not.toBe(original);
+                const code = id === 'card-check' ? 'cem.run_config.input_uri_duplicate' : id === 'card-command'
+                    ? 'cem.cli_command.schema_version_unsupported' : 'cem.studio_project.schema_version_unsupported';
+                for (const operation of ['parseResource', 'inspectResource']) {
+                    const refusalOptions = operation === 'parseResource' ? { argv: ['parse', '--format', 'ast', '--fail-level', 'validate',
+                        '--no-color', '--content-type', resource.contentType, '--schema', resource.schema, uri] } : { view: 'ast' };
+                    const refused = await validator[operation]({ ...options, ...refusalOptions, bytes: new TextEncoder().encode(invalid) }).catch(error => error);
+                    expect(refused.result.exitCode, JSON.stringify({ id, operation, result: refused.result })).toBe(1);
+                    expect(refused.result.diagnostics.items).toEqual(expect.arrayContaining([expect.objectContaining({ code, uri })]));
+                    expect(refused.result.diagnostics.items.some(d => d.code.startsWith('cem.tokenizer.') || d.code.startsWith('cem.schema.unknown_html'))).toBe(false);
+                }
+                const diagnostics = await validator.inspectResource({ ...options, view: 'diagnostics', bytes: new TextEncoder().encode(invalid) });
+                expect(diagnostics.result.exitCode).toBe(0);
+                expect(diagnostics.result.diagnostics.items).toEqual(expect.arrayContaining([expect.objectContaining({ code, uri })]));
+                expect((await validator.parseResource(options)).result.exitCode).toBe(0);
+            }
+        }
+        expect(decode('card-check')).toContain('data/card.xml');
+        expect(decode('project-cem')).toContain('@schema-version=1');
+    }, 60_000);
+
     it('uses native portable control codecs and refuses invalid plans before reading missing inputs', async () => {
         const { bundle, decode } = await authoredProject('portable-config');
         const validator = await createCemStudioBrowserValidator(); validators.push(validator);

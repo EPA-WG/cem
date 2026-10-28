@@ -57,6 +57,7 @@ pub(super) fn load(
             )
         ));
     let defaults = match loaded.ast_stream.as_ref() {
+        Some(LoadedInputAstStream::ControlDocument(doc)) => (doc.schema, doc.content_type.as_str()),
         Some(LoadedInputAstStream::JsonDocument(doc)) => {
             (JSON_VALUE_SCHEMA_URI, doc.source.content_type.as_str())
         }
@@ -109,7 +110,7 @@ pub(super) fn load(
         {
             ("", "")
         }
-        _ if refused => ("", ""),
+        _ if refused || crate::control_source::is_control_identity(&identity) => ("", ""),
         _ => return None,
     };
     if identity
@@ -132,6 +133,21 @@ pub(super) fn load(
         &input.root_scope,
         "input",
     ));
+    if crate::control_source::is_control_identity(&identity)
+        && !matches!(
+            loaded.ast_stream,
+            Some(LoadedInputAstStream::ControlDocument(_))
+        )
+        && !diagnostics.iter().any(|d| d.severity.is_hard_violation())
+    {
+        diagnostics.push(Diagnostic {
+            uri: Some(input.uri.clone()),
+            code: "cem.source.identity_unsupported".into(),
+            severity: Severity::Error,
+            message: "Control source tooling requires its registered source identity".into(),
+            ..Default::default()
+        });
+    }
     let owner = if diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
         None
     } else {

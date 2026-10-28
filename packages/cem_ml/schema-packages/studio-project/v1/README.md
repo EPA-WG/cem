@@ -20,6 +20,13 @@ paths, credentials, browser file handles, open tabs, selections, and other
 transient UI state. Those belong to host/provider storage, keyed by stable
 project and resource identities.
 
+Shared native Parse/Inspect operate on the typed-admitted original JSON or CEM
+syntax, retaining source identity, URI and ranges. CEM inspection shares the
+codec's parser allocation and does not run generic HTML schema validation.
+Source tooling does not import the inner project or execute its resources.
+Formatting and cross-encoding conversion retain the existing typed codec and
+its reference-path normalization.
+
 ## Build entry artifacts
 
 A runnable `conversion`, `query`, `transformation` or `transformation-graph`

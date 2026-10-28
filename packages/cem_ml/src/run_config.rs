@@ -738,10 +738,17 @@ impl std::error::Error for SpecParseError {}
 pub fn parse_run_config(
     request: RunConfigParseRequest,
 ) -> Result<RunConfigParseResponse, RunConfigError> {
-    validate_run_config_identity(&request.identity)?;
+    parse_run_config_source_bytes(&request.bytes, &request.identity)
+}
 
-    let content_type = request
-        .identity
+/// Parse an authored configuration without resolving or executing its resources.
+pub fn parse_run_config_source_bytes(
+    bytes: &[u8],
+    identity: &FormatIdentity,
+) -> Result<RunConfigParseResponse, RunConfigError> {
+    validate_run_config_identity(identity)?;
+
+    let content_type = identity
         .content_type
         .as_deref()
         .map(content_type_essence)
@@ -749,7 +756,7 @@ pub fn parse_run_config(
 
     match content_type.as_str() {
         "application/json" | "text/json" => {
-            let config = serde_json::from_slice::<RunConfig>(&request.bytes).map_err(|error| {
+            let config = serde_json::from_slice::<RunConfig>(bytes).map_err(|error| {
                 run_config_error(
                     "cem.run_config.invalid_json",
                     format!("run config JSON could not be parsed: {error}"),

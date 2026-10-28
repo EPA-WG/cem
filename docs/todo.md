@@ -400,8 +400,9 @@ uses admitted native source owners for Parse/Inspect and publishes diagnostics
 with the selected Inspect operation through CLI reports and common services.
 XML-family/data sources retain literal input semantics; Markdown source views
 retain native events/ranges before HTML lowering. The obsolete Supplier XML and
-four Inspect exceptions are retired. Portable Studio project CEM remains an
-explicit generic-source limitation. Native/WASM, Studio source and complete
+four Inspect exceptions are retired. The separately tracked portable Studio
+project CEM limitation is resolved by the typed control-source work below.
+Native/WASM, Studio source and complete
 worker/fallback Login recovery checks pass without relaxing credential privacy,
 checkpoint budgets or deadlines. The demo retains 898 files and four WASMs below
 25 MiB.
@@ -418,7 +419,19 @@ Credential refusal, original checkpoint/deadline limits and shared declarative
 UI principles remain intact; deployment retains 898 files and four WASMs below
 25 MiB.
 
-- [ ] Expose typed native source operations for CLI command/run-config and Studio control encodings without duplicating their grammar in JavaScript. CLI command envelope validation works, but generic Parse/Inspect/format still route to unsupported or erroneous source paths; run configs currently have only their real CLI loader/normalizer, not a registered standalone source adapter. Studio source conversion and CEM structural Inspect work; generic Studio-control JSON/CEM Parse and JSON Inspect retain source-identity gaps. Add failing native source/exit-status fixtures before enabling these operations; preserve existing native command/plan inspection and preparation refusals.
+Completed 2026-10-27: [typed command/configuration source adapters](archive/todo-completed-control-source-adapters-2026-10-27.md)
+retain native command/run-config/project models and original JSON/CEM syntax for
+source Parse/Inspect/format, with standalone run-config semantic validation.
+Original selectors, URI/ranges, literal values, refusals and repair survive;
+source operations do not execute argv, prepare plans or read project resources.
+Portable configurations 1.0.1 adds ten ordinary source workflows and retires the
+last portable-project Inspect exception. Native and online/offline catalogs
+cover all 264 configurations with zero source-limit/companion exceptions.
+Native/CLI/WASM, Studio source, independent saved/offline and demo checks pass;
+worker/fallback Login recovery passes in isolation with unchanged credential,
+checkpoint, witness and deadline guards. The parallel fallback resume timeout
+remains recorded in the existing concurrent verifier scheduling item. Deployment
+retains 898 files and four WASMs below 25 MiB.
 
 - [ ] Enforce the selected module-map version's semantic source contract during standalone validation. Explicit v1/v2/v3 identities currently delegate to JSON syntax checks; invalid keys, resource kinds and embedded versions refuse only during graph planning. Add native diagnostic/location fixtures before changing that boundary, preserve bounded read grants, and keep paired deployment maps separate from input-root-scope alias maps.
 
@@ -450,7 +463,7 @@ UI principles remain intact; deployment retains 898 files and four WASMs below
 
 - [ ] Repair standalone runtime typecheck preparation for the transitive CLI generated schema: retain or restore the exact native-generated TypeScript input through the CLI build/cache contract, so `tsc --build --emitDeclarationOnly` works without explicit schema preparation. Keep this separate from semantic editor/widget recovery.
 
-- [ ] Stabilize concurrent release-verifier scheduling around the existing 30-second cold Login source-paint case; retain its assertions and deadline. The unchanged complete release passes with `--parallel=1`. The 283-case Studio source invocation overlapping deployed browser gates passes 276 cases with seven deadline failures; all seven pass in an isolated Nx rerun, including complete live Login recovery on worker/fallback. Pending-build cancellation then passes three isolated runs after public navigation-readiness ordering is repaired. Keep the original five-second resume deadline, test bounds, privacy assertions and 4 MiB checkpoint budget; do not treat overlapping execution as a green full-cohort invocation.
+- [ ] Stabilize concurrent release-verifier scheduling around the existing 30-second cold Login source-paint case; retain its assertions and deadline. The unchanged complete release passes with `--parallel=1`. The 283-case Studio source invocation overlapping deployed browser gates passes 276 cases with seven deadline failures; all seven pass in an isolated Nx rerun, including complete live Login recovery on worker/fallback. Pending-build cancellation then passes three isolated runs after public navigation-readiness ordering is repaired. Keep the original five-second resume deadline, test bounds, privacy assertions and 4 MiB checkpoint budget; do not treat overlapping execution as a green full-cohort invocation. The typed control-source acceptance adds a concurrent fallback `cem.checkpoint.resume.timeout` at resume 0 (worker passes); its unchanged worker/fallback rerun passes 2/2 in isolation. Preserve this separate scheduling evidence; see the [control-source verification](archive/todo-completed-control-source-adapters-2026-10-27.md#verification).
 
 - [ ] Repair the existing native conversion baseline independently of recovery: `cross_surface_conversion_rules::cem_fixture_preserves_anonymous_scope_expression_avt_comments_and_rich_content` loses the expected `{.busy}` value in both default and stripped tests. Preserve the intended native semantics and assertion when resolving the mismatch. The separate CEMT profile/writer mismatch is completed above.
 

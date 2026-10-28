@@ -3,7 +3,6 @@
 //! The CLI selects input and output identities; this module owns the library
 //! side of input identity dispatch into the internal CEM event/AST pipeline.
 
-use crate::cli_command::parse_cli_command;
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{EngineContext, EngineInput, FormatIdentity, InputFormat, LayerFormat};
 use crate::schema::ir::CEM_CORE_NAMESPACE;
@@ -31,7 +30,7 @@ use crate::schema::registry::{
     XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_NAMESPACE_URI,
     XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
-use crate::studio_project::{parse_studio_project, StudioProject};
+use crate::studio_project::StudioProject;
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 use crate::validation::css::{
     css_document_ast_from_source_bytes, validate_css_document_ast, CssDocumentAst,
@@ -146,6 +145,7 @@ pub enum LoadedInputAstStream {
     XsltStylesheet(XsltStylesheetAst),
     RelaxNgDocument(RelaxNgDocumentAst),
     StudioProject(StudioProject),
+    ControlDocument(crate::control_source::ControlDocumentAst),
 }
 
 #[derive(Debug, Clone)]
@@ -211,6 +211,7 @@ impl LifecycleRegistry {
         registry.register(YamlAdapter);
         registry.register(JsonSchemaAdapter);
         registry.register(CliCommandAdapter);
+        registry.register(RunConfigAdapter);
         registry.register(StudioProjectAdapter);
         registry.register(StudioProjectCemExportAdapter);
         registry.register(StudioProjectJsonExportAdapter);
@@ -1538,37 +1539,18 @@ impl LifecycleAdapter for CliCommandAdapter {
     }
 
     fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
-        let content_type = identity
-            .content_type
-            .as_deref()
-            .or(input.root_scope.default_content_type.as_deref())
-            .unwrap_or(CLI_COMMAND_CONTENT_TYPE);
-        let diagnostics = parse_cli_command(&input.bytes, content_type, CLI_COMMAND_SCHEMA_URI)
-            .err()
-            .map(|error| Diagnostic {
-                uri: Some(input.uri.clone()),
-                code: error.code.to_owned(),
-                severity: Severity::Error,
-                message: error.message,
-                details: Some(json!({
-                    "fieldPath": error.field_path,
-                    "lifecycle": {
-                        "adapterId": self.id(),
-                        "operation": "load",
-                        "profile": "cli-command-v1",
-                    },
-                })),
-                ..Diagnostic::default()
-            })
-            .into_iter()
-            .collect();
-        LoadedInput {
-            bytes: input.bytes.clone(),
-            from_format: input.from_format.unwrap_or(InputFormat::Cem),
-            ast_stream: None,
-            diagnostics,
-            adapter_id: Some(self.id()),
-        }
+        crate::control_source::load(
+            input,
+            identity,
+            crate::control_source::ControlSourceKind::Command,
+        )
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_cli_command_identity(identity)
+    }
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Json)
     }
 }
 
@@ -1585,6 +1567,35 @@ fn matches_cli_command_identity(identity: &FormatIdentity) -> bool {
     explicit_schema_matches
 }
 
+struct RunConfigAdapter;
+impl LifecycleAdapter for RunConfigAdapter {
+    fn id(&self) -> &'static str {
+        "run-config"
+    }
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        identity.schema.as_deref().map(str::trim) == Some(crate::run_config::RUN_CONFIG_SCHEMA_URI)
+            && identity.content_type.as_deref().is_none_or(|mime| {
+                matches!(
+                    content_type_essence(mime).as_str(),
+                    "application/json" | "text/json"
+                )
+            })
+    }
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        crate::control_source::load(
+            input,
+            identity,
+            crate::control_source::ControlSourceKind::RunConfiguration,
+        )
+    }
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        self.matches_input(identity)
+    }
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Json)
+    }
+}
+
 struct StudioProjectAdapter;
 
 impl LifecycleAdapter for StudioProjectAdapter {
@@ -1597,43 +1608,11 @@ impl LifecycleAdapter for StudioProjectAdapter {
     }
 
     fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
-        let content_type = identity
-            .content_type
-            .as_deref()
-            .or(input.root_scope.default_content_type.as_deref())
-            .unwrap_or(STUDIO_PROJECT_CEM_CONTENT_TYPE);
-        let parsed = parse_studio_project(&input.bytes, content_type, STUDIO_PROJECT_SCHEMA_URI);
-        let (ast_stream, diagnostics) = match parsed {
-            Ok(project) => (
-                Some(LoadedInputAstStream::StudioProject(project)),
-                Vec::new(),
-            ),
-            Err(error) => (
-                None,
-                vec![Diagnostic {
-                    uri: Some(input.uri.clone()),
-                    code: error.code.to_owned(),
-                    severity: Severity::Error,
-                    message: error.message,
-                    details: Some(json!({
-                        "fieldPath": error.field_path,
-                        "lifecycle": {
-                            "adapterId": self.id(),
-                            "operation": "load",
-                            "profile": "studio-project-v1",
-                        },
-                    })),
-                    ..Diagnostic::default()
-                }],
-            ),
-        };
-        LoadedInput {
-            bytes: input.bytes.clone(),
-            from_format: input.from_format.unwrap_or(InputFormat::Cem),
-            ast_stream,
-            diagnostics,
-            adapter_id: Some(self.id()),
-        }
+        crate::control_source::load(
+            input,
+            identity,
+            crate::control_source::ControlSourceKind::Project,
+        )
     }
 }
 

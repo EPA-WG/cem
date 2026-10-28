@@ -13,6 +13,13 @@ configuration, resolver snapshots, execution results, and normalized run plans
 are deliberately excluded. Hosts validate argv through the same generated
 native CLI grammar before applying or executing a resource.
 
+Shared native source operations also retain the original JSON syntax after
+typed envelope validation. Parse/Inspect expose its source identity, URI and
+ranges; source formatting uses the native JSON writer and keeps literal argv.
+These operations do not parse argv as an execution request, read its referenced
+resources or normalize a command plan. Use `--fail-level validate` when requiring
+semantic source diagnostics to produce a failing CLI exit status.
+
 ## Verification
 
 Run:

@@ -679,6 +679,24 @@ Current implementation status:
   colorizer; `--out` writes the same CEM-ML syntax without ANSI escapes.
   `parse --format ast-json|events-json|dom-json|json` and
   `inspect --format json` are the explicit JSON presentation boundaries.
+  Authored command JSON, run-config JSON and Studio project JSON/CEM have typed
+  native source adapters. Parse/Inspect project their admitted original syntax,
+  URI and ranges, rather than feeding control JSON or project CEM through the
+  generic CEM/HTML validator. Run-config sources use their existing parser and
+  semantic validator under the explicit run-config schema. Command/run-config
+  source formatting uses the native JSON writer; project formatting retains the
+  existing codec's reference-path normalization. These source operations do not
+  execute argv, normalize a run plan, read configured inputs or import a project.
+  Native malformed/version/semantic diagnostics remain authoritative; in
+  particular, duplicate run inputs retain the fatal diagnostic and source-command
+  exit 1 at validation failure level, while `validate --config` retains its
+  preparation refusal and exit 2. Parse-only failure level retains its existing
+  semantic-error exit policy; the original diagnostic is still reported, with
+  no fabricated source tree. Use `--fail-level validate` for strict source checks.
+  Actual argv grammar and command/plan inspection remain separate host operations.
+  Diagnostic/summary Inspect views remain readable reports when native errors
+  exist; AST Inspect and strict Parse are the source-refusal checks. A readable
+  diagnostic view does not establish semantic validity.
   Element-template Validate and Check use the shared composed runtime's admitted
   source stage to compile CEM-QL embeddings after lifecycle/schema validation.
   CLI and common command services therefore report the same undeclared lexical

@@ -341,14 +341,14 @@
     {
       "id": "portable-config",
       "name": "Portable configurations",
-      "description": "Author native CLI command and run configurations, round-trip portable Studio manifests, and import/export a real project with relative resources, explicit build output and native ownership checks.",
-      "version": "1.0.0",
+      "description": "Inspect and format typed CLI command, run configuration and portable project sources without execution; build ordinary project-relative graphs and import/export independent projects.",
+      "version": "1.0.1",
       "collections": [
         "content-types-schema-authoring",
         "content-types-queries-transformations"
       ],
       "archive": "./examples/portable-config.cem-studio.json",
-      "sha256": "19a13187935f7d55037486dcb98dd07ebcfa216d25c3aca5f3df138ced483524"
+      "sha256": "c5fb5b7601193b4562a361041cc389345ae7907038a8f5382c04fe55e42d2941"
     },
     {
       "id": "relax-ng",

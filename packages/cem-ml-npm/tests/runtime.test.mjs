@@ -1086,3 +1086,79 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
     assert.deepEqual(repaired.diagnostics.items, valid.diagnostics.items);
   });
 }
+
+for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
+  test(`typed control source operations remain inert in ${runtimeKind}`, async () => {
+    const runtime = runtimeKind === 'wasm-node'
+      ? await import('@epa-wg/cem-ml/wasm') : await import('../dist/wasm/browser/cem_ml.js');
+    if (runtimeKind !== 'wasm-node') await runtime.default({ module_or_path: await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url)) });
+    const root = new URL('../../../examples/projects/portable-config/', import.meta.url);
+    const cases = [
+      ['authored/build.command.json', 'application/vnd.cem.cli-command+json', 'https://cem.dev/ns/cli/command/1', 'argv'],
+      ['authored/check.run.json', 'application/json', 'https://cem.dev/ns/cli/run-config/1', 'inputs'],
+      ['project/card.project.json', 'application/vnd.cem.studio-project+json', 'https://cem.dev/ns/studio/project/1', 'dispatch-card'],
+      ['project/card.project.cem', 'application/vnd.cem.studio-project+cem', 'https://cem.dev/ns/studio/project/1', 'dispatch-card'],
+    ];
+    let sequence = 0;
+    const execute = async (text, contentType, schema, kind) => {
+      const uri = 'studio://control-sources/original.control', bytes = new TextEncoder().encode(text);
+      const operation = ['validate', 'check'].includes(kind)
+        ? { kind, inputIds: ['input:0'], projection: 'json', ...(kind === 'check' ? { zeroHardViolations: true } : {}) }
+        : { kind, inputId: 'input:0', ...(kind === 'parse' ? { projection: 'ast', preserveSourceOffsets: true }
+          : kind === 'inspect' ? { show: 'ast' } : { toFormat: contentType.endsWith('+cem') ? 'cem' : 'json', preserveSourceOffsets: true }) };
+      const request = {
+        protocolVersion: 1, requestId: `control-source:${runtimeKind}:${++sequence}`,
+        project: { projectId: 'control-sources', revision: 1 },
+        resourceVersions: { [uri]: { revision: 1, sha256: createHash('sha256').update(bytes).digest('hex') } }, operation,
+        runPlan: JSON.parse(runtime.normalizeCommandRunPlanV1(JSON.stringify({ configBytes: [
+          ...new TextEncoder().encode(JSON.stringify({ inputs: [{ uri, rootScope: { defaultContentType: contentType, schema } }],
+            outputs: ['parse', 'inspect', 'convert'].includes(kind) ? [{ destination: `${uri}.out`, rootScope: kind === 'convert'
+              ? { defaultContentType: contentType, schema, outputColorType: 'none' }
+              : { defaultContentType: 'application/cem', outputColorType: 'none' } }] : [] })),
+        ] }))), resources: { [uri]: { bytes: [...bytes], identity: { contentType, schema } } },
+        policyStamp: { resolver: 'control-resolver', safety: 'control-safety', budget: 'control-budget' },
+      };
+      let published;
+      try {
+        const result = JSON.parse(await runtime.executeCommandServiceV1(JSON.stringify(request),
+          JSON.stringify({ runtime: runtimeKind, targetIdentity: 'runtime-test:controls', abiIdentity: 'runtime-test-v1', debugControlActive: false }),
+          async () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
+          async () => assert.fail('inert control source operations must not execute argv, read resources or transport credentials'),
+          async (json, output) => { published = { write: JSON.parse(json), bytes: Uint8Array.from(output) }; return JSON.stringify({ token: 'control-output' }); },
+          async () => JSON.stringify({ uri: published.write.uri }), async () => {},
+        ));
+        const artifact = result.artifacts.items.find(item => item.kind === 'output');
+        const output = published?.bytes ?? (artifact
+          ? runtime.readCommandArtifactV1(request.requestId, artifact.handleId, 0, artifact.byteLength).bytes : undefined);
+        return { result, text: output ? new TextDecoder().decode(output) : undefined };
+      } finally { runtime.disposeCommandArtifactsV1(request.requestId); }
+    };
+    for (const [path, mime, schema, expected] of cases) {
+      const source = await readFile(new URL(path, root), 'utf8');
+      for (const kind of ['parse', 'inspect', 'validate', 'check', 'convert']) {
+        const outcome = await execute(source, mime, schema, kind);
+        assert.equal(outcome.result.exitCode, 0, JSON.stringify(outcome.result));
+        assert.deepEqual(outcome.result.diagnostics.items, []);
+        if (['parse', 'inspect'].includes(kind)) {
+          assert.ok(outcome.text.includes(schema) && outcome.text.includes(mime) && outcome.text.includes(expected), outcome.text);
+          assert.ok(outcome.text.includes('studio://control-sources/original.control'));
+        }
+        if (kind === 'convert') {
+          assert.ok(outcome.text.includes(expected), outcome.text);
+          assert.equal(outcome.result.artifacts.items[0].contentType, mime);
+        }
+      }
+      const invalid = mime === 'application/json' ? await readFile(new URL('failures/duplicate.run.json', root), 'utf8')
+        : mime.endsWith('+cem') ? source.replace('@schema-version=1', '@schema-version=2') : source.replace('"schemaVersion": 1', '"schemaVersion": 2');
+      const code = mime === 'application/json' ? 'cem.run_config.input_uri_duplicate'
+        : mime.includes('cli-command') ? 'cem.cli_command.schema_version_unsupported' : 'cem.studio_project.schema_version_unsupported';
+      for (const kind of ['parse', 'inspect', 'validate', 'check', 'convert']) {
+        const { result } = await execute(invalid, mime, schema, kind);
+        assert.equal(result.exitCode, 1, JSON.stringify(result));
+        assert.ok(result.diagnostics.items.some(d => d.code === code && d.uri === 'studio://control-sources/original.control'));
+        assert.ok(!result.diagnostics.items.some(d => d.code.startsWith('cem.tokenizer.') || d.code.startsWith('cem.schema.unknown_html')));
+      }
+      assert.equal((await execute(source, mime, schema, 'parse')).result.exitCode, 0);
+    }
+  });
+}

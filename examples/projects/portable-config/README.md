@@ -52,7 +52,17 @@ replace the open project's metadata.
 | `run-check` | Parse the actual run config through the native command path, inspect its normalized plan and validate its selected input. |
 | `validate-project-json` | Validate project IDs, references, path/hash syntax and portable-state policy in JSON. |
 | `validate-project-cem` | Validate the equivalent canonical CEM control source. |
-| `inspect-project-cem` | Inspect generic imported CEM structure and original project-source positions. |
+| `inspect-project-cem` | Inspect typed-admitted original CEM syntax and source ranges without generic HTML schema validation. |
+| `parse-command` | Parse original native control syntax and source ranges after typed validation; literal argv and resource paths remain inert. |
+| `inspect-command` | Inspect the typed-admitted original control source and its owned URI/ranges without preparing commands or resolving resource paths. |
+| `format-command` | Format original JSON through the shared native writer, preserving authored fields, literal argv and relative paths without executing them. |
+| `validate-run-config` | Validate the authored run-config model and semantic constraints without normalizing a plan or reading configured inputs. |
+| `parse-run-config` | Parse original native control syntax and source ranges after typed validation; literal argv and resource paths remain inert. |
+| `inspect-run-config` | Inspect the typed-admitted original control source and its owned URI/ranges without preparing commands or resolving resource paths. |
+| `format-run-config` | Format original JSON through the shared native writer, preserving authored fields, literal argv and relative paths without executing them. |
+| `parse-project-json` | Parse original native control syntax and source ranges after typed validation; literal argv and resource paths remain inert. |
+| `inspect-project-json` | Inspect the typed-admitted original control source and its owned URI/ranges without preparing commands or resolving resource paths. |
+| `parse-project-cem` | Parse original native control syntax and source ranges after typed validation; literal argv and resource paths remain inert. |
 | `json-to-cem` | Use the native project owner to produce canonical CEM with exact expected bytes. |
 | `cem-to-json` | Convert back to native normalized portable JSON, preserving logical references. |
 | `format-project-cem` | Check the exact native tabular project writer. |
@@ -69,22 +79,24 @@ grammar, shows its literal argv and effective semantic plan, and checks it befor
 execution. The imported inner project's configurations use the authored command
 files themselves, not an application-specific equivalent.
 
-Generic Parse/Inspect/format of CLI command JSON currently reaches a generic CEM
-projection/target gap. JSON project Parse/Inspect has the same source-projection
-limit, so those configurations are not advertised. CEM project Inspect is a
-structural CEM view, not a typed project Parse export. JSON/CEM project conversion
-and CEM source formatting use the actual native Studio project codec.
-The CEM inspection's printed coordinates are not owned artifact-source links;
-common Inspect currently publishes no such references to the Provenance selector.
-Use native diagnostics or the graph's separately published output spans when
-following an available source-selection path.
+Command JSON, run-config JSON and JSON/CEM project sources now have shared
+native Parse/Inspect source adapters. Typed validation admits the original
+syntax owner; AST, events, summary, diagnostics and source-offset views retain
+its URI and native ranges. CEM project inspection reuses the codec's original
+parser allocation. Command/run-config JSON formatting uses the shared native
+JSON writer and preserves authored fields and literal paths. Project formatting
+and cross-encoding conversion retain the established project codec, including
+its reference-path normalization. None of these source operations execute argv,
+normalize an execution plan, read configured inputs or import the inner project.
 
-Run config has a native parser/normalizer used by `validate --config`; its schema
-identity does not install a generic standalone source adapter. The `run-check`
-configuration therefore runs that actual command. Its input scope selects XML
-syntax validation; it does not apply the CEM template or run the graph. Selecting
-an identity alone grants no resource read, native adapter or execution authority.
-The graph and run config intentionally have separate input settings.
+The printed coordinates remain distinct from owned artifact-source links:
+common Inspect does not yet publish those links to the Provenance selector.
+The source Parse configurations explicitly request `--fail-level validate`;
+parse-only CLI policy remains available separately.
+The existing command inspector and `run-check` configuration still use the
+actual native command grammar, normalization and execution path. An admitted
+source identity grants no resource read or execution authority. The graph and
+run config intentionally have separate input settings.
 
 ## Failure and repair
 
@@ -101,7 +113,7 @@ example preserves that native boundary instead of inventing character ranges.
 This is a preparation refusal, not an ordinary execution result: it is not
 advertised as an executable repair configuration that Studio could open before
 native command preparation succeeds. Restoring one input yields the valid run
-configuration. Its standalone source operations remain unsupported.
+configuration. Standalone Validate/Parse/Inspect/format also preserve the original fatal duplicate-input diagnostic, without executing the config; the completed source command exits 1 at validation failure level. Parse-only failure level keeps its existing semantic-error exit policy and original diagnostics, without a fabricated tree. Repair one duplicate URI and repeat source validation. The existing `validate --config` preparation refusal remains exit 2.
 
 Replacing `data/card.xml` with `failures/card.xml` makes the graph fail without
 publishing a new output. Studio retains its last successful preview. Restore

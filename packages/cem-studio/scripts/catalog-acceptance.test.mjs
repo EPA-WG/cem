@@ -104,15 +104,12 @@ test('retired source diagnostic exceptions cannot classify fresh native results'
         assert.equal(nativeCatalogDiagnosticLimit(project, configuration, 'companion-source-diagnostics'), undefined);
     }
 });
-test('the remaining control-source diagnostic limit retains exact original coordinates and owned URIs', () => {
-    const root = 'studio://copy/', limit = nativeCatalogDiagnosticLimit('portable-config', 'inspect-project-cem', 'command-report');
-    const diagnostics = limit.diagnostics.map(facts => ({ ...facts, uri: `${root}${facts.uri}` }));
-    const check = (items, uri = root) => assertWorkerNativeDiagnosticLimit('portable-config', 'inspect-project-cem', items, uri);
-    assert.ok(check(diagnostics).length > 0);
-    assert.throws(() => check(diagnostics, 'studio://other/'));
-    const changed = structuredClone(diagnostics); changed[0].byteOffset++;
-    assert.throws(() => check(changed));
-    assert.throws(() => check([...diagnostics, diagnostics[0]]));
+test('portable control inspection cannot retain its obsolete generic-source exception', () => {
+    assert.equal(nativeCatalogDiagnosticLimit('portable-config', 'inspect-project-cem', 'command-report'), undefined);
+    assert.throws(() => nativeCatalogReceipt('portable-config', 'inspect-project-cem', {
+        operation: 'inspect', diagnosticEvidence: 'command-report', exitCode: 0,
+        diagnostics: [{ code: 'cem.schema.unresolved_namespace', severity: 'error', uri: 'project/card.project.cem', byteOffset: 0, line: 1, column: 1 }],
+    }));
 });
 test('requires complete routes, clones, offline observations and unchanged originals', () => {
     const projects = fixture().projects;

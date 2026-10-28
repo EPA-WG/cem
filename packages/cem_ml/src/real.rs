@@ -11401,6 +11401,7 @@ fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> b
                 | "json-schema"
                 | "markdown"
                 | "cli-command"
+                | "run-config"
                 | "studio-project"
         )
     )
@@ -12338,8 +12339,65 @@ impl CemMlEngine for RealCemMlEngine {
             diagnostics.append(&mut export.diagnostics);
             let to_format = export.to_format;
             let export_adapter_id = export.adapter_id;
+            if crate::control_source::is_control_identity(&effective_input_identity(
+                &request.input,
+                &context,
+            )) && (diagnostics.iter().any(|d| d.severity.is_hard_violation())
+                || !matches!(
+                    loaded.ast_stream,
+                    Some(LoadedInputAstStream::ControlDocument(_))
+                ))
+            {
+                if !diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
+                    diagnostics.push(Diagnostic {
+                        uri: Some(request.input.uri.clone()),
+                        code: "cem.source.identity_unsupported".into(),
+                        severity: Severity::Error,
+                        message: "Control source export requires its registered source identity".into(),
+                        ..Default::default()
+                    });
+                }
+                primary = Some(Value::Null);
+                return;
+            }
             if let Some(ast_stream) = loaded.ast_stream.take() {
                 match ast_stream {
+                    LoadedInputAstStream::ControlDocument(document) => {
+                        if diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
+                            primary = Some(Value::Null);
+                            return;
+                        }
+                        if let crate::control_source::ControlSourceValue::Project(project) = document.value {
+                            let (value, bytes, metadata) = convert_loaded_studio_project_output(
+                                &project,
+                                export_adapter_id,
+                                &mut diagnostics,
+                            );
+                            primary = Some(value);
+                            primary_bytes = bytes;
+                            conversion = Some(metadata);
+                            return;
+                        }
+                        if to_format == LayerFormat::Json {
+                            if let crate::control_source::ControlSourceSyntax::Json(source) = document.syntax {
+                                let (value, bytes, metadata) = convert_loaded_json_ast_output(
+                                    &context,
+                                    &request,
+                                    source,
+                                    &mut diagnostics,
+                                );
+                                primary = Some(value);
+                                primary_bytes = bytes;
+                                conversion = Some(metadata);
+                                return;
+                            }
+                        }
+                        diagnostics.push(Diagnostic { uri: Some(request.input.uri.clone()),
+                                        code: "cem.lifecycle.internal_ast_target_unsupported".into(), severity: Severity::Error,
+                                        message: "Authored command/run configuration export requires JSON; source inspection does not execute a command".into(), ..Default::default() });
+                        primary = Some(Value::Null);
+                        return;
+                    }
                     LoadedInputAstStream::StudioProject(project) => {
                         if diagnostics
                             .iter()

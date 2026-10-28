@@ -1,8 +1,8 @@
 {
   "id": "portable-config",
   "name": "Portable configurations",
-  "version": "1.0.0",
-  "description": "Author native CLI command and run configurations, round-trip portable Studio manifests, and import/export a real project with relative resources, explicit build output and native ownership checks.",
+  "version": "1.0.1",
+  "description": "Inspect and format typed CLI command, run configuration and portable project sources without execution; build ordinary project-relative graphs and import/export independent projects.",
   "collections": [
     "content-types-schema-authoring",
     "content-types-queries-transformations"
@@ -240,11 +240,238 @@
       }
     },
     {
+      "id": "parse-command",
+      "name": "Parse command source",
+      "kind": "inspection",
+      "source": "card-command",
+      "description": "Parse original native control syntax and source ranges after typed validation; literal argv and resource paths remain inert.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.cli-command+json",
+        "--schema",
+        "https://cem.dev/ns/cli/command/1",
+        "--format",
+        "ast",
+        "--no-color",
+        "--fail-level",
+        "validate"
+      ],
+      "expectedText": [
+        "argv"
+      ]
+    },
+    {
+      "id": "inspect-command",
+      "name": "Inspect command source",
+      "kind": "inspection",
+      "source": "card-command",
+      "description": "Inspect the typed-admitted original control source and its owned URI/ranges without preparing commands or resolving resource paths.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.cli-command+json",
+        "--schema",
+        "https://cem.dev/ns/cli/command/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "argv"
+      ]
+    },
+    {
+      "id": "format-command",
+      "name": "Format command source",
+      "kind": "conversion",
+      "source": "card-command",
+      "description": "Format original JSON through the shared native writer, preserving authored fields, literal argv and relative paths without executing them.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.cli-command+json",
+        "--schema",
+        "https://cem.dev/ns/cli/command/1",
+        "--to-content-type",
+        "application/vnd.cem.cli-command+json",
+        "--to-schema",
+        "https://cem.dev/ns/cli/command/1",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "expectedText": [
+        "argv"
+      ]
+    },
+    {
+      "id": "validate-run-config",
+      "name": "Validate run config source",
+      "kind": "validation",
+      "source": "card-check",
+      "description": "Validate the authored run-config model and semantic constraints without normalizing a plan or reading configured inputs.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/cli/run-config/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
+      }
+    },
+    {
+      "id": "parse-run-config",
+      "name": "Parse run config source",
+      "kind": "inspection",
+      "source": "card-check",
+      "description": "Parse original native control syntax and source ranges after typed validation; literal argv and resource paths remain inert.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/cli/run-config/1",
+        "--format",
+        "ast",
+        "--no-color",
+        "--fail-level",
+        "validate"
+      ],
+      "expectedText": [
+        "data/card.xml"
+      ]
+    },
+    {
+      "id": "inspect-run-config",
+      "name": "Inspect run config source",
+      "kind": "inspection",
+      "source": "card-check",
+      "description": "Inspect the typed-admitted original control source and its owned URI/ranges without preparing commands or resolving resource paths.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/cli/run-config/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "data/card.xml"
+      ]
+    },
+    {
+      "id": "format-run-config",
+      "name": "Format run config source",
+      "kind": "conversion",
+      "source": "card-check",
+      "description": "Format original JSON through the shared native writer, preserving authored fields, literal argv and relative paths without executing them.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/cli/run-config/1",
+        "--to-content-type",
+        "application/json",
+        "--to-schema",
+        "https://cem.dev/ns/cli/run-config/1",
+        "--output-color-type",
+        "none",
+        "--no-color"
+      ],
+      "expectedText": [
+        "data/card.xml"
+      ]
+    },
+    {
+      "id": "parse-project-json",
+      "name": "Parse project json source",
+      "kind": "inspection",
+      "source": "project-json",
+      "description": "Parse original native control syntax and source ranges after typed validation; literal argv and resource paths remain inert.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.studio-project+json",
+        "--schema",
+        "https://cem.dev/ns/studio/project/1",
+        "--format",
+        "ast",
+        "--no-color",
+        "--fail-level",
+        "validate"
+      ],
+      "expectedText": [
+        "dispatch-card"
+      ]
+    },
+    {
+      "id": "inspect-project-json",
+      "name": "Inspect project json source",
+      "kind": "inspection",
+      "source": "project-json",
+      "description": "Inspect the typed-admitted original control source and its owned URI/ranges without preparing commands or resolving resource paths.",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.studio-project+json",
+        "--schema",
+        "https://cem.dev/ns/studio/project/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "dispatch-card"
+      ]
+    },
+    {
+      "id": "parse-project-cem",
+      "name": "Parse project cem source",
+      "kind": "inspection",
+      "source": "project-cem",
+      "description": "Parse original native control syntax and source ranges after typed validation; literal argv and resource paths remain inert.",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.studio-project+cem",
+        "--schema",
+        "https://cem.dev/ns/studio/project/1",
+        "--format",
+        "ast",
+        "--no-color",
+        "--fail-level",
+        "validate"
+      ],
+      "expectedText": [
+        "dispatch-card"
+      ]
+    },
+    {
       "id": "inspect-project-cem",
       "name": "Inspect project resources and configurations",
       "kind": "inspection",
       "source": "project-cem",
-      "description": "Inspect the generic imported CEM structure of the portable project source, including relative resource paths and explicit configuration references; this is not a typed project Parse export.",
+      "description": "Inspect the typed-admitted original CEM project syntax, resource paths, configuration references and owned UTF-8 ranges without generic HTML schema validation or project execution.",
       "argv": [
         "inspect",
         "$source",

@@ -801,6 +801,37 @@ pub fn try_retain_lifecycle(
 
 /// Import a retained parser AST into the same tree used by the data reader.
 pub fn retain_lifecycle(native: Arc<LoadedInputAstStream>) -> Result<Arc<RetainedCemTree>, String> {
+    if let LoadedInputAstStream::ControlDocument(doc) = native.as_ref() {
+        if doc.byte_length > MAX_DOCUMENT_BYTES {
+            return Err("Source exceeds the 16 MiB document import limit.".into());
+        }
+        match &doc.syntax {
+            crate::control_source::ControlSourceSyntax::Json(json) => {
+                validate_json_limits(json, MAX_DOCUMENT_VALUES).map_err(|e| e.to_string())?;
+                let mut builder = ImportBuilder::new();
+                builder.generic_data(&json.to_generic_data_ast())?;
+                return RetainedCemTree::new(
+                    builder.ast,
+                    &doc.uri,
+                    "",
+                    builder.semantics,
+                    Some(native.clone()),
+                );
+            }
+            crate::control_source::ControlSourceSyntax::Cem { document, text } => {
+                if document.nodes.len() > MAX_DOCUMENT_VALUES {
+                    return Err("Control source exceeds the retained document value limit.".into());
+                }
+                return RetainedCemTree::from_shared(
+                    document.clone(),
+                    &doc.uri,
+                    text,
+                    CemTreeSemantics::default(),
+                    Some(native.clone()),
+                );
+            }
+        }
+    }
     let (uri, format, length) = match native.as_ref() {
         LoadedInputAstStream::HtmlDocument(doc) => (doc.source.uri.clone(), doc.source.content_type.clone(), doc.source.byte_length),
         LoadedInputAstStream::XhtmlDocument(doc) => (

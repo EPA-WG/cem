@@ -258,6 +258,12 @@ pub fn parse_studio_project(
     content_type: &str,
     schema: &str,
 ) -> Result<StudioProject, StudioProjectError> {
+    parse_studio_project_with_syntax(bytes, content_type, schema).map(|(project, _)| project)
+}
+
+pub(crate) fn parse_studio_project_with_syntax(
+    bytes: &[u8], content_type: &str, schema: &str,
+) -> Result<(StudioProject, Option<crate::parser::document::CemDocument>), StudioProjectError> {
     if schema.trim() != STUDIO_PROJECT_SCHEMA_URI {
         return Err(studio_error(
             "cem.studio_project.schema_identity_unsupported",
@@ -270,16 +276,19 @@ pub fn parse_studio_project(
     }
 
     let content_type = content_type_essence(content_type);
-    let mut project = match content_type.as_str() {
-        STUDIO_PROJECT_CEM_CONTENT_TYPE => parse_studio_project_cem(bytes)?,
+    let (mut project, syntax) = match content_type.as_str() {
+        STUDIO_PROJECT_CEM_CONTENT_TYPE => {
+            let (project, syntax) = parse_studio_project_cem(bytes)?;
+            (project, Some(syntax))
+        },
         STUDIO_PROJECT_JSON_CONTENT_TYPE => {
-            serde_json::from_slice::<StudioProject>(bytes).map_err(|error| {
+            (serde_json::from_slice::<StudioProject>(bytes).map_err(|error| {
                 studio_error(
                     "cem.studio_project.invalid_json",
                     format!("Studio project JSON could not be parsed: {error}"),
                     None,
                 )
-            })?
+            })?, None)
         }
         other => {
             return Err(studio_error(
@@ -297,7 +306,7 @@ pub fn parse_studio_project(
             .get_or_insert_with(|| resource.path.clone());
     }
     validate_studio_project(&project)?;
-    Ok(project)
+    Ok((project, syntax))
 }
 
 pub fn studio_project_resource_uri(
@@ -553,7 +562,7 @@ pub fn validate_studio_project(project: &StudioProject) -> Result<(), StudioProj
     Ok(())
 }
 
-fn parse_studio_project_cem(bytes: &[u8]) -> Result<StudioProject, StudioProjectError> {
+fn parse_studio_project_cem(bytes: &[u8]) -> Result<(StudioProject, crate::parser::document::CemDocument), StudioProjectError> {
     let input = std::str::from_utf8(bytes).map_err(|error| {
         studio_error(
             "cem.studio_project.invalid_cem",
@@ -635,7 +644,7 @@ fn parse_studio_project_cem(bytes: &[u8]) -> Result<StudioProject, StudioProject
         }
     }
 
-    Ok(StudioProject {
+    let project = StudioProject {
         schema: STUDIO_PROJECT_SCHEMA_URI.to_owned(),
         schema_version: required_u32(&project_attrs, "schema-version", "schemaVersion")?,
         id: required_attr(&project_attrs, "id", "id")?,
@@ -647,7 +656,8 @@ fn parse_studio_project_cem(bytes: &[u8]) -> Result<StudioProject, StudioProject
         updated_at: required_attr(&project_attrs, "updated-at", "updatedAt")?,
         entries,
         resources,
-    })
+    };
+    Ok((project, document))
 }
 
 fn validate_studio_project_cem_identity(input: &str) -> Result<(), StudioProjectError> {

@@ -3473,7 +3473,23 @@ uses its native events before HTML lowering, so source offsets describe the
 authored Markdown. Refused structural inspections publish diagnostics without a
 partial output; their diagnostics view remains available. Ordinary previews and
 document conversion retain their existing rendering pipeline. Portable Studio
-project control-source adapters remain a separate tracked limitation.
+project and command/configuration control sources use the typed native adapters
+described below.
+
+Command JSON (`application/vnd.cem.cli-command+json`, CLI command schema v1),
+run-config JSON (`application/json`, `https://cem.dev/ns/cli/run-config/1`) and
+project JSON/CEM use shared native source adapters. Parse and all Inspect views
+retain original syntax, source identity, URI and ranges after typed validation.
+CEM project inspection shares the codec's parser allocation; it does not apply
+generic HTML schema checks. Source formatting uses native writers. Command and
+run-config JSON retain their submitted fields, while project conversion retains
+its existing reference-path normalization. Source operations never execute argv,
+normalize an execution plan, read configured inputs or import an inner project.
+The existing command/plan inspector and executable configurations remain the
+separate preparation/execution boundary. Version, malformed-source, forbidden
+project state and run-config semantic refusals preserve native diagnostics.
+Repair and rerun the saved source in place. Entered Login credentials still
+block recovery, with unchanged checkpoint/group budgets and deadlines.
 
 Login element-template validation now uses the same native embedding compiler
 in CLI and worker command services. Changing `dom:text(heading)` to
