@@ -5,7 +5,11 @@ export default [
   ...nx.configs['flat/typescript'],
   ...nx.configs['flat/javascript'],
   {
-    ignores: ['**/dist', '**/dist-schema-assets', '**/dist-schema-assets-wasm', '**/out-tsc', '**/vitest.config.*.timestamp*'],
+    ignores: [
+      '**/dist', '**/dist-schema-assets', '**/dist-schema-assets-wasm', '**/out-tsc', '**/vitest.config.*.timestamp*',
+      // Optional Studio deployment staging contains build-generated WASM bindings.
+      'packages/cem-studio/generated/schema-assets/**',
+    ],
   },
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],

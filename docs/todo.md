@@ -524,7 +524,13 @@ recovery checks pass. The deployment retains 898 files with all four WASM files
 below 25 MiB. Shared components, credential refusal and all recovery
 budgets/deadlines are unchanged.
 
-- [ ] Exclude generated schema-asset WASM glue from Studio's authored-source lint scope. The broad package lint currently reports 238 errors and five warnings in generated `cem_ql.js` / `cem_ql_factory.js`; linting Studio `src` and `scripts` passes. Preserve lint rules for authored code.
+Completed 2026-10-28: [Studio generated WASM glue lint scope](archive/todo-completed-studio-generated-glue-lint-2026-10-28.md)
+excludes only the build-owned `generated/schema-assets/` staging directory.
+The original 238 errors/five warnings reproduce before the repair; package-wide
+lint now passes with all 86 tracked authored JS/TS files covered. Source, script
+and root-config rules and error/warning probes remain intact. Uncached/cached
+lint, shared declarative components and isolated worker/fallback Login recovery
+pass. Runtime/UI behavior, credential refusal and all recovery limits are unchanged.
 
 - [ ] Pass the admitted original XSLT parser contract into CEM-QL bundle compilation, import discovery and name resolution. Preserve contextless optional-profile missing-schema refusal and complete-profile bounded execution; cover original-owned grammar/diagnostic rules, module limits, fresh runtime replay and source provenance before enabling optional-profile executable XSLT graphs.
 

@@ -212,6 +212,7 @@ security headers and service-worker scope.
 
 ```bash
 yarn nx run @epa-wg/cem-studio:build
+yarn nx run @epa-wg/cem-studio:lint
 yarn nx run @epa-wg/cem-studio:test:repository
 yarn nx run @epa-wg/cem-studio:test:file-system-provider
 yarn nx run @epa-wg/cem-studio:test:shell
@@ -223,6 +224,14 @@ The source/destination module-map pair declares every JavaScript, CSS, worker,
 and WASM byte copied into the static deployment. JSON manifests and the SVG icon
 are explicit typed graph imports/exports. There is no post-graph production-copy
 step.
+
+Package-wide lint covers authored source, scripts and root configuration with
+the shared workspace rules. It excludes `generated/schema-assets/`, the
+optional deployment's staging directory for generated WASM bindings and module
+maps, alongside the existing distribution-output exclusions. Change the native
+bindings or their build generator rather than editing staged glue. The shared
+ESLint config is an input to Studio's cached lint target, so exclusion/rule
+changes invalidate that cache.
 
 An opt-in deployment includes the optional native schema-package ABI and the
 complete pinned source pack:
