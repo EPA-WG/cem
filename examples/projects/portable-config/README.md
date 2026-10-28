@@ -89,8 +89,10 @@ and cross-encoding conversion retain the established project codec, including
 its reference-path normalization. None of these source operations execute argv,
 normalize an execution plan, read configured inputs or import the inner project.
 
-The printed coordinates remain distinct from owned artifact-source links:
-common Inspect does not yet publish those links to the Provenance selector.
+Native CEM-ML Parse/Inspect presentations publish owned artifact-source links
+through the common result and shared Provenance selector. Links bind original
+buffers and actual native ranges; printed JSON fields alone cannot grant a link.
+A saved change invalidates the captured revision until the command is rerun.
 The source Parse configurations explicitly request `--fail-level validate`;
 parse-only CLI policy remains available separately.
 The existing command inspector and `run-check` configuration still use the

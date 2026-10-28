@@ -203,7 +203,7 @@ fn push_children(
 fn covering_range(source: &SourceMapStack) -> Option<(u64, u64)> {
     let mut start = u64::MAX;
     let mut end = 0;
-    let spans = match &source.origin()?.span {
+    let spans = match &source.current()?.span {
         FrameSpan::Single(span) => std::slice::from_ref(span),
         FrameSpan::Multi(spans) => spans.as_slice(),
     };
@@ -284,7 +284,17 @@ pub(crate) fn cem_tree_events_with_identity(
                 ("value", "reference", None, Some(expression.as_str()))
             }
         };
-        let origin = ast_node_source_map(node);
+        let mut named_origin = ast_node_source_map(node).clone().with_source_uri(owner.source_uri());
+        if let Some(range) = owner.source_node_range(id) {
+            if let (Some(frame), Ok(len)) = (named_origin.current().cloned(), u32::try_from(range.length)) {
+                named_origin.push(crate::source_map::SourceMapFrame {
+                    source_id: frame.source_id,
+                    span: FrameSpan::Single(crate::source::ByteRange::new(range.offset, len)),
+                    transform: crate::source_map::TransformKind::SourceBoundary { uri: owner.source_uri().into() },
+                });
+            }
+        }
+        let origin = &named_origin;
         let mut attributes = vec![
             projection_attribute("sequence", rows.len().to_string(), origin),
             projection_attribute("kind", kind, origin),

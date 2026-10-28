@@ -2503,16 +2503,29 @@ describe('Project-owned workbench loading', () => {
         return repository;
     }
 
-    async function provenanceFixture(uri = 'studio://alpha/extra.cem', range = { start: 9, len: 11 }, kind = 'SourceBoundary') {
+    async function provenanceFixture(uri = 'studio://alpha/extra.cem', range = { start: 9, len: 11 }, kind = 'SourceBoundary', ownedArtifact = false, ownedCount = 1) {
         const source = '// café\n{p | target}';
         const repository = await fixture('alpha', false, true, source);
         const validator = validatorFor(validResult());
         validator.parseResource.mockImplementation(async () => {
             const outcome = projectionOutcome('parse', 'ast');
-            outcome.result.sourceMaps.items.push({ sourceMapId: 'named-origin', sourceMap: { storage: 'inline', value: { frames: [
+            if (ownedArtifact) {
+                Object.assign(outcome.output, { handleId: 42, sourceMapId: 'named-origin' });
+                // Debug body fields have no authority to invent source locations.
+                outcome.result.result.value.value.body = { 'source-id': 'never://forged', 'byte-offset': 9999 };
+            }
+            outcome.result.sourceMaps.items.push({ sourceMapId: 'named-origin',
+                ...(ownedArtifact ? { owner: { kind: 'artifact', handleId: 42 }, outputRange: { start: 2, len: 4 } } : {}), sourceMap: { storage: 'inline', value: { frames: [
                 { source_id: 1, span: { kind: 'Single', ranges: range }, transform: kind === 'ScssOrigin'
                     ? { kind, module_uri: uri, origin_kind: 'definition', name: '$accent' } : { kind, uri } },
             ] } } });
+            for (let i = 1; i < ownedCount; i++) {
+                const reference = structuredClone(outcome.result.sourceMaps.items[0]);
+                reference.sourceMapId = `named-origin:${i}`;
+                reference.sourceMap.value.frames[0].source_id = i + 1;
+                outcome.result.sourceMaps.items.push(reference);
+            }
+            outcome.result.sourceMaps.originalCount = outcome.result.sourceMaps.items.length;
             return outcome;
         });
         const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
@@ -2523,6 +2536,47 @@ describe('Project-owned workbench loading', () => {
         await workbench.openEntity('project=alpha&file=source');
         return { source, repository, session, workbench };
     }
+
+    it('projects owned Parse/Inspect writer references into artifact provenance and original source selection', async () => {
+        const { workbench, session } = await provenanceFixture(undefined, undefined, undefined, true);
+        await workbench.parsePersisted('ast');
+        const projection = workbench.snapshot().projection;
+        expect(projection.buildRun.artifacts[0].provenance).toEqual([expect.objectContaining({
+            uri: 'studio://alpha/extra.cem', range: { start: 9, len: 11 }, outputRange: { start: 2, len: 4 }, outputUri: 'cem-stdio://stdout',
+        })]);
+        expect(projection.provenance).toEqual(projection.buildRun.artifacts[0].provenance);
+        await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().navigationError).toBeUndefined();
+        expect(session.snapshot().selection.resourceId).toBe('extra');
+        expect(workbench.snapshot().selection).toMatchObject({ kind: 'provenance', byteStart: 9, byteLength: 11 });
+    });
+
+    it('keeps every bounded owned provenance row accessible in the declarative selector', async () => {
+        const { workbench, session } = await provenanceFixture(undefined, undefined, undefined, true, CEM_STUDIO_LIMITS.structuredRows);
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        await workbench.parsePersisted('ast'); await view.whenSettled();
+        const list = root.querySelector('cem-list[data-provenance-list] select');
+        expect(list.options).toHaveLength(CEM_STUDIO_LIMITS.structuredRows);
+        expect(workbench.snapshot().projection.buildRun.artifacts[0].sourceMaps).toHaveLength(CEM_STUDIO_LIMITS.structuredRows);
+        expect(list.options[list.options.length - 1].textContent).toContain('source bytes 9–20');
+        list.value = String(list.options.length - 1); list.dispatchEvent(new Event('change', { bubbles: true }));
+        await view.whenSettled();
+        expect(workbench.snapshot().navigationError).toBeUndefined();
+        expect(session.snapshot().selection.resourceId).toBe('extra');
+        expect(workbench.snapshot().selection).toMatchObject({ kind: 'provenance', byteStart: 9, byteLength: 11 });
+        view.dispose(); root.remove();
+        await workbench.refreshNavigation();
+    });
+
+    it('refuses stale owned presentation provenance after the original resource changes', async () => {
+        const { repository, workbench } = await provenanceFixture(undefined, undefined, undefined, true);
+        await workbench.parsePersisted('ast');
+        await repository.execute(request('save-resource', { projectId: 'alpha', resourceId: 'extra', expectedProjectRevision: 1, expectedResourceRevision: 1, content: 'changed' }));
+        await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().navigationError.message).toContain('stale');
+        expect(workbench.snapshot().selection).toBeUndefined();
+    });
 
     async function queryProvenanceFixture({ frames, stacks, diagnosticFrames, range = { start: 9, len: 11 } } = {}) {
         const source = '// café\n{p | target}', uri = 'studio://alpha/queries/report.xpath';

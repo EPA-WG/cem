@@ -616,10 +616,13 @@ Same-host repeat/offline results remain byte-stable. Sealed native chunk replay
 remains a typed engine operation. No JSON AST
 parse/serialize/reparse step supplies evaluation or rendering. Original UTF-8
 ranges remain distinct from numeric fields inside imported projection JSON.
-Parse/Inspect retains those coordinates in its CEM-ML presentation but currently
-publishes no owned artifact-source references to the Provenance panel. This
-project follows actual native diagnostic ranges through the shared Diagnostics
-selector; it never manufactures links from inspection data fields.
+CEM-ML Parse/Inspect presentations retain typed native writer provenance through
+publication. The shared Provenance selector follows admitted original buffers and
+native UTF-8 ranges, including a representative output span for each distinct
+range. Source and writer-byte witnesses, artifact ownership and project revision
+checks keep these links separate from printed fields in explicit JSON/binary
+exports. Actual diagnostic navigation remains available independently. Generated
+or anonymous origins have no fabricated endpoint.
 
 DOM/AST/events JSON exports pass their registered shape validators. Native AST
 export uses the semantic document envelope and native node fields; the separate

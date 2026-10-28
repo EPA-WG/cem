@@ -114,12 +114,18 @@ CEM buffer and no right to navigate it. This project's source navigation uses
 native diagnostic ranges and admitted buffer identities separately. Shape
 validation grants no resource read, code execution or HTML preview authority.
 
-Native Parse/Inspect currently prints original coordinates but does not publish
-owned source-map references through the common command result. Its Provenance
-panel therefore has no artifact-source links. Those printed fields must not be
-reinterpreted as navigation metadata. Use the native `repair-source` diagnostic
-in Results → Diagnostics to select the original CEM range before repairing it.
-Publishing native inspection provenance is a separate engine follow-up.
+Native CEM-ML Parse/Inspect presentations now publish bounded artifact-owned
+source references through the common command result. Results → Provenance opens
+the admitted original resource and its native UTF-8 range. Writer spans and input
+identity are retained natively; Studio never reads AST data fields to invent a
+link. A representative output span accompanies each distinct source range; it
+is not a promise of character-for-character mapping through formatting or
+escaping. Rerun after saving changes: stale project revisions cannot be followed.
+
+Explicit JSON and binary exports retain their separate data/codec contracts and
+do not gain source-navigation authority from printed fields. Summary or generated
+content without a named native boundary has no fabricated endpoint. The
+`repair-source` diagnostic remains a separate original-range navigation path.
 
 ## Failure, repair and saved copies
 

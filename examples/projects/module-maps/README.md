@@ -58,9 +58,10 @@ reading its maps or running deployment. JSON-backed Parse and Inspect use the
 retained native data import and preserve the selected map schema/MIME, without
 retokenizing JSON as CEM. These operations refuse the same selected-version
 semantic errors. Pair matching, output containment and resource reads remain
-separate deployment-plan checks. Standalone Inspect coordinates remain
-presentation facts. They do not populate Studio's Provenance selector, whose owned source-map references are
-absent from current common Inspect publication.
+separate deployment-plan checks. Standalone CEM-ML Parse/Inspect presentations now publish native source-owned
+references to Studio's Provenance selector. Those references bind the admitted
+original map bytes and native ranges to the published artifact. Printed fields
+in an explicit JSON export remain data and cannot grant navigation or reads.
 
 `repair-semantic-v1`, `repair-semantic-v2` and `repair-semantic-v3` exercise
 syntactically valid maps containing a forbidden `./invalid` identity. The native

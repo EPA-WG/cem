@@ -151,11 +151,21 @@ describe('CEM Studio Feature Tour copies', () => {
             const outcome = await run(id);
             expect(outcome.output.contentType).toBe('application/cem'); expect(outcome.output.text).not.toContain('\u001b[');
             expect(outcome.output.text).toContain('studio://projection-boundaries/');
+            const artifact = outcome.result.artifacts.items[0], maps = outcome.result.sourceMaps.items;
+            expect(maps.length).toBeGreaterThan(0);
+            expect(maps.some(reference => reference.sourceMapId === artifact.sourceMapId)).toBe(true);
+            for (const reference of maps) {
+                expect(reference.owner).toEqual({ kind: 'artifact', handleId: artifact.handleId });
+                expect(reference.outputRange.start + reference.outputRange.len).toBeLessThanOrEqual(artifact.byteLength);
+                expect(reference.sourceMap.value.frames.every(frame => frame.transform.kind === 'SourceBoundary'
+                    && frame.transform.uri.startsWith('studio://projection-boundaries/'))).toBe(true);
+            }
         }
         for (const family of ['dom', 'ast', 'events']) {
             const resource = bundle.project.resources.find(item => item.id === `${family}-binary`);
             const native = await run(`export-${family}-binary`);
             expect(native.output.bytes).toEqual(bundle.contents[resource.id]);
+            expect(native.result.sourceMaps.items).toEqual([]);
             expect(native.output.contentType).toBe(resource.contentType);
             const validation = { bytes: native.output.bytes, uri: `studio://projection-boundaries/${resource.path}`,
                 contentType: resource.contentType, schema: resource.schema, resourceScheme: 'studio', projectId: 'projection-boundaries', projectRootUri: 'studio://projection-boundaries/' };

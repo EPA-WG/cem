@@ -34,6 +34,8 @@ export async function verifyNativeProjectionProject({ page, context, url }) {
             text: current.projection?.output?.text, bytes: current.projection?.output?.bytes && Array.from(current.projection.output.bytes),
             previewKind: current.projection?.preview?.kind, outputType: current.projection?.output?.contentType,
             provenance: current.projection?.provenance, selection: current.selection,
+            artifacts: current.projection?.buildRun.artifacts.map(artifact => ({ uri: artifact.uri, handleId: artifact.handleId,
+                sourceMapId: artifact.sourceMapId, byteLength: artifact.byteLength, sourceMaps: artifact.sourceMaps, provenance: artifact.provenance })),
             diagnostics: current.projection?.diagnostics ?? current.validation?.diagnostics };
     });
     const sampleRoute = file => ({ collection: definition.collections[0], sample: id, ...(file ? { file } : {}) });
@@ -181,11 +183,27 @@ export async function verifyNativeProjectionProject({ page, context, url }) {
         assert.equal(current.status, 'read-only'); assert.equal(current.editable, false); assert.equal(current.runnable, false);
         assert.equal(await page.getByRole('textbox', { name: 'CEM source', exact: true }).count(), 0); await downloadSource(source);
     }
-    const inspected = await run(project, 'inspect-xml');
-    // Native inspection prints original coordinates but does not yet publish
-    // owned artifact-source references. Do not turn those data fields into links.
-    assert.deepEqual(inspected.provenance, []);
-    assert.ok(inspected.text.includes(`studio://${project}/${resource('xml-source').path}`));
+    const followOwnedPresentation = async (project, configuration, source, original) => {
+        const inspected = await run(project, configuration), uri = `studio://${project}/${resource(source).path}`;
+        const index = inspected.provenance.findIndex(frame => frame.uri === uri && frame.range.start > 0 && frame.range.len > 0);
+        assert.ok(index >= 0, `${configuration}: original native range is missing`);
+        const frame = inspected.provenance[index], artifact = inspected.artifacts[0];
+        assert.ok(artifact.provenance.length > 0);
+        assert.ok(artifact.sourceMaps.every(map => map.owner.kind === 'artifact' && map.owner.handleId === artifact.handleId));
+        assert.ok(frame.outputRange.start + frame.outputRange.len <= artifact.byteLength);
+        assert.ok(frame.range.start + frame.range.len <= Buffer.byteLength(original));
+        await resultsTab('Provenance');
+        await page.getByRole('listbox', { name: 'Source-map provenance', exact: true }).selectOption(String(index)); await settle();
+        const followed = await state();
+        assert.equal(followed.navigationError, undefined); assert.equal(followed.resourceId, source);
+        assert.equal(followed.selection.kind, 'provenance');
+        assert.equal(followed.selection.byteStart, frame.range.start); assert.equal(followed.selection.byteLength, frame.range.len);
+        const selected = await editor.evaluate(() => getSelection().toString());
+        assert.equal(selected, Buffer.from(original).subarray(frame.range.start, frame.range.start + frame.range.len).toString('utf8'));
+        return inspected;
+    };
+    await followOwnedPresentation(project, 'inspect-xml', 'xml-source', text('xml-source'));
+    await followOwnedPresentation(project, 'parse-ast', 'cem-source', text('cem-source'));
 
     const originalEvents = await run(project, 'export-events-json'), oldRange = unicodeEvent(originalEvents, text('cem-source'), 'Café Noord');
     const editedText = 'Café Haven and Århus', edited = text('cem-source').replace('Café Noord', editedText);
@@ -226,6 +244,8 @@ export async function verifyNativeProjectionProject({ page, context, url }) {
             const result = await run(copy, name); assert.equal(result.status, 'projected');
             assert.ok(result.text.startsWith('@doc cem-ml 1'));
         }
+        await followOwnedPresentation(copy, 'parse-events', 'cem-source', copiedSource);
+        await followOwnedPresentation(copy, 'inspect-xml', 'xml-source', text('xml-source'));
         unicodeEvent(await run(copy, 'export-events-json'), copiedSource, copiedText);
         for (const configuration of definition.configurations.filter(item => item.repair)) assert.equal((await run(copy, configuration.id)).status, 'valid');
         for (const [name, expected] of Object.entries({ ...repaired, 'cem-source': copiedSource })) {

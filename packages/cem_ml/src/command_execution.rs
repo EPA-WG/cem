@@ -263,6 +263,11 @@ pub async fn execute_prepared_command_with_artifacts_v1<E: CemMlEngine + ?Sized>
                             .collect();
                         result.artifacts =
                             bounded(artifacts, limits.operation_host.max_artifact_references);
+                        for reference in &mut result.source_maps.items {
+                            if let Some(artifact) = result.artifacts.items.iter().find(|artifact| artifact.source_map_id.as_deref().is_some_and(|id| reference.source_map_id == id || reference.source_map_id.starts_with(&format!("{id}:")))) {
+                                reference.owner = CommandSourceMapOwnerV1::Artifact { handle_id: artifact.handle_id };
+                            }
+                        }
                         debug_assert!(validate_command_service_result_v1(&result, limits).is_ok());
                         (success_outcome_with_disposition(result, retained), Some(()))
                     }
@@ -497,17 +502,28 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
             let refused = response.primary_bytes.is_none()
                 && response.primary.is_null()
                 && diagnostics.iter().any(|d| d.severity.is_hard_violation());
-            let items = if refused {
+            let mut items = if refused {
                 Vec::new()
             } else {
-                output_items(plan, response.primary_bytes.as_ref(), &response.primary, "parse-output")?
+                output_items(
+                    plan,
+                    response.primary_bytes.as_ref(),
+                    &response.primary,
+                    "parse-output",
+                )?
             };
+            let source_maps = primary_source_maps(
+                request,
+                response.primary_bytes.as_ref(),
+                &mut items,
+                "parse",
+            );
             Ok(product(
                 PortableOperationResultV1::Parse(response),
                 diagnostics,
                 plan,
                 items,
-                Vec::new(),
+                source_maps,
             )?)
         }
         PreparedPortableOperationV1::Validate(engine_request) => {
@@ -549,7 +565,7 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
                     .diagnostics
                     .iter()
                     .any(|d| d.severity.is_hard_violation());
-            let items = if refused {
+            let mut items = if refused {
                 Vec::new()
             } else if matches!(
                 request.operation,
@@ -558,7 +574,8 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
                     ..
                 }
             ) {
-                let bytes = serde_json::to_vec_pretty(&response.body).map_err(serialization_failure)?;
+                let bytes =
+                    serde_json::to_vec_pretty(&response.body).map_err(serialization_failure)?;
                 let mut items = encoded_output_items(plan, "application/json", &bytes);
                 for item in &mut items {
                     if item.uri == crate::command_invocation::STDOUT_RESOURCE_URI {
@@ -574,12 +591,18 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
                     "inspect-output",
                 )?
             };
+            let source_maps = primary_source_maps(
+                request,
+                response.primary_bytes.as_ref(),
+                &mut items,
+                "inspect",
+            );
             let mut product = product(
                 PortableOperationResultV1::Inspect(response),
                 diagnostics,
                 plan,
                 items,
-                Vec::new(),
+                source_maps,
             )?;
             // Inspect reports source errors without becoming a validation
             // command. A refused structural presentation still fails.
@@ -590,7 +613,8 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
             let mut results = Vec::with_capacity(outputs.len());
             let mut diagnostics = Vec::new();
             let mut items = Vec::new();
-            for output in outputs {
+            let mut source_maps = Vec::new();
+            for (output_index, output) in outputs.into_iter().enumerate() {
                 let PreparedCommandOutputV1 {
                     output_id,
                     destination,
@@ -600,7 +624,7 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
                 let response = engine.convert(engine_request).map_err(engine_failure)?;
                 diagnostics.extend(response.diagnostics.clone());
                 if let Some(uri) = destination.as_deref() {
-                    items.push(publication_item(
+                    let mut item = publication_item(
                         output_id.as_deref().unwrap_or("convert-output"),
                         uri,
                         CommandArtifactKindV1::Output,
@@ -608,7 +632,14 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
                         response.primary_bytes.as_ref(),
                         target.as_ref(),
                         &response.primary,
-                    )?);
+                    )?;
+                    source_maps.extend(primary_source_maps(
+                        request,
+                        response.primary_bytes.as_ref(),
+                        std::slice::from_mut(&mut item),
+                        &format!("convert-{output_index}"),
+                    ));
+                    items.push(item);
                 }
                 results.push(CommandOutputResultV1 {
                     output_id,
@@ -623,7 +654,7 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
                 diagnostics,
                 plan,
                 items,
-                Vec::new(),
+                source_maps,
             )?)
         }
         PreparedPortableOperationV1::Query(query) => {
@@ -841,8 +872,13 @@ fn product(
     diagnostics: Vec<Diagnostic>,
     plan: Option<&NormalizedRunPlan>,
     mut publication_items: Vec<CommandPublicationItemV1>,
-    source_maps: Vec<CommandSourceMapReferenceV1>,
+    mut source_maps: Vec<CommandSourceMapReferenceV1>,
 ) -> Result<ExecutionProduct, ExecutionFailure> {
+    source_maps.sort_by_key(|reference| {
+        !publication_items
+            .iter()
+            .any(|item| item.source_map_id.as_deref() == Some(reference.source_map_id.as_str()))
+    });
     let report = plan.map(|plan| report_for(plan, diagnostics.clone()));
     if let (Some(plan), Some(report)) = (plan, report.as_ref()) {
         publication_items.extend(report_items(plan, report)?);
@@ -878,6 +914,63 @@ fn product_with_report(
         source_maps,
         force_hard_failure,
     })
+}
+
+/// Publish source-owned metadata from typed native writer output, not `primary` JSON.
+fn primary_source_maps(
+    request: &CommandServiceRequestV1,
+    primary: Option<&PrimaryBytes>,
+    items: &mut [CommandPublicationItemV1],
+    prefix: &str,
+) -> Vec<CommandSourceMapReferenceV1> {
+    let Some(primary) = primary else {
+        return Vec::new();
+    };
+    let Some(provenance) = &primary.provenance else {
+        return Vec::new();
+    };
+    let Some(source) = request.resources.get(provenance.source_uri()) else {
+        return Vec::new();
+    };
+    let spans = provenance.admitted_spans(&source.bytes, &primary.bytes);
+    let mut maps = Vec::new();
+    for (index, item) in items.iter_mut().enumerate() {
+        // Publication may choose a different encoding for an explicit output.
+        if item.bytes != primary.bytes {
+            continue;
+        }
+        let id = format!("native-{prefix}-source-map-{index}");
+        let mut seen = std::collections::BTreeSet::new();
+        for span in &spans {
+            for frame in &span.origin.frames {
+                let FrameSpan::Single(range) = frame.span else {
+                    continue;
+                };
+                if !seen.insert((frame.source_id.0, range.start, range.len)) {
+                    continue;
+                }
+                let map_id = if seen.len() == 1 {
+                    id.clone()
+                } else {
+                    format!("{id}:{}", seen.len() - 1)
+                };
+                maps.push(CommandSourceMapReferenceV1 {
+                    output_range: Some(span.output_range),
+                    source_map_id: map_id,
+                    owner: CommandSourceMapOwnerV1::Result,
+                    source_map: CommandPayloadV1::Inline {
+                        value: SourceMapStack {
+                            frames: vec![frame.clone()],
+                        },
+                    },
+                });
+            }
+        }
+        if !seen.is_empty() {
+            item.source_map_id = Some(id);
+        }
+    }
+    maps
 }
 
 fn output_items(
@@ -1065,6 +1158,7 @@ fn query_source_is_explicit_text(identity: &FormatIdentity) -> bool {
 
 fn source_map_reference(id: &str, source_map: SourceMapStack) -> CommandSourceMapReferenceV1 {
     CommandSourceMapReferenceV1 {
+        output_range: None,
         source_map_id: id.to_owned(),
         owner: CommandSourceMapOwnerV1::Result,
         source_map: CommandPayloadV1::Inline { value: source_map },
@@ -1331,6 +1425,243 @@ mod tests {
     use super::*;
 
     #[test]
+    fn owned_native_presentations_publish_original_source_provenance() {
+        for (mime, schema, text) in [
+            (
+                "application/cem",
+                "https://cem.dev/ns/cem-ml/1",
+                "{p @title=Ready | Café}\r\n",
+            ),
+            (
+                "application/xml",
+                "https://cem.dev/ns/data/xml/1",
+                "<p title=\"Ready\">Café</p>\r\n",
+            ),
+            (
+                "application/json",
+                "https://cem.dev/ns/data/json/1",
+                "{\"message\":\"Café\",\"byte-offset\":9999,\"source-id\":\"never://foreign\"}\r\n",
+            ),
+            (
+                "application/vnd.cem.xpath",
+                "https://cem.dev/ns/query/xpath/1",
+                "//item[@name = 'Café']\r\n",
+            ),
+            (
+                "text/markdown",
+                "https://cem.dev/ns/data/markdown/1",
+                "# Café\r\n\r\nOwned text.\r\n",
+            ),
+        ] {
+            for operation in [
+                PortableOperationRequestV1::Parse {
+                    input_id: "input:0".into(),
+                    projection: ParseProjection::Ast,
+                    preserve_source_offsets: true,
+                },
+                PortableOperationRequestV1::Parse {
+                    input_id: "input:0".into(),
+                    projection: ParseProjection::Events,
+                    preserve_source_offsets: true,
+                },
+                PortableOperationRequestV1::Inspect {
+                    input_id: "input:0".into(),
+                    show: InspectView::Ast,
+                    format: None,
+                },
+                PortableOperationRequestV1::Convert {
+                    input_id: "input:0".into(),
+                    to_format: crate::engine::LayerFormat::Cem,
+                    preserve_source_offsets: true,
+                },
+            ] {
+                let mut request = fixture_request(false);
+                request.resources.get_mut(DATA_URI).unwrap().bytes = text.as_bytes().to_vec();
+                request.resource_versions.get_mut(DATA_URI).unwrap().sha256 =
+                    sha256_hex(text.as_bytes());
+                if matches!(operation, PortableOperationRequestV1::Convert { .. })
+                    && !matches!(mime, "application/cem" | "application/xml")
+                {
+                    continue;
+                }
+                request.operation = operation;
+                let output_mime = "application/cem";
+                let operation_label = format!("{:?}", request.operation);
+                request.run_plan = parse_normalized_run_plan(NormalizedRunPlanRequest {
+                    input_records: vec![format!("uri={DATA_URI},contentType={mime},schema={schema}")],
+                    output_records: vec![format!(
+                        "input={DATA_URI},dest={OUTPUT_URI},contentType={output_mime}"
+                    )],
+                    ..Default::default()
+                })
+                .unwrap()
+                .into();
+                assert!(
+                    request.run_plan.plan().unwrap().diagnostics.is_empty(),
+                    "{:?}",
+                    request.run_plan.plan().unwrap().diagnostics
+                );
+                let prepared = crate::command_operation::prepare_command_operation_v1(
+                    &request,
+                    CommandServiceLimitsV1::default(),
+                    &EngineContext::default(),
+                    &capability(),
+                )
+                .unwrap();
+                let product = execute_operation(
+                    &crate::real::RealCemMlEngine,
+                    &request,
+                    prepared,
+                    &QueryResultExporterRegistry::new(),
+                    CommandServiceLimitsV1::default(),
+                )
+                .unwrap_or_else(|_| panic!("native source operation"));
+                assert!(
+                    !product
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.severity.is_hard_violation()),
+                    "{mime}: {:?}",
+                    product.diagnostics
+                );
+                assert!(
+                    !product.source_maps.is_empty(),
+                    "{mime} {operation_label}: native writer provenance was lost"
+                );
+                assert!(product.publication_items[0]
+                    .source_map_id
+                    .as_ref()
+                    .is_some_and(|id| product.source_maps.iter().any(|r| &r.source_map_id == id)));
+                let mut precise = false;
+                for reference in &product.source_maps {
+                    let CommandPayloadV1::Inline { value: stack } = &reference.source_map else {
+                        panic!("inline bounded map");
+                    };
+                    for frame in &stack.frames {
+                        if let TransformKind::SourceBoundary { uri } = &frame.transform {
+                            assert_eq!(uri, DATA_URI, "serialized source fields and formatter modules confer no source identity");
+                            let FrameSpan::Single(range) = frame.span else {
+                                panic!("native range");
+                            };
+                            assert!(range.start + u64::from(range.len) <= text.len() as u64);
+                            assert!(text.is_char_boundary(range.start as usize));
+                            assert!(
+                                text.is_char_boundary((range.start + u64::from(range.len)) as usize)
+                            );
+                            precise |= range.start > 0 && range.len > 0;
+                        }
+                    }
+                }
+                assert!(
+                    precise,
+                    "{mime}: whole-input metadata cannot substitute for native source ranges"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn owned_native_source_maps_follow_atomic_artifacts_and_bounded_fanout() {
+        let mut limits = CommandServiceLimitsV1::default();
+        limits.operation_host.max_artifact_references = 64;
+        for stale in [false, true] {
+            let text = format!(
+                "{{p {} | Café}}\r\n",
+                (0..80)
+                    .map(|i| format!("@a{i}=v{i}"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            );
+            let mut request = fixture_request(true);
+            request.operation = PortableOperationRequestV1::Parse {
+                input_id: "input:0".into(),
+                projection: ParseProjection::Ast,
+                preserve_source_offsets: true,
+            };
+            request.resources.get_mut(DATA_URI).unwrap().bytes = text.as_bytes().to_vec();
+            request.resource_versions.get_mut(DATA_URI).unwrap().sha256 = sha256_hex(text.as_bytes());
+            request.run_plan = parse_normalized_run_plan(NormalizedRunPlanRequest {
+                input_records: vec![format!(
+                    "uri={DATA_URI},contentType=application/cem,schema=https://cem.dev/ns/cem-ml/1"
+                )],
+                output_records: [OUTPUT_URI.to_owned(), format!("{OUTPUT_URI}.second")]
+                    .into_iter()
+                    .map(|uri| format!("input={DATA_URI},dest={uri},contentType=application/cem"))
+                    .collect(),
+                ..Default::default()
+            })
+            .unwrap()
+            .into();
+            let control = OperationControl::new(AbortSignal::new());
+            let prepared = crate::command_operation::prepare_command_operation_v1(
+                &request,
+                limits,
+                &fixture_context(&control),
+                &capability(),
+            )
+            .unwrap();
+            let mut fixture_ledger = ledger(&request);
+            if stale {
+                fixture_ledger.value.project.revision += 1;
+            }
+            let (operation, terminal_publisher) =
+                OperationHandle::new(control, limits.operation_host).unwrap();
+            let mut subscription = operation
+                .subscribe(EventSubscriptionOptions::default())
+                .unwrap();
+            let invocation = Box::new(PreparedCommandServiceInvocationV1 {
+                request: Box::new(request),
+                prepared,
+                operation,
+                terminal_publisher,
+            });
+            let claim = block_on(execute_prepared_command_v1(
+                &crate::real::RealCemMlEngine,
+                invocation,
+                &fixture_ledger,
+                &FixtureWriter::default(),
+                &QueryResultExporterRegistry::new(),
+                &capability(),
+                limits,
+            ))
+            .unwrap();
+            let result = succeeded_result(&claim);
+            if stale {
+                assert_eq!(result.status, CommandServiceStatusV1::Stale);
+                assert!(result.artifacts.items.is_empty());
+                assert!(result.source_maps.items.is_empty());
+            } else {
+                assert_eq!(
+                    result.status,
+                    CommandServiceStatusV1::Succeeded,
+                    "{:?}",
+                    result.diagnostics
+                );
+                assert_eq!(result.artifacts.items.len(), 2);
+                assert!(result.source_maps.original_count > result.source_maps.items.len() as u32);
+                for artifact in &result.artifacts.items {
+                    let reference = result
+                        .source_maps
+                        .items
+                        .iter()
+                        .find(|r| Some(&r.source_map_id) == artifact.source_map_id.as_ref())
+                        .expect("each bounded fanout retains its primary map");
+                    assert!(
+                        matches!(reference.owner, CommandSourceMapOwnerV1::Artifact { handle_id } if handle_id == artifact.handle_id)
+                    );
+                }
+                assert!(result
+                    .source_maps
+                    .items
+                    .iter()
+                    .all(|r| matches!(r.owner, CommandSourceMapOwnerV1::Artifact { .. })));
+                validate_command_service_result_v1(result, limits).unwrap();
+            }
+            assert_eq!(terminal_count(&mut subscription), 1);
+        }
+    }
+
+    #[test]
     fn collection_manifest_bytes_match_cli_without_moving_inline_provenance() {
         let primary: Value = serde_json::from_slice(include_bytes!(
             "../tests/fixtures/graph-output/collection-control.json"
@@ -1508,6 +1839,7 @@ mod tests {
                         }),
                         primary: value,
                         primary_bytes: explicit.map(|bytes| PrimaryBytes {
+                            provenance: None,
                             content_type: "application/json; charset=utf-8".into(),
                             schema: None,
                             format_version: "explicit-test/1".into(),
@@ -1559,6 +1891,7 @@ mod tests {
                     }),
                     primary: json!({"kind":"resource", "byteLength":bytes.len()}),
                     primary_bytes: Some(PrimaryBytes {
+                        provenance: None,
                         content_type: "application/octet-stream".into(),
                         schema: None,
                         format_version: "raw-resource/1".into(),
@@ -2067,6 +2400,7 @@ mod tests {
             CommandServiceLimitsV1::default(),
         )
         .unwrap_or_else(|_| panic!("named JSON inspection must execute"));
+        assert!(product.source_maps.is_empty(), "explicit JSON coordinates confer no writer witness");
         let PortableOperationResultV1::Inspect(response) = product.operation_result else {
             panic!("inspect keeps its typed result envelope");
         };

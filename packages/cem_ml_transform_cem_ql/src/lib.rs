@@ -2239,6 +2239,7 @@ fn convert_cem_ql_source_output(
         cem_ql_direct_output_primary_identity(Some(&output_identity), html_output);
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: None,
         content_type,
         schema: Some(schema.clone()),
         format_version,

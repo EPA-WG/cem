@@ -1461,6 +1461,47 @@ impl CemTreeAstStream {
         self.project_values = None;
     }
 
+    /// Only a native input producer may name its original syntax before writing.
+    /// Existing foreign boundaries retain their own identities.
+    pub(crate) fn with_original_source_uri(mut self, uri: &str) -> Self {
+        fn bind(node: &mut CemTreeAstNode, uri: &str) {
+            let source = match node {
+                CemTreeAstNode::Document { source, .. }
+                | CemTreeAstNode::Element { source, .. }
+                | CemTreeAstNode::Text { source, .. }
+                | CemTreeAstNode::Whitespace { source, .. }
+                | CemTreeAstNode::Comment { source, .. }
+                | CemTreeAstNode::ProcessingInstruction { source, .. }
+                | CemTreeAstNode::Cdata { source, .. }
+                | CemTreeAstNode::RawText { source, .. }
+                | CemTreeAstNode::Error { source, .. }
+                | CemTreeAstNode::WriterToken { source, .. } => source,
+            };
+            *source = source.clone().with_source_uri(uri);
+            if let CemTreeAstNode::Element { attributes, .. } = node {
+                for attribute in attributes {
+                    attribute.source = attribute.source.clone().with_source_uri(uri);
+                    for value in &mut attribute.value_nodes {
+                        bind(value, uri);
+                    }
+                }
+            }
+            if let CemTreeAstNode::Document { children, .. }
+            | CemTreeAstNode::Element { children, .. } = node
+            {
+                for child in children {
+                    bind(child, uri);
+                }
+            }
+        }
+        let mut nodes = self.as_nodes().to_vec();
+        for node in &mut nodes {
+            bind(node, uri);
+        }
+        self.nodes = Arc::new(std::sync::OnceLock::from(nodes));
+        self
+    }
+
     pub fn into_cemt_subject(self) -> Value {
         Value::Array(
             self.as_nodes()
@@ -2615,7 +2656,7 @@ pub fn normalized_events_cem_presentation_stream(
         .enumerate()
         .map(|(sequence, event)| {
             let (kind, name, value, byte_range) = normalized_event_presentation_fields(event);
-            let source = projection_source_map(byte_range, content_type);
+            let source = projection_source_map(byte_range, content_type).with_source_uri(source_uri);
             let mut attributes = vec![
                 projection_attribute("sequence", sequence.to_string(), &source),
                 projection_attribute("kind", kind, &source),
@@ -2811,6 +2852,24 @@ pub fn projection_node(
     source_range: Option<(u64, u64)>,
     source: SourceMapStack,
 ) -> CemTreeAstNode {
+    let source = source_range
+        .and_then(|(start, len)| u32::try_from(len).ok().map(|len| (start, len)))
+        .map(|(start, len)| {
+            let mut named = source.clone();
+            if let Some(frame) = named.frames.last().cloned() {
+                named.frames.push(crate::source_map::SourceMapFrame {
+                    source_id: frame.source_id,
+                    span: crate::source_map::FrameSpan::Single(crate::source::ByteRange::new(
+                        start, len,
+                    )),
+                    transform: crate::source_map::TransformKind::SourceBoundary {
+                        uri: source_id.into(),
+                    },
+                });
+            }
+            named
+        })
+        .unwrap_or(source);
     let mut attributes = vec![
         projection_attribute("id", id, &source),
         projection_attribute("kind", kind, &source),

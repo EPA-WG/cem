@@ -442,7 +442,16 @@ complete native catalog, saved/offline browser, demo and isolated Login recovery
 checks pass. CEMT presentation, binary ownership, credential policy and all
 recovery bounds are unchanged; native projection decoding/replay remains below.
 
-- [ ] Publish owned native Parse/Inspect presentation provenance through the common command result. Their typed retained owner and coordinate presentation survive, but `PrimaryBytes` and command publication omit named source-map references/output spans. Include explicit Convert primary-artifact span publication and admitted URI boundaries; its embedded numeric source IDs do not supply those endpoints. Preserve actual source identities and native ranges; add native/worker/Studio selection fixtures before exposing fine artifact-source navigation. Do not reconstruct links from serialized AST fields or numeric source IDs. Keep any explicitly admitted whole-input boundary distinct from fine token lineage.
+Completed 2026-10-27: [owned native Parse/Inspect provenance](archive/todo-completed-owned-parse-inspect-provenance-2026-10-27.md)
+binds original and writer bytes to typed native ranges, publishes bounded
+artifact-owned references, and connects existing Studio source selection without
+reading AST data fields as authority. Native CLI/WASM, complete catalog,
+saved/offline navigation and isolated worker/fallback Login recovery pass.
+Declaration whitespace and unused view metadata were reduced to keep every
+provenance row available within the unchanged node/byte limits. Remaining
+formatter/markup endpoints and native projection input adapters follow below.
+
+- [ ] Complete named original-source boundaries for remaining native formatter token projections and direct markup Convert outputs. Typed writer witnesses are retained, but anonymous formatter IDs and debug `primary.outputSpans` cannot supply source endpoints. Bind URIs/ranges at native owner/view producers and carry typed output metadata through HTML/XML publication; add source/output-byte, imported-module, color/escape and saved/offline navigation fixtures before exposing links. Reuse the guarded primary-artifact publication path without JSON AST handoffs or fabricated whole-input fallbacks.
 
 - [ ] Complete native DOM/AST/event projection input adapters and binary payload validation. Their registered validators currently check JSON shape or binary headers, while generic lifecycle conversion adapters are output-only. Preserve original owners, schema/kind/MIME refusals and bounded chunks; add native payload-integrity/replay fixtures before enabling decoder or hash-integrity claims.
 

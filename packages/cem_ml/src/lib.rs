@@ -59,6 +59,7 @@ pub mod checkpoint_runtime_state;
 pub mod operation_handle;
 pub mod parser;
 pub mod plugin;
+pub mod primary_provenance;
 pub mod projection;
 pub mod query;
 pub mod real;

@@ -41,11 +41,11 @@ conservative lexical boundaries. The name `pretty` does not promise that existin
 layout, strings, comments, functions, custom properties or nested blocks are
 rewritten. The example's formatted CSS is exactly 241 UTF-8 bytes.
 
-The two Inspect configurations print native coordinate facts in their CEM-ML
-presentation. Common Inspect publication currently supplies no owned source-map
-references for Studio's Provenance selector. Use the build's published mappings
-or actual diagnostic ranges for source selection; printed fields alone are not
-navigation grants.
+The two Inspect configurations publish named native source ranges through the
+common artifact envelope to Studio's Provenance selector. Their CEM-ML
+presentations also show coordinate facts; those printed fields alone are not
+navigation grants. Generated headers without an original boundary gain no link,
+and saving a source change requires a fresh run before following old ranges.
 
 ## Scoped output and saved edits
 

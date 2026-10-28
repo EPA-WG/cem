@@ -1646,6 +1646,7 @@ fn convert_primary_from_template_output(
     }
 }
 
+#[cfg(test)]
 fn convert_primary_to_cem_with_cemt_pipeline(
     context: Option<&EngineContext>,
     document: &CemDocument,
@@ -1658,7 +1659,7 @@ fn convert_primary_to_cem_with_cemt_pipeline(
         projection::cem_tree_nodes_with_source_content_type(
             document, Some(input_format_content_type(from_format)),
         ),
-        target_scope, diagnostic_uri,
+        target_scope, diagnostic_uri, None,
     )
 }
 
@@ -1667,6 +1668,7 @@ fn convert_cem_tree_stream_with_cemt_pipeline(
     stream: projection::CemTreeAstStream,
     target_scope: &ScopeConfig,
     diagnostic_uri: Option<&str>,
+    captured_spans: Option<&mut Vec<OutputSpan>>,
 ) -> Result<Value, Vec<Diagnostic>> {
     let pipeline = cemt_output_pipeline_for_scope(direct_cem_output_pipeline(), target_scope);
     let pipeline_execution = execute_cem_tree_output_pipeline_with_context(
@@ -1703,6 +1705,9 @@ fn convert_cem_tree_stream_with_cemt_pipeline(
     // The typed writer owns final-newline policy, including newlines inside
     // HTML source previews. Do not append source syntax outside its artifact.
     let content = output.to_owned();
+    if let Some(spans) = captured_spans {
+        *spans = pipeline_execution.output_spans.clone();
+    }
     let source_map = pipeline_execution
         .source_map
         .and_then(|source_map| serde_json::to_value(source_map).ok())
@@ -1723,13 +1728,14 @@ fn cem_presentation_primary_bytes(
     schema: &str,
     scope: &ScopeConfig,
     diagnostic_uri: &str,
+    source_bytes: &[u8],
     presentation_kind: &str,
 ) -> EngineResult<PrimaryBytes> {
     let pipeline = cemt_output_pipeline_for_scope(direct_cem_output_pipeline(), scope);
     let execution = execute_cem_tree_output_pipeline_with_context(
         Some(context),
         &pipeline,
-        stream,
+        stream.with_original_source_uri(diagnostic_uri),
         None,
         Vec::new(),
         &format!("{presentation_kind}-cem-presentation"),
@@ -1762,6 +1768,12 @@ fn cem_presentation_primary_bytes(
         })?;
     let bytes = text.as_bytes().to_vec();
     Ok(PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            diagnostic_uri,
+            source_bytes,
+            &bytes,
+            execution.output_spans,
+        )),
         content_type: cem_output_identity(&pipeline).0.to_owned(),
         schema: Some(
             if cem_output_pipeline_is_html(&pipeline) {
@@ -4222,6 +4234,7 @@ fn transform_graph_export_primary(
             let bytes = encoded.bytes.as_ref().to_vec();
             let hash = crate::command_service::sha256_hex(&bytes);
             let primary_bytes = PrimaryBytes {
+                provenance: None,
                 content_type: content_type.clone(),
                 schema: identity.schema.clone(),
                 format_version: "raw-resource/1".to_owned(),
@@ -4354,6 +4367,7 @@ fn transform_graph_css_primary(
         .ok_or("CSS output pipeline did not produce native writer text")?;
     let bytes = content.as_bytes().to_vec();
     let primary_bytes = PrimaryBytes {
+        provenance: None,
         content_type: target.content_type.clone().unwrap_or_else(|| CSS_CONTENT_TYPE.to_owned()),
         schema: Some(target.schema.clone().unwrap_or_else(|| CSS_SCHEMA_URI.to_owned())),
         format_version: "css/1".to_owned(),
@@ -6632,6 +6646,7 @@ fn primary_bytes_from_text_document(
     let schema = schema.into();
     let bytes = content.as_bytes().to_vec();
     PrimaryBytes {
+        provenance: None,
         content_type,
         schema: Some(schema),
         format_version: "cem-text/1".to_owned(),
@@ -6716,6 +6731,7 @@ fn primary_bytes_from_binary_artifact(
         .map(|route| route.concatenated_bytes())
         .unwrap_or_default();
     PrimaryBytes {
+        provenance: None,
         content_type: artifact.content_type.clone(),
         schema: Some(artifact.schema.clone()),
         format_version: artifact.format_version.clone(),
@@ -6798,6 +6814,12 @@ fn convert_loaded_csv_ast_output(
         csv_direct_output_primary_identity(&target, &request.target_scope);
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version,
@@ -6873,6 +6895,12 @@ fn convert_loaded_generic_data_ast_to_csv_output(
         csv_direct_output_primary_identity(&target, &request.target_scope);
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version,
@@ -7105,6 +7133,12 @@ fn convert_loaded_yaml_ast_output(
         yaml_direct_output_primary_identity(&target, &request.target_scope);
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version,
@@ -7172,6 +7206,12 @@ fn convert_loaded_generic_data_ast_to_yaml_output(
         yaml_direct_output_primary_identity(&target, &request.target_scope);
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version,
@@ -7421,6 +7461,12 @@ fn convert_loaded_json_ast_output(
         json_direct_output_primary_identity(&target, &request.target_scope);
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version,
@@ -7487,6 +7533,12 @@ fn convert_loaded_json_schema_ast_output(
         json_schema_direct_output_primary_identity(&target, &request.target_scope);
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version,
@@ -7579,6 +7631,12 @@ fn convert_loaded_html_ast_output(
     let schema = target.schema.unwrap_or_else(|| HTML_SCHEMA_URI.to_owned());
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version: "html/1".to_owned(),
@@ -7661,6 +7719,12 @@ fn convert_loaded_css_selector_output(
     };
     let bytes = content.as_bytes().to_vec();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version: format_version.to_owned(),
@@ -7738,6 +7802,12 @@ fn convert_loaded_xpath_output(
     };
     let bytes = content.as_bytes().to_vec();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version: format_version.to_owned(),
@@ -7820,6 +7890,12 @@ fn convert_loaded_css_ast_output(
     let schema = target.schema.unwrap_or_else(|| CSS_SCHEMA_URI.to_owned());
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version: "css/1".to_owned(),
@@ -7888,6 +7964,12 @@ fn convert_loaded_xml_ast_output(
     let schema = target.schema.unwrap_or_else(|| XML_SCHEMA_URI.to_owned());
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version: "xml/1".to_owned(),
@@ -7956,6 +8038,12 @@ fn convert_loaded_xhtml_ast_output(
     let schema = target.schema.unwrap_or_else(|| XHTML_SCHEMA_URI.to_owned());
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version: "xhtml/1".to_owned(),
@@ -8024,6 +8112,12 @@ fn convert_loaded_svg_ast_output(
     let schema = target.schema.unwrap_or_else(|| SVG_SCHEMA_URI.to_owned());
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version: "svg/1".to_owned(),
@@ -8094,6 +8188,12 @@ fn convert_loaded_mathml_ast_output(
         .unwrap_or_else(|| MATHML_SCHEMA_URI.to_owned());
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version: "mathml/1".to_owned(),
@@ -8162,6 +8262,12 @@ fn convert_loaded_xslt_ast_output(
     let schema = target.schema.unwrap_or_else(|| XSLT_SCHEMA_URI.to_owned());
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version: "xslt/1".to_owned(),
@@ -8234,6 +8340,12 @@ fn convert_loaded_relax_ng_ast_output(
         .unwrap_or_else(|| RELAX_NG_SCHEMA_URI.to_owned());
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version: format!("relax-ng-{}/1", syntax_kind.as_str()),
@@ -8301,6 +8413,12 @@ fn convert_loaded_markdown_ast_output(
         markdown_direct_output_primary_identity(&target, &request.target_scope);
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version,
@@ -9380,6 +9498,12 @@ fn convert_loaded_generic_data_ast_to_json_output(
         json_direct_output_primary_identity(&target, &request.target_scope);
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
+        provenance: Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+            &input_uri(&request.input, context),
+            &request.input.bytes,
+            &bytes,
+            execution.output_spans.clone(),
+        )),
         content_type,
         schema: Some(schema.clone()),
         format_version,
@@ -12071,6 +12195,7 @@ impl CemMlEngine for RealCemMlEngine {
                     schema,
                     scope,
                     &display_uri,
+                    &request.input.bytes,
                     "parse",
                 )
             })
@@ -12204,6 +12329,7 @@ impl CemMlEngine for RealCemMlEngine {
                     schema,
                     scope,
                     &display_uri,
+                    &request.input.bytes,
                     "inspect",
                 )
             })
@@ -12484,7 +12610,7 @@ impl CemMlEngine for RealCemMlEngine {
                             } else {
                                 convert_cem_tree_stream_with_cemt_pipeline(
                                     Some(&context), projection::imported_data_cem_tree_nodes(tree, CSV_CONTENT_TYPE),
-                                    &request.target_scope, Some(&request.input.uri),
+                                    &request.target_scope, Some(&request.input.uri), None,
                                 )
                             };
                             match result {
@@ -13226,23 +13352,27 @@ impl CemMlEngine for RealCemMlEngine {
                         "direct-cem-output",
                         &pipeline,
                     ));
-                    let cem_primary = convert_primary_to_cem_with_cemt_pipeline(
-                        Some(&context),
-                        &run.document,
-                        from_format,
-                        &request.target_scope,
-                        Some(&request.input.uri),
+                    let mut native_spans = Vec::new();
+                    let stream = projection::cem_tree_nodes_with_source_content_type(&run.document, Some(input_format_content_type(from_format)))
+                        .with_original_source_uri(&input_uri(&request.input, &context));
+                    let cem_primary = convert_cem_tree_stream_with_cemt_pipeline(
+                        Some(&context), stream, &request.target_scope,
+                        Some(&request.input.uri), Some(&mut native_spans),
                     )
                     .unwrap_or_else(|mut cemt_diagnostics| {
                         diagnostics.append(&mut cemt_diagnostics);
                         Value::Null
                     });
                     if let Some(content) = cem_primary.get("content").and_then(Value::as_str) {
-                        primary_bytes = Some(primary_bytes_from_text_document(
+                        let mut artifact = primary_bytes_from_text_document(
                             content,
                             cem_output_identity(&pipeline).0,
                             cem_output_identity(&pipeline).1,
+                        );
+                        artifact.provenance = Some(crate::primary_provenance::PrimaryProvenance::from_writer(
+                            &input_uri(&request.input, &context), &request.input.bytes, &artifact.bytes, native_spans,
                         ));
+                        primary_bytes = Some(artifact);
                     }
                     cem_primary
                 }

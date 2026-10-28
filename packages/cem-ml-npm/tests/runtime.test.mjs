@@ -1221,3 +1221,86 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
     assert.equal((await execute(JSON.stringify(document.children), 'application/vnd.cem.ast+json', 'https://cem.dev/ns/projection/ast/1')).result.exitCode, 1);
   });
 }
+
+for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
+  test(`owned native Parse/Inspect writer provenance in ${runtimeKind}`, async () => {
+    const runtime = runtimeKind === 'wasm-node'
+      ? await import('@epa-wg/cem-ml/wasm') : await import('../dist/wasm/browser/cem_ml.js');
+    if (runtimeKind !== 'wasm-node') await runtime.default({ module_or_path: await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url)) });
+    let sequence = 0;
+    const uri = 'studio://owned-source/original', destination = 'studio://owned-source/view.cem';
+    const execute = async (source, contentType, schema, operation, stale = false) => {
+      const bytes = new TextEncoder().encode(source);
+      const request = {
+        protocolVersion: 1, requestId: `owned-source:${runtimeKind}:${++sequence}`,
+        project: { projectId: 'owned-source', revision: 1 },
+        resourceVersions: { [uri]: { revision: 1, sha256: createHash('sha256').update(bytes).digest('hex') } },
+        operation: { ...operation, inputId: 'input:0' },
+        runPlan: JSON.parse(runtime.normalizeCommandRunPlanV1(JSON.stringify({ configBytes: [...new TextEncoder().encode(JSON.stringify({
+          inputs: [{ uri, rootScope: { defaultContentType: contentType, schema } }],
+          outputs: [{ destination, rootScope: { defaultContentType: 'application/cem' } }],
+        }))] }))),
+        resources: { [uri]: { bytes: [...bytes], identity: { contentType, schema } } },
+        policyStamp: { resolver: 'owned-resolver', safety: 'owned-safety', budget: 'owned-budget' },
+      };
+      let published;
+      try {
+        const result = JSON.parse(await runtime.executeCommandServiceV1(JSON.stringify(request),
+          JSON.stringify({ runtime: runtimeKind, targetIdentity: 'runtime-test:owned-source', abiIdentity: 'runtime-test-v1', debugControlActive: false }),
+          async () => JSON.stringify({ project: { ...request.project, revision: stale ? 2 : 1 }, resourceVersions: request.resourceVersions }),
+          async () => assert.fail('owned source inspection cannot read foreign assets or credentials'),
+          async (_, output) => { published = Uint8Array.from(output); return JSON.stringify({ token: 'owned-output' }); },
+          async () => JSON.stringify({ uri: destination }), async () => undefined,
+        ));
+        return { result, published };
+      } finally { runtime.disposeCommandArtifactsV1(request.requestId); }
+    };
+    for (const [source, mime, schema] of [
+      ['{p @title=Ready | Café}\r\n', 'application/cem', 'https://cem.dev/ns/cem-ml/1'],
+      ['<p title="Ready">Café</p>\r\n', 'application/xml', 'https://cem.dev/ns/data/xml/1'],
+      ['{"message":"Café","source-id":"never://forged","byte-offset":9999}\r\n', 'application/json', 'https://cem.dev/ns/data/json/1'],
+      ["//item[@name = 'Café']\r\n", 'application/vnd.cem.xpath', 'https://cem.dev/ns/query/xpath/1'],
+      ['# Café\r\n\r\nOwned text.\r\n', 'text/markdown', 'https://cem.dev/ns/data/markdown/1'],
+    ]) {
+      const input = new TextEncoder().encode(source);
+      for (const operation of [{ kind: 'parse', projection: 'ast', preserveSourceOffsets: true },
+        { kind: 'parse', projection: 'events', preserveSourceOffsets: true }, { kind: 'inspect', show: 'ast' }]) {
+        const { result, published } = await execute(source, mime, schema, operation);
+        assert.equal(result.status, 'succeeded', JSON.stringify(result));
+        assert.ok(published); assert.equal(result.artifacts.items.length, 1);
+        const artifact = result.artifacts.items[0], maps = result.sourceMaps.items;
+        assert.ok(maps.length > 0 && maps.length <= 4096, `${mime}: bounded native maps`);
+        assert.ok(maps.some(map => map.sourceMapId === artifact.sourceMapId));
+        assert.ok(maps.every(map => map.owner.kind === 'artifact' && map.owner.handleId === artifact.handleId));
+        const frames = maps.flatMap(map => {
+          assert.ok(map.outputRange.len > 0 && map.outputRange.start + map.outputRange.len <= published.length);
+          return map.sourceMap.value.frames;
+        });
+        assert.ok(frames.some(frame => frame.span.ranges.start > 0 && frame.span.ranges.len > 0));
+        if (mime === 'application/cem' || mime === 'application/xml') {
+          const start = Buffer.from(input).indexOf(Buffer.from('Café'));
+          assert.ok(frames.some(frame => frame.span.ranges.start === start && frame.span.ranges.len === Buffer.byteLength('Café')),
+            `${mime}: preserve the original native text range, not a containing buffer`);
+        }
+        for (const frame of frames) {
+          assert.equal(frame.transform.kind, 'SourceBoundary'); assert.equal(frame.transform.uri, uri);
+          const { start, len } = frame.span.ranges;
+          assert.ok(start + len <= input.length);
+          assert.doesNotThrow(() => new TextDecoder('utf-8', { fatal: true }).decode(input.slice(start, start + len)));
+        }
+        assert.ok(!JSON.stringify(result.result).includes('source_hash'), 'native witness is not serialized');
+      }
+    }
+    const source = '<p>Café</p>\r\n', mime = 'application/xml', schema = 'https://cem.dev/ns/data/xml/1';
+    for (const operation of [{ kind: 'parse', projection: 'json', preserveSourceOffsets: true }, { kind: 'inspect', show: 'ast', format: 'json' }]) {
+      const { result } = await execute(source, mime, schema, operation);
+      assert.equal(result.status, 'succeeded'); assert.deepEqual(result.sourceMaps.items, [], 'debug JSON fields supply no native writer proof');
+    }
+    const operation = { kind: 'parse', projection: 'ast', preserveSourceOffsets: true };
+    const refused = await execute('<p>broken', mime, schema, operation);
+    assert.equal(refused.result.exitCode, 1); assert.deepEqual(refused.result.sourceMaps.items, []); assert.equal(refused.published, undefined);
+    const stale = await execute(source, mime, schema, operation, true);
+    assert.equal(stale.result.status, 'stale'); assert.deepEqual(stale.result.sourceMaps.items, []); assert.equal(stale.published, undefined);
+    assert.equal((await execute(source, mime, schema, operation)).result.status, 'succeeded');
+  });
+}

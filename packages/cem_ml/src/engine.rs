@@ -1273,6 +1273,8 @@ pub struct InspectResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrimaryBytes {
+    /// Native original-source witness and writer spans; never inferred from `primary`.
+    pub provenance: Option<crate::primary_provenance::PrimaryProvenance>,
     pub content_type: String,
     pub schema: Option<String>,
     pub format_version: String,

@@ -397,7 +397,7 @@ pub(super) fn parse(
             )
         })
         .map(|scope| {
-            cem_presentation_primary_bytes(&request.context, stream, schema, scope, &uri, "parse")
+            cem_presentation_primary_bytes(&request.context, stream, schema, scope, &uri, &request.input.bytes, "parse")
         })
         .transpose()?;
     request.context.ensure_active()?;
@@ -448,7 +448,7 @@ pub(super) fn inspect(
         .presentation_scope
         .as_ref()
         .map(|scope| {
-            cem_presentation_primary_bytes(&request.context, stream, schema, scope, &uri, "inspect")
+            cem_presentation_primary_bytes(&request.context, stream, schema, scope, &uri, &request.input.bytes, "inspect")
         })
         .transpose()?;
     request.context.ensure_active()?;

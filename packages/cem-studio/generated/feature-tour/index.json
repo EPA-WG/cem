@@ -227,7 +227,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/css-stylesheet.cem-studio.json",
-      "sha256": "0cb143cd431fe536d798fa1db530c4dff4c783e1558792e84a6fe77bc6a11a66"
+      "sha256": "275d16980a08e6f810ab9e57fd4588f84bdaed0d44ee1a5fb4713cfea61466fe"
     },
     {
       "id": "csv-inventory",
@@ -324,19 +324,19 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/module-maps.cem-studio.json",
-      "sha256": "584fc2a360d7a11aeaa0994a9c53513570e1b801a23000bfbd29a9721df4dd92"
+      "sha256": "d6e4b09bd7f5ed9ac6c1a7833514aec235e2c84e258b51721181d96f80e062eb"
     },
     {
       "id": "native-projections",
       "name": "Native DOM, AST and events",
       "description": "Compare native source AST/event presentations, retained XML/plain-text inspection and explicit DOM/AST/event JSON or binary exports, with original ranges, shape repairs and clear import/ownership boundaries.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "collections": [
         "content-types-schema-authoring",
         "content-types-queries-transformations"
       ],
       "archive": "./examples/native-projections.cem-studio.json",
-      "sha256": "68d16f7287938b8fb61ca78482d315ffda727d5bbbf6eea79373054fd15afe0b"
+      "sha256": "21c415d0b5a02c36d31f8da0337d9d7b7fc6662aa348f0c68eb97606c2e0251c"
     },
     {
       "id": "portable-config",
@@ -348,7 +348,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/portable-config.cem-studio.json",
-      "sha256": "c5fb5b7601193b4562a361041cc389345ae7907038a8f5382c04fe55e42d2941"
+      "sha256": "05bcdfcbb94e3e66c7332ef128d598f8259351636c473b5f10099b19d6b3d91f"
     },
     {
       "id": "relax-ng",

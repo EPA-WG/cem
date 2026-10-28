@@ -29,7 +29,7 @@ async function attach(page, write) {
         if (disposed) return;
         disposed = true; observedPages.delete(page);
         for (const off of listeners) off();
-        void cdp?.detach().catch(() => {});
+        void cdp?.detach().catch(() => { /* Disposal can race an already closed page. */ });
     };
     on(page, 'close', dispose);
     on(page, 'requestfailed', request => {
@@ -50,7 +50,7 @@ async function attach(page, write) {
     });
     try {
         cdp = await page.context().newCDPSession(page);
-        if (disposed) { await cdp.detach().catch(() => {}); return dispose; }
+        if (disposed) { await cdp.detach().catch(() => { /* Disposal can race an already closed page. */ }); return dispose; }
         const scripts = new Map();
         on(cdp, 'Network.requestWillBeSent', event => {
             if (event.type === 'Script') scripts.set(event.requestId, {

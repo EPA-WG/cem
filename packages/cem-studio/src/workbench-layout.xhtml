@@ -1,23 +1,10 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-workbench-layout">
+ <!-- Keep adjacent CEM-ML instructions contiguous: body indentation adds checkpoint witness nodes. -->
  <template id="cem-studio-workbench-layout" type="text/cem-ml">
-{module |
- {slice @name=navigation}
- {body |
- {style @type=text/css |```
+{module |{slice @name=navigation}{body |{style @type=text/css |```
 :scope { display: block; block-size: 100%; min-block-size: 0; min-inline-size: 0; }
 [part~='root'] { block-size: 100%; min-block-size: 0; }
 
-```}
- {section @part=root @aria-label="Project workbench" @data-cem-studio-workbench="" |
-  {cem-workspace @label="Studio workspace" @layout=project @fit=fill @appearance=flush @navigation-label=Navigation @editor-label=Contents @preview-label="Output preview" |
-   {span @slot=navigation-actions @data-cem-studio-workbench-navigation-actions-mount="" | {cem-studio-workbench-navigation @section=actions}}
-   {div @slot=navigation @data-cem-studio-workbench-navigation-mount="" | {cem-studio-workbench-navigation}}
-   {cem-text @slot=editor-heading @variant=caption @kind={if datadom.slices.navigation.pathKind == "output-file" || datadom.slices.navigation.pathKind == "output-folder" { "output" } else { if datadom.slices.navigation.pathKind == "project" { "project" } else { if datadom.slices.navigation.pathKind == "file" || datadom.slices.navigation.pathKind == "configuration" { "resource" } else { "" } } }} @text={datadom.slices.navigation.selected.name ?? "Examples"}}
-   {div @slot=editor @data-cem-studio-workbench-center-mount="" | {cem-studio-workbench-center}}
-   {div @slot=preview @data-cem-studio-workbench-preview-mount="" | {cem-studio-workbench-preview @section=preview}}
-  }
- }
- }
-}
+```}{section @part=root @aria-label="Project workbench" @data-cem-studio-workbench="" |{cem-workspace @label="Studio workspace" @layout=project @fit=fill @appearance=flush @navigation-label=Navigation @editor-label=Contents @preview-label="Output preview" |{span @slot=navigation-actions @data-cem-studio-workbench-navigation-actions-mount="" | {cem-studio-workbench-navigation @section=actions}}{div @slot=navigation @data-cem-studio-workbench-navigation-mount="" | {cem-studio-workbench-navigation}}{cem-text @slot=editor-heading @variant=caption @kind={if datadom.slices.navigation.pathKind == "output-file" || datadom.slices.navigation.pathKind == "output-folder" { "output" } else { if datadom.slices.navigation.pathKind == "project" { "project" } else { if datadom.slices.navigation.pathKind == "file" || datadom.slices.navigation.pathKind == "configuration" { "resource" } else { "" } } }} @text={datadom.slices.navigation.selected.name ?? "Examples"}}{div @slot=editor @data-cem-studio-workbench-center-mount="" | {cem-studio-workbench-center}}{div @slot=preview @data-cem-studio-workbench-preview-mount="" | {cem-studio-workbench-preview @section=preview}}}}}}
  </template>
 </cem-element>

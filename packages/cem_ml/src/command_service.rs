@@ -360,6 +360,9 @@ pub enum CommandSourceMapOwnerV1 {
 #[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CommandSourceMapReferenceV1 {
+    /// Representative native writer span. Absence does not imply whole-input or linear lineage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_range: Option<crate::source::ByteRange>,
     pub source_map_id: String,
     pub owner: CommandSourceMapOwnerV1,
     pub source_map: CommandPayloadV1<SourceMapStack>,
@@ -876,6 +879,23 @@ pub fn validate_command_service_result_v1(
             if !artifact_ids.contains(&handle_id) {
                 return Err(CommandServiceError::ResultContract {
                     reason: "source-map owner does not reference a published artifact",
+                });
+            }
+        }
+        if let Some(range) = source_map.output_range {
+            let end = range.start.checked_add(u64::from(range.len));
+            let exceeds_artifact = match source_map.owner {
+                CommandSourceMapOwnerV1::Artifact { handle_id } => result
+                    .artifacts
+                    .items
+                    .iter()
+                    .find(|artifact| artifact.handle_id == handle_id)
+                    .is_some_and(|artifact| end.is_some_and(|end| end > artifact.byte_length)),
+                CommandSourceMapOwnerV1::Result => false,
+            };
+            if range.len == 0 || end.is_none() || exceeds_artifact {
+                return Err(CommandServiceError::ResultContract {
+                    reason: "source-map writer range exceeds its output artifact",
                 });
             }
         }
@@ -2210,6 +2230,7 @@ mod tests {
         result.report = Some(CommandPayloadV1::Inline { value: report });
         result.artifacts = BoundedList::new(vec![artifact]);
         result.source_maps = BoundedList::new(vec![CommandSourceMapReferenceV1 {
+            output_range: None,
             source_map_id: "source-map:1".to_owned(),
             owner: CommandSourceMapOwnerV1::Artifact {
                 handle_id: RetainedHandleId::from_raw(1),
@@ -2221,6 +2242,13 @@ mod tests {
         validate_command_service_result_v1(&result, CommandServiceLimitsV1::default())
             .expect("typed result validates");
 
+        result.source_maps.items[0].output_range = Some(crate::source::ByteRange::new(2, 3));
+        validate_command_service_result_v1(&result, CommandServiceLimitsV1::default()).unwrap();
+        for range in [crate::source::ByteRange::new(2, 5), crate::source::ByteRange::new(u64::MAX, 2), crate::source::ByteRange::new(1, 0)] {
+            result.source_maps.items[0].output_range = Some(range);
+            assert!(validate_command_service_result_v1(&result, CommandServiceLimitsV1::default()).is_err());
+        }
+        result.source_maps.items[0].output_range = None;
         let value = serde_json::to_value(&result).expect("result serializes");
         assert_eq!(value.pointer("/exitCode"), Some(&json!(0)));
         assert_eq!(value.pointer("/result/storage"), Some(&json!("inline")));

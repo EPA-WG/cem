@@ -351,3 +351,28 @@ a heap. Direct memory mutation and initialization remain unsupported boundaries.
 The prepared retirement permit remains visible as one live `native-entries`
 root until abort or physical worker termination; a held barrier never produces
 a misleading empty resource census.
+
+## Owned Parse/Inspect provenance
+
+Native CEM-ML Parse/Inspect presentations retain typed writer spans with an
+original-source witness through common command publication. A witness binds the
+source URI, original bytes and final writer bytes; it is not serialized into the
+result or used as an AST transport. Only named native boundaries with valid
+original UTF-8 and output byte ranges become navigation references. Anonymous
+IDs, formatter-module origins, foreign buffers and JSON source fields cannot
+supply endpoints. Explicit JSON inspection and binary exports remain separate.
+
+The common result exposes bounded `sourceMaps` references owned by the published
+artifact, with an optional representative `outputRange`. Repeated native source
+ranges are coalesced; counts disclose truncation, and each published output keeps
+its primary reference within the negotiated cap. These ranges do not assert
+linear character equality through formatting or escaping. Native direct CEM
+conversion and source formatters retain typed writer spans too; unnamed formatter
+origins remain non-navigable until their native producer provides a source URI.
+
+Studio projects these references through its existing declarative results and
+source-selection controls. Saved edits invalidate captured revisions; rerun
+before following old links. Failed or stale publication exports no artifact
+ownership. Entered Login passwords and one-time codes still block recovery until
+cleared; automatic recovery stays disabled and the existing 4 MiB and node/time
+limits are unchanged.

@@ -2229,7 +2229,7 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
     });
     for (const reference of result?.sourceMaps?.items ?? []) {
         const stack = reference.sourceMap?.storage === 'inline' ? reference.sourceMap.value : undefined;
-        appendFrames(stack?.frames ?? [], { sourceMapId: reference.sourceMapId });
+        appendFrames(stack?.frames ?? [], { sourceMapId: reference.sourceMapId, outputRange: reference.outputRange });
     }
     const summary = summarizePortableOperation(kind, mode, result);
     const expectedMatches = expected === undefined ? undefined : matchesExpectedSummary(summary, expected);
@@ -2259,6 +2259,19 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
         }
         const sourceMaps = (result?.sourceMaps?.items ?? []).filter(reference =>
             (output.sourceMapId != null && reference.sourceMapId === output.sourceMapId) || (output.handleId !== undefined && reference.owner?.handleId === output.handleId));
+        // Parse/Inspect and direct formatter results carry native writer witnesses
+        // through the common artifact envelope, rather than the presentation body.
+        if (!frames.length) for (const reference of sourceMaps) {
+            const stack = reference.sourceMap?.storage === 'inline' ? reference.sourceMap.value : undefined;
+            for (const frame of stack?.frames ?? []) {
+                if (!frameSourceUri(frame)) continue;
+                const ranges = frame.span?.kind === 'Multi' ? frame.span.ranges : frame.span?.kind === 'Single' ? [frame.span.ranges] : [];
+                for (const range of ranges) if (frames.length < CEM_STUDIO_LIMITS.structuredRows) {
+                    frames.push(Object.freeze({ ...normalizeFrame(frame, { sourceMapId: reference.sourceMapId }),
+                        range: Object.freeze({ ...range }), outputRange: reference.outputRange, outputUri: output.uri }));
+                }
+            }
+        }
         return Object.freeze({ id: `${result.requestId}#${output.handleId ?? output.uri}`, uri: output.uri,
             path: outputArtifactPath(output.uri, capturedBuild.projectRootUri),
             handleId: output.handleId, sourceMapId: output.sourceMapId, contentType: output.contentType,
@@ -2288,7 +2301,8 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
         }),
         nativeResult: result,
         diagnostics: Object.freeze(diagnostics),
-        provenance: nativeOutputs.length ? artifacts.find(artifact => artifact.id === selectedArtifactId)?.provenance ?? Object.freeze([]) : Object.freeze(provenance),
+        provenance: artifacts.some(artifact => artifact.provenance.length) || nativeOutputs.length
+            ? artifacts.find(artifact => artifact.id === selectedArtifactId)?.provenance ?? Object.freeze([]) : Object.freeze(provenance),
         presentation: outcome.presentation,
         sourceByteLength: textEncoder.encode(source).byteLength,
         summary: Object.freeze(summary),
@@ -2939,11 +2953,15 @@ function workbenchResultState(state) {
     const actual = projection?.summary;
     const expectedRows = pinned ? [...new Set([...Object.keys(pinned), ...Object.keys(actual ?? {})])].sort()
         .map(key => ({ key, expectedText: JSON.stringify(pinned[key]), actualText: JSON.stringify(actual?.[key]) })) : [];
+    // The declarative selector consumes these fields only. Full artifact IDs,
+    // owner bindings and output URIs stay in the service's captured projection.
+    const frames = values => (values ?? []).map(({ sourceId, uri, transform, range, outputRange }) =>
+        ({ sourceId, uri, transform, range, outputRange }));
     const records = values => (values ?? []).slice(0, CEM_STUDIO_LIMITS.structuredRows)
         .map(({ path, value }) => ({ path, text: typeof value === 'string' ? value : JSON.stringify(value) }));
     return { status, error, operation, path, contentType, schema, expected, expectedRows,
         validation: validation && { reportSummary: validation.reportSummary, diagnostics: validation.diagnostics,
-            provenance: validation.provenance },
+            provenance: frames(validation.provenance) },
         command: { current: { argv: command?.current?.argv }, application: { status: command?.application?.status } },
         projection: projection && { kind: projection.kind, mode: projection.mode, stale: projection.stale,
             selectedArtifactId: projection.selectedArtifactId,
@@ -2951,7 +2969,7 @@ function workbenchResultState(state) {
             build: { id: projection.buildRun.id, configuration: projection.buildRun.configuration.name,
                 byteLength: projection.buildRun.byteLength, count: projection.buildRun.artifacts.length },
             expectedMatches: projection.expectedMatches, executionIdentity: projection.executionIdentity,
-            revision: projection.revision, diagnostics: projection.diagnostics, provenance: projection.provenance,
+            revision: projection.revision, diagnostics: projection.diagnostics, provenance: frames(projection.provenance),
             preview: projection.preview, expected: projection.expected, summary: projection.summary,
             transfer: projection.transfer, output: projection.output && {
                 available: projection.output.available, uri: projection.output.uri, sha256: projection.output.sha256,

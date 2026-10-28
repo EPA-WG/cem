@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { catalogAcceptanceInputs, assertCatalogConfigurationEvidence, assertCatalogNavigationEvidence, assertAcceptanceStamp, nativeQueryRangeEvidence } from './catalog-acceptance.mjs';
-import { nativeCatalogReceipt, nativeCatalogDiagnosticLimit, assertWorkerNativeDiagnosticLimit } from './native-catalog-execution.mjs';
+import { nativeCatalogReceipt, nativeCatalogDiagnosticLimit } from './native-catalog-execution.mjs';
 import { createCemStudioPreview } from '../src/preview.js';
 import { resolve } from 'node:path';
 

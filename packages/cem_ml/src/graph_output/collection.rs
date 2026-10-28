@@ -246,6 +246,7 @@ mod tests {
         assert!(source_map(&artifact).is_none());
         assert_eq!(output_spans(&artifact), json!([]));
         artifact.primary_bytes = Some(PrimaryBytes {
+            provenance: None,
             content_type: "application/octet-stream".into(),
             schema: None,
             format_version: "native/1".into(),

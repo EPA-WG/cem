@@ -116,6 +116,7 @@ mod tests {
                 Some("application/json"),
             );
             owned.primary_bytes = Some(PrimaryBytes {
+                provenance: None,
                 content_type: "application/json".into(),
                 schema: None,
                 format_version: "native-writer/1".into(),

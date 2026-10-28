@@ -63,6 +63,7 @@ impl CemMlEngine for FakeEngine {
                 )
                 .into_bytes();
                 PrimaryBytes {
+                    provenance: None,
                     content_type: crate::schema::registry::CEM_ML_CONTENT_TYPE.to_owned(),
                     schema: Some(crate::schema::registry::CEM_AST_PROJECTION_SCHEMA_URI.to_owned()),
                     format_version: "cem-ml/1".to_owned(),
@@ -118,6 +119,7 @@ impl CemMlEngine for FakeEngine {
                 )
                 .into_bytes();
                 PrimaryBytes {
+                    provenance: None,
                     content_type: crate::schema::registry::CEM_ML_CONTENT_TYPE.to_owned(),
                     schema: Some(crate::schema::registry::CEM_ML_SCHEMA_URI.to_owned()),
                     format_version: "cem-ml/1".to_owned(),

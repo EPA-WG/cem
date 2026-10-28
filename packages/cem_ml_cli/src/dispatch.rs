@@ -10590,6 +10590,7 @@ mod tests {
             artifact.destination = None;
             artifact.primary = value;
             artifact.primary_bytes = explicit.map(|bytes| eng::PrimaryBytes {
+                provenance: None,
                 content_type: "application/json; charset=utf-8".into(),
                 schema: None,
                 format_version: "explicit-test/1".into(),
@@ -20446,6 +20447,7 @@ start =
         let response = eng::ConvertResponse {
             primary: serde_json::json!({"kind": "not-binary-envelope"}),
             primary_bytes: Some(eng::PrimaryBytes {
+                provenance: None,
                 content_type: "application/vnd.cem.dom+cem-bin".to_owned(),
                 schema: Some("https://cem.dev/ns/projection/dom/1".to_owned()),
                 format_version: "cem-projection-bin/1".to_owned(),

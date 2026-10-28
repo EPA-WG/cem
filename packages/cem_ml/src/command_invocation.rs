@@ -1736,14 +1736,15 @@ mod tests {
             if format == Some("json") {
                 let response = response.expect("explicit JSON does not invoke the CEM scalar writer");
                 assert!(response.primary_bytes.is_none());
-                let root = response
-                    .body
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .find(|node| node["name"] == "note")
-                    .unwrap();
-                assert_eq!(root["children"][0]["value"], literal);
+                let root = response.body.as_array().unwrap().iter()
+                    .find(|node| node["name"] == "ast").expect("native AST vocabulary envelope");
+                let rows = root["children"].as_array().unwrap();
+                assert!(rows.iter().any(|row| row["attributes"].as_array().is_some_and(|attributes|
+                    attributes.iter().any(|attribute| attribute["name"] == "name" && attribute["value"] == "note"))));
+                let literal_attribute = rows.iter().flat_map(|row| row["attributes"].as_array().unwrap())
+                    .find(|attribute| attribute["name"] == "value" && attribute["value"] == literal)
+                    .expect("native literal text row");
+                assert_eq!(literal_attribute["valueNodes"], serde_json::json!([]), "source-looking text remains inert");
             } else {
                 let response = response.expect("default CEM admits a fenced source scalar");
                 let bytes = response
