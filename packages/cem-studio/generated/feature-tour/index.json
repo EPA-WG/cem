@@ -317,26 +317,26 @@
     {
       "id": "module-maps",
       "name": "Module-map deployments",
-      "description": "Compare native v1/v2/v3 paired deployment maps, explicit resource copying and declared module-edge rewrites, with syntax/source controls, semantic planning refusals, native asset hashes and independent offline builds.",
-      "version": "1.0.1",
+      "description": "Compare native v1/v2/v3 paired deployment maps, explicit resource copying and declared module-edge rewrites, with version-specific source validation/repair, semantic planning refusals, native asset hashes and independent offline builds.",
+      "version": "1.0.2",
       "collections": [
         "content-types-schema-authoring",
         "content-types-queries-transformations"
       ],
       "archive": "./examples/module-maps.cem-studio.json",
-      "sha256": "bff9b49133f14dd839ec44f94c8db4c57b2aba6611ea60bda3f598bb0c36d532"
+      "sha256": "584fc2a360d7a11aeaa0994a9c53513570e1b801a23000bfbd29a9721df4dd92"
     },
     {
       "id": "native-projections",
       "name": "Native DOM, AST and events",
       "description": "Compare native source AST/event presentations, retained XML/plain-text inspection and explicit DOM/AST/event JSON or binary exports, with original ranges, shape repairs and clear import/ownership boundaries.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "collections": [
         "content-types-schema-authoring",
         "content-types-queries-transformations"
       ],
       "archive": "./examples/native-projections.cem-studio.json",
-      "sha256": "72cbf3185c4af0e36291acd78aee0bef23b1654e7505a382bae3d7be98c57e14"
+      "sha256": "68d16f7287938b8fb61ca78482d315ffda727d5bbbf6eea79373054fd15afe0b"
     },
     {
       "id": "portable-config",

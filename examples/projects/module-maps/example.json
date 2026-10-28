@@ -1,8 +1,8 @@
 {
   "id": "module-maps",
   "name": "Module-map deployments",
-  "version": "1.0.1",
-  "description": "Compare native v1/v2/v3 paired deployment maps, explicit resource copying and declared module-edge rewrites, with syntax/source controls, semantic planning refusals, native asset hashes and independent offline builds.",
+  "version": "1.0.2",
+  "description": "Compare native v1/v2/v3 paired deployment maps, explicit resource copying and declared module-edge rewrites, with version-specific source validation/repair, semantic planning refusals, native asset hashes and independent offline builds.",
   "collections": [
     "content-types-schema-authoring",
     "content-types-queries-transformations"
@@ -252,6 +252,30 @@
       "contentType": "text/markdown",
       "schema": "https://cem.dev/ns/data/markdown/1",
       "role": "data"
+    },
+    {
+      "id": "invalid-semantic-v1",
+      "source": "examples/projects/module-maps/failures/semantic-v1.json",
+      "path": "failures/semantic-v1.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/1",
+      "role": "data"
+    },
+    {
+      "id": "invalid-semantic-v2",
+      "source": "examples/projects/module-maps/failures/semantic-v2.json",
+      "path": "failures/semantic-v2.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/2",
+      "role": "data"
+    },
+    {
+      "id": "invalid-semantic-v3",
+      "source": "examples/projects/module-maps/failures/semantic-v3.json",
+      "path": "failures/semantic-v3.json",
+      "contentType": "application/vnd.cem.module-map+json",
+      "schema": "https://cem.dev/ns/data/module-map/3",
+      "role": "data"
     }
   ],
   "configurations": [
@@ -260,7 +284,7 @@
       "name": "Validate v1 JSON source syntax",
       "kind": "validation",
       "source": "source-v1",
-      "description": "Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter.",
+      "description": "Validate original JSON syntax and selected-version module-map semantics without reading assets or preparing a deployment plan.",
       "argv": [
         "validate",
         "$source",
@@ -334,7 +358,7 @@
       "name": "Repair v1 JSON syntax",
       "kind": "validation",
       "source": "invalid-syntax-v1",
-      "description": "Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics.",
+      "description": "Restore the missing outer object brace after the original native EOF diagnostic; the repaired map then passes selected-version semantic validation.",
       "argv": [
         "validate",
         "$source",
@@ -410,7 +434,13 @@
           "source": "source-v1",
           "replacement": "invalid-contract-v1",
           "exitCode": 2,
-          "code": "cem.module_map.entries_mismatch"
+          "code": "cem.module_map.entries_mismatch",
+          "expectedSourceValidation": {
+            "exitCode": 1,
+            "errorCount": 1,
+            "warningCount": 0,
+            "errorCode": "cem.module_map.specifier_invalid"
+          }
         }
       ]
     },
@@ -419,7 +449,7 @@
       "name": "Validate v2 JSON source syntax",
       "kind": "validation",
       "source": "source-v2",
-      "description": "Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter.",
+      "description": "Validate original JSON syntax and selected-version module-map semantics without reading assets or preparing a deployment plan.",
       "argv": [
         "validate",
         "$source",
@@ -493,7 +523,7 @@
       "name": "Repair v2 JSON syntax",
       "kind": "validation",
       "source": "invalid-syntax-v2",
-      "description": "Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics.",
+      "description": "Restore the missing outer object brace after the original native EOF diagnostic; the repaired map then passes selected-version semantic validation.",
       "argv": [
         "validate",
         "$source",
@@ -581,7 +611,13 @@
           "source": "source-v2",
           "replacement": "invalid-contract-v2",
           "exitCode": 2,
-          "code": "cem.module_map.resource_type_unsupported"
+          "code": "cem.module_map.resource_type_unsupported",
+          "expectedSourceValidation": {
+            "exitCode": 1,
+            "errorCount": 1,
+            "warningCount": 0,
+            "errorCode": "cem.module_map.resource_type_unsupported"
+          }
         }
       ]
     },
@@ -590,7 +626,7 @@
       "name": "Validate v3 JSON source syntax",
       "kind": "validation",
       "source": "source-v3",
-      "description": "Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter.",
+      "description": "Validate original JSON syntax and selected-version module-map semantics without reading assets or preparing a deployment plan.",
       "argv": [
         "validate",
         "$source",
@@ -664,7 +700,7 @@
       "name": "Repair v3 JSON syntax",
       "kind": "validation",
       "source": "invalid-syntax-v3",
-      "description": "Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics.",
+      "description": "Restore the missing outer object brace after the original native EOF diagnostic; the repaired map then passes selected-version semantic validation.",
       "argv": [
         "validate",
         "$source",
@@ -765,7 +801,13 @@
           "source": "source-v3",
           "replacement": "invalid-contract-v3",
           "exitCode": 2,
-          "code": "cem.module_map.schema_unsupported"
+          "code": "cem.module_map.schema_unsupported",
+          "expectedSourceValidation": {
+            "exitCode": 1,
+            "errorCount": 1,
+            "warningCount": 0,
+            "errorCode": "cem.module_map.schema_unsupported"
+          }
         }
       ]
     },
@@ -815,6 +857,105 @@
         "target-map",
         "generated/v3/index.html"
       ]
+    },
+    {
+      "id": "repair-semantic-v1",
+      "name": "Repair v1 module identity",
+      "kind": "validation",
+      "source": "invalid-semantic-v1",
+      "description": "Repair a syntactically valid relative asset identity after reviewing its original native semantic diagnostic. No referenced asset is read.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.module_map.specifier_invalid",
+        "location": {
+          "line": 4,
+          "column": 5,
+          "byteOffset": 74
+        }
+      },
+      "repair": {
+        "find": "\"./invalid\"",
+        "replace": "\"@demo/caption\""
+      }
+    },
+    {
+      "id": "repair-semantic-v2",
+      "name": "Repair v2 module identity",
+      "kind": "validation",
+      "source": "invalid-semantic-v2",
+      "description": "Repair a syntactically valid relative asset identity after reviewing its original native semantic diagnostic. No referenced asset is read.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/2",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.module_map.specifier_invalid",
+        "location": {
+          "line": 4,
+          "column": 5,
+          "byteOffset": 74
+        }
+      },
+      "repair": {
+        "find": "\"./invalid\"",
+        "replace": "\"@demo/caption\""
+      }
+    },
+    {
+      "id": "repair-semantic-v3",
+      "name": "Repair v3 module identity",
+      "kind": "validation",
+      "source": "invalid-semantic-v3",
+      "description": "Repair a syntactically valid relative asset identity after reviewing its original native semantic diagnostic. No referenced asset is read.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.module-map+json",
+        "--schema",
+        "https://cem.dev/ns/data/module-map/3",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 0,
+        "errorCode": "cem.module_map.specifier_invalid",
+        "location": {
+          "line": 4,
+          "column": 5,
+          "byteOffset": 74
+        }
+      },
+      "repair": {
+        "find": "\"./invalid\"",
+        "replace": "\"@demo/app\""
+      }
     }
   ]
 }

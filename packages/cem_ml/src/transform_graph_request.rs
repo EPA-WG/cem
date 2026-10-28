@@ -5,6 +5,11 @@
 //! callers use the manifest provider, while the native CLI uses the
 //! filesystem/resolver provider.
 
+use crate::module_map::{
+    is_module_map_schema, validate_module_import_content_type, validate_module_resource_content_type,
+    validate_module_specifier, ModuleMapDocument,
+};
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::fs;
@@ -31,8 +36,7 @@ use crate::resolver::{
 };
 use crate::run_config::{self, ScopeConfig};
 use crate::schema::registry::{
-    content_type_essence, MODULE_MAP_CONTENT_TYPE, MODULE_MAP_SCHEMA_URI, MODULE_MAP_V2_SCHEMA_URI,
-    MODULE_MAP_V3_SCHEMA_URI,
+    content_type_essence, MODULE_MAP_CONTENT_TYPE, MODULE_MAP_V3_SCHEMA_URI,
 };
 use crate::transform_config::{
     self, TransformGraphConfig, TransformGraphEdgeRole, TransformGraphJoinMode as ConfigJoinMode,
@@ -45,6 +49,15 @@ pub const TRANSFORM_GRAPH_IMPORT_GLOB_MAX_ENTRIES: usize = 1024;
 pub enum TransformGraphRequestError {
     Diagnostic(Box<Diagnostic>),
     Engine(EngineError),
+}
+
+impl From<crate::module_map::ModuleMapError> for TransformGraphRequestError {
+    fn from(error: crate::module_map::ModuleMapError) -> Self {
+        Self::Diagnostic(Box::new(Diagnostic {
+            uri: Some(error.uri), code: error.code,
+            severity: Severity::Fatal, message: error.message, ..Default::default()
+        }))
+    }
 }
 
 impl TransformGraphRequestError {
@@ -1051,28 +1064,6 @@ struct PendingModuleAsset {
     sha256: String,
 }
 
-#[derive(Debug)]
-struct ModuleMapDocument {
-    uri: String,
-    schema: Option<String>,
-    imports: BTreeMap<String, ModuleMapImport>,
-    resources: BTreeMap<String, ModuleMapResource>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ModuleMapImport {
-    path: String,
-    content_type: String,
-    module_imports: BTreeMap<String, String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ModuleMapResource {
-    path: String,
-    content_type: String,
-    module_imports: BTreeMap<String, String>,
-}
-
 impl<'a> TransformGraphRequestLowerer<'a> {
     fn new(
         control: &'a crate::operation_control::OperationControl,
@@ -1595,219 +1586,9 @@ impl<'a> TransformGraphRequestLowerer<'a> {
             ResolvePurpose::ModuleMap,
             Some(MODULE_MAP_CONTENT_TYPE),
         )?;
-        let value: serde_json::Value =
-            serde_json::from_slice(&resource.bytes).map_err(|error| {
-                config_error(
-                    self.config_uri,
-                    "cem.transform_config.importmap_json_invalid",
-                    format!("importmap `{}` is not valid JSON: {error}", resource.uri),
-                )
-            })?;
-        let schema = match value.get("$schema") {
-            Some(serde_json::Value::String(schema)) if is_module_map_schema(schema) => {
-                Some(schema.clone())
-            }
-            Some(serde_json::Value::String(schema)) => {
-                return Err(config_error(
-                    self.config_uri,
-                    "cem.module_map.schema_unsupported",
-                    format!(
-                        "module map `{}` uses unsupported `$schema` `{schema}`; expected `{MODULE_MAP_SCHEMA_URI}`, `{MODULE_MAP_V2_SCHEMA_URI}`, or `{MODULE_MAP_V3_SCHEMA_URI}`",
-                        resource.uri
-                    ),
-                ));
-            }
-            Some(_) => {
-                return Err(config_error(
-                    self.config_uri,
-                    "cem.module_map.schema_invalid",
-                    format!("module map `{}` `$schema` must be a string", resource.uri),
-                ));
-            }
-            None => None,
-        };
-        let Some(imports) = value.get("imports").and_then(serde_json::Value::as_object) else {
-            if required {
-                return Err(config_error(
-                    self.config_uri,
-                    "cem.transform_config.importmap_imports_missing",
-                    format!(
-                        "importmap `{}` requires an object `imports` map",
-                        resource.uri
-                    ),
-                ));
-            }
-            return Ok(ModuleMapDocument {
-                uri: resource.uri,
-                schema,
-                imports: BTreeMap::new(),
-                resources: BTreeMap::new(),
-            });
-        };
-        let imports = imports
-            .iter()
-            .map(|(key, value)| {
-                if schema.as_deref() == Some(MODULE_MAP_V3_SCHEMA_URI) {
-                    parse_module_map_v3_asset_entry(
-                        self.config_uri,
-                        &resource.uri,
-                        "import",
-                        key,
-                        value,
-                    )
-                    .map(|entry| {
-                        (
-                            key.clone(),
-                            ModuleMapImport {
-                                path: entry.path,
-                                content_type: entry.content_type,
-                                module_imports: entry.module_imports,
-                            },
-                        )
-                    })
-                } else {
-                    value
-                        .as_str()
-                        .map(|value| {
-                            (
-                                key.clone(),
-                                ModuleMapImport {
-                                    path: value.to_owned(),
-                                    content_type: "text/javascript".to_owned(),
-                                    module_imports: BTreeMap::new(),
-                                },
-                            )
-                        })
-                        .ok_or_else(|| {
-                            config_error(
-                                self.config_uri,
-                                "cem.transform_config.importmap_entry_invalid",
-                                format!(
-                                    "importmap `{}` entry `{key}` must be a string",
-                                    resource.uri
-                                ),
-                            )
-                        })
-                }
-            })
-            .collect::<Result<BTreeMap<_, _>, _>>()?;
-        let resources = match value.get("resources") {
-            None => BTreeMap::new(),
-            Some(_)
-                if !matches!(
-                    schema.as_deref(),
-                    Some(MODULE_MAP_V2_SCHEMA_URI | MODULE_MAP_V3_SCHEMA_URI)
-                ) =>
-            {
-                return Err(config_error(
-                    self.config_uri,
-                    "cem.module_map.resources_unsupported",
-                    format!(
-                        "module map `{}` may declare `resources` only with schema `{MODULE_MAP_V2_SCHEMA_URI}` or `{MODULE_MAP_V3_SCHEMA_URI}`",
-                        resource.uri
-                    ),
-                ));
-            }
-            Some(serde_json::Value::Object(resources)) => resources
-                .iter()
-                .map(|(name, value)| {
-                    if schema.as_deref() == Some(MODULE_MAP_V3_SCHEMA_URI) {
-                        return parse_module_map_v3_asset_entry(
-                            self.config_uri,
-                            &resource.uri,
-                            "resource",
-                            name,
-                            value,
-                        )
-                        .map(|entry| {
-                            (
-                                name.clone(),
-                                ModuleMapResource {
-                                    path: entry.path,
-                                    content_type: entry.content_type,
-                                    module_imports: entry.module_imports,
-                                },
-                            )
-                        });
-                    }
-                    let entry = value.as_object().ok_or_else(|| {
-                        config_error(
-                            self.config_uri,
-                            "cem.module_map.resource_entry_invalid",
-                            format!(
-                                "module map `{}` resource `{name}` must be an object",
-                                resource.uri
-                            ),
-                        )
-                    })?;
-                    let path = entry
-                        .get("path")
-                        .and_then(serde_json::Value::as_str)
-                        .filter(|value| !value.trim().is_empty())
-                        .ok_or_else(|| {
-                            config_error(
-                                self.config_uri,
-                                "cem.module_map.resource_entry_invalid",
-                                format!(
-                                    "module map `{}` resource `{name}` requires a non-empty string `path`",
-                                    resource.uri
-                                ),
-                            )
-                        })?;
-                    let content_type = entry
-                        .get("contentType")
-                        .and_then(serde_json::Value::as_str)
-                        .filter(|value| !value.trim().is_empty())
-                        .ok_or_else(|| {
-                            config_error(
-                                self.config_uri,
-                                "cem.module_map.resource_entry_invalid",
-                                format!(
-                                    "module map `{}` resource `{name}` requires a non-empty string `contentType`",
-                                    resource.uri
-                                ),
-                            )
-                        })?;
-                    if entry
-                        .keys()
-                        .any(|key| !matches!(key.as_str(), "path" | "contentType"))
-                    {
-                        return Err(config_error(
-                            self.config_uri,
-                            "cem.module_map.resource_entry_invalid",
-                            format!(
-                                "module map `{}` resource `{name}` permits only `path` and `contentType`",
-                                resource.uri
-                            ),
-                        ));
-                    }
-                    Ok((
-                        name.clone(),
-                        ModuleMapResource {
-                            path: path.to_owned(),
-                            content_type: content_type.to_owned(),
-                            module_imports: BTreeMap::new(),
-                        },
-                    ))
-                })
-                .collect::<Result<BTreeMap<_, _>, _>>()?,
-            Some(_) => {
-                return Err(config_error(
-                    self.config_uri,
-                    "cem.module_map.resources_invalid",
-                    format!(
-                        "module map `{}` `resources` must be an object",
-                        resource.uri
-                    ),
-                ));
-            }
-        };
-        Ok(ModuleMapDocument {
-            uri: resource.uri,
-            schema,
-            imports,
-            resources,
-        })
+        crate::module_map::parse_document(
+            &resource.bytes, self.config_uri, &resource.uri, None, required,
+        ).map_err(Into::into)
     }
 
     fn lower_module_assets(
@@ -1869,6 +1650,8 @@ impl<'a> TransformGraphRequestLowerer<'a> {
             ));
         }
 
+        crate::module_map::validate_assets(source_map, self.config_uri)?;
+        crate::module_map::validate_assets(target_map, self.config_uri)?;
         let v3 = source_map.schema.as_deref() == Some(MODULE_MAP_V3_SCHEMA_URI);
         let mut deployment_assets = BTreeMap::new();
         for (identity, asset) in &target_map.imports {
@@ -2459,108 +2242,6 @@ fn config_error(uri: &str, code: &str, message: impl Into<String>) -> TransformG
     TransformGraphRequestError::diagnostic(uri, code, message)
 }
 
-struct ParsedModuleMapV3AssetEntry {
-    path: String,
-    content_type: String,
-    module_imports: BTreeMap<String, String>,
-}
-
-fn parse_module_map_v3_asset_entry(
-    config_uri: &str,
-    map_uri: &str,
-    kind: &str,
-    identity: &str,
-    value: &serde_json::Value,
-) -> Result<ParsedModuleMapV3AssetEntry, TransformGraphRequestError> {
-    let diagnostic = if kind == "import" {
-        "cem.module_map.import_entry_invalid"
-    } else {
-        "cem.module_map.resource_entry_invalid"
-    };
-    let entry = value.as_object().ok_or_else(|| {
-        config_error(
-            config_uri,
-            diagnostic,
-            format!("module map `{map_uri}` {kind} `{identity}` must be an object"),
-        )
-    })?;
-    if entry
-        .keys()
-        .any(|key| !matches!(key.as_str(), "path" | "contentType" | "moduleImports"))
-    {
-        return Err(config_error(
-            config_uri,
-            diagnostic,
-            format!(
-                "module map `{map_uri}` {kind} `{identity}` permits only `path`, `contentType`, and `moduleImports`"
-            ),
-        ));
-    }
-    let path = entry
-        .get("path")
-        .and_then(serde_json::Value::as_str)
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| {
-            config_error(
-                config_uri,
-                diagnostic,
-                format!(
-                    "module map `{map_uri}` {kind} `{identity}` requires a non-empty string `path`"
-                ),
-            )
-        })?;
-    let content_type = entry
-        .get("contentType")
-        .and_then(serde_json::Value::as_str)
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| {
-            config_error(
-                config_uri,
-                diagnostic,
-                format!(
-                    "module map `{map_uri}` {kind} `{identity}` requires a non-empty string `contentType`"
-                ),
-            )
-        })?;
-    let module_imports = match entry.get("moduleImports") {
-        None => BTreeMap::new(),
-        Some(serde_json::Value::Object(edges)) => edges
-            .iter()
-            .map(|(specifier, asset)| {
-                validate_module_specifier(config_uri, specifier)?;
-                let asset = asset
-                    .as_str()
-                    .filter(|value| !value.trim().is_empty())
-                    .ok_or_else(|| {
-                        config_error(
-                            config_uri,
-                            "cem.module_map.module_imports_invalid",
-                            format!(
-                                "module map `{map_uri}` {kind} `{identity}` module import `{specifier}` must name a declared asset"
-                            ),
-                        )
-                    })?;
-                validate_module_specifier(config_uri, asset)?;
-                Ok::<_, TransformGraphRequestError>((specifier.clone(), asset.to_owned()))
-            })
-            .collect::<Result<BTreeMap<_, _>, _>>()?,
-        Some(_) => {
-            return Err(config_error(
-                config_uri,
-                "cem.module_map.module_imports_invalid",
-                format!(
-                    "module map `{map_uri}` {kind} `{identity}` `moduleImports` must be an object"
-                ),
-            ));
-        }
-    };
-    Ok(ParsedModuleMapV3AssetEntry {
-        path: path.to_owned(),
-        content_type: content_type.to_owned(),
-        module_imports,
-    })
-}
-
 fn module_asset_manifest(
     mut assets: Vec<TransformGraphModuleAsset>,
 ) -> TransformGraphModuleAssetManifest {
@@ -2619,61 +2300,6 @@ fn append_module_asset_hash_field(canonical: &mut Vec<u8>, field: &[u8]) {
     canonical.extend_from_slice(field);
 }
 
-fn is_module_map_schema(schema: &str) -> bool {
-    matches!(
-        schema,
-        MODULE_MAP_SCHEMA_URI | MODULE_MAP_V2_SCHEMA_URI | MODULE_MAP_V3_SCHEMA_URI
-    )
-}
-
-fn validate_module_import_content_type(
-    config_uri: &str,
-    specifier: &str,
-    path: &str,
-    content_type: &str,
-    v3: bool,
-) -> Result<String, TransformGraphRequestError> {
-    let content_type = content_type_essence(content_type);
-    let expected_extensions: &[&str] = match content_type.as_str() {
-        "text/javascript" => &["js", "mjs"],
-        "application/json" if v3 => &["json"],
-        _ => {
-            return Err(config_error(
-                config_uri,
-                if v3 {
-                    "cem.module_map.import_type_unsupported"
-                } else {
-                    "cem.module_map.asset_type_unsupported"
-                },
-                format!(
-                    "module-map import `{specifier}` content type `{content_type}` is unsupported"
-                ),
-            ));
-        }
-    };
-    let extension = Path::new(path)
-        .extension()
-        .and_then(OsStr::to_str)
-        .map(str::to_ascii_lowercase);
-    if !extension
-        .as_deref()
-        .is_some_and(|extension| expected_extensions.contains(&extension))
-    {
-        return Err(config_error(
-            config_uri,
-            if v3 {
-                "cem.module_map.import_type_mismatch"
-            } else {
-                "cem.module_map.asset_type_unsupported"
-            },
-            format!(
-                "module-map import `{specifier}` path `{path}` does not match content type `{content_type}`"
-            ),
-        ));
-    }
-    Ok(content_type)
-}
-
 fn validate_module_import_target(
     config_uri: &str,
     specifier: &str,
@@ -2707,7 +2333,7 @@ fn validate_module_import_target(
         ));
     }
     validate_module_import_content_type(config_uri, specifier, target, content_type, true)
-        .map(|_| ())
+        .map(|_| ()).map_err(Into::into)
 }
 
 #[derive(Debug)]
@@ -3095,49 +2721,6 @@ fn relative_module_target(from: &str, to: &str) -> String {
     }
 }
 
-fn validate_module_resource_content_type(
-    config_uri: &str,
-    name: &str,
-    path: &str,
-    content_type: &str,
-    v3: bool,
-) -> Result<String, TransformGraphRequestError> {
-    let content_type = content_type_essence(content_type);
-    let expected_extensions: &[&str] = match content_type.as_str() {
-        "text/javascript" => &["js", "mjs"],
-        "text/css" => &["css"],
-        "application/wasm" => &["wasm"],
-        "application/xhtml+xml" if v3 => &["xhtml"],
-        _ => {
-            return Err(config_error(
-                config_uri,
-                "cem.module_map.resource_type_unsupported",
-                format!(
-                    "module-map resource `{name}` content type `{content_type}` is unsupported; expected `text/javascript`, `text/css`, or `application/wasm`{}",
-                    if v3 { ", or `application/xhtml+xml`" } else { "" }
-                ),
-            ));
-        }
-    };
-    let extension = Path::new(path)
-        .extension()
-        .and_then(OsStr::to_str)
-        .map(str::to_ascii_lowercase);
-    if !extension
-        .as_deref()
-        .is_some_and(|extension| expected_extensions.contains(&extension))
-    {
-        return Err(config_error(
-            config_uri,
-            "cem.module_map.resource_type_mismatch",
-            format!(
-                "module-map resource `{name}` path `{path}` does not match content type `{content_type}`"
-            ),
-        ));
-    }
-    Ok(content_type)
-}
-
 fn validate_module_resource_target(
     config_uri: &str,
     name: &str,
@@ -3172,30 +2755,7 @@ fn validate_module_resource_target(
             ),
         ));
     }
-    validate_module_resource_content_type(config_uri, name, target, content_type, v3).map(|_| ())
-}
-
-fn validate_module_specifier(
-    config_uri: &str,
-    specifier: &str,
-) -> Result<(), TransformGraphRequestError> {
-    let specifier = specifier.trim();
-    if specifier.is_empty()
-        || specifier.starts_with('.')
-        || specifier.starts_with('/')
-        || specifier.starts_with('#')
-        || specifier.ends_with('/')
-        || uri_scheme(specifier).is_some()
-    {
-        return Err(config_error(
-            config_uri,
-            "cem.module_map.specifier_invalid",
-            format!(
-                "module-map import key `{specifier}` must be an exact bare npm module specifier"
-            ),
-        ));
-    }
-    Ok(())
+    validate_module_resource_content_type(config_uri, name, target, content_type, v3).map(|_| ()).map_err(Into::into)
 }
 
 fn module_asset_export_is_html(scope: &ScopeConfig) -> bool {
@@ -3704,6 +3264,7 @@ fn export_target_for_stage(
 
 #[cfg(test)]
 mod tests {
+    use crate::schema::registry::{MODULE_MAP_SCHEMA_URI, MODULE_MAP_V2_SCHEMA_URI};
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use super::*;
@@ -4718,7 +4279,7 @@ export { metadata };
     fn module_map_contract_rejects_discovery_and_output_escape_shapes() {
         for specifier in ["./runtime.js", "https://cdn.example/runtime.js", "@pkg/"] {
             let error = validate_module_specifier("graph.cem", specifier).unwrap_err();
-            assert_eq!(error.code(), "cem.module_map.specifier_invalid");
+            assert_eq!(error.code, "cem.module_map.specifier_invalid");
         }
         for target in ["../runtime.js", "./../runtime.js", "./runtime.js?x=1"] {
             let error = validate_module_import_target(

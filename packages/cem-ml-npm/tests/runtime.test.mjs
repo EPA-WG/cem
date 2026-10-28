@@ -898,7 +898,7 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
           async () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
           async () => assert.fail('inline owned resource must not fetch'),
           async (json, output) => { published = { write: JSON.parse(json), bytes: Uint8Array.from(output) }; return JSON.stringify({ token: 'data' }); },
-          async () => JSON.stringify({ uri: published.write.uri }), async () => {},
+          async () => JSON.stringify({ uri: published.write.uri }), async () => undefined,
         ));
         return { result, text: published ? new TextDecoder().decode(published.bytes) : undefined };
       } finally { runtime.disposeCommandArtifactsV1(request.requestId); }
@@ -1020,7 +1020,8 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
     const terminal = await execute('terminal', 'ansi-256');
     assert.equal(terminal.contentType, 'application/cem');
     assert.ok(terminal.text.includes('\u001b['));
-    assert.equal(terminal.text.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, ''), plain.text);
+    const ansiSequence = new RegExp(String.fromCodePoint(27) + String.raw`\[[0-?]*[ -/]*[@-~]`, 'g');
+    assert.equal(terminal.text.replace(ansiSequence, ''), plain.text);
   });
 }
 
@@ -1053,7 +1054,7 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
           async () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
           async () => assert.fail('validation must not fetch Login data or send credentials'),
           async (json) => { publication = JSON.parse(json); return JSON.stringify({ token: 'validation' }); },
-          async () => JSON.stringify({ uri: publication.uri }), async () => {},
+          async () => JSON.stringify({ uri: publication.uri }), async () => undefined,
         ));
       } finally { runtime.disposeCommandArtifactsV1(request.requestId); }
     };
@@ -1125,7 +1126,7 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
           async () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
           async () => assert.fail('inert control source operations must not execute argv, read resources or transport credentials'),
           async (json, output) => { published = { write: JSON.parse(json), bytes: Uint8Array.from(output) }; return JSON.stringify({ token: 'control-output' }); },
-          async () => JSON.stringify({ uri: published.write.uri }), async () => {},
+          async () => JSON.stringify({ uri: published.write.uri }), async () => undefined,
         ));
         const artifact = result.artifacts.items.find(item => item.kind === 'output');
         const output = published?.bytes ?? (artifact
@@ -1160,5 +1161,63 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
       }
       assert.equal((await execute(source, mime, schema, 'parse')).result.exitCode, 0);
     }
+  });
+}
+
+for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
+  test(`versioned module maps and semantic AST exports share native contracts in ${runtimeKind}`, async () => {
+    const runtime = runtimeKind === 'wasm-node'
+      ? await import('@epa-wg/cem-ml/wasm') : await import('../dist/wasm/browser/cem_ml.js');
+    if (runtimeKind !== 'wasm-node') await runtime.default({ module_or_path: await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url)) });
+    let sequence = 0;
+    const execute = async (text, contentType, schema, convert = false) => {
+      const uri = 'studio://source-contracts/original.source', bytes = new TextEncoder().encode(text);
+      const request = {
+        protocolVersion: 1, requestId: `source-contracts:${runtimeKind}:${++sequence}`,
+        project: { projectId: 'source-contracts', revision: 1 },
+        resourceVersions: { [uri]: { revision: 1, sha256: createHash('sha256').update(bytes).digest('hex') } },
+        operation: convert ? { kind: 'convert', inputId: 'input:0', toFormat: 'ast', preserveSourceOffsets: true }
+          : { kind: 'validate', inputIds: ['input:0'], projection: 'json' },
+        runPlan: JSON.parse(runtime.normalizeCommandRunPlanV1(JSON.stringify({ configBytes: [
+          ...new TextEncoder().encode(JSON.stringify({ inputs: [{ uri, rootScope: { defaultContentType: contentType, schema } }],
+            outputs: convert ? [{ destination: `${uri}.ast.json`, rootScope: { defaultContentType: 'application/vnd.cem.ast+json', schema: 'https://cem.dev/ns/projection/ast/1' } }] : [] })),
+        ] }))),
+        resources: { [uri]: { bytes: [...bytes], identity: { contentType, schema } } },
+        policyStamp: { resolver: 'source-resolver', safety: 'source-safety', budget: 'source-budget' },
+      };
+      let published;
+      try {
+        const result = JSON.parse(await runtime.executeCommandServiceV1(JSON.stringify(request),
+          JSON.stringify({ runtime: runtimeKind, targetIdentity: 'runtime-test:source-contracts', abiIdentity: 'runtime-test-v1', debugControlActive: false }),
+          async () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
+          async () => assert.fail('source contracts cannot read mapped assets, execute commands or transport credentials'),
+          async (json, output) => { published = Uint8Array.from(output); return JSON.stringify({ token: 'source-output' }); },
+          async () => JSON.stringify({ uri: `${uri}.ast.json` }), async () => undefined,
+        ));
+        return { result, text: published && new TextDecoder().decode(published) };
+      } finally { runtime.disposeCommandArtifactsV1(request.requestId); }
+    };
+    for (const version of [1, 2, 3]) {
+      const schema = `https://cem.dev/ns/data/module-map/${version}`;
+      const root = new URL(`../../../examples/projects/module-maps/`, import.meta.url);
+      const valid = await readFile(new URL(`maps/source-v${version}.json`, root), 'utf8');
+      const invalid = await readFile(new URL(`failures/semantic-v${version}.json`, root), 'utf8');
+      assert.equal((await execute(valid, 'application/vnd.cem.module-map+json', schema)).result.exitCode, 0);
+      const refused = (await execute(invalid, 'application/vnd.cem.module-map+json', schema)).result;
+      assert.equal(refused.exitCode, 1);
+      const diagnostic = refused.diagnostics.items.find(d => d.code === 'cem.module_map.specifier_invalid');
+      assert.equal(diagnostic.uri, 'studio://source-contracts/original.source');
+      assert.equal(diagnostic.byteOffset, new TextEncoder().encode(invalid.slice(0, invalid.indexOf('"./invalid"'))).length);
+      assert.ok(diagnostic.sourceMap.frames.length > 0);
+      assert.equal((await execute(valid.replace(schema, 'https://cem.dev/ns/data/module-map/4'), 'application/vnd.cem.module-map+json', schema)).result.exitCode, 1);
+      assert.equal((await execute(valid, 'application/vnd.cem.module-map+json', schema)).result.exitCode, 0);
+    }
+    const ast = await execute('{p @title="Café" | Ready}', 'application/cem', 'https://cem.dev/ns/cem-ml/1', true);
+    assert.equal(ast.result.exitCode, 0, JSON.stringify(ast.result));
+    const document = JSON.parse(ast.text);
+    assert.equal(document.kind, 'document'); assert.ok(Array.isArray(document.children));
+    assert.ok(document.children.find(n => n.kind === 'element').children.some(n => n.kind === 'text' && n.data === 'Ready'));
+    assert.equal((await execute(ast.text, 'application/vnd.cem.ast+json', 'https://cem.dev/ns/projection/ast/1')).result.exitCode, 0);
+    assert.equal((await execute(JSON.stringify(document.children), 'application/vnd.cem.ast+json', 'https://cem.dev/ns/projection/ast/1')).result.exitCode, 1);
   });
 }

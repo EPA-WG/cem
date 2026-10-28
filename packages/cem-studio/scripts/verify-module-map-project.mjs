@@ -122,10 +122,16 @@ export async function verifyModuleMapProject({ page, context, url }) {
     }
     const baselines = {};
     for (const version of [1, 2, 3]) { baselines[version] = await build(project, version); await assertBaseline(baselines[version], project, version); await rendered(version); }
-    console.log('[cem-studio:module-maps] catalog, native syntax/source operations, exact repairs and all three deployment contracts passed');
+    console.log('[cem-studio:module-maps] catalog, native version-specific source operations, syntax/semantic repairs and all three deployment contracts passed');
     for (const version of [1, 2, 3]) {
         const good = await build(project, version); await assertBaseline(good, project, version);
-        await edit(project, `source-v${version}`, originals[`invalid-contract-v${version}`], version); assert.equal((await run(project, `validate-v${version}`, version)).status, 'valid');
+        await edit(project, `source-v${version}`, originals[`invalid-contract-v${version}`], version);
+        const validated = await run(project, `validate-v${version}`, version);
+        const expected = operation(`build-v${version}`).expectedGraphRefusals[0].expectedSourceValidation;
+        assert.equal(validated.status, expected.exitCode === 0 ? 'valid' : 'invalid');
+        assert.equal(validated.diagnostics.filter(item => item.severity === 'error').length, expected.errorCount);
+        assert.equal(validated.diagnostics.filter(item => item.severity === 'warning').length, expected.warningCount);
+        assert.ok(validated.diagnostics.some(item => item.code === expected.errorCode));
         const refused = await build(project, version); assert.equal(refused.buildStatus, 'failed'); assert.equal(refused.runId, good.runId);
         assert.ok(refused.buildError?.includes(operation(`build-v${version}`).expectedGraphRefusals[0].code), refused.buildError);
         assert.equal(refused.buildDiagnostics, undefined, 'Planning refusal must not acquire completed-command diagnostics');
@@ -151,7 +157,10 @@ export async function verifyModuleMapProject({ page, context, url }) {
         const offline = await build(copy); await assertManifest(offline, copy, 3, { 'module-metadata': data }, { '@demo/metadata': './assets/catalog-copy.json' });
         assert.deepEqual(offline.outputs, copied.outputs); await rendered(3); await jsonRecord('generated/v3/assets/catalog-copy.json', 'Saved modules');
         for (const [name, text] of Object.entries({ ...repaired, 'target-v3': copiedTarget, 'module-metadata': data })) { await open({ project: copy, file: name, build: 'build-v3' }); assert.equal(await editor.evaluate(element => element.value), text); }
-        for (const version of [1, 2, 3]) assert.equal((await run(copy, `repair-v${version}`)).status, 'valid');
+        for (const version of [1, 2, 3]) {
+            assert.equal((await run(copy, `repair-v${version}`)).status, 'valid');
+            assert.equal((await run(copy, `repair-semantic-v${version}`)).status, 'valid');
+        }
         for (const name of originalIds) { await open(sampleRoute(name)); assert.equal(await readonly.getAttribute('aria-readonly'), 'true'); assert.equal(await readonly.evaluate(element => element.value), originals[name]); }
     } finally { await context.setOffline(false); }
     console.log('[cem-studio:module-maps] independent target maps, native manifest ownership/hashes, all-version offline builds and unchanged originals passed');

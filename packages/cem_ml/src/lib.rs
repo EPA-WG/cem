@@ -45,6 +45,7 @@ pub mod interpreter;
 pub mod legacy_custom_element;
 pub mod lifecycle;
 pub mod module_resolution;
+pub(crate) mod module_map;
 pub mod navigation_links;
 pub mod resource_base;
 pub mod observability;

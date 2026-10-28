@@ -139,11 +139,11 @@ artifacts; the mere presence of a manifest artifact is insufficient.
 | CEM schema/package | Native declaration/manifest validation and package loading. | CEM formatting/source inspection. | Explicitly supplied schemas/packages validate instances, as Login demonstrates. Admission and complete package resource validation are separate phases. |
 | JSON Schema | JSON parsing and Draft 2020-12 dialect source checks. | Native source formatting and retained imported-tree Parse/Inspect, including literal `$defs`/`$ref`. Source schema/MIME and original ranges remain distinct from AST/events presentation identity; events describe the common imported tree. | Instance assertions, remote references and dynamic scope are unavailable. Do not label schema-source validation as validation of a JSON payload against that schema. |
 | Relax NG | Native XML/compact schema-source validation and Parse; compact grammar checks remain lexical. | Typed source Parse AST/events and native source formatting/coloring; Inspect shows generic imported CEM structure. Native Events retain source. Source DomJson/Json are unavailable. | No semantic grammar compiler or instance validator; include/external references are rejected. Do not label schema-source validation as validation of an XML instance. |
-| Module maps v1/v2/v3 | Standalone validation checks JSON syntax under the selected identity; v2/v3 require their explicit schema. Paired-map version/deployment semantics are enforced by native graph planning. | Native same-identity source formatting and retained JSON-backed Parse/Inspect preserve the selected map schema/MIME and source ranges. These structural operations do not validate version-specific map semantics. | Native deployment rewriting uses declared source/destination pairs and version-specific resource kinds/edges. Source validation is not a read grant. No implicit dependency discovery, npm export selection or undeclared copying. |
+| Module maps v1/v2/v3 | Standalone validation enforces JSON syntax, the selected v1/v2/v3 schema and matching embedded version, bare keys, asset kinds/extensions and declared edge targets. MIME-only selection means v1. Pair matching, output containment and resource reads remain planning checks. | Native same-identity source formatting and retained JSON-backed Parse/Inspect preserve the selected map schema/MIME and source ranges. Source operations share the same version-specific semantic admission and original native JSON diagnostics. | Native deployment rewriting uses declared source/destination pairs and version-specific resource kinds/edges. Source validation is not a read grant. No implicit dependency discovery, npm export selection or undeclared copying. |
 | CLI command | Native validation checks the versioned literal-argv envelope; the executing host checks actual argv grammar separately. | Typed-admitted original JSON Parse AST/events, Inspect views/ranges and native JSON formatting. The command/plan inspector still uses native decoded controls for execution preparation. | Source operations do not execute argv, normalize a command plan or grant resource reads. |
 | CLI run configuration | Explicit run-config schema selects the native authored parser and semantic validator; `--config` separately prepares a normalized execution plan. | Typed-admitted original JSON Parse/Inspect and native source formatting preserve submitted fields and literal paths. | Source duplicate/policy diagnostics retain native severity; source inspection does not read configured inputs, resolve paths or grant execution. |
 | Studio project | Explicit portable control contract with CEM and JSON encodings and native project validation. | Typed-admitted original CEM/JSON Parse/Inspect retain source identity/ranges; CEM inspection shares the codec parser allocation. Native formatting and cross-encoding conversion retain reference-path normalization. | Source tooling does not import the inner project or execute its resources. Repository import/export and builds preserve captured resource identities. |
-| DOM/AST/events projections | Registered JSON shape and binary-header validation; projection input adapters remain output-only. | Original CEM Parse AST/events and retained imported-tree Inspect default to native CEM-ML; JSON/binary exports require explicit targets. | DOM/events JSON exports validate; parser AST JSON exports an array while its registered validator requires an object. Binary validation does not establish payload integrity or safe replay. Numeric fields in imported JSON do not grant source ownership. |
+| DOM/AST/events projections | Registered JSON shape and binary-header validation; projection input adapters remain output-only. | Original CEM Parse AST/events and retained imported-tree Inspect default to native CEM-ML; JSON/binary exports require explicit targets. | Explicit DOM/AST/events JSON exports validate their registered source shapes. AST export uses the semantic document envelope; Parse/Inspect CEMT subjects retain their separate presentation contract. Binary validation does not establish payload integrity or safe replay. Numeric fields in imported JSON do not grant source ownership. |
 | Runtime data island | Declared CEM runtime-state envelope validation. | CEM source inspection. | Shared runtime hydration/state contract; not a standalone data query language or a portable secret store. |
 
 The generic retained-document
@@ -348,23 +348,26 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `relax-ng` | `invalid-xml` | `repair-xml-start` | Restore the local start/ref declaration after the original missing-start diagnostic. |
 | `relax-ng` | `invalid-compact` | `repair-compact-close` | Close the note pattern after reviewing its original opening-delimiter range. |
 | `relax-ng` | `external-reference` | `repair-reference-policy` | Replace an external reference with an inline pattern. The resolver policy stays reject-only; no remote or filesystem schema is loaded. |
-| `module-maps` | `source-v1` | `validate-v1` | Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter. |
+| `module-maps` | `source-v1` | `validate-v1` | Validate original JSON syntax and selected-version map identities, asset types/extensions and declared edges without reading assets. Pair matching and output containment remain planning checks. |
 | `module-maps` | `source-v1` | `inspect-v1` | Inspect the generic imported CEM source structure and original ranges; this is not a typed module-map AST or an execution plan. |
 | `module-maps` | `source-v1` | `format-v1` | Apply the native tabular JSON source formatter with exact expected bytes; formatting grants no deployment or read authority. |
-| `module-maps` | `invalid-syntax-v1` | `repair-v1` | Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics. |
+| `module-maps` | `invalid-syntax-v1` | `repair-v1` | Restore the missing outer object brace after the original native EOF diagnostic; the repaired map then passes selected-version semantic validation. |
 | `module-maps` | `graph-v1` | `build-v1` | Lower the real v1 paired-map contract, copy only declared resources and rewrite the authored HTML import map; the sandboxed preview never executes those modules. |
-| `module-maps` | `source-v2` | `validate-v2` | Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter. |
+| `module-maps` | `source-v2` | `validate-v2` | Validate original JSON syntax and selected-version map identities, asset types/extensions and declared edges without reading assets. Pair matching and output containment remain planning checks. |
 | `module-maps` | `source-v2` | `inspect-v2` | Inspect the generic imported CEM source structure and original ranges; this is not a typed module-map AST or an execution plan. |
 | `module-maps` | `source-v2` | `format-v2` | Apply the native tabular JSON source formatter with exact expected bytes; formatting grants no deployment or read authority. |
-| `module-maps` | `invalid-syntax-v2` | `repair-v2` | Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics. |
+| `module-maps` | `invalid-syntax-v2` | `repair-v2` | Restore the missing outer object brace after the original native EOF diagnostic; the repaired map then passes selected-version semantic validation. |
 | `module-maps` | `graph-v2` | `build-v2` | Lower the real v2 paired-map contract, copy only declared resources and rewrite the authored HTML import map; the sandboxed preview never executes those modules. |
-| `module-maps` | `source-v3` | `validate-v3` | Validate the JSON source buffer under the explicit version identity; deployment semantic rules are enforced by graph planning, not this syntax adapter. |
+| `module-maps` | `source-v3` | `validate-v3` | Validate original JSON syntax and selected-version map identities, asset types/extensions and declared edges without reading assets. Pair matching and output containment remain planning checks. |
 | `module-maps` | `source-v3` | `inspect-v3` | Inspect the generic imported CEM source structure and original ranges; this is not a typed module-map AST or an execution plan. |
 | `module-maps` | `source-v3` | `format-v3` | Apply the native tabular JSON source formatter with exact expected bytes; formatting grants no deployment or read authority. |
-| `module-maps` | `invalid-syntax-v3` | `repair-v3` | Restore the missing outer object brace after reviewing the original native EOF diagnostic; this does not validate deployment semantics. |
+| `module-maps` | `invalid-syntax-v3` | `repair-v3` | Restore the missing outer object brace after the original native EOF diagnostic; the repaired map then passes selected-version semantic validation. |
 | `module-maps` | `graph-v3` | `build-v3` | Lower the real v3 paired-map contract, copy only declared resources and rewrite the authored HTML import map; the sandboxed preview never executes those modules. |
 | `module-maps` | `graph-v3` | `validate-graph` | Validate the graph source declaration independently from resolving maps, reading resources or executing its deployment. |
 | `module-maps` | `graph-v3` | `inspect-graph` | Inspect the native graph source tree and explicit map/export references without running module deployment. |
+| `module-maps` | `invalid-semantic-v3` | `repair-semantic-v3` | Repair a syntactically valid relative asset identity after its original native key diagnostic; no declared asset is read. |
+| `module-maps` | `invalid-semantic-v2` | `repair-semantic-v2` | Repair a syntactically valid relative asset identity after its original native key diagnostic; no declared asset is read. |
+| `module-maps` | `invalid-semantic-v1` | `repair-semantic-v1` | Repair a syntactically valid relative asset identity after its original native key diagnostic; no declared asset is read. |
 | `portable-config` | `card-command` | `validate-command` | Validate literal argv storage, binary identity and supported command/common schema versions. Actual argv grammar is inspected by the shared native command inspector when the project executes it. |
 | `portable-config` | `card-check` | `run-check` | Use the native run-config parser and normalized plan through validate --config, then validate only its explicitly configured project-relative XML input. This executes the prepared command; separate source configurations inspect the inert authored config. |
 | `portable-config` | `project-json` | `validate-project-json` | Validate native project IDs, resource references, relative paths, hashes and entry-artifact declarations without loading the resource bytes or granting execution. |
@@ -394,13 +397,14 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `native-projections` | `plain-source` | `inspect-text` | Inspect native text/plain import as one retained text node with its original buffer. This family has no registered schema package or generic source-validation claim. |
 | `native-projections` | `cem-source` | `export-dom-json` | Request a named JSON debug export from the original native source. The exported byteRange/sourceMap fields are data; revalidating them does not restore the original source owner. |
 | `native-projections` | `cem-source` | `export-dom-binary` | Request exact native binary projection bytes from the original source for download. Studio does not execute configurations whose input is a binary projection. |
-| `native-projections` | `cem-source` | `export-ast-json` | Request a named JSON debug export from the original native source. The native AST array export currently differs from the registered document-object validator; no AST JSON round trip is claimed. |
+| `native-projections` | `cem-source` | `export-ast-json` | Request a named JSON debug export from the original native source. The native semantic document export validates against the registered AST JSON source contract without application reshaping; this is not executable replay. |
 | `native-projections` | `cem-source` | `export-ast-binary` | Request exact native binary projection bytes from the original source for download. Studio does not execute configurations whose input is a binary projection. |
 | `native-projections` | `cem-source` | `export-events-json` | Request a named JSON debug export from the original native source. The exported byteRange/sourceMap fields are data; revalidating them does not restore the original source owner. |
 | `native-projections` | `cem-source` | `export-events-binary` | Request exact native binary projection bytes from the original source for download. Studio does not execute configurations whose input is a binary projection. |
 | `native-projections` | `dom-json` | `validate-dom-json` | Validate the native JSON debug export using the registered projection source validator. This checks its supported shape and grants no decoded runtime import or source ownership. |
 | `native-projections` | `invalid-dom` | `repair-dom-json` | Restore the supported document root kind after the original native projection-shape diagnostic. Native JSON projection diagnostics currently have null text coordinates. |
 | `native-projections` | `ast-json` | `validate-ast-json` | Validate the separate authored document-object AST fixture using the registered projection source validator. This checks its supported shape and grants no decoded runtime import or source ownership. |
+| `native-projections` | `ast-export` | `validate-ast-export` | Validate the exact native semantic document export. Shape validation grants no executable owner, resource access or source-navigation endpoint. |
 | `native-projections` | `invalid-ast` | `repair-ast-json` | Restore the supported document root kind after the original native projection-shape diagnostic. Native JSON projection diagnostics currently have null text coordinates. |
 | `native-projections` | `events-json` | `validate-events-json` | Validate the native JSON debug export using the registered projection source validator. This checks its supported shape and grants no decoded runtime import or source ownership. |
 | `native-projections` | `invalid-events` | `repair-events-json` | Restore the supported open event kind after the original native projection-shape diagnostic. Native JSON projection diagnostics currently have null text coordinates. |
@@ -569,8 +573,10 @@ Text editing does not grant parser execution, schema loading or resolver access.
 
 `module-maps` demonstrates actual v1/v2/v3 paired deployments, including relative
 map/resource paths, explicit CSS/JSON/XHTML assets and declared bare module edges.
-Standalone validation is JSON syntax validation. Version, key and resource-kind
-contracts are checked when the native graph is prepared, before publication.
+Standalone validation now enforces the selected version, bare keys, asset kinds
+and extensions, and declared module-edge targets, without reading resources.
+The three semantic repair configurations locate and repair invalid JSON keys.
+Paired-map agreement and output containment remain native graph preparation.
 Opaque deployments have no output spans or sidecar maps. Their native
 `moduleAssetManifest` captures source/deployed bytes, lengths, SHA-256, target and
 owned URIs. Its hash contract versions 1/2 are independent of map schema versions
@@ -615,10 +621,10 @@ publishes no owned artifact-source references to the Provenance panel. This
 project follows actual native diagnostic ranges through the shared Diagnostics
 selector; it never manufactures links from inspection data fields.
 
-DOM/events JSON exports pass their registered shape validators. The native AST
-debug writer emits an array, but the AST JSON validator accepts a document
-object; its authored valid-object fixture is separate from the unchanged native
-export. Projection input adapters remain output-only, and binary validators
+DOM/AST/events JSON exports pass their registered shape validators. Native AST
+export uses the semantic document envelope and native node fields; the separate
+authored AST fixture is retained. `validate-ast-export` validates the actual
+export without application wrapping, while legacy arrays must be regenerated. Projection input adapters remain output-only, and binary validators
 currently check headers rather than payload/chunk integrity. Unsupported
 projection-source Inspect/conversion/replay configurations are omitted.
 

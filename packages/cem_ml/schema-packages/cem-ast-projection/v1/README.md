@@ -8,6 +8,14 @@ parser-owned structural view of CEM source: document nodes, element nodes,
 attributes, text, token/range facts, parser diagnostics, source-map metadata,
 and sealed binary chunks for runtime/cache handoff.
 
+Explicit native AST conversion exports a `kind: document` object with ordered
+`children`, expanded-name namespaces, text `data`, attribute `valueNodes`,
+native reference context/targets and original source maps/ranges. The registered
+JSON source validator accepts those exact exports; no application array wrapper
+or field rewriting is required. Legacy array exports must be regenerated. CEMT
+Parse/Inspect presentation subjects remain separate. Shape validation alone is
+not native owner decoding, source-navigation admission or executable replay.
+
 ## Source Identity
 
 Owned schema URI:

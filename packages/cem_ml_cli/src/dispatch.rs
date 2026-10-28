@@ -21897,10 +21897,10 @@ start =
                         .any(|event| event["kind"] == "open" && event["name"] == "p"));
                 }
                 "ast" => {
-                    assert!(v.is_array());
-                    assert_eq!(v[0]["kind"], "element");
-                    assert_eq!(v[0]["name"], "p");
-                    assert!(v[0]["sourceMap"]["frames"].is_array());
+                    assert_eq!(v["kind"], "document");
+                    assert_eq!(v["children"][0]["kind"], "element");
+                    assert_eq!(v["children"][0]["name"], "p");
+                    assert!(v["children"][0]["sourceMap"]["frames"].is_array());
                 }
                 _ => {
                     assert_eq!(v["kind"], "document");
@@ -23631,7 +23631,7 @@ start =
     }
 
     #[test]
-    fn convert_to_format_ast_outputs_source_mapped_cem_tree_stream() {
+    fn convert_to_format_ast_exports_valid_registered_semantic_json() {
         let p = write_fixture("convert-ast.cem", "@doc cem-ml 1\n{p | Hi}");
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
@@ -23643,25 +23643,94 @@ start =
                 p.to_str().unwrap(),
             ],
         );
-
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stderr.trim().is_empty(), "{stderr}");
-        let nodes: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        let nodes = nodes.as_array().expect("AST stream node array");
-        let p_node = nodes
-            .iter()
-            .find(|node| node["kind"] == "element" && node["name"] == "p")
-            .expect("p element in AST stream");
-        assert!(p_node.get("byteRange").is_none());
-        assert!(p_node["sourceMap"]["frames"].as_array().is_some());
-        assert!(p_node["sourceMap"]["frames"]
+        let document: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(document["kind"], "document");
+        let p_node = document["children"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|frame| {
-                frame["transform"]["kind"] == "ContentTypeTransform"
-                    && frame["transform"]["content_type"] == "application/cem"
-            }));
+            .find(|node| node["kind"] == "element" && node["name"] == "p")
+            .unwrap();
+        assert!(p_node["byteRange"]["start"].is_u64());
+        assert!(p_node["sourceMap"]["frames"].is_array());
+        assert!(p_node["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["kind"] == "text" && n["data"] == "Hi"));
+        let exported = write_fixture("convert-ast-output.json", &stdout);
+        let (outcome, report, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--content-type",
+                "application/vnd.cem.ast+json",
+                "--schema",
+                "https://cem.dev/ns/projection/ast/1",
+                "--format",
+                "json",
+                exported.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{report}: {stderr}");
+    }
+
+    #[test]
+    fn module_map_cli_uses_selected_version_and_original_semantic_diagnostics() {
+        for version in [1, 2, 3] {
+            let schema = format!("https://cem.dev/ns/data/module-map/{version}");
+            let imports = if version == 3 {
+                serde_json::json!({"./bad":{"path":"never://missing/app.js","contentType":"text/javascript"}})
+            } else {
+                serde_json::json!({"./bad":"never://missing/app.js"})
+            };
+            let value = serde_json::json!({"$schema":schema,"imports":imports});
+            let text = serde_json::to_string_pretty(&value).unwrap();
+            let path = write_fixture(&format!("source-map-v{version}.json"), &text);
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "validate",
+                    "--content-type",
+                    "application/vnd.cem.module-map+json",
+                    "--schema",
+                    &schema,
+                    "--format",
+                    "json",
+                    path.to_str().unwrap(),
+                ],
+            );
+            assert_eq!(outcome.exit_code, 1, "{stdout}: {stderr}");
+            let report: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+            let diagnostic = report["diagnostics"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|d| d["code"] == "cem.module_map.specifier_invalid")
+                .unwrap();
+            assert_eq!(
+                diagnostic["byteOffset"],
+                text.find("\"./bad\"").unwrap() as u64
+            );
+            let repaired = text.replace("./bad", "@demo/app");
+            std::fs::write(&path, repaired).unwrap();
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "validate",
+                    "--content-type",
+                    "application/vnd.cem.module-map+json",
+                    "--schema",
+                    &schema,
+                    "--format",
+                    "json",
+                    path.to_str().unwrap(),
+                ],
+            );
+            assert_eq!(outcome.exit_code, EXIT_OK, "{stdout}: {stderr}");
+        }
     }
 
     #[test]
@@ -25377,10 +25446,10 @@ declare let broken = 1 +
             "{stderr}"
         );
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert!(v.is_array());
-        assert_eq!(v[0]["kind"], "element");
-        assert_eq!(v[0]["name"], "p");
-        assert!(v[0]["sourceMap"]["frames"].is_array());
+        assert_eq!(v["kind"], "document");
+        assert_eq!(v["children"][0]["kind"], "element");
+        assert_eq!(v["children"][0]["name"], "p");
+        assert!(v["children"][0]["sourceMap"]["frames"].is_array());
     }
 
     #[test]

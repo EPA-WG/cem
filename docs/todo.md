@@ -433,9 +433,14 @@ checkpoint, witness and deadline guards. The parallel fallback resume timeout
 remains recorded in the existing concurrent verifier scheduling item. Deployment
 retains 898 files and four WASMs below 25 MiB.
 
-- [ ] Enforce the selected module-map version's semantic source contract during standalone validation. Explicit v1/v2/v3 identities currently delegate to JSON syntax checks; invalid keys, resource kinds and embedded versions refuse only during graph planning. Add native diagnostic/location fixtures before changing that boundary, preserve bounded read grants, and keep paired deployment maps separate from input-root-scope alias maps.
-
-- [ ] Reconcile native AST debug JSON export with the registered AST JSON source contract. The writer exports an array while the v1 validator requires a document object; do not wrap or reinterpret the exported AST in application JavaScript. Add native writer/validator compatibility fixtures before claiming a round trip.
+Completed 2026-10-27: [module-map semantics and AST JSON export](archive/todo-completed-module-map-ast-json-2026-10-27.md)
+shares native v1/v2/v3 source checks with deployment planning, retains original
+JSON diagnostics and separate paired-map/read boundaries, and aligns explicit
+semantic AST JSON exports with their unchanged source validator. Ordinary Studio
+projects add semantic repairs and actual-export validation. Native CLI/WASM,
+complete native catalog, saved/offline browser, demo and isolated Login recovery
+checks pass. CEMT presentation, binary ownership, credential policy and all
+recovery bounds are unchanged; native projection decoding/replay remains below.
 
 - [ ] Publish owned native Parse/Inspect presentation provenance through the common command result. Their typed retained owner and coordinate presentation survive, but `PrimaryBytes` and command publication omit named source-map references/output spans. Include explicit Convert primary-artifact span publication and admitted URI boundaries; its embedded numeric source IDs do not supply those endpoints. Preserve actual source identities and native ranges; add native/worker/Studio selection fixtures before exposing fine artifact-source navigation. Do not reconstruct links from serialized AST fields or numeric source IDs. Keep any explicitly admitted whole-input boundary distinct from fine token lineage.
 

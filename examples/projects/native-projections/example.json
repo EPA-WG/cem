@@ -1,7 +1,7 @@
 {
   "id": "native-projections",
   "name": "Native DOM, AST and events",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Compare native source AST/event presentations, retained XML/plain-text inspection and explicit DOM/AST/event JSON or binary exports, with original ranges, shape repairs and clear import/ownership boundaries.",
   "collections": [
     "content-types-schema-authoring",
@@ -338,7 +338,7 @@
       "name": "Export explicit AST JSON",
       "kind": "conversion",
       "source": "cem-source",
-      "description": "Request a named JSON debug export from the original native source. The native AST array export currently differs from the registered document-object validator; no AST JSON round trip is claimed.",
+      "description": "Export the native semantic AST as a registered document object with namespaces, text data, reference edges, original ranges and source maps.",
       "argv": [
         "convert",
         "$source",
@@ -635,6 +635,28 @@
       "repair": {
         "find": "{p @class=destination | Café Noord}\n",
         "replace": "{p @class=destination | Café Noord}\n}\n"
+      }
+    },
+    {
+      "id": "validate-ast-export",
+      "name": "Validate the native AST JSON export",
+      "kind": "validation",
+      "source": "ast-export",
+      "description": "Validate the actual native semantic document export without wrapping or reshaping it. Source-shape validation grants no executable replay, native owner or original-source navigation authority.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.ast+json",
+        "--schema",
+        "https://cem.dev/ns/projection/ast/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 0
       }
     }
   ]

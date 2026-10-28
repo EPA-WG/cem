@@ -13550,10 +13550,7 @@ impl CemMlEngine for RealCemMlEngine {
                     Value::Null
                 }
                 LayerFormat::DomJson => projection::dom_json(&run.document),
-                LayerFormat::Ast => {
-                    projection::ast_stream(&run.document, Some(input_format_content_type(from_format)))
-                        .into_cemt_subject()
-                }
+                LayerFormat::Ast => projection::ast_json(&run.document),
                 LayerFormat::Events => projection::events_json_as(&loaded.bytes, from_format),
                 LayerFormat::DomBin => {
                     let artifact = projection::dom_binary_projection_artifact(&run.document);
@@ -24030,7 +24027,7 @@ mod tests {
     }
 
     #[test]
-    fn convert_ast_returns_source_mapped_cem_tree_stream() {
+    fn convert_ast_returns_registered_semantic_document_json() {
         let req = ConvertRequest {
             input: input(b"{p | Hi}", "in"),
             to_format: LayerFormat::Ast,
@@ -24041,22 +24038,16 @@ mod tests {
             scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
-        let nodes = resp.primary.as_array().expect("AST stream node array");
-        let p = &nodes[0];
-
+        assert_eq!(resp.primary["kind"], "document");
+        let p = &resp.primary["children"][0];
         assert_eq!(p["kind"], "element");
         assert_eq!(p["name"], "p");
-        assert!(p["sourceMap"]["frames"].as_array().is_some());
-        assert!(p["sourceMap"]["frames"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|frame| {
-                frame["transform"]["kind"] == "ContentTypeTransform"
-                    && frame["transform"]["content_type"] == "application/cem"
-            }));
-        assert!(p["byteRange"].is_null());
-        assert!(p["children"][0]["sourceMap"]["frames"].is_array());
+        assert!(p["namespace"].is_string());
+        assert!(p["sourceMap"]["frames"].is_array());
+        assert!(p["byteRange"]["start"].is_u64());
+        let text = p["children"].as_array().unwrap().iter().find(|n| n["kind"] == "text").unwrap();
+        assert_eq!(text["data"], "Hi");
+        assert!(text.get("value").is_none());
     }
 
     #[test]

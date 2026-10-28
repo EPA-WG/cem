@@ -4,7 +4,8 @@
 //! for runtime/cache handoff. The DOM/events projection functions remain
 //! consumer-friendly debug/interchange views for `cem-ml parse --format
 //! dom-json|events` and the same projections for `convert` / `inspect`; the
-//! AST projection exposes the source-map-bearing CEM tree stream used by CEMT.
+//! AST JSON export uses the semantic document envelope. The separate source-map-
+//! bearing CEM tree stream remains the presentation subject used by CEMT.
 
 use crate::engine::InputFormat;
 use crate::events::{
@@ -1359,7 +1360,18 @@ impl Serialize for DomJsonNodeRef<'_> {
     }
 }
 
+/// Explicit semantic AST debug/interchange export. This shares native node
+/// projection with DOM JSON, preserving references and attribute value sequences.
+/// It does not use the CEMT presentation subject or confer replay authority.
+pub fn ast_json(doc: &CemDocument) -> Value {
+    project_document_json(doc)
+}
+
 pub fn dom_json(doc: &CemDocument) -> Value {
+    project_document_json(doc)
+}
+
+fn project_document_json(doc: &CemDocument) -> Value {
     match doc.root() {
         Some(CemAstNode::Document {
             root_children,

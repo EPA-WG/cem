@@ -1,1212 +1,994 @@
-[
-  {
-    "attributes": [],
-    "children": [
-      {
-        "kind": "text",
-        "sourceMap": {
-          "frames": [
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 162,
-                  "start": 0
-                }
-              },
-              "transform": {
-                "kind": "CemTokenizer"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 13,
-                  "start": 0
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 13,
-                  "start": 0
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 13,
-                  "start": 0
-                }
-              },
-              "transform": {
-                "content_type": "application/cem",
-                "kind": "ContentTypeTransform"
-              }
-            }
-          ]
-        },
-        "value": "cem-ml 1"
-      }
-    ],
-    "kind": "element",
-    "name": "@doc",
-    "sourceMap": {
-      "frames": [
-        {
-          "source_id": 1,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 162,
-              "start": 0
-            }
-          },
-          "transform": {
-            "kind": "CemTokenizer"
-          }
-        },
-        {
-          "source_id": 1,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 13,
-              "start": 0
-            }
-          },
-          "transform": {
-            "kind": "CemAstBuilder"
-          }
-        },
-        {
-          "source_id": 1,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 13,
-              "start": 0
-            }
-          },
-          "transform": {
-            "content_type": "application/cem",
-            "kind": "ContentTypeTransform"
-          }
-        }
-      ]
-    }
-  },
-  {
-    "data": "",
-    "kind": "whitespace",
-    "sourceMap": {
-      "frames": [
-        {
-          "source_id": 0,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 1,
-              "start": 13
-            }
-          },
-          "transform": {
-            "kind": "CemAstBuilder"
-          }
-        },
-        {
-          "source_id": 0,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 1,
-              "start": 13
-            }
-          },
-          "transform": {
-            "content_type": "application/cem",
-            "kind": "ContentTypeTransform"
-          }
-        }
-      ]
-    }
-  },
-  {
-    "attributes": [],
-    "children": [
-      {
-        "kind": "text",
-        "sourceMap": {
-          "frames": [
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 162,
-                  "start": 0
-                }
-              },
-              "transform": {
-                "kind": "CemTokenizer"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 38,
-                  "start": 14
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 38,
-                  "start": 14
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 38,
-                  "start": 14
-                }
-              },
-              "transform": {
-                "content_type": "application/cem",
-                "kind": "ContentTypeTransform"
-              }
-            }
-          ]
-        },
-        "value": "h = \"http://www.w3.org/1999/xhtml\""
-      }
-    ],
-    "kind": "element",
-    "name": "@ns",
-    "sourceMap": {
-      "frames": [
-        {
-          "source_id": 1,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 162,
-              "start": 0
-            }
-          },
-          "transform": {
-            "kind": "CemTokenizer"
-          }
-        },
-        {
-          "source_id": 1,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 38,
-              "start": 14
-            }
-          },
-          "transform": {
-            "kind": "CemAstBuilder"
-          }
-        },
-        {
-          "source_id": 1,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 38,
-              "start": 14
-            }
-          },
-          "transform": {
-            "content_type": "application/cem",
-            "kind": "ContentTypeTransform"
-          }
-        }
-      ]
-    }
-  },
-  {
-    "data": "",
-    "kind": "whitespace",
-    "sourceMap": {
-      "frames": [
-        {
-          "source_id": 0,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 1,
-              "start": 52
-            }
-          },
-          "transform": {
-            "kind": "CemAstBuilder"
-          }
-        },
-        {
-          "source_id": 0,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 1,
-              "start": 52
-            }
-          },
-          "transform": {
-            "content_type": "application/cem",
-            "kind": "ContentTypeTransform"
-          }
-        }
-      ]
-    }
-  },
-  {
-    "attributes": [],
-    "children": [
-      {
-        "kind": "text",
-        "sourceMap": {
-          "frames": [
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 162,
-                  "start": 0
-                }
-              },
-              "transform": {
-                "kind": "CemTokenizer"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 10,
-                  "start": 53
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 10,
-                  "start": 53
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 10,
-                  "start": 53
-                }
-              },
-              "transform": {
-                "content_type": "application/cem",
-                "kind": "ContentTypeTransform"
-              }
-            }
-          ]
-        },
-        "value": "h"
-      }
-    ],
-    "kind": "element",
-    "name": "@default",
-    "sourceMap": {
-      "frames": [
-        {
-          "source_id": 1,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 162,
-              "start": 0
-            }
-          },
-          "transform": {
-            "kind": "CemTokenizer"
-          }
-        },
-        {
-          "source_id": 1,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 10,
-              "start": 53
-            }
-          },
-          "transform": {
-            "kind": "CemAstBuilder"
-          }
-        },
-        {
-          "source_id": 1,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 10,
-              "start": 53
-            }
-          },
-          "transform": {
-            "content_type": "application/cem",
-            "kind": "ContentTypeTransform"
-          }
-        }
-      ]
-    }
-  },
-  {
-    "data": "",
-    "kind": "whitespace",
-    "sourceMap": {
-      "frames": [
-        {
-          "source_id": 0,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 2,
-              "start": 63
-            }
-          },
-          "transform": {
-            "kind": "CemAstBuilder"
-          }
-        },
-        {
-          "source_id": 0,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 2,
-              "start": 63
-            }
-          },
-          "transform": {
-            "content_type": "application/cem",
-            "kind": "ContentTypeTransform"
-          }
-        }
-      ]
-    }
-  },
-  {
-    "attributes": [
-      {
-        "kind": "attribute",
-        "name": "id",
-        "sourceMap": {
-          "frames": [
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 162,
-                  "start": 0
-                }
-              },
-              "transform": {
-                "kind": "CemTokenizer"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 8,
-                  "start": 65
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 2,
-                  "start": 75
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 2,
-                  "start": 75
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 2,
-                  "start": 75
-                }
-              },
-              "transform": {
-                "content_type": "application/cem",
-                "kind": "ContentTypeTransform"
-              }
-            }
-          ]
-        },
-        "value": "dispatch",
-        "valueNodes": []
-      }
-    ],
-    "children": [
-      {
-        "data": "",
-        "kind": "whitespace",
-        "sourceMap": {
-          "frames": [
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 162,
-                  "start": 0
-                }
-              },
-              "transform": {
-                "kind": "CemTokenizer"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 8,
-                  "start": 65
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 5,
-                  "start": 88
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 5,
-                  "start": 88
-                }
-              },
-              "transform": {
-                "content_type": "application/cem",
-                "kind": "ContentTypeTransform"
-              }
-            }
-          ]
-        }
+{
+  "children": [
+    {
+      "attributes": [],
+      "byteRange": {
+        "len": 162,
+        "start": 0
       },
-      {
-        "attributes": [],
-        "children": [
-          {
-            "data": "",
-            "kind": "whitespace",
-            "sourceMap": {
-              "frames": [
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 162,
-                      "start": 0
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemTokenizer"
+      "children": [
+        {
+          "byteRange": {
+            "len": 162,
+            "start": 0
+          },
+          "data": "cem-ml 1",
+          "kind": "text",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 162,
+                    "start": 0
                   }
                 },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 3,
-                      "start": 93
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemAstBuilder"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 1,
-                      "start": 98
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemAstBuilder"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 1,
-                      "start": 98
-                    }
-                  },
-                  "transform": {
-                    "content_type": "application/cem",
-                    "kind": "ContentTypeTransform"
-                  }
+                "transform": {
+                  "kind": "CemTokenizer"
                 }
-              ]
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 13,
+                    "start": 0
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 13,
+                    "start": 0
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "kind": "element",
+      "name": "@doc",
+      "namespace": "",
+      "sourceMap": {
+        "frames": [
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 162,
+                "start": 0
+              }
+            },
+            "transform": {
+              "kind": "CemTokenizer"
             }
           },
           {
-            "kind": "text",
-            "sourceMap": {
-              "frames": [
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 162,
-                      "start": 0
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemTokenizer"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 3,
-                      "start": 93
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemAstBuilder"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 18,
-                      "start": 99
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemAstBuilder"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 18,
-                      "start": 99
-                    }
-                  },
-                  "transform": {
-                    "content_type": "application/cem",
-                    "kind": "ContentTypeTransform"
-                  }
-                }
-              ]
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 13,
+                "start": 0
+              }
             },
-            "value": "Amsterdam dispatch"
+            "transform": {
+              "kind": "CemAstBuilder"
+            }
           }
-        ],
-        "kind": "element",
-        "name": "h1",
-        "sourceMap": {
-          "frames": [
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 162,
-                  "start": 0
-                }
-              },
-              "transform": {
-                "kind": "CemTokenizer"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 3,
-                  "start": 93
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 3,
-                  "start": 93
-                }
-              },
-              "transform": {
-                "content_type": "application/cem",
-                "kind": "ContentTypeTransform"
-              }
-            }
-          ]
-        }
-      },
-      {
-        "data": "",
-        "kind": "whitespace",
-        "sourceMap": {
-          "frames": [
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 162,
-                  "start": 0
-                }
-              },
-              "transform": {
-                "kind": "CemTokenizer"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 8,
-                  "start": 65
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 5,
-                  "start": 118
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 5,
-                  "start": 118
-                }
-              },
-              "transform": {
-                "content_type": "application/cem",
-                "kind": "ContentTypeTransform"
-              }
-            }
-          ]
-        }
-      },
-      {
-        "attributes": [
-          {
-            "kind": "attribute",
-            "name": "class",
-            "sourceMap": {
-              "frames": [
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 162,
-                      "start": 0
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemTokenizer"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 2,
-                      "start": 123
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemAstBuilder"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 5,
-                      "start": 127
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemAstBuilder"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 5,
-                      "start": 127
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemAstBuilder"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 5,
-                      "start": 127
-                    }
-                  },
-                  "transform": {
-                    "content_type": "application/cem",
-                    "kind": "ContentTypeTransform"
-                  }
-                }
-              ]
-            },
-            "value": "destination",
-            "valueNodes": []
-          }
-        ],
-        "children": [
-          {
-            "data": "",
-            "kind": "whitespace",
-            "sourceMap": {
-              "frames": [
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 162,
-                      "start": 0
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemTokenizer"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 2,
-                      "start": 123
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemAstBuilder"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 1,
-                      "start": 146
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemAstBuilder"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 1,
-                      "start": 146
-                    }
-                  },
-                  "transform": {
-                    "content_type": "application/cem",
-                    "kind": "ContentTypeTransform"
-                  }
-                }
-              ]
-            }
-          },
-          {
-            "kind": "text",
-            "sourceMap": {
-              "frames": [
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 162,
-                      "start": 0
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemTokenizer"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 2,
-                      "start": 123
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemAstBuilder"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 11,
-                      "start": 147
-                    }
-                  },
-                  "transform": {
-                    "kind": "CemAstBuilder"
-                  }
-                },
-                {
-                  "source_id": 1,
-                  "span": {
-                    "kind": "Single",
-                    "ranges": {
-                      "len": 11,
-                      "start": 147
-                    }
-                  },
-                  "transform": {
-                    "content_type": "application/cem",
-                    "kind": "ContentTypeTransform"
-                  }
-                }
-              ]
-            },
-            "value": "Café Noord"
-          }
-        ],
-        "kind": "element",
-        "name": "p",
-        "sourceMap": {
-          "frames": [
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 162,
-                  "start": 0
-                }
-              },
-              "transform": {
-                "kind": "CemTokenizer"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 2,
-                  "start": 123
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 2,
-                  "start": 123
-                }
-              },
-              "transform": {
-                "content_type": "application/cem",
-                "kind": "ContentTypeTransform"
-              }
-            }
-          ]
-        }
-      },
-      {
-        "data": "",
-        "kind": "whitespace",
-        "sourceMap": {
-          "frames": [
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 162,
-                  "start": 0
-                }
-              },
-              "transform": {
-                "kind": "CemTokenizer"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 8,
-                  "start": 65
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 1,
-                  "start": 159
-                }
-              },
-              "transform": {
-                "kind": "CemAstBuilder"
-              }
-            },
-            {
-              "source_id": 1,
-              "span": {
-                "kind": "Single",
-                "ranges": {
-                  "len": 1,
-                  "start": 159
-                }
-              },
-              "transform": {
-                "content_type": "application/cem",
-                "kind": "ContentTypeTransform"
-              }
-            }
-          ]
-        }
+        ]
       }
-    ],
-    "kind": "element",
-    "name": "article",
-    "sourceMap": {
-      "frames": [
-        {
-          "source_id": 1,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 162,
-              "start": 0
+    },
+    {
+      "byteRange": {
+        "len": 1,
+        "start": 13
+      },
+      "data": "",
+      "kind": "whitespace",
+      "sourceMap": {
+        "frames": [
+          {
+            "source_id": 0,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 1,
+                "start": 13
+              }
+            },
+            "transform": {
+              "kind": "CemAstBuilder"
             }
-          },
-          "transform": {
-            "kind": "CemTokenizer"
           }
-        },
+        ]
+      }
+    },
+    {
+      "attributes": [],
+      "byteRange": {
+        "len": 162,
+        "start": 0
+      },
+      "children": [
         {
-          "source_id": 1,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 8,
-              "start": 65
-            }
+          "byteRange": {
+            "len": 162,
+            "start": 0
           },
-          "transform": {
-            "kind": "CemAstBuilder"
-          }
-        },
-        {
-          "source_id": 1,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 8,
-              "start": 65
-            }
-          },
-          "transform": {
-            "content_type": "application/cem",
-            "kind": "ContentTypeTransform"
+          "data": "h = \"http://www.w3.org/1999/xhtml\"",
+          "kind": "text",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 162,
+                    "start": 0
+                  }
+                },
+                "transform": {
+                  "kind": "CemTokenizer"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 38,
+                    "start": 14
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 38,
+                    "start": 14
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              }
+            ]
           }
         }
-      ]
-    }
-  },
-  {
-    "data": "",
-    "kind": "whitespace",
-    "sourceMap": {
-      "frames": [
-        {
-          "source_id": 0,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 1,
-              "start": 161
+      ],
+      "kind": "element",
+      "name": "@ns",
+      "namespace": "",
+      "sourceMap": {
+        "frames": [
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 162,
+                "start": 0
+              }
+            },
+            "transform": {
+              "kind": "CemTokenizer"
             }
           },
-          "transform": {
-            "kind": "CemAstBuilder"
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 38,
+                "start": 14
+              }
+            },
+            "transform": {
+              "kind": "CemAstBuilder"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "byteRange": {
+        "len": 1,
+        "start": 52
+      },
+      "data": "",
+      "kind": "whitespace",
+      "sourceMap": {
+        "frames": [
+          {
+            "source_id": 0,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 1,
+                "start": 52
+              }
+            },
+            "transform": {
+              "kind": "CemAstBuilder"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "attributes": [],
+      "byteRange": {
+        "len": 162,
+        "start": 0
+      },
+      "children": [
+        {
+          "byteRange": {
+            "len": 162,
+            "start": 0
+          },
+          "data": "h",
+          "kind": "text",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 162,
+                    "start": 0
+                  }
+                },
+                "transform": {
+                  "kind": "CemTokenizer"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 10,
+                    "start": 53
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 10,
+                    "start": 53
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "kind": "element",
+      "name": "@default",
+      "namespace": "",
+      "sourceMap": {
+        "frames": [
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 162,
+                "start": 0
+              }
+            },
+            "transform": {
+              "kind": "CemTokenizer"
+            }
+          },
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 10,
+                "start": 53
+              }
+            },
+            "transform": {
+              "kind": "CemAstBuilder"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "byteRange": {
+        "len": 2,
+        "start": 63
+      },
+      "data": "",
+      "kind": "whitespace",
+      "sourceMap": {
+        "frames": [
+          {
+            "source_id": 0,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 2,
+                "start": 63
+              }
+            },
+            "transform": {
+              "kind": "CemAstBuilder"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "attributes": [
+        {
+          "name": "id",
+          "namespace": "",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 162,
+                    "start": 0
+                  }
+                },
+                "transform": {
+                  "kind": "CemTokenizer"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 8,
+                    "start": 65
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 2,
+                    "start": 75
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 2,
+                    "start": 75
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              }
+            ]
+          },
+          "value": "dispatch"
+        }
+      ],
+      "byteRange": {
+        "len": 162,
+        "start": 0
+      },
+      "children": [
+        {
+          "byteRange": {
+            "len": 162,
+            "start": 0
+          },
+          "data": "",
+          "kind": "whitespace",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 162,
+                    "start": 0
+                  }
+                },
+                "transform": {
+                  "kind": "CemTokenizer"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 8,
+                    "start": 65
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 5,
+                    "start": 88
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              }
+            ]
           }
         },
         {
-          "source_id": 0,
-          "span": {
-            "kind": "Single",
-            "ranges": {
-              "len": 1,
-              "start": 161
-            }
+          "attributes": [],
+          "byteRange": {
+            "len": 162,
+            "start": 0
           },
-          "transform": {
-            "content_type": "application/cem",
-            "kind": "ContentTypeTransform"
+          "children": [
+            {
+              "byteRange": {
+                "len": 162,
+                "start": 0
+              },
+              "data": "",
+              "kind": "whitespace",
+              "sourceMap": {
+                "frames": [
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 162,
+                        "start": 0
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemTokenizer"
+                    }
+                  },
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 3,
+                        "start": 93
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemAstBuilder"
+                    }
+                  },
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 1,
+                        "start": 98
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemAstBuilder"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "byteRange": {
+                "len": 162,
+                "start": 0
+              },
+              "data": "Amsterdam dispatch",
+              "kind": "text",
+              "sourceMap": {
+                "frames": [
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 162,
+                        "start": 0
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemTokenizer"
+                    }
+                  },
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 3,
+                        "start": 93
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemAstBuilder"
+                    }
+                  },
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 18,
+                        "start": 99
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemAstBuilder"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "kind": "element",
+          "name": "h1",
+          "namespace": "",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 162,
+                    "start": 0
+                  }
+                },
+                "transform": {
+                  "kind": "CemTokenizer"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 3,
+                    "start": 93
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "byteRange": {
+            "len": 162,
+            "start": 0
+          },
+          "data": "",
+          "kind": "whitespace",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 162,
+                    "start": 0
+                  }
+                },
+                "transform": {
+                  "kind": "CemTokenizer"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 8,
+                    "start": 65
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 5,
+                    "start": 118
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "attributes": [
+            {
+              "name": "class",
+              "namespace": "",
+              "sourceMap": {
+                "frames": [
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 162,
+                        "start": 0
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemTokenizer"
+                    }
+                  },
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 2,
+                        "start": 123
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemAstBuilder"
+                    }
+                  },
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 5,
+                        "start": 127
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemAstBuilder"
+                    }
+                  },
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 5,
+                        "start": 127
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemAstBuilder"
+                    }
+                  }
+                ]
+              },
+              "value": "destination"
+            }
+          ],
+          "byteRange": {
+            "len": 162,
+            "start": 0
+          },
+          "children": [
+            {
+              "byteRange": {
+                "len": 162,
+                "start": 0
+              },
+              "data": "",
+              "kind": "whitespace",
+              "sourceMap": {
+                "frames": [
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 162,
+                        "start": 0
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemTokenizer"
+                    }
+                  },
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 2,
+                        "start": 123
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemAstBuilder"
+                    }
+                  },
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 1,
+                        "start": 146
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemAstBuilder"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "byteRange": {
+                "len": 162,
+                "start": 0
+              },
+              "data": "Café Noord",
+              "kind": "text",
+              "sourceMap": {
+                "frames": [
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 162,
+                        "start": 0
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemTokenizer"
+                    }
+                  },
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 2,
+                        "start": 123
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemAstBuilder"
+                    }
+                  },
+                  {
+                    "source_id": 1,
+                    "span": {
+                      "kind": "Single",
+                      "ranges": {
+                        "len": 11,
+                        "start": 147
+                      }
+                    },
+                    "transform": {
+                      "kind": "CemAstBuilder"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "kind": "element",
+          "name": "p",
+          "namespace": "",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 162,
+                    "start": 0
+                  }
+                },
+                "transform": {
+                  "kind": "CemTokenizer"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 2,
+                    "start": 123
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "byteRange": {
+            "len": 162,
+            "start": 0
+          },
+          "data": "",
+          "kind": "whitespace",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 162,
+                    "start": 0
+                  }
+                },
+                "transform": {
+                  "kind": "CemTokenizer"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 8,
+                    "start": 65
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              },
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 1,
+                    "start": 159
+                  }
+                },
+                "transform": {
+                  "kind": "CemAstBuilder"
+                }
+              }
+            ]
           }
         }
-      ]
+      ],
+      "kind": "element",
+      "name": "article",
+      "namespace": "",
+      "sourceMap": {
+        "frames": [
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 162,
+                "start": 0
+              }
+            },
+            "transform": {
+              "kind": "CemTokenizer"
+            }
+          },
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 8,
+                "start": 65
+              }
+            },
+            "transform": {
+              "kind": "CemAstBuilder"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "byteRange": {
+        "len": 1,
+        "start": 161
+      },
+      "data": "",
+      "kind": "whitespace",
+      "sourceMap": {
+        "frames": [
+          {
+            "source_id": 0,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 1,
+                "start": 161
+              }
+            },
+            "transform": {
+              "kind": "CemAstBuilder"
+            }
+          }
+        ]
+      }
     }
+  ],
+  "kind": "document",
+  "sourceMap": {
+    "frames": []
   }
-]
+}

@@ -42,9 +42,9 @@ Every version uses `application/vnd.cem.module-map+json` with its explicit schem
 
 For each `N` in `1`, `2`, `3`:
 
-- `validate-vN` validates **JSON source syntax**. The native source adapter currently
-  delegates to JSON even with an explicit module-map schema. It does not enforce
-  map version, allowed resource types or matching source/destination keys.
+- `validate-vN` validates **JSON source syntax and selected-version semantics**. It
+  enforces its selected v1/v2/v3 schema, exact bare identities, version-specific
+  import/resource kinds and declared module-edge targets. No assets are read.
 - `inspect-vN` shows a generic imported CEM source tree and original ranges, not a
   typed module-map AST or an executable plan.
 - `format-vN` applies the native tabular JSON formatter with an exact fixture.
@@ -56,11 +56,20 @@ For each `N` in `1`, `2`, `3`:
 `validate-graph` and `inspect-graph` cover the v3 graph source separately from
 reading its maps or running deployment. JSON-backed Parse and Inspect use the
 retained native data import and preserve the selected map schema/MIME, without
-retokenizing JSON as CEM. These structural operations do not validate the
-version-specific deployment contract. The standalone Inspect coordinates remain
-presentation facts. They do not
-populate Studio's Provenance selector, whose owned source-map references are
+retokenizing JSON as CEM. These operations refuse the same selected-version
+semantic errors. Pair matching, output containment and resource reads remain
+separate deployment-plan checks. Standalone Inspect coordinates remain
+presentation facts. They do not populate Studio's Provenance selector, whose owned source-map references are
 absent from current common Inspect publication.
+
+`repair-semantic-v1`, `repair-semantic-v2` and `repair-semantic-v3` exercise
+syntactically valid maps containing a forbidden `./invalid` identity. The native
+`cem.module_map.specifier_invalid` diagnostic points to its original JSON key;
+repairing that identity restores the exact corresponding valid map. Explicit
+schema selection is authoritative; MIME-only requests select v1, and ordinary
+JSON never acquires module-map behavior from its `$schema` property. Input-root
+alias maps and ordinary browser prefix/scoped import maps retain their separate
+contracts.
 
 ## Relative paths, maps and artifacts
 
@@ -114,10 +123,14 @@ The three `failures/syntax-vN.json` buffers omit the outer closing brace. Their
 to restore the exact valid source. Catalog originals remain unchanged.
 
 The separate `failures/source-vN.json` files are syntactically valid but violate
-real deployment contracts. Source syntax validation accepts them; replacing a
-saved source map with one makes `build-vN` fail during native planning:
+real deployment contracts. Standalone validation now refuses the v1 trailing-
+slash identity (`cem.module_map.specifier_invalid`), the v2 resource kind and
+the v3 embedded version. Replacing a saved source map with one still makes
+`build-vN` fail during native planning:
 
-- v1 reports `cem.module_map.entries_mismatch` for unequal import keys.
+- v1 reports `cem.module_map.entries_mismatch` for unequal import keys before
+  checking the invalid trailing-slash identity; pair confirmation retains its
+  original planning priority.
 - v2 reports `cem.module_map.resource_type_unsupported` for a JSON resource.
 - v3 reports `cem.module_map.schema_unsupported` for its unsupported embedded version.
 

@@ -102,3 +102,13 @@ previews are not used.
   }
 }
 ```
+
+## Standalone source admission
+
+Native Validate/Check and source tooling enforce the selected deployment-map
+version and the matching embedded `$schema`, exact bare identities, supported
+asset kinds/extensions and declared module-edge targets. Original JSON ranges
+and maps locate semantic errors. MIME-only module-map requests select v1;
+ordinary JSON remains data. Standalone checks do not read any declared asset.
+Pair agreement, destination containment and resource access remain graph-planning
+checks. Root-scope alias maps and ordinary browser import maps are independent.

@@ -55,7 +55,7 @@ example claims neither standalone schema validation nor a general formatter.
 | Configuration | Output resource | Contract |
 | --- | --- | --- |
 | `export-dom-json` | `projections/dispatch.dom.json` | Explicit native DOM debug/interchange JSON. |
-| `export-ast-json` | `projections/dispatch.ast.json` | Explicit native parser-AST array export; see the validation mismatch below. |
+| `export-ast-json` | `projections/dispatch.ast.json` | Explicit semantic AST document JSON, accepted by the registered source validator. |
 | `export-events-json` | `projections/dispatch.events.json` | Explicit native ordered event JSON. |
 | `export-dom-binary` | `projections/dispatch.dom.cem-bin` | Exact native DOM binary bytes. |
 | `export-ast-binary` | `projections/dispatch.ast.cem-bin` | Exact native AST binary bytes. |
@@ -86,11 +86,19 @@ of the corresponding exported JSON buffers. `validate-ast-json` instead checks
 the separate authored document object in `projections/authored.ast.json`.
 It deliberately has no invented source map or byte ranges.
 
-The current native AST JSON export is an **array**, while the registered AST
-JSON source validator requires a **document object**. Revalidating the actual
-export with that validator fails with `cem.projection.ast.json_shape` (`$ must
-be an object`). The example preserves that real boundary; it does not wrap the
-array, invent a repair or advertise an AST JSON round trip.
+`validate-ast-export` validates the actual `projections/dispatch.ast.json` export.
+The native writer emits `{ "kind": "document", "children": [...] }`, with
+namespace fields, text `data`, native reference records and attribute
+`valueNodes`, plus original ranges and maps. Reference targets remain opaque
+non-owning handles: export never follows cycles or grants their authority.
+Older array exports and text records containing only `value` fail the unchanged
+registered source-shape validator. Re-export them from the original source.
+
+CEM-ML Parse/Inspect presentation and its optional `parse --format ast-json`
+CEMT subject remain a distinct inspection contract. Use explicit `convert`
+AST export for registered semantic interchange. Binary bytes and runtime
+ownership are unchanged. Successful JSON source validation is a structural
+round trip; it does not decode or rehydrate a native execution owner.
 
 These native projection lifecycle adapters are output-only. JSON validation does
 not make a projection a supported generic Parse/Inspect/convert/query input.

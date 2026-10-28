@@ -535,3 +535,21 @@ requires lifecycle admission; no automatic restart or action replay is provided.
 See [portable checkpoints](../../docs/committed-checkpoints.md). Run
 `cargo test -p cem-ml --test committed_checkpoint` and, after building WASM,
 `node packages/cem_ql/tests/committed-checkpoint-wasm.mjs`.
+
+## Versioned deployment-map source validation and AST JSON exports
+
+Explicit module-map v1/v2/v3 identities use shared native deployment-map decoding
+and semantic validation during Validate/Check and source tooling. Selected schema
+and embedded version must agree; MIME-only module maps select v1. Generic JSON
+remains inert. Exact bare identities, allowed typed assets, extension agreement,
+identity collisions and v3 declared module edges are checked without resource
+reads. Pair matching, destination containment and asset reads remain planning
+operations. Root-scope alias maps and ordinary browser import maps are separate.
+Diagnostics use original native JSON key/value ranges and source maps.
+
+`projection::ast_json` and explicit AST conversion export the registered semantic
+document envelope, sharing native node projection with DOM JSON. Namespaces,
+text `data`, attribute `valueNodes`, native references, original ranges and maps
+survive; non-owning reference targets are never traversed. CEMT presentation
+subjects and binary/runtime ownership retain their own contracts. Structural
+source validation does not decode an executable owner or grant source navigation.

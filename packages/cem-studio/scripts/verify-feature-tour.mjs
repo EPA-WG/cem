@@ -347,8 +347,11 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                         const source = bundle.project.resources.find(item => item.id === refusal.source);
                         await rm(resolve(directory, 'generated'), { recursive: true, force: true });
                         await writeFile(resolve(directory, source.path), bundle.contents[refusal.replacement]);
-                        const syntax = JSON.parse(run(cli, ['validate', source.path, '--content-type', source.contentType, '--schema', source.schema, '--format', 'json'], directory));
-                        assert.equal(syntax.summary.hardViolationCount, 0, 'Source syntax validation is separate from deployment planning');
+                        const expectedSource = refusal.expectedSourceValidation ?? { exitCode: 0, errorCount: 0, warningCount: 0 };
+                        const validation = JSON.parse(runExpected(cli, ['validate', source.path, '--content-type', source.contentType, '--schema', source.schema, '--format', 'json'], directory, expectedSource.exitCode));
+                        assert.equal(validation.summary.hardViolationCount, expectedSource.errorCount);
+                        assert.equal(validation.summary.warningCount, expectedSource.warningCount);
+                        if (expectedSource.errorCode) assert.ok(validation.diagnostics.some(item => item.code === expectedSource.errorCode && item.severity === 'error'), JSON.stringify(validation));
                         const denied = spawnSync(cli, args, { cwd: directory, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
                         if (denied.error) throw denied.error;
                         assert.equal(denied.status, refusal.exitCode); assert.equal(denied.stdout, ''); assert.ok(denied.stderr.includes(refusal.code), denied.stderr);

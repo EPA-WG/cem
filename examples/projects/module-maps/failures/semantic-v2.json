@@ -1,0 +1,12 @@
+{
+  "$schema": "https://cem.dev/ns/data/module-map/2",
+  "imports": {
+    "./invalid": "../modules/caption.js"
+  },
+  "resources": {
+    "@demo/styles": {
+      "path": "../modules/site.css",
+      "contentType": "text/css"
+    }
+  }
+}

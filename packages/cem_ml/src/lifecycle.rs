@@ -1715,12 +1715,21 @@ impl LifecycleAdapter for JsonAdapter {
             .as_deref()
             .or(input.root_scope.default_content_type.as_deref())
             .unwrap_or(JSON_CONTENT_TYPE);
-        let (document, diagnostics) =
+        let (document, mut diagnostics) =
             json_document_ast_from_source_bytes(JsonSourceValidationRequest {
                 bytes: &input.bytes,
                 source_uri: &input.uri,
                 content_type: Some(content_type),
             });
+        if !diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
+            if let (Some(document), Some(schema)) = (
+                document.as_ref(), crate::module_map::selected_schema(identity),
+            ) {
+                diagnostics.extend(crate::module_map::validate_source(
+                    &input.bytes, document, schema,
+                ));
+            }
+        }
         LoadedInput {
             bytes: input.bytes.clone(),
             from_format: input.from_format.unwrap_or(InputFormat::Cem),

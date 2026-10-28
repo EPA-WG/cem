@@ -183,11 +183,16 @@ describe('CEM Studio Feature Tour copies', () => {
             expect((await validator.validateResource({ bytes: bundle.contents[resource.id], uri: `studio://projection-boundaries/${resource.path}`,
                 contentType: resource.contentType, schema: resource.schema, resourceScheme: 'studio', projectId: 'projection-boundaries', projectRootUri: 'studio://projection-boundaries/' })).result.exitCode).toBe(0);
         }
-        const ast = bundle.project.resources.find(item => item.id === 'ast-export'); expect(Array.isArray(JSON.parse(decode(ast.id)))).toBe(true);
-        await expect(validator.validateResource({ bytes: bundle.contents[ast.id], uri: `studio://projection-boundaries/${ast.path}`, contentType: ast.contentType,
-            schema: ast.schema, resourceScheme: 'studio', projectId: 'projection-boundaries', projectRootUri: 'studio://projection-boundaries/' })).rejects.toMatchObject({
-            result: { exitCode: 1, diagnostics: { items: expect.arrayContaining([expect.objectContaining({ code: 'cem.projection.ast.json_shape' })]) } },
-        });
+        const ast = bundle.project.resources.find(item => item.id === 'ast-export');
+        const exported = await run('export-ast-json');
+        const document = JSON.parse(exported.output.text);
+        expect(document.kind).toBe('document'); expect(Array.isArray(document.children)).toBe(true);
+        expect(document).toEqual(JSON.parse(decode(ast.id)));
+        for (const bytes of [bundle.contents[ast.id], exported.output.bytes ?? new TextEncoder().encode(exported.output.text)]) {
+            expect((await validator.validateResource({ bytes, uri: `studio://projection-boundaries/${ast.path}`, contentType: ast.contentType,
+                schema: ast.schema, resourceScheme: 'studio', projectId: 'projection-boundaries', projectRootUri: 'studio://projection-boundaries/' })).result.exitCode).toBe(0);
+        }
+
     }, 60_000);
 
     for (const projectId of ['module-maps', 'portable-config']) {

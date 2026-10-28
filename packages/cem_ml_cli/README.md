@@ -122,3 +122,25 @@ attempting to supply grants fail with `cem.command.replacement_grant_host_requir
 embedding hosts set `EngineContext.schema_package_replacement_grants` directly.
 Command preparation retains those host grants without widening them. JavaScript
 WASM host configuration remains a subsequent API integration item.
+
+## Semantic AST JSON export
+
+Export a registered semantic AST document and validate those exact bytes:
+
+```bash
+cem-ml convert source.cem --to-format ast --out source.ast.json
+cem-ml validate source.ast.json --content-type application/vnd.cem.ast+json \
+  --schema https://cem.dev/ns/projection/ast/1
+```
+
+No application wrapper is needed.
+The document retains namespaces, text `data`, native reference edges, attribute
+value sequences and original maps/ranges. Older array exports must be regenerated
+from their source. This checks a source shape; it does not import an executable
+owner. Parse/Inspect CEM-ML and their optional JSON presentation remain separate
+inspection contracts, as do binary projection handoffs.
+
+Module-map source commands enforce the explicitly selected v1/v2/v3 semantics
+without reading declared assets. MIME-only selection means v1. Pair matching and
+output containment remain graph-planning checks; generic JSON and input-root
+alias maps are not reclassified by this contract.
