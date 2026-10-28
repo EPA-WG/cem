@@ -1651,6 +1651,38 @@ describe('CEM Studio Feature Tour copies', () => {
         await expect(format('module "urn:wrong" 1')).rejects.toMatchObject({ result: { exitCode: 1 } });
     }, 60_000);
 
+    it('preserves malformed CSV diagnostics during default Parse and rebuilds repaired source', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const uri = 'studio://csv-parse-copy/data/inventory.csv';
+        const options = { uri, contentType: 'text/csv; header=present', schema: 'https://cem.dev/ns/data/csv/1',
+            projectId: 'csv-parse-copy', projectRootUri: 'studio://csv-parse-copy/', resourceScheme: 'studio' };
+        for (const [text, code, byteOffset, column] of [
+            ['id,name\n1,"Ada\n', 'cem.csv.unclosed_quote', 10, 3],
+            ['id,name\n1,A "B\n', 'cem.csv.invalid_quote_escape', 12, 5],
+        ]) {
+            const broken = { ...options, bytes: new TextEncoder().encode(text) };
+            for (const projection of ['ast', 'events', 'ast-json', 'events-json', 'dom-json']) {
+                const failure = await validator.parseResource({ ...broken, projection }).catch(error => error);
+                expect(failure.result?.exitCode, failure.message).toBe(1);
+                expect(failure.result.status).toBe('failed');
+                expect(failure.result.diagnostics.items).toEqual([expect.objectContaining({
+                    code, severity: 'error', uri, byteOffset, line: 2, column,
+                    details: expect.objectContaining({ behavior: 'csv-parse-report-fact' }),
+                })]);
+                expect(failure.outputs).toEqual([]);
+                expect(failure.output).toMatchObject({ available: false, byteLength: 0, text: '' });
+                expect(failure.result.artifacts.originalCount).toBe(0);
+            }
+            const diagnosed = await validator.inspectResource({ ...broken, view: 'diagnostics' });
+            expect(diagnosed.result.exitCode).toBe(0);
+            expect(diagnosed.output.text).toContain(code);
+            const repaired = await validator.parseResource({ ...options, bytes: new TextEncoder().encode('id,name\n1,"Café 🍒"\n') });
+            expect(repaired.result.exitCode).toBe(0);
+            expect(repaired.result.diagnostics.items).toEqual([]);
+            expect(repaired.output.text).toContain('Café 🍒');
+        }
+    }, 60_000);
+
     it('keeps source-operation diagnostics with the original native owner in the worker', async () => {
         const validator = await createCemStudioBrowserValidator(); validators.push(validator);
         const uri = 'studio://source-owner-copy/data/catalog.xml';

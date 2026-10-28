@@ -679,6 +679,17 @@ Current implementation status:
   colorizer; `--out` writes the same CEM-ML syntax without ANSI escapes.
   `parse --format ast-json|events-json|dom-json|json` and
   `inspect --format json` are the explicit JSON presentation boundaries.
+  A refused Parse response (no typed presentation, no compatibility tree and a
+  native hard diagnostic) returns exit 1 at every failure level, including the
+  default `--fail-level parse`. It publishes no output artifact and preserves
+  existing output destinations. Native diagnostic code, severity, source URI,
+  ranges and schema-owned fact details are unchanged. This refusal rule is shared
+  by CLI and command services; it does not classify formats or diagnostic-code
+  prefixes in the host. Recoverable source inspection with a publishable partial
+  artifact still follows the selected failure level. In particular, default
+  Parse may return a partial query-source view with nonfatal diagnostics; strict
+  source validation remains an explicit choice. Shared output readers continue
+  to reject a successful result that omits its required publications.
   Authored command JSON, run-config JSON and Studio project JSON/CEM have typed
   native source adapters. Parse/Inspect project their admitted original syntax,
   URI and ranges, rather than feeding control JSON or project CEM through the
@@ -690,13 +701,14 @@ Current implementation status:
   Native malformed/version/semantic diagnostics remain authoritative; in
   particular, duplicate run inputs retain the fatal diagnostic and source-command
   exit 1 at validation failure level, while `validate --config` retains its
-  preparation refusal and exit 2. Parse-only failure level retains its existing
-  semantic-error exit policy; the original diagnostic is still reported, with
-  no fabricated source tree. Use `--fail-level validate` for strict source checks.
+  preparation refusal and exit 2. A refused control source returns exit 1 even
+  at Parse-only failure level, with its original semantic diagnostic and no
+  fabricated source tree. Publishable partial inspection still follows the
+  selected failure level. Use `--fail-level validate` for strict source checks.
   Actual argv grammar and command/plan inspection remain separate host operations.
   Diagnostic/summary Inspect views remain readable reports when native errors
-  exist; AST Inspect and strict Parse are the source-refusal checks. A readable
-  diagnostic view does not establish semantic validity.
+  exist; structural Inspect and Parse fail when the source artifact cannot be
+  published. A readable diagnostic view does not establish semantic validity.
   Element-template Validate and Check use the shared composed runtime's admitted
   source stage to compile CEM-QL embeddings after lifecycle/schema validation.
   CLI and common command services therefore report the same undeclared lexical

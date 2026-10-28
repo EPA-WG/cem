@@ -499,9 +499,7 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
         PreparedPortableOperationV1::Parse(engine_request) => {
             let response = engine.parse(engine_request).map_err(engine_failure)?;
             let diagnostics = response.diagnostics.clone();
-            let refused = response.primary_bytes.is_none()
-                && response.primary.is_null()
-                && diagnostics.iter().any(|d| d.severity.is_hard_violation());
+            let refused = response.is_refused();
             let mut items = if refused {
                 Vec::new()
             } else {
@@ -518,13 +516,15 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
                 &mut items,
                 "parse",
             );
-            Ok(product(
+            let mut product = product(
                 PortableOperationResultV1::Parse(response),
                 diagnostics,
                 plan,
                 items,
                 source_maps,
-            )?)
+            )?;
+            product.force_hard_failure = refused;
+            Ok(product)
         }
         PreparedPortableOperationV1::Validate(engine_request) => {
             let response = engine.validate(engine_request).map_err(engine_failure)?;
@@ -2302,6 +2302,136 @@ mod tests {
                 project: request.project.clone(),
                 resource_versions: request.resource_versions.clone(),
             },
+        }
+    }
+
+    #[cfg(not(feature = "external-schema-assets"))]
+    #[test]
+    fn default_parse_csv_refusal_settles_failed_without_losing_original_diagnostics() {
+        use crate::schema::{
+            document_model::compile_schema_document_model_from_retained,
+            package_compilation::SchemaPackageSourceRegistry,
+            package_sources::builtin_schema_package_source, registry::CSV_SCHEMA_URI,
+        };
+        for renamed in [false, true] {
+            let original = builtin_schema_package_source("csv").unwrap().schema_source;
+            let source = original.replace(
+                "cem.csv.unclosed_quote",
+                if renamed {
+                    "example.quote"
+                } else {
+                    "cem.csv.unclosed_quote"
+                },
+            );
+            let owner = SchemaPackageSourceRegistry::default()
+                .retain("memory://schema/csv.cem", &source)
+                .unwrap();
+            let model = compile_schema_document_model_from_retained(CSV_SCHEMA_URI, &owner);
+            assert!(model.is_ready_for_validation());
+            for (text, refused) in [
+                ("id,name\n1,\"Ada\n", true),
+                ("id,name\n1,\"Café 🍒\"\n", false),
+            ] {
+                let control = OperationControl::new(AbortSignal::new());
+                let mut context = fixture_context(&control);
+                context.schema_document_models.register(model.clone());
+                let mut request = fixture_request(true);
+                let bytes = text.as_bytes().to_vec();
+                request.resources.get_mut(DATA_URI).unwrap().bytes = bytes.clone();
+                request.resource_versions.get_mut(DATA_URI).unwrap().sha256 = sha256_hex(&bytes);
+                request.operation = PortableOperationRequestV1::Parse {
+                    input_id: "input:0".into(),
+                    projection: ParseProjection::Ast,
+                    preserve_source_offsets: true,
+                };
+                let mut plan_request = NormalizedRunPlanRequest {
+                    input_records: vec![format!(
+                        "uri={DATA_URI},contentType=text/csv,schema={CSV_SCHEMA_URI}"
+                    )],
+                    output_records: vec![format!(
+                        "input={DATA_URI},dest={OUTPUT_URI},contentType=application/cem"
+                    )],
+                    ..Default::default()
+                };
+                plan_request.diagnostics_mode.fail_level = FailLevel::Parse;
+                request.run_plan = parse_normalized_run_plan(plan_request).unwrap().into();
+                let prepared = crate::command_operation::prepare_command_operation_v1(
+                    &request,
+                    CommandServiceLimitsV1::default(),
+                    &context,
+                    &capability(),
+                )
+                .unwrap();
+                let product = execute_operation(
+                    &crate::real::RealCemMlEngine::new(),
+                    &request,
+                    prepared,
+                    &QueryResultExporterRegistry::new(),
+                    CommandServiceLimitsV1::default(),
+                )
+                .unwrap_or_else(|_| panic!("native source result"));
+                assert_eq!(product.force_hard_failure, refused);
+                if refused {
+                    assert!(product.publication_items.is_empty());
+                    assert!(product.source_maps.is_empty());
+                    let diagnostic = &product.diagnostics[0];
+                    assert_eq!(
+                        diagnostic.code,
+                        if renamed {
+                            "example.quote"
+                        } else {
+                            "cem.csv.unclosed_quote"
+                        }
+                    );
+                    assert_eq!(diagnostic.severity, Severity::Error);
+                    assert_eq!(diagnostic.uri.as_deref(), Some(DATA_URI));
+                    assert_eq!(diagnostic.byte_offset, Some(10));
+                    assert_eq!(diagnostic.line, Some(2));
+                    assert_eq!(diagnostic.column, Some(3));
+                    assert_eq!(
+                        diagnostic.details.as_ref().unwrap()["factKind"],
+                        "unclosed-quote"
+                    );
+                } else {
+                    assert!(!product.publication_items.is_empty());
+                }
+                let prepared = crate::command_operation::prepare_command_operation_v1(
+                    &request,
+                    CommandServiceLimitsV1::default(),
+                    &context,
+                    &capability(),
+                )
+                .unwrap();
+                let fixture_ledger = ledger(&request);
+                let writer = FixtureWriter::default();
+                let (invocation, _operation, mut subscription) =
+                    fixture_invocation(request, prepared, control);
+                let claim = block_on(execute_prepared_command_v1(
+                    &crate::real::RealCemMlEngine::new(),
+                    invocation,
+                    &fixture_ledger,
+                    &writer,
+                    &QueryResultExporterRegistry::new(),
+                    &capability(),
+                    CommandServiceLimitsV1::default(),
+                ))
+                .unwrap();
+                let result = succeeded_result(&claim);
+                assert_eq!(result.exit_code, Some(if refused { 1 } else { 0 }));
+                assert_eq!(
+                    result.status,
+                    if refused {
+                        CommandServiceStatusV1::Failed
+                    } else {
+                        CommandServiceStatusV1::Succeeded
+                    }
+                );
+                if refused {
+                    assert!(result.artifacts.items.is_empty());
+                    assert!(writer.state.lock().unwrap().events.is_empty());
+                }
+                assert_eq!(terminal_count(&mut subscription), 1);
+            }
         }
     }
 

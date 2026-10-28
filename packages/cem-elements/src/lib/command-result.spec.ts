@@ -19,6 +19,20 @@ describe('bounded command output', () => {
         expect(empty).toMatchObject({ available: true, byteLength: 0, text: '' });
     });
 
+    it('accepts a native parse refusal without masking its diagnostics or inventing output', async () => {
+        const handle = { readArtifact: vi.fn() };
+        const diagnostic = Object.freeze({ code: 'cem.csv.unclosed_quote', severity: 'error',
+            uri: 'studio://inventory/data.csv', byteOffset: 10, line: 2, column: 3 });
+        const result = Object.freeze({ exitCode: 1, artifacts: { originalCount: 0, items: [] },
+            diagnostics: { originalCount: 1, items: [diagnostic] } });
+        expect(await readCommandOutputs(handle, result, { ...options, maxArtifacts: 3 })).toEqual([]);
+        expect(await readCommandOutput(handle, result, options)).toMatchObject({ available: false, byteLength: 0, text: '' });
+        expect(result.diagnostics.items[0]).toBe(diagnostic);
+        expect(handle.readArtifact).not.toHaveBeenCalled();
+        // Diagnostics cannot excuse a successful command's missing publication.
+        await expect(readCommandOutputs(handle, { ...result, exitCode: 0 }, { ...options, maxArtifacts: 3 })).rejects.toThrow('omitted');
+    });
+
     it('reads bounded retained ranges and checks their exact digest', async () => {
         const handle = { readArtifact: vi.fn(async (_artifact, { offset, maxBytes }) => ({
             metadata: { offset }, bytes: bytes.slice(offset, offset + maxBytes),

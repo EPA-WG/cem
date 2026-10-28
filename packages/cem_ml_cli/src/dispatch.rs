@@ -6153,11 +6153,9 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
     match engine.parse(req) {
         Ok(mut resp) => {
             // A refused native import has diagnostics but no publishable tree.
-            // Preserve its report and requested failure policy without turning
-            // the absent presentation into an unrelated write/IO failure.
-            let refused = resp.primary_bytes.is_none()
-                && resp.primary.is_null()
-                && diagnostics_have_hard_violation(&resp.diagnostics);
+            // Preserve its diagnostics and return failure without turning the
+            // absent presentation into an unrelated write/IO failure.
+            let refused = resp.is_refused();
             let write_result = if refused {
                 Ok(())
             } else {
@@ -6198,7 +6196,7 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
                 resp.diagnostics,
                 report_options_snapshot(args.fail_level, &args.context),
             );
-            let failed = fail_for_summary(args.fail_level, &report);
+            let failed = refused || fail_for_summary(args.fail_level, &report);
             if report_requested(&args.report) {
                 if let Err(e) = write_report_files(
                     &engine_context,

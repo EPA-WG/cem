@@ -302,14 +302,12 @@ async function verifyStudioDemand(page, outputFirst = false) {
         const parsed = await app.validator.parseResource(options);
         if (parsed.result.exitCode !== 0) throw Error('Studio package command did not complete');
         let invalidRefused = false;
-        // Rejection is a strict fail-policy assertion; default Parse can report
-        // a schema-owned fact without selecting a failing command exit status.
-        try { await app.validator.runResourceCommand({ ...options, uri: 'studio://cem-studio-command/demand.csv',
-            bytes: new TextEncoder().encode('id,name\n1,"Ada\n'), argv: ['parse', '--fail-level', 'strict', '--no-color', '--format', 'ast',
-                '--content-type', 'text/csv', '--schema', 'https://cem.dev/ns/data/csv/1', 'studio://cem-studio-command/demand.csv'] }); }
+        try { await app.validator.parseResource({ ...options, bytes: new TextEncoder().encode('id,name\n1,"Ada\n') }); }
         catch (error) {
             if (!error.result) throw new Error(`CSV parse did not return a native command result: ${error.code ?? 'unknown'} ${error.message}`, { cause: error });
-            invalidRefused = JSON.stringify(error.result).includes('cem.csv.unclosed_quote');
+            invalidRefused = error.result.exitCode === 1 && error.output?.available === false && error.outputs?.length === 0
+                && error.result.diagnostics.items.some(item => item.code === 'cem.csv.unclosed_quote' && item.severity === 'error'
+                    && item.byteOffset === 10 && item.line === 2 && item.column === 3);
         }
         if (!invalidRefused) throw Error('Studio package command lost native CSV diagnostics');
         if (!outputFirst) await convert();

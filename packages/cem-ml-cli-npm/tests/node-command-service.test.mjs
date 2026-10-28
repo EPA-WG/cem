@@ -161,6 +161,38 @@ test('Rust lowering and Node worker execution preserve file URI and terminal pre
     }
 });
 
+test('Node default Parse preserves refused CSV diagnostics and publishes only repaired output', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'cem-default-csv-parse-'));
+    const service = await createNodeCommandService({ cwd: directory, stdout: new FixtureWritable(), stderr: new FixtureWritable() });
+    try {
+        await writeFile(join(directory, 'inventory.csv'), 'id,name\n1,"Ada\n');
+        await writeFile(join(directory, 'inspection.cem'), 'previous output');
+        const argv = ['parse', 'inventory.csv', '--content-type', 'text/csv; header=present', '--schema', 'https://cem.dev/ns/data/csv/1',
+            '--no-color', '--out', pathToFileURL(join(directory, 'inspection.cem')).href];
+        const failure = await service.run(parseCemMlCommand(argv, { runtime: 'wasm-node' }));
+        try {
+            const result = await failure.handle;
+            assert.equal(result.status, 'failed'); assert.equal(result.exitCode, 1);
+            assert.equal(result.artifacts.originalCount, 0);
+            const diagnostic = result.diagnostics.items.find(item => item.code === 'cem.csv.unclosed_quote');
+            assert.ok(diagnostic); assert.equal(diagnostic.severity, 'error');
+            assert.equal(diagnostic.uri, pathToFileURL(join(directory, 'inventory.csv')).href);
+            assert.equal(diagnostic.byteOffset, 10); assert.equal(diagnostic.line, 2); assert.equal(diagnostic.column, 3);
+            assert.equal(diagnostic.details.factKind, 'unclosed-quote');
+            await service.publish(failure.invocation, result);
+            assert.equal(await readFile(join(directory, 'inspection.cem'), 'utf8'), 'previous output');
+        } finally { await failure.handle.dispose(); }
+        await writeFile(join(directory, 'inventory.csv'), 'id,name\n1,"Café 🍒"\n');
+        const repaired = await service.run(parseCemMlCommand(argv, { runtime: 'wasm-node' }));
+        try {
+            const result = await repaired.handle;
+            assert.equal(result.exitCode, 0); assert.equal(result.diagnostics.originalCount, 0);
+            await service.publish(repaired.invocation, result);
+            assert.ok((await readFile(join(directory, 'inspection.cem'), 'utf8')).includes('Café 🍒'));
+        } finally { await repaired.handle.dispose(); }
+    } finally { await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 test('Node worker host setup is snapshotted at construction and isolated from requests', async () => {
     let callbacks = 0;
     const host = {

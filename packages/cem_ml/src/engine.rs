@@ -1241,6 +1241,17 @@ pub struct ParseResponse {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+impl ParseResponse {
+    /// A native source refusal has no publishable tree. It is a failed operation
+    /// even when the selected fail level tolerates nonfatal diagnostics in a
+    /// partial-source inspection. Preserve the original diagnostic classification.
+    pub fn is_refused(&self) -> bool {
+        self.primary_bytes.is_none()
+            && self.primary.is_null()
+            && self.diagnostics.iter().any(|d| d.severity.is_hard_violation())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct ValidateResponse {

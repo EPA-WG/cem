@@ -55,7 +55,9 @@ test('ownership changes during asynchronous acknowledgement fence the original r
 
 test('census DTO validation remains bounded, immutable and separate from replacement authority', () => {
     const snapshot = inventory();
-    assert.equal(snapshot.registries.length, 29);
+    assert.equal(snapshot.registries.length, 30);
+    assert.deepEqual(snapshot.registries.find(entry => entry.name === 'schema-package-owners'),
+        { name: 'schema-package-owners', live: 0, discardable: 0 });
     assert.equal(Object.isFrozen(snapshot.registries[0]), true);
     assert.equal(snapshot.replacementAllowed, false);
     for (const invalid of [{ ...snapshot, complete: false }, { ...snapshot, replacementAllowed: true },

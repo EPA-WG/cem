@@ -539,13 +539,22 @@ and external native fixtures, physical-runtime package replay, online/offline
 Studio graphs, deployed demos and isolated worker/fallback Login recovery pass.
 The stale trusted bootstrap pin is refreshed with strict equality preserved;
 credential refusal and all recovery budgets/deadlines remain unchanged. The
-malformed-CSV default Parse mismatch found during acceptance is tracked below.
+malformed-CSV default Parse mismatch found during acceptance is resolved below.
 
-- [ ] Align malformed CSV default Parse exit/publication semantics and preserve native diagnostics in Studio. Native `parse --fail-level parse --format ast` on `id,name\n1,"Ada\n` returns exit 0 with `cem.csv.unclosed_quote` and no output; Studio's shared success-publication guard then reports omitted output instead of the diagnostic. `--fail-level strict` correctly returns exit 1 with the original diagnostic and no artifact. Preserve intentional partial-source inspection and original schema-owned fact classification; add native/worker and shared-output fixtures before fixing the mismatch. The optional XSLT verifier now explicitly requests strict rejection rather than assuming default Parse does so.
+Completed 2026-10-28: [Default Parse refusals and original CSV diagnostics](archive/todo-completed-default-parse-refusal-2026-10-28.md).
+CLI and common command execution now share native refused-presentation policy:
+exit 1 with original diagnostics and no output when no source tree is admitted.
+Recoverable source inspection, schema-owned classifications and strict output
+verification remain intact. Native, Node worker, Studio online/offline, deployed
+demo and isolated worker/fallback Login recovery checks pass. The strict census
+fixture includes the existing thirtieth package-owner registry; no authority or
+recovery bounds change. Relative Node output canonicalization is tracked below.
 
 - [ ] Define an owned native XDM handoff for constructed CEM-tree results consumed by a downstream XPath/XSLT stage. Current XSLT input admission requires imported native nodes; XML encoding produces text rather than a retained source owner. Add native graph and provenance fixtures before admitting constructed values or an explicit native reimport stage; do not introduce serialized AST or JavaScript parser workarounds. The transformation examples use the supported XSLT-to-CEM stage order.
 
 - [ ] Make full schema-package artifact/example validation prefer its supplied resource reader over filesystem reads for file-like canonical URIs. Preserve full validation's diagnostics and legacy filesystem behavior when no reader is supplied; keep this separate from immutable owned-pack admission and strict runtime artifact consumption.
+
+- [ ] Diagnose relative Node `--out` destination canonicalization before common command-service URI admission. `createNodeCommandService({ cwd })` plus `parse inventory.csv --out inspection.cem` currently refuses `runPlan.outputs.resolvedDestination=inspection.cem` as `cem.command_service.uri_invalid` before reaching Parse; an explicit `file:` destination works and preserves refused output. Add lowering/Node/executable fixtures first, determine the supported argv-path contract and retain strict prepared-URI/publication authority checks. Keep this separate from native Parse refusal policy.
 
 - [ ] Diagnose the three existing linked package preparation source-map failures at `schema_package_lifecycle/attribute_datatypes.rs:473`: pretyped handoff, callback context/publication guards and checked preparation replacement retain an additional `SourceBoundary` frame. All three reproduce on unchanged `eca54d20`; preserve source provenance and intended assertions when resolving the mismatch. The broader cohort passes 46/49 cases; see the [CSV contract verification](archive/todo-completed-csv-parser-contracts-2026-10-24.md#verification).
 

@@ -213,14 +213,19 @@ fn duplicate_run_config_remains_a_preparation_refusal_before_resource_execution(
 }
 
 #[test]
-fn parse_only_policy_preserves_semantic_diagnostics_without_a_source_tree() {
+fn parse_only_refusal_preserves_semantic_diagnostics_without_a_source_tree() {
     let dir = Scratch::new();
     let (text, mime, schema) = cases()[0];
     let invalid = text.replace("\"schemaVersion\": 1", "\"schemaVersion\": 2");
     let (output, report) = execute_at_level(&dir, &invalid, mime, schema, "parse", "parse");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "a refused source cannot succeed without an artifact"
+    );
     assert!(
-        output.status.success(),
-        "parse-only policy remains distinct from validation"
+        output.stdout.is_empty(),
+        "no fabricated partial source tree"
     );
     let errors = report["diagnostics"]
         .as_array()
