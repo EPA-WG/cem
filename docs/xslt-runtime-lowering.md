@@ -6,6 +6,21 @@ It returns binary bytes, their content hash, the stylesheet source hash and
 inspectable generated CEMT. Compilation does not accept runtime documents.
 The same bundle evaluates changed retained CEM documents on every render.
 
+An admitted XSLT schema's immutable native parser contract now follows the source
+through module preflight, import discovery, namespace-qualified name resolution
+and bundle/component compilation. Each imported stylesheet uses that same
+original-owned grammar and diagnostic catalog. Discovery defers only native
+external-URI facts until the compiler verifies the exact resolved import edges;
+renaming a schema diagnostic does not change that classification. Other hard
+source errors still block discovery and compilation.
+
+Native hosts select the contract from their consuming engine context. WASM
+entry points select it from their physical runtime's package owner, including
+after fresh-generation source re-admission. No parser authority enters component
+JSON options or portable bundles. Contextless optional-profile calls continue to
+refuse a missing original schema. Existing XSLT 3.0 execution, source/closure
+bounds, portable stylesheet hashes and original native XPath ranges remain.
+
 The transform/CLI adapter now executes this typed bundle path. Legacy execution
 is retired, as selected by the user in XSLT-VIEW-MATCH. The public adapter type
 and registration ID remain stable, but source must declare the XSLT namespace

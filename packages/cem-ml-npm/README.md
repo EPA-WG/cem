@@ -186,6 +186,13 @@ copies the bundle, and marks the signing record publication-ready.
 
 ## Optional native schema asset packs (prototype)
 
+`yarn nx run @epa-wg/cem-ml:test:xslt-parser-contracts` builds the complete and
+optional profiles and verifies XSLT import discovery, compilation and namespaced
+component controls. The optional checks refuse missing/incomplete package
+authority, admit original source bytes on two independent fresh WASM memories,
+render through native modules, then refuse new compilation after owner disposal.
+Parser contracts remain native and never enter component JSON options.
+
 The default package retains its complete embedded schema catalog. An opt-in
 prototype emits an immutable catalog index and original source bodies addressed
 by SHA-256, outside the default package output:

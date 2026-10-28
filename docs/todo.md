@@ -532,7 +532,16 @@ and root-config rules and error/warning probes remain intact. Uncached/cached
 lint, shared declarative components and isolated worker/fallback Login recovery
 pass. Runtime/UI behavior, credential refusal and all recovery limits are unchanged.
 
-- [ ] Pass the admitted original XSLT parser contract into CEM-QL bundle compilation, import discovery and name resolution. Preserve contextless optional-profile missing-schema refusal and complete-profile bounded execution; cover original-owned grammar/diagnostic rules, module limits, fresh runtime replay and source provenance before enabling optional-profile executable XSLT graphs.
+Completed 2026-10-28: [Original-owned XSLT compilation](archive/todo-completed-owned-xslt-compilation-2026-10-28.md).
+Shared engine compilation, import discovery, name resolution and every imported
+stylesheet now retain the admitted immutable native parser contract. Complete
+and external native fixtures, physical-runtime package replay, online/offline
+Studio graphs, deployed demos and isolated worker/fallback Login recovery pass.
+The stale trusted bootstrap pin is refreshed with strict equality preserved;
+credential refusal and all recovery budgets/deadlines remain unchanged. The
+malformed-CSV default Parse mismatch found during acceptance is tracked below.
+
+- [ ] Align malformed CSV default Parse exit/publication semantics and preserve native diagnostics in Studio. Native `parse --fail-level parse --format ast` on `id,name\n1,"Ada\n` returns exit 0 with `cem.csv.unclosed_quote` and no output; Studio's shared success-publication guard then reports omitted output instead of the diagnostic. `--fail-level strict` correctly returns exit 1 with the original diagnostic and no artifact. Preserve intentional partial-source inspection and original schema-owned fact classification; add native/worker and shared-output fixtures before fixing the mismatch. The optional XSLT verifier now explicitly requests strict rejection rather than assuming default Parse does so.
 
 - [ ] Define an owned native XDM handoff for constructed CEM-tree results consumed by a downstream XPath/XSLT stage. Current XSLT input admission requires imported native nodes; XML encoding produces text rather than a retained source owner. Add native graph and provenance fixtures before admitting constructed values or an explicit native reimport stage; do not introduce serialized AST or JavaScript parser workarounds. The transformation examples use the supported XSLT-to-CEM stage order.
 

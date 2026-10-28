@@ -26859,6 +26859,15 @@ pub trait TransformTemplateAdapter: Send + Sync {
         ))
     }
 
+    /// Shared compile-time services retain parser/package ownership in process.
+    fn compile_with_context(
+        &self,
+        request: TransformTemplateCompileRequest<'_>,
+        _context: &crate::engine::EngineContext,
+    ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
+        self.compile(request)
+    }
+
     fn render(
         &self,
         request: TransformTemplateRenderRequest<'_>,

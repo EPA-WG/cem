@@ -23,6 +23,9 @@ use std::sync::OnceLock;
 
 mod parser_contract;
 pub(crate) use parser_contract::compile_parser_contract;
+mod owned_parser;
+pub use owned_parser::{xslt_parser_contract_from_context, xslt_diagnostic_requires_resolved_modules,
+    xslt_stylesheet_ast_from_source_bytes_with_modules_and_parser_contract};
 
 const XSLT_PACKAGE_ID: &str = "xslt";
 pub(crate) const XSLT_FACT_BEHAVIOR: &str = "xslt-report-fact";

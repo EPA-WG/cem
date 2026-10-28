@@ -108,7 +108,8 @@ impl Preflight<'_> {
         let errors: Vec<_> = parsed
             .into_iter()
             .filter(|d| {
-                d.severity.is_hard_violation() && d.code != "cem.xslt.external_uri_rejected"
+                d.severity.is_hard_violation()
+                    && !crate::validation::xslt::xslt_diagnostic_requires_resolved_modules(d)
             })
             .collect();
         if !errors.is_empty() {

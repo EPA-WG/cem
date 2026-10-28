@@ -43,6 +43,8 @@ mod runtime_memory;
 mod schema_asset_pack;
 #[cfg(feature = "schema-asset-packs")]
 pub use schema_asset_pack::active_context as schema_asset_context;
+#[cfg(not(feature = "schema-asset-packs"))]
+pub fn schema_asset_context() -> Option<crate::engine::EngineContext> { None }
 
 use crate::runtime_inventory::NativeRegistry as RefCell;
 use std::collections::BTreeMap;

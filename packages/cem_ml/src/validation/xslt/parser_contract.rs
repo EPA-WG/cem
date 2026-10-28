@@ -15,6 +15,18 @@ use std::{collections::BTreeSet, sync::Arc};
 struct XsltParserContract(XsltSchemaContractCatalog);
 
 impl NativeParserContract for XsltParserContract {
+    fn parse_xslt_with_modules(
+        &self,
+        request: XsltSourceValidationRequest<'_>,
+        hrefs: &[&str],
+    ) -> Option<(Option<XsltStylesheetAst>, Vec<Diagnostic>)> {
+        Some(
+            xslt_stylesheet_ast_from_source_bytes_with_modules_and_contracts(
+                request, hrefs, &self.0,
+            ),
+        )
+    }
+
     fn load(
         &self,
         input: &EngineInput,

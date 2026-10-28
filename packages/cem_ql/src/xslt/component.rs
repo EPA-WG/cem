@@ -83,6 +83,15 @@ impl XsltComponent {
         host_bindings: &[String],
         scope_policy: ScopePolicy,
     ) -> std::result::Result<Self, Vec<Diagnostic>> {
+        Self::compile_with_scope_policy_and_parser_contract(source, uri, options, host_bindings, scope_policy, None)
+    }
+
+    /// Parser authority is an in-process original owner, never component JSON.
+    pub fn compile_with_scope_policy_and_parser_contract(
+        source: &str, uri: &str, options: &XsltComponentOptions, host_bindings: &[String],
+        scope_policy: ScopePolicy,
+        parser: Option<&cem_ml::schema::parser_contracts::CompiledParserContract>,
+    ) -> std::result::Result<Self, Vec<Diagnostic>> {
         scope_policy
             .validate()
             .map_err(|error| diagnostic(uri, error.to_string()))?;
@@ -102,7 +111,7 @@ impl XsltComponent {
         if let Some(entry) = &options.entrypoint {
             names.push(entry);
         }
-        let mut names = resolve_xslt_names(source, uri, &names)?;
+        let mut names = resolve_xslt_names_with_parser_contract(source, uri, &names, parser)?;
         let entrypoint = options.entrypoint.as_ref().and_then(|_| names.pop());
         let mut parameters = BTreeMap::new();
         let mut mappings = Vec::new();
@@ -145,7 +154,7 @@ impl XsltComponent {
                 })
             })
             .collect::<std::result::Result<Vec<_>, Vec<Diagnostic>>>()?;
-        let compiled = compile_xslt_bundle_with_options(
+        let compiled = compile_xslt_bundle_with_options_and_parser_contract(
             source,
             uri,
             &XsltCompileOptions {
@@ -153,6 +162,7 @@ impl XsltComponent {
                 parameters,
                 modules,
             },
+            parser,
         )?;
         let bundle = XsltBundle::from_bytes(
             &compiled.bytes,

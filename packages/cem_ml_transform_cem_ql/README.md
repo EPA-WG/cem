@@ -92,6 +92,16 @@ parameters are rejected. Separate legacy conversion tools remain available.
 The historical adapter type/ID names are retained for host registration;
 standard XSLT media types now select this executable adapter.
 
+Engine compilation uses `compile_with_context` to carry the same original-owned
+XSLT parser contract used by source loading and module preflight. Namespace/name
+resolution and every imported stylesheet use that immutable native contract,
+including its grammar selectors, diagnostic codes and original ranges. An
+explicit incomplete contract cannot fall back to embedded schema bodies.
+Contextless compilation keeps the complete-profile default and refuses missing
+original schemas in the external-source profile. Parser authority stays in
+process; compiled bundles retain their existing portable source manifests and
+native XPath provenance.
+
 ## Imported document bindings
 
 Lifecycle XML, JSON, YAML and CSV inputs and explicitly encoded JSON documents

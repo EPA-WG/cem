@@ -112,7 +112,8 @@
       "executor": "nx:run-commands",
       "dependsOn": ["build"],
       "options": {
-        "command": "node --test tests/runtime.test.mjs",
+        "commands": ["node --test tests/runtime.test.mjs", "node tests/xslt-parser-contracts.mjs --complete-only"],
+        "parallel": false,
         "cwd": "{projectRoot}"
       },
       "inputs": [
@@ -121,6 +122,20 @@
           "dependentTasksOutputFiles": "**/*",
           "transitive": false
         }
+      ],
+      "outputs": []
+    },
+    "test:xslt-parser-contracts": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "dependsOn": ["build:schema-assets"],
+      "options": {
+        "command": "node tests/xslt-parser-contracts.mjs",
+        "cwd": "{projectRoot}"
+      },
+      "inputs": [
+        "{projectRoot}/tests/xslt-parser-contracts.mjs",
+        { "dependentTasksOutputFiles": "**/*", "transitive": false }
       ],
       "outputs": []
     },

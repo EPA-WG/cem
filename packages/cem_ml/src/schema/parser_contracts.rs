@@ -11,6 +11,17 @@ use crate::{
 use std::{collections::BTreeSet, sync::Arc};
 
 pub(crate) trait NativeParserContract: std::fmt::Debug + Send + Sync {
+    fn parse_xslt_with_modules(
+        &self,
+        _request: crate::validation::xslt::XsltSourceValidationRequest<'_>,
+        _hrefs: &[&str],
+    ) -> Option<(
+        Option<crate::validation::xslt::XsltStylesheetAst>,
+        Vec<Diagnostic>,
+    )> {
+        None
+    }
+
     fn load(
         &self,
         input: &EngineInput,
@@ -48,6 +59,24 @@ impl std::fmt::Debug for CompiledParserContract {
 }
 
 impl CompiledParserContract {
+    pub(crate) fn parse_xslt_with_modules(
+        &self,
+        request: crate::validation::xslt::XsltSourceValidationRequest<'_>,
+        hrefs: &[&str],
+    ) -> Option<(
+        Option<crate::validation::xslt::XsltStylesheetAst>,
+        Vec<Diagnostic>,
+    )> {
+        self.is_ready()
+            .then(|| {
+                self.implementation
+                    .as_ref()
+                    .unwrap()
+                    .parse_xslt_with_modules(request, hrefs)
+            })
+            .flatten()
+    }
+
     pub fn source_owner(&self) -> Option<&Arc<RetainedCemTree>> {
         self.source_owner.as_ref()
     }

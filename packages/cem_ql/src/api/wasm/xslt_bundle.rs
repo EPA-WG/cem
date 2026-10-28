@@ -2,12 +2,19 @@
 //! retained-document handles, never documents or executable capabilities.
 use super::*;
 use crate::xslt::{
-    compiler::compile_xslt_bundle, parse_hash, XsltBundleHost, BUNDLE_CONTENT_TYPE, BUNDLE_VERSION,
+    compiler::{compile_xslt_bundle_with_options_and_parser_contract, XsltCompileOptions}, parse_hash, XsltBundleHost, BUNDLE_CONTENT_TYPE, BUNDLE_VERSION,
 };
 
 thread_local! {
     static BUNDLES: RefCell<XsltBundleHost> = RefCell::new(XsltBundleHost::default());
     static COMPONENTS: RefCell<ComponentHost> = RefCell::new(ComponentHost::default());
+}
+
+fn current_xslt_parser(source_uri: &str) -> Result<Option<std::sync::Arc<cem_ml::schema::parser_contracts::CompiledParserContract>>, JsValue> {
+    cem_ml::api::wasm::schema_asset_context().map(|context|
+        cem_ml::validation::xslt::xslt_parser_contract_from_context(&context, source_uri))
+        .transpose().map(Option::flatten).map_err(|diagnostics|
+            JsValue::from_str(&json!({"diagnostics": diagnostics_json(&diagnostics)}).to_string()))
 }
 
 #[derive(Default)]
@@ -20,7 +27,8 @@ struct ComponentHost {
 #[wasm_bindgen(js_name = "xsltStylesheetImports")]
 pub fn stylesheet_imports(source: &str, source_uri: &str) -> Result<String, JsValue> {
     let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
-    crate::xslt::compiler::stylesheet_imports(source, source_uri)
+    let parser = current_xslt_parser(source_uri)?;
+    crate::xslt::compiler::stylesheet_imports_with_parser_contract(source, source_uri, parser.as_deref())
         .map(|imports| json!(imports).to_string())
         .map_err(|diagnostics| {
             JsValue::from_str(&json!({ "diagnostics": diagnostics_json(&diagnostics) }).to_string())
@@ -57,17 +65,19 @@ pub fn retain_xslt_component(
     let scope_policy = policy
         .resolve()
         .map_err(|error| JsValue::from_str(&error))?;
+    let parser = current_xslt_parser(source_uri)?;
     COMPONENTS.with(|host| {
         let mut host = host.borrow_mut();
         if host.entries.len() >= 16 {
             return Err(JsValue::from_str("XSLT component handle limit exceeded"));
         }
-        let component = crate::xslt::component::XsltComponent::compile_with_scope_policy(
+        let component = crate::xslt::component::XsltComponent::compile_with_scope_policy_and_parser_contract(
             source,
             source_uri,
             &options,
             &bindings,
             scope_policy,
+            parser.as_deref(),
         )
         .map_err(|diagnostics| {
             JsValue::from_str(&json!({"diagnostics": diagnostics_json(&diagnostics)}).to_string())
@@ -206,7 +216,8 @@ pub fn dispose_xslt_component(id: u32) -> bool {
 #[wasm_bindgen(js_name = "compileXsltBundle")]
 pub fn compile_xslt_bundle_bytes(source: &str, source_uri: &str) -> Result<Vec<u8>, JsValue> {
     let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
-    compile_xslt_bundle(source, source_uri)
+    let parser = current_xslt_parser(source_uri)?;
+    compile_xslt_bundle_with_options_and_parser_contract(source, source_uri, &XsltCompileOptions::default(), parser.as_deref())
         .map(|compiled| compiled.bytes)
         .map_err(|diagnostics| {
             JsValue::from_str(

@@ -5283,7 +5283,7 @@ fn compile_transform_template(
             &imported_modules,
         )
     };
-    match spec.adapter.compile(TransformTemplateCompileRequest {
+    match spec.adapter.compile_with_context(TransformTemplateCompileRequest {
         template: spec.template,
         entrypoint: spec.entrypoint,
         params: &parameter_arena,
@@ -5291,7 +5291,7 @@ fn compile_transform_template(
         module_options: compiled_module_options.clone(),
         module_preflight,
         execution_policy: spec.execution_policy,
-    }) {
+    }, spec.context) {
         Ok(mut response) => {
             diagnostics.append(&mut response.diagnostics);
             Some(

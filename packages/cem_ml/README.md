@@ -375,6 +375,15 @@ ownership is defined in
 
 ## Named source provenance
 
+XSLT authoring consumers can select an admitted parser with
+`validation::xslt::xslt_parser_contract_from_context` and pass it to
+`xslt_stylesheet_ast_from_source_bytes_with_modules_and_parser_contract`.
+The opaque contract retains its original native schema owner and immutable
+grammar/diagnostic snapshot. Exact resolved import edges authorize only module
+syntax, with no document I/O grant. Contextless external-profile parsing still
+refuses a missing original schema. Engine template adapters receive the same
+consumer context through the shared `compile_with_context` hook.
+
 `SourceMapStack::with_source_uri` appends a `SourceBoundary { uri }` frame to a
 nonempty, unnamed stack, preserving the existing source ID and original UTF-8
 range. An existing boundary cannot be rebound. Native owners retain their

@@ -4,12 +4,12 @@ use super::*;
 use crate::{render::CompileTemplateOptions, template_artifact::compile_template_artifact};
 use cem_ml::{
     diagnostics::{Diagnostic, Severity},
-    schema::registry::XSLT_NAMESPACE_URI,
+    schema::{registry::XSLT_NAMESPACE_URI, parser_contracts::CompiledParserContract},
     validation::{
         xml::{xml_decode_entity_reference, XmlAttributeAst, XmlEventAst, XmlEventKind},
         xpath::XPathSyntaxNodeKind,
         xslt::{
-            xslt_stylesheet_ast_from_source_bytes_with_modules,
+            xslt_stylesheet_ast_from_source_bytes_with_modules_and_parser_contract,
             XsltAttributeValueTemplateSegmentAst, XsltSourceValidationRequest, XsltStylesheetAst,
         },
     },
@@ -66,20 +66,29 @@ pub fn compile_xslt_bundle(source: &str, source_uri: &str) -> CompileResult<Comp
 /// Import/include edges from typed authoring XML, for host resolver preflight.
 /// No source document or parser projection crosses this control boundary.
 pub fn stylesheet_imports(source: &str, source_uri: &str) -> CompileResult<Vec<String>> {
+    stylesheet_imports_with_parser_contract(source, source_uri, None)
+}
+
+pub fn stylesheet_imports_with_parser_contract(
+    source: &str,
+    source_uri: &str,
+    parser: Option<&CompiledParserContract>,
+) -> CompileResult<Vec<String>> {
     if source.len() > MAX_SOURCE_BYTES {
         return Err(imports::diagnostic(
             source_uri,
             "stylesheet source exceeds limit",
         ));
     }
-    let (stylesheet, diagnostics) = xslt_stylesheet_ast_from_source_bytes_with_modules(
+    let (stylesheet, diagnostics) = xslt_stylesheet_ast_from_source_bytes_with_modules_and_parser_contract(
         XsltSourceValidationRequest {
             bytes: source.as_bytes(),
             source_uri,
             content_type: Some("application/xslt+xml"),
         },
-        &[],
+        &[], parser,
     );
+    reject_discovery_diagnostics(&diagnostics)?;
     let stylesheet = stylesheet.ok_or(diagnostics)?;
     Ok(stylesheet
         .xml_document
@@ -106,6 +115,15 @@ pub fn compile_xslt_bundle_with_options(
     source: &str,
     source_uri: &str,
     options: &XsltCompileOptions,
+) -> CompileResult<CompiledXsltBundle> {
+    compile_xslt_bundle_with_options_and_parser_contract(source, source_uri, options, None)
+}
+
+pub fn compile_xslt_bundle_with_options_and_parser_contract(
+    source: &str,
+    source_uri: &str,
+    options: &XsltCompileOptions,
+    parser: Option<&CompiledParserContract>,
 ) -> CompileResult<CompiledXsltBundle> {
     #[cfg(test)]
     let mut profile = crate::compile_profile::Span::new("xslt/preflight");
@@ -217,13 +235,13 @@ pub fn compile_xslt_bundle_with_options(
             .filter(|module| &module.parent_uri == uri)
             .map(|module| module.href.as_str())
             .collect();
-        let (stylesheet, diagnostics) = xslt_stylesheet_ast_from_source_bytes_with_modules(
+        let (stylesheet, diagnostics) = xslt_stylesheet_ast_from_source_bytes_with_modules_and_parser_contract(
             XsltSourceValidationRequest {
                 bytes: source.as_bytes(),
                 source_uri: uri,
                 content_type: Some("application/xslt+xml"),
             },
-            &hrefs,
+            &hrefs, parser,
         );
         if diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
             return Err(diagnostics);
@@ -336,6 +354,15 @@ pub fn resolve_xslt_names(
     source_uri: &str,
     names: &[&str],
 ) -> CompileResult<Vec<XPathExpandedName>> {
+    resolve_xslt_names_with_parser_contract(source, source_uri, names, None)
+}
+
+pub fn resolve_xslt_names_with_parser_contract(
+    source: &str,
+    source_uri: &str,
+    names: &[&str],
+    parser: Option<&CompiledParserContract>,
+) -> CompileResult<Vec<XPathExpandedName>> {
     use cem_ml::validation::xpath::*;
     if source.len() > MAX_SOURCE_BYTES
         || source_uri.len() > MAX_IDENTIFIER_BYTES - 32
@@ -347,14 +374,15 @@ pub fn resolve_xslt_names(
             "stylesheet name resolution exceeds compiler limits",
         ));
     }
-    let (stylesheet, diagnostics) = xslt_stylesheet_ast_from_source_bytes_with_modules(
+    let (stylesheet, diagnostics) = xslt_stylesheet_ast_from_source_bytes_with_modules_and_parser_contract(
         XsltSourceValidationRequest {
             bytes: source.as_bytes(),
             source_uri,
             content_type: Some("application/xslt+xml"),
         },
-        &[],
+        &[], parser,
     );
+    reject_discovery_diagnostics(&diagnostics)?;
     let stylesheet = stylesheet.ok_or_else(|| {
         if diagnostics.is_empty() {
             imports::diagnostic(source_uri, "stylesheet source could not be parsed")
@@ -407,6 +435,14 @@ pub fn resolve_xslt_names(
             })
         })
         .collect()
+}
+
+fn reject_discovery_diagnostics(diagnostics: &[Diagnostic]) -> CompileResult<()> {
+    let errors: Vec<_> = diagnostics.iter().filter(|diagnostic| {
+        diagnostic.severity.is_hard_violation()
+            && !cem_ml::validation::xslt::xslt_diagnostic_requires_resolved_modules(diagnostic)
+    }).cloned().collect();
+    if errors.is_empty() { Ok(()) } else { Err(errors) }
 }
 
 #[derive(Clone)]

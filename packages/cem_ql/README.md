@@ -1459,6 +1459,17 @@ namespace overrides and opening literal block preludes are documented in
 [the CEM-ML syntax guide](../../docs/cem-ml-syntax.md). Runtime inputs, directed
 grants and consumption remain separate from source syntax and import.
 
+## Original-owned XSLT compilation
+
+The XSLT compiler also offers explicit original-owned parser entry points:
+`compile_xslt_bundle_with_options_and_parser_contract`,
+`stylesheet_imports_with_parser_contract` and
+`resolve_xslt_names_with_parser_contract`. Their optional native contract comes
+from the consuming engine context, never JSON options. Imported modules use the
+same immutable grammar and diagnostic snapshot as the principal stylesheet.
+WASM bundle/component/import APIs select that contract from the current physical
+runtime's package owner. Contextless external-profile calls still refuse missing
+originals; complete-profile defaults and all source/closure limits remain.
 ## Native element relationship lifecycle
 
 `api::element_references::ElementReferenceExecution::prepare` stages passive source

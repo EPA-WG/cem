@@ -302,8 +302,15 @@ async function verifyStudioDemand(page, outputFirst = false) {
         const parsed = await app.validator.parseResource(options);
         if (parsed.result.exitCode !== 0) throw Error('Studio package command did not complete');
         let invalidRefused = false;
-        try { await app.validator.parseResource({ ...options, bytes: new TextEncoder().encode('id,name\n1,"Ada\n') }); }
-        catch (error) { invalidRefused = JSON.stringify(error.result).includes('cem.csv.unclosed_quote'); }
+        // Rejection is a strict fail-policy assertion; default Parse can report
+        // a schema-owned fact without selecting a failing command exit status.
+        try { await app.validator.runResourceCommand({ ...options, uri: 'studio://cem-studio-command/demand.csv',
+            bytes: new TextEncoder().encode('id,name\n1,"Ada\n'), argv: ['parse', '--fail-level', 'strict', '--no-color', '--format', 'ast',
+                '--content-type', 'text/csv', '--schema', 'https://cem.dev/ns/data/csv/1', 'studio://cem-studio-command/demand.csv'] }); }
+        catch (error) {
+            if (!error.result) throw new Error(`CSV parse did not return a native command result: ${error.code ?? 'unknown'} ${error.message}`, { cause: error });
+            invalidRefused = JSON.stringify(error.result).includes('cem.csv.unclosed_quote');
+        }
         if (!invalidRefused) throw Error('Studio package command lost native CSV diagnostics');
         if (!outputFirst) await convert();
         const status = app.packageStatus();
@@ -362,13 +369,30 @@ async function verifyFormatDemands(context, url, formats) {
                     ensure(html.result.exitCode === 0 && new DOMParser().parseFromString(html.output.text, 'text/html').querySelector('h1')?.textContent === format.expected,
                         'native Markdown HTML conversion failed');
                 }
+                if (format.packageId === 'xslt') {
+                    console.info('[format-demand:xslt] native graph');
+                    const graphUri = 'studio://format-demand/build.cem';
+                    const graph = '{run | {import @id=input @src=input.xml @content-type=application/xml | {transform @id=view @src=view.xsl @template-content-type="application/xslt+xml" | {export @id=result @out=out.html @content-type=text/html}}}}';
+                    const stylesheet = '<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><p><xsl:value-of select="/r"/></p></xsl:template></xsl:stylesheet>';
+                    const run = await app.validator.runResourceCommand({ bytes: new TextEncoder().encode(graph), uri: graphUri,
+                        contentType: 'application/cem', schema: 'https://cem.dev/ns/cli/transform-config/1',
+                        projectId: 'format-demand', projectRootUri: 'studio://format-demand/',
+                        argv: ['transform', '--config', graphUri, '--config-content-type', 'application/cem',
+                            '--config-schema', 'https://cem.dev/ns/cli/transform-config/1', '--scope-budget', 'queueSize=1024'],
+                        dependencies: [
+                            { path: 'input.xml', bytes: new TextEncoder().encode('<r>Café 🍒</r>'), contentType: 'application/xml', schema: 'https://cem.dev/ns/data/xml/1' },
+                            { path: 'view.xsl', bytes: new TextEncoder().encode(stylesheet), contentType: format.contentType, schema: format.schema },
+                        ] });
+                    ensure(run.result.exitCode === 0 && run.output?.text === '<p>Café 🍒</p>', 'admitted XSLT graph did not execute through the native command service');
+                }
                 const status = app.packageStatus();
                 ensure(status.state === 'idle' && status.demandCount === 1 && status.runtimeCount === startup.runtimeCount,
                     'demand did not publish to the complete original physical cohort');
                 return { startup, ...status, nativeParse: true,
                     ...(expandsCss ? { nativeCssExpansion: true }
                         : { externalFormatter: true, externalColorizer: true }),
-                    ...(format.packageId === 'markdown' && { nativeHtmlConversion: true }) };
+                    ...(format.packageId === 'markdown' && { nativeHtmlConversion: true }),
+                    ...(format.packageId === 'xslt' && { nativeXsltGraph: true }) };
             }, format);
             // A fresh physical cohort must prepare the selected resource itself,
             // rather than borrowing the preceding command's active package.

@@ -3,7 +3,8 @@ use super::*;
 use cem_ml::content_cache::ContentHash;
 use cem_ql::xslt::{
     compiler::{
-        compile_xslt_bundle_with_options, resolve_xslt_names, XsltCompileOptions, XsltModuleSource,
+        compile_xslt_bundle_with_options_and_parser_contract,
+        resolve_xslt_names_with_parser_contract, XsltCompileOptions, XsltModuleSource,
     },
     XsltBundle,
 };
@@ -31,33 +32,14 @@ impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter {
         &self,
         request: TransformTemplateCompileRequest<'_>,
     ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
-        let mut artifact = TransformTemplateCompiledArtifact::new(
-            self.id(),
-            self.kind(),
-            request.template.uri.clone(),
-            request.template.identity.clone(),
-            request.entrypoint.clone(),
-            json!({"engine":"cem-ql", "source":"typed-xslt-bundle"}),
-        )
-        .with_parameters(request.params.clone());
-        let diagnostics = match compile(&request) {
-            Ok(payload) => {
-                artifact = artifact.with_native_payload(payload);
-                Vec::new()
-            }
-            Err(mut diagnostics) => {
-                for diagnostic in &mut diagnostics {
-                    if diagnostic.severity.is_hard_violation() {
-                        diagnostic.severity = Severity::Fatal;
-                    }
-                }
-                diagnostics
-            }
-        };
-        Ok(TransformTemplateCompileResponse {
-            artifact,
-            diagnostics,
-        })
+        compile_response(self, request, None)
+    }
+    fn compile_with_context(
+        &self,
+        request: TransformTemplateCompileRequest<'_>,
+        context: &EngineContext,
+    ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
+        compile_response(self, request, Some(context))
     }
     fn render(
         &self,
@@ -74,6 +56,48 @@ impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter {
     }
 }
 
+fn compile_response(
+    adapter: &XsltParityTransformTemplateAdapter,
+    request: TransformTemplateCompileRequest<'_>,
+    context: Option<&EngineContext>,
+) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
+    let mut artifact = TransformTemplateCompiledArtifact::new(
+        adapter.id(),
+        adapter.kind(),
+        request.template.uri.clone(),
+        request.template.identity.clone(),
+        request.entrypoint.clone(),
+        json!({"engine":"cem-ql", "source":"typed-xslt-bundle"}),
+    )
+    .with_parameters(request.params.clone());
+    let compiled = match context {
+        Some(context) => cem_ml::validation::xslt::xslt_parser_contract_from_context(
+            context,
+            &request.template.uri,
+        )
+        .and_then(|parser| compile(&request, parser.as_deref())),
+        None => compile(&request, None),
+    };
+    let diagnostics = match compiled {
+        Ok(payload) => {
+            artifact = artifact.with_native_payload(payload);
+            Vec::new()
+        }
+        Err(mut diagnostics) => {
+            for diagnostic in &mut diagnostics {
+                if diagnostic.severity.is_hard_violation() {
+                    diagnostic.severity = Severity::Fatal;
+                }
+            }
+            diagnostics
+        }
+    };
+    Ok(TransformTemplateCompileResponse {
+        artifact,
+        diagnostics,
+    })
+}
+
 fn diagnostic(uri: &str, message: impl Into<String>) -> Vec<Diagnostic> {
     vec![Diagnostic {
         uri: Some(uri.into()),
@@ -83,7 +107,10 @@ fn diagnostic(uri: &str, message: impl Into<String>) -> Vec<Diagnostic> {
         ..Default::default()
     }]
 }
-fn compile(request: &TransformTemplateCompileRequest<'_>) -> Result<Payload, Vec<Diagnostic>> {
+fn compile(
+    request: &TransformTemplateCompileRequest<'_>,
+    parser: Option<&cem_ml::schema::parser_contracts::CompiledParserContract>,
+) -> Result<Payload, Vec<Diagnostic>> {
     let uri = &request.template.uri;
     let source =
         std::str::from_utf8(&request.template.bytes).map_err(|e| diagnostic(uri, e.to_string()))?;
@@ -101,7 +128,8 @@ fn compile(request: &TransformTemplateCompileRequest<'_>) -> Result<Payload, Vec
         names.push(entrypoint);
     }
     names.extend(request.params.iter().map(|(name, _)| name));
-    let mut expanded = resolve_xslt_names(source, uri, &names)?.into_iter();
+    let mut expanded =
+        resolve_xslt_names_with_parser_contract(source, uri, &names, parser)?.into_iter();
     if request.entrypoint.name.is_some() {
         options.entrypoint = expanded.next();
     }
@@ -131,7 +159,8 @@ fn compile(request: &TransformTemplateCompileRequest<'_>) -> Result<Payload, Vec
             content_hash: hash,
         });
     }
-    let compiled = compile_xslt_bundle_with_options(source, uri, &options)?;
+    let compiled =
+        compile_xslt_bundle_with_options_and_parser_contract(source, uri, &options, parser)?;
     let bundle = XsltBundle::from_bytes(
         &compiled.bytes,
         &compiled.content_hash,
