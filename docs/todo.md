@@ -515,7 +515,14 @@ Studio formatting and isolated Login recovery checks pass. All edits are tests
 and documentation; production code, shared components, credential privacy,
 cache bounds and recovery limits/deadlines remain unchanged.
 
-- [ ] Separate constructed XML document URI from source provenance URI. `uri_accessors_share_native_metadata_and_enforce_optional_node_arguments` expects `data:document_uri(data:parse("<r/>", "xml"))` to be empty, while the unchanged pre-CSV-fix runtime returns `data:parse/source`. Preserve original source locations and the existing assertion when repairing the accessor.
+Completed 2026-10-28: [constructed document/provenance URI separation](archive/todo-completed-constructed-document-uris-2026-10-28.md)
+fixes the shared native accessor used by CEM-QL and XPath. Constructed string
+documents report no document URI while retaining original source owners, ranges,
+diagnostics and independent base URIs; loaded-document URIs remain intact.
+Native, public WASM, Studio command/provenance, deployed-demo and isolated Login
+recovery checks pass. The deployment retains 898 files with all four WASM files
+below 25 MiB. Shared components, credential refusal and all recovery
+budgets/deadlines are unchanged.
 
 - [ ] Exclude generated schema-asset WASM glue from Studio's authored-source lint scope. The broad package lint currently reports 238 errors and five warnings in generated `cem_ql.js` / `cem_ql_factory.js`; linting Studio `src` and `scripts` passes. Preserve lint rules for authored code.
 

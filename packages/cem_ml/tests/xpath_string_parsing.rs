@@ -101,6 +101,11 @@ fn parsed_nodes_keep_native_identity_source_and_uri_properties() {
     assert!(std::sync::Arc::ptr_eq(nodes[0].owner(), nodes[2].owner()));
     assert!(nodes[0].source_owner().is_some());
     assert!(!nodes[2].source_map().frames.is_empty());
+    assert_eq!(nodes[0].document_uri(), None);
+    assert_eq!(nodes[2].document_uri(), None);
+    let provenance = nodes[0].source_uri().expect("constructed source provenance");
+    assert!(provenance.starts_with("https://example.test/view.xslt#parsed-"));
+    assert_eq!(nodes[2].source_uri(), Some(provenance));
     assert_eq!(
         values("base-uri(parse-xml('<r/>'))"),
         ["https://example.test/view.xslt"]

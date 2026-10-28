@@ -107,3 +107,61 @@ fn typed_import_failures_distinguish_malformed_duplicates_limits_and_capabilitie
     // Unpaired surrogate identity survives the fallback replacement character.
     assert!(import(r#"{"\uDEAD":1,"�":2}"#, reject).is_ok());
 }
+
+#[test]
+fn constructed_string_documents_keep_source_provenance_separate_from_document_uri() {
+    const PROVENANCE: &str = "memory:constructed-original";
+    for (profile, source) in [
+        (ImportStringProfile::Xml, "<r><x>Café 🍒</x></r>"),
+        (
+            ImportStringProfile::JsonXml(Default::default()),
+            r#"{"name":"Café 🍒"}"#,
+        ),
+        (ImportStringProfile::Csv, "name\nCafé 🍒\n"),
+        (ImportStringProfile::Yaml, "name: Café 🍒\n"),
+    ] {
+        for base_uri in [None, Some("https://example.test/base/")] {
+            let tree = import_string(ImportStringRequest {
+                source,
+                source_uri: PROVENANCE,
+                base_uri,
+                profile,
+            })
+            .unwrap();
+            let root = XPathNativeNode::cem_document(tree.clone());
+            assert_eq!(tree.document_uri(), None);
+            assert_eq!(root.document_uri(), None, "{profile:?}");
+            assert_eq!(root.base_uri(), base_uri);
+            assert_eq!(tree.source_uri(), PROVENANCE);
+            assert_eq!(root.source_uri(), Some(PROVENANCE));
+            assert!(root.source_owner().is_some());
+            let source_map = root.source_map();
+            assert!(source_map
+                .frames
+                .iter()
+                .any(|frame| matches!(&frame.transform,
+                cem_ml::source_map::TransformKind::SourceBoundary { uri } if uri == PROVENANCE)));
+            for frame in source_map.frames {
+                let cem_ml::source_map::FrameSpan::Single(range) = frame.span else {
+                    panic!("native source range");
+                };
+                assert!(range.end() <= source.len() as u64);
+            }
+            for child in root.child_nodes() {
+                assert_eq!(child.document_uri(), None);
+                assert_eq!(child.source_uri(), Some(PROVENANCE));
+                assert!(std::sync::Arc::ptr_eq(child.owner(), &tree));
+            }
+        }
+    }
+    let loaded =
+        cem_ml::import::import_data("<r/>", "xml", "cem", "https://example.test/original.xml")
+            .unwrap();
+    let root = XPathNativeNode::cem_document(loaded);
+    assert_eq!(
+        root.document_uri(),
+        Some("https://example.test/original.xml")
+    );
+    assert_eq!(root.source_uri(), Some("https://example.test/original.xml"));
+    assert_eq!(root.child_nodes()[0].document_uri(), None);
+}

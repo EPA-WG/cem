@@ -381,6 +381,13 @@ range. An existing boundary cannot be rebound. Native owners retain their
 explicit source URI even when their XDM document URI is absent. Numeric IDs stay
 local and must not be interpreted as resource addresses.
 
+Constructed string documents have no XDM document URI. The shared native node
+accessor reads that optional document metadata independently of the original
+source URI used for diagnostics and source maps. An explicit base URI (including
+inherited `xml:base`) does not create a document URI. Imported resources keep
+their document URI; non-document nodes never expose one. This contract applies
+to XML, JSON-to-XML, CSV and YAML string imports and to their XPath/CEM-QL views.
+
 The binary source-map codec encodes this transform kind as tag 15 with a nonempty
 URI payload; older tags retain their encoding. New readers accept existing
 streams. Older readers that do not support this kind reject such new metadata.

@@ -317,3 +317,84 @@ fn uri_accessors_share_native_metadata_and_enforce_optional_node_arguments() {
         ))]
     );
 }
+
+#[test]
+fn constructed_document_uris_match_xpath_without_losing_base_or_source_metadata() {
+    let library = CemtXPathFunctions::compile(
+        r#"@doc cem-ml 1
+@ns t = "https://cem.dev/ns/transform/cem/1"
+@default t
+{module | {function @name=test.uris @visibility=public @returns=any |
+    {param @name=node @type=any @required=true}
+    {body | {xpath @context=node @sequence-type="xs:anyURI*" |
+        {expression | (base-uri(.), document-uri(.))}}}}}"#,
+        "memory:constructed-uris.cemt",
+    )
+    .unwrap();
+    for (format, source) in [
+        ("xml", "<r>Café 🍒</r>"),
+        ("json", r#"{"name":"Café 🍒"}"#),
+        ("csv", "name\nCafé 🍒\n"),
+        ("yaml", "name: Café 🍒\n"),
+    ] {
+        for base in [false, true] {
+            let query = if base {
+                r#"data:parse(source, format, {"base-uri": "https://example.test/base/"})"#
+            } else {
+                "data:parse(source, format)"
+            };
+            let parsed = ok(
+                query,
+                &[("source", string(source)), ("format", string(format))],
+            )
+            .remove(0);
+            assert!(ok("data:document_uri(root)", &[("root", parsed.clone())]).is_empty());
+            let actual = ok(
+                "(data:base_uri(root), data:document_uri(root))",
+                &[("root", parsed.clone())],
+            );
+            let mut context = EvaluationContext {
+                policy_bindings: BTreeMap::from([("root".into(), ItemStream::once(parsed))]),
+                ..Default::default()
+            };
+            library
+                .install(
+                    &mut context.native_functions,
+                    Arc::new(cem_ml::resolver::ResolverRegistry::new()),
+                    Arc::new(cem_ml::resolver::ResolverPolicy::new()),
+                )
+                .unwrap();
+            let compiled = compile(
+                r#"native:call("test.uris", root)"#,
+                &CompileContext {
+                    policy_bindings: context.policy_bindings.clone(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let xpath = evaluate(&compiled, &context);
+            assert!(xpath.error.is_none(), "{:?}", xpath.diagnostics);
+            assert_eq!(
+                actual.iter().map(Item::atom).collect::<Vec<_>>(),
+                xpath.items.iter().map(Item::atom).collect::<Vec<_>>()
+            );
+            assert_eq!(
+                actual,
+                if base {
+                    vec![Item::Atomic(AtomValue::AnyUri(
+                        "https://example.test/base/".into(),
+                    ))]
+                } else {
+                    vec![]
+                }
+            );
+            assert_eq!(
+                ok(
+                    "data:line_number(root)",
+                    &[("root", context.policy_bindings["root"].items[0].clone())]
+                ),
+                vec![Item::Atomic(AtomValue::Integer(1.into()))]
+            );
+        }
+    }
+}

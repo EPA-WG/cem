@@ -226,7 +226,7 @@ impl XPathNativeNode {
     }
     pub fn source_uri(&self) -> Option<&str> { self.tree.node_source_uri(self.id) }
     pub fn document_uri(&self) -> Option<&str> {
-        (self.result_node_kind() == XPathResultNodeKind::Document).then(|| self.source_uri()).flatten()
+        (self.result_node_kind() == XPathResultNodeKind::Document).then(|| self.tree.document_uri()).flatten()
     }
     pub fn base_uri(&self) -> Option<&str> {
         self.tree.node_base_uri(self.id)

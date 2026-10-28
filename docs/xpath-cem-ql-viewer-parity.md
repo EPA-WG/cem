@@ -50,6 +50,13 @@ provenance URI is `data:parse/source`; base URI is absent unless supplied. XPath
 uses its expression's static source URI as its base. Supply the same explicit
 base URI when comparing relative URI behavior across languages.
 
+Document URI is a separate optional metadata field, never a fallback to that
+provenance address. Both query languages return empty for constructed string
+documents, including when a base URI is supplied. Resource imports keep their
+document URI on the document node; child nodes return empty. Native owners,
+original UTF-8 ranges, diagnostic source boundaries and source keys remain
+available independently of the document URI.
+
 Malformed input raises `cem.ql.import_malformed` with expanded error name
 `Q{urn:cem:import}invalid-source`; duplicate rejection raises
 `cem.ql.import_duplicate_key` / `Q{urn:cem:import}duplicate-key`. Query call

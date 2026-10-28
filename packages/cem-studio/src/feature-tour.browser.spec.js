@@ -1787,6 +1787,29 @@ describe('CEM Studio Feature Tour copies', () => {
             frame.transform.kind === 'SourceBoundary' && frame.transform.uri === uri))).toBe(true);
     }, 60_000);
 
+    it('separates constructed document URIs from provenance in native query commands', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const uri = 'studio://uri-contract/data/input.xml';
+        const contentType = 'application/xml', schema = 'https://cem.dev/ns/data/xml/1';
+        for (const [query, queryType, querySchema, flags, expected] of [
+            ['(data:document_uri(input), data:base_uri(data:parse("<r/>", "xml", {"base-uri": "https://example.test/base/"})), seq:count(data:document_uri(data:parse("<r/>", "xml"))), data:line_number(data:parse("<r/>", "xml")))',
+                'application/vnd.cem.query-expression+cem-ql', 'https://cem.dev/ns/query/cem-ql/1#expression',
+                ['--ready-names', '--scope-budget', 'queueSize=1024'], [uri, 'https://example.test/base/', 0, 1]],
+            ['(document-uri(.), count(document-uri(parse-xml("<r/>"))), Q{urn:cem:source}line-number(parse-xml("<r/>")))',
+                'application/vnd.cem.xpath', 'https://cem.dev/ns/query/xpath/1', [], [uri, '0', '1']],
+        ]) {
+            const outcome = await validator.runResourceCommand({ uri, bytes: new TextEncoder().encode('<r>Café 🍒</r>'),
+                contentType, schema, projectId: 'uri-contract', projectRootUri: 'studio://uri-contract/',
+                argv: ['query', uri, '--content-type', contentType, '--schema', schema,
+                    '--query', query, '--query-content-type', queryType, '--query-schema', querySchema,
+                    ...flags, '--output', 'json'] });
+            expect(outcome.result.exitCode).toBe(0);
+            const report = JSON.parse(outcome.output.text);
+            expect(report.language === 'cem-ql' ? report.result.items.map(item => item.value)
+                : report.result.sequence.items.map(item => item.value.lexicalValue)).toEqual(expected);
+        }
+    }, 60_000);
+
     it('initializes native graph authoring through the public CLI browser facade', async () => {
         const { createBrowserTransformConfigAuthor } = await import('@epa-wg/cem-ml-cli/browser-commands');
         const author = await createBrowserTransformConfigAuthor();

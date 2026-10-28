@@ -385,6 +385,7 @@
                     "cargo test --locked --package cem-ml-cli --test reference_transport_cli --test reload_validation_cli --target-dir dist/target/cem_ml_cli",
                     "node packages/cem_ql/tests/reference-transport-wasm.mjs",
                     "node packages/cem_ql/tests/native-values-wasm.mjs",
+                    "node packages/cem_ql/tests/string-import-uris-wasm.mjs",
                     "node packages/cem_ql/tests/native-capability-session-wasm.mjs"
                 ],
                 "parallel": false,

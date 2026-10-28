@@ -884,6 +884,12 @@ strings have no document URI and no base URI unless supplied. Like
 `data:node_key` / `data:line_number`, these functions accept zero or one native
 node and reject ordinary records. Query values never replace the native owner.
 
+For example, `data:document_uri(data:parse("<r/>", "xml"))` is empty even
+though its native source maps retain `data:parse/source`. Supplying
+`{"base-uri": "https://example.test/base/"}` changes relative URI resolution
+only. Loaded resources continue to expose their document URI on the document
+node. XPath `document-uri` and CEM-QL use the same native metadata accessor.
+
 Recover malformed input with `try { data:parse(source, "xml") } catch (code,
 message) { message }`. Malformed and duplicate-key diagnostics retain typed
 import names and parser diagnostic metadata. Resource limits, unsupported
