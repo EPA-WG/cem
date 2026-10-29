@@ -2146,6 +2146,7 @@ export class CemElementRuntime {
             }, pin.hostBindings);
             const stylesheets = retained.stylesheets;
             helpers.disposeRetainedCemMlTemplate(retained.artifactId);
+            if (retained.formatVersion !== metadata.templateFormat) throw Error('compiled declaration template format mismatch');
             current();
             const template = declarationElement.ownerDocument.createElement('template');
             template.setAttribute('type', 'text/cem-ml');
@@ -4652,7 +4653,7 @@ export class CemElementRuntime {
             resolverIdentity: compiled.resolverIdentity, linkBaseUrl: compiled.linkBaseUrl ?? undefined,
             scopePolicyStamp: this.scopePolicyStamp, sourceMapMode: pin.sourceMapMode,
             hostBindings: [...pin.hostBindings], source: { kind: 'pinned-template-artifact-v1', artifact: {
-                kind: 'template-artifact', cacheKey: pin.contentHash, formatVersion: 'cem-template-artifact/1',
+                kind: 'template-artifact', cacheKey: pin.contentHash, formatVersion: pinned.metadata.templateFormat,
                 policyStamp: this.scopePolicyStamp, bytes: pinned.bytes, payloadKey: { contentType: 'cem-template-artifact',
                     sourceHash: pin.sourceHash, cemMlVersion: pin.cemMlVersion, cemQlVersion: pin.cemQlVersion, sourceMapMode: pin.sourceMapMode },
             } } };

@@ -1,6 +1,6 @@
 // Build canonical component fixtures with the native compiler, never a JS parser.
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdirSync } from 'node:fs';
+import { cpSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -24,3 +24,9 @@ for (const tag of ['cem-text-field', 'cem-action', 'cem-card', 'cem-text', 'cem-
 cpSync(`${root}packages/cem_ql/fixtures/component-application/compiled-form/cem-compiled-form-app`, `${inputs}/cem-compiled-form-app`, { recursive: true });
 execFileSync(`${root}dist/target/debug/examples/compile_declaration_closure`, [inputs, 'https://app.test/components/',
     `${root}dist/artifacts/cem_ql/compiled-form`, 'prod', 'cem-compiled-form-app'], { cwd: root, stdio: 'inherit' });
+
+// Keep the ordinary loader's 1 MiB response policy, including compiled CSS.
+for (const name of readdirSync(`${root}dist/artifacts/cem_ql/compiled-form`)) {
+    if (name.endsWith('.bin') && statSync(`${root}dist/artifacts/cem_ql/compiled-form/${name}`).size > 1024 * 1024)
+        throw Error(`Compiled form asset exceeds the existing response limit: ${name}`);
+}

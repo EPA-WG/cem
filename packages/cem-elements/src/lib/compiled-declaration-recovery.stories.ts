@@ -23,7 +23,7 @@ async function recoverCompiledForm(base: string, htmlUrl: string, load: (url: st
         policyStamp: 'compiled-form-recovery', maxBytes: 4 * 1024 * 1024, allowOwner: () => true,
         seal: (candidate: string, receipt: string) => binding.sealCommittedCheckpoint(candidate, receipt) });
     let sourceLoads = 0, workerReplies = 0;
-    const kinds: string[] = [];
+    const kinds: string[] = [], formats: string[] = [];
     const runtime = new CemElementRuntime({ declarationScope: scope, checkpointPublication: coordinator, retainedStylesheets: {},
         loadSrcDocument: async () => { sourceLoads++; throw Error('Original component source is unavailable'); },
         processingWorkerFactory: (request: { scriptUrl: string; type: WorkerType; name?: string }) => {
@@ -31,8 +31,8 @@ async function recoverCompiledForm(base: string, htmlUrl: string, load: (url: st
             const worker = new Worker(request.scriptUrl, { type: request.type, name: request.name });
             const post = worker.postMessage.bind(worker);
             worker.postMessage = (message: unknown) => {
-                const packet = message as { operation?: string; payload?: { language?: string; source?: { kind: string } } };
-                if (packet.operation === 'compile' && packet.payload?.language === 'cem-ml') kinds.push(packet.payload.source?.kind ?? 'missing');
+                const packet = message as { operation?: string; payload?: { language?: string; source?: { kind: string; artifact?: { formatVersion: string } } } };
+                if (packet.operation === 'compile' && packet.payload?.language === 'cem-ml') { kinds.push(packet.payload.source?.kind ?? 'missing'); formats.push(packet.payload.source?.artifact?.formatVersion ?? 'missing'); }
                 post(message);
             };
             worker.addEventListener('message', ({ data }) => { if (data.direction === 'response' && data.outcome === 'success') workerReplies++; });
@@ -127,7 +127,7 @@ async function recoverCompiledForm(base: string, htmlUrl: string, load: (url: st
             check(new FormData(form).get('item') === input.value && coordinator.current().receipt.owners.some((owner: { instanceId: string; acceptedEventSequence: number }) =>
                 owner.acceptedEventSequence > before.receipt.owners.find((prior: { instanceId: string }) => prior.instanceId === owner.instanceId)?.acceptedEventSequence), 'fresh accepted input was not published');
             check(sourceLoads === 0 && downloads.slice(acquired).every(url => !/\.(json|bin|xhtml)(?:\?|$)/.test(url)), 'recovery refetched a component asset');
-            if (!fallback) check(workerReplies > replies && kinds.length > 0 && kinds.every(kind => kind === 'pinned-template-artifact-v1'), 'fresh worker did not execute pinned IR');
+            if (!fallback) check(workerReplies > replies && kinds.length > 0 && kinds.every(kind => kind === 'pinned-template-artifact-v1') && formats.every(format => format === 'cem-template-artifact/2'), 'fresh worker did not execute pinned IR');
         }
         return 'success passed';
     } catch (error) { throw Error(`${fallback ? 'fallback' : 'worker'}/${stage}: ${String(error)}`, { cause: error }); }

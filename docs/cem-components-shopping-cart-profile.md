@@ -23,7 +23,7 @@ not the final production module manifest or an installed build target.
 | Stage | Requirements |
 | --- | --- |
 | App build | CEM-ML/CEM-QL and declaration parsing, native template/expression compilation, style compilation/validation, GraphQL schema/operation and static-data validation, exact dependency/ABI/source hash records, generated variable/response guards. |
-| Initial client | Compiled native render/evaluation, JSON decoding/encoding, required action/form behaviors, live DOM updates, app input checks, resources/cancellation and ownership/recovery guards. CSS parsing remains required by the current artifact wire format. |
+| Initial client | Compiled native render/evaluation, JSON decoding/encoding, required action/form behaviors, live DOM updates, app input checks, resources/cancellation and ownership/recovery guards. Compiled inline CSS uses opt-in v2; authorized external CSS imports and source/dynamic-style paths still require CSS parsing. |
 | Optional demand | Additional data formats, dynamically admitted source templates, editor highlighting, Parse/Inspect, language converters and general schema tooling. |
 
 Predefined `Cart`, `SetCartLineQuantity` and `RemoveCartLine` operations use the
@@ -150,7 +150,11 @@ dist/target/debug/examples/compile_declaration_artifact \
 
 The output is `text-field.bin`, `text-field.json` and `text-field.hash`. An
 optional fifth argument sets a fixed build alias. Current support deliberately
-requires a single named canonical CEM-ML declaration. XPath source companions,
+requires a single named canonical CEM-ML declaration. Generated declarations now
+use the opt-in `cem-template-artifact/2` format with compiled inline CSS and a
+`templateFormat` metadata requirement. Legacy metadata without that field defaults
+to v1; the shared host compares it with the actual admitted binary before defining
+a custom element. XPath source companions,
 external CEMT imports, legacy resource routing and unsupported declaration
 attributes are refused rather than silently omitted. Native CSS parsing is still
 required. Normal inline/`src` registration continues to use source.
@@ -277,13 +281,59 @@ Build the normal `cem-elements:build` artifacts first. This proves the reviewed
 static form closure; it does not complete the shopping-cart transport, dynamically
 constructed module closure, compiled CSS format or reduced binary.
 
+## Compiled inline stylesheet admission
+
+`compile_template_artifact_with_compiled_styles` emits an opt-in
+`cem-template-artifact/2` / `cem-template-ir-v2` envelope. Native declaration and
+static-closure builds select this format; ordinary source/WASM compilation keeps
+v1. Both formats remain supported by native and shared worker/fallback readers.
+The existing processing transport stays v30, with explicit format agreement
+checked against native import results. A v2 pin cannot accept a v1 body or invoke
+a source fallback.
+
+Each inline stylesheet carries a separately hashed `CEMCSS1` native capsule:
+decoded CSS tree nodes, source maps/ranges, original URI and source hash, native
+compiler version, and original CSS for provenance/inspection. Strings and source
+maps are interned to reduce repeated data. Admission validates hashes, versions,
+indices, graph ownership/reachability/depth, ranges and bounded expansion before
+publishing a retained native tree. It does not tokenize, parse or validate CSS
+source again. No JavaScript AST or new application behavior participates.
+
+The capsule has a 16 MiB wire/expanded-accounting ceiling, at most 100,000 nodes
+and 256 graph levels. The compiled-form fixture checks every binary against the
+ordinary 1 MiB response policy. Do not infer allocator/RAM measurements from
+these accounting limits or serialized file sizes.
+
+The restored tree goes through the same native resource resolver, import loader,
+private/shared/instance scoping, keyframe naming and managed CSS emission as the
+source path. Native tests compare exact decoded nodes, URI/fingerprint/ranges,
+resource/import requests, effective stylesheet identities, CSS and diagnostics.
+A test-only parser counter proves zero CSS source-parser calls during capsule
+admission. Invalid compiled data, missing pins and source-only v1 style payloads
+inside a v2 envelope are refused.
+
+**External stylesheet imports remain source-based.** Their authorized `text/css`
+responses still pass the existing MIME/integrity/policy checks and native parser.
+Source-driven and dynamic DOM/instance styles also retain their current parser
+path. A compiled imported-closure contract is required before removing CSS source
+parsing from a deployment. The full runtime and all current capabilities remain
+available; this step does not establish a smaller WASM or complete minimal app.
+
+```bash
+cargo test --locked --offline -p cem-ml --lib compiled_css::tests
+cargo test --locked --offline -p cem-ql --lib template_artifact::compiled_style_tests
+node packages/cem_ql/tests/build-declaration-fixtures.mjs
+node packages/cem_ql/tests/declaration-artifact-wasm.mjs
+```
+
 ## Remaining delivery boundaries
 
 - Extend app-build function/resource closure generation and optional module
   acquisition beyond the verified static form. Ordinary `cem-element src`
   loading continues to support source.
-- Stylesheet v1 reload imports CSS source. Prove compiled style/scoping admission
-  with original identity and URL bases before removing its parser dependency.
+- Extend compiled inline CSS admission to imported stylesheet closures before
+  removing the CSS source parser. Keep authorized source imports, source-driven
+  templates and dynamic styles available through the full/on-demand runtime.
 - Generate/validate the app manifest and API contracts during the app build.
   The illustrative GraphQL files currently have no schema/operation validator in
   the fixture runner, and a manifest alone proves no native code omission.

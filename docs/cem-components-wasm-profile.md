@@ -42,9 +42,12 @@ JSON variables, then handles JSON data/errors. Server pricing, stock and mutatio
 validation remain authoritative.
 
 The current native `CompiledTemplateArtifact` already reloads binary template
-and expression IR without invoking the CEM-ML or CEM-QL source compiler. Its v1
-stylesheet wire fields contain CSS source and reload through the native CSS
-importer. The browser's `retainCemMlTemplateArtifact` path still takes original
+and expression IR without invoking the CEM-ML or CEM-QL source compiler. Legacy
+v1 stylesheet fields reload CSS source through the native importer; opt-in v2
+now reloads pinned native CSS trees without reparsing inline stylesheet source.
+The [compiled CSS contract](cem-components-shopping-cart-profile.md#compiled-inline-stylesheet-admission)
+retains source parsing for authorized external imports and dynamic/source styles.
+The browser's `retainCemMlTemplateArtifact` path still takes original
 template source for its optional source-cache behavior. A separate strict
 `retainPinnedCemMlTemplateArtifact` adapter and `pinned-template-artifact-v1`
 processing input now admit native binary IR from build-pinned source/artifact
@@ -63,8 +66,9 @@ form fixture loads with no XHTML downloads and now passes two complete physical
 generation recovery cycles per mode, preserving edits/forms/styles and credential
 refusal. Stale input/pin handoffs also refuse without overwriting retained state.
 See the [recovery acceptance](cem-components-shopping-cart-profile.md#compiled-application-recovery-acceptance).
-A complete function/resource closure remains pending. Ordinary `cem-element src` continues to support
-source. Keep CSS parsing until compiled style admission is implemented.
+A complete function/resource closure remains pending. Ordinary `cem-element src`
+continues to support source. Keep native CSS parsing until compiled imported closures are admitted;
+compiled inline styles alone do not complete that exclusion gate.
 These changes do not establish omitted compiler code or a smaller binary.
 The evaluator also assembles the general function registry during native render;
 profile-specific dispatch/registry roots remain necessary even with compiled IR.

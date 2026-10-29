@@ -3,8 +3,8 @@
 use crate::{
     render::{CompileTemplateOptions, TemplateModuleMapArtifact},
     template_artifact::{
-        compile_template_artifact, CompiledTemplateArtifact, PinnedTemplateArtifactContext,
-        TemplateArtifactSourceMapMode,
+        compile_template_artifact_with_compiled_styles, CompiledTemplateArtifact,
+        PinnedTemplateArtifactContext, TemplateArtifactSourceMapMode,
     },
 };
 use cem_ml::{
@@ -31,8 +31,14 @@ pub struct DeclarationArtifactMetadata {
     pub source_uri: String,
     pub resource_base_url: String,
     pub declaration_source_hash: String,
+    #[serde(default = "legacy_template_format")]
+    pub template_format: String,
     pub template: PinnedTemplateArtifactContext,
     pub module_map: Option<TemplateModuleMapArtifact>,
+}
+
+fn legacy_template_format() -> String {
+    "cem-template-artifact/1".into()
 }
 
 pub struct BuiltDeclarationArtifact {
@@ -66,7 +72,9 @@ pub fn admit_declaration_metadata(
     }
     let metadata: DeclarationArtifactMetadata =
         serde_json::from_str(json).map_err(|error| fail(error.to_string()))?;
-    if metadata.contract != DECLARATION_METADATA_VERSION
+    if !["cem-template-artifact/1", "cem-template-artifact/2"]
+        .contains(&metadata.template_format.as_str())
+        || metadata.contract != DECLARATION_METADATA_VERSION
         || !valid_tag(&metadata.tag)
         || !valid_tag(&metadata.declared_tag)
         || !["document", "source"].contains(&metadata.link_base.as_str())
@@ -207,7 +215,8 @@ pub fn build_declaration_artifact(
         source_uri: Some(format!("{source_uri}#{declared_tag}")),
         ..Default::default()
     };
-    let template = compile_template_artifact(&fragment.body, &options, mode);
+    let template = compile_template_artifact_with_compiled_styles(&fragment.body, &options, mode)
+        .map_err(fail)?;
     let pin = PinnedTemplateArtifactContext {
         content_hash: template.content_hash.header_value(),
         source_hash: template.identity.source_hash.header_value(),
@@ -259,6 +268,7 @@ pub fn build_declaration_artifact(
         source_uri: source_uri.into(),
         resource_base_url: base.to_string(),
         declaration_source_hash: ContentHash::from_blake3(source.as_bytes()).header_value(),
+        template_format: template.identity.artifact_version.clone(),
         template: pin,
         module_map: loaded.module_map,
     };

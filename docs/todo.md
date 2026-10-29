@@ -992,6 +992,39 @@ inventory, not the minimum set loaded by every app.
   artifact identities, URL bases and scope contracts; prove equivalent imports,
   diagnostics, DOM/style reuse and separate-heap worker/fallback recovery. Keep
   native CSS parsing in the deployed profile until the compiled replacement passes.
+  - [x] Add a bounded native compiled CSS tree capsule, preserving exact source
+    identity/ranges and decoded nodes. Add native fixtures for deterministic
+    round trips, parser-call refusal, corrupt/hash/version/graph failures and
+    identical scoping/resource/import diagnostics.
+  - [x] Add an opt-in compiled-style template format, strict v2 payload admission
+    and build-generated declarations; retain legacy v1 and native source loading.
+    Add native/WASM, shared processing and worker/fallback load/recovery fixtures
+    proving pinned format agreement, no inline CSS reparsing, retained DOM/styles,
+    source URI bases and existing credential/budget policies.
+    Implemented `CEMCSS1` native tree capsules and strict `cem-template-artifact/2`
+    with legacy v1 compatibility. The existing shared transport compares actual
+    native format results before publication and replay; missing/invalid compiled
+    styles never reparse source as a fallback. Node/string/source-map interning
+    keeps the generated six-component fixture under the unchanged 1 MiB response
+    ceiling (the largest artifact is about 544 KiB). Native tests prove identical
+    nodes, source keys/ranges, all three scope modes, import/URL resolution,
+    effective identities and diagnostics, with zero inline CSS-parser calls on
+    capsule admission. Dictionary expansion, cycles, invalid indices, versions,
+    body hashes and source-only payloads fail closed. Original CSS is retained
+    for provenance/inspection. Full/source/dynamic CSS and authorized text/css
+    imports remain supported; the import-closure gate below stays open.
+    The optimized full reference is 24,172,150 bytes (23.05 MiB), about 94 KiB
+    above the preceding build, with the same 28 imports/171 exports. Sharing the
+    v1/v2 slice-reader decoder avoided about 1.04 MiB of duplicated decoder code
+    in the intermediate build. No native source-parser code has been excluded.
+    Verification passes: 21 native CSS/template/declaration/closure/reload tests,
+    814 shared unit tests, 14 component browser cases, separate-heap v2 stylesheet
+    admission/emission plus legacy v1/instance stylesheet WASM checks, both full
+    Studio Login credential/recovery cases, TypeScript, lint (no errors) and the
+    refreshed size/interface/source audit. The 4 MiB checkpoint budget, source
+    loader limits and 5-second native handoff deadlines remain unchanged.
+  - [ ] Admit compiled imported stylesheet closures before excluding CSS source
+    parsing; preserve current authorized text/css imports until that gate passes.
 - [ ] Add app-build dependency generation and GraphQL schema/operation validation,
   including variable/response contracts and compact runtime input checks. Treat
   application manifests as requirements, not native grants or permissions; retain

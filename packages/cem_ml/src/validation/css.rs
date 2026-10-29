@@ -369,9 +369,14 @@ pub fn validate_css_document_ast(document: &CssDocumentAst) -> Vec<Diagnostic> {
     diagnostics
 }
 
+#[cfg(test)]
+thread_local! { pub(crate) static CSS_SOURCE_PARSE_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
+
 pub fn css_document_ast_from_source_bytes(
     request: CssSourceValidationRequest<'_>,
 ) -> (Option<CssDocumentAst>, Vec<Diagnostic>) {
+    #[cfg(test)]
+    CSS_SOURCE_PARSE_CALLS.with(|calls| calls.set(calls.get() + 1));
     let parameters =
         parse_content_type_parameters(request.content_type.unwrap_or(CSS_CONTENT_TYPE));
     let source_info = CssDocumentSource::from_request(request, parameters.clone());

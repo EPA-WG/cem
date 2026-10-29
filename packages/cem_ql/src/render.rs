@@ -318,6 +318,12 @@ impl TemplateStylesheetArtifact {
         })
     }
 
+    /// Admission of a build-pinned native CSS tree; no CSS parser participates.
+    pub fn from_compiled_css(bytes: &[u8], hash: &str, scope: Option<String>) -> Result<Self, String> {
+        let admitted = cem_ml::compiled_css::admit(bytes, hash)?;
+        Ok(Self { css: admitted.source, scope, css_tree: admitted.tree })
+    }
+
     pub fn css(&self) -> &str {
         &self.css
     }

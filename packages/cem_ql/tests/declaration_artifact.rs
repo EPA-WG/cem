@@ -80,6 +80,12 @@ fn metadata_preserves_bases_alias_scope_and_runtime_capability_precedence() {
     let json = missing.to_string();
     let hash = ContentHash::from_blake3(json.as_bytes()).header_value();
     assert!(admit_declaration_metadata(&json, &hash).is_err());
+    let mut legacy = original.clone(); legacy.as_object_mut().unwrap().remove("templateFormat");
+    let json = legacy.to_string(); let hash = ContentHash::from_blake3(json.as_bytes()).header_value();
+    assert_eq!(admit_declaration_metadata(&json, &hash).unwrap().template_format, "cem-template-artifact/1");
+    legacy["templateFormat"] = "cem-template-artifact/3".into();
+    let json = legacy.to_string(); let hash = ContentHash::from_blake3(json.as_bytes()).header_value();
+    assert!(admit_declaration_metadata(&json, &hash).is_err());
     let mut value = original;
     value["template"]["cemQlVersion"] = "foreign".into();
     let json = value.to_string();

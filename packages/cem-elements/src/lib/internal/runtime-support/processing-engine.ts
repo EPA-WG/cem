@@ -649,6 +649,10 @@ export class CemProcessingEngine {
             const retained = await this.bindings.retainPinnedCemMlTemplateArtifact(
                 artifact.bytes, artifact.cacheKey, artifact.payloadKey, hostBindings,
             );
+            if (retained.formatVersion !== artifact.formatVersion) {
+                this.bindings.disposeRetainedCemMlTemplate(retained.artifactId);
+                throw new Error('pinned template artifact format does not match the admitted binary');
+            }
             return retainedCompilation(retained);
         }
         if (input.language === 'css') {
@@ -685,6 +689,10 @@ export class CemProcessingEngine {
                     hostBindings,
                     input.sourceMapMode
                 );
+                if (retained.formatVersion !== input.precompiledArtifact.formatVersion) {
+                    this.bindings.disposeRetainedCemMlTemplate(retained.artifactId);
+                    throw new Error('cached template artifact format does not match the admitted binary');
+                }
                 return retainedCompilation(retained);
             } catch (error) {
                 rejectionDiagnostic = {
@@ -789,7 +797,7 @@ function assertPrecompiledTransfer(
     scopePolicyStamp: string,
     payloadKey: CemProcessingArtifactBinaryTransfer['payloadKey']
 ): void {
-    if (artifact.formatVersion !== 'cem-template-artifact/1') {
+    if (!['cem-template-artifact/1', 'cem-template-artifact/2'].includes(artifact.formatVersion)) {
         throw new Error(`unsupported template artifact format ${artifact.formatVersion}`);
     }
     if (artifact.policyStamp !== scopePolicyStamp) {

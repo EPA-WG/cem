@@ -17,7 +17,7 @@ use crate::render::{
 };
 use crate::template_artifact::{
     encode_template_artifact, CompiledTemplateArtifact, PinnedTemplateArtifactContext, TemplateArtifactLoadContext,
-    TemplateArtifactSourceMapMode, CEM_TEMPLATE_ARTIFACT_VERSION,
+    TemplateArtifactSourceMapMode,
 };
 
 mod stylesheets;
@@ -382,7 +382,7 @@ fn imported_template_json(artifact: CompiledTemplateArtifact, template: Template
     json!({
         "artifactId": artifact_id,
         "contentHash": artifact.content_hash.header_value(),
-        "formatVersion": CEM_TEMPLATE_ARTIFACT_VERSION,
+        "formatVersion": artifact.identity.artifact_version,
         "stylesheets": stylesheets,
         "moduleMap": module_map,
         "diagnostics": diagnostics,

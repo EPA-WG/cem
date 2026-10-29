@@ -247,6 +247,25 @@ describe('Phase 3A retained processing engine', () => {
         } finally { await engine.dispose({ reason: 'runtime-disposed' }); }
     });
 
+    it('admits compiled-CSS v2 and refuses a native format downgrade without source fallback', async () => {
+        const native = vi.mocked(retainPinnedCemMlTemplateArtifact); native.mockClear();
+        const source = vi.mocked(retainCemMlTemplateSource); source.mockClear();
+        const dispose = vi.mocked(disposeRetainedCemMlTemplate); dispose.mockClear();
+        const input = pinnedInput();
+        if (input.source.kind !== 'pinned-template-artifact-v1') throw Error('fixture');
+        input.source.artifact.formatVersion = 'cem-template-artifact/2';
+        const engine = new CemProcessingEngine();
+        try {
+            // The existing mock defaults to legacy v1: this must be refused.
+            await expect(engine.compile(input)).rejects.toThrow('format');
+            expect(dispose).toHaveBeenCalledTimes(1); expect(source).not.toHaveBeenCalled();
+            native.mockResolvedValueOnce({ artifactId: 999, contentHash: input.source.artifact.cacheKey,
+                formatVersion: 'cem-template-artifact/2', stylesheets: [], diagnostics: [] });
+            expect((await engine.compile(input)).artifact.artifactId).toBe('pinned-view');
+            expect(source).not.toHaveBeenCalled();
+        } finally { await engine.dispose({ reason: 'runtime-disposed' }); }
+    });
+
     it('rejects mixed deployment/source contracts, policy changes and incomplete pins before native work', async () => {
         const native = vi.mocked(retainPinnedCemMlTemplateArtifact); native.mockClear();
         const engine = new CemProcessingEngine();
@@ -278,7 +297,7 @@ describe('Phase 3A retained processing engine', () => {
         const engine = new CemProcessingEngine(), pending = engine.compile(pinnedInput());
         const rejected = expect(pending).rejects.toThrow('disposed');
         await engine.dispose({ reason: 'runtime-disposed' });
-        resolve({ artifactId: 87654, stylesheets: [], moduleMap: null, diagnostics: [] });
+        resolve({ artifactId: 87654, formatVersion: 'cem-template-artifact/1', stylesheets: [], moduleMap: null, diagnostics: [] });
         await rejected; expect(disposed).toHaveBeenCalledWith(87654);
     });
 
@@ -290,7 +309,7 @@ describe('Phase 3A retained processing engine', () => {
         const older = engine.compile(pinnedInput()), rejected = expect(older).rejects.toThrow('superseded');
         try {
             const accepted = await engine.compile(pinnedInput());
-            resolve({ artifactId: 87655, stylesheets: [], moduleMap: null, diagnostics: [] });
+            resolve({ artifactId: 87655, formatVersion: 'cem-template-artifact/1', stylesheets: [], moduleMap: null, diagnostics: [] });
             await rejected;
             expect(disposeRetainedCemMlTemplate).toHaveBeenCalledWith(87655);
             expect((await engine.compile(pinnedInput())).artifact).toEqual(accepted.artifact);

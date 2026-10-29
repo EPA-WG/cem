@@ -3,11 +3,13 @@
 //! The envelope carries stable identity stamps plus binary serialized template
 //! IR. Embedded expressions contain the already-lowered [`CompiledQuery`] IR,
 //! so reload never invokes the CEM-ML tokenizer or CEM-QL parser.
-//! Authored CSS remains a source field in this wire version; deserialization
-//! adopts it once through the shared CSS importer into a retained native tree.
+//! Legacy v1 carries CSS source and adopts it through the native importer.
+//! Opt-in v2 instead admits pinned compiled inline CSS trees without reparsing.
 
 #[cfg(test)]
 mod application_profile_tests;
+#[cfg(test)]
+mod compiled_style_tests;
 
 use std::collections::BTreeSet;
 
@@ -25,6 +27,9 @@ pub const CEM_TEMPLATE_ARTIFACT_CONTENT_TYPE: &str =
 pub const CEM_TEMPLATE_ARTIFACT_VERSION: &str = "cem-template-artifact/1";
 pub const CEM_TEMPLATE_IR_FORMAT: &str = "cem-template-ir-v1";
 
+pub const CEM_COMPILED_STYLE_ARTIFACT_VERSION: &str = "cem-template-artifact/2";
+const COMPILED_STYLE_IR_FORMAT: &str = "cem-template-ir-v2";
+const COMPILED_ARTIFACT_MAGIC: &[u8] = b"CEMTPLA2\n";
 const ARTIFACT_MAGIC: &[u8] = b"CEMTPLA1\n";
 const MAX_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 
@@ -129,6 +134,43 @@ struct TemplateArtifactPayload {
     #[serde(default)]
     module_map: Option<TemplateModuleMapArtifact>,
     diagnostics_json: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CompiledStyle {
+    scope: Option<String>,
+    hash: String,
+    bytes: Vec<u8>,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CompiledStylePayload {
+    nodes: Vec<TemplateNode>,
+    stylesheets: Vec<CompiledStyle>,
+    module_map: Option<TemplateModuleMapArtifact>,
+    diagnostics_json: Vec<u8>,
+}
+
+/// Opt-in native template with compiled inline CSS. Full/source builds keep v1.
+pub fn compile_template_artifact_with_compiled_styles(source: &str, options: &CompileTemplateOptions,
+    mode: TemplateArtifactSourceMapMode) -> Result<CompiledTemplateArtifact, String> {
+    let mut artifact = compile_template(source, options);
+    if mode == TemplateArtifactSourceMapMode::Prod { strip_template_source_maps(&mut artifact); }
+    let mut stylesheets = Vec::new();
+    for style in &artifact.stylesheets {
+        let bytes = cem_ml::compiled_css::encode(style.css_tree(), style.css())?;
+        stylesheets.push(CompiledStyle { scope: style.scope.clone(), hash: ContentHash::from_blake3(&bytes).header_value(), bytes });
+    }
+    let mut compiled = encode_template_artifact(source, options, mode, &mut artifact);
+    compiled.identity.artifact_version = CEM_COMPILED_STYLE_ARTIFACT_VERSION.into();
+    compiled.identity.ir_format = COMPILED_STYLE_IR_FORMAT.into();
+    let payload = CompiledStylePayload { nodes: artifact.nodes, stylesheets, module_map: artifact.module_map,
+        diagnostics_json: serde_json::to_vec(&artifact.diagnostics).map_err(|e| e.to_string())? };
+    let body = rmp_serde::to_vec_named(&payload).map_err(|e| e.to_string())?;
+    compiled.bytes = serialize_artifact_bytes(&compiled.identity, &body);
+    compiled.content_hash = ContentHash::from_blake3(&compiled.bytes);
+    Ok(compiled)
 }
 
 pub fn compile_template_artifact(
@@ -258,12 +300,24 @@ impl CompiledTemplateArtifact {
             ));
         }
         identity.validate(context)?;
-        let payload: TemplateArtifactPayload =
-            rmp_serde::from_slice(&payload_bytes).map_err(|error| {
-                TemplateArtifactLoadError::unsupported(format!(
-                    "component-template IR payload is invalid: {error}"
-                ))
-            })?;
+        let payload: TemplateArtifactPayload = if identity.artifact_version == CEM_COMPILED_STYLE_ARTIFACT_VERSION {
+            // Share the v1 slice-reader monomorphizations for template/query IR.
+            let mut decoder = rmp_serde::Deserializer::from_read_ref(payload_bytes.as_slice()); decoder.set_max_depth(64);
+            let payload = CompiledStylePayload::deserialize(&mut decoder).map_err(|e|
+                TemplateArtifactLoadError::unsupported(format!("compiled stylesheet payload is invalid: {e}")))?;
+            // Probe one marker only; never walk an untrusted trailing object.
+            match bool::deserialize(&mut decoder) {
+                Err(rmp_serde::decode::Error::InvalidMarkerRead(error)) if error.kind() == std::io::ErrorKind::UnexpectedEof => {},
+                _ => return Err(TemplateArtifactLoadError::unsupported("compiled stylesheet payload has trailing bytes")),
+            }
+            let stylesheets = payload.stylesheets.into_iter().map(|style|
+                TemplateStylesheetArtifact::from_compiled_css(&style.bytes, &style.hash, style.scope)
+                    .map_err(TemplateArtifactLoadError::unsupported)).collect::<Result<Vec<_>, _>>()?;
+            TemplateArtifactPayload { nodes: payload.nodes, stylesheets, module_map: payload.module_map, diagnostics_json: payload.diagnostics_json }
+        } else {
+            rmp_serde::from_slice(&payload_bytes).map_err(|error| TemplateArtifactLoadError::unsupported(format!(
+                "component-template IR payload is invalid: {error}")))?
+        };
         let diagnostics = serde_json::from_slice(&payload.diagnostics_json).map_err(|error| {
             TemplateArtifactLoadError::unsupported(format!(
                 "component-template diagnostics payload is invalid: {error}"
@@ -284,8 +338,8 @@ impl CompiledTemplateArtifactIdentity {
         context: &TemplateArtifactLoadContext,
     ) -> Result<(), TemplateArtifactLoadError> {
         if self.content_type != CEM_TEMPLATE_ARTIFACT_CONTENT_TYPE
-            || self.artifact_version != CEM_TEMPLATE_ARTIFACT_VERSION
-            || self.ir_format != CEM_TEMPLATE_IR_FORMAT
+            || !((self.artifact_version == CEM_TEMPLATE_ARTIFACT_VERSION && self.ir_format == CEM_TEMPLATE_IR_FORMAT)
+                || (self.artifact_version == CEM_COMPILED_STYLE_ARTIFACT_VERSION && self.ir_format == COMPILED_STYLE_IR_FORMAT))
             || self.cem_ml_version != cem_ml::VERSION
             || self.cem_ql_version != crate::VERSION
         {
@@ -326,7 +380,7 @@ fn serialize_artifact_bytes(
     payload: &[u8],
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(ARTIFACT_MAGIC);
+    bytes.extend_from_slice(if identity.artifact_version == CEM_COMPILED_STYLE_ARTIFACT_VERSION { COMPILED_ARTIFACT_MAGIC } else { ARTIFACT_MAGIC });
     write_string(&mut bytes, &identity.content_type);
     write_string(&mut bytes, &identity.artifact_version);
     write_string(&mut bytes, &identity.ir_format);
@@ -345,10 +399,15 @@ fn deserialize_artifact_bytes(
     bytes: &[u8],
 ) -> Result<(CompiledTemplateArtifactIdentity, Vec<u8>), TemplateArtifactLoadError> {
     let mut reader = ArtifactReader::new(bytes);
-    reader.read_magic(ARTIFACT_MAGIC)?;
+    let compiled_styles = bytes.starts_with(COMPILED_ARTIFACT_MAGIC);
+    reader.read_magic(if compiled_styles { COMPILED_ARTIFACT_MAGIC } else { ARTIFACT_MAGIC })?;
     let content_type = reader.read_string()?;
     let artifact_version = reader.read_string()?;
     let ir_format = reader.read_string()?;
+    if compiled_styles != (artifact_version == CEM_COMPILED_STYLE_ARTIFACT_VERSION)
+        || (!compiled_styles && artifact_version != CEM_TEMPLATE_ARTIFACT_VERSION) {
+        return Err(TemplateArtifactLoadError::unsupported("template artifact magic/version mismatch"));
+    }
     let cem_ml_version = reader.read_string()?;
     let cem_ql_version = reader.read_string()?;
     let source_hash = ContentHash {

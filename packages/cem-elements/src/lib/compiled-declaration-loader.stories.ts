@@ -17,7 +17,7 @@ function scenario(fallback: boolean): StoryObj {
         if (!document || !host) throw Error('Missing isolated document');
         const base = document.createElement('base'); base.href = absoluteHtml.href; document.head.append(base);
         const scope = createCemDeclarationScope({ document }); let sourceLoads = 0, workerJobs = 0;
-        const kinds: string[] = [], requests: string[] = [];
+        const kinds: string[] = [], formats: string[] = [], requests: string[] = [];
         const runtime = new CemElementRuntime({ declarationScope: scope, retainedStylesheets: {},
             moduleUrlRoot: { importMap: { imports: {
                 'compiled-entry-metadata': new URL('./cem-compiled-form-app.json', absoluteHtml).href,
@@ -29,8 +29,8 @@ function scenario(fallback: boolean): StoryObj {
                 const worker = new Worker(request.scriptUrl, { type: request.type, name: request.name });
                 const post = worker.postMessage.bind(worker);
                 worker.postMessage = (message: unknown) => {
-                    const packet = message as { operation?: string; payload?: { language?: string; source?: { kind: string } } };
-                    if (packet.operation === 'compile' && packet.payload?.language === 'cem-ml') kinds.push(packet.payload.source?.kind ?? 'missing');
+                    const packet = message as { operation?: string; payload?: { language?: string; source?: { kind: string; artifact?: { formatVersion: string } } } };
+                    if (packet.operation === 'compile' && packet.payload?.language === 'cem-ml') { kinds.push(packet.payload.source?.kind ?? 'missing'); formats.push(packet.payload.source?.artifact?.formatVersion ?? 'missing'); }
                     post(message);
                 };
                 worker.addEventListener('message', ({ data }) => { if (data.direction === 'response' && data.outcome === 'success') workerJobs++; });
@@ -88,7 +88,8 @@ function scenario(fallback: boolean): StoryObj {
             entry.remove(); document.body.prepend(entry); await runtime.whenDeclarationSettled(entry);
             expect(new FormData(form).get('item')).toBe('Edited');
             if (!fallback) { expect(workerJobs).toBeGreaterThan(0); expect(kinds.length).toBeGreaterThan(0);
-                expect(kinds.every(kind => kind === 'pinned-template-artifact-v1')).toBe(true); }
+                expect(kinds.every(kind => kind === 'pinned-template-artifact-v1')).toBe(true);
+                expect(formats.every(format => format === 'cem-template-artifact/2')).toBe(true); }
             // A disposed scope drains even a fetch which never resolves.
             const lateScope = createCemDeclarationScope({ document });
             const lateRuntime = new CemElementRuntime({ declarationScope: lateScope, declarationTag: 'cem-cancelled-loader' });

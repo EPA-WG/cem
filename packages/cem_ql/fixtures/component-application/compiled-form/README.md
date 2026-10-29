@@ -20,7 +20,12 @@ example project.
   recovery; authored/reset credential defaults must also be empty.
 
 Generated files remain under ignored `dist/artifacts/cem_ql/compiled-form`.
-Native CSS parsing remains required; source compilers are still present in the
+Generated declarations use opt-in v2 native template artifacts with pinned
+compiled inline CSS trees. Their source metadata and style identities survive
+fresh-generation imports without inline CSS reparsing. The fixture builder
+checks every `.bin` against the unchanged 1 MiB response limit.
+
+Native CSS parsing remains required for external imports and dynamic/source styles; source compilers are still present in the
 full WASM. Build assets contain no credentials. Recovery tests use temporary
 values in isolated browser realms; API transport and app-local behaviors are not
 added.

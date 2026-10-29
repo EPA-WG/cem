@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, userEvent, within } from 'storybook/test';
 import { CemElementRuntime, type CemCompiledDeclarationRegistration } from './cem-elements.js';
+import { cemMlTemplateArtifactPayloadKey } from './internal/runtime-support/cem-ql-render.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
 
 export default { title: 'CEM Elements/Compiled Declaration Registration', tags: ['test'] } satisfies Meta;
@@ -54,6 +55,12 @@ function scenario(fallback: boolean): Story {
                     const retiredPending = retiredRuntime.registerCompiledDeclaration(retiredDeclaration, input);
                     retiredScope.dispose();
                     await expect(retiredPending).rejects.toThrow(); expect(customElements.get(tag)).toBeUndefined();
+                    const legacyClaim = JSON.parse(input.metadataJson) as { templateFormat: string };
+                    legacyClaim.templateFormat = 'cem-template-artifact/1';
+                    const metadataJson = JSON.stringify(legacyClaim);
+                    const pin = await cemMlTemplateArtifactPayloadKey(metadataJson, 'prod');
+                    await expect(runtime.registerCompiledDeclaration(declaration, { ...input, metadataJson, metadataHash: pin.sourceHash })).rejects.toThrow('template format mismatch');
+                    expect(customElements.get(tag)).toBeUndefined();
                     const corrupt = { ...input, metadataJson: `${input.metadataJson} ` };
                     await expect(runtime.registerCompiledDeclaration(declaration, corrupt)).rejects.toThrow('metadata');
                     expect(customElements.get(tag)).toBeUndefined();
