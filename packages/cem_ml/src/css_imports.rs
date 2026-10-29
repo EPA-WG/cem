@@ -375,49 +375,14 @@ impl CssImportClosure {
         self.check_active()?;
         let request = self.request(id)?.clone();
         let validated = (|| {
-            let url = self.validate_final_url(&request, &response.uri)?;
-            let hint = request.resolution.content_type_hint.as_deref();
-            for mime in [hint, response.content_type.as_deref()]
-                .into_iter()
-                .flatten()
-            {
-                if crate::schema::registry::content_type_essence(mime) != "text/css" {
-                    return Err(failure(
-                        "cem.css.import_content_type",
-                        "CSS imports require text/css",
-                    ));
-                }
-            }
-            let total = self
-                .received_bytes
-                .checked_add(response.bytes.len())
-                .ok_or_else(|| {
-                    failure(
-                        "cem.css.import_byte_limit",
-                        "CSS import byte count overflow",
-                    )
-                })?;
-            if response.bytes.len()
-                > policy
-                    .max_response_bytes
-                    .min(crate::import::MAX_DOCUMENT_BYTES)
-                || total > policy.max_total_bytes
-            {
-                return Err(failure(
-                    "cem.css.import_byte_limit",
-                    "CSS imports exceed response or aggregate byte limits",
-                ));
-            }
-            if let Some(integrity) = &request.resolution.integrity {
-                crate::resource_integrity::verify_resource_integrity(&response.bytes, integrity)
-                    .map_err(|e| failure("cem.css.import_integrity", e))?;
-            }
-            let mime = response
-                .content_type
-                .as_deref()
-                .or(hint)
-                .unwrap_or("text/css");
-            let tree = crate::import::import_data_bytes(&response.bytes, mime, "cem", &url)
+            let (url, total, mime) = self.validate_response(
+                &request,
+                &response.bytes,
+                &response.uri,
+                response.content_type.as_deref(),
+                policy,
+            )?;
+            let tree = crate::import::import_data_bytes(&response.bytes, &mime, "cem", &url)
                 .map_err(|e| failure("cem.css.import_parse_failed", e))?;
             Ok((tree, url, total))
         })();
@@ -429,6 +394,80 @@ impl CssImportClosure {
             }
             Err(error) => self.stop(self.locate_request(error, &request)),
         }
+    }
+
+    /// Admit already-decoded pinned native CSS while retaining the source path's
+    /// resource policy. This never reparses CSS and cannot bypass current resolution.
+    pub fn complete_compiled_response(
+        &mut self,
+        id: u64,
+        response: &crate::compiled_css::AdmittedCss,
+        policy: &CssImportResponsePolicy,
+    ) -> Result<(), CssImportFailure> {
+        self.check_active()?;
+        let request = self.request(id)?.clone();
+        let result = (|| {
+            let (url, total, _) = self.validate_response(
+                &request,
+                response.source.as_bytes(),
+                response.tree.source_uri(),
+                Some(&response.content_type),
+                policy,
+            )?;
+            self.complete_import(id, response.tree.clone(), &url)?;
+            self.received_bytes = total;
+            Ok(())
+        })();
+        match result {
+            Ok(()) => Ok(()),
+            Err(error) => self.stop(self.locate_request(error, &request)),
+        }
+    }
+
+    fn validate_response(
+        &self,
+        request: &CssImportRequest,
+        bytes: &[u8],
+        uri: &str,
+        content_type: Option<&str>,
+        policy: &CssImportResponsePolicy,
+    ) -> Result<(String, usize, String), CssImportFailure> {
+        let url = self.validate_final_url(request, uri)?;
+        let hint = request.resolution.content_type_hint.as_deref();
+        for mime in [hint, content_type].into_iter().flatten() {
+            if crate::schema::registry::content_type_essence(mime) != "text/css" {
+                return Err(failure(
+                    "cem.css.import_content_type",
+                    "CSS imports require text/css",
+                ));
+            }
+        }
+        let total = self
+            .received_bytes
+            .checked_add(bytes.len())
+            .ok_or_else(|| {
+                failure(
+                    "cem.css.import_byte_limit",
+                    "CSS import byte count overflow",
+                )
+            })?;
+        if bytes.len()
+            > policy
+                .max_response_bytes
+                .min(crate::import::MAX_DOCUMENT_BYTES)
+            || total > policy.max_total_bytes
+        {
+            return Err(failure(
+                "cem.css.import_byte_limit",
+                "CSS imports exceed response or aggregate byte limits",
+            ));
+        }
+        if let Some(integrity) = &request.resolution.integrity {
+            crate::resource_integrity::verify_resource_integrity(bytes, integrity)
+                .map_err(|e| failure("cem.css.import_integrity", e))?;
+        }
+        let mime = content_type.or(hint).unwrap_or("text/css");
+        Ok((url, total, mime.to_owned()))
     }
 
     /// Synchronous native host adapter. Browser transports use next_import /

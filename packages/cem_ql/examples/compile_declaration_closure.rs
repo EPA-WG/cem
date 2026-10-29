@@ -1,13 +1,15 @@
 //! Build a static component closure from explicit entry/projected-content roots.
 use cem_ql::{
-    declaration_closure::{build_declaration_closure, DeclarationBuildSource},
+    declaration_closure::{
+        build_declaration_closure, build_declaration_closure_with_css, DeclarationBuildSource,
+    },
     template_artifact::TemplateArtifactSourceMapMode,
 };
 use std::{env, fs, path::Path};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = env::args().skip(1).collect();
     if args.len() < 5 {
-        return Err("usage: compile_declaration_closure <components-dir> <source-base-uri> <output-dir> <dev|prod> <root-tag>...".into());
+        return Err("usage: compile_declaration_closure <components-dir> <source-base-uri> <output-dir> <dev|prod> [--compiled-css] <root-tag>...".into());
     }
     let base = url::Url::parse(&args[1])?;
     if !base.path().ends_with('/') {
@@ -18,14 +20,57 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "prod" => TemplateArtifactSourceMapMode::Prod,
         _ => return Err("invalid source-map mode".into()),
     };
-    let closure = build_declaration_closure(&args[4..], mode, |tag| {
+    let compiled_css = args[4..].iter().any(|arg| arg == "--compiled-css");
+    let roots: Vec<_> = args[4..]
+        .iter()
+        .filter(|arg| arg.as_str() != "--compiled-css")
+        .cloned()
+        .collect();
+    let inputs = Path::new(&args[0]).canonicalize()?;
+    let declarations = |tag: &str| {
         let path = format!("{tag}/{tag}.xhtml");
         Ok(DeclarationBuildSource {
-            source: fs::read_to_string(Path::new(&args[0]).join(&path))
-                .map_err(|e| e.to_string())?,
+            source: fs::read_to_string(inputs.join(&path)).map_err(|e| e.to_string())?,
             uri: base.join(&path).map_err(|e| e.to_string())?.into(),
         })
-    })?;
+    };
+    let closure = if compiled_css {
+        build_declaration_closure_with_css(&roots, mode, declarations, |request| {
+            let url =
+                url::Url::parse(&request.resolution.resolved_url).map_err(|e| e.to_string())?;
+            let relative = base
+                .make_relative(&url)
+                .ok_or("CSS URL is outside the declared source root")?;
+            if url.query().is_some()
+                || url.fragment().is_some()
+                || relative.starts_with('/')
+                || relative.split('/').any(|part| part == "..")
+            {
+                return Err("CSS URL is outside the declared source root".into());
+            }
+            let file_base =
+                url::Url::from_directory_path(&inputs).map_err(|_| "invalid build directory")?;
+            let path = file_base
+                .join(&relative)
+                .map_err(|e| e.to_string())?
+                .to_file_path()
+                .map_err(|_| "CSS URL is not a local build asset")?
+                .canonicalize()
+                .map_err(|e| e.to_string())?;
+            if !path.starts_with(&inputs)
+                || fs::metadata(&path).map_err(|e| e.to_string())?.len() > 16 * 1024 * 1024
+            {
+                return Err("CSS build asset is outside the source root or oversized".into());
+            }
+            Ok(cem_ml::resolver::ResolvedRead {
+                uri: url.into(),
+                bytes: fs::read(path).map_err(|e| e.to_string())?,
+                content_type: Some("text/css".into()),
+            })
+        })?
+    } else {
+        build_declaration_closure(&roots, mode, declarations)?
+    };
     // Compile/validate the entire closure before writing any output.
     let out = Path::new(&args[2]);
     fs::create_dir_all(out)?;

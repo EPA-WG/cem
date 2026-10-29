@@ -70,6 +70,9 @@ function scenario(fallback: boolean): StoryObj {
             expect(requests.every(url => !url.includes('.xhtml'))).toBe(true); expect(sourceLoads).toBe(0);
             const app = document.createElement('cem-compiled-form-app'); document.body.append(app);
             await runtime.whenRenderSettled(app);
+            expect(host.getComputedStyle(app).getPropertyValue('--compiled-import-proof').trim()).toBe('imported');
+            expect(host.getComputedStyle(app).getPropertyValue('--compiled-nested-proof').trim()).toBe('nested');
+            expect(requests.some(url => /\.css(?:\?|$)/.test(url))).toBe(false);
             const card = app.querySelector<HTMLElement>('cem-card'); if (!card) throw Error('Missing compiled card');
             await runtime.whenRenderSettled(card);
             const field = app.querySelector<HTMLElement>('cem-text-field'), form = app.querySelector('form');
@@ -89,7 +92,7 @@ function scenario(fallback: boolean): StoryObj {
             expect(new FormData(form).get('item')).toBe('Edited');
             if (!fallback) { expect(workerJobs).toBeGreaterThan(0); expect(kinds.length).toBeGreaterThan(0);
                 expect(kinds.every(kind => kind === 'pinned-template-artifact-v1')).toBe(true);
-                expect(formats.every(format => format === 'cem-template-artifact/2')).toBe(true); }
+                expect(formats.every(format => format === 'cem-template-artifact/3')).toBe(true); }
             // A disposed scope drains even a fetch which never resolves.
             const lateScope = createCemDeclarationScope({ document });
             const lateRuntime = new CemElementRuntime({ declarationScope: lateScope, declarationTag: 'cem-cancelled-loader' });

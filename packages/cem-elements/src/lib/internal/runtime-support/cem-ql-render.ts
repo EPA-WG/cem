@@ -167,7 +167,7 @@ export interface CemCompiledDeclarationMetadata {
     sourceUri: string;
     resourceBaseUrl: string;
     declarationSourceHash: string;
-    templateFormat: 'cem-template-artifact/1' | 'cem-template-artifact/2';
+    templateFormat: 'cem-template-artifact/1' | 'cem-template-artifact/2' | 'cem-template-artifact/3';
     template: {
         contentHash: string; sourceHash: string; cemMlVersion: string; cemQlVersion: string;
         hostBindings: string[]; sourceMapMode: 'dev' | 'prod';

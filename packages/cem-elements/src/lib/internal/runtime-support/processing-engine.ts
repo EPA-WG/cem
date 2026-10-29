@@ -797,7 +797,7 @@ function assertPrecompiledTransfer(
     scopePolicyStamp: string,
     payloadKey: CemProcessingArtifactBinaryTransfer['payloadKey']
 ): void {
-    if (!['cem-template-artifact/1', 'cem-template-artifact/2'].includes(artifact.formatVersion)) {
+    if (!['cem-template-artifact/1', 'cem-template-artifact/2', 'cem-template-artifact/3'].includes(artifact.formatVersion)) {
         throw new Error(`unsupported template artifact format ${artifact.formatVersion}`);
     }
     if (artifact.policyStamp !== scopePolicyStamp) {

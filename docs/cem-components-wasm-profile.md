@@ -44,9 +44,11 @@ validation remain authoritative.
 The current native `CompiledTemplateArtifact` already reloads binary template
 and expression IR without invoking the CEM-ML or CEM-QL source compiler. Legacy
 v1 stylesheet fields reload CSS source through the native importer; opt-in v2
-now reloads pinned native CSS trees without reparsing inline stylesheet source.
-The [compiled CSS contract](cem-components-shopping-cart-profile.md#compiled-inline-stylesheet-admission)
-retains source parsing for authorized external imports and dynamic/source styles.
+reloads pinned inline CSS trees without reparsing source. Opt-in v3 additionally
+carries build-closed imported stylesheets and rechecks current URL/MIME/integrity
+and byte policy without CSS parsing. The [compiled CSS contract](cem-components-shopping-cart-profile.md#compiled-imported-stylesheet-closures)
+preserves v1/v2 authorized source imports and dynamic/source styles; the full
+binary still contains their parser.
 The browser's `retainCemMlTemplateArtifact` path still takes original
 template source for its optional source-cache behavior. A separate strict
 `retainPinnedCemMlTemplateArtifact` adapter and `pinned-template-artifact-v1`

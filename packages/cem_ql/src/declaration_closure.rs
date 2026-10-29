@@ -25,6 +25,30 @@ pub fn build_declaration_closure(
     mode: TemplateArtifactSourceMapMode,
     mut load: impl FnMut(&str) -> Result<DeclarationBuildSource, String>,
 ) -> Result<BuiltDeclarationClosure, String> {
+    build_with_css(roots, mode, &mut load, None)
+}
+
+/// Explicit compiled-CSS deployment closure. Full/source builds keep the original API.
+pub fn build_declaration_closure_with_css(
+    roots: &[String],
+    mode: TemplateArtifactSourceMapMode,
+    mut load: impl FnMut(&str) -> Result<DeclarationBuildSource, String>,
+    mut css: impl FnMut(
+        &cem_ml::css_imports::CssImportRequest,
+    ) -> Result<cem_ml::resolver::ResolvedRead, String>,
+) -> Result<BuiltDeclarationClosure, String> {
+    build_with_css(roots, mode, &mut load, Some(&mut css))
+}
+fn build_with_css(
+    roots: &[String],
+    mode: TemplateArtifactSourceMapMode,
+    load: &mut dyn FnMut(&str) -> Result<DeclarationBuildSource, String>,
+    mut css: Option<
+        &mut dyn FnMut(
+            &cem_ml::css_imports::CssImportRequest,
+        ) -> Result<cem_ml::resolver::ResolvedRead, String>,
+    >,
+) -> Result<BuiltDeclarationClosure, String> {
     if roots.is_empty()
         || roots.len() > 64
         || roots.iter().collect::<BTreeSet<_>>().len() != roots.len()
@@ -59,6 +83,11 @@ pub fn build_declaration_closure(
             return Err("declaration closure byte limit".into());
         }
         let built = build_declaration_artifact(&input.source, &input.uri, mode, None)?;
+        let built = if let Some(css) = css.as_mut() {
+            crate::declaration_artifact::build_declaration_imports(built, *css)?
+        } else {
+            built
+        };
         asset_bytes = asset_bytes
             .checked_add(built.template.bytes.len() + built.metadata_json.len())
             .ok_or("declaration closure artifact limit")?;

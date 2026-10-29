@@ -23,7 +23,7 @@ not the final production module manifest or an installed build target.
 | Stage | Requirements |
 | --- | --- |
 | App build | CEM-ML/CEM-QL and declaration parsing, native template/expression compilation, style compilation/validation, GraphQL schema/operation and static-data validation, exact dependency/ABI/source hash records, generated variable/response guards. |
-| Initial client | Compiled native render/evaluation, JSON decoding/encoding, required action/form behaviors, live DOM updates, app input checks, resources/cancellation and ownership/recovery guards. Compiled inline CSS uses opt-in v2; authorized external CSS imports and source/dynamic-style paths still require CSS parsing. |
+| Initial client | Compiled native render/evaluation, JSON decoding/encoding, required action/form behaviors, live DOM updates, app input checks, resources/cancellation and ownership/recovery guards. Compiled inline CSS uses opt-in v2; opt-in v3 closes imported CSS at build time. Source/dynamic-style paths retain CSS parsing. |
 | Optional demand | Additional data formats, dynamically admitted source templates, editor highlighting, Parse/Inspect, language converters and general schema tooling. |
 
 Predefined `Cart`, `SetCartLineQuantity` and `RemoveCartLine` operations use the
@@ -278,8 +278,8 @@ yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook
 ```
 
 Build the normal `cem-elements:build` artifacts first. This proves the reviewed
-static form closure; it does not complete the shopping-cart transport, dynamically
-constructed module closure, compiled CSS format or reduced binary.
+static form closure; it does not complete the shopping-cart/GraphQL transport,
+dynamically constructed module closure or reduced binary.
 
 ## Compiled inline stylesheet admission
 
@@ -312,12 +312,11 @@ A test-only parser counter proves zero CSS source-parser calls during capsule
 admission. Invalid compiled data, missing pins and source-only v1 style payloads
 inside a v2 envelope are refused.
 
-**External stylesheet imports remain source-based.** Their authorized `text/css`
-responses still pass the existing MIME/integrity/policy checks and native parser.
-Source-driven and dynamic DOM/instance styles also retain their current parser
-path. A compiled imported-closure contract is required before removing CSS source
-parsing from a deployment. The full runtime and all current capabilities remain
-available; this step does not establish a smaller WASM or complete minimal app.
+V1/v2 external stylesheet imports keep their authorized `text/css` transport,
+MIME/integrity/policy checks and native parser. Source-driven and dynamic
+DOM/instance styles retain their current parser path. The opt-in v3 contract
+below closes build-known imports; the full runtime and all current capabilities
+remain available. No source parser has been excluded from the deployed WASM.
 
 ```bash
 cargo test --locked --offline -p cem-ml --lib compiled_css::tests
@@ -325,6 +324,67 @@ cargo test --locked --offline -p cem-ql --lib template_artifact::compiled_style_
 node packages/cem_ql/tests/build-declaration-fixtures.mjs
 node packages/cem_ql/tests/declaration-artifact-wasm.mjs
 ```
+
+## Compiled imported stylesheet closures
+
+Use `compile_declaration_closure ... --compiled-css <root-tag>...` for the
+opt-in `cem-template-artifact/3` / `cem-template-ir-v3` deployment contract.
+Without that flag, the native closure builder keeps v2. The single-declaration
+builder also keeps v2; native callers can explicitly upgrade its result through
+`build_declaration_imports` with a caller-owned response loader.
+
+The CLI maps CSS URLs under the explicit source-base URI to the components
+input directory. It performs no network fetches, rejects outside-root/query URLs,
+checks canonical paths to prevent symlink escapes and bounds each file before
+reading it. CEM module-map resource mappings still determine import requests.
+Native API callers supply their own authorized loader, including any redirect
+handling; an artifact never grants filesystem or network access.
+
+The build resolves and parses imports through `CssImportClosure`, retaining
+source order, repeated occurrences, conditional imports, final URL bases and
+source identities. Each imported full stylesheet becomes a pinned `CEMCSS2`
+capsule with its original MIME profile. The v3 payload carries the closure's
+original base and ordered request URLs. V1 scoped-block capsules, v1/v2 template
+artifacts and their source import paths stay supported.
+
+Reload validates every capsule without parsing CSS. A retained v3 stylesheet
+then replays each dependency through the current native import state machine:
+resolution, final-URL authorization, cycles/depth, MIME, source-byte SRI and
+response/aggregate byte limits still apply. Scope compilation, resource URL
+rewriting, keyframe names, emission, diagnostics, native ownership and managed
+style installation all use the existing shared implementation. Runtime policy
+is authoritative; stored responses cannot authorize a blocked URL.
+
+Changed bases, remapped import URLs, missing/unused responses, corrupt capsules
+and policy failures refuse the load. A v3 payload cannot silently downgrade to
+v2 or fetch/parse source CSS as a fallback. Original CSS bytes remain solely for
+provenance, inspection and integrity verification. Dependency fingerprints and
+current resolution context continue to identify emitted styles.
+
+Closures retain the existing 64-sheet (including the root), 16-import-depth,
+16 MiB per-response and 64 MiB aggregate source-byte limits. Decoded capsule
+expansion accounting is additionally capped at 64 MiB per closure; this is not
+an allocator/RAM measurement. The shared loader's 1 MiB response ceiling still
+applies to every generated form `.bin` asset.
+
+The compiled-form fixture imports a stylesheet that imports another twice,
+under conditional rules. Shared browser checks prove the properties are active
+without fetching CSS. Recovery replaces real worker/fallback generations twice
+while retaining installed style nodes, edited controls, focus and selection.
+Entered passwords/OTP still block checkpoint capture and ticket issuance;
+explicit clear and empty authored/reset defaults are required. Checkpoint sizes
+and native handoff deadlines remain 4 MiB and 5 seconds.
+
+```bash
+cargo test --locked --offline -p cem-ml --lib compiled_css
+cargo test --locked --offline -p cem-ql --lib template_artifact::compiled_style_tests
+node packages/cem_ql/tests/build-declaration-fixtures.mjs
+node packages/cem_ql/tests/declaration-artifact-wasm.mjs
+```
+
+The full WASM still includes native CSS parsing for source/dynamic consumers.
+This gate establishes compiled import admission, not a smaller core binary or
+a completed shopping-cart application.
 
 ## Remaining delivery boundaries
 

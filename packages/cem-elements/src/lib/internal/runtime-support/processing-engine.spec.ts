@@ -247,20 +247,20 @@ describe('Phase 3A retained processing engine', () => {
         } finally { await engine.dispose({ reason: 'runtime-disposed' }); }
     });
 
-    it('admits compiled-CSS v2 and refuses a native format downgrade without source fallback', async () => {
+    it.each(['cem-template-artifact/2', 'cem-template-artifact/3'])('admits %s and refuses a native format downgrade without source fallback', async formatVersion => {
         const native = vi.mocked(retainPinnedCemMlTemplateArtifact); native.mockClear();
         const source = vi.mocked(retainCemMlTemplateSource); source.mockClear();
         const dispose = vi.mocked(disposeRetainedCemMlTemplate); dispose.mockClear();
         const input = pinnedInput();
         if (input.source.kind !== 'pinned-template-artifact-v1') throw Error('fixture');
-        input.source.artifact.formatVersion = 'cem-template-artifact/2';
+        input.source.artifact.formatVersion = formatVersion;
         const engine = new CemProcessingEngine();
         try {
             // The existing mock defaults to legacy v1: this must be refused.
             await expect(engine.compile(input)).rejects.toThrow('format');
             expect(dispose).toHaveBeenCalledTimes(1); expect(source).not.toHaveBeenCalled();
             native.mockResolvedValueOnce({ artifactId: 999, contentHash: input.source.artifact.cacheKey,
-                formatVersion: 'cem-template-artifact/2', stylesheets: [], diagnostics: [] });
+                formatVersion, stylesheets: [], diagnostics: [] });
             expect((await engine.compile(input)).artifact.artifactId).toBe('pinned-view');
             expect(source).not.toHaveBeenCalled();
         } finally { await engine.dispose({ reason: 'runtime-disposed' }); }

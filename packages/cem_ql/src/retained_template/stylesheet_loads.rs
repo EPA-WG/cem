@@ -49,6 +49,8 @@ pub(super) struct StylesheetLoad {
     options: StylesheetLoadOptions,
     closure: CssImportClosure,
     abort: AbortSignal,
+    compiled_imports: Option<Arc<cem_ml::compiled_css_imports::CompiledCssImports>>,
+    imported: usize,
 }
 
 pub enum StylesheetLoadProgress {
@@ -74,6 +76,10 @@ impl RetainedTemplate {
             .stylesheets
             .get(options.index)
             .ok_or("unknown stylesheet occurrence")?;
+        if let Some(imports) = &source.compiled_imports {
+            imports.check_base(&options.base_url)?;
+        }
+        let compiled_imports = source.compiled_imports.clone();
         let replaced: Vec<_> = self
             .loads
             .iter()
@@ -109,6 +115,8 @@ impl RetainedTemplate {
                 options,
                 closure,
                 abort,
+                compiled_imports,
+                imported: 0,
             },
         );
         Ok(id)
@@ -120,7 +128,32 @@ impl RetainedTemplate {
         consumer: &str,
     ) -> Result<StylesheetLoadProgress, StylesheetLoadError> {
         self.check_load_consumer(id, consumer)?;
-        let result = self.loads.get_mut(&id).unwrap().closure.next_import();
+        let result = (|| {
+            let load = self.loads.get_mut(&id).unwrap();
+            loop {
+                let request = load.closure.next_import()?;
+                let Some(imports) = &load.compiled_imports else {
+                    return Ok(request);
+                };
+                match request {
+                    Some(request) => {
+                        imports.complete(
+                            &mut load.closure,
+                            load.imported,
+                            &request,
+                            &load.options.response_policy,
+                        )?;
+                        load.imported += 1;
+                    }
+                    None if load.imported == imports.len() => return Ok(None),
+                    None => {
+                        return Err(StylesheetLoadError::Control(
+                            "compiled CSS closure has unused responses".into(),
+                        ))
+                    }
+                }
+            }
+        })();
         match result {
             Ok(Some(request)) => Ok(StylesheetLoadProgress::Pending(request)),
             Ok(None) => {
@@ -141,7 +174,7 @@ impl RetainedTemplate {
             }
             Err(error) => {
                 self.cancel_stylesheet_load(id);
-                Err(error.into())
+                Err(error)
             }
         }
     }
@@ -178,9 +211,9 @@ impl RetainedTemplate {
             return Err("stylesheet failure control exceeds byte limit".into());
         }
         let load = self.loads.get_mut(&id).unwrap();
-        if let Err(error) = load
-            .closure
-            .fail_import(request_id, "cem.css.import_load_failed", message)
+        if let Err(error) =
+            load.closure
+                .fail_import(request_id, "cem.css.import_load_failed", message)
         {
             self.cancel_stylesheet_load(id);
             return Err(error.into());

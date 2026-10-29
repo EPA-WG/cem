@@ -988,7 +988,7 @@ inventory, not the minimum set loaded by every app.
       full-runtime source loading continues to provide those capabilities.
       Verification: 14 component browser cases, 813 shared units, both complete
       Studio Login privacy/recovery cases and the unchanged native/WASM audit pass.
-- [ ] Add native compiled stylesheet/scoping admission with pinned source and
+- [x] Add native compiled stylesheet/scoping admission with pinned source and
   artifact identities, URL bases and scope contracts; prove equivalent imports,
   diagnostics, DOM/style reuse and separate-heap worker/fallback recovery. Keep
   native CSS parsing in the deployed profile until the compiled replacement passes.
@@ -1023,8 +1023,40 @@ inventory, not the minimum set loaded by every app.
     Studio Login credential/recovery cases, TypeScript, lint (no errors) and the
     refreshed size/interface/source audit. The 4 MiB checkpoint budget, source
     loader limits and 5-second native handoff deadlines remain unchanged.
-  - [ ] Admit compiled imported stylesheet closures before excluding CSS source
+  - [x] Admit compiled imported stylesheet closures before excluding CSS source
     parsing; preserve current authorized text/css imports until that gate passes.
+    - [x] Add native fixtures for compiled full stylesheet capsules and transitive,
+      repeated and conditional import closures; prove parser-free admission,
+      equivalent emission/provenance, URL/MIME/SRI/byte policy checks and refusal
+      of missing, corrupt, remapped, cyclic or oversized dependencies.
+    - [x] Add strict opt-in v3 template/declaration closure builds and generated
+      imported-CSS form fixtures; verify shared worker/fallback loading and real
+      generation recovery with unchanged credential and resource budgets.
+    - [x] Add CLI build fixtures refusing outside-root URLs, symlink escapes,
+      missing and oversized CSS files before publishing any closure assets.
+    Implemented `CEMCSS2` full-stylesheet capsules and an opt-in
+    `cem-template-artifact/3` build (`--compiled-css`). Inline fields keep their
+    scoped-block capsule contract; v1/v2 source imports remain supported. Native
+    build loaders are explicit, and the CLI limits CSS to the canonical source
+    directory. Runtime replay uses the existing resolver and import state machine,
+    rechecking final URLs, MIME, original-byte SRI, cycles, depth and byte bounds.
+    Missing/unused responses, changed bases or mappings, corrupt capsules and
+    policy failures refuse without source fallback. Emission, diagnostics,
+    resource rewriting, style reuse and recovery use the existing shared paths.
+    The form's transitive/repeated conditional imports take effect without CSS
+    fetches and survive two actual worker/fallback generation replacements.
+    No application/Studio UI JavaScript or credential-policy exceptions were added.
+    Verification passes: 92 native cases (including 52 existing source-CSS cases),
+    four CLI refusal fixtures, 815 shared units, 14 component browser cases,
+    separate-heap v2/v3 and legacy/instance stylesheet WASM checks, both complete
+    Studio Login credential/recovery cases, TypeScript, lint (0 errors; 818
+    warnings), eight audit-tool cases and the refreshed native/source audit.
+    The optimized full WASM is 24,197,177 bytes (23.08 MiB), up 25,027 bytes;
+    gzip-9 is 7,373,853 bytes and Brotli-9 is 5,418,257 bytes. Its 28 imports and
+    171 exports are unchanged; canonical/vendored copies match. All generated
+    form binaries stay below the unchanged 1 MiB response limit. The 4 MiB
+    checkpoint budget and 5-second handoff deadlines stay unchanged. Native CSS
+    parsing remains in the full deployment; core code partitioning is still open.
 - [ ] Add app-build dependency generation and GraphQL schema/operation validation,
   including variable/response contracts and compact runtime input checks. Treat
   application manifests as requirements, not native grants or permissions; retain

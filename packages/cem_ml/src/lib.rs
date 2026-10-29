@@ -36,6 +36,7 @@ pub mod content_cache;
 pub mod dependency_identity;
 pub mod css_emission;
 pub mod compiled_css;
+pub mod compiled_css_imports;
 pub mod css_imports;
 pub mod css_resources;
 pub mod events;

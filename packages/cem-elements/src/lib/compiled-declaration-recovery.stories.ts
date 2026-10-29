@@ -83,6 +83,8 @@ async function recoverCompiledForm(base: string, htmlUrl: string, load: (url: st
             field.setAttribute('type', 'text'); field.removeAttribute('autocomplete'); await runtime.whenRenderSettled(field);
         }
         await value('Unsaved compiled draft é😀'); input.focus(); input.setSelectionRange(2, 9, 'backward'); await capture();
+        check(getComputedStyle(app).getPropertyValue('--compiled-nested-proof').trim() === 'nested', 'compiled CSS import missing');
+        check(!downloads.some(url => /\.css(?:\?|$)/.test(url)), 'compiled CSS fetched original source');
         const styles = [...document.querySelectorAll('style')], acquired = downloads.length;
         const declaration = document.querySelector('cem-element[tag="cem-compiled-form-app"]'); check(declaration, 'missing pinned declaration');
         for (let cycle = 0; cycle < (scenario === 'success' ? 2 : 1); cycle++) {
@@ -118,6 +120,8 @@ async function recoverCompiledForm(base: string, htmlUrl: string, load: (url: st
                 && input.selectionStart === 2 && input.selectionEnd === 9 && input.selectionDirection === 'backward', 'recovery replaced the edit/focus/selection');
             check(new FormData(form).get('item') === input.value, 'recovery lost native form association');
             check(styles.every(style => style.isConnected), 'recovery replaced installed styles');
+            check(getComputedStyle(app).getPropertyValue('--compiled-nested-proof').trim() === 'nested', 'recovery lost compiled imported CSS');
+            check(!downloads.some(url => /\.css(?:\?|$)/.test(url)), 'recovery fetched original CSS');
             check(coordinator.current().receipt.owners.every((owner: { instanceId: string; acceptedEventSequence: number }) =>
                 owner.acceptedEventSequence === before.receipt.owners.find((prior: { instanceId: string }) => prior.instanceId === owner.instanceId)?.acceptedEventSequence), 'recovery manufactured accepted input');
             input.value = `Property-only ${cycle}`; input.setSelectionRange(2, 9, 'backward');
@@ -127,7 +131,7 @@ async function recoverCompiledForm(base: string, htmlUrl: string, load: (url: st
             check(new FormData(form).get('item') === input.value && coordinator.current().receipt.owners.some((owner: { instanceId: string; acceptedEventSequence: number }) =>
                 owner.acceptedEventSequence > before.receipt.owners.find((prior: { instanceId: string }) => prior.instanceId === owner.instanceId)?.acceptedEventSequence), 'fresh accepted input was not published');
             check(sourceLoads === 0 && downloads.slice(acquired).every(url => !/\.(json|bin|xhtml)(?:\?|$)/.test(url)), 'recovery refetched a component asset');
-            if (!fallback) check(workerReplies > replies && kinds.length > 0 && kinds.every(kind => kind === 'pinned-template-artifact-v1') && formats.every(format => format === 'cem-template-artifact/2'), 'fresh worker did not execute pinned IR');
+            if (!fallback) check(workerReplies > replies && kinds.length > 0 && kinds.every(kind => kind === 'pinned-template-artifact-v1') && formats.every(format => format === 'cem-template-artifact/3'), 'fresh worker did not execute pinned IR');
         }
         return 'success passed';
     } catch (error) { throw Error(`${fallback ? 'fallback' : 'worker'}/${stage}: ${String(error)}`, { cause: error }); }

@@ -176,7 +176,7 @@ export function assertPinnedSource(input: CemProcessingCompileInput): void {
         || input.precompiledArtifact || input.exportCompiledArtifact || input.instanceStylesheetIdentity !== undefined
         || 'chunks' in input.source) throw new Error('pinned template input cannot include source compilation or dependency overrides');
     const artifact = input.source.artifact;
-    if (!artifact || artifact.kind !== 'template-artifact' || !['cem-template-artifact/1', 'cem-template-artifact/2'].includes(artifact.formatVersion)
+    if (!artifact || artifact.kind !== 'template-artifact' || !['cem-template-artifact/1', 'cem-template-artifact/2', 'cem-template-artifact/3'].includes(artifact.formatVersion)
         || typeof input.scopePolicyStamp !== 'string' || !input.scopePolicyStamp || artifact.policyStamp !== input.scopePolicyStamp || artifact.payloadKey?.contentType !== 'cem-template-artifact'
         || artifact.payloadKey.sourceMapMode !== input.sourceMapMode) throw new Error('pinned template format, scope or source-map policy mismatch');
     if (!(artifact.bytes instanceof ArrayBuffer) || artifact.bytes.byteLength === 0 || artifact.bytes.byteLength > 64 * 1024 * 1024)

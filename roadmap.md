@@ -703,7 +703,7 @@ languages, conversions and tooling loaded on actual demand. Preserve every
 component capability through the core or a pinned module; keep the current
 full-runtime, CLI and Studio defaults unchanged. This is planned work, not an
 implemented profile or a measured minimum. The current UI WASM reference is
-23.05 MiB raw, 7.02 MiB gzip-9 and 5.16 MiB Brotli-9; record and compare matched
+23.08 MiB raw, 7.03 MiB gzip-9 and 5.17 MiB Brotli-9; record and compare matched
 builds rather than promising an unmeasured core size.
 
 Clarified 2026-10-29: initial dependencies follow the deployed application's
@@ -720,9 +720,11 @@ declaration-closure builder. The six-component compiled form passes two complete
 worker/fallback physical-generation handoffs, credential refusal/clear and stale
 input/pin refusal with retained edits and styles. Opt-in v2 template artifacts
 now admit pinned compiled inline CSS through existing resource/scoping emission;
-legacy v1 and source/dynamic/imported CSS paths remain supported. Compiled imported
-stylesheet closures, function/resource closure generation, API contracts and
-native code partitioning remain pending.
+opt-in v3 closes imported CSS responses at build time and replays them through
+current native URL/MIME/SRI/byte policy without source parsing. Shared loading and
+physical-generation recovery use the existing style installer. Legacy v1/v2
+source imports and source/dynamic CSS remain supported. Function/resource closure
+generation, API contracts and native code partitioning remain pending.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

@@ -30,6 +30,9 @@ pub const CEM_TEMPLATE_IR_FORMAT: &str = "cem-template-ir-v1";
 pub const CEM_COMPILED_STYLE_ARTIFACT_VERSION: &str = "cem-template-artifact/2";
 const COMPILED_STYLE_IR_FORMAT: &str = "cem-template-ir-v2";
 const COMPILED_ARTIFACT_MAGIC: &[u8] = b"CEMTPLA2\n";
+pub const CEM_COMPILED_IMPORT_ARTIFACT_VERSION: &str = "cem-template-artifact/3";
+const COMPILED_IMPORT_IR_FORMAT: &str = "cem-template-ir-v3";
+const COMPILED_IMPORT_MAGIC: &[u8] = b"CEMTPLA3\n";
 const ARTIFACT_MAGIC: &[u8] = b"CEMTPLA1\n";
 const MAX_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 
@@ -142,6 +145,8 @@ struct CompiledStyle {
     scope: Option<String>,
     hash: String,
     bytes: Vec<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    imports: Option<cem_ml::compiled_css_imports::CompiledCssImportsArtifact>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -160,7 +165,7 @@ pub fn compile_template_artifact_with_compiled_styles(source: &str, options: &Co
     let mut stylesheets = Vec::new();
     for style in &artifact.stylesheets {
         let bytes = cem_ml::compiled_css::encode(style.css_tree(), style.css())?;
-        stylesheets.push(CompiledStyle { scope: style.scope.clone(), hash: ContentHash::from_blake3(&bytes).header_value(), bytes });
+        stylesheets.push(CompiledStyle { scope: style.scope.clone(), hash: ContentHash::from_blake3(&bytes).header_value(), bytes, imports: None });
     }
     let mut compiled = encode_template_artifact(source, options, mode, &mut artifact);
     compiled.identity.artifact_version = CEM_COMPILED_STYLE_ARTIFACT_VERSION.into();
@@ -172,6 +177,57 @@ pub fn compile_template_artifact_with_compiled_styles(source: &str, options: &Co
     compiled.content_hash = ContentHash::from_blake3(&compiled.bytes);
     Ok(compiled)
 }
+
+/// Build-only upgrade of a compiled template with a closed, pinned import set.
+/// The loader is explicit; runtime resolution/response policy remains authoritative.
+pub fn compile_template_artifact_imports(
+    mut compiled: CompiledTemplateArtifact,
+    base_url: &str,
+    capability: cem_ml::module_resolution::CemModuleUrlResolutionCapability,
+    load: &mut dyn FnMut(
+        &cem_ml::css_imports::CssImportRequest,
+    ) -> Result<cem_ml::resolver::ResolvedRead, String>,
+) -> Result<CompiledTemplateArtifact, String> {
+    let artifact = compiled
+        .reload(&TemplateArtifactLoadContext {
+            expected_source_hash: Some(compiled.identity.source_hash.clone()),
+            host_bindings: compiled.identity.host_bindings.clone(),
+            source_map_mode: compiled.identity.source_map_mode,
+        })
+        .map_err(|e| e.to_string())?;
+    let mut stylesheets = Vec::new();
+    for style in &artifact.stylesheets {
+        let imports = cem_ml::compiled_css_imports::compile(
+            style.css_tree().clone(),
+            base_url,
+            capability.clone(),
+            load,
+        )?;
+        let bytes = cem_ml::compiled_css::encode(style.css_tree(), style.css())?;
+        stylesheets.push(CompiledStyle {
+            scope: style.scope.clone(),
+            hash: ContentHash::from_blake3(&bytes).header_value(),
+            bytes,
+            imports: Some(imports),
+        });
+    }
+    compiled.identity.artifact_version = CEM_COMPILED_IMPORT_ARTIFACT_VERSION.into();
+    compiled.identity.ir_format = COMPILED_IMPORT_IR_FORMAT.into();
+    let payload = CompiledStylePayload {
+        nodes: artifact.nodes,
+        stylesheets,
+        module_map: artifact.module_map,
+        diagnostics_json: serde_json::to_vec(&artifact.diagnostics).map_err(|e| e.to_string())?,
+    };
+    compiled.bytes = serialize_artifact_bytes(
+        &compiled.identity,
+        &rmp_serde::to_vec_named(&payload).map_err(|e| e.to_string())?,
+    );
+    validate_size(compiled.bytes.len()).map_err(|e| e.to_string())?;
+    compiled.content_hash = ContentHash::from_blake3(&compiled.bytes);
+    Ok(compiled)
+}
+
 
 pub fn compile_template_artifact(
     source: &str,
@@ -300,7 +356,7 @@ impl CompiledTemplateArtifact {
             ));
         }
         identity.validate(context)?;
-        let payload: TemplateArtifactPayload = if identity.artifact_version == CEM_COMPILED_STYLE_ARTIFACT_VERSION {
+        let payload: TemplateArtifactPayload = if identity.artifact_version != CEM_TEMPLATE_ARTIFACT_VERSION {
             // Share the v1 slice-reader monomorphizations for template/query IR.
             let mut decoder = rmp_serde::Deserializer::from_read_ref(payload_bytes.as_slice()); decoder.set_max_depth(64);
             let payload = CompiledStylePayload::deserialize(&mut decoder).map_err(|e|
@@ -310,9 +366,17 @@ impl CompiledTemplateArtifact {
                 Err(rmp_serde::decode::Error::InvalidMarkerRead(error)) if error.kind() == std::io::ErrorKind::UnexpectedEof => {},
                 _ => return Err(TemplateArtifactLoadError::unsupported("compiled stylesheet payload has trailing bytes")),
             }
-            let stylesheets = payload.stylesheets.into_iter().map(|style|
-                TemplateStylesheetArtifact::from_compiled_css(&style.bytes, &style.hash, style.scope)
-                    .map_err(TemplateArtifactLoadError::unsupported)).collect::<Result<Vec<_>, _>>()?;
+            let imports_required = identity.artifact_version == CEM_COMPILED_IMPORT_ARTIFACT_VERSION;
+            let stylesheets = payload.stylesheets.into_iter().map(|style| {
+                if style.imports.is_some() != imports_required {
+                    return Err(TemplateArtifactLoadError::unsupported("compiled stylesheet closure/format mismatch"));
+                }
+                let mut admitted = TemplateStylesheetArtifact::from_compiled_css(&style.bytes, &style.hash, style.scope)
+                    .map_err(TemplateArtifactLoadError::unsupported)?;
+                admitted.compiled_imports = style.imports.map(cem_ml::compiled_css_imports::CompiledCssImports::admit)
+                    .transpose().map_err(TemplateArtifactLoadError::unsupported)?.map(std::sync::Arc::new);
+                Ok(admitted)
+            }).collect::<Result<Vec<_>, TemplateArtifactLoadError>>()?;
             TemplateArtifactPayload { nodes: payload.nodes, stylesheets, module_map: payload.module_map, diagnostics_json: payload.diagnostics_json }
         } else {
             rmp_serde::from_slice(&payload_bytes).map_err(|error| TemplateArtifactLoadError::unsupported(format!(
@@ -339,7 +403,8 @@ impl CompiledTemplateArtifactIdentity {
     ) -> Result<(), TemplateArtifactLoadError> {
         if self.content_type != CEM_TEMPLATE_ARTIFACT_CONTENT_TYPE
             || !((self.artifact_version == CEM_TEMPLATE_ARTIFACT_VERSION && self.ir_format == CEM_TEMPLATE_IR_FORMAT)
-                || (self.artifact_version == CEM_COMPILED_STYLE_ARTIFACT_VERSION && self.ir_format == COMPILED_STYLE_IR_FORMAT))
+                || (self.artifact_version == CEM_COMPILED_STYLE_ARTIFACT_VERSION && self.ir_format == COMPILED_STYLE_IR_FORMAT)
+                || (self.artifact_version == CEM_COMPILED_IMPORT_ARTIFACT_VERSION && self.ir_format == COMPILED_IMPORT_IR_FORMAT))
             || self.cem_ml_version != cem_ml::VERSION
             || self.cem_ql_version != crate::VERSION
         {
@@ -380,7 +445,7 @@ fn serialize_artifact_bytes(
     payload: &[u8],
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(if identity.artifact_version == CEM_COMPILED_STYLE_ARTIFACT_VERSION { COMPILED_ARTIFACT_MAGIC } else { ARTIFACT_MAGIC });
+    bytes.extend_from_slice(if identity.artifact_version == CEM_COMPILED_IMPORT_ARTIFACT_VERSION { COMPILED_IMPORT_MAGIC } else if identity.artifact_version == CEM_COMPILED_STYLE_ARTIFACT_VERSION { COMPILED_ARTIFACT_MAGIC } else { ARTIFACT_MAGIC });
     write_string(&mut bytes, &identity.content_type);
     write_string(&mut bytes, &identity.artifact_version);
     write_string(&mut bytes, &identity.ir_format);
@@ -399,13 +464,16 @@ fn deserialize_artifact_bytes(
     bytes: &[u8],
 ) -> Result<(CompiledTemplateArtifactIdentity, Vec<u8>), TemplateArtifactLoadError> {
     let mut reader = ArtifactReader::new(bytes);
-    let compiled_styles = bytes.starts_with(COMPILED_ARTIFACT_MAGIC);
-    reader.read_magic(if compiled_styles { COMPILED_ARTIFACT_MAGIC } else { ARTIFACT_MAGIC })?;
+    let (magic, version) = if bytes.starts_with(COMPILED_IMPORT_MAGIC) {
+        (COMPILED_IMPORT_MAGIC, CEM_COMPILED_IMPORT_ARTIFACT_VERSION)
+    } else if bytes.starts_with(COMPILED_ARTIFACT_MAGIC) {
+        (COMPILED_ARTIFACT_MAGIC, CEM_COMPILED_STYLE_ARTIFACT_VERSION)
+    } else { (ARTIFACT_MAGIC, CEM_TEMPLATE_ARTIFACT_VERSION) };
+    reader.read_magic(magic)?;
     let content_type = reader.read_string()?;
     let artifact_version = reader.read_string()?;
     let ir_format = reader.read_string()?;
-    if compiled_styles != (artifact_version == CEM_COMPILED_STYLE_ARTIFACT_VERSION)
-        || (!compiled_styles && artifact_version != CEM_TEMPLATE_ARTIFACT_VERSION) {
+    if artifact_version != version {
         return Err(TemplateArtifactLoadError::unsupported("template artifact magic/version mismatch"));
     }
     let cem_ml_version = reader.read_string()?;

@@ -66,9 +66,20 @@ fn source_fingerprint(source_uri: &str, bytes: &[u8], profile: &[&str]) -> [u8; 
     *hash.finalize().as_bytes()
 }
 
-/// Build/runtime compiled CSS identity; this normalizes only a fixed MIME profile.
-pub(crate) fn compiled_css_fingerprint(uri: &str, bytes: &[u8]) -> Result<[u8; 32], String> {
-    Ok(source_fingerprint(uri, bytes, &["data/1", &import_content_type("text/css; mode=scoped-style-block")?.1, "cem"]))
+/// Build/runtime compiled CSS identity, including the original MIME profile.
+pub(crate) fn compiled_css_response_fingerprint(
+    uri: &str,
+    bytes: &[u8],
+    mime: &str,
+) -> Result<[u8; 32], String> {
+    if crate::schema::registry::content_type_essence(mime) != "text/css" {
+        return Err("compiled CSS requires text/css".into());
+    }
+    Ok(source_fingerprint(
+        uri,
+        bytes,
+        &["data/1", &import_content_type(mime)?.1, "cem"],
+    ))
 }
 
 /// Source-event correspondence exists only for compatibility import entrypoints.

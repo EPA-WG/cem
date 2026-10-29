@@ -8,7 +8,8 @@ example project.
 - [cem-compiled-form-app.xhtml](cem-compiled-form-app/cem-compiled-form-app.xhtml)
   composes five canonical shared components without application JavaScript.
 - The native `compile_declaration_closure` example discovers their static
-  dependencies and generates metadata, binaries, a dependency inventory and
+  dependencies, closes stylesheet imports with `--compiled-css`, and generates
+  metadata, binaries, a dependency inventory and
   `declarations.html`. Include that markup in a document with the normal shared
   runtime installed. Relative asset URLs use that document's resource base.
 - Run `node packages/cem_ql/tests/build-declaration-fixtures.mjs` from the repository
@@ -20,12 +21,16 @@ example project.
   recovery; authored/reset credential defaults must also be empty.
 
 Generated files remain under ignored `dist/artifacts/cem_ql/compiled-form`.
-Generated declarations use opt-in v2 native template artifacts with pinned
-compiled inline CSS trees. Their source metadata and style identities survive
-fresh-generation imports without inline CSS reparsing. The fixture builder
+Generated declarations use opt-in v3 native template artifacts with pinned
+compiled inline CSS and imported stylesheet trees. The entry's
+[layout stylesheet](cem-compiled-form-app/styles/layout.css) imports the
+[palette](cem-compiled-form-app/styles/palette.css) twice with different
+conditions. Browser checks assert its active CSS properties without fetching
+source CSS. Their source metadata and style identities survive fresh-generation
+imports without CSS reparsing. The fixture builder
 checks every `.bin` against the unchanged 1 MiB response limit.
 
-Native CSS parsing remains required for external imports and dynamic/source styles; source compilers are still present in the
-full WASM. Build assets contain no credentials. Recovery tests use temporary
+V1/v2 external imports and dynamic/source styles retain native CSS parsing;
+source compilers are still present in the full WASM. Build assets contain no credentials. Recovery tests use temporary
 values in isolated browser realms; API transport and app-local behaviors are not
 added.

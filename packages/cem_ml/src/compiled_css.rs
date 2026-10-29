@@ -13,6 +13,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
+const RESPONSE_MAGIC: &[u8] = b"CEMCSS2\0";
 const MAGIC: &[u8] = b"CEMCSS1\0";
 const MAX_BYTES: usize = 16 * 1024 * 1024;
 const MAX_NODES: usize = 100_000;
@@ -27,6 +28,8 @@ struct Capsule {
     source_maps: Vec<SourceMapStack>,
     strings: Vec<String>,
     nodes: Vec<Node>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    content_type: Option<String>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -39,17 +42,39 @@ struct Node {
     source: u32,
     range: (u32, u32, u64, u64),
 }
+#[derive(Debug)]
 pub struct AdmittedCss {
     pub source: String,
     pub tree: Arc<RetainedCemTree>,
+    pub content_type: String,
+    pub(crate) expansion_bytes: usize,
 }
 
 pub fn encode(tree: &RetainedCemTree, source: &str) -> Result<Vec<u8>, String> {
+    encode_with_mime(tree, source, None)
+}
+
+/// Build-time full stylesheet response, preserving the original MIME profile.
+pub fn encode_response(
+    tree: &RetainedCemTree,
+    source: &str,
+    mime: &str,
+) -> Result<Vec<u8>, String> {
+    encode_with_mime(tree, source, Some(mime))
+}
+fn encode_with_mime(
+    tree: &RetainedCemTree,
+    source: &str,
+    mime: Option<&str>,
+) -> Result<Vec<u8>, String> {
     if source.len() > MAX_BYTES || tree.ast().nodes.len() > MAX_NODES {
         return Err("compiled CSS limit".into());
     }
-    let fingerprint =
-        crate::import::compiled_css_fingerprint(tree.source_uri(), source.as_bytes())?;
+    let fingerprint = crate::import::compiled_css_response_fingerprint(
+        tree.source_uri(),
+        source.as_bytes(),
+        mime.unwrap_or("text/css; mode=scoped-style-block"),
+    )?;
     if tree.source_key(0)
         != Some(format!(
             "cem-source:1:{}:0",
@@ -108,7 +133,7 @@ pub fn encode(tree: &RetainedCemTree, source: &str) -> Result<Vec<u8>, String> {
         })
         .collect::<Result<Vec<_>, &str>>()?;
     let capsule = Capsule {
-        version: 1,
+        version: if mime.is_some() { 2 } else { 1 },
         cem_ml_version: crate::VERSION.into(),
         source_uri: tree.source_uri().into(),
         source_hash: ContentHash::from_blake3(source.as_bytes()).header_value(),
@@ -116,21 +141,36 @@ pub fn encode(tree: &RetainedCemTree, source: &str) -> Result<Vec<u8>, String> {
         source_maps,
         strings,
         nodes,
+        content_type: mime.map(str::to_owned),
     };
     let body = rmp_serde::to_vec(&capsule).map_err(|e| e.to_string())?;
     if body.len() + MAGIC.len() + 32 > MAX_BYTES {
         return Err("compiled CSS limit".into());
     }
-    let mut bytes = MAGIC.to_vec();
+    let mut bytes = if mime.is_some() {
+        RESPONSE_MAGIC
+    } else {
+        MAGIC
+    }
+    .to_vec();
     bytes.extend(blake3::hash(&body).as_bytes());
     bytes.extend(body);
     Ok(bytes)
 }
 
+/// Inline template fields preserve the v1 scoped-block capsule contract.
+pub fn admit_inline(bytes: &[u8], expected_hash: &str) -> Result<AdmittedCss, String> {
+    if !bytes.starts_with(MAGIC) {
+        return Err("compiled inline CSS requires a scoped-block capsule".into());
+    }
+    admit(bytes, expected_hash)
+}
+
 /// The expected content hash is supplied by the admitted template/build manifest.
 pub fn admit(bytes: &[u8], expected_hash: &str) -> Result<AdmittedCss, String> {
+    let response = bytes.starts_with(RESPONSE_MAGIC);
     if bytes.len() > MAX_BYTES
-        || !bytes.starts_with(MAGIC)
+        || !(response || bytes.starts_with(MAGIC))
         || bytes.len() < MAGIC.len() + 32
         || ContentHash::from_blake3(bytes).header_value() != expected_hash
     {
@@ -145,7 +185,8 @@ pub fn admit(bytes: &[u8], expected_hash: &str) -> Result<AdmittedCss, String> {
     decoder.set_max_depth(64);
     let capsule = Capsule::deserialize(&mut decoder).map_err(|e| e.to_string())?;
     if cursor.position() as usize != body.len()
-        || capsule.version != 1
+        || capsule.version != if response { 2 } else { 1 }
+        || response != capsule.content_type.is_some()
         || capsule.cem_ml_version != crate::VERSION
         || capsule.nodes.is_empty()
         || capsule.nodes.len() > MAX_NODES
@@ -160,6 +201,10 @@ pub fn admit(bytes: &[u8], expected_hash: &str) -> Result<AdmittedCss, String> {
     {
         return Err("compiled CSS version/source/structure mismatch".into());
     }
+    let mime = capsule
+        .content_type
+        .as_deref()
+        .unwrap_or("text/css; mode=scoped-style-block");
     // Interning must not turn a small capsule into unbounded native allocations.
     let source_costs = capsule
         .source_maps
@@ -184,9 +229,10 @@ pub fn admit(bytes: &[u8], expected_hash: &str) -> Result<AdmittedCss, String> {
     let mut expanded = 0usize;
     let mut ast = CemDocument::default();
     let mut semantics = CemTreeSemantics {
-        source_fingerprint: Some(crate::import::compiled_css_fingerprint(
+        source_fingerprint: Some(crate::import::compiled_css_response_fingerprint(
             &capsule.source_uri,
             capsule.source.as_bytes(),
+            mime,
         )?),
         ..Default::default()
     };
@@ -318,11 +364,20 @@ pub fn admit(bytes: &[u8], expected_hash: &str) -> Result<AdmittedCss, String> {
         || tree
             .node(roots[0])
             .and_then(|n| n.name.as_ref())
-            .is_none_or(|n| n.local_name != "style-block")
+            .is_none_or(|n| {
+                n.local_name
+                    != if response {
+                        "stylesheet"
+                    } else {
+                        "style-block"
+                    }
+            })
     {
-        return Err("compiled CSS requires a scoped style block".into());
+        return Err("compiled CSS root does not match its entry profile".into());
     }
     Ok(AdmittedCss {
+        expansion_bytes: expanded + capsule.source.len(),
+        content_type: mime.into(),
         source: capsule.source,
         tree,
     })
@@ -480,9 +535,14 @@ mod tests {
                 5 => capsule.nodes[0].source = u32::MAX,
                 6 => capsule.nodes[0].name = u32::MAX,
                 _ => {
-                    let id = capsule.strings.len() as u32; capsule.strings.push("x".repeat(8 * 1024 * 1024));
-                    for node in &mut capsule.nodes { if node.kind == 2 { node.value = id; } }
-                },
+                    let id = capsule.strings.len() as u32;
+                    capsule.strings.push("x".repeat(8 * 1024 * 1024));
+                    for node in &mut capsule.nodes {
+                        if node.kind == 2 {
+                            node.value = id;
+                        }
+                    }
+                }
             }
             let body = rmp_serde::to_vec(&capsule).unwrap();
             let mut altered = MAGIC.to_vec();

@@ -72,7 +72,7 @@ pub fn admit_declaration_metadata(
     }
     let metadata: DeclarationArtifactMetadata =
         serde_json::from_str(json).map_err(|error| fail(error.to_string()))?;
-    if !["cem-template-artifact/1", "cem-template-artifact/2"]
+    if !["cem-template-artifact/1", "cem-template-artifact/2", "cem-template-artifact/3"]
         .contains(&metadata.template_format.as_str())
         || metadata.contract != DECLARATION_METADATA_VERSION
         || !valid_tag(&metadata.tag)
@@ -281,4 +281,49 @@ pub fn build_declaration_artifact(
         metadata_hash,
         template,
     })
+}
+
+/// Opt-in build upgrade: retain native template IR and pin every static CSS
+/// import with an explicit caller-owned response loader. No runtime grants.
+pub fn build_declaration_imports(
+    mut built: BuiltDeclarationArtifact,
+    load: &mut dyn FnMut(
+        &cem_ml::css_imports::CssImportRequest,
+    ) -> Result<cem_ml::resolver::ResolvedRead, String>,
+) -> Result<BuiltDeclarationArtifact, String> {
+    use cem_ml::module_resolution::{
+        CemModuleUrlContext, CemModuleUrlFrame, CemModuleUrlResolutionCapability,
+        CemResolutionContextHandle, CemScopedModuleUrlResolver,
+    };
+    let mut metadata = admit_declaration_metadata(&built.metadata_json, &built.metadata_hash)?;
+    let mut frame = CemModuleUrlFrame::new("compiled-declaration", &metadata.resource_base_url);
+    if let Some(map) = &metadata.module_map {
+        frame.scopes = map.scopes.clone();
+        frame.specifiers = map.specifiers.clone();
+    }
+    let handle = CemResolutionContextHandle::new("compiled-declaration");
+    let context = CemModuleUrlContext {
+        identity: metadata.declaration_source_hash.clone(),
+        resolver_identity: "compiled-css-build/1".into(),
+        resource_policy_stamp: "explicit-loader/1".into(),
+        frames: vec![frame],
+    };
+    let capability = CemModuleUrlResolutionCapability::new(
+        std::sync::Arc::new(
+            CemScopedModuleUrlResolver::new().with_context(handle.clone(), context),
+        ),
+        handle,
+    );
+    built.template = crate::template_artifact::compile_template_artifact_imports(
+        built.template,
+        &metadata.resource_base_url,
+        capability,
+        load,
+    )?;
+    metadata.template.content_hash = built.template.content_hash.header_value();
+    metadata.template_format = built.template.identity.artifact_version.clone();
+    built.metadata_json = serde_json::to_string(&metadata).map_err(|e| e.to_string())?;
+    built.metadata_hash = ContentHash::from_blake3(built.metadata_json.as_bytes()).header_value();
+    admit_declaration_metadata(&built.metadata_json, &built.metadata_hash)?;
+    Ok(built)
 }

@@ -281,6 +281,8 @@ pub struct TemplateStylesheetArtifact {
     pub scope: Option<String>,
     #[serde(skip)]
     css_tree: std::sync::Arc<cem_ml::parser::tree::RetainedCemTree>,
+    #[serde(skip)]
+    pub(crate) compiled_imports: Option<std::sync::Arc<cem_ml::compiled_css_imports::CompiledCssImports>>,
 }
 
 // The existing binary artifact transports authored CSS, not a serialized AST.
@@ -315,13 +317,14 @@ impl TemplateStylesheetArtifact {
             css,
             scope,
             css_tree,
+            compiled_imports: None,
         })
     }
 
     /// Admission of a build-pinned native CSS tree; no CSS parser participates.
     pub fn from_compiled_css(bytes: &[u8], hash: &str, scope: Option<String>) -> Result<Self, String> {
-        let admitted = cem_ml::compiled_css::admit(bytes, hash)?;
-        Ok(Self { css: admitted.source, scope, css_tree: admitted.tree })
+        let admitted = cem_ml::compiled_css::admit_inline(bytes, hash)?;
+        Ok(Self { css: admitted.source, scope, css_tree: admitted.tree, compiled_imports: None })
     }
 
     pub fn css(&self) -> &str {

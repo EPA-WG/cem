@@ -1,0 +1,3 @@
+@import "./palette.css" supports(display: block);
+@import "./palette.css" screen;
+:scope { --compiled-import-proof: imported; }

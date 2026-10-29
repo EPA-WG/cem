@@ -539,8 +539,11 @@ inline template. Failed pins/requests refuse registration and can be retried;
 there is no source fallback. See the [native build and declarative loading
 contract](../../docs/cem-components-shopping-cart-profile.md#declarative-asset-loading-and-static-closure)
 for generated markup, limits, trust boundaries and the static closure example.
-Generated declarations use opt-in v2 artifacts with compiled inline CSS. Native
-CSS parsing is still required for external imports and source/dynamic styles;
+Generated declarations use opt-in v2 artifacts with compiled inline CSS. The
+native closure builder's `--compiled-css` option selects v3 with pinned imported
+stylesheets, rechecked through current resource policy without fetching/parsing
+CSS source. See the [compiled imports contract](../../docs/cem-components-shopping-cart-profile.md#compiled-imported-stylesheet-closures).
+V1/v2 source imports and dynamic/source styles retain native CSS parsing;
 the full WASM remains in place until the separate core profile is assembled.
 
 External declaration loading through `src="#id"`, `src="url"`, and `src="url#id"`, plus `<http-request url="...">`
