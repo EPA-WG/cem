@@ -1,8 +1,8 @@
 # Shopping-cart application deployment profile
 
 Status: native reference fixture, strict artifact admission, shared compiled
-registration and declarative static-closure loading in worker/fallback hosts,
-2026-10-29. A complete shopping-cart browser app, GraphQL transport/validation
+registration, declarative static-closure loading and compiled-form recovery in
+worker/fallback hosts, 2026-10-29. A complete shopping-cart browser app, GraphQL transport/validation
 and reduced WASM remain pending.
 This is the first concrete application case for the
 [component WASM profile](cem-components-wasm-profile.md#application-build-and-deployment-boundary).
@@ -135,7 +135,8 @@ capability, form-association, style ownership and remount handling. Header
 capability/scope/version/link-policy overrides and disposed scopes are refused.
 Worker and fallback rendering import the pinned IR; they never request original
 declaration source. Recovery replay uses the existing successful-input transport;
-complete application-owner recovery acceptance remains a follow-up.
+the complete compiled-form acceptance below now verifies the loaded application
+across physical generation replacement.
 
 Build one declaration, supplying its original deployment URI:
 
@@ -237,12 +238,50 @@ cargo test --locked --offline -p cem-ql --test declaration_closure
 yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run src/lib/compiled-declaration-loader.stories.ts --no-file-parallelism
 ```
 
+## Compiled-application recovery acceptance
+
+The [compiled recovery stories](../packages/cem-elements/src/lib/compiled-declaration-recovery.stories.ts)
+load the generated six-component form in isolated browser realms and exercise the
+existing shared checkpoint protocol. Each successful worker/fallback case completes
+two real close/drain, native retirement, fresh allocation, native IR reimport,
+all-owner binding/activation and fresh publication cycles. All six instantiated
+owners participate. Both committed application and generation checkpoint bytes
+stay within the existing 4 MiB budget; native handoff deadlines remain 5 seconds.
+
+The original input node, FormData value, focus, selection direction/range and
+installed style elements survive. Attribute changes and later accepted edits
+render and publish in the fresh generation, while recovery itself does not
+manufacture accepted input events. Original XHTML loading is disabled, component
+metadata/binaries are not fetched again, and observed worker compilations use
+only pinned native IR. Full WASM acquisition for fresh heaps remains allowed.
+
+Password and one-time-code controls refuse capture and recovery-ticket issuance
+while values are entered, including property-only edits without input events.
+After explicitly clearing credentials, controls with empty authored/reset defaults
+can be captured again. A previously committed safe checkpoint may remain during
+refusal; the tests verify that credential-bearing data cannot replace those bytes.
+They do not erase live credentials or broaden the privacy policy.
+
+Four additional worker/fallback cases change either the input property or the
+build metadata pin after retirement. The handoff refuses stale authority and
+preserves newer values, selection/focus and the exact last-good checkpoint bytes.
+This is acceptance of the existing shared adapters; no app-local behavior or new
+runtime exception is introduced.
+
+```bash
+node packages/cem_ql/tests/build-declaration-fixtures.mjs
+yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run src/lib/compiled-declaration-recovery.stories.ts --no-file-parallelism
+```
+
+Build the normal `cem-elements:build` artifacts first. This proves the reviewed
+static form closure; it does not complete the shopping-cart transport, dynamically
+constructed module closure, compiled CSS format or reduced binary.
+
 ## Remaining delivery boundaries
 
-- Prove complete fresh-generation recovery and optional module acquisition for
-  the declaratively loaded compiled application. Static component loading is
-  implemented; runtime function/resource closure generation remains separate.
-  Ordinary `cem-element src` loading continues to support source.
+- Extend app-build function/resource closure generation and optional module
+  acquisition beyond the verified static form. Ordinary `cem-element src`
+  loading continues to support source.
 - Stylesheet v1 reload imports CSS source. Prove compiled style/scoping admission
   with original identity and URL bases before removing its parser dependency.
 - Generate/validate the app manifest and API contracts during the app build.

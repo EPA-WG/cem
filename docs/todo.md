@@ -918,7 +918,7 @@ inventory, not the minimum set loaded by every app.
   and live Login privacy/recovery acceptance. Native CSS parsing, source-driven
   declaration registration and the full WASM remain in place. No generated
   screenshots/attachments or user storage are included in this work.
-- [ ] Connect source-free compiled artifacts to shared component registration,
+- [x] Connect source-free compiled artifacts to shared component registration,
   worker/fallback processing and recovery, using manifest-pinned artifact/source
   hashes rather than downloading the original template source. Preserve all
   existing source-driven/full-runtime entry points. Prove a compiled stylesheet
@@ -943,7 +943,7 @@ inventory, not the minimum set loaded by every app.
     Both complete live Login worker/fallback recovery/privacy cases pass within
     the existing 4 MiB budget. Credential refusal and deadlines are unchanged.
     Existing CSS parsing and source-driven registration remain supported.
-  - [ ] Add declarative compiled-asset loading and a generated complete component
+  - [x] Add declarative compiled-asset loading and a generated complete component
     closure; prove whole-app recovery from that source-free deployment. Keep
     XPath companions/external CEMT imports and legacy routes refused until their
     compiled contracts exist. Do not claim a reduced runtime from metadata alone.
@@ -966,9 +966,32 @@ inventory, not the minimum set loaded by every app.
       The full WASM is unchanged at 24,076,286 bytes; no code omission is claimed.
       The helper derives static render-tag dependencies, including
       branches, not arbitrary query results or a runtime function/resource closure.
-    - [ ] Prove fresh-generation checkpoint/recovery for the complete declaratively
+    - [x] Prove fresh-generation checkpoint/recovery for the complete declaratively
       loaded compiled form, including changed data, edits, focus/selection and
       source-free reimport. Keep credential blocking, 4 MiB and existing deadlines.
+      Add isolated worker/fallback browser fixtures for two complete retire/allocate/
+      resume cycles, fresh publication and changed input, exact DOM/styles and
+      FormData, credential refusal/clear, no component refetch/compiler fallback,
+      and rejection of newer property edits or changed declaration pins.
+      Six isolated cases pass: worker/fallback each perform two real complete
+      retire/allocate/resume cycles, or refuse a newer property edit/changed pin
+      without altering retained controls or committed bytes. All six application
+      owners publish fresh state and accept later edits; scoped styles, FormData,
+      exact control identity, focus and selection survive without component
+      refetch or source-compiler fallback. Password/OTP capture and ticket issuance
+      refuse property-only and accepted secrets, then recover after explicit clear
+      with empty authored/reset defaults. A previous safe checkpoint may remain;
+      refusal cannot replace it with credential-bearing bytes. Existing budgets,
+      5-second native handoff deadlines and runtime implementation are unchanged.
+      This closes the reviewed static six-component contract. Unsupported source
+      companions/imports/dynamic construction remain explicit build refusals, and
+      full-runtime source loading continues to provide those capabilities.
+      Verification: 14 component browser cases, 813 shared units, both complete
+      Studio Login privacy/recovery cases and the unchanged native/WASM audit pass.
+- [ ] Add native compiled stylesheet/scoping admission with pinned source and
+  artifact identities, URL bases and scope contracts; prove equivalent imports,
+  diagnostics, DOM/style reuse and separate-heap worker/fallback recovery. Keep
+  native CSS parsing in the deployed profile until the compiled replacement passes.
 - [ ] Add app-build dependency generation and GraphQL schema/operation validation,
   including variable/response contracts and compact runtime input checks. Treat
   application manifests as requirements, not native grants or permissions; retain

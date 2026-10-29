@@ -59,9 +59,11 @@ styles and collision checks. Worker/fallback form/action composition is covered
 with source downloads forbidden. See the [build and registration contract](cem-components-shopping-cart-profile.md#build-generated-declarations).
 Declarative `compiled-src`/`compiled-template-src`/`compiled-hash` loading and a
 native static declaration-closure builder are also implemented. The six-component
-form fixture loads with no XHTML downloads in worker/fallback modes. A complete
-function/resource closure and fresh-generation recovery acceptance for that
-compiled app remain pending. Ordinary `cem-element src` continues to support
+form fixture loads with no XHTML downloads and now passes two complete physical
+generation recovery cycles per mode, preserving edits/forms/styles and credential
+refusal. Stale input/pin handoffs also refuse without overwriting retained state.
+See the [recovery acceptance](cem-components-shopping-cart-profile.md#compiled-application-recovery-acceptance).
+A complete function/resource closure remains pending. Ordinary `cem-element src` continues to support
 source. Keep CSS parsing until compiled style admission is implemented.
 These changes do not establish omitted compiler code or a smaller binary.
 The evaluator also assembles the general function registry during native render;

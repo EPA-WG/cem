@@ -716,9 +716,10 @@ compiled-UI + JSON target before expanding optional format/tooling coverage.
 Native pinned artifact admission and the shared v30 worker/fallback binary-input
 path and native build-generated declaration metadata/shared registration are
 implemented, together with declarative compiled-asset loading and a native static
-declaration-closure builder. Complete compiled-application recovery, function/resource
-closure generation, API contracts, compiled styles and native code partitioning
-remain pending.
+declaration-closure builder. The six-component compiled form passes two complete
+worker/fallback physical-generation handoffs, credential refusal/clear and stale
+input/pin refusal with retained edits and styles. Function/resource closure
+generation, API contracts, compiled styles and native code partitioning remain pending.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.
