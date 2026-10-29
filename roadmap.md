@@ -715,8 +715,10 @@ guards. Prove source-free compiled loading and style admission, then measure the
 compiled-UI + JSON target before expanding optional format/tooling coverage.
 Native pinned artifact admission and the shared v30 worker/fallback binary-input
 path and native build-generated declaration metadata/shared registration are
-implemented. Declarative compiled-asset bootstrapping, the complete dependency
-closure, API contracts, compiled styles and native code partitioning remain pending.
+implemented, together with declarative compiled-asset loading and a native static
+declaration-closure builder. Complete compiled-application recovery, function/resource
+closure generation, API contracts, compiled styles and native code partitioning
+remain pending.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

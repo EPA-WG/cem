@@ -57,9 +57,12 @@ Native build-generated declaration metadata and explicit shared
 from hash-pinned metadata and binary IR, preserving capability/form association,
 styles and collision checks. Worker/fallback form/action composition is covered
 with source downloads forbidden. See the [build and registration contract](cem-components-shopping-cart-profile.md#build-generated-declarations).
-Automatic `cem-element src` registration still reads source. A declarative
-compiled-asset loader and complete dependency closure remain necessary for an
-application bundle. Keep CSS parsing until compiled style admission is implemented.
+Declarative `compiled-src`/`compiled-template-src`/`compiled-hash` loading and a
+native static declaration-closure builder are also implemented. The six-component
+form fixture loads with no XHTML downloads in worker/fallback modes. A complete
+function/resource closure and fresh-generation recovery acceptance for that
+compiled app remain pending. Ordinary `cem-element src` continues to support
+source. Keep CSS parsing until compiled style admission is implemented.
 These changes do not establish omitted compiler code or a smaller binary.
 The evaluator also assembles the general function registry during native render;
 profile-specific dispatch/registry roots remain necessary even with compiled IR.

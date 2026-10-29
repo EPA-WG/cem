@@ -1,3 +1,4 @@
+import { compiledDeclarationWork, readCompiledDeclarationAsset } from './compiled-declaration-assets.js';
 import { openCemHttpResource as defaultLoadHttpResource, streamCemHttpResponseBody as responseBody } from './http-resource-transport.js';
 import { CemRecoveryStatusObserver } from './recovery-status.js';
 import { prepareCemProviderHandoff, type CemProviderHandoff } from './checkpoint-provider-handoff.js';
@@ -2090,16 +2091,26 @@ export class CemElementRuntime {
      * subsequently uses registerDeclaration and the existing remount lifecycle. */
     registerCompiledDeclaration(declarationElement: HTMLElement, input: CemCompiledDeclarationRegistration,
         options: CemDeclarationRegistrationOptions = {}): Promise<void> {
+        return this.registerCompiledDeclarationInput(declarationElement, input, options);
+    }
+
+    private registerCompiledDeclarationInput(declarationElement: HTMLElement,
+        input: CemCompiledDeclarationRegistration | (() => Promise<CemCompiledDeclarationRegistration>),
+        options: CemDeclarationRegistrationOptions, assertAcquisitionCurrent: () => void = () => undefined): Promise<void> {
         const tag = declarationElement.getAttribute('tag')?.trim() ?? '';
         if (this.registeredDeclarationElements.has(declarationElement)) return Promise.reject(new Error('declaration is already registered or pending'));
         const scope = this.scopeForDeclaration(declarationElement);
         if (!scope) return Promise.reject(new Error('compiled declaration scope is unavailable'));
-        if (typeof input.metadataJson !== 'string' || input.metadataJson.length > 1024 * 1024
-            || typeof input.metadataHash !== 'string' || !(input.templateBytes instanceof ArrayBuffer)
-            || input.templateBytes.byteLength === 0 || input.templateBytes.byteLength > 64 * 1024 * 1024) {
-            return Promise.reject(new Error('invalid compiled declaration input bounds'));
-        }
-        const owned = { ...input, templateBytes: input.templateBytes.slice(0) };
+        const snapshot = (assets: CemCompiledDeclarationRegistration) => {
+            if (typeof assets.metadataJson !== 'string' || assets.metadataJson.length > 1024 * 1024
+                || typeof assets.metadataHash !== 'string' || !(assets.templateBytes instanceof ArrayBuffer)
+                || assets.templateBytes.byteLength === 0 || assets.templateBytes.byteLength > 64 * 1024 * 1024)
+                throw new Error('invalid compiled declaration input bounds');
+            return { ...assets, templateBytes: assets.templateBytes.slice(0) };
+        };
+        let eager: CemCompiledDeclarationRegistration | undefined;
+        try { if (typeof input !== 'function') eager = snapshot(input); }
+        catch (error) { return Promise.reject(error); }
         let releaseCheckpointAdmission: (() => void) | undefined;
         try { releaseCheckpointAdmission = this.checkpointPublication?.admit(); }
         catch (error) { return Promise.reject(error); }
@@ -2107,11 +2118,15 @@ export class CemElementRuntime {
         this.registrationOptions.set(declarationElement, options);
         if (declarationElement.isConnected) this.connectedDeclarations.add(declarationElement);
         const pending = (async () => {
-            if (!tag || declarationElement.getAttribute('src') || Array.from(declarationElement.childNodes).some(node =>
+            if (!tag) throw new Error('compiled declarations require a named tag');
+            const owned = eager ?? snapshot(await (input as () => Promise<CemCompiledDeclarationRegistration>)());
+            assertAcquisitionCurrent();
+            if (declarationElement.getAttribute('src') || Array.from(declarationElement.childNodes).some(node =>
                 node.nodeType === 1 || (node.nodeType === 3 && Boolean(node.textContent?.trim())))) throw new Error('compiled registration requires a named declaration without source/template children');
             const helpers = this.renderSupport(scope);
             const metadata = await helpers.admitCompiledDeclarationMetadata(owned.metadataJson, owned.metadataHash);
             const current = () => {
+                assertAcquisitionCurrent();
                 assertCemDeclarationScopeActive(scope);
                 if (tag !== metadata.tag || declarationElement.getAttribute('tag')?.trim() !== tag
                     || declarationElement.ownerDocument !== scope.document || declarationElement.getAttribute('src')
@@ -2149,6 +2164,56 @@ export class CemElementRuntime {
         return this.declarationSettled.get(declarationElement) ?? pending;
     }
 
+    private compiledDeclarationLoads = 0;
+
+    private registerCompiledDeclarationUrls(element: HTMLElement, options: CemDeclarationRegistrationOptions): Promise<void> {
+        const scope = this.scopeForDeclaration(element);
+        if (!scope) return Promise.reject(new Error('compiled declaration scope is unavailable'));
+        const names = ['compiled-src', 'compiled-template-src', 'compiled-hash'];
+        const values = names.map(name => element.getAttribute(name)?.trim() ?? '');
+        const document = element.ownerDocument, connected = element.isConnected;
+        const base = this.inheritedDeclarationResourceBaseUrls(element)[0] ?? document.baseURI;
+        const context = this.moduleUrlContextForNode(element) ?? this.moduleUrlRoot(document).context;
+        const current = () => {
+            assertCemDeclarationScopeActive(scope);
+            if (element.ownerDocument !== document || connected && !element.isConnected
+                || names.some((name, index) => element.getAttribute(name)?.trim() !== values[index])
+                || (this.inheritedDeclarationResourceBaseUrls(element)[0] ?? document.baseURI) !== base
+                || (this.moduleUrlContextForNode(element) ?? this.moduleUrlRoot(document).context) !== context)
+                throw Error('compiled declaration acquisition changed');
+        };
+        return this.registerCompiledDeclarationInput(element, async () => {
+            if (values.some(value => !value) || !/^cem-bin\/1\+blake3:[0-9a-f]{64}$/.test(values[2])
+                || element.hasAttribute('src') || Array.from(element.childNodes).some(node => node.nodeType === 1
+                    || node.nodeType === 3 && Boolean(node.textContent?.trim()))) throw Error('invalid compiled declaration URLs/hash or mixed source');
+            if (this.compiledDeclarationLoads >= 64) throw Error('compiled declaration acquisition limit');
+            this.compiledDeclarationLoads++;
+            const controller = new AbortController();
+            const stop = onCemDeclarationScopeDispose(scope, () => controller.abort());
+            const deadline = Math.min(this.httpResourcePolicy.timeoutMs, 15_000);
+            const timer = setTimeout(() => controller.abort(new Error('compiled declaration acquisition timed out')), deadline);
+            try {
+                if (!Number.isFinite(deadline) || deadline <= 0) throw Error('invalid compiled declaration acquisition timeout');
+                return await compiledDeclarationWork((async () => {
+                    const resolve = async (specifier: string) => isUrlLikeSpecifier(specifier)
+                        ? new URL(specifier, base).href
+                        : this.resolveModuleUrlInContext(specifier, document, context, base, undefined, 'template-import', scope);
+                    const metadataUrl = await resolve(values[0]), templateUrl = await resolve(values[1]);
+                    current(); controller.signal.throwIfAborted();
+                    const metadataBytes = await readCompiledDeclarationAsset(metadataUrl, document.baseURI, 'metadata', this.httpResourcePolicy, controller.signal);
+                    const metadataJson = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(metadataBytes);
+                    // Refuse a bad metadata pin before acquiring the larger executable asset.
+                    await this.renderSupport(scope).admitCompiledDeclarationMetadata(metadataJson, values[2]);
+                    current(); controller.signal.throwIfAborted();
+                    const templateBytes = await readCompiledDeclarationAsset(templateUrl, document.baseURI, 'template', this.httpResourcePolicy, controller.signal);
+                    current(); controller.signal.throwIfAborted();
+                    return { metadataJson, metadataHash: values[2], templateBytes };
+                })(), controller.signal);
+            } finally { clearTimeout(timer); stop(); controller.abort(); this.compiledDeclarationLoads--; }
+        }, options, current);
+    }
+
+
     registerDeclaration(declarationElement: HTMLElement, options: CemDeclarationRegistrationOptions = {}): boolean {
         if (declarationElement.isConnected) this.connectedDeclarations.add(declarationElement);
         if (this.registeredDeclarationElements.has(declarationElement)) {
@@ -2170,6 +2235,13 @@ export class CemElementRuntime {
                     return false;
                 }
             }
+            return true;
+        }
+
+        if (['compiled-src', 'compiled-template-src', 'compiled-hash'].some(name => declarationElement.hasAttribute(name))) {
+            const settled = this.registerCompiledDeclarationUrls(declarationElement, options);
+            // Settlement remains observable; connectedCallback has no promise consumer.
+            void settled.catch(() => undefined);
             return true;
         }
 

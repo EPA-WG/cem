@@ -529,6 +529,18 @@ For focused standalone and source-loaded verification, run
 `CEM_DEMO_PATH=/packages/cem-elements/demo/scoped-css.html yarn nx run cem-elements:verify-demo-fixtures`.
 Omit `CEM_DEMO_PATH` to verify the complete gallery.
 
+Build-generated declarations can instead use `compiled-src` (metadata JSON),
+`compiled-template-src` (native binary IR), and `compiled-hash` (the build's exact
+metadata hash). A named declaration with these attributes loads through shared
+bounded transport and native admission, preserving intrinsic capability, form
+association and styles without downloading XHTML or compiling template source.
+The URLs also accept import-map specifiers. Do not combine them with `src` or an
+inline template. Failed pins/requests refuse registration and can be retried;
+there is no source fallback. See the [native build and declarative loading
+contract](../../docs/cem-components-shopping-cart-profile.md#declarative-asset-loading-and-static-closure)
+for generated markup, limits, trust boundaries and the static closure example.
+Native CSS parsing and the full WASM are still required.
+
 External declaration loading through `src="#id"`, `src="url"`, and `src="url#id"`, plus `<http-request url="...">`
 resource loading, uses the [CEM-ML resource lifecycle](../../docs/cem-ml-resource-lifecycle.md) as the base contract and
 the [`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md) as the CEM Elements

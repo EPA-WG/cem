@@ -1,7 +1,8 @@
 # Shopping-cart application deployment profile
 
-Status: native reference fixture, strict artifact admission and shared compiled
-component registration in worker/fallback hosts, 2026-10-29. A complete compiled browser app, GraphQL transport/validation
+Status: native reference fixture, strict artifact admission, shared compiled
+registration and declarative static-closure loading in worker/fallback hosts,
+2026-10-29. A complete shopping-cart browser app, GraphQL transport/validation
 and reduced WASM remain pending.
 This is the first concrete application case for the
 [component WASM profile](cem-components-wasm-profile.md#application-build-and-deployment-boundary).
@@ -84,7 +85,7 @@ existing binary transfer fields. The transfer's format/policy/source-map identit
 must match the host request. Source/cache fallback, source-module overrides and
 XSLT/CSS compilation options cannot be mixed into this strict input. The shared
 processing protocol is v30. Shared compiled registration below uses this transport;
-a declarative application bootstrap and dependency-closure loader remain pending.
+the declarative loader below now acquires build-generated component closures.
 
 The host validates bounds before copying buffers and owns deployment inputs
 across asynchronous dispatch. Cache identity includes the pinned artifact and
@@ -167,12 +168,81 @@ under ignored `dist/`. Browser checks cover intrinsic defaults, FormData, action
 scoped CSS, edits/focus/selection, remount, mutation, pin/capability/conflict refusal
 and disposal during admission, with declaration downloads forbidden.
 
+## Declarative asset loading and static closure
+
+The ordinary shared runtime also accepts generated declarations directly:
+
+```html
+<cem-element tag="cem-text-field"
+  compiled-src="./cem-text-field.json"
+  compiled-template-src="./cem-text-field.bin"
+  compiled-hash="cem-bin/1+blake3:BUILD_METADATA_HASH"></cem-element>
+```
+
+Use the complete 64-digit metadata hash emitted by the native builder. Both
+asset attributes accept explicit relative/absolute URLs or import-map specifiers,
+using the existing shared module resolver. The declaration must be named and
+cannot combine these attributes with `src` or a source template. The normal
+runtime installation is the only JavaScript setup; application UI stays
+canonical CEM-ML. This does not add application-local loader code.
+
+The shared byte reader omits credentials and refuses redirects. Same-origin
+HTTP(S) is the default; the trusted host's existing HTTP resource policy may
+allow cross-origin acquisition or lower limits. Responses require
+`application/json` or `application/octet-stream`, respectively. Metadata pins
+are checked before requesting the executable binary; binary pins are checked
+before custom-element definition. Acquisition has a 15-second maximum deadline,
+64 concurrent declarations, the host response ceiling (1 MiB by default), and
+absolute metadata/binary ceilings of 1/64 MiB. Cancellation drains even an
+uncooperative fetch. Scope disposal, changed URL attributes/resource context,
+missing files, bad pins and mixed source inputs refuse registration. Explicit
+registration or reconnect can retry failures. Admitted declarations reuse the
+existing remount path without fetching assets again.
+
+The build-only native `declaration_closure::build_declaration_closure` walks
+compiled render IR, including conditional/loop/choice branches, and recursively
+loads custom tags. It accepts entry and explicit projected-content roots,
+deduplicates cycles and refuses missing/mismatched dependencies, duplicate roots,
+inline runtime declarations and dynamic result-element construction. Bounds are
+64 declarations, 16 MiB total source and 64 MiB emitted metadata/template bytes.
+This is a **static declaration closure**: arbitrary computed query results or
+host-projected components require explicit roots. It is not a general proof of
+the complete runtime function, resource or language closure.
+
+For a directory of canonical `<tag>/<tag>.xhtml` declarations:
+
+```bash
+cargo build --locked --offline -p cem-ql --example compile_declaration_closure
+dist/target/debug/examples/compile_declaration_closure \
+  packages/cem-components/src/components https://app.example/components/ \
+  dist/artifacts/cart-components prod cem-card cem-text-field cem-action
+```
+
+All declarations compile and validate before output is written. The example
+emits `<tag>.json`, `<tag>.bin`, `dependencies.json` and `declarations.html`.
+Include the generated markup with asset URLs relative to the containing document's
+resource base, or adjust the deployment prefix when assembling the page. Each
+declaration admits independently; successful browser tag definitions remain if
+a different dependency fails. This example is not a final deployment packager.
+
+The [compiled form fixture](../packages/cem_ql/fixtures/component-application/compiled-form/README.md)
+generates six declarations from an entry plus five canonical shared components.
+Worker/fallback browser checks exercise real metadata/binary downloads, import
+maps, bad-pin and HTTP refusal/retry, changed URLs, cancellation on scope disposal,
+FormData, CSS, edits, focus/selection and remount. They forbid XHTML downloads.
+
+```bash
+node packages/cem_ql/tests/build-declaration-fixtures.mjs
+cargo test --locked --offline -p cem-ql --test declaration_closure
+yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run src/lib/compiled-declaration-loader.stories.ts --no-file-parallelism
+```
+
 ## Remaining delivery boundaries
 
-- Add a declarative compiled-asset bootstrap and generated complete declaration
-  closure. The explicit shared registration API is implemented; automatic
-  `cem-element src` loading still reads source. Prove full compiled-application
-  recovery and optional module acquisition with that loader.
+- Prove complete fresh-generation recovery and optional module acquisition for
+  the declaratively loaded compiled application. Static component loading is
+  implemented; runtime function/resource closure generation remains separate.
+  Ordinary `cem-element src` loading continues to support source.
 - Stylesheet v1 reload imports CSS source. Prove compiled style/scoping admission
   with original identity and URL bases before removing its parser dependency.
 - Generate/validate the app manifest and API contracts during the app build.

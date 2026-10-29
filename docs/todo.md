@@ -947,6 +947,28 @@ inventory, not the minimum set loaded by every app.
     closure; prove whole-app recovery from that source-free deployment. Keep
     XPath companions/external CEMT imports and legacy routes refused until their
     compiled contracts exist. Do not claim a reduced runtime from metadata alone.
+    - [x] Add declarative compiled metadata/binary URLs and an independent metadata
+      hash to `cem-element`; share bounded transport and native admission. Add
+      transport unit fixtures and worker/fallback browser fixtures for pin/network
+      refusal, retry, URL/header changes, scope disposal, source-loader refusal,
+      real forms and preserved edits. Keep recovery budgets/privacy unchanged.
+    - [x] Generate a bounded static declaration dependency closure and loader HTML
+      natively. Add fixtures for transitive/conditional references, missing or
+      mismatched dependencies, cycles, duplicate/oversized graphs and unsupported
+      dynamic declaration construction; support explicit projected-content roots.
+      Implemented the native-only closure builder/example and shared loader;
+      a generated six-component form uses canonical components in worker/fallback
+      browsers without XHTML downloads. Three native closure tests, five bounded
+      transport tests, and real pin/HTTP/import-map/retry/edit/disposal browser
+      checks pass. Verification also passed 813 shared units, eight component
+      browser cases, both complete live Login privacy/recovery cases, native
+      declaration/reload checks, separate-heap WASM checks and the refreshed audit.
+      The full WASM is unchanged at 24,076,286 bytes; no code omission is claimed.
+      The helper derives static render-tag dependencies, including
+      branches, not arbitrary query results or a runtime function/resource closure.
+    - [ ] Prove fresh-generation checkpoint/recovery for the complete declaratively
+      loaded compiled form, including changed data, edits, focus/selection and
+      source-free reimport. Keep credential blocking, 4 MiB and existing deadlines.
 - [ ] Add app-build dependency generation and GraphQL schema/operation validation,
   including variable/response contracts and compact runtime input checks. Treat
   application manifests as requirements, not native grants or permissions; retain
