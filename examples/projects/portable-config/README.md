@@ -1,5 +1,19 @@
 # Portable configurations
 
+Keep commands and build settings in project files so they can travel with the project. Run the saved configurations, change an input and compare the rebuilt page.
+
+## Essential files
+
+- [data/card.xml](data/card.xml) — The card data used by the build.
+- [templates/card.cemt](templates/card.cemt) — The card page template.
+- [graphs/card.cem](graphs/card.cem) — The transformation graph.
+- [authored/build.command.json](authored/build.command.json) — The saved build command.
+- [authored/check.run.json](authored/check.run.json) — The saved validation run.
+- [project/card.project.json](project/card.project.json) — The portable project description in JSON.
+- [project/card.project.cem](project/card.project.cem) — The portable project description in CEM.
+
+## Using the example
+
 This ordinary Studio project distinguishes authored CLI commands, run
 configurations, transformation graphs and portable project manifests. Open
 **Content types and schemas → Schema authoring** or **Queries and

@@ -1,5 +1,16 @@
 # CEM schema authoring
 
+Define a small note format, check a note against it, and repair a missing field. This shows how an example can carry its own rules and helpful error messages.
+
+## Essential files
+
+- [schemas/note.cem](schemas/note.cem) — The note vocabulary and its required identifier.
+- [schemas/package.cem](schemas/package.cem) — Makes the note rules available to the project.
+- [data/note.cem](data/note.cem) — A valid note to check and edit.
+- [failures/missing-id.cem](failures/missing-id.cem) — A note with a deliberate error to repair.
+
+## Using the example
+
 This ordinary Studio project defines a small note contract, packages it as a
 project-owned schema and applies it to a separate CEM instance. Open it from
 **Content types and schemas → Schema authoring**. Clone the read-only example

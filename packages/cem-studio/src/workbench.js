@@ -1984,6 +1984,7 @@ export async function mountCemStudioWorkbench({
             'select-build': ({ value }) => workbench.selectPreviewConfiguration(value),
             'select-comparison-artifact': ({ value }) => workbench.selectComparisonArtifact(value),
             'select-preview-artifact': ({ value }) => perform(() => workbench.selectPreviewArtifact(value)),
+            'open-source-link': ({ value }) => perform(() => workbench.openSourceLink(value)),
             'save-build-entry': ({ fields }) => perform(() => workbench.saveBuildEntryArtifact(fields.entryArtifact?.[0] ?? '')),
             'build-project': () => { buildPromise = workbench.buildProjectPreview(); return buildPromise; },
             'cancel-build': () => workbench.cancelProjectPreview(),

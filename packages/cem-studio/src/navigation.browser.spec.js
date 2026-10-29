@@ -1,3 +1,4 @@
+import { mountCemArtifactPreview } from '@epa-wg/cem-elements';
 import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createCemStudioNavigation, createCemStudioProjectPreview, createCemStudioSourcePreview } from './navigation.js';
 import { mountCemStudioFeatureTourWorkbench } from './workbench.js';
@@ -13,6 +14,7 @@ const services = [];
 afterEach(() => { for (const service of services.splice(0)) service.dispose(); });
 
 async function fixture(url = 'https://studio.test/?project=demo&file=article', readOnly = false, { ambiguousSource = false, alternateBuild = false, plaintextSource = false, tabularSource = false, validator,
+    artifactPaths = ['generated/index.html', 'generated/posts/article.html', 'generated/invalid.json'],
     sampleCollections = ['nested'], collections = [{ id: 'nested', name: 'Nested examples' }], binarySource = false, sourceBytes, missingSource = false, commandBytes, missingCommand = false, missingCommandResource = false, commandContentType = 'application/cem' } = {}) {
     const encoder = new TextEncoder();
     const sourceResource = binarySource
@@ -25,7 +27,7 @@ async function fixture(url = 'https://studio.test/?project=demo&file=article', r
         { ...sourceResource, revision: 1, sha256: 'article' },
         { id: 'other', path: 'content/other.md', contentType: 'text/markdown', revision: 1, sha256: 'other' },
         ...(!missingCommandResource ? [{ id: 'command', path: 'config/build.cem', contentType: commandContentType, schema: 'https://cem.dev/ns/cli/command/1', revision: 1, sha256: 'command' }] : []),
-    ], entries: [{ id: 'build', name: 'Build site', kind: 'transformation-graph', runConfigResourceId: 'command', entryArtifact: 'generated/index.html' },
+    ], entries: [{ id: 'build', name: 'Build site', kind: 'transformation-graph', runConfigResourceId: 'command', entryArtifact: artifactPaths[0] },
         ...(alternateBuild ? [{ id: 'alternate', name: 'Alternate build', kind: 'transformation-graph', runConfigResourceId: 'command', entryArtifact: 'generated/index.html' }] : [])] };
     const sourceText = tabularSource ? 'id,name\n1,Ada\n' : '# Article';
     const bundle = { project, contents: { ...(missingSource ? {} : { article: sourceBytes ?? (binarySource ? new Uint8Array([67, 69, 77, 0, 255]) : encoder.encode(sourceText)) }), other: encoder.encode('# Other'), ...(missingCommand ? {} : { command: commandBytes ?? encoder.encode('{}') }) } };
@@ -48,7 +50,7 @@ async function fixture(url = 'https://studio.test/?project=demo&file=article', r
     const loadExample = vi.fn(async () => bundle);
     const service = await createCemStudioNavigation({ repository, workbench, browser, validator,
         examples: [{ id: 'demo', name: 'Demo sample', collections: sampleCollections, load: loadExample }], collections, openBuildWorkbench: async ({ configuration }) => {
-        const artifacts = [ ['generated/index.html', ambiguousSource ? 'studio://demo/content/article.md' : undefined], ['generated/posts/article.html', 'studio://demo/content/article.md'], ['generated/invalid.json', undefined] ].map(([path, uri]) => ({
+        const artifacts = artifactPaths.map(path => [path, path === 'generated/posts/article.html' || ambiguousSource && path === artifactPaths[0] ? 'studio://demo/content/article.md' : undefined]).map(([path, uri]) => ({
             id: path, path, uri: `studio://demo/${path}`, contentType: path.endsWith('.json') ? 'application/json' : 'text/html', provenance: uri ? [{ uri }] : [],
         }));
         const outputs = artifacts.map(item => ({ uri: item.uri, contentType: item.contentType, text: `<p>${item.path}</p>`, bytes: item.path.endsWith('.json') ? new Uint8Array([255, 0]) : encoder.encode(`<p>${item.path}</p>`) }));
@@ -71,6 +73,22 @@ function invocation({ projectId = 'demo', resourceId = 'article', configuration 
 }
 
 describe('Studio compact navigation service', () => {
+    it.each(['project=demo', 'collection=nested&sample=demo'])('routes source links within the selected project and retains the build: %s', async route => {
+        const { service, browser } = await fixture(`https://studio.invalid/?${route}&file=article&build=build`, route.includes('sample='));
+        await service.openSourceLink('content/other.md');
+        expect(service.snapshot().navigation.selection.file).toBe('other');
+        expect(new URL(browser.location).searchParams.get('build')).toBe('build');
+        expect(new URL(browser.location).searchParams.get(route.includes('sample=') ? 'sample' : 'project')).toBe('demo');
+        const selected = browser.location.href;
+        await service.openSourceLink('content/other.md#section');
+        expect(browser.location.href).toBe(selected);
+        for (const path of ['missing.md', '../outside.md', 'https://outside.invalid/other.md', 'content/other.md?project=outside']) {
+            await service.openSourceLink(path);
+            expect(browser.location.href).toBe(selected);
+            expect(service.snapshot().navigation.selection.file).toBe('other');
+            expect(service.snapshot().navigation.error.message).toContain('not available in this project');
+        }
+    });
     const catalog = {
         collections: [
             { id: 'conference', name: 'Conference' },
@@ -440,6 +458,28 @@ describe('Studio compact navigation service', () => {
 
 
 describe('Studio native per-file Markdown preview', () => {
+    it('registers native HTML with the shared passive link controller and revokes replaced source trees', async () => {
+        const validator = { runResourceCommand: vi.fn(async () => ({ output: { available: true, contentType: 'text/html',
+            bytes: new TextEncoder().encode('<h1>Readme</h1><a href="data/input.xml">Input</a><script>throw 1</script>') } })) };
+        const service = createCemStudioSourcePreview({ validator, delay: 0 }); services.push(service);
+        service.setSource({ resourceId: 'documentation', path: 'README.md', sourceUri: 'studio://demo/README.md', projectRootUri: 'studio://demo/',
+            contentType: 'text/markdown', schema: 'https://cem.dev/ns/data/markdown/1', text: '# Readme', revision: 1, sha256: 'readme' });
+        await vi.waitFor(() => expect(service.snapshot().status).toBe('ready'));
+        const preview = service.snapshot().preview;
+        expect(preview).toMatchObject({ kind: 'artifact-tree', artifactPath: 'README.md', sourceNavigation: true });
+        const frame = document.createElement('iframe'); document.body.append(frame);
+        const paths = [];
+        const controller = mountCemArtifactPreview(frame, { resourceSet: preview.resourceSet, path: preview.artifactPath, onNavigate: path => paths.push(path) });
+        try {
+            await controller.ready;
+            expect(frame.getAttribute('sandbox')).toBe('allow-same-origin');
+            expect(frame.contentDocument.querySelector('script')).toBeNull();
+            frame.contentDocument.querySelector('a').click(); expect(paths).toEqual(['data/input.xml']);
+            service.setSource(undefined);
+            expect(() => mountCemArtifactPreview(frame, { resourceSet: preview.resourceSet, path: preview.artifactPath })).toThrow('released');
+            expect(service.snapshot()).toEqual({ status: 'idle', stale: false });
+        } finally { controller.dispose(); frame.remove(); }
+    });
     const descriptor = (resourceId, text) => ({ resourceId, sourceUri: `studio://demo/content/${resourceId}`, contentType: 'text/markdown; variant=CommonMark',
         schema: 'https://cem.dev/ns/data/markdown/1', text, projectId: 'demo', projectRootUri: 'studio://demo/', projectRevision: 1, revision: 1, sha256: resourceId, draft: false });
     const outcome = text => ({ output: { available: true, contentType: 'text/html', bytes: new TextEncoder().encode(`<h1>${text}</h1>`) } });
@@ -488,7 +528,7 @@ describe('Studio native per-file Markdown preview', () => {
             service.setSource(descriptor('article', '# Native preview\n\nRead **this**.'));
             await vi.waitFor(() => expect(service.snapshot().status).not.toBe('pending'), { timeout: 30_000 });
             expect(service.snapshot().error).toBeUndefined();
-            expect(service.snapshot().preview).toMatchObject({ kind: 'sandboxed-html' });
+            expect(service.snapshot().preview).toMatchObject({ kind: 'artifact-tree', sourceNavigation: true });
             const html = new DOMParser().parseFromString(service.snapshot().preview.source, 'text/html');
             expect(html.querySelector('h1').textContent).toBe('Native preview');
             expect(html.querySelector('strong').textContent).toBe('this');
@@ -777,6 +817,56 @@ describe('Studio compact declarative layout', () => {
             expect(editor.querySelector('[role=textbox]').getAttribute('aria-label')).toBe('content/article.md');
             expect(editor.value).toBe('# Article');
             expect(root.querySelector('[slot=editor-heading]').textContent.trim()).toBe('article.md');
+        } finally { view.dispose(); root.remove(); }
+    }, 30_000);
+
+    it.each([
+        { paths: ['generated/index.html', 'generated/posts/article.html'], roots: ['posts', 'index.html'], hidden: ['Output files', 'generated'] },
+        { paths: ['dist/index.html', 'dist/css/site.css'], roots: ['css', 'index.html'], hidden: ['Output files', 'dist'] },
+        { paths: ['index.html', 'assets/site.css'], roots: ['assets', 'index.html'], hidden: ['Output files'] },
+        { paths: ['generated/index.html', 'assets/site.css'], roots: ['assets', 'generated'], hidden: ['Output files'] },
+        { paths: ['index.html', 'https://files.example.test/page.html'], roots: ['https://files.example.test/page.html', 'index.html'], hidden: ['Output files'] },
+    ])('renders output children without redundant root levels: $paths', async ({ paths, roots, hidden }) => {
+        const { service, browser } = await fixture('https://studio.test/?project=demo', false, { plaintextSource: true, artifactPaths: paths });
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench: service });
+        try {
+            await service.buildProjectPreview(); await view.whenSettled();
+            const tree = root.querySelector('cem-tree[label="Output files"]');
+            if (!tree) throw new Error('Missing output tree');
+            const rows = [...tree.querySelectorAll('[role=treeitem][aria-level="1"]')];
+            expect(rows.map(item => item.getAttribute('aria-label')).sort()).toEqual([...roots].sort());
+            for (const name of hidden) expect(tree.querySelector(`[role=treeitem][aria-label="${name}"]`)).toBeNull();
+            const leaf = [...tree.querySelectorAll('[role=treeitem]')].find(item => item.getAttribute('aria-label') === 'index.html');
+            if (leaf) {
+                leaf.click(); await view.whenSettled();
+                expect(service.snapshot().navigation.selection.artifact).toBe(paths[0]);
+                expect(browser.location.searchParams.get('artifact')).toBe(paths[0]);
+                expect(tree.querySelector('[aria-selected="true"]').getAttribute('data-tree-value')).toContain(new URLSearchParams({ artifact: paths[0] }).toString());
+            }
+            if (paths.includes('generated/posts/article.html')) {
+                const branch = tree.querySelector('[role=treeitem][aria-label="posts"]');
+                if (branch.getAttribute('aria-expanded') !== 'true') {
+                    branch.querySelector('[part~=marker]').click(); await view.whenSettled();
+                }
+                const article = tree.querySelector('[role=treeitem][aria-label="article.html"]');
+                expect(article.getAttribute('aria-level')).toBe('2');
+                article.click(); await view.whenSettled();
+                expect(browser.location.searchParams.get('artifact')).toBe('generated/posts/article.html');
+                const selected = service.snapshot().navigation.trees.output.selected;
+                branch.querySelector('[part~=marker]').click(); await view.whenSettled();
+                expect(branch.getAttribute('aria-expanded')).toBe('false');
+                expect(service.snapshot().navigation.trees.output.selected).toBe(selected);
+                expect(service.snapshot().navigation.selection.artifact).toBe('generated/posts/article.html');
+                branch.querySelector('[part~=marker]').click(); await view.whenSettled();
+                expect(tree.querySelector('[aria-selected="true"]').getAttribute('aria-label')).toBe('article.html');
+                await service.openEntity('project=demo&selection=output&output-folder=generated%2F');
+                await view.whenSettled();
+                expect(service.snapshot().navigation.content).toBe('output-folder');
+                expect(browser.location.searchParams.get('output-folder')).toBe('generated/');
+            }
+            // Domain paths and hidden-folder URLs remain authoritative.
+            expect(service.snapshot().navigation.output.children.length).toBeGreaterThan(0);
         } finally { view.dispose(); root.remove(); }
     }, 30_000);
 

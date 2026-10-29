@@ -1,5 +1,55 @@
 # Schema examples and portable operations
 
+Open a working file in any of the supported content types and see what CEM can check, inspect or transform. Compare the formats side by side, or clone the project to try your own changes.
+
+## Essential files
+
+Each link opens the file in this project. The served filenames below are relative
+to Studio's `samples/feature-tour/` directory; saved copies keep their own resource
+bytes and do not depend on those download addresses. Binary projections stay
+available as exact downloads when a text view is not appropriate.
+
+| Project file | Served file | Purpose |
+| --- | --- | --- |
+| [data/cem-ast-projection/basic-ast.cem-bin](data/cem-ast-projection/basic-ast.cem-bin) | `resources/cem-ast-projection-basic-ast.cem-bin` | Inspect a saved syntax tree, including its source structure. |
+| [data/cem-data-island/complete-instance.cem](data/cem-data-island/complete-instance.cem) | `resources/cem-data-island-complete-instance.cem` | Inspect saved component data and instance state. |
+| [data/cem-dom-projection/basic-dom.cem-bin](data/cem-dom-projection/basic-dom.cem-bin) | `resources/cem-dom-projection-basic-dom.cem-bin` | Inspect a saved document tree without reconstructing source text. |
+| [data/cem-element-template/basic-card.cem](data/cem-element-template/basic-card.cem) | `resources/cem-element-template-basic-card.cem` | Read a declarative card component and its template. |
+| [data/cem-events-projection/basic-events.cem-bin](data/cem-events-projection/basic-events.cem-bin) | `resources/cem-events-projection-basic-events.cem-bin` | Inspect a saved stream of document events. |
+| [data/cem-ml/basic.cem](data/cem-ml/basic.cem) | `resources/cem-ml-basic.cem` | Start with a small CEM document. |
+| [data/cem-native-template/basic-template.cem](data/cem-native-template/basic-template.cem) | `resources/cem-native-template-basic-template.cem` | Read a native template that produces document content. |
+| [data/cem-ql/basic-query.cemql](data/cem-ql/basic-query.cemql) | `resources/cem-ql-basic-query.cemql` | Try a small query written in CEM-QL. |
+| [data/cem-transform/basic-transform.cemt](data/cem-transform/basic-transform.cemt) | `resources/cem-transform-basic-transform.cemt` | Read a transformation template. |
+| [data/cli-command/parse-ast.json](data/cli-command/parse-ast.json) | `resources/cli-command-parse-ast.json` | Inspect a saved command for parsing a source file. |
+| [data/css/basic-stylesheet.css](data/css/basic-stylesheet.css) | `resources/css-basic-stylesheet.css` | Inspect a basic stylesheet and its rules. |
+| [data/css-selector/basic-selector.css-selector](data/css-selector/basic-selector.css-selector) | `resources/css-selector-basic-selector.css-selector` | Read a selector that finds document elements. |
+| [data/csv/basic-table.csv](data/csv/basic-table.csv) | `resources/csv-basic-table.csv` | Inspect a small table stored as CSV. |
+| [data/html/basic-document.html](data/html/basic-document.html) | `resources/html-basic-document.html` | Inspect a complete HTML document. |
+| [data/json/basic-object.json](data/json/basic-object.json) | `resources/json-basic-object.json` | Inspect an object with structured JSON values. |
+| [data/json-schema/basic-schema.json](data/json-schema/basic-schema.json) | `resources/json-schema-basic-schema.json` | Read rules describing a JSON object. |
+| [data/markdown/basic-document.md](data/markdown/basic-document.md) | `resources/markdown-basic-document.md` | Preview headings and paragraphs written in Markdown. |
+| [data/mathml/basic-presentation.mml](data/mathml/basic-presentation.mml) | `resources/mathml-basic-presentation.mml` | Inspect a mathematical formula written in MathML. |
+| [data/module-map/source-modules.json](data/module-map/source-modules.json) | `resources/module-map-source-modules.json` | Read version 1 module name and file mappings. |
+| [data/module-map-v2/source-modules-and-resources.json](data/module-map-v2/source-modules-and-resources.json) | `resources/module-map-v2-source-modules-and-resources.json` | Read version 2 mappings for modules and other resources. |
+| [data/module-map-v3/source-worker-safe-modules.json](data/module-map-v3/source-worker-safe-modules.json) | `resources/module-map-v3-source-worker-safe-modules.json` | Read version 3 mappings with worker-safe modules. |
+| [data/relax-ng/basic-schema-xml.rng](data/relax-ng/basic-schema-xml.rng) | `resources/relax-ng-basic-schema-xml.rng` | Read an XML grammar written in RELAX NG. |
+| [data/schema/basic-schema.cem](data/schema/basic-schema.cem) | `resources/schema-basic-schema.cem` | Read a schema that defines a CEM vocabulary. |
+| [data/schema-package/basic-package.cem](data/schema-package/basic-package.cem) | `resources/schema-package-basic-package.cem` | Read the manifest that groups a schema with its examples. |
+| [data/scss/basic-source.scss](data/scss/basic-source.scss) | `resources/scss-basic-source.scss` | Inspect stylesheet variables and other SCSS source features. |
+| [data/studio-project/feature-tour-cem.cem](data/studio-project/feature-tour-cem.cem) | `resources/studio-project-feature-tour-cem.cem` | Read a portable Studio project description. |
+| [data/svg/basic-icon.svg](data/svg/basic-icon.svg) | `resources/svg-basic-icon.svg` | Inspect an SVG icon and its drawing instructions. |
+| [data/xhtml/basic-document.xhtml](data/xhtml/basic-document.xhtml) | `resources/xhtml-basic-document.xhtml` | Inspect an HTML document written as namespace-aware XML. |
+| [data/xml/basic-document.xml](data/xml/basic-document.xml) | `resources/xml-basic-document.xml` | Inspect a small XML document and its elements. |
+| [data/xpath/basic-path.xpath](data/xpath/basic-path.xpath) | `resources/xpath-basic-path.xpath` | Read a path expression that selects document nodes. |
+| [data/xslt/basic-stylesheet.xsl](data/xslt/basic-stylesheet.xsl) | `resources/xslt-basic-stylesheet.xsl` | Read an XSLT stylesheet that transforms XML. |
+| [data/yaml/basic-document.yaml](data/yaml/basic-document.yaml) | `resources/yaml-basic-document.yaml` | Inspect a small YAML document with named values. |
+| [workbenches/input.cem](workbenches/input.cem) | `workbenches/input.cem` | A small CEM input for the portable operations. |
+| [workbenches/data.xml](workbenches/data.xml) | `workbenches/data.xml` | XML data for the portable query and transformation. |
+| [workbenches/template.xpath](workbenches/template.xpath) | `workbenches/template.xpath` | The XPath transformation used by the portable build. |
+| [workbenches/graph.cem](workbenches/graph.cem) | `workbenches/graph.cem` | Connects the portable import, transformation and export. |
+
+## Using the showcase
+
 Use this ordinary project to compare native source validation across the
 registered schema packages, then inspect five small portable command workflows.
 The generated **Schema examples** catalog project and legacy **CEM-ML Feature

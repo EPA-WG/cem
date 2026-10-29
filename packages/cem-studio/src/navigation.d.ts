@@ -68,7 +68,7 @@ export interface CemStudioNavigationState {
     readonly canCreate: boolean;
     readonly canClone: boolean;
     readonly canDelete: boolean;
-    readonly sourcePreview?: CemStudioSourcePreviewState & Readonly<{ resourceId: string; sourceUri: string; contentType: string; schema?: string; text: string; revision: number; sha256: string; draft: boolean; mode: 'saved' | 'draft' }>;
+    readonly sourcePreview?: CemStudioSourcePreviewState & Readonly<{ resourceId: string; path?: string; sourceUri: string; contentType: string; schema?: string; text: string; revision: number; sha256: string; draft: boolean; mode: 'saved' | 'draft' }>;
     readonly expanded: string;
     readonly selected: CemStudioNavigationNode;
     readonly children: readonly CemStudioNavigationNode[];
@@ -101,6 +101,7 @@ export interface CemStudioNavigation extends CemStudioFeatureTourWorkbench {
     requestAction(kind: 'create' | 'clone' | 'delete'): void;
     cancelAction(): void;
     submitAction(fields: Readonly<Record<string, readonly string[]>>): Promise<void>;
+    openSourceLink(path: string): Promise<void>;
     selectPreviewConfiguration(id: string): void;
     selectPreviewArtifact(path: string): void | Promise<void>;
     pinProjectBuild(): Promise<void>;
@@ -156,7 +157,7 @@ export interface CemStudioSourcePreviewState {
 }
 export function createCemStudioSourcePreview(options?: { validator?: Pick<CemStudioBrowserValidator, 'runResourceCommand'>; delay?: number }): {
     snapshot(): CemStudioSourcePreviewState;
-    setSource(source?: Readonly<{ resourceId: string; sourceUri: string; contentType: string; schema?: string; text: string; revision: number; sha256: string; draft: boolean; projectId?: string; projectRootUri?: string; projectRevision?: number }>): void;
+    setSource(source?: Readonly<{ resourceId: string; path?: string; sourceUri: string; contentType: string; schema?: string; text: string; revision: number; sha256: string; draft: boolean; projectId?: string; projectRootUri?: string; projectRevision?: number }>): void;
     subscribe(notify: (state: CemStudioSourcePreviewState) => void): () => void;
     dispose(): void;
 };

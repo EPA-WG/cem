@@ -1,5 +1,18 @@
 # SCSS stylesheet
 
+Build a card stylesheet from SCSS variables and a shared token file. Edit the colors or spacing, rebuild the page and compare the generated CSS.
+
+## Essential files
+
+- [styles/cards.scss](styles/cards.scss) — The main SCSS stylesheet.
+- [styles/_tokens.scss](styles/_tokens.scss) — Shared variables imported by the stylesheet.
+- [data/card.html](data/card.html) — The original card markup.
+- [templates/page.cemt](templates/page.cemt) — The page template for the preview.
+- [graphs/styles.cem](graphs/styles.cem) — Builds the CSS and HTML outputs.
+- [failures/missing-brace.scss](failures/missing-brace.scss) — An incomplete SCSS block to repair.
+
+## Using the example
+
 Open **Examples → Content types and schemas → Documents and UI → SCSS
 stylesheet**, or find the same ordinary project under **Queries and
 transformations**. Clone it to edit a saved copy. This project demonstrates a

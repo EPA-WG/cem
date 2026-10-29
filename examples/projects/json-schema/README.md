@@ -1,5 +1,16 @@
 # JSON Schema source authoring
 
+Write rules for a small JSON note document and inspect the schema itself. This example separates checking a schema from checking the JSON data it describes.
+
+## Essential files
+
+- [schemas/note.schema.json](schemas/note.schema.json) — The JSON Schema source to edit and inspect.
+- [data/note.json](data/note.json) — Example note data; its configuration checks JSON syntax.
+- [failures/unsupported-dialect.schema.json](failures/unsupported-dialect.schema.json) — A schema version the example deliberately rejects.
+- [expected/formatted-note.schema.json](expected/formatted-note.schema.json) — The reference formatted schema.
+
+## Using the example
+
 This ordinary Studio project authors a small note schema using the explicit
 `application/schema+json` identity and
 `https://cem.dev/ns/data/json-schema/1`. Open it under **Content types and schemas

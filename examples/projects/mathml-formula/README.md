@@ -1,5 +1,17 @@
 # MathML formula
 
+Inspect a mathematical formula and display it on a page. Compare presentation and content MathML, query the formula structure and repair a missing namespace.
+
+## Essential files
+
+- [data/formula.mml](data/formula.mml) — A formula expressed as presentation MathML.
+- [data/content.mathml](data/content.mathml) — A formula expressed as content MathML.
+- [queries/formula.xpath](queries/formula.xpath) — Reads the formula structure.
+- [graphs/formula.cem](graphs/formula.cem) — Builds a page containing the formula.
+- [failures/missing-namespace.mml](failures/missing-namespace.mml) — A formula with a missing namespace to repair.
+
+## Using the example
+
 Open **Examples → Content types and schemas → Documents and UI → MathML formula**,
 or find the same project under **Queries and transformations**. Clone it to make
 an editable saved project. It demonstrates native source handling and a shared

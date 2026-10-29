@@ -59,7 +59,8 @@
       {cem:choose |
        {cem:when @test=nav.output |
         {cem-tree @data-cem-density=super-compact @label="Output files" @selection=single @activate-branches=true @separate-toggle=true @selected-values={nav.trees.output.selected} @expanded-values={nav.trees.output.expanded} @host-command=open-entity @host-command-event=cem-tree-activate @host-command-cem-tree-toggle=toggle-output |
-         {call @template=tree-node @with:item={nav.output}}
+         {cem:variable @name=outputItems @select='if seq:count(nav.output.children.key) == 1 &amp;&amp; nav.output.children.kind == "output-folder" { nav.output.children.children } else { nav.output.children }'}
+         {cem:for-each @as=item @select=outputItems | {call @template=tree-node @with:item={item}}}
         }
        }
        {cem:otherwise | {p | Build a project to populate its output files.}}

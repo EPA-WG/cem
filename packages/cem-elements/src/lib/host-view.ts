@@ -4,7 +4,7 @@ import { cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
 export interface CemHostCommandRequest {
     readonly command: string;
     readonly eventType: string;
-    /** Native/admitted plaintext value or validated composite identity; never arbitrary event detail. */
+    /** Native/plaintext value, routed link scalar or validated composite identity; never arbitrary event detail. */
     readonly value: string | null;
     readonly isTrusted: boolean;
     /** Opaque host journal ID, present only for opted-in checkpoint domains. */
@@ -84,16 +84,25 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
         if (!command) return;
         const handler = commands.get(command);
         if (!handler || control.hasAttribute('disabled')) return;
+        const commandControl = control;
+        const anchor = event.type === 'click' ? event.composedPath().find((target): target is Element =>
+            target instanceof Element && commandControl.contains(target) && target.matches('a[href], area[href]')) : undefined;
+        if (anchor) {
+            // A handled link delegates primary activation to the host service.
+            // Modified activation keeps native browsing and never invokes it twice.
+            if (event instanceof MouseEvent && (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)) return;
+        }
         if (event.type === 'submit') event.preventDefault();
         try {
             const fields = event.type === 'submit' ? formFields(event, control, element) : undefined;
-            const value = event.type === 'cem-tree-activate' || event.type === 'cem-tree-toggle' || event.type === 'cem-disclosure-toggle' || event.type === 'cem-tab' || event.type === 'cem-preview-navigate' ? activationValue(event) : controlValue(event.target, control);
+            const value = event.type === 'cem-tree-activate' || event.type === 'cem-tree-toggle' || event.type === 'cem-disclosure-toggle' || event.type === 'cem-tab' || event.type === 'cem-preview-navigate' ? activationValue(event) : controlValue(event.target, control) ?? (anchor ? control.getAttribute('value') ?? anchor.getAttribute('href') : null);
             // Input capture (FormData listeners, custom control getters or
             // payload proxy traps) can revoke authority before delivery.
             if (!active || !element.isConnected || !runtime.hasDeclarationFor(element) || !element.contains(control)
                 || event.defaultPrevented && event.type !== 'submit'
                 || control.hasAttribute('disabled') || commands.get(command) !== handler
                 || binding(control, event.type) !== command) return;
+            if (anchor) event.preventDefault();
             const operation = runtime.beginCheckpointOperation(element);
             const request = Object.freeze({ command, eventType: event.type, value, isTrusted: event.isTrusted,
                 ...(fields ? { fields } : {}), ...(operation ? { checkpointOperationId: operation.operationId } : {}) });

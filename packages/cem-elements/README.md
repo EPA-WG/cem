@@ -1433,6 +1433,15 @@ control, a validated tree/tab activation value, or null; it receives no DOM node
 Clicks on nested icons or labels read the enclosing native/form-associated
 control's value, stopping at the bound command element. Values are never taken
 from unrelated controls outside that boundary.
+Handled anchor clicks delegate primary activation to the host command and
+prevent duplicate native page navigation after input/authority revalidation.
+Clicks on nested link labels follow the same rule. A routed link supplies the
+bound control's explicit `value` attribute, or its raw `href` when no value is
+declared. Ctrl/Command/Shift/Alt and
+non-primary activation retain native link behavior without calling the command;
+unhandled links keep their normal navigation. An ordinary link still needs a
+real `href` so opening it separately remains possible.
+
 Submit bindings prevent native
 submission for an authorized command. Declare submit commands on native forms;
 the request additionally includes frozen `fields` mapping names to arrays of

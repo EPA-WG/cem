@@ -26,7 +26,7 @@ function fixture() {
             { id: 'expected', path: 'expected/output.json', contentType: 'application/json' },
             { id: 'readme', path: 'README.md', source: 'examples/projects/demo/README.md', contentType: 'text/markdown' },
         ], configurations: [{ id: 'inspect-source', source: 'input', kind: 'inspection', argv: ['inspect', '$source'], expectedOutput: 'expected' }] },
-        readme: { id: 'readme', text: 'Use `inspect-source`. `application/xml` `urn:registered:xml` `application/json`. Source coordinates are not owned publication.' } }],
+        readme: { id: 'readme', text: '# Demo\n\nInspect a small sample document.\n\n## Essential files\n\n- [data/input.xml](data/input.xml) — The source document to inspect.\n\n## Commands\n\nUse `inspect-source`. `application/xml` `urn:registered:xml` `application/json`. Source coordinates are not owned publication.' } }],
         registry: [{ packageId: 'xml', schemaUri: 'urn:registered:xml', contentTypes: [{ value: 'application/xml' }, { value: 'text/xml' }] }],
         operations: [{ operation: 'inspect', availability: 'available' }, { operation: 'bench', availability: 'unavailable' }],
         workflows: [{ project: 'demo', resource: 'input', configuration: 'inspect-source' }],
@@ -47,6 +47,12 @@ test('reports declared inputs separately from expected fixture/dependency metada
 
 for (const [name, mutate, code] of [
     ['missing README resource', data => data.projects[0].definition.sources.pop(), 'readme_resource'],
+    ['missing README title', data => { data.projects[0].readme.text = data.projects[0].readme.text.replace('# Demo', 'Demo'); }, 'readme_title'],
+    ['missing purpose paragraph', data => { data.projects[0].readme.text = data.projects[0].readme.text.replace('Inspect a small sample document.\n\n', ''); }, 'readme_purpose'],
+    ['missing essential links', data => { data.projects[0].readme.text = data.projects[0].readme.text.replace('[data/input.xml](data/input.xml)', '`data/input.xml`'); }, 'readme_files'],
+    ['unavailable essential file', data => { data.projects[0].readme.text = data.projects[0].readme.text.replace('](data/input.xml)', '](data/absent.xml)'); }, 'readme_file_reference'],
+    ['external essential file', data => { data.projects[0].readme.text = data.projects[0].readme.text.replace('](data/input.xml)', '](https://outside.invalid/input.xml)'); }, 'readme_file_reference'],
+    ['essential file without purpose', data => { data.projects[0].readme.text = data.projects[0].readme.text.replace(' — The source document to inspect.', ''); }, 'readme_file_purpose'],
     ['empty README', data => { data.projects[0].readme.text = ''; }, 'readme'],
     ['binary documentation metadata', data => { data.projects[0].definition.sources.at(-1).contentType = 'application/octet-stream'; }, 'readme_identity'],
     ['conflicting documentation schema', data => { data.projects[0].definition.sources.at(-1).schema = 'urn:registered:xml'; }, 'readme_identity'],
@@ -94,7 +100,7 @@ test('generated documentation is required without counting compatibility seed co
         { id: 'input', path: 'data/input.xml', contentType: 'application/xml', schema: 'urn:registered:xml' },
         { id: 'readme', path: 'README.md', contentType: 'text/markdown' },
     ], entries: [{ id: 'workbench-inspect', kind: 'inspection', resourceIds: ['input'] }, { id: 'group', kind: 'subproject' }] },
-    readme: { id: 'readme', text: '`workbench-inspect` `application/xml` `urn:registered:xml`' },
+    readme: { id: 'readme', text: '# Generated samples\n\nInspect a small sample document.\n\n## Essential files\n\n- [data/input.xml](data/input.xml) — The source document to inspect.\n\n## Commands\n\n`workbench-inspect` `application/xml` `urn:registered:xml`' },
     commands: [{ entryId: 'workbench-inspect', command: 'inspect', source: 'input' }] };
     data.generatedProjects = [generated];
     assert.equal(auditCatalog(data).operations[0].declaredConfigurations, 1);
@@ -110,4 +116,29 @@ test('reads the explicit workflow inventory boundary without scanning unrelated 
     const rows = inventoryWorkflows('Other `fake` references\n<!-- existing-samples:start -->\n| Project | Resource | Configuration |\n| --- | --- | --- |\n| `demo` | `input` | `inspect-source` |\n<!-- existing-samples:end -->');
     assert.deepEqual(rows, fixture().workflows);
     assert.throws(() => inventoryWorkflows('no table'), /cem.catalog.workflow_inventory/);
+});
+
+
+test('requires a purposeful file link for every served content-type example', () => {
+    const data = fixture(), original = data.projects[0];
+    const generated = { id: 'schema-examples', project: { resources: [...original.definition.sources,
+        { id: 'example-extra', path: 'data/extra.xml', contentType: 'application/xml', schema: 'urn:registered:xml' }], entries: [] },
+        readme: { ...original.readme }, commands: [] };
+    data.generatedProjects = [generated];
+    assert.throws(() => auditCatalog(data), /cem.catalog.showcase_file_documentation/);
+    generated.readme.text = generated.readme.text.replace('## Commands', '- [data/extra.xml](data/extra.xml) — Another served XML example.\n\n## Commands');
+    assert.doesNotThrow(() => auditCatalog(data));
+});
+
+
+test('checks showcase served filenames against the actual catalog transport metadata', () => {
+    const data = fixture(), original = data.projects[0];
+    const generated = { id: 'schema-examples', project: { resources: original.definition.sources, entries: [] },
+        readme: { ...original.readme }, commands: [], servedFiles: [{ path: 'data/input.xml', asset: 'resources/input.xml' }] };
+    data.generatedProjects = [generated];
+    assert.throws(() => auditCatalog(data), /cem.catalog.served_file_documentation/);
+    generated.readme.text += ' `resources/wrong.xml`';
+    assert.throws(() => auditCatalog(data), /cem.catalog.served_file_documentation/);
+    generated.readme.text += ' `resources/input.xml`';
+    assert.doesNotThrow(() => auditCatalog(data));
 });

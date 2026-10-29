@@ -30,6 +30,30 @@ const meta = preview.meta({
     }],
 });
 
+export const FieldLabelHierarchy = meta.story({
+    render: () => ['light', 'dark', 'contrast-light', 'contrast-dark'].flatMap(theme =>
+        ['sparse', 'normal', 'compact', 'super-compact'].map(density =>
+            `<section class="cem-theme-${theme}" data-cem-density="${density}"><cem-select label="Build configuration"><cem-option value="build" selected>Build the project</cem-option></cem-select></section>`)).join(''),
+    play: async ({ canvasElement }) => {
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-select')) {
+            await whenCemRendered(host);
+            const label = host.querySelector<HTMLElement>('[part~=label]');
+            const control = host.querySelector<HTMLElement>('[role=combobox]');
+            const root = host.querySelector<HTMLElement>('[part~=root]');
+            if (!label || !control || !root) throw new Error('Missing labeled select structure');
+            const caption = getComputedStyle(label), field = getComputedStyle(control), group = getComputedStyle(root);
+            await expect(control).toHaveAccessibleName('Build configuration');
+            await expect(control.getAttribute('aria-labelledby')).toBe(label.id);
+            await expect(Number.parseFloat(caption.fontSize)).toBeLessThan(Number.parseFloat(field.fontSize));
+            await expect(caption.fontWeight).toBe(caption.getPropertyValue('--cem-typography-tag-font-weight').trim());
+            await expect(caption.fontFamily).toBe(field.fontFamily);
+            await expect(label.matches('a,button,[role=button],[role=link]')).toBe(false);
+            const distance = control.getBoundingClientRect().top - label.getBoundingClientRect().bottom;
+            await expect(Math.abs(distance - Number.parseFloat(group.rowGap))).toBeLessThan(0.5);
+        }
+    },
+});
+
 export const ListboxScrollOwnership = meta.story({
     render: () => '<section></section>',
     play: async ({ canvasElement }) => {

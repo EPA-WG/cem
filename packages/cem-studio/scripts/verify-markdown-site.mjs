@@ -54,9 +54,11 @@ export async function verifyMarkdownSite({ page, context, url }) {
     const viewReady = async title => {
         await page.waitForFunction(title => document.querySelector('cem-media-preview[mode="artifact-tree"] iframe')?.contentDocument?.querySelector('h1')?.textContent === title, title);
     };
-    const expandGeneratedOutput = async () => {
-        const generated = page.getByRole('tree', { name: 'Output files', exact: true }).getByRole('treeitem', { name: 'generated', exact: true });
-        if (await generated.getAttribute('aria-expanded') === 'false') { await generated.locator('[part~=marker]').click(); await settle(); }
+    const checkOutputRoots = async () => {
+        const tree = page.getByRole('tree', { name: 'Output files', exact: true });
+        await tree.locator('[role="treeitem"][aria-level="1"][aria-label="index.html"]').waitFor();
+        assert.equal(await tree.getByRole('treeitem', { name: 'Output files', exact: true }).count(), 0);
+        assert.equal(await tree.getByRole('treeitem', { name: 'generated', exact: true }).count(), 0);
     };
     const save = async text => { await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(text); await settle(); await click('Save and validate'); };
     const open = async (project, file) => {
@@ -112,7 +114,7 @@ export async function verifyMarkdownSite({ page, context, url }) {
     const sample = await build();
     console.log('[cem-studio:markdown-site] catalog build ready');
     assert.equal(sample.artifacts.length, 7); await viewReady('CEM field notes');
-    await expandGeneratedOutput();
+    await checkOutputRoots();
     await page.screenshot({ path: '/tmp/cem-studio-compact-project-build.png', fullPage: true });
     await frame.contentFrame().getByRole('link', { name: 'a small build', exact: true }).click(); await settle();
     await viewReady('Build a small site');
@@ -194,7 +196,7 @@ export async function verifyMarkdownSite({ page, context, url }) {
     assert.equal(edited.file, article);
     await page.evaluate(() => globalThis.__cemStudioApplication.workbench.selectPreviewArtifact('generated/articles/first-build.html')); await settle();
     await viewReady('Build an edited site');
-    await expandGeneratedOutput();
+    await checkOutputRoots();
     await page.screenshot({ path: '/tmp/cem-studio-compact-editor-preview.png', fullPage: true });
     const successful = await state();
     await save(original.replace('title: Build a small site', 'title: [broken'));

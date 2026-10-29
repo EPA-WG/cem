@@ -1,5 +1,17 @@
 # CSS selector queries
 
+Find product cards in an HTML page and products in an XML catalog. Try different selectors and repair one that is incomplete.
+
+## Essential files
+
+- [data/products.html](data/products.html) — Product cards to select from an HTML document.
+- [queries/ready-cards.css-selector](queries/ready-cards.css-selector) — Selects the cards marked ready.
+- [data/catalog.xml](data/catalog.xml) — A product catalog with named XML namespaces.
+- [queries/namespaced-products.css-selector](queries/namespaced-products.css-selector) — Selects products using those namespace names.
+- [failures/invalid.css-selector](failures/invalid.css-selector) — An incomplete selector to repair.
+
+## Using the example
+
 Open **Examples → Content types and schemas → Queries and transformations →
 CSS selector queries**, or find the same project under **Documents and UI**.
 Clone it to edit an ordinary saved project. Typical uses are finding document

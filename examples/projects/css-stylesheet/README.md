@@ -1,5 +1,18 @@
 # CSS stylesheet
 
+Edit a card stylesheet, check it for mistakes and preview the styled cards. The build keeps the HTML and CSS as separate output files.
+
+## Essential files
+
+- [styles/cards.css](styles/cards.css) — The stylesheet to inspect, format and edit.
+- [data/preview.html](data/preview.html) — The original card markup.
+- [templates/cards.cemt](templates/cards.cemt) — Produces the HTML cards for the preview.
+- [graphs/cards.cem](graphs/cards.cem) — Builds the page and its stylesheet.
+- [failures/unclosed-rule.css](failures/unclosed-rule.css) — A broken CSS rule to diagnose and repair.
+- [expected/cards.html](expected/cards.html) — The reference HTML output.
+
+## Using the example
+
 Open **Examples → Content types and schemas → Documents and UI → CSS stylesheet**.
 The same ordinary project appears under **Queries and transformations**. Clone
 it to edit saved source and build resources independently of the catalog original.

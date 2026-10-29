@@ -20,9 +20,10 @@ export async function verifyCemqlReadmePreview(page) {
     assert.equal(state.build, route.build);
     for (const [key, value] of Object.entries(route)) assert.equal(new URL(page.url()).searchParams.get(key), value);
     for (const key of ['collection', 'sample', 'file']) assert.equal(state.route[key], route[key]);
-    const preview = page.locator('[data-cem-studio-preview] cem-media-preview[mode="document"] iframe');
+    const preview = page.locator('[data-cem-studio-preview] cem-media-preview[mode="artifact-tree"] iframe');
     await preview.scrollIntoViewIfNeeded();
-    assert.equal(await preview.getAttribute('sandbox'), '');
+    assert.equal(await preview.getAttribute('sandbox'), 'allow-same-origin');
+    assert.equal(await preview.getAttribute('allow'), '');
     const frame = preview.contentFrame();
     const table = frame.getByRole('table').filter({ hasText: /Configuration\s*Typical use\s*Expected result/ });
     await table.waitFor();
@@ -116,7 +117,14 @@ export async function verifyCatalogDocumentation({ page, context, url }) {
         }
     };
     const browseOriginal = async (sample, retainedDraft) => {
-        const route = { sample, file: 'readme' }; await open(route);
+        const route = { sample, file: 'readme' };
+        await open({ sample });
+        const link = page.getByRole('link', { name: 'README', exact: true });
+        const href = new URL(await link.getAttribute('href'), page.url());
+        assert.equal(href.searchParams.get('sample'), sample); assert.equal(href.searchParams.get('file'), 'readme');
+        const marker = await observe(() => globalThis.__cemReadmeNavigationMarker = crypto.randomUUID());
+        await link.click(); await settle();
+        assert.equal(await observe(() => globalThis.__cemReadmeNavigationMarker), marker, 'README link must use guarded navigation without reloading');
         const current = await state(); checkRoute(current, route);
         assert.equal(current.content, 'sample-file'); assert.equal(current.sampleTextAvailable, true);
         assert.equal(await readonly.getAttribute('aria-readonly'), 'true');
@@ -148,6 +156,21 @@ export async function verifyCatalogDocumentation({ page, context, url }) {
     console.log(`[cem-studio:catalog-docs] browsing ${originals.size} original README resources`);
     for (const sample of originals.keys()) await browseOriginal(sample);
     await verifyCemqlReadmePreview(page);
+    const sourceLink = page.locator('[data-cem-studio-preview] cem-media-preview[mode="artifact-tree"] iframe').contentFrame()
+        .getByRole('link', { name: 'data/orders.json', exact: true });
+    await sourceLink.click(); await settle();
+    const orders = definitions.find(item => item.id === 'cemql-orders').sources.find(item => item.path === 'data/orders.json');
+    assert.equal((await state()).route.file, orders.id);
+    assert.equal(new URL(page.url()).searchParams.get('build'), 'report-ready');
+    assert.equal(await readonly.evaluate(element => element.value), await readFile(new URL(`../../../${orders.source}`, import.meta.url), 'utf8'));
+    const showcase = await observe(() => globalThis.__cemStudioApplication.exampleProjects.examples.find(item => item.id === 'schema-examples').load());
+    await browseOriginal('schema-examples');
+    await page.waitForFunction(() => globalThis.__cemStudioApplication.workbench.snapshot().navigation.sourcePreview?.status === 'ready');
+    const showcaseFrame = page.locator('[data-cem-studio-preview] cem-media-preview[mode="artifact-tree"] iframe').contentFrame();
+    for (const resource of showcase.project.resources.filter(item => item.id.startsWith('example-'))) {
+        await showcaseFrame.getByRole('link', { name: resource.path, exact: true }).waitFor();
+    }
+
 
     await open({}); await click('Create'); await submit('Catalog documentation starter', 'Create');
     const created = await state(), starterId = created.route.project; assert.ok(starterId);
@@ -166,13 +189,13 @@ export async function verifyCatalogDocumentation({ page, context, url }) {
     assert.equal(readmeResource.contentType, 'text/markdown; charset=utf-8');
     assert.equal(readmeResource.schema, 'https://cem.dev/ns/data/markdown/1');
     assert.deepEqual(Buffer.from(starter.source), starterSource); assert.deepEqual(Buffer.from(starter.readme), starterReadme);
-    await open({ project: starterId, file: 'readme' }); checkRoute(await state(), { project: starterId, file: 'readme' });
+    await open({ project: starterId }); await page.getByRole('link', { name: 'README', exact: true }).click(); await settle(); checkRoute(await state(), { project: starterId, file: 'readme' });
     assert.equal((await state()).editable, true);
     assert.equal(await bounded(editor.evaluate(element => element.value), 'starter README'), starterReadme.toString('utf8'));
     console.log('[cem-studio:catalog-docs] original README URLs/read-only views and source-first two-resource starter passed');
 
     const first = await cloneSchema('Catalog documentation saved copy');
-    await open({ project: first, file: 'readme' });
+    await open({ project: first }); await page.getByRole('link', { name: 'README', exact: true }).click(); await settle();
     assert.equal(await bounded(editor.evaluate(element => element.value), 'schema README'), schemaOriginal);
     const saved = `${schemaOriginal}\n## Saved documentation note\n\nCafé Amsterdam belongs to this saved copy.\n`;
     await edit(saved); await click('Save and validate');
@@ -186,11 +209,15 @@ export async function verifyCatalogDocumentation({ page, context, url }) {
     assert.deepEqual(Buffer.from(secondSaved.readme), originals.get('schema-examples'));
     assert.ok(firstSaved.project.revision > secondSaved.project.revision);
 
-    await open({ project: first, file: 'readme' });
+    await open({ project: first }); await page.getByRole('link', { name: 'README', exact: true }).click(); await settle();
     const draft = `${saved}\nUnsaved note: keep this draft while browsing the catalog.\n`;
     await edit(draft); assert.equal((await state()).dirty, true);
     await browseOriginal('schema-examples', draft);
     await browseOriginal('login', draft);
+    await open({ project: first });
+    assert.equal(await observe(() => globalThis.__cemStudioApplication.workbench.snapshot().transition?.stage), 'source');
+    assert.equal((await state()).draft, draft);
+    await click('Cancel navigation');
     await open({ project: first, file: 'readme' });
     assert.equal(await bounded(editor.evaluate(element => element.value), 'retained draft'), draft);
     console.log('[cem-studio:catalog-docs] saved README editing, independent clones and retained unsaved catalog browsing passed');
@@ -203,6 +230,8 @@ export async function verifyCatalogDocumentation({ page, context, url }) {
         assert.equal(await bounded(editor.evaluate(element => element.value), 'offline restored draft'), draft);
         for (const sample of originals.keys()) await browseOriginal(sample, draft);
         await verifyCemqlReadmePreview(page);
+        await sourceLink.click(); await settle();
+        assert.equal((await state()).route.file, orders.id);
         assert.equal((await state()).dirty, true); assert.equal((await state()).draft, draft);
         await verifyOriginalBytes();
         await open({ project: first, file: 'readme' });
@@ -220,5 +249,6 @@ export async function verifyCatalogDocumentation({ page, context, url }) {
         starterTwoResources: true, starterDefaultPreview: true, savedSchemaReadme: true, independentCopies: true,
         unsavedDraftRetained: true, offlineDraftRestored: true, offlineReadmes: originals.size,
         unchangedOriginals: true, savedBytesPreserved: true, existingProjectsPreserved: true, existingDraftsPreserved: true,
+        projectHomeReadmeLinks: true, sourceFileLinks: true, offlineSourceFileLinks: true, allServedTypeFiles: true,
         nativeReadmeTables: true, offlineReadmeTables: true };
 }

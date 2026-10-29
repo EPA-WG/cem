@@ -1,5 +1,19 @@
 # CSV inventory
 
+Find products that need restocking in a CSV inventory. Compare files with and without a header, adjust how headers are read, and repair common quoting mistakes.
+
+## Essential files
+
+- [data/inventory.csv](data/inventory.csv) — Inventory with a header row.
+- [data/inventory-headerless.csv](data/inventory-headerless.csv) — The same kind of inventory without a header.
+- [config/header-policy.json](config/header-policy.json) — The saved header-reading settings.
+- [queries/low-stock.cem-ql](queries/low-stock.cem-ql) — Selects products that need restocking.
+- [graphs/inventory.cem](graphs/inventory.cem) — Builds the low-stock HTML and JSON reports.
+- [data/unclosed-quote.csv](data/unclosed-quote.csv) — An unfinished quoted field to repair.
+- [expected/low-stock.html](expected/low-stock.html) — The reference report page.
+
+## Using the example
+
 Use this ordinary project to inspect a spreadsheet export, compare declared
 header policies, repair native CSV diagnostics and report inventory that needs
 attention. Product names and quantities are fictional; the report performs no

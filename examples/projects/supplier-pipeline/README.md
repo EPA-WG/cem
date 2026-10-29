@@ -1,5 +1,19 @@
 # Supplier pipeline
 
+Combine a supplier catalog with stock figures to make an availability report. Change a product or its stock, then rebuild the HTML, JSON and YAML reports.
+
+## Essential files
+
+- [data/catalog.xml](data/catalog.xml) — The supplier product catalog.
+- [data/stock.csv](data/stock.csv) — Current stock quantities.
+- [templates/reconcile.cemt](templates/reconcile.cemt) — Combines catalog products with stock data.
+- [templates/view.cemt](templates/view.cemt) — Displays the availability report.
+- [graphs/availability.cem](graphs/availability.cem) — Connects the inputs, transformations and outputs.
+- [data/catalog-invalid.xml](data/catalog-invalid.xml) — A damaged catalog to repair.
+- [expected/availability.html](expected/availability.html) — The reference availability page.
+
+## Using the example
+
 Open **Examples → Content types and schemas → Data → Supplier pipeline**, or
 find the same project under **Amsterdam 2026**. Clone it, then open the resulting
 ordinary editable project in Studio. The catalog original remains unchanged;

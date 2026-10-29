@@ -11,6 +11,14 @@
  {cem:if @test=datadom.slices.navigation |
   {cem:variable @name=nav @select=datadom.slices.navigation}
   {cem:if @test='nav.error &amp;&amp; !nav.action' | {cem-alert @tone=danger @label={nav.error.message}}}
+  {cem:if @test='nav.content == "project"' |
+   {p | {$ | nav.selected.description}}
+   {cem:for-each @as=item @select=nav.children |
+    {cem:if @test='item.kind == "file" &amp;&amp; str:lower(item.name) == "readme.md"' |
+     {cem-icon-button @image="▤" @label="README" @align=start @variant=contextual @href={str:concat(("?", item.key), "")} @value={item.key} @host-command=open-entity @host-command-event=click}
+    }
+   }
+  }
   {cem:if @test='nav.content == "folder" || nav.content == "output-folder"' |
    {p | {$ | nav.selected.description}}
    {ul @part=listing @aria-label="Folder contents" |

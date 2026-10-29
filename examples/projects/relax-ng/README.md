@@ -1,5 +1,17 @@
 # RELAX NG source authoring
 
+Write a small XML grammar in both RELAX NG syntaxes. Inspect and format the grammar sources, then repair missing or unfinished declarations.
+
+## Essential files
+
+- [schemas/note.rng](schemas/note.rng) — The XML form of the grammar.
+- [schemas/note.rnc](schemas/note.rnc) — The compact form of the grammar.
+- [data/note.xml](data/note.xml) — Example note data; its configuration checks XML syntax.
+- [failures/missing-start.rng](failures/missing-start.rng) — A grammar missing its starting rule.
+- [failures/unclosed-note.rnc](failures/unclosed-note.rnc) — An unfinished compact declaration to repair.
+
+## Using the example
+
 This ordinary project compares XML and compact RELAX NG source for a small note
 contract. Open **Content types and schemas → Schema authoring**, clone the
 read-only example, and use the shared editor and native command controls.

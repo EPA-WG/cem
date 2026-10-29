@@ -1,5 +1,19 @@
 # XSLT transformation
 
+Turn customer orders into a report using XSLT. Compare a direct HTML transformation with a two-stage build, change its parameters and repair a broken stylesheet.
+
+## Essential files
+
+- [data/orders.xml](data/orders.xml) — The orders used by both builds.
+- [templates/report.xsl](templates/report.xsl) — Creates the filtered report data.
+- [templates/page.cemt](templates/page.cemt) — Displays that report through a CEM template.
+- [templates/page.xsl](templates/page.xsl) — Creates HTML directly with XSLT.
+- [graphs/report.cem](graphs/report.cem) — Runs the two-stage report build.
+- [failures/report.xsl](failures/report.xsl) — The intentionally broken stylesheet to repair.
+- [expected/direct.html](expected/direct.html) — The reference direct XSLT output.
+
+## Using the example
+
 This ordinary Studio project compares bounded native XSLT with the related
 **CEM transformation** project. Both own the same UTF-8 XML order document and
 produce the same explicit HTML entry. Open **Content types and schemas → Queries

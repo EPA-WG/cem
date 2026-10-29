@@ -54,6 +54,17 @@ native value fallback: a missing `value` derives from collapsed text. Rich
 content should use `cem-option` because native option parsing remains
 browser-constrained.
 
+## Field labels
+
+The label is a non-interactive field caption. It uses the theme's `tag`
+typography role (family, smaller size, firm weight, line height and letter
+spacing), while the selected value and help text retain the UI role. The label
+and control stay grouped by `--cem-gap-related` in every density; neither the
+control's hit target nor compact-mode dimensions change. Its ID remains the
+combobox/listbox's `aria-labelledby`, including slotted labels. Theme and
+forced-color text inheritance supplies contrast without reduced opacity or
+component-specific color defaults.
+
 ## Modes and interaction
 
 | Host shape | Rendered role | Selection behavior |

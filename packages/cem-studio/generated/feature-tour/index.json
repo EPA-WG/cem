@@ -156,7 +156,7 @@
     "name": "CEM-ML project",
     "version": "1.0.0",
     "archive": "./examples/starter.cem-studio.json",
-    "sha256": "a60af3d69c992f63e534a41044e2855c1c5e8924919dbf10007c62813bf94643"
+    "sha256": "06e6ef499c10a8eacf6493d501621e9eccae4949a7380424c4777881042cd07a"
   },
   "projects": [
     {
@@ -169,7 +169,7 @@
         "examples"
       ],
       "archive": "./examples/schema-examples.cem-studio.json",
-      "sha256": "636fff9f0b50ac63b0a2026f445ce892cdb0ad8ae0c2aa180334759c68bad581"
+      "sha256": "7854c277253cdb295d11478ffd9c0b5dec47dd2e6de76004f994b5266aac7f27"
     },
     {
       "id": "cem-schema",
@@ -180,7 +180,7 @@
         "content-types-schema-authoring"
       ],
       "archive": "./examples/cem-schema.cem-studio.json",
-      "sha256": "7d111e20bb48b8063840ccc14694a947b8738647ed8d2d4d0f7ca6a5c6b6f1a3"
+      "sha256": "5fd539d81967fb08eea2387bccae0139833f41ae799377cb0c44d34d54bafe0a"
     },
     {
       "id": "cem-transform",
@@ -191,7 +191,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/cem-transform.cem-studio.json",
-      "sha256": "96c4dbb53edd1c12271d9ff06970378a5f9e5794f2d39288637b86ad04664bca"
+      "sha256": "33562e8fd1279999ea4f6e3fde279521c5ad5feba9cc348428db03cec95f9f85"
     },
     {
       "id": "cemql-orders",
@@ -203,7 +203,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/cemql-orders.cem-studio.json",
-      "sha256": "567245ea3fc968db889beb20f3dedf30663038f3597d74abac2c298643acbf98"
+      "sha256": "80a60e0f9d28ef574db969178249bc32932f685f90a8e832bbf7746d36a45a47"
     },
     {
       "id": "css-selector",
@@ -215,7 +215,7 @@
         "content-types-documents-ui"
       ],
       "archive": "./examples/css-selector.cem-studio.json",
-      "sha256": "c38878ff12b4972737a504d3d7862f6c4b5f4b6155037fa240c5a467a49848b4"
+      "sha256": "d2a12844f4662b20515998fe49095ad084a3ed33558748974f31fe0f05f17863"
     },
     {
       "id": "css-stylesheet",
@@ -227,7 +227,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/css-stylesheet.cem-studio.json",
-      "sha256": "275d16980a08e6f810ab9e57fd4588f84bdaed0d44ee1a5fb4713cfea61466fe"
+      "sha256": "cd7e3039e6b40a7c4014d36fbfc8a22cba35dc4789fe47705e26f5667a9b2974"
     },
     {
       "id": "csv-inventory",
@@ -239,7 +239,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/csv-inventory.cem-studio.json",
-      "sha256": "292303ec80f8680a20e255e208b3414dfcdb59828d4ae207ceeb6077c9058e0c"
+      "sha256": "75c0395dde6468f54a02937990cf06a95e0ad3ef551082515dedf52a9f380cc7"
     },
     {
       "id": "html-cem-card",
@@ -251,7 +251,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/html-cem-card.cem-studio.json",
-      "sha256": "a73b60c5adb024ef95b72ea146531533dbb40c622a9505bbf013188af574a5a0"
+      "sha256": "23d45ba7d198e5b9f23183e9a1fe05c526dcb6de6c05a78d5bc84771bbf4b830"
     },
     {
       "id": "json-schema",
@@ -262,7 +262,7 @@
         "content-types-schema-authoring"
       ],
       "archive": "./examples/json-schema.cem-studio.json",
-      "sha256": "d8f4d6161561955aefb2beb9a01ce74f69f0a9f9752ce739480d4ae05754503b"
+      "sha256": "d679df089771da2c16b7b7ea3e2dd0b08440a7348d9b89ceca17c1a05f0253ce"
     },
     {
       "id": "json-yaml-report",
@@ -274,7 +274,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/json-yaml-report.cem-studio.json",
-      "sha256": "b50c8b8c34d1ae02f79cc45b3c6e84fec0d5a3263508f526a5f238ac19952461"
+      "sha256": "a49745aad813572aca94aea02a1e3223b8673bd933745258b11ac49ee9f84e0a"
     },
     {
       "id": "login",
@@ -288,7 +288,7 @@
         "content-types-schema-authoring"
       ],
       "archive": "./examples/login.cem-studio.json",
-      "sha256": "17f94aaf669116d8e7aee9d9739bf89c42c2ca7ba6bf4979fa5faf16c11b9b58"
+      "sha256": "0dd972a7e1b467ed274e316613d0cc9671069dfecd19cf484a1ec2061bfaa707"
     },
     {
       "id": "markdown-site",
@@ -300,7 +300,7 @@
         "content-types-documents-ui"
       ],
       "archive": "./examples/markdown-site.cem-studio.json",
-      "sha256": "6f78eff73283719adabd08012ebd4e7cd1e86cd51505009a270cf8e92bf61b59"
+      "sha256": "5f744eac2691d3612f61060ddbdc0d01eb6a53534915e622b4845f04b757e83d"
     },
     {
       "id": "mathml-formula",
@@ -312,7 +312,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/mathml-formula.cem-studio.json",
-      "sha256": "474c2a5167dca2052c112092bd26fd171971f869cb81b6c8fdfc2e80cc23824a"
+      "sha256": "6d4fa3fd67b7fec62bc1fe6cee93b5ff8e5c63c46dcd2de2197cd13360eaa62b"
     },
     {
       "id": "module-maps",
@@ -324,7 +324,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/module-maps.cem-studio.json",
-      "sha256": "d6e4b09bd7f5ed9ac6c1a7833514aec235e2c84e258b51721181d96f80e062eb"
+      "sha256": "c886f8f8e6ef44f1bbc897646ddf6794f6500de5620cc649c5370e90acf0406d"
     },
     {
       "id": "native-projections",
@@ -336,7 +336,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/native-projections.cem-studio.json",
-      "sha256": "a1c2e978ad14a80318e0b9ee9a96e5ce0eb7f5f29b124d0523959a176cb04b80"
+      "sha256": "892baf3a49b9b07132674155a9c77c68af62ebb629536e24cd53ee18397bc89f"
     },
     {
       "id": "portable-config",
@@ -348,7 +348,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/portable-config.cem-studio.json",
-      "sha256": "05bcdfcbb94e3e66c7332ef128d598f8259351636c473b5f10099b19d6b3d91f"
+      "sha256": "aef71f9d31028291a6ccf6d898cf908ed96db83e94d9efbd7f438b1fc9463f81"
     },
     {
       "id": "relax-ng",
@@ -359,7 +359,7 @@
         "content-types-schema-authoring"
       ],
       "archive": "./examples/relax-ng.cem-studio.json",
-      "sha256": "ecbd81b285c78a0bb8c5539ee421d6e182abca52696b8104b0add25d331c4697"
+      "sha256": "28deaf0c3ec2266d6e3a89b550c53d60bcf2bf8850020f836700c056dbf88ffb"
     },
     {
       "id": "scss-stylesheet",
@@ -371,7 +371,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/scss-stylesheet.cem-studio.json",
-      "sha256": "15f9eb8ff5b6b7780d03baf42d4873191e6c3feb0d9ecbbef813b814a76429da"
+      "sha256": "82312fce526a9449cacc447d6d8b4a9a1f433af055bd36b6038346e70c640029"
     },
     {
       "id": "supplier-pipeline",
@@ -384,7 +384,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/supplier-pipeline.cem-studio.json",
-      "sha256": "5973fcf0a686ecf898f5bba5c222e1e8f5e24e73a5e210ae324881da4aa2f14b"
+      "sha256": "d14f97e9601a818b9698ad2e8fa7d8c7d5e5b038afe7e34e72488d07ce3ba790"
     },
     {
       "id": "svg-diagram",
@@ -396,7 +396,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/svg-diagram.cem-studio.json",
-      "sha256": "621721100df19b1ecc9c2e3544262056ff3fd584108024074bc61db529158618"
+      "sha256": "547d0e9d20aeda6f39101db65f3cdd5687ac10bd4b1e7eb63ce9f615d954bab4"
     },
     {
       "id": "xhtml-document",
@@ -408,7 +408,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/xhtml-document.cem-studio.json",
-      "sha256": "0983702c0e1f1fbfdf66491ce675d63f395ac5a09a92af94374d51861d58df64"
+      "sha256": "5dd29aa54595523a8125412cfb7c88f3aee3a73368d8590808155db046bf7350"
     },
     {
       "id": "xpath-catalog",
@@ -420,7 +420,7 @@
         "content-types-data"
       ],
       "archive": "./examples/xpath-catalog.cem-studio.json",
-      "sha256": "f048cf2f17cc5347105049e14734ef0f8231df27d1b9f5cbf236b9af6d3eb3ed"
+      "sha256": "3aca5874a0378e80581654cde9ebcfd3e8b840e4d8e7911e46dab3f8d823c404"
     },
     {
       "id": "xslt-transform",
@@ -431,7 +431,7 @@
         "content-types-queries-transformations"
       ],
       "archive": "./examples/xslt-transform.cem-studio.json",
-      "sha256": "6998227f5df3c704fa54138cb0537b417197f5a0bda45b17cdc0775df3adca3d"
+      "sha256": "9761340c35ce0aaf0edaad10412f7a7ffdede3c7722c4ecb247375c3940639e8"
     }
   ]
 }

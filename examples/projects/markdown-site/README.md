@@ -1,5 +1,19 @@
 # Markdown site
 
+Build a small website from Markdown articles, shared layouts and static files. Edit an article or the site settings, rebuild, then follow the generated pages and their links.
+
+## Essential files
+
+- [content/index.md](content/index.md) — The website home page.
+- [content/articles/first-build.md](content/articles/first-build.md) — An article to edit and preview.
+- [data/site.json](data/site.json) — Shared site settings.
+- [layouts/page.cemt](layouts/page.cemt) — The page layout used for generated HTML.
+- [graphs/build.cem](graphs/build.cem) — Builds the folder tree into a website.
+- [assets/site.css](assets/site.css) — The shared site stylesheet.
+- [static/images/harbor.svg](static/images/harbor.svg) — An image copied into the generated site.
+
+## Using the example
+
 Open **Examples → Content types and schemas → Documents and UI → Markdown site**,
 or find the same project under **Amsterdam 2026**. Choose **Clone selected** to
 make an editable saved project. Each

@@ -1,5 +1,19 @@
 # JSON and YAML report
 
+Use a saved JSON response and YAML settings to make a service report. Change the settings to choose different records, then compare the HTML, JSON and YAML results.
+
+## Essential files
+
+- [data/payload.json](data/payload.json) — A fictional service response; no service is contacted.
+- [data/settings.yaml](data/settings.yaml) — The report title and status filter.
+- [queries/select-records.cem-ql](queries/select-records.cem-ql) — Selects active record identifiers.
+- [templates/model.cemt](templates/model.cemt) — Creates the shared report data.
+- [templates/view.cemt](templates/view.cemt) — Displays the report as an HTML table.
+- [graphs/report.cem](graphs/report.cem) — Builds all three output formats.
+- [expected/report.html](expected/report.html) — The reference HTML report.
+
+## Using the example
+
 Use this ordinary project to inspect a saved API response, read a YAML report
 configuration, filter records and publish the same result as HTML, JSON and YAML.
 All service names and request counts are fictional. No service is contacted.

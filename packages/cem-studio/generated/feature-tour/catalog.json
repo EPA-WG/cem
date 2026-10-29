@@ -6,7 +6,7 @@
     "name": "CEM-ML Feature Tour",
     "version": "1.1.0",
     "project": "./feature-tour.project.json",
-    "projectSha256": "c66bd154013012cacc865d482971b657c67e30d9fdbb800bb824832661cd965f"
+    "projectSha256": "39bcdfaa6bc6a193d57ff3c4192f3c9b2018321d41b7f68de567108185074669"
   },
   "capability": {
     "contractVersion": 2,
@@ -870,7 +870,7 @@
       "asset": "./resources/documentation/README.md",
       "contentType": "text/markdown; charset=utf-8",
       "schema": "https://cem.dev/ns/data/markdown/1",
-      "sha256": "a85b7c6edf79d629e9304dc2eb4606379e996bac988d7ca954a35f227d9decee",
+      "sha256": "54c0a052d16c907bd76d9b16f4bf8c54a44a31f0d7e6a4a5d6ebfb3a8d2d31da",
       "source": "examples/projects/schema-examples.md"
     }
   ]

@@ -1,5 +1,20 @@
 # Module-map deployments
 
+See how three versions of a module map connect page imports to local JavaScript, CSS, JSON and XHTML files. Build each version and compare its resolved output.
+
+## Essential files
+
+- [maps/source-v1.json](maps/source-v1.json) — Version 1 source module mappings.
+- [maps/source-v2.json](maps/source-v2.json) — Version 2 source module mappings.
+- [maps/source-v3.json](maps/source-v3.json) — Version 3 source module mappings.
+- [pages/v3.html](pages/v3.html) — The page using the version 3 mappings.
+- [graphs/v3.cem](graphs/v3.cem) — The version 3 build configuration.
+- [modules/app.js](modules/app.js) — The mapped application module.
+- [modules/site.css](modules/site.css) — The mapped stylesheet.
+- [modules/fragment.xhtml](modules/fragment.xhtml) — The mapped XHTML fragment.
+
+## Using the example
+
 Open this ordinary project from **Content types and schemas → Schema authoring**
 or **Queries and transformations**, then clone it to edit. It compares the native
 paired deployment-map versions using owned files, explicit graph dependencies and

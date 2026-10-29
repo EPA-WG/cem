@@ -41,6 +41,40 @@ export const IndependentOwnerEvents = meta.story({
     },
 });
 
+async function anchorCommands(canvasElement: HTMLElement, fallback: boolean): Promise<void> {
+    const { runtime, scope, declare } = createCemStoryRuntime(canvasElement, fallback);
+    const tag = `anchor-command-${crypto.randomUUID()}`;
+    const declaration = await declare('<cem-element tag="anchor-command"><template id="anchor-command" type="text/cem-ml">{a @href=#readme @value=readme @host-command=open | {span | Read README}}{a @href=#ordinary @host-command=missing | Ordinary link}{button @type=button @host-command=open | Button}{div @host-command=open @value=nested-route | {a @href=#nested | {span | Nested link}}}{a @host-command=open @href=#fallback | Fallback link}</template></cem-element>', tag);
+    let calls = 0, prevented = false;
+    const values: (string | null)[] = [];
+    const required = (root: ParentNode, selector: string): Element => { const element = root.querySelector(selector); if (!element) throw Error(`Missing ${selector}`); return element; };
+    const view = mountCemView(runtime, { root: required(canvasElement, 'section'), tag, commands: { open: request => { calls++; values.push(request.value); } } });
+    // Observe the shared handler before suppressing real browsing in the fixture.
+    const guard = (event: Event) => { prevented = event.defaultPrevented; event.preventDefault(); };
+    canvasElement.addEventListener('click', guard);
+    try {
+        await view.whenSettled();
+        const send = (element: Element, options: MouseEventInit = {}) => element.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, cancelable: true, ...options }));
+        send(required(view.element, 'a span'));
+        expect(calls).toBe(1); expect(prevented).toBe(true); expect(values).toEqual(['readme']);
+        for (const options of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) {
+            send(required(view.element, 'a'), options);
+            expect(calls).toBe(1); expect(prevented).toBe(false);
+        }
+        send(view.element.querySelectorAll('a')[1]);
+        expect(calls).toBe(1); expect(prevented).toBe(false);
+        send(required(view.element, 'button'));
+        expect(calls).toBe(2); expect(prevented).toBe(false);
+        send(required(view.element, 'div[value="nested-route"] a span'));
+        expect(values.at(-1)).toBe('nested-route'); expect(prevented).toBe(true);
+        send(required(view.element, 'a[href="#fallback"]'));
+        expect(values.at(-1)).toBe('#fallback'); expect(prevented).toBe(true);
+        expect(view.errors).toHaveLength(0);
+    } finally { canvasElement.removeEventListener('click', guard); view.dispose(); declaration.remove(); scope.dispose(); }
+}
+export const RoutedAnchorsWorker = meta.story({ render: () => '<section></section>', play: async ({ canvasElement }) => anchorCommands(canvasElement, false) });
+export const RoutedAnchorsFallback = meta.story({ render: () => '<section></section>', play: async ({ canvasElement }) => anchorCommands(canvasElement, true) });
+
 export const ArtifactNavigation = meta.story({
     render: () => '<section></section>',
     play: async ({ canvasElement }) => {

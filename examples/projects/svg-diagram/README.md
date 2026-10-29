@@ -1,5 +1,17 @@
 # SVG diagram
 
+Inspect an SVG diagram and include it in a generated page. Query its shapes and labels, edit the drawing and repair a missing namespace.
+
+## Essential files
+
+- [data/diagram.svg](data/diagram.svg) — The SVG drawing to inspect and edit.
+- [queries/diagram.xpath](queries/diagram.xpath) — Reads the shapes and labels.
+- [templates/diagram.cemt](templates/diagram.cemt) — Places the diagram on a page.
+- [graphs/diagram.cem](graphs/diagram.cem) — Builds the diagram page.
+- [failures/missing-namespace.svg](failures/missing-namespace.svg) — A drawing with a missing namespace to repair.
+
+## Using the example
+
 Open **Examples → Content types and schemas → Documents and UI → SVG diagram**.
 The same ordinary project also appears under **Queries and transformations**.
 Clone it to edit saved resources without changing the catalog original or another

@@ -1,5 +1,17 @@
 # XHTML document
 
+Inspect and query an XHTML article, then build a page from it. The example also shows how a missing namespace changes which source format is accepted.
+
+## Essential files
+
+- [data/article.xhtml](data/article.xhtml) — The original XHTML article.
+- [queries/outline.xpath](queries/outline.xpath) — Reads the article heading and structure.
+- [templates/view.cemt](templates/view.cemt) — Builds the article view.
+- [graphs/article.cem](graphs/article.cem) — Connects the article to the view template.
+- [data/missing-namespace.xhtml](data/missing-namespace.xhtml) — An XHTML-looking document with its namespace removed.
+
+## Using the example
+
 Use this ordinary Studio project for XML-serialized web documents, publishing
 pipelines and namespace-aware content extraction. It keeps the original XHTML
 source, query, template and build configuration as editable resources.

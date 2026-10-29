@@ -132,7 +132,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
         // editor placeholders must not become fabricated data or HTML input.
         if (!route.sample && (state.editable === false || state.resourceAvailable === false
             || state.projectId !== nextOpened?.project.id || state.resourceId !== route.file)) return undefined;
-        return resource && { resourceId: resource.id, projectId: nextOpened.project.id, projectRootUri: nextOpened.project.rootUri, projectRevision: nextOpened.project.revision, sourceUri: projectResourceUri(nextOpened.project, resource), contentType: resource.contentType, schema: resource.schema,
+        return resource && { resourceId: resource.id, path: resource.path, projectId: nextOpened.project.id, projectRootUri: nextOpened.project.rootUri, projectRevision: nextOpened.project.revision, sourceUri: projectResourceUri(nextOpened.project, resource), contentType: resource.contentType, schema: resource.schema,
             text: route.sample ? nextOpened.text : state.draft ?? state.persistedText ?? '', revision: resource.revision, sha256: resource.sha256, draft: Boolean(!route.sample && state.dirty) };
     };
     const prepareSelection = async (nextOpened, route, signal) => {
@@ -332,6 +332,13 @@ export async function createCemStudioNavigation({ workbench, repository, example
         ...workbench, snapshot,
         subscribe(notify) { subscribers.add(notify); notify(snapshot()); return () => subscribers.delete(notify); },
         async openEntity(key) { await navigate(key === 'samples' ? {} : Object.fromEntries(new URLSearchParams(key)), 'push', true); },
+        async openSourceLink(value) {
+            const path = typeof value === 'string' && !value.includes('?') ? value.split('#')[0] : undefined;
+            const resource = opened?.project.resources.find(item => item.path === path);
+            if (!resource) { error = { message: 'The linked file is not available in this project.' }; publish(); return; }
+            if (selection.file === resource.id) return;
+            await navigate({ ...opened.route, file: resource.id }, 'push', true);
+        },
         toggleNavigationSection(name) { if (Object.hasOwn(sections, name)) { sectionTouched.add(name); sections[name] = !sections[name]; publish(); } },
         toggleNavigationExpanded(name, key) { if (!Object.hasOwn(trees, name) || typeof key !== 'string') return; const expanded = trees[name].expanded; if (expanded.has(key)) expanded.delete(key); else expanded.add(key); publish(); },
         setNavigationSection(name, open) { if (!Object.hasOwn(sections, name)) return; sectionTouched.add(name); sections[name] = Boolean(open); publish(); },
@@ -719,7 +726,7 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
 /** A bounded, read-only per-resource projection. No project graph or save runs. */
 export function createCemStudioSourcePreview({ validator, delay = 80 } = {}) {
     const subscribers = new Set();
-    let source, controller, timer, version = 0, disposed = false;
+    let source, controller, timer, tree, version = 0, disposed = false;
     let state = { status: 'idle', stale: false };
     const snapshot = () => Object.freeze({ ...state });
     const publish = () => { if (!disposed) for (const notify of subscribers) notify(snapshot()); };
@@ -730,7 +737,9 @@ export function createCemStudioSourcePreview({ validator, delay = 80 } = {}) {
         controller?.abort(); clearTimeout(timer); controller = undefined; timer = undefined;
         const currentVersion = ++version;
         source = next;
+        if (!retain) { tree?.dispose(); tree = undefined; }
         if (!next || next.contentType.split(';')[0].trim().toLowerCase() !== 'text/markdown' || next.schema !== 'https://cem.dev/ns/data/markdown/1' || !validator?.runResourceCommand) {
+            tree?.dispose(); tree = undefined;
             state = { status: 'idle', stale: false }; publish(); return;
         }
         state = { status: 'pending', stale: Boolean(retain), ...(retain ? { preview: state.preview } : {}) }; publish();
@@ -750,8 +759,14 @@ export function createCemStudioSourcePreview({ validator, delay = 80 } = {}) {
                 if (!current()) return;
                 if (!outcome.output || outcome.output.available === false) throw new Error('The native source transformation produced no available output.');
                 if (outcome.output.contentType.split(';')[0].trim().toLowerCase() !== 'text/html') throw new Error('The native source transformation did not produce declared HTML.');
-                const preview = createCemStudioPreview({ bytes: outcome.output.bytes, contentType: outcome.output.contentType,
+                let preview = createCemStudioPreview({ bytes: outcome.output.bytes, contentType: outcome.output.contentType,
                     label: next.draft ? 'Draft Markdown preview' : 'Saved Markdown preview' });
+                const path = next.path ?? (next.projectRootUri && next.sourceUri.startsWith(next.projectRootUri) ? next.sourceUri.slice(next.projectRootUri.length) : undefined);
+                if (preview.kind === 'sandboxed-html' && path) {
+                    const nextTree = registerCemArtifactTree([{ path, contentType: outcome.output.contentType, bytes: outcome.output.bytes }]);
+                    tree?.dispose(); tree = nextTree;
+                    preview = { ...preview, kind: 'artifact-tree', artifactPath: path, resourceSet: tree.resourceSet, sourceNavigation: true };
+                }
                 state = { status: 'ready', stale: false, preview, sourceUri: next.sourceUri, revision: next.revision, sha256: next.sha256, draft: next.draft };
             } catch (error) {
                 if (!current()) return;
@@ -761,6 +776,6 @@ export function createCemStudioSourcePreview({ validator, delay = 80 } = {}) {
     }
     return Object.freeze({ snapshot, setSource,
         subscribe(notify) { subscribers.add(notify); notify(snapshot()); return () => subscribers.delete(notify); },
-        dispose() { disposed = true; ++version; controller?.abort(); clearTimeout(timer); subscribers.clear(); },
+        dispose() { disposed = true; ++version; controller?.abort(); clearTimeout(timer); tree?.dispose(); subscribers.clear(); },
     });
 }

@@ -1,5 +1,13 @@
 # CEM-ML project
 
+Start with one editable CEM document and turn it into a page. Change its text, save it and use the preview to see the result. Add more files and a build configuration when the project grows.
+
+## Essential files
+
+- [data/main.cem](data/main.cem) — The starting document to edit and preview.
+
+## Using the project
+
 Use this ordinary editable project as a small starting point for a document or
 site. The default source remains resource `source`, path `data/main.cem`, with
 content type `application/cem` and schema `https://cem.dev/ns/cem-ml/1`:

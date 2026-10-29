@@ -1,5 +1,19 @@
 # Login project
 
+Compare a login form written in HTML and CEM, check its meaning and build a live view. You can edit the form, run the same queries on both versions and repair a deliberate validation error.
+
+## Essential files
+
+- [data/login.html](data/login.html) — The original HTML login form.
+- [data/login.cem](data/login.cem) — The equivalent CEM form.
+- [schemas/login-schema.cem](schemas/login-schema.cem) — The rules used to validate the CEM form.
+- [queries/semantics.xpath](queries/semantics.xpath) — Compares the meaning of the two forms.
+- [graphs/view.cem](graphs/view.cem) — Builds the form through its transformation graph.
+- [views/login.cem](views/login.cem) — The form used for the live preview.
+- [data/login-invalid.cem](data/login-invalid.cem) — The intentionally invalid form to repair.
+
+## Using the example
+
 Use this ordinary project to compare HTML/CEM form semantics, author native
 queries and templates, and preview a shared-control Login view. The local form
 does not authenticate an account or contact an identity provider.

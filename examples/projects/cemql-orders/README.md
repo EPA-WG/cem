@@ -1,5 +1,18 @@
 # CEM-QL order queries
 
+Find ready orders and join them with customer details. Compare the selected values with the original order nodes, then build a report from the saved query.
+
+## Essential files
+
+- [data/orders.json](data/orders.json) — Orders and customer details to query.
+- [queries/ready-orders.cem-ql](queries/ready-orders.cem-ql) — Filters orders and returns their values.
+- [queries/customer-orders.cemql](queries/customer-orders.cemql) — Joins orders with customer information.
+- [queries/ready-nodes.cem-ql](queries/ready-nodes.cem-ql) — Selects original order nodes with their source locations.
+- [graphs/ready.cem](graphs/ready.cem) — Builds the ready-order report.
+- [templates/report.cemt](templates/report.cemt) — Creates the report from the query result.
+
+## Using the example
+
 Open **Examples → Content types and schemas → Queries and transformations →
 CEM-QL order queries**, or find the same ordinary project under **Data**. Clone
 it to edit independent saved resources. The project demonstrates filtering,

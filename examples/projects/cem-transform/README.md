@@ -1,5 +1,19 @@
 # CEM transformation
 
+Turn a list of customer orders into a report. Change the order data, the minimum total or the page template, then rebuild to see the result.
+
+## Essential files
+
+- [data/orders.xml](data/orders.xml) — The customer orders used by both report views.
+- [templates/report.cemt](templates/report.cemt) — Selects ready orders and builds the report data.
+- [templates/page.cemt](templates/page.cemt) — Turns the report into an HTML page.
+- [templates/page.xsl](templates/page.xsl) — An alternative XSLT view of the same report.
+- [graphs/report.cem](graphs/report.cem) — Connects the inputs, CEM templates and output files.
+- [graphs/xslt-report.cem](graphs/xslt-report.cem) — Connects the native report data to the XSLT view.
+- [expected/index.html](expected/index.html) — The reference HTML for the original report.
+
+## Using the example
+
 This ordinary Studio project transforms an owned XML order document into an
 application-data report and HTML. Open it from **Content types and schemas →
 Queries and transformations**, then clone it to edit. The related **XSLT

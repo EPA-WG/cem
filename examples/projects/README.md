@@ -25,7 +25,16 @@ browser command does not establish per-format execution support.
   Optional `entryArtifact` sets a named build's project-relative preview output;
   it is copied into the portable configuration, independently of input resources.
 
-Every project includes `README.md` as an ordinary resource. Its instructions
+Every project includes `README.md` as an ordinary resource. Begin with a title
+and one short paragraph explaining the purpose in ordinary language. Follow it
+with an **Essential files** section: project-relative Markdown links and a brief
+purpose for each linked file. Links must name resources actually included in the
+project, rather than generated output that does not exist yet. The schema
+showcase lists every selected content-type example with its project path and
+served filename. Studio project homes expose **README**; Markdown file
+links select resources in the same sample or saved copy, including offline.
+
+The README's detailed instructions
 name each owned configuration ID and every non-documentation content type/schema
 identity in exact inline code, with typical uses, expected artifacts, original
 source-location boundaries, repairs where applicable and current native limits.

@@ -93,8 +93,7 @@ minima. Explicit control sizes and inherited consumer overrides still apply.
 │       article.md  │                              │                     │
 ├───────────────────┤                              │                     │
 │ ▾ ⇥ Output files  │                              │                     │
-│   ▾ generated     │                              │                     │
-│       article.html│                              │                     │
+│     article.html  │                              │                     │
 ├───────────────────┴──────────────────────────────┴─────────────────────┤
 │ Selection / edits / build freshness                    Recovery status │
 └────────────────────────────────────────────────────────────────────────┘
@@ -127,6 +126,11 @@ Use theme-adaptive shared icons sized to `1em` of the surrounding UI text.
   Selecting a file keeps the project tree available. File AST/symbol outlines
   are a separate capability; the initial Structure section is the project tree.
 - Output files projects the admitted successful build manifest into folders/files.
+  The accordion already supplies the heading, so its tree omits the synthetic
+  Output files root. When every artifact shares one top-level directory, the
+  tree starts at that directory's children; mixed roots and real nested folders
+  remain visible. Full artifact paths, folder URLs and selection identities stay
+  unchanged. This is a presentation rule, not a fixed `generated/` convention.
   Before a build it has an explicit empty state. No filesystem walk, guessed
   extension mapping or synthesized artifact body is involved. Derived output is
   read-only; Create/Clone/Delete never target generated files implicitly.
@@ -3557,7 +3561,16 @@ label associations and descriptive ARIA references are retained. Source
 references remain inert. The same bounded worker policy and native adapters
 serve both formats; no new application renderer or UI JavaScript is needed.
 
-Open `README.md` through Resources for instructions. The first three
+Use **README** on the project home, or select `README.md` in Structure,
+for instructions. Every catalog README starts with a title, a brief purpose
+paragraph and an **Essential files** section with project-relative links and
+file descriptions. The content-type showcase also names the actual served files.
+Native Markdown conversion feeds the shared passive artifact preview; its link
+events route only to known resources in the active project. Source links retain
+sample/saved-copy identity and the selected build, while ordinary navigation
+continues to protect drafts. The shared controller owns script-free HTML and
+registration disposal; Studio adds routing transport rather than DOM behavior.
+ The first three
 configurations share a source resource, while HTML and deliberate failure use
 independent sources. `demo.login.method_required` identifies the missing form
 method. Select it in Results → Diagnostics to focus/select the retained `{form`

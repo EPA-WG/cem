@@ -1,5 +1,18 @@
 # XPath catalog queries
 
+Search an XML product catalog with XPath. Select values or original nodes, join products with suppliers and pass saved parameters to a report.
+
+## Essential files
+
+- [data/catalog.xml](data/catalog.xml) — The product and supplier data.
+- [queries/available.xpath](queries/available.xpath) — Selects available product values.
+- [queries/available-nodes.xpath](queries/available-nodes.xpath) — Selects original product nodes.
+- [queries/supplier-join.xpath](queries/supplier-join.xpath) — Joins products with their suppliers.
+- [queries/parameter-report.xpath](queries/parameter-report.xpath) — Produces a report using supplied parameters.
+- [queries/parameter-map.xpath](queries/parameter-map.xpath) — Defines a map of report parameters.
+
+## Using the example
+
 Open **Examples → Content types and schemas → Queries and transformations →
 XPath catalog queries**, or find the same ordinary project under **Data**.
 Clone it to edit its resources and configurations without changing the catalog

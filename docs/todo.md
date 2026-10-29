@@ -24,6 +24,19 @@ Entered passwords or one-time codes continue to block recovery until explicitly
 cleared by the user; automatic whole-Studio recovery remains disabled. Follow the
 [credential privacy policy](committed-checkpoints.md#credential-privacy-policy-for-live-login-recovery).
 
+- [x] Clarify shared select labels and simplify Studio's output-tree presentation. [Implementation and verification](archive/todo-completed-studio-output-navigation-2026-10-28.md).
+  Shared field captions use canonical tag typography and related spacing.
+  Declarative output navigation hides redundant roots while preserving nested
+  folders, full paths and existing URL/selection identities.
+
+- [x] Add project-home README links and minimum sample file guides. [Implementation and verification](archive/todo-completed-studio-readme-navigation-2026-10-28.md).
+  All 22 authored samples, the 32-type showcase and starter have short purpose
+  paragraphs and linked essential files. Shared routed anchors and passive
+  Markdown previews select known project resources, retaining builds, drafts
+  and read-only originals online/offline. Catalog audits, host-view and navigation
+  tests, all 23 catalog README views, demo verification and worker/fallback Login
+  recovery pass. Credential policy and recovery budgets/deadlines are unchanged.
+
 Completed [compact Studio layout and shared runtime work](archive/todo-completed-compact-studio-2026-10-23.md) is archived. The [font-relative tree spacing follow-up](archive/todo-completed-compact-studio-2026-10-23.md#font-relative-tree-spacing-follow-up) records the IDE reference refinement. The [page-level super-compact follow-up](archive/todo-completed-compact-studio-2026-10-23.md#page-level-super-compact-theme-follow-up) records header controls, mode boundaries and verification.
 
 The [explicit content-sized super-compact policy](archive/todo-completed-compact-studio-2026-10-23.md#explicit-content-sized-super-compact-policy) supersedes its earlier pointer-gated geometry.

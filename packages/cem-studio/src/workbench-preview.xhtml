@@ -177,7 +177,7 @@
     {cem:when @test=preview |
      {cem:variable @name=mode @select='if preview.kind == "artifact-tree" { "artifact-tree" } else { if preview.kind == "text" { "text" } else { if preview.kind == "sandboxed-html" { "document" } else { if preview.kind == "live-cem" { "live" } else { "message" } } } }'}
      {cem:variable @name=value @select='if preview.kind == "text" { preview.text } else { if preview.kind == "sandboxed-html" || preview.kind == "live-cem" { preview.source } else { preview.reason } }'}
-     {cem-media-preview @fit=fill @source-uri={preview.sourceUri} @artifact-path={preview.artifactPath} @resource-set={preview.resourceSet} @label={preview.label} @mode={mode} @truncated={if preview.truncated { true } else { null }} @value={value} @host-command=select-preview-artifact @host-command-event=cem-preview-navigate}
+     {cem-media-preview @fit=fill @source-uri={preview.sourceUri} @artifact-path={preview.artifactPath} @resource-set={preview.resourceSet} @label={preview.label} @mode={mode} @truncated={if preview.truncated { true } else { null }} @value={value} @host-command={if preview.sourceNavigation { "open-source-link" } else { "select-preview-artifact" }} @host-command-event=cem-preview-navigate}
     }
     {cem:when @test='source.status == "pending"' | {p @role=status | Preparing native source preview…}}
     {cem:when @test=source.error | {cem-alert @tone=warning @label={source.error.message}}}

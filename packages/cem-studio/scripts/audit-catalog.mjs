@@ -64,9 +64,10 @@ export async function collectCatalogAudit(workspaceRoot) {
         assert.equal(starterBundle.project.resources.find(resource => resource.id === starterReadme.id)?.sha256,
             createHash('sha256').update(bytes).digest('hex'));
     }
+    const servedFiles = catalog.examples.map(example => ({ path: example.path, asset: example.asset.replace(/^\.\//u, '') }));
     const generatedProjects = [
-        { id: 'feature-tour', project: seed, readme: seedReadme, commands: commands(seed) },
-        { id: 'schema-examples', ...schemaBundle, readme: schemaReadme, commands: commands(schemaBundle.project) },
+        { id: 'feature-tour', project: seed, readme: seedReadme, commands: commands(seed), servedFiles },
+        { id: 'schema-examples', ...schemaBundle, readme: schemaReadme, commands: commands(schemaBundle.project), servedFiles },
         { id: 'starter', ...starterBundle, readme: starterReadme },
     ];
     const runtime = await json('packages/cem-ml-npm/dist/cem-ml-runtime.json');

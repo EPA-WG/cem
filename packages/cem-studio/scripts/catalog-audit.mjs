@@ -4,12 +4,38 @@ export function auditCatalog({ projects, generatedProjects = [], registry, opera
     const unique = (values, label) => {
         if (new Set(values).size !== values.length) fail('duplicate', label);
     };
-    const requireDocumentation = (id, resources, entries, text) => {
+    const requireDocumentation = (id, resources, entries, text, servedFiles = []) => {
         const document = resources.find(resource => resource.path.toLowerCase() === 'readme.md');
         if (document.contentType?.split(';')[0].trim().toLowerCase() !== 'text/markdown'
             || document.schema && document.schema !== 'https://cem.dev/ns/data/markdown/1') fail('readme_identity', id);
         if (typeof text !== 'string' || !text.trim()) fail('readme', `${id} has no README text`);
+        if (!/^# [^\n]+\r?$/mu.test(text.split('\n')[0])) fail('readme_title', id);
+        if (!/^# [^\n]+\r?\n\s*\r?\n[^#\s][^\n]*(?:\n[^#\n][^\n]*)?(?:\r?\n|$)/u.test(text)) fail('readme_purpose', id);
+        // Lint the explicit authored documentation convention; this is not a
+        // Markdown importer or a runtime source parser.
+        const essential = text.split(/\r?\n## Essential files\r?\n/u)[1]?.split(/\r?\n## /u)[0] ?? '';
+        const links = [...essential.matchAll(/\[([^\]\n]+)\]\(([^)\s]+)\)/gu)];
+        if (!links.length) fail('readme_files', id);
+        const linked = new Set();
+        for (const match of links) {
+            const href = match[2];
+            let path;
+            try {
+                const url = new URL(href, 'https://cem-doc.invalid/README.md');
+                if (url.origin === 'https://cem-doc.invalid' && !url.search && !href.startsWith('/') && !/^[a-z][a-z0-9+.-]*:/iu.test(href)) path = decodeURIComponent(url.pathname.slice(1));
+            } catch { /* malformed references fail the same closed inventory check */ }
+            if (!resources.some(resource => resource.path === path && resource !== document)) fail('readme_file_reference', `${id}: ${href}`);
+            const remainder = essential.slice(match.index + match[0].length).split('\n')[0];
+            if (!/\p{L}/u.test(remainder)) fail('readme_file_purpose', `${id}: ${href}`);
+            linked.add(path);
+        }
+        if (['schema-examples', 'feature-tour'].includes(id)) for (const resource of resources.filter(resource => resource.id.startsWith('example-'))) {
+            if (!linked.has(resource.path)) fail('showcase_file_documentation', `${id}: ${resource.path}`);
+        }
         const codes = new Set([...text.matchAll(/`([^`\n]+)`/g)].map(match => match[1]));
+        for (const file of servedFiles) if (!linked.has(file.path) || !codes.has(file.asset)) {
+            fail('served_file_documentation', `${id}: ${file.path} → ${file.asset}`);
+        }
         for (const entry of entries) if (!codes.has(entry.id)) fail('configuration_documentation', `${id}/${entry.id}`);
         for (const resource of resources.filter(resource => resource.path.toLowerCase() !== 'readme.md')) {
             for (const identity of [resource.contentType, resource.schema].filter(Boolean)) {
@@ -68,13 +94,13 @@ export function auditCatalog({ projects, generatedProjects = [], registry, opera
             commands: [...new Set(configurations.map(configuration => configuration.argv[0]))].sort() });
     }
     const generatedRows = [];
-    for (const { id, project, readme, commands = [] } of generatedProjects) {
+    for (const { id, project, readme, commands = [], servedFiles = [] } of generatedProjects) {
         const docs = project.resources.filter(resource => resource.path.toLowerCase() === 'readme.md');
         if (docs.length !== 1 || docs[0].id !== readme?.id) fail('readme_resource', id);
         const entries = project.entries.filter(entry => entry.kind !== 'subproject');
         unique(entries.map(entry => entry.id), `${id} generated entry IDs`);
         unique(commands.map(command => command.entryId), `${id} generated command entry IDs`);
-        requireDocumentation(id, project.resources, entries, readme.text);
+        requireDocumentation(id, project.resources, entries, readme.text, servedFiles);
         for (const { entryId, command, source } of commands) {
             const entry = entries.find(entry => entry.id === entryId);
             if (!entry?.resourceIds.includes(source)) fail('generated_reference', `${id}/${entryId}`);

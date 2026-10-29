@@ -1,5 +1,19 @@
 # Native DOM, AST and events
 
+Look at the structure of the same document as a tree, an event stream and a syntax tree. Compare readable and binary exports, and repair a deliberately broken projection.
+
+## Essential files
+
+- [data/dispatch.cem](data/dispatch.cem) — The original CEM dispatch document.
+- [data/dispatch.xml](data/dispatch.xml) — The equivalent XML document.
+- [projections/dispatch.dom.json](projections/dispatch.dom.json) — The readable document-tree export.
+- [projections/dispatch.ast.json](projections/dispatch.ast.json) — The readable syntax-tree export.
+- [projections/dispatch.events.json](projections/dispatch.events.json) — The readable event-stream export.
+- [projections/dispatch.dom.cem-bin](projections/dispatch.dom.cem-bin) — The binary document-tree export.
+- [failures/invalid.dom.json](failures/invalid.dom.json) — A broken projection to inspect and repair.
+
+## Using the example
+
 Use this ordinary Studio project from **Content types and schemas → Schema
 authoring** or **Queries and transformations** to compare source parsing,
 retained structural inspection and explicit projection exports. Clone it before

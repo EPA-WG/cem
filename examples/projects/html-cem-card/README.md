@@ -1,5 +1,19 @@
 # HTML and CEM card
 
+Compare the same card written in HTML and CEM, then build and preview it. The example shows which parts of the two sources mean the same thing.
+
+## Essential files
+
+- [data/card.html](data/card.html) — The card written in HTML.
+- [data/card.cem](data/card.cem) — The equivalent card written in CEM.
+- [queries/card.xpath](queries/card.xpath) — Reads the card details from either source.
+- [components/cem-card.xhtml](components/cem-card.xhtml) — The reusable declarative card component.
+- [views/card.cem](views/card.cem) — The card in a live view.
+- [graphs/card.cem](graphs/card.cem) — Builds the HTML card output.
+- [expected/semantics.json](expected/semantics.json) — The expected meaning shared by both versions.
+
+## Using the example
+
 Open **Examples → Content types and schemas → Documents and UI → HTML and CEM
 card**. Choose **Clone selected** for an editable saved project. The same project
 also appears under **Queries and transformations**. Copies own their resources,
