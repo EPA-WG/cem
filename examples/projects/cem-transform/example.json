@@ -2,7 +2,7 @@
   "id": "cem-transform",
   "name": "CEM transformation",
   "version": "1.0.0",
-  "description": "Transform owned XML into an application-data report and HTML through declared CEM-native templates, graph parameters and explicit entry artifacts; inspect source contracts and repair a template declaration.",
+  "description": "Transform owned XML into a native report and HTML with CEM or XSLT views, preserving native stage ownership, parameters and explicit entry artifacts.",
   "collections": [
     "content-types-queries-transformations"
   ],
@@ -85,6 +85,30 @@
       "path": "README.md",
       "contentType": "text/markdown",
       "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    },
+    {
+      "id": "page-xslt-template",
+      "source": "examples/projects/cem-transform/templates/page.xsl",
+      "path": "templates/page.xsl",
+      "contentType": "application/xslt+xml",
+      "schema": "https://cem.dev/ns/transform/xslt/1",
+      "role": "template"
+    },
+    {
+      "id": "xslt-report-graph",
+      "source": "examples/projects/cem-transform/graphs/xslt-report.cem",
+      "path": "graphs/xslt-report.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "expected-xslt-html",
+      "source": "examples/projects/cem-transform/expected/xslt-index.html",
+      "path": "expected/xslt-index.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
       "role": "data"
     }
   ],
@@ -281,6 +305,55 @@
       ],
       "expectedUnmappedOutputs": [
         "generated/report.json"
+      ]
+    },
+    {
+      "id": "build-xslt-report",
+      "name": "Build the CEM report through native XSLT",
+      "kind": "transformation-graph",
+      "source": "xslt-report-graph",
+      "dependencies": [
+        "orders-source",
+        "report-template",
+        "page-xslt-template",
+        "expected-xslt-html",
+        "expected-report"
+      ],
+      "description": "Pass the constructed native report into an owned XDM document for namespace-aware XPath and XSLT; no XML encoding or reparsing occurs.",
+      "entryArtifact": "generated/index.html",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedGraphOutputs": {
+        "generated/index.html": "expected-xslt-html",
+        "generated/report.json": "expected-report"
+      },
+      "expectedProvenance": [
+        "templates/page.xsl"
+      ],
+      "expectedGraphFailures": [
+        [
+          "orders-source",
+          "invalid-orders"
+        ]
+      ],
+      "expectedUnmappedOutputs": [
+        "generated/report.json"
+      ],
+      "expectedTemplateEdit": [
+        "page-xslt-template",
+        "<ul>",
+        "<ol>",
+        "</ul>",
+        "</ol>"
       ]
     }
   ]

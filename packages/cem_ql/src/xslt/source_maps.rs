@@ -70,6 +70,11 @@ fn map_with_query(
         return Err(BundleError::limit());
     }
     for frame in &map.frames {
+        if let TransformKind::SourceBoundary { uri } = &frame.transform {
+            if uri != &source.uri {
+                return Err(BundleError::mismatch("generated CEMT source ownership mismatch"));
+            }
+        }
         let length = match frame.source_id.0 {
             1 => source.byte_length,
             0 if matches!(

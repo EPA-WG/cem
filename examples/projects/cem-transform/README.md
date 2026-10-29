@@ -17,6 +17,7 @@ operation.
 | Transformation graphs | `application/cem` | `https://cem.dev/ns/cli/transform-config/1` |
 | Data and expected JSON artifacts | `application/json` | `https://cem.dev/ns/data/json/1` |
 | CEM-native templates | `application/vnd.cem.template+cem` | `https://cem.dev/ns/template/cem-native/1` |
+| XSLT view templates | `application/xslt+xml` | `https://cem.dev/ns/transform/xslt/1` |
 | XML data | `application/xml` | `https://cem.dev/ns/data/xml/1` |
 | HTML source and expected artifacts | `text/html` | `https://cem.dev/ns/data/html/1` |
 
@@ -46,6 +47,7 @@ operation.
 | `inspect-graph` | Inspect the two transformation stages and explicit export declarations. |
 | `repair-template` | Diagnose and repair the invalid boolean parameter declaration. |
 | `build-report` | Execute the native graph and preview its explicit HTML entry. |
+| `build-xslt-report` | Feed the same constructed report directly into an owned native XDM document and render it with XSLT. |
 
 The graph imports the original retained XML owner, filters ready orders whose
 numeric total is at least thirty, constructs a native application-data model,
@@ -54,6 +56,22 @@ intermediate stage uses `application/cem` with the CEM-ML schema so its construc
 CEM-tree sequence remains available to the next stage. The application JSON export
 is a presentation artifact; it is never serialized and reimported to pass an AST
 between stages.
+
+`build-xslt-report` uses `graphs/xslt-report.cem` and `templates/page.xsl`.
+The XSLT view selects `/g:array/g:object`, with `g` bound to `cem:generic-data`.
+The stage handoff retains the native report values and reference owners; it
+constructs one semantic document context without writing or parsing XML. Ordinary
+CEM consumers still receive their existing flat native sequence. Encoded XML
+continues to be text, so relabeling a serialized artifact is not a document import.
+Empty and multi-root native output also has one explicit document context.
+
+The XSLT view uses the same heading and minimum parameters and data edits as the
+CEM view. Its compact HTML fixture is `expected/xslt-index.html`; JSON output is
+unchanged. Change both `<ul>`/`</ul>` tags to `<ol>`/`</ol>` in the XSLT view to
+exercise a saved template edit. Native output provenance identifies the XSLT
+view; computed report fields do not gain invented character-level XML lineage.
+Constructed document identity is separate from original source provenance and
+has no fabricated document URI. Credentials/recovery policy is unchanged.
 
 ## Build artifacts and provenance
 
@@ -65,6 +83,11 @@ draft order. Both artifacts have independently checked native CLI fixtures.
 The HTML sidecar and output spans retain original `templates/page.cemt` source
 boundaries. They describe template output provenance; this project does not claim
 character-level lineage from computed output fields back into XML attributes.
+For `build-xslt-report`, HTML maps identify the lowered
+`templates/page.xsl#generated-cemt` source. Those are generated-template ranges,
+not original XSLT character offsets; unavailable original coordinates are not
+invented.
+
 The native generic-data JSON writer currently emits no output spans or `.map`
 sidecar. CLI JSON is indented while the worker's abstract JSON publication is
 compact; cross-host acceptance compares complete JSON values. Unchanged repeated

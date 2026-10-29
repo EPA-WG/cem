@@ -72,6 +72,7 @@ pub struct RetainedCemTree {
     native_owner: Option<Arc<dyn Any + Send + Sync>>,
     nodes: Vec<CemTreeNode>,
     canonical: Vec<Option<AstNodeId>>,
+    semantic_roots: Vec<AstNodeId>,
     source_fingerprint: Option<[u8; 32]>,
     source_lines_known: Vec<bool>,
     source_ranges: Vec<CemTreeRange>,
@@ -339,6 +340,7 @@ impl RetainedCemTree {
         }
         // Validate the entire source graph, including omitted nodes, before normalization.
         let mut seen = vec![false; nodes.len()];
+        let mut semantic_roots = vec![0; nodes.len()];
         let forest = roots.is_some();
         let mut pending: Vec<_> = roots.unwrap_or_else(|| vec![0]).into_iter().rev()
             .map(|id| (id, None, nodes.get(id as usize).is_some_and(|n| forest && n.kind == CemTreeNodeKind::Attribute))).collect();
@@ -359,6 +361,7 @@ impl RetainedCemTree {
                 pending.extend(value_nodes.iter().rev().map(|&value| (value, Some(id), false)));
             }
             seen[id as usize] = true;
+            semantic_roots[id as usize] = parent.map(|parent| semantic_roots[parent as usize]).unwrap_or(id);
             node.parent = parent;
             node.order = order;
             order += 1;
@@ -464,12 +467,19 @@ impl RetainedCemTree {
             native_owner,
             nodes,
             canonical,
+            semantic_roots,
             source_fingerprint: semantics.source_fingerprint,
             source_lines_known,
             source_ranges,
             source_values: semantics.values,
             source_line_index: (!source_text.is_empty()).then_some(line_index),
         }))
+    }
+
+    /// The actual root of this semantic tree/forest, never an arena sentinel.
+    /// Recorded during validation so absolute XPath does not walk unbounded ancestry.
+    pub fn semantic_root(&self, id: AstNodeId) -> Option<AstNodeId> {
+        Some(self.semantic_roots[self.canonical_id(id)? as usize])
     }
 
     pub fn ast(&self) -> &CemDocument {

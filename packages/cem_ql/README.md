@@ -1821,3 +1821,15 @@ See the [shared memory contract](../cem_ml/README.md#wasm-memory-admission-and-h
 for defaults, coverage, conservative reservations and limits of cooperative
 accounting. Host JS/DOM memory and ABI copies are separate; portable checkpoints
 and whole-runtime replacement are subsequent work.
+
+### Owned XDM stage contexts
+
+`eval::xdm::OwnedXdmDocument` admits native constructed output as one semantic
+document context. It shares the bounded native CEM value/XPath projection and
+keeps original reference allocations alive. `document_with_control` revalidates
+the caller's capability scope, value limits and memory/cancellation controls on
+cache hits as well as fresh projections. Ordinary CEM sequence views remain
+available through the same raw native value allocation. The cache retains only
+the most recent capability scope; selected native nodes independently own their
+indexes and memory permits. There is no XML/JSON serialization or source parser
+handoff. Source provenance is independent of the constructed document URI.

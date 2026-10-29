@@ -89,7 +89,7 @@ pub(crate) fn native_items(
     None
 }
 
-fn checked_projection<T>(result: Result<T, String>, control: &OperationControl, scope: ExecutionScopeId) -> Result<T, String> {
+pub(crate) fn checked_projection<T>(result: Result<T, String>, control: &OperationControl, scope: ExecutionScopeId) -> Result<T, String> {
     if result.is_err() && control.check_scope(scope).is_ok() {
         let _ = control.fail_scope(scope, cem_ml::operation_control::ControlCause::InternalFailure {
             diagnostic_code: "cem.value.xpath_projection".into(),

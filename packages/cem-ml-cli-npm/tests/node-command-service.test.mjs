@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 
@@ -190,6 +190,36 @@ test('Node default Parse preserves refused CSV diagnostics and publishes only re
             await service.publish(repaired.invocation, result);
             assert.ok((await readFile(join(directory, 'inspection.cem'), 'utf8')).includes('Café 🍒'));
         } finally { await repaired.handle.dispose(); }
+    } finally { await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('Node workers hand a constructed CEM report to XSLT without serializing stage data', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'cem-node-xdm-'));
+    const definition = JSON.parse(await readFile(new URL('../../../examples/projects/cem-transform/example.json', import.meta.url), 'utf8'));
+    const service = await createNodeCommandService({ cwd: directory, stdout: new FixtureWritable(), stderr: new FixtureWritable() });
+    try {
+        for (const source of definition.sources) {
+            const file = join(directory, source.path); await mkdir(dirname(file), { recursive: true });
+            await writeFile(file, await readFile(new URL(`../../../${source.source}`, import.meta.url)));
+        }
+        const run = async () => {
+            const execution = await service.run(parseCemMlCommand(['transform', '--config', pathToFileURL(join(directory, 'graphs/xslt-report.cem')).href,
+                '--config-content-type', 'application/cem', '--config-schema', 'https://cem.dev/ns/cli/transform-config/1', '--scope-budget', 'queueSize=1024'], { runtime: 'wasm-node' }));
+            try {
+                const result = await execution.handle;
+                assert.equal(result.exitCode, 0, JSON.stringify(result.diagnostics));
+                await service.publish(execution.invocation, result);
+                return await readFile(join(directory, 'generated/index.html'), 'utf8');
+            } finally { await execution.handle.dispose(); }
+        };
+        const expected = await readFile(join(directory, 'expected/xslt-index.html'), 'utf8');
+        assert.equal(await run(), expected);
+        assert.equal(await run(), expected);
+        const data = join(directory, 'data/orders.xml');
+        await writeFile(data, (await readFile(data, 'utf8')).replace('Café Noord', 'Café Haven'));
+        assert.equal(await run(), expected.replace('Café Noord', 'Café Haven'));
+        assert.deepEqual(JSON.parse(await readFile(join(directory, 'generated/report.json'), 'utf8')),
+            JSON.parse((await readFile(join(directory, 'expected/report.json'), 'utf8')).replace('Café Noord', 'Café Haven')));
     } finally { await service.close(); await rm(directory, { recursive: true, force: true }); }
 });
 

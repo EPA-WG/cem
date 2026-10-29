@@ -188,7 +188,7 @@ fn builder_cost(ast: &CemDocument) -> usize {
     // Node arena plus semantic/index slots and source/name/text allocations.
     // The input graph already accounts for lexical payloads; allow a second
     // copy for the semantic representation and index maps.
-    ast.nodes.len().saturating_mul(std::mem::size_of::<CemAstNode>() + 256)
+    ast.nodes.len().saturating_mul(std::mem::size_of::<CemAstNode>() + 256 + std::mem::size_of::<u32>())
 }
 
 struct Builder<'a, F> {

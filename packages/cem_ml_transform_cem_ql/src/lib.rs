@@ -3854,8 +3854,9 @@ fn content_type_essence(content_type: &str) -> String {
 }
 
 fn render_plan_to_cem_tree_nodes(plan: &RenderPlan) -> CemTreeAstStream {
-    CemTreeAstStream::from_native_values(Arc::new(plan.nodes.clone()), |nodes| {
-        nodes
+    let document = cem_ql::eval::xdm::OwnedXdmDocument::new(Arc::new(plan.nodes.clone()));
+    CemTreeAstStream::from_native_values(Arc::new(document), |document| {
+        document.values()
             .iter()
             .filter_map(render_plan_node_to_cem_tree)
             .collect()
@@ -5872,11 +5873,17 @@ pub fn cem_document_record_query_stream(document: Arc<CemDocument>) -> Result<It
     Ok(ItemStream::once(CemDocumentQueryView::item(document, 0)))
 }
 
+fn native_render_values(tree: &CemTreeAstStream) -> Option<Arc<Vec<RenderPlanNode>>> {
+    tree.native_values::<cem_ql::eval::xdm::OwnedXdmDocument>()
+        .map(|document| document.values())
+        .or_else(|| tree.native_values::<Vec<RenderPlanNode>>())
+}
+
 fn artifact_query_stream(artifact: &TransformTemplateDataArtifact) -> Result<ItemStream, String> {
     match &artifact.body {
-        TransformArtifactBody::CemTree(tree) if tree.native_values::<Vec<RenderPlanNode>>().is_some() => {
-            Ok(cem_ql::eval::output::shared_output_nodes(tree.native_values::<Vec<RenderPlanNode>>().expect("native values checked")))
-        }
+        TransformArtifactBody::CemTree(tree) => native_render_values(tree)
+            .map(cem_ql::eval::output::shared_output_nodes)
+            .ok_or_else(|| "transform artifact representation `cem.tree-ast` has no CEM-QL native query view".to_owned()),
         TransformArtifactBody::CemDocument(document) => {
             let tree = cem_ml::parser::tree::RetainedCemTree::from_shared(
                 document.clone(),
@@ -6990,11 +6997,19 @@ mod tests {
         assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
         let tree = render_plan_to_cem_tree_nodes(&plan);
         assert!(!tree.is_materialized());
-        let owner = tree.native_values::<Vec<RenderPlanNode>>().unwrap();
+        let owner = tree.native_values::<cem_ql::eval::xdm::OwnedXdmDocument>().unwrap().values();
         let artifact = TransformTemplateDataArtifact::new("values", None, None, TransformArtifactBody::CemTree(Arc::new(tree.clone())));
         let stream = artifact_query_stream(&artifact).unwrap();
         assert_eq!(stream.items[0].identity(), cem_ql::eval::output::shared_output_nodes(owner).items[0].identity());
         let limits = cem_ml::value::artifact::CemValueArtifactLimits::default();
+        let document = tree.native_values::<cem_ql::eval::xdm::OwnedXdmDocument>().unwrap().document_with_control(
+            cem_ql::eval::QueryContextScope(0), &limits, &cem_ml::operation_control::OperationControl::default(),
+            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID).unwrap();
+        let native = document.view().unwrap().downcast_ref::<cem_ql::xpath::functions::XPathQueryItem>().unwrap().xpath_item().native_node().unwrap();
+        let attribute = native.child_nodes()[0].attribute_nodes().remove(0);
+        assert_eq!(attribute.string_value(), "2");
+        assert_eq!(cem_ml::value::xpath::CemValueXPathProjection::attribute_contract(&attribute).unwrap().model.value_type.as_deref(), Some("integer"));
+        assert!(!tree.is_materialized(), "native XDM handoff never asks the writer for a text/AST projection");
         let bytes = cem_ql::eval::portable::encode_values(&stream, &limits).unwrap();
         let restored = cem_ql::eval::portable::decode_values(&bytes, &limits).unwrap();
         let root = restored.items[0].view().unwrap();

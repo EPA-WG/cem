@@ -72,8 +72,7 @@ impl TransformArtifactExporter for ConstructedDataExporter {
         let TransformArtifactBody::CemTree(tree) = request.body else {
             return Err("constructed data requires a retained CEM tree".into());
         };
-        let owner = tree
-            .native_values::<Vec<RenderPlanNode>>()
+        let owner = super::native_render_values(tree)
             .ok_or("constructed data requires its native render owner")?;
         let mut remaining = 4096;
         let roots = children(&owner, &mut remaining)?;

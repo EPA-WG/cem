@@ -6,9 +6,9 @@ Run `yarn nx run @epa-wg/cem-studio:verify:catalog-audit` after changing them.
 
 Declared catalog/documentation coverage; native/worker/deployed verification and current resource admission remain separate evidence.
 
-There are **22 authored projects**, **285 authored source resources**
-and **246 authored configurations**. The inventory names
-**251 workflows**, including five generated portable workbenches;
+There are **22 authored projects**, **288 authored source resources**
+and **247 authored configurations**. The inventory names
+**252 workflows**, including five generated portable workbenches;
 32 generated package validations are represented by the native package matrix.
 The starter owns no configurations. Source resources include reference fixtures
 and documentation: their presence does not establish executable format support.
@@ -18,7 +18,7 @@ and documentation: their presence does not establish executable format support.
 | Project | Instructions | Authored resources | Configurations | Repair configurations | Authored commands |
 | --- | --- | --- | --- | --- | --- |
 | `cem-schema` | [README](../examples/projects/cem-schema/README.md) | 7 | 7 | 2 | `convert`, `inspect`, `validate` |
-| `cem-transform` | [README](../examples/projects/cem-transform/README.md) | 10 | 7 | 1 | `convert`, `inspect`, `transform`, `validate` |
+| `cem-transform` | [README](../examples/projects/cem-transform/README.md) | 13 | 8 | 1 | `convert`, `inspect`, `transform`, `validate` |
 | `cemql-orders` | [README](../examples/projects/cemql-orders/README.md) | 17 | 14 | 1 | `convert`, `inspect`, `parse`, `query`, `transform`, `validate` |
 | `css-selector` | [README](../examples/projects/css-selector/README.md) | 8 | 7 | 1 | `convert`, `inspect`, `query`, `validate` |
 | `css-stylesheet` | [README](../examples/projects/css-stylesheet/README.md) | 8 | 6 | 1 | `convert`, `inspect`, `transform`, `validate` |
@@ -42,8 +42,8 @@ and documentation: their presence does not establish executable format support.
 
 ## Generated projects
 
-The selectable catalog has **23 projects** with **283 declared configurations**
-and **611 stored resources**. The starter adds 2 resources.
+The selectable catalog has **23 projects** with **284 declared configurations**
+and **615 stored resources**. The starter adds 2 resources.
 The legacy Feature Tour seed shares the Schema examples workflows and is not
 counted twice. Declared configurations are not a uniform UI execution guarantee.
 
@@ -68,7 +68,7 @@ negotiation does not require a source-project configuration.
 | `inspect` | `available` | 38 |
 | `convert` | `available` | 52 |
 | `query` | `available` | 28 |
-| `transform` | `available` | 24 |
+| `transform` | `available` | 25 |
 | `trace` | `available` | 1 |
 | `version-capabilities` | `available` | 0 |
 | `bench` | `unavailable` | 0 |
@@ -117,7 +117,7 @@ authored identities, not a second package registry.
 | `xhtml` | `module-maps`, `xhtml-document` | `schema-examples`, `xhtml-document` | 1/1 |
 | `xml` | `cem-transform`, `css-selector`, `html-cem-card`, `native-projections`, `portable-config`, `relax-ng`, `supplier-pipeline`, `xpath-catalog`, `xslt-transform` | `css-selector`, `html-cem-card`, `native-projections`, `relax-ng`, `schema-examples`, `supplier-pipeline`, `xpath-catalog`, `xslt-transform` | 1/5 |
 | `xpath` | `html-cem-card`, `login`, `markdown-site`, `mathml-formula`, `supplier-pipeline`, `svg-diagram`, `xhtml-document`, `xpath-catalog` | `schema-examples`, `xpath-catalog` | 1/4 |
-| `xslt` | `xslt-transform` | `schema-examples`, `xslt-transform` | 1/7 |
+| `xslt` | `cem-transform`, `xslt-transform` | `schema-examples`, `xslt-transform` | 1/7 |
 | `yaml` | `json-yaml-report`, `supplier-pipeline` | `json-yaml-report`, `schema-examples` | 1/4 |
 
 ## Selectors without a declared primary-input case

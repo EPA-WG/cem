@@ -190,8 +190,10 @@ fn render(
             "secondary XSLT document bindings are not supported by this profile".into(),
         ));
     }
-    let mut data = TemplateData::default()
-        .with_binding("document", document(request.primary_input).map_err(error)?);
+    let mut data = TemplateData::default().with_binding(
+        "document",
+        document(request.primary_input, runtime).map_err(error)?,
+    );
     for (name, value) in request.compiled.parameters().iter() {
         let binding = payload
             .parameters
@@ -214,18 +216,32 @@ fn render(
 
 // The engine's native CEM arena is already an internal AST. Retain it through
 // the existing shared tree constructor; do not serialize or parse it again.
-fn document(artifact: &TransformTemplateDataArtifact) -> Result<ItemStream, String> {
+fn document(
+    artifact: &TransformTemplateDataArtifact,
+    runtime: Option<TransformTemplateRuntimeContext<'_>>,
+) -> Result<ItemStream, String> {
+    if let TransformArtifactBody::CemTree(tree) = &artifact.body {
+        if let Some(document) = tree.native_values::<cem_ql::eval::xdm::OwnedXdmDocument>() {
+            let fallback = cem_ml::operation_control::OperationControl::default();
+            let (control, scope) = runtime
+                .map(|r| (r.operation_control, r.execution_scope))
+                .unwrap_or((
+                    &fallback,
+                    cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+                ));
+            return document
+                .document_with_control(
+                    cem_ql::eval::QueryContextScope(0),
+                    &cem_ml::value::artifact::CemValueArtifactLimits::default(),
+                    control,
+                    scope,
+                )
+                .map(ItemStream::once);
+        }
+    }
     if let TransformArtifactBody::CemDocument(owner) = &artifact.body {
-        let ast = CemDocument {
-            nodes: owner.nodes.clone(),
-            id_table: owner.id_table.clone(),
-            unresolved_slots: owner.unresolved_slots.clone(),
-            diagnostics: owner.diagnostics.clone(),
-            format_identity: owner.format_identity.clone(),
-            typed_preludes: owner.typed_preludes.clone(),
-        };
-        let tree = cem_ml::parser::tree::RetainedCemTree::new(
-            ast,
+        let tree = cem_ml::parser::tree::RetainedCemTree::from_shared(
+            owner.clone(),
             artifact.uri.as_deref().unwrap_or("memory:transform-input"),
             "",
             Default::default(),

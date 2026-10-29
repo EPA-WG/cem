@@ -696,6 +696,25 @@ JavaScript document records or serialized AST handoffs. The same XPath
 `/*/*` and compiled loop fixture runs over all four current import formats.
 See the [external data import rule](cem-data-import-principle.md).
 
+Constructed CEM and XSLT stage results can also supply one owned native XDM
+document to a downstream XSLT stage. The shared native value projection retains
+the render values and referenced source owners; it neither serializes XML nor
+reimports a document. Empty output is an empty document, and multiple result
+roots are children of that document. Absolute paths and ordering axes use its
+logical root rather than the forest arena sentinel. Ordinary CEM bindings keep
+their existing flat sequence semantics. An explicitly XML-encoded stage remains
+text and does not acquire node capabilities implicitly.
+
+Each stage owner caches only its latest query-scope projection. Repeated reads
+in that scope retain node identity; a different scope is admitted afresh, and
+selected older nodes retain their actual owners after eviction. Memory, value,
+depth and cancellation checks apply on cache hits too. Constructed documents
+have no invented document URI or original line coordinates. Lowered XSLT output
+maps identify `#generated-cemt` source ranges, never counterfeit original XSLT
+coordinates. Bundle loading validates present source boundaries against that
+generated source identity. The ordinary CEM transformation example includes a
+`build-xslt-report` configuration exercising this handoff.
+
 WASM exposes two source entry points:
 
 - `compileXsltBundle(source, sourceUri)` returns portable binary bytes without

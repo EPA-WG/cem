@@ -32,7 +32,7 @@ export async function verifyTransformationProjects({ page, context, url }) {
         }
         await click(name); return state();
     };
-    const build = async project => { await open({ project, build: buildId }); await click('Build project'); return state(); };
+    const build = async (project, selectedBuild = buildId) => { await open({ project, build: selectedBuild }); await click('Build project'); return state(); };
     const clone = async name => {
         await click('Clone selected'); await page.getByRole('dialog').getByRole('textbox').fill(name);
         await page.getByRole('dialog').getByRole('button', { name: 'Clone', exact: true }).click(); await settle();
@@ -147,9 +147,45 @@ export async function verifyTransformationProjects({ page, context, url }) {
             for (const name of originalIds) { await open(sampleRoute(name)); assert.equal(await readonly.getAttribute('aria-readonly'), 'true'); assert.equal(await readonly.evaluate(element => element.value), originals[name]); }
         } finally { await context.setOffline(false); }
         console.log(`[cem-studio:${id}] independent template copies, offline native rebuilds and unchanged catalog originals passed`);
+        let nativeXdmHandoff;
+        const nativeGraph = definition.configurations.find(item => item.id === 'build-xslt-report');
+        if (nativeGraph) {
+            const selectedBuild = nativeGraph.id;
+            await open({ collection, sample: id, build: selectedBuild });
+            await click('Build project');
+            const nativeSample = await state();
+            assert.equal(nativeSample.buildStatus, 'succeeded', JSON.stringify(nativeSample));
+            assert.equal(output(nativeSample, nativeGraph.entryArtifact), await fixture('expected-xslt-html'));
+            assert.deepEqual(JSON.parse(output(nativeSample, 'generated/report.json')), JSON.parse(await fixture('expected-report')));
+            assert.ok(nativeSample.artifacts.find(item => item.path === nativeGraph.entryArtifact).provenance.some(item => item.uri.endsWith('/templates/page.xsl#generated-cemt')));
+            await rendered(2);
+            const nativeCopy = await clone(`Native handoff ${definition.name}`);
+            const xslt = await fixture('page-xslt-template');
+            const orderedXslt = xslt.replace('<ul>', '<ol>').replace('</ul>', '</ol>');
+            assert.notEqual(orderedXslt, xslt);
+            await open({ project: nativeCopy, file: 'page-xslt-template', build: selectedBuild }); await save(orderedXslt);
+            await open({ project: nativeCopy, file: 'orders-source', build: selectedBuild }); await save(editedData);
+            const nativeCopied = await build(nativeCopy, selectedBuild);
+            assert.equal(nativeCopied.buildStatus, 'succeeded', JSON.stringify(nativeCopied));
+            await rendered(2, 'Ready orders', 'ol', 'Café Haven'); await jsonTable(2);
+            assert.equal(JSON.parse(output(nativeCopied, 'generated/report.json'))[0].customer, 'Café Haven');
+            await context.setOffline(true);
+            try {
+                await page.reload(); await ready();
+                const offline = await build(nativeCopy, selectedBuild);
+                assert.equal(offline.buildStatus, 'succeeded', JSON.stringify(offline));
+                for (const path of Object.keys(nativeGraph.expectedGraphOutputs)) assert.equal(output(offline, path), output(nativeCopied, path));
+                await rendered(2, 'Ready orders', 'ol', 'Café Haven'); await jsonTable(2);
+                await open({ collection, sample: id, file: 'page-xslt-template', build: selectedBuild });
+                assert.equal(await readonly.evaluate(element => element.value), xslt);
+            } finally { await context.setOffline(false); }
+            nativeXdmHandoff = { nativeProvenance: true, renderedHtml: true, jsonTable: true, independentTemplate: true, savedData: true, offline: true };
+            console.log(`[cem-studio:${id}] native CEM-to-XSLT handoff, source maps, independent saved edits and offline preview passed`);
+        }
         evidence[id] = { catalog: true, readonlyOriginals: true, nativeCommands: true, exactFormatter: true, sourceRepair: true,
             multiStepGraph: true, explicitEntry: true, renderedHtml: true, nativeProvenance: true, unsavedSourceGuard: true,
             savedData: true, savedGraphParameters: true, retainedFailure: true, independentTemplates: true, offline: true,
+            ...(nativeXdmHandoff ? { nativeXdmHandoff } : {}),
             ...(hasJson ? { jsonTable: true, unmappedJsonBoundary: true } : { directXslt: true }) };
     }
     return evidence;

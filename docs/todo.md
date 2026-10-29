@@ -550,13 +550,21 @@ demo and isolated worker/fallback Login recovery checks pass. The strict census
 fixture includes the existing thirtieth package-owner registry; no authority or
 recovery bounds change. Relative Node output canonicalization is tracked below.
 
-- [ ] Define an owned native XDM handoff for constructed CEM-tree results consumed by a downstream XPath/XSLT stage. Current XSLT input admission requires imported native nodes; XML encoding produces text rather than a retained source owner. Add native graph and provenance fixtures before admitting constructed values or an explicit native reimport stage; do not introduce serialized AST or JavaScript parser workarounds. The transformation examples use the supported XSLT-to-CEM stage order.
+- [x] Provide owned native XDM handoff for constructed transformation-stage results. [Implementation and verification](archive/todo-completed-native-xdm-handoff-2026-10-28.md).
+  CEM/XSLT output now supplies one bounded native document to XSLT, preserving
+  source owners and typed contracts without encoding/reimport. Native forest
+  roots and generated-template provenance are corrected; the ordinary CEM
+  project demonstrates saved edits and offline previews. Native, Node, full
+  Studio, optional-profile, deployed-demo and isolated worker/fallback Login
+  recovery checks pass. Credential refusal and all recovery bounds are unchanged.
 
 - [ ] Make full schema-package artifact/example validation prefer its supplied resource reader over filesystem reads for file-like canonical URIs. Preserve full validation's diagnostics and legacy filesystem behavior when no reader is supplied; keep this separate from immutable owned-pack admission and strict runtime artifact consumption.
 
 - [ ] Diagnose relative Node `--out` destination canonicalization before common command-service URI admission. `createNodeCommandService({ cwd })` plus `parse inventory.csv --out inspection.cem` currently refuses `runPlan.outputs.resolvedDestination=inspection.cem` as `cem.command_service.uri_invalid` before reaching Parse; an explicit `file:` destination works and preserves refused output. Add lowering/Node/executable fixtures first, determine the supported argv-path contract and retain strict prepared-URI/publication authority checks. Keep this separate from native Parse refusal policy.
 
 - [ ] Diagnose the three existing linked package preparation source-map failures at `schema_package_lifecycle/attribute_datatypes.rs:473`: pretyped handoff, callback context/publication guards and checked preparation replacement retain an additional `SourceBoundary` frame. All three reproduce on unchanged `eca54d20`; preserve source provenance and intended assertions when resolving the mismatch. The broader cohort passes 46/49 cases; see the [CSV contract verification](archive/todo-completed-csv-parser-contracts-2026-10-24.md#verification).
+
+- [ ] Isolate the optional Studio sample graph from the ordinary Feature Tour generated directory. `build-schema-assets-profile.mjs` leaves `generated/feature-tour/feature-tour.schema-assets.cem`, causing the subsequent strict default `generate-feature-tour.mjs --check` file-set assertion to fail. Add default → optional → default verification fixtures, move the optional build input into its own generated domain with correct relative resource bases, and retain exact default file-set checking. Removing only that untracked build scratch file permits default verification; saved projects/drafts are unrelated.
 
 - [ ] Diagnose the intermittent worker-static-change fresh-allocation timeout in StaticPreviewRefusals observed in the frozen 111-case credential-policy cohort (110 pass); the unchanged isolated case passes. Preserve the original five-second allocation deadline and static-presentation refusal assertions.
 

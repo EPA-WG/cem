@@ -492,8 +492,11 @@ describe('CEM Studio Feature Tour copies', () => {
                 const updated = await run({ [data.id]: editedData });
                 if (jsonPath) expect(rows(updated)[0].customer).toBe('Café Haven');
                 expect(html(updated)).toContain('Café Haven');
-                const template = bundle.project.resources.find(item => item.path === 'templates/page.cemt');
-                const editedTemplate = decode(template.id).replace('@name=ul', '@name=ol'); expect(editedTemplate).not.toBe(decode(template.id));
+                const edit = configuration.expectedTemplateEdit ?? ['page-template', '@name=ul', '@name=ol'];
+                const template = bundle.project.resources.find(item => item.id === edit[0]);
+                let editedTemplate = decode(template.id);
+                for (let index = 1; index < edit.length; index += 2) editedTemplate = editedTemplate.replace(edit[index], edit[index + 1]);
+                expect(editedTemplate).not.toBe(decode(template.id));
                 const ordered = await run({ [template.id]: editedTemplate });
                 expect(html(ordered)).toContain('<ol>'); expect(html(ordered)).not.toContain('<ul>');
                 if (jsonPath) expect(rows(ordered)).toEqual(rows(baseline));

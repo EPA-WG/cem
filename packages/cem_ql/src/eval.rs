@@ -37,6 +37,7 @@ pub mod values;
 pub mod value_control;
 mod template_dispatch;
 pub mod output;
+pub mod xdm;
 pub mod portable;
 pub(crate) mod xpath_values;
 pub(crate) use data::xpath_node as imported_xpath_node;

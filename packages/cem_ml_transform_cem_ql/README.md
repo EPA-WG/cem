@@ -488,3 +488,27 @@ grants. No authored override syntax is introduced. Inherited lexical replacement
 requires the separate checked capability selection above; facet replacement remains
 deferred. See the [override contract](../../docs/cem-datatype-compilation-design.md#explicit-declaration-overrides-adopted-2026-10-09)
 and [native fixtures](../cem_ql/tests/datatype_validation/overrides.rs).
+
+### Constructed stage documents
+
+An intermediate stage targeting `application/cem` with the CEM-ML schema retains
+its native constructed values. A downstream XSLT stage obtains one owned XDM
+document over those values, including empty or multiple roots and layout text.
+Namespace-aware absolute XPath uses the actual semantic document root; arena zero
+is only storage for native forests. Existing CEM consumers keep the same flat
+native sequence and typed attribute/reference contracts.
+
+The shared `cem_ql::eval::xdm::OwnedXdmDocument` caches one projection per current
+node capability scope. Repeated consumers in that scope share node identity;
+evicted projections live only through actual node owners. Every use rechecks
+node/depth/byte limits, cancellation and consuming-scope memory admission. The
+index retains raw native values and original reference owners without retaining
+its cache-bearing wrapper, so memory permits release with the last node/cache
+owner. Source URI/key/ranges remain provenance; constructed documents have no
+fabricated document URI or source line table.
+
+No CEM presentation tree, serialized AST, XML writer or parser participates in
+this handoff. Encoded XML remains text. Arbitrary presentation trees, records and
+JSON control fields cannot grant a native document owner. The ordinary Studio
+CEM transformation project includes `build-xslt-report` to demonstrate CEM report
+construction followed by an XSLT view, alongside its existing CEM view.

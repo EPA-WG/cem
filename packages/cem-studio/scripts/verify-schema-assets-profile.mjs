@@ -370,7 +370,7 @@ async function verifyFormatDemands(context, url, formats) {
                 if (format.packageId === 'xslt') {
                     console.info('[format-demand:xslt] native graph');
                     const graphUri = 'studio://format-demand/build.cem';
-                    const graph = '{run | {import @id=input @src=input.xml @content-type=application/xml | {transform @id=view @src=view.xsl @template-content-type="application/xslt+xml" | {export @id=result @out=out.html @content-type=text/html}}}}';
+                    const graph = '{run | {import @id=input @src=input.xml @content-type=application/xml | {transform @id=model @src=make.xsl @template-content-type="application/xslt+xml" @content-type=application/cem @schema=https://cem.dev/ns/cem-ml/1 | {transform @id=view @src=view.xsl @template-content-type="application/xslt+xml" | {export @id=result @out=out.html @content-type=text/html}}}}}';
                     const stylesheet = '<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><p><xsl:value-of select="/r"/></p></xsl:template></xsl:stylesheet>';
                     const run = await app.validator.runResourceCommand({ bytes: new TextEncoder().encode(graph), uri: graphUri,
                         contentType: 'application/cem', schema: 'https://cem.dev/ns/cli/transform-config/1',
@@ -379,6 +379,7 @@ async function verifyFormatDemands(context, url, formats) {
                             '--config-schema', 'https://cem.dev/ns/cli/transform-config/1', '--scope-budget', 'queueSize=1024'],
                         dependencies: [
                             { path: 'input.xml', bytes: new TextEncoder().encode('<r>Café 🍒</r>'), contentType: 'application/xml', schema: 'https://cem.dev/ns/data/xml/1' },
+                            { path: 'make.xsl', bytes: new TextEncoder().encode('<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><r><xsl:value-of select="/r"/></r></xsl:template></xsl:stylesheet>'), contentType: format.contentType, schema: format.schema },
                             { path: 'view.xsl', bytes: new TextEncoder().encode(stylesheet), contentType: format.contentType, schema: format.schema },
                         ] });
                     ensure(run.result.exitCode === 0 && run.output?.text === '<p>Café 🍒</p>', 'admitted XSLT graph did not execute through the native command service');
@@ -390,7 +391,7 @@ async function verifyFormatDemands(context, url, formats) {
                     ...(expandsCss ? { nativeCssExpansion: true }
                         : { externalFormatter: true, externalColorizer: true }),
                     ...(format.packageId === 'markdown' && { nativeHtmlConversion: true }),
-                    ...(format.packageId === 'xslt' && { nativeXsltGraph: true }) };
+                    ...(format.packageId === 'xslt' && { nativeXsltGraph: true, nativeXdmHandoff: true }) };
             }, format);
             // A fresh physical cohort must prepare the selected resource itself,
             // rather than borrowing the preceding command's active package.

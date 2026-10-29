@@ -276,7 +276,7 @@ impl XPathNativeNode {
         Self { id, ..self.clone() }
     }
     pub(super) fn document_root(&self) -> Self {
-        self.at(0)
+        self.at(self.tree.semantic_root(self.id).expect("validated semantic node"))
     }
     pub fn child_nodes(&self) -> Vec<Self> {
         self.child_nodes_iter().collect()
@@ -523,5 +523,31 @@ impl XPathNativeNode {
                 XPathKindTest::AnyNode => true,
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod forest_root_tests {
+    use super::*;
+    use crate::value::{artifact::{CemValueArtifactLimits, CemValueGraph, CemValueRecord}, xpath::CemValueXPathProjection};
+    #[test]
+    fn native_forest_paths_and_order_axes_use_the_actual_document_not_arena_zero() {
+        let graph = Arc::new(CemValueGraph { roots: vec![0, 2], records: vec![
+            CemValueRecord { kind: "document".into(), children: vec![1], ..Default::default() },
+            CemValueRecord { kind: "element".into(), name: "first".into(), parent: Some(0), ..Default::default() },
+            CemValueRecord { kind: "document".into(), children: vec![3], ..Default::default() },
+            CemValueRecord { kind: "element".into(), name: "second".into(), parent: Some(2), ..Default::default() },
+        ] });
+        let projection = CemValueXPathProjection::build(graph, &CemValueArtifactLimits::default(), &mut || Ok(())).unwrap();
+        let first = projection.items(0).unwrap().remove(0).native_node().unwrap().clone();
+        let second = projection.items(2).unwrap().remove(0).native_node().unwrap().clone();
+        for root in [&first, &second] {
+            assert_eq!(root.document_root().identity(), root.identity());
+            let child = root.child_nodes().remove(0);
+            assert_eq!(child.document_root().identity(), root.identity());
+            assert!(child.following_nodes().is_empty());
+            assert!(child.preceding_nodes().is_empty());
+        }
+        assert_ne!(first.identity(), second.identity());
     }
 }

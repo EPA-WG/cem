@@ -255,3 +255,25 @@ the command resource through the project tree. External changes require reload,
 and changes during execution mark results stale. Source byte counts refer to
 actual bytes, never a decoded placeholder. All existing source/resource-set and
 recovery budgets, credential refusals and timeouts remain unchanged.
+
+### Constructed native stage handoff
+
+Constructed CEM values are already inside the native boundary. A stage explicitly
+targeting `application/cem` with the CEM-ML schema may pass its retained native
+value allocation to an XSLT consumer through `OwnedXdmDocument`. This creates one
+semantic XDM document for absolute XPath over empty, single-root or multi-root
+output, without calling an external parser or presentation writer. Original
+reference owners, expanded names, typed attribute contracts and source provenance
+remain retained. Normal CEM consumers keep their existing flat native sequence.
+
+Native forests record each node's semantic root during validation. Absolute paths
+and order axes use that root rather than the arena's inaccessible storage sentinel.
+The document projection checks node/depth/byte bounds and cancellation, retains
+an accounted memory permit, and rechecks consuming-scope admission on reuse.
+Original source URI/key/ranges are provenance, not a fabricated document URI or
+source line index. Cache eviction does not invalidate selected native nodes;
+actual owners determine lifetime. Encoded XML remains text and is not silently
+reimported. Serialized ASTs, plain records and presentation trees do not establish
+native ownership. Studio's CEM transformation project demonstrates this through
+its ordinary `build-xslt-report` configuration. Credential recovery refusals,
+automatic-recovery defaults and checkpoint limits remain unchanged.

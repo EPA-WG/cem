@@ -317,6 +317,7 @@ resource IDs and configuration IDs, independently of display labels or folders.
 | `cem-transform` | `report-graph` | `inspect-graph` | Inspect the native graph source tree: orders import, filtered report model, HTML view, parameters and explicit exports. |
 | `cem-transform` | `invalid-template` | `repair-template` | Review the original native source diagnostic, restore the required declaration and revalidate the saved copy. |
 | `cem-transform` | `report-graph` | `build-report` | Filter original orders into a native report model, then render the model through the shared CEM-native template runtime. The explicit HTML entry drives project preview. |
+| `cem-transform` | `xslt-report-graph` | `build-xslt-report` | Pass the constructed native CEM report directly into an owned XDM document for XSLT, preserving source owners, bounded admission, explicit HTML preview and the independent JSON export. |
 | `xslt-transform` | `report-template` | `validate-template` | Validate the declared template identity independently of graph execution or the output data contract. |
 | `xslt-transform` | `report-template` | `inspect-template` | Inspect the native source tree and original template ranges; this does not execute the template. |
 | `xslt-transform` | `report-template` | `format-template` | Apply the native tabular source formatter and compare its exact source bytes. |
@@ -562,13 +563,18 @@ buffers. Existing ownership, revision, draft and UTF-8 guards remain effective.
 The ordinary `cem-transform` and `xslt-transform` projects use the same XML order
 data and expose explicit HTML entry artifacts. The CEM graph also exports an
 application JSON report.
-The first graph uses CEM templates for both stages; the second uses XSLT for the
-report and CEM for the HTML page. Intermediate results remain native CEM-tree
-values. Declaring them as XML would encode text rather than create a new retained
-XML owner, and the current XPath/XSLT input adapter does not accept those
-constructed sequences. No serialized AST handoff or application-side reimport is
-used. JSON report exports retain the previously documented unmapped and
-cross-host whitespace limits; HTML artifacts carry native output spans.
+The original graph configurations use CEM templates for both stages, or XSLT
+for the report followed by a CEM HTML page. The CEM project's `build-xslt-report`
+configuration additionally passes its constructed report directly to an XSLT
+view through one bounded owned native XDM document. Empty and multiple result
+roots are valid document children; absolute XPath uses their logical root.
+Original source owners, namespaces and typed attributes remain retained, with
+memory/size/depth/cancellation admission rechecked on reuse. Encoded XML remains
+text, without implicit reimport. No serialized AST or application JavaScript
+handoff is used. JSON exports retain their documented unmapped and cross-host
+whitespace limits. HTML maps retain native source boundaries; lowered XSLT maps
+identify generated CEMT ranges under `#generated-cemt`, without claiming original
+stylesheet character offsets or fabricating a constructed document URI.
 
 The schema-authoring projects separate three contracts. `cem-schema` defines a
 note vocabulary, required-id field contract and diagnostic, and supplies its

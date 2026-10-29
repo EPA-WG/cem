@@ -185,13 +185,13 @@
     {
       "id": "cem-transform",
       "name": "CEM transformation",
-      "description": "Transform owned XML into an application-data report and HTML through declared CEM-native templates, graph parameters and explicit entry artifacts; inspect source contracts and repair a template declaration.",
+      "description": "Transform owned XML into a native report and HTML with CEM or XSLT views, preserving native stage ownership, parameters and explicit entry artifacts.",
       "version": "1.0.0",
       "collections": [
         "content-types-queries-transformations"
       ],
       "archive": "./examples/cem-transform.cem-studio.json",
-      "sha256": "c0a09d5ceb9141b13ed81e0491112fcd7d29118e6a8c0a45432a019a9e710fb1"
+      "sha256": "96c4dbb53edd1c12271d9ff06970378a5f9e5794f2d39288637b86ad04664bca"
     },
     {
       "id": "cemql-orders",

@@ -532,3 +532,43 @@ fn xpath_budgets_and_capability_errors_remain_uncatchable() {
             .any(|d| d.uri.as_deref() == Some("memory:library.xslt") && d.source_map.is_some()));
     }
 }
+
+#[test]
+fn lowered_bundle_preserves_generated_template_source_ownership_after_reload() {
+    use cem_ml::source_map::TransformKind;
+    use cem_ql::{
+        render::render_plan_to_html_with_source_map, xslt::compiler::compile_xslt_bundle,
+    };
+    let source = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><p><xsl:value-of select="/r"/></p></xsl:template></xsl:stylesheet>"#;
+    let compiled = compile_xslt_bundle(source, "memory:owned.xsl").unwrap();
+    let bundle = XsltBundle::from_bytes(
+        &compiled.bytes,
+        &compiled.content_hash,
+        &compiled.source_hash,
+    )
+    .unwrap();
+    assert_eq!(
+        bundle.generated_source().uri,
+        "memory:owned.xsl#generated-cemt"
+    );
+    let output =
+        render_plan_to_html_with_source_map(&bundle.render(&data("<r>Café 🍒</r>", "xml")));
+    assert_eq!(output.rendered, "<p>Café 🍒</p>");
+    assert!(output.output_spans.iter().any(|span| span.origin.frames.iter().any(
+        |frame| matches!(&frame.transform, TransformKind::SourceBoundary { uri } if uri == &bundle.generated_source().uri)
+    )));
+    for change in [
+        ("uri", serde_json::json!("memory:foreign.cemt")),
+        ("byteLength", serde_json::json!(1)),
+    ] {
+        let corrupt = edit_manifest(&compiled.bytes, |manifest| {
+            manifest["generatedSource"][change.0] = change.1.clone();
+        });
+        assert!(XsltBundle::from_bytes(
+            &corrupt,
+            &ContentHash::from_blake3(&corrupt),
+            &compiled.source_hash,
+        )
+        .is_err());
+    }
+}

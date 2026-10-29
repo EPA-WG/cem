@@ -316,6 +316,7 @@ pub fn compile_xslt_bundle_with_options_and_parser_contract(
     let template = compile_template_artifact(
         &generated_cemt,
         &CompileTemplateOptions {
+            source_uri: Some(format!("{source_uri}#generated-cemt")),
             host_bindings: std::iter::once("document".into())
                 .chain(options.parameters.values().cloned())
                 .collect(),
