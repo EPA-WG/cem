@@ -11,6 +11,48 @@ capability remains available through the core or a module loaded when needed.
 Static HTML output alone does not meet this live-component contract. Keep the
 current full-runtime build, CLI, Studio defaults and package entry points intact.
 
+## Application build and deployment boundary
+
+Clarified 2026-10-29: determine the initial runtime from the deployed app's
+requirements. Use the [shopping-cart reference](cem-components-shopping-cart-profile.md)
+as the first compiled-UI + JSON acceptance case. The complete component catalog
+is the capability/parity inventory; it does not require every parser, schema or
+component behavior to be present at startup in every application.
+
+The app build validates authored components, templates, styles, static data and
+declared operations, compiles native template/expression artifacts and records
+the exact required component/module/source closure. Runtime loads pinned native
+artifacts and executes the compiled plans against changing data. General schema
+authoring/validation, source parsers, converters and tooling can be omitted from
+initial download when they are unnecessary for that app's admitted inputs.
+Additional formats and source-driven compilation remain available through demand
+modules. Preserve the native evaluator's supported semantics and explicit module
+requirements for dynamic function/resource choices.
+Reuse a shared compiled-UI + JSON core across apps; the manifest selects required
+capabilities and preload policy. Components continue to share one runtime rather
+than embedding a private engine for each control.
+
+Build-time validation cannot cover API responses, user edits or resources that
+arrive later. Retain bounded native JSON decoding/encoding, artifact/ABI/integrity
+checks, necessary runtime type/input contracts, and compact app-specific variable
+and response checks generated during the build. These checks should not require
+shipping the full general-purpose schema catalog. GraphQL operation validation
+is build tooling for fixed operations; the cart client sends their strings and
+JSON variables, then handles JSON data/errors. Server pricing, stock and mutation
+validation remain authoritative.
+
+The current native `CompiledTemplateArtifact` already reloads binary template
+and expression IR without invoking the CEM-ML or CEM-QL source compiler. Its v1
+stylesheet wire fields contain CSS source and reload through the native CSS
+importer. The browser's `retainCemMlTemplateArtifact` path still takes original
+template source to compute an expected hash. The new deployment path must bind
+to manifest-pinned source/artifact hashes and instantiate every dependency without
+requiring original source text. Keep CSS parsing until compiled style admission
+is implemented; native reload proof alone does not establish a source-free browser
+bundle, omitted compiler code or a smaller binary.
+The evaluator also assembles the general function registry during native render;
+profile-specific dispatch/registry roots remain necessary even with compiled IR.
+
 ## Baseline and evidence
 
 The [capability, dependency and size audit](cem-components-wasm-audit.md)
@@ -23,7 +65,8 @@ no component-core target or reduced binary exists yet.
 The measured code section occupies 88.6% of the binary, and data occupies 11.3%.
 Those sections do not attribute bytes to removable languages or assets. The
 audit identifies CSV parsing within native `data:read` evaluation and editor
-highlighting as required capabilities whose module boundaries must be proven.
+highlighting as capabilities whose module boundaries must be proven for apps
+that request them. The JSON-only cart does not request either at startup.
 Source metadata is conservative evidence, not a complete native call graph or
 an exhaustive dynamic-mode proof. The local no-store worker runs also fetch the
 same WASM twice, so unique file size and repeated transfer cost are reported
@@ -120,8 +163,9 @@ static string matching alone is insufficient to prove a dependency unused.
 
 | Layer | Planned responsibility |
 | --- | --- |
-| UI core | Native CEM tree/XDM values and ownership, canonical CEM-ML declarations/templates, component-used CEM-QL evaluation, DOM/patch identity, source provenance/diagnostics, native CSS/scoping/selectors, resources, cancellation and recovery primitives. |
-| Core import closure | HTML/XHTML declaration loading and JSON/XML or other imports required by baseline component flows. Determine the exact closure by fixtures; keep required functionality in core until its modular handoff is proven. |
+| UI core | Native CEM tree/XDM values and ownership, compiled template/expression execution, required shared behaviors, DOM/patch identity, source provenance/diagnostics, style/scoping behavior, resources, cancellation and recovery primitives. |
+| App import closure | Native binary artifact decoding plus only the app's required runtime formats; JSON for the first cart. Existing HTML/XHTML declaration loading, CEM-ML/CEM-QL source compilation and native CSS parsing remain dependencies of paths that still use them; prove compiled replacements before exclusion. |
+| Build-only tooling | Authored-source parsers, general schema validation, template/expression/style compilation, GraphQL schema/operation validation and dependency/contract generation. Make source-driven authoring available through demand modules when the deployed app admits it. |
 | Source asset packs | Optional schema bodies, formatter/colorizer templates and other declarative resources through the existing owned-pack contract. These do not each need a new WASM binary. |
 | Compiled language/conversion modules | Candidates include Markdown, SCSS, additional data formats, XPath source operations, legacy/standards XSLT and specialized conversions. Move only dependencies proven separable from the UI core. |
 | Tooling modules | Full Parse/Inspect/source export, language-specific formatting/coloring, command/graph execution and debugger integration when requested. Rendering diagnostics and recovery/admission guards remain core responsibilities. |
@@ -211,12 +255,16 @@ never live native handles. See the [credential privacy contract](committed-check
 
 ## Delivery and acceptance gates
 
-1. Inventory the current full runtime and every component/mode's native closure;
-   add baseline network, size, latency and heap/owner measurements first.
+1. Use the catalog audit as a comparator, then define the shopping-cart manifest
+   and prove build-time compilation, native binary reload and changing JSON data
+   without source recompilation. Generate app dependency and compact input
+   contracts; connect source-free artifact admission and required styles to
+   shared worker/fallback registration. Measure this app's actual runtime closure.
 2. Prove module ABI and native data handoff using a small optional operation and
    an importer feeding a live component, including refusal and source provenance.
-3. Introduce native dependency/registry/export partitions and the distinct core
-   target. Demonstrate actual code omission; retain critical diagnostics/guards.
+3. Introduce native dependency/registry/export partitions and the distinct
+   compiled-UI + JSON target. Demonstrate actual code omission and preserve
+   baseline runtime checks; retain critical diagnostics/guards.
 4. Add the shared loader, declarative demand, worker/fallback publication and
    readiness contracts; integrate existing source packs without duplicate engines.
 5. Extract optional language/conversion/tooling modules incrementally behind the

@@ -1,0 +1,22 @@
+fragment CartFields on Cart {
+  id
+  lines { id name quantity unitPriceMinor }
+  totalMinor
+  displayTotal
+  currency
+  shippingEstimate
+}
+
+query Cart($id: ID!) {
+  cart(id: $id) { ...CartFields }
+}
+
+mutation SetCartLineQuantity($cartId: ID!, $lineId: ID!, $quantity: Int!) {
+  cart: setCartLineQuantity(cartId: $cartId, lineId: $lineId, quantity: $quantity) {
+    ...CartFields
+  }
+}
+
+mutation RemoveCartLine($cartId: ID!, $lineId: ID!) {
+  cart: removeCartLine(cartId: $cartId, lineId: $lineId) { ...CartFields }
+}

@@ -706,6 +706,14 @@ implemented profile or a measured minimum. The current UI WASM reference is
 22.96 MiB raw, 6.99 MiB gzip-9 and 5.14 MiB Brotli-9; record and compare matched
 builds rather than promising an unmeasured core size.
 
+Clarified 2026-10-29: initial dependencies follow the deployed application's
+requirements. Start with the [shopping-cart reference](docs/cem-components-shopping-cart-profile.md):
+build-validated/compiled UI, predefined GraphQL operations and JSON runtime data.
+General source parsers, schemas and tooling belong to the build or on-demand
+modules when unused by that app. Retain runtime JSON/input checks and ownership
+guards. Prove source-free compiled loading and style admission, then measure the
+compiled-UI + JSON target before expanding optional format/tooling coverage.
+
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.
 The [initial audit](docs/cem-components-wasm-audit.md) and
@@ -718,6 +726,11 @@ is a separate workstream with these delivery steps:
 - Inventory native code/exports, registries and every component/mode's dependency
   closure. Keep CEM-ML/CEM-QL rendering, native CSS, data ownership, diagnostics,
   admission and recovery primitives in the required core; prove any further split.
+- Generate the app-specific dependency/contract manifest and compile its native
+  UI ahead of deployment. Load compiled plans against changing API/user data
+  without compiling source or carrying unused general schemas; fixed GraphQL
+  operations need build tooling plus JSON client transport. Preserve generated
+  dynamic-input checks and demand modules for additional source/content formats.
 - Prototype an optional operation and an importer feeding retained core data.
   Preserve typed native CEM trees and original source provenance across the
   module boundary; never share cross-heap handles or use JSON/JavaScript ASTs.
@@ -743,8 +756,9 @@ Optional endpoints must join the existing native ownership/recovery group.
 Entered credentials still block recovery until cleared; automatic whole-Studio
 recovery stays disabled and the 4 MiB budget/deadlines remain unchanged. This
 profile does not authorize a silent package-default switch or fallback to a
-server-side service. First implementation is the capability/size audit and native
-handoff prototype; module extraction follows that proof.
+server-side service. Following the catalog audit, implement the shopping-cart
+build/compiled-load boundary and native module handoff proof; extraction follows
+that proof.
 
 ### 3.2 Primitives — `@epa-wg/cem-components`
 

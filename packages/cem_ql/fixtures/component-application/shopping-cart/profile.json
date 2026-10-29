@@ -1,0 +1,23 @@
+{
+  "version": "cem-application-reference/1",
+  "id": "shopping-cart-graphql",
+  "entryTemplate": "cart-view.cem",
+  "hostBindings": ["response"],
+  "components": ["cem-action", "cem-alert", "cem-card", "cem-text", "cem-text-field"],
+  "runtimeFormats": ["json"],
+  "optionalFormats": ["csv", "markdown", "scss", "xml", "yaml"],
+  "deployment": {
+    "templates": "compiled-native-artifacts",
+    "stylesheets": "native-css-required-v1",
+    "dynamicTemplateSource": false
+  },
+  "graphql": {
+    "endpoint": "/graphql",
+    "schema": "schema.graphql",
+    "operations": "operations.graphql",
+    "operationNames": ["Cart", "SetCartLineQuantity", "RemoveCartLine"],
+    "requestContentType": "application/json",
+    "responseContentTypes": ["application/graphql-response+json", "application/json"]
+  },
+  "responses": ["cart.json", "updated.json", "removed.json", "empty.json", "partial-error.json", "failed.json"]
+}

@@ -1,0 +1,1 @@
+{"data":{"cart":{"id":"cart-1","lines":[{"id":"tea","name":"Tea","quantity":3,"unitPriceMinor":900},{"id":"coffee","name":"Coffee <img src=x onerror=alert(1)>","quantity":1,"unitPriceMinor":500}],"totalMinor":3200,"displayTotal":"USD 32.00","currency":"USD","shippingEstimate":"Delivery estimate: 2 days"}}}

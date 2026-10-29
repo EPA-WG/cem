@@ -875,6 +875,50 @@ component capability, shared UI ownership and the credential policy above. Keep
 the current Studio execution order; run this as a separate component-library
 workstream when selected.
 
+Clarified 2026-10-29: prioritize the app build/compiled-load boundary below over
+broader benchmark and optional-authoring-module work. Start with shared compiled
+UI + JSON for the shopping-cart app; the catalog remains the complete capability
+inventory, not the minimum set loaded by every app.
+
+- [x] Refine the deployment design around app-specific compiled UI plus JSON,
+  using a shopping cart with predefined GraphQL operations. Separate build-only
+  source validation/compilation from required runtime evaluation, JSON decoding
+  and app-specific dynamic-input checks. Keep all other component capabilities
+  available on demand rather than forcing the full catalog into initial core.
+- [x] Add a shopping-cart reference fixture with an explicit dependency manifest,
+  canonical shared-component roster, native CEM-ML view, illustrative GraphQL
+  schema/operations, JSON cart/update/remove/empty/partial-error/failure payloads
+  and a README listing essential files. This is an executable native deployment
+  contract, not a functioning storefront or a registered Studio project yet.
+- [x] Prove native build-time compilation and source-free artifact reload for
+  that fixture in dev/prod modes. Assert changed JSON updates the same compiled
+  view, native source ownership survives import, text is escaped, missing/error
+  results render correctly, manifest/component drift is refused, and compiler
+  profiling records no CEM-ML/CEM-QL compilation during reload/render. Retain
+  hash/binding/version refusal and document CSS/browser-source dependencies.
+  See the [shopping-cart reference](cem-components-shopping-cart-profile.md).
+  Four cart tests and nine existing artifact reload tests pass; both dev/prod
+  runs render six response states with zero instrumented source-compiler calls.
+  Runtime general-registry assembly still occurs
+  and remains a partitioning requirement. Production runtime, shared UI and
+  credential handling are unchanged; no reduced WASM or browser app is claimed.
+- [ ] Connect source-free compiled artifacts to shared component registration,
+  worker/fallback processing and recovery, using manifest-pinned artifact/source
+  hashes rather than downloading the original template source. Preserve all
+  existing source-driven/full-runtime entry points. Prove a compiled stylesheet
+  path or retain required native CSS parsing until that boundary is complete.
+- [ ] Add app-build dependency generation and GraphQL schema/operation validation,
+  including variable/response contracts and compact runtime input checks. Treat
+  application manifests as requirements, not native grants or permissions; retain
+  JSON decoding and validation for API/user data arriving after deployment.
+  Generate the selected runtime function/behavior/module closure from native
+  compiled metadata rather than assembling the complete general registry.
+- [ ] Assemble and measure the compiled-UI + JSON shopping-cart profile first.
+  Add declarative shared GraphQL transport only if existing resource capabilities
+  cannot express it; alert the user before implementing new shared JavaScript.
+  Register the usable app as an ordinary Studio example project when complete,
+  with real quantity/remove actions and build/preview/offline fixtures. No local
+  UI JavaScript, fake action buttons or credential-policy bypass counts as done.
 - [x] Add reproducible audit tooling and fixtures for catalog/declaration drift,
   capability inheritance and shared behavior imports; conservative static/dynamic
   import evidence; matched WASM section/interface/compression measurements and

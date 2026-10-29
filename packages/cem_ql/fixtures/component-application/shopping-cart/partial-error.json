@@ -1,0 +1,1 @@
+{"data":{"cart":{"id":"cart-1","lines":[{"id":"tea","name":"Tea","quantity":1,"unitPriceMinor":900}],"totalMinor":900,"displayTotal":"USD 9.00","currency":"USD","shippingEstimate":null}},"errors":[{"message":"The shipping estimate is unavailable.","path":["cart","shippingEstimate"]}]}

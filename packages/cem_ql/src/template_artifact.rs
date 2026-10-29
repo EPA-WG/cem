@@ -6,6 +6,9 @@
 //! Authored CSS remains a source field in this wire version; deserialization
 //! adopts it once through the shared CSS importer into a retained native tree.
 
+#[cfg(test)]
+mod application_profile_tests;
+
 use std::collections::BTreeSet;
 
 use cem_ml::content_cache::ContentHash;

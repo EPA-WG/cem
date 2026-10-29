@@ -1,0 +1,43 @@
+{cem:variable @name=envelope @select="seq:first(response.children)"}
+{cem:variable @name=data
+    @select='seq:first(seq:where(envelope.children, fn(field) => field.attributes.value == "data").children)'}
+{cem:variable @name=cart
+    @select='seq:first(seq:where(data.children, fn(field) => field.attributes.value == "cart").children)'}
+{cem:variable @name=errors
+    @select='seq:first(seq:where(envelope.children, fn(field) => field.attributes.value == "errors").children).children'}
+{cem-card |
+    {h1 | Shopping cart}
+    {cem:for-each @as=error @select=errors |
+        {cem-alert @role=alert |
+            {$ | seq:first(seq:where(error.children, fn(field) => field.attributes.value == "message").children).children.value}
+    }   }
+    {cem:choose |
+        {cem:when @test='seq:count(cart) == 0 || cart.name == "null"' |
+            {cem-text | Cart unavailable}
+        }
+        {cem:otherwise |
+            {cem:variable @name=lines
+                @select='seq:first(seq:where(cart.children, fn(field) => field.attributes.value == "lines").children).children'}
+            {cem:choose |
+                {cem:when @test="seq:count(lines) == 0" |
+                    {cem-text | Your cart is empty}
+                }
+                {cem:otherwise |
+                    {ul @aria-label="Cart items" |
+                        {cem:for-each @as=line @select=lines |
+                            {li @data-line-id={seq:first(seq:where(line.children, fn(field) => field.attributes.value == "id").children).children.value} |
+                                {cem-text |
+                                    {$ | seq:first(seq:where(line.children, fn(field) => field.attributes.value == "name").children).children.value}
+                                }
+                                {cem-text-field @label=Quantity @min=1 @type=number @value={seq:first(seq:where(line.children, fn(field) => field.attributes.value == "quantity").children).children.value}}
+                                {cem-action @label=Remove @type=button}
+            }   }   }   }   }
+            {cem:variable @name=shipping
+                @select='seq:first(seq:where(cart.children, fn(field) => field.attributes.value == "shippingEstimate").children)'}
+            {cem:if @test='shipping.name == "string"' |
+                {cem-text |
+                    {$ | shipping.children.value}
+            }   }
+            {p @aria-label=Total |
+                {$ | seq:first(seq:where(cart.children, fn(field) => field.attributes.value == "displayTotal").children).children.value}
+}   }   }   }

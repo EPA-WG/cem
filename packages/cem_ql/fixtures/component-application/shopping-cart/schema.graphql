@@ -1,0 +1,29 @@
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+type Query {
+  cart(id: ID!): Cart!
+}
+
+type Mutation {
+  setCartLineQuantity(cartId: ID!, lineId: ID!, quantity: Int!): Cart!
+  removeCartLine(cartId: ID!, lineId: ID!): Cart!
+}
+
+type Cart {
+  id: ID!
+  lines: [CartLine!]!
+  totalMinor: Int!
+  displayTotal: String!
+  currency: String!
+  shippingEstimate: String
+}
+
+type CartLine {
+  id: ID!
+  name: String!
+  quantity: Int!
+  unitPriceMinor: Int!
+}
