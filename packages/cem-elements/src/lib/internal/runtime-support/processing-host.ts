@@ -20,7 +20,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v29' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v30' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -91,6 +91,12 @@ export interface CemProcessingArtifactBinaryTransfer {
     sourceMapSidecarHash?: string;
 }
 
+/** Deployment input: pinned binary IR, with no source text or source fallback. */
+export interface CemProcessingPinnedTemplateSource {
+    kind: 'pinned-template-artifact-v1';
+    artifact: CemProcessingArtifactBinaryTransfer;
+}
+
 export interface CemArtifactRegistryNamespace {
     namespace: 'cem-template-artifacts';
     registryContractVersion: 'cem-artifact-registry-v1';
@@ -141,7 +147,7 @@ export interface CemProcessingCompileInput {
     producedTag: string;
     templateArtifactId: string;
     registrationIdentity: string;
-    source: CemProcessingTextSource;
+    source: CemProcessingTextSource | CemProcessingPinnedTemplateSource;
     sourceRef: CemProcessingSourceRef;
     resolverIdentity: string;
     scopePolicyStamp: string;
@@ -155,6 +161,32 @@ export interface CemProcessingCompileInput {
     precompiledArtifact?: CemProcessingArtifactBinaryTransfer;
     /** Request binary write-through after a registry miss. Omitted on the normal source path. */
     exportCompiledArtifact?: true;
+}
+
+/** Validate before allocating an owned binary copy at a shared host boundary. */
+export function ownCemProcessingCompileInput(input: CemProcessingCompileInput): CemProcessingCompileInput {
+    if (input.source.kind !== 'pinned-template-artifact-v1') return input;
+    assertPinnedSource(input);
+    return structuredClone(input);
+}
+
+export function assertPinnedSource(input: CemProcessingCompileInput): void {
+    if (input.source.kind !== 'pinned-template-artifact-v1') return;
+    if (input.language !== 'cem-ml' || input.xslt || input.moduleClosure || input.xpathFunctionLibrary
+        || input.precompiledArtifact || input.exportCompiledArtifact || input.instanceStylesheetIdentity !== undefined
+        || 'chunks' in input.source) throw new Error('pinned template input cannot include source compilation or dependency overrides');
+    const artifact = input.source.artifact;
+    if (!artifact || artifact.kind !== 'template-artifact' || artifact.formatVersion !== 'cem-template-artifact/1'
+        || typeof input.scopePolicyStamp !== 'string' || !input.scopePolicyStamp || artifact.policyStamp !== input.scopePolicyStamp || artifact.payloadKey?.contentType !== 'cem-template-artifact'
+        || artifact.payloadKey.sourceMapMode !== input.sourceMapMode) throw new Error('pinned template format, scope or source-map policy mismatch');
+    if (!(artifact.bytes instanceof ArrayBuffer) || artifact.bytes.byteLength === 0 || artifact.bytes.byteLength > 64 * 1024 * 1024)
+        throw new RangeError('pinned template requires bounded ArrayBuffer bytes');
+    for (const hash of [artifact.cacheKey, artifact.payloadKey.sourceHash]) {
+        if (typeof hash !== 'string' || !/^cem-bin\/1\+blake3:[0-9a-f]{64}$/.test(hash)) throw new Error('pinned template requires complete build hashes');
+    }
+    for (const version of [artifact.payloadKey.cemMlVersion, artifact.payloadKey.cemQlVersion]) {
+        if (typeof version !== 'string' || !version || version.length > 256) throw new Error('pinned template requires build versions');
+    }
 }
 
 /** A stable reference to an artifact retained by one root-scope processing host. */

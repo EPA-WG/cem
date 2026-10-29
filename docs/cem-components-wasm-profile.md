@@ -45,11 +45,18 @@ The current native `CompiledTemplateArtifact` already reloads binary template
 and expression IR without invoking the CEM-ML or CEM-QL source compiler. Its v1
 stylesheet wire fields contain CSS source and reload through the native CSS
 importer. The browser's `retainCemMlTemplateArtifact` path still takes original
-template source to compute an expected hash. The new deployment path must bind
-to manifest-pinned source/artifact hashes and instantiate every dependency without
-requiring original source text. Keep CSS parsing until compiled style admission
-is implemented; native reload proof alone does not establish a source-free browser
-bundle, omitted compiler code or a smaller binary.
+template source for its optional source-cache behavior. A separate strict
+`retainPinnedCemMlTemplateArtifact` adapter and `pinned-template-artifact-v1`
+processing input now admit native binary IR from build-pinned source/artifact
+hashes without source text. Worker/fallback processing shares this path and never
+falls back to source compilation when a deployment pin is refused. The processing
+protocol is v30; old source/cache inputs remain supported.
+
+Automatic `cem-element` registration still derives declaration metadata from
+source. Connect build-generated metadata and the full dependency closure before
+claiming a source-free application bundle. Keep CSS parsing until compiled style
+admission is implemented. This admission step does not establish omitted compiler
+code or a smaller binary.
 The evaluator also assembles the general function registry during native render;
 profile-specific dispatch/registry roots remain necessary even with compiled IR.
 
@@ -61,9 +68,12 @@ current native binding/dependency roots. The [isolated browser baseline](cem-com
 checks form editing, native JSON/CSV rendering and editor coloring in both
 worker and fallback modes. These are reference measurements of the full runtime;
 no component-core target or reduced binary exists yet.
+The browser baseline retains the original full-profile comparator identified by
+its recorded hash. The pinned-admission browser/WASM tests use the newly rebuilt
+runtime; the audit records that current binary separately.
 
-The measured code section occupies 88.6% of the binary, and data occupies 11.3%.
-Those sections do not attribute bytes to removable languages or assets. The
+The audited binary is dominated by its code section; data is a much smaller
+share. Those sections do not attribute bytes to removable languages or assets. The
 audit identifies CSV parsing within native `data:read` evaluation and editor
 highlighting as capabilities whose module boundaries must be proven for apps
 that request them. The JSON-only cart does not request either at startup.
@@ -79,7 +89,7 @@ statically. Default Cargo features include debug control, and the common crate
 includes multiple language implementations. Moving schema/template source bodies
 into asset packs does not by itself remove those compiled implementations.
 
-The current release artifact after `9c74b08c`, measured on 2026-10-28:
+The original full-profile reference after `9c74b08c`, measured on 2026-10-28:
 
 | WASM-only measure | Bytes | MiB |
 | --- | ---: | ---: |

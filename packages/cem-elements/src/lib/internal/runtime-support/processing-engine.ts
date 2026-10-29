@@ -39,6 +39,7 @@ import type {
     CemProcessingResourceControl,
 } from './processing-host.js';
 import { CemProcessingLruCache } from './processing-cache.js';
+import { ownCemProcessingCompileInput, assertPinnedSource } from './processing-host.js';
 
 interface RetainedTemplateArtifact {
     stylesheetOwner: string;
@@ -286,6 +287,9 @@ export class CemProcessingEngine {
     }
 
     async compile(input: CemProcessingCompileInput): Promise<CemProcessingCompileResult> {
+        // Own deployment bytes before the first async boundary. A caller cannot
+        // alter an admitted identity or queued/native input through a buffer alias.
+        input = ownCemProcessingCompileInput(input);
         return this.work(() => this.compileOperation(input))();
     }
 
@@ -304,6 +308,7 @@ export class CemProcessingEngine {
 
     private async compileCurrent(input: CemProcessingCompileInput, artifactKey: string, operation?: object): Promise<CemProcessingCompileResult> {
         this.assertActive();
+        if (input.source.kind === 'pinned-template-artifact-v1') assertPinnedSource(input);
         if (input.instanceStylesheetIdentity !== undefined && (input.language !== 'css'
             || typeof input.instanceStylesheetIdentity !== 'string' || !input.instanceStylesheetIdentity.trim())) {
             throw new Error('a nonempty instance stylesheet identity is valid only for CSS adoption');
@@ -335,6 +340,12 @@ export class CemProcessingEngine {
                 language: input.language,
                 instanceStylesheetIdentity: input.instanceStylesheetIdentity ?? null,
                 source,
+                ...(input.source.kind === 'pinned-template-artifact-v1' ? { pinnedArtifact: {
+                    contentHash: input.source.artifact.cacheKey,
+                    payloadKey: input.source.artifact.payloadKey,
+                    formatVersion: input.source.artifact.formatVersion,
+                    sourceMapSidecarHash: input.source.artifact.sourceMapSidecarHash ?? null,
+                } } : {}),
                 sourceRef: input.sourceRef,
                 resolverIdentity: input.resolverIdentity,
                 scopePolicyStamp: input.scopePolicyStamp,
@@ -633,6 +644,13 @@ export class CemProcessingEngine {
         source: string
     ): Promise<CachedTemplateCompilation> {
         const hostBindings = input.hostBindings ?? [];
+        if (input.source.kind === 'pinned-template-artifact-v1') {
+            const artifact = input.source.artifact;
+            const retained = await this.bindings.retainPinnedCemMlTemplateArtifact(
+                artifact.bytes, artifact.cacheKey, artifact.payloadKey, hostBindings,
+            );
+            return retainedCompilation(retained);
+        }
         if (input.language === 'css') {
             const retained = await this.bindings.retainStylesheetSources(source, input.instanceStylesheetIdentity);
             return { wasmArtifactId: retained.artifactId, diagnostics: retained.diagnostics, stylesheets: retained.stylesheets };
@@ -744,6 +762,7 @@ function sameCompileIdentity(left: CemProcessingCompileInput, right: CemProcessi
         && JSON.stringify(left.xpathFunctionLibrary ?? null) === JSON.stringify(right.xpathFunctionLibrary ?? null)
         && JSON.stringify(left.xslt ?? null) === JSON.stringify(right.xslt ?? null)
         && sameStrings(left.hostBindings ?? [], right.hostBindings ?? [])
+        && samePinnedSource(left, right)
         && processingSourceText(left) === processingSourceText(right)
         && left.sourceRef.kind === right.sourceRef.kind
         && left.sourceRef.value === right.sourceRef.value
@@ -806,10 +825,28 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
 }
 
 function processingSourceText(input: CemProcessingCompileInput): string {
+    const kind: unknown = input.source.kind;
+    // This empty diagnostic source is never a request to compile an empty view.
+    // The source-free branch above imports the binary directly and fails closed.
+    if (input.source.kind === 'pinned-template-artifact-v1') return '';
     if (input.source.kind !== 'text-chunks-v1') {
-        throw new TypeError(`unsupported CEM processing source kind ${String(input.source.kind)}`);
+        throw new TypeError(`unsupported CEM processing source kind ${String(kind)}`);
     }
     return input.source.chunks.join('');
+}
+
+
+function samePinnedSource(left: CemProcessingCompileInput, right: CemProcessingCompileInput): boolean {
+    if (left.source.kind !== right.source.kind) return false;
+    if (left.source.kind !== 'pinned-template-artifact-v1' || right.source.kind !== 'pinned-template-artifact-v1') return true;
+    const a = left.source.artifact, b = right.source.artifact;
+    const rightBytes = new Uint8Array(b.bytes);
+    return a.cacheKey === b.cacheKey && a.formatVersion === b.formatVersion && a.policyStamp === b.policyStamp
+        && a.sourceMapSidecarHash === b.sourceMapSidecarHash
+        && (['contentType', 'sourceHash', 'cemMlVersion', 'cemQlVersion', 'sourceMapMode'] as const)
+            .every(key => a.payloadKey[key] === b.payloadKey[key])
+        && a.bytes.byteLength === b.bytes.byteLength
+        && new Uint8Array(a.bytes).every((value, index) => value === rightBytes[index]);
 }
 
 function lowerResourceControls(plan: RenderPlan): {

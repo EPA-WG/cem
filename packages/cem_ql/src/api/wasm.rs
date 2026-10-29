@@ -16,7 +16,7 @@ use crate::render::{
     TemplateModuleClosure,
 };
 use crate::template_artifact::{
-    encode_template_artifact, CompiledTemplateArtifact, TemplateArtifactLoadContext,
+    encode_template_artifact, CompiledTemplateArtifact, PinnedTemplateArtifactContext, TemplateArtifactLoadContext,
     TemplateArtifactSourceMapMode, CEM_TEMPLATE_ARTIFACT_VERSION,
 };
 
@@ -340,6 +340,31 @@ pub fn wasm_import_template_artifact(
         Ok(template) => template,
         Err(error) => return artifact_error_json(error.code, error.message),
     };
+    imported_template_json(artifact, template)
+}
+
+/// Deployment-only admission: original source text is neither requested nor
+/// inferred from artifact fields. The embedding supplies pinned build metadata.
+#[wasm_bindgen(js_name = "importPinnedTemplateArtifact")]
+pub fn wasm_import_pinned_template_artifact(bytes: &[u8], context_json: &str) -> String {
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return cem_ml::runtime_admission::refusal_json(error) };
+    let _memory = match cem_ml::runtime_memory::admit_input(bytes.len().saturating_add(context_json.len())) { Ok(permit) => permit, Err(error) => return error_json(error.0, "WASM memory admission refused; recovery headroom is reserved") };
+    let context: PinnedTemplateArtifactContext = match serde_json::from_str(context_json) {
+        Ok(context) => context,
+        Err(error) => return artifact_error_json("cem.ql.template_artifact_invalid_pin", error.to_string()),
+    };
+    let artifact = match CompiledTemplateArtifact::from_bytes(bytes.to_vec()) {
+        Ok(artifact) => artifact,
+        Err(error) => return artifact_error_json(error.code, error.message),
+    };
+    let template = match artifact.reload_pinned(&context) {
+        Ok(template) => template,
+        Err(error) => return artifact_error_json(error.code, error.message),
+    };
+    imported_template_json(artifact, template)
+}
+
+fn imported_template_json(artifact: CompiledTemplateArtifact, template: TemplateArtifact) -> String {
     let diagnostics = diagnostics_json(&template.diagnostics);
     let stylesheets = stylesheets_json(&template);
     let module_map = module_map_json(&template);

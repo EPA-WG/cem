@@ -713,6 +713,9 @@ General source parsers, schemas and tooling belong to the build or on-demand
 modules when unused by that app. Retain runtime JSON/input checks and ownership
 guards. Prove source-free compiled loading and style admission, then measure the
 compiled-UI + JSON target before expanding optional format/tooling coverage.
+Native pinned artifact admission and the shared v30 worker/fallback binary-input
+path are implemented. Build-generated declaration registration, API contracts,
+compiled styles and native code partitioning remain pending.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

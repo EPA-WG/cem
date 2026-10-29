@@ -71,6 +71,19 @@ pub struct TemplateArtifactLoadContext {
     pub source_map_mode: TemplateArtifactSourceMapMode,
 }
 
+/// Trusted deployment inputs pinned outside the artifact being admitted.
+/// These identities are requirements, not source grants or native owners.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PinnedTemplateArtifactContext {
+    pub content_hash: String,
+    pub source_hash: String,
+    pub cem_ml_version: String,
+    pub cem_ql_version: String,
+    pub host_bindings: Vec<String>,
+    pub source_map_mode: TemplateArtifactSourceMapMode,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TemplateArtifactLoadError {
     pub code: &'static str,
@@ -186,6 +199,36 @@ pub(crate) fn encode_template_artifact(
 }
 
 impl CompiledTemplateArtifact {
+    /// Admit a deployment artifact without requiring original source text.
+    /// Every hash/version must match independently supplied build metadata;
+    /// failure never requests or compiles a source fallback.
+    pub fn reload_pinned(
+        &self,
+        context: &PinnedTemplateArtifactContext,
+    ) -> Result<TemplateArtifact, TemplateArtifactLoadError> {
+        if context.content_hash != self.content_hash.header_value()
+            || context.source_hash != self.identity.source_hash.header_value()
+            || context.cem_ml_version != cem_ml::VERSION
+            || context.cem_ql_version != crate::VERSION
+        {
+            return Err(TemplateArtifactLoadError::hash_mismatch(
+                "component-template artifact does not match pinned deployment hashes/versions",
+            ));
+        }
+        let template = self.reload(&TemplateArtifactLoadContext {
+            expected_source_hash: Some(self.identity.source_hash.clone()),
+            host_bindings: context.host_bindings.clone(),
+            source_map_mode: context.source_map_mode,
+        })?;
+        if template.diagnostics.iter().any(|diagnostic| diagnostic.severity.is_hard_violation()) {
+            return Err(TemplateArtifactLoadError {
+                code: "cem.ql.template_artifact_invalid_build",
+                message: "pinned deployment template contains build errors".into(),
+            });
+        }
+        Ok(template)
+    }
+
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, TemplateArtifactLoadError> {
         validate_size(bytes.len())?;
         let (identity, _) = deserialize_artifact_bytes(&bytes)?;

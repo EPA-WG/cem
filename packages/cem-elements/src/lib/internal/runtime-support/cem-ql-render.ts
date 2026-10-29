@@ -260,6 +260,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         convertLegacyCustomElementTemplate,
         disposeTemplate,
         importTemplateArtifact,
+        importPinnedTemplateArtifact,
         renderTemplateWithNativeValues,
         renderTemplateWithNativeValuesAndAdmission,
         importCemDocumentValue,
@@ -862,13 +863,35 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         sourceMapMode: 'dev' | 'prod' = 'dev'
     ): Promise<RetainedCemMlTemplate> {
         await ensureRuntimeReady();
-        const result = JSON.parse(importTemplateArtifact(
+        return adoptTemplateImport(importTemplateArtifact(
             new Uint8Array(bytes),
             expectedContentHash,
             source,
             JSON.stringify([...hostBindings]),
             sourceMapMode
-        )) as {
+        ));
+    }
+
+    /** Strict deployment admission; never compiles or obtains original source. */
+    const retainPinnedCemMlTemplateArtifact = nativeCheckpointWork(async (
+        bytes: ArrayBuffer,
+        expectedContentHash: string,
+        payloadKey: CemMlTemplateArtifactPayloadKey,
+        hostBindings: readonly string[] = []
+    ): Promise<RetainedCemMlTemplate> => {
+        await ensureRuntimeReady();
+        return adoptTemplateImport(importPinnedTemplateArtifact(new Uint8Array(bytes), JSON.stringify({
+            contentHash: expectedContentHash,
+            sourceHash: payloadKey.sourceHash,
+            cemMlVersion: payloadKey.cemMlVersion,
+            cemQlVersion: payloadKey.cemQlVersion,
+            hostBindings: [...hostBindings],
+            sourceMapMode: payloadKey.sourceMapMode,
+        })));
+    });
+
+    function adoptTemplateImport(json: string): RetainedCemMlTemplate {
+        const result = JSON.parse(json) as {
             artifactId?: number | null;
             contentHash?: string;
             formatVersion?: string;
@@ -1439,6 +1462,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         preflightCemMlTemplateModules,
         retainCemMlTemplateModuleClosure,
         retainCemMlTemplateArtifact,
+        retainPinnedCemMlTemplateArtifact,
         disposeRetainedCemMlTemplate,
         convertLegacyTemplate,
         renderCemMlTemplate,
@@ -1481,6 +1505,7 @@ export const retainCemMlTemplateSource = defaultBindings.retainCemMlTemplateSour
 export const preflightCemMlTemplateModules = defaultBindings.preflightCemMlTemplateModules;
 export const retainCemMlTemplateModuleClosure = defaultBindings.retainCemMlTemplateModuleClosure;
 export const retainCemMlTemplateArtifact = defaultBindings.retainCemMlTemplateArtifact;
+export const retainPinnedCemMlTemplateArtifact = defaultBindings.retainPinnedCemMlTemplateArtifact;
 export const disposeRetainedCemMlTemplate = defaultBindings.disposeRetainedCemMlTemplate;
 export const convertLegacyTemplate = defaultBindings.convertLegacyTemplate;
 export const renderCemMlTemplate = defaultBindings.renderCemMlTemplate;

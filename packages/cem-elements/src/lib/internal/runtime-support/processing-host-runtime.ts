@@ -21,6 +21,7 @@ import {
     cemProcessingHostOwnerScope,
     createCemProcessingReadyEnvelope,
     createCemProcessingRequestEnvelope,
+    ownCemProcessingCompileInput,
     decideCemProcessingWorkerFailure,
     defaultCemProcessingWorkerFactory,
     type CemProcessingCancelInput,
@@ -715,6 +716,7 @@ class RootCemProcessingHost implements CemProcessingHost {
     private readonly nativeSessionJobs = new Set<Promise<unknown>>();
     private readonly documentInputs = new Map<string, Extract<CemProcessingDocumentInput, { action: 'retain' }>>();
     private readonly compileInputs = new Map<string, CemProcessingCompileInput>();
+    private readonly compileInputCommits = new Map<string, number>();
     private readonly checkpointInstances = new Map<string, number>();
     private readonly hostJobs = new Set<Promise<unknown>>();
     private readonly recoveryJobs = new Set<Promise<unknown>>();
@@ -833,7 +835,7 @@ class RootCemProcessingHost implements CemProcessingHost {
         try { this.engine.dispose({ reason: 'runtime-disposed' }); }
         finally {
             this.nativeSessionHandles.clear(); this.stylesheetConsumers.clear(); this.pendingStylesheetLoads.clear();
-            this.documentInputs.clear(); this.compileInputs.clear(); this.jobPolicies.clear(); this.checkpointInstances.clear();
+            this.documentInputs.clear(); this.compileInputs.clear(); this.compileInputCommits.clear(); this.jobPolicies.clear(); this.checkpointInstances.clear();
             this.lease.release(); this.onFreshDispose?.(); this.onFreshDispose = undefined;
         }
     }
@@ -1018,8 +1020,19 @@ class RootCemProcessingHost implements CemProcessingHost {
     compile(input: CemProcessingCompileInput): CemProcessingJob<CemProcessingCompileResult> {
         if (this.disposed) return this.disposedJob();
         const refused = this.admissionRefusal<CemProcessingCompileResult>(); if (refused) return refused;
-        this.compileInputs.set(compileInputKey(input.scopePolicyStamp, input.templateArtifactId), input);
-        return this.submit('compile', input);
+        try { input = ownCemProcessingCompileInput(input); }
+        catch (error) { return { jobId: this.sequence.next(), result: Promise.reject(error) }; }
+        const key = compileInputKey(input.scopePolicyStamp, input.templateArtifactId);
+        const job = this.submit('compile', input);
+        return { ...job, result: job.result.then(result => {
+            // Publish only accepted inputs. A failed replacement must not poison
+            // preflight/fallback replay of an already committed artifact.
+            if (!this.disposed && !this.generationRetired && job.jobId > (this.compileInputCommits.get(key) ?? -1)) {
+                this.compileInputs.set(key, input);
+                this.compileInputCommits.set(key, job.jobId);
+            }
+            return result;
+        }) };
     }
 
     renderDiff(input: CemProcessingRenderDiffInput): CemProcessingJob<CemProcessingRenderDiffResult> {
@@ -1097,6 +1110,7 @@ class RootCemProcessingHost implements CemProcessingHost {
                 this.documentInputs.clear();
                 this.lease.release();
                 this.compileInputs.clear();
+                this.compileInputCommits.clear();
                 this.jobPolicies.clear();
                 return this.engine.dispose(input);
             };
@@ -1236,7 +1250,7 @@ class RootCemProcessingHost implements CemProcessingHost {
                 )
             );
             if (!input) {
-                throw new Error('the main-thread fallback is missing the worker template source');
+                throw new Error('the main-thread fallback is missing the accepted template input');
             }
             await this.engine.compile(input);
             for (const binding of request.operation === 'render-diff' ? request.payload.documents ?? [] : []) {

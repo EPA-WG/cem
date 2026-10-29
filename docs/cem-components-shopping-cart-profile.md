@@ -1,7 +1,8 @@
 # Shopping-cart application deployment profile
 
-Status: native reference fixture and build/runtime tests, 2026-10-29. A compiled
-browser bundle, GraphQL transport/validation and reduced WASM remain pending.
+Status: native reference fixture and strict source-free worker/fallback artifact
+admission, 2026-10-29. A complete compiled browser app, GraphQL transport/validation
+and reduced WASM remain pending.
 This is the first concrete application case for the
 [component WASM profile](cem-components-wasm-profile.md#application-build-and-deployment-boundary).
 
@@ -61,16 +62,59 @@ cargo test --locked --offline -p cem-ql --lib template_artifact::application_pro
 cargo test --locked --offline -p cem-ql --test template_artifact_reload
 ```
 
-The four app-boundary tests and nine existing artifact reload tests pass. This
+The six app-boundary tests and nine existing artifact reload tests pass. This
 native proof does not establish browser recovery, code omission or size savings;
-those are delivery gates below. Full runtime defaults and production code paths
-are unchanged by these test fixtures.
+those are delivery gates below. Full-runtime defaults remain in place. The
+separate admission path below adds opt-in processing support and preserves
+existing source/cache behavior.
+
+## Strict source-free processing input
+
+The native `importPinnedTemplateArtifact(bytes, contextJson)` endpoint and shared
+`retainPinnedCemMlTemplateArtifact` adapter now admit binary IR without template
+source. The independent context requires complete CEM content/source hashes,
+both compiler versions, host bindings and source-map mode. Hashes use the existing
+`cem-bin/1+blake3` identity, distinct from deployment-file SHA-256/SRI. Native
+format, integrity, policy, memory/admission and build-error checks precede retaining
+the template. A manifest describes requirements; it supplies no source grants or
+native owners.
+
+`CemProcessingCompileInput.source` accepts `pinned-template-artifact-v1` with the
+existing binary transfer fields. The transfer's format/policy/source-map identity
+must match the host request. Source/cache fallback, source-module overrides and
+XSLT/CSS compilation options cannot be mixed into this strict input. The shared
+processing protocol is v30. This remains an internal transport for the upcoming
+build/registration integration, not a new public application bootstrap API.
+
+The host validates bounds before copying buffers and owns deployment inputs
+across asynchronous dispatch. Cache identity includes the pinned artifact and
+source identities, and retained identity checks compare the immutable bytes.
+Only successful compile inputs become fallback/preflight replay inputs; a failed
+replacement preserves the last accepted input. New processing owners import the
+bytes again into their own native owners. Source references keep resolver/link
+identity but cause no source download on this path.
+
+Browser fixtures exercise worker/fallback admission, explicit pin refusal/retry,
+changing data, literal text, and preservation of edits/focus/selection during
+rerender. Native WASM fixtures reimport the same artifact into separate heaps,
+refuse invalid builds/pins, dispose native owners and fence retired endpoints.
+Shared unit fixtures cover mutation, superseded/disposed work and worker loss
+after a rejected replacement. They preserve the old optional-cache source path.
+
+```bash
+node packages/cem_ql/tests/pinned-template-artifact-wasm.mjs
+yarn vitest --config packages/cem-elements/vitest.unit.config.mts --run
+yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run src/lib/pinned-template-artifact.stories.ts
+```
+
+Build the normal `cem_ql:build:wasm` and `cem-elements:build` targets before using
+these checks against packaged assets. No separate minimal target is introduced.
 
 ## Remaining delivery boundaries
 
-- The current browser template-artifact adapter still takes source text. Add a
-  shared, manifest-pinned source-hash admission path and compiled registration
-  for the complete declaration closure, including metadata and runtime behaviors.
+- Connect the strict admission path to compiled registration for the complete
+  declaration closure, including metadata and runtime behaviors. Automatic
+  `cem-element` declaration registration still reads original source today.
 - Stylesheet v1 reload imports CSS source. Prove compiled style/scoping admission
   with original identity and URL bases before removing its parser dependency.
 - Generate/validate the app manifest and API contracts during the app build.

@@ -332,3 +332,78 @@ fn shopping_cart_bad_json_is_refused_and_valid_input_retains_native_ownership() 
         Some(AtomValue::String("document".into()))
     );
 }
+
+fn pin(compiled: &CompiledTemplateArtifact) -> PinnedTemplateArtifactContext {
+    PinnedTemplateArtifactContext {
+        content_hash: compiled.content_hash.header_value(),
+        source_hash: compiled.identity.source_hash.header_value(),
+        cem_ml_version: cem_ml::VERSION.into(),
+        cem_ql_version: crate::VERSION.into(),
+        host_bindings: options().host_bindings,
+        source_map_mode: compiled.identity.source_map_mode,
+    }
+}
+
+#[test]
+fn pinned_native_deployment_admits_only_the_independent_build_contract() {
+    for mode in [
+        TemplateArtifactSourceMapMode::Dev,
+        TemplateArtifactSourceMapMode::Prod,
+    ] {
+        let compiled = compile_template_artifact(VIEW, &options(), mode);
+        let context = pin(&compiled);
+        let bytes = compiled.bytes.clone();
+        let (html, stages) = measure(|| {
+            let loaded = CompiledTemplateArtifact::from_bytes(bytes)
+                .unwrap()
+                .reload_pinned(&context)
+                .unwrap();
+            render(&loaded, "updated.json")
+        });
+        assert_runtime_stages(&stages);
+        assert!(html.contains("USD 32.00"));
+        for changed in ["", "unknown:abc", "cem-bin/1+blake3:00"] {
+            for field in ["contentHash", "sourceHash", "cemMlVersion", "cemQlVersion"] {
+                let mut json = serde_json::to_value(&context).unwrap();
+                json[field] = changed.into();
+                let bad: PinnedTemplateArtifactContext = serde_json::from_value(json).unwrap();
+                assert_eq!(
+                    compiled.reload_pinned(&bad).unwrap_err().code,
+                    "cem.ql.template_artifact_hash_mismatch"
+                );
+            }
+        }
+        let mut bad = context.clone();
+        bad.host_bindings = vec![];
+        assert_eq!(
+            compiled.reload_pinned(&bad).unwrap_err().code,
+            "cem.cc.policy_mismatch"
+        );
+        bad = context.clone();
+        bad.source_map_mode = if mode == TemplateArtifactSourceMapMode::Dev {
+            TemplateArtifactSourceMapMode::Prod
+        } else {
+            TemplateArtifactSourceMapMode::Dev
+        };
+        assert_eq!(
+            compiled.reload_pinned(&bad).unwrap_err().code,
+            "cem.cc.policy_mismatch"
+        );
+        let mut json = serde_json::to_value(&context).unwrap();
+        json["source"] = "must not become a source fallback".into();
+        assert!(serde_json::from_value::<PinnedTemplateArtifactContext>(json).is_err());
+    }
+}
+
+#[test]
+fn pinned_deployment_refuses_a_matching_but_invalid_build() {
+    let compiled = compile_template_artifact(
+        "{p | {$missing}}",
+        &options(),
+        TemplateArtifactSourceMapMode::Prod,
+    );
+    assert_eq!(
+        compiled.reload_pinned(&pin(&compiled)).unwrap_err().code,
+        "cem.ql.template_artifact_invalid_build"
+    );
+}

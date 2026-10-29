@@ -281,6 +281,7 @@ export const compileTemplateModuleClosure = bind('compileTemplateModuleClosure')
 export const convertLegacyCustomElementTemplate = bind('convertLegacyCustomElementTemplate');
 export const disposeTemplate = bind('disposeTemplate');
 export const importTemplateArtifact = bind('importTemplateArtifact');
+export const importPinnedTemplateArtifact = bind('importPinnedTemplateArtifact');
 export const renderTemplateWithNativeValues = bind('renderTemplateWithNativeValues');
 export const renderTemplateWithNativeValuesAndAdmission = bind('renderTemplateWithNativeValuesAndAdmission');
 export const importCemDocumentValue = bind('importCemDocumentValue');
@@ -330,7 +331,7 @@ const sharedEntrypoints = [
     'adoptInstanceStylesheets', 'beginTemplateStylesheet', 'deliverTemplateStylesheet',
     'failTemplateStylesheet', 'releaseTemplateStylesheets', 'compileTemplateArtifact',
     'compileTemplateModuleClosure', 'convertLegacyCustomElementTemplate', 'disposeTemplate',
-    'importTemplateArtifact', 'renderTemplateWithNativeValues', 'renderTemplateWithNativeValuesAndAdmission',
+    'importTemplateArtifact', 'importPinnedTemplateArtifact', 'renderTemplateWithNativeValues', 'renderTemplateWithNativeValuesAndAdmission',
     'importCemDocumentValue', 'exportCemJsonValue', 'importNativeValueArtifact',
     'importReferenceReloadBundle', 'parseReferenceSource', 'prepareNativeCapabilitySession',
     'prepareNativeDatalist', 'publishNativeDatalist', 'nativeCapabilitySessionLength',

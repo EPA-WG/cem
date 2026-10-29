@@ -45,6 +45,9 @@ vi.mock('./cem-ql-render.js', () => {
             diagnostics: [],
         };
     }),
+    retainPinnedCemMlTemplateArtifact: vi.fn(async (_bytes: ArrayBuffer, contentHash: string) => ({
+        artifactId: nextArtifactId++, contentHash, formatVersion: 'cem-template-artifact/1', stylesheets: [], diagnostics: [],
+    })),
     retainXsltComponentSource: vi.fn(async () => ({ stylesheets: [], diagnostics: [], dispose: vi.fn(), render: vi.fn(), bindCheckpointClient: vi.fn() })),
     prepareRetainedNativeSession: vi.fn(async () => ({ id: 701, length: 2 })),
     releaseRetainedNativeSession: vi.fn(),
@@ -184,14 +187,115 @@ import {
     disposeLoadedCemDocument,
     compileCemMlTemplateArtifact,
     retainCemMlTemplateArtifact,
+    retainPinnedCemMlTemplateArtifact,
+    cemMlTemplateArtifactPayloadKey,
     retainCemMlTemplateModuleClosure,
     retainCemMlTemplateSource,
     disposeRetainedCemMlTemplate,
     processRetainedCemMlTemplate,
 } from './cem-ql-render.js';
-import { createCemProcessingTextSource } from './processing-host.js';
+import { createCemProcessingTextSource, type CemProcessingCompileInput } from './processing-host.js';
+
+function pinnedInput(): CemProcessingCompileInput {
+    return { language: 'cem-ml', producedTag: 'cem-pinned', templateArtifactId: 'pinned-view',
+        registrationIdentity: 'pinned-registration', sourceRef: { kind: 'url', value: 'https://example.test/view.bin' },
+        resolverIdentity: 'pinned-deployment', scopePolicyStamp: 'pinned-policy', sourceMapMode: 'prod',
+        source: { kind: 'pinned-template-artifact-v1', artifact: { kind: 'template-artifact',
+            bytes: new Uint8Array([1, 2, 3]).buffer, cacheKey: `cem-bin/1+blake3:${'a'.repeat(64)}`,
+            formatVersion: 'cem-template-artifact/1', policyStamp: 'pinned-policy', payloadKey: {
+                contentType: 'cem-template-artifact', sourceHash: `cem-bin/1+blake3:${'b'.repeat(64)}`,
+                cemMlVersion: '0.1.0', cemQlVersion: '0.1.0', sourceMapMode: 'prod',
+            } } } };
+}
 
 describe('Phase 3A retained processing engine', () => {
+    it('owns pinned deployment bytes and imports them without a source-key or compiler path', async () => {
+        const native = vi.mocked(retainPinnedCemMlTemplateArtifact); native.mockClear();
+        const source = vi.mocked(retainCemMlTemplateSource); source.mockClear();
+        const key = vi.mocked(cemMlTemplateArtifactPayloadKey); key.mockClear();
+        const engine = new CemProcessingEngine(), input = pinnedInput();
+        const clean = structuredClone(input);
+        try {
+            const pending = engine.compile(input);
+            if (input.source.kind !== 'pinned-template-artifact-v1') throw Error('fixture');
+            new Uint8Array(input.source.artifact.bytes)[0] = 99;
+            input.source.artifact.payloadKey.sourceHash = '';
+            const compiled = await pending;
+            expect(native).toHaveBeenCalledTimes(1);
+            expect([...new Uint8Array(native.mock.calls[0][0])]).toEqual([1, 2, 3]);
+            expect(source).not.toHaveBeenCalled(); expect(key).not.toHaveBeenCalled();
+            expect((await engine.compile(clean)).artifact).toEqual(compiled.artifact);
+            expect(native).toHaveBeenCalledTimes(1);
+            const corrupt = structuredClone(clean);
+            if (corrupt.source.kind !== 'pinned-template-artifact-v1') throw Error('fixture');
+            new Uint8Array(corrupt.source.artifact.bytes)[0] = 99;
+            await expect(engine.compile(corrupt)).rejects.toThrow('another identity');
+        } finally { await engine.dispose({ reason: 'runtime-disposed' }); }
+    });
+
+    it('keeps a rejected deployment strict and permits an explicit retry without source fallback', async () => {
+        const native = vi.mocked(retainPinnedCemMlTemplateArtifact); native.mockClear();
+        const source = vi.mocked(retainCemMlTemplateSource); source.mockClear();
+        const key = vi.mocked(cemMlTemplateArtifactPayloadKey); key.mockClear();
+        native.mockRejectedValueOnce(new Error('cem.ql.template_artifact_hash_mismatch'));
+        const engine = new CemProcessingEngine();
+        try {
+            await expect(engine.compile(pinnedInput())).rejects.toThrow('hash_mismatch');
+            expect(source).not.toHaveBeenCalled(); expect(key).not.toHaveBeenCalled();
+            expect((await engine.compile(pinnedInput())).artifact.artifactId).toBe('pinned-view');
+            expect(native).toHaveBeenCalledTimes(2);
+        } finally { await engine.dispose({ reason: 'runtime-disposed' }); }
+    });
+
+    it('rejects mixed deployment/source contracts, policy changes and incomplete pins before native work', async () => {
+        const native = vi.mocked(retainPinnedCemMlTemplateArtifact); native.mockClear();
+        const engine = new CemProcessingEngine();
+        const cases = [
+            { ...pinnedInput(), language: 'css' },
+            { ...pinnedInput(), exportCompiledArtifact: true },
+            { ...pinnedInput(), scopePolicyStamp: 'foreign' },
+            { ...pinnedInput(), sourceMapMode: 'dev' },
+        ];
+        const missing = pinnedInput();
+        if (missing.source.kind !== 'pinned-template-artifact-v1') throw Error('fixture');
+        missing.source.artifact.cacheKey = ''; cases.push(missing);
+        try {
+            for (const input of cases) await expect(engine.compile(input as CemProcessingCompileInput)).rejects.toThrow();
+            expect(native).not.toHaveBeenCalled();
+        } finally { await engine.dispose({ reason: 'runtime-disposed' }); }
+    });
+
+    it('reimports pinned bytes for a new native owner and releases a disposed pending admission', async () => {
+        const native = vi.mocked(retainPinnedCemMlTemplateArtifact); native.mockClear();
+        const disposed = vi.mocked(disposeRetainedCemMlTemplate); disposed.mockClear();
+        for (let i = 0; i < 2; i++) {
+            const engine = new CemProcessingEngine();
+            await engine.compile(pinnedInput()); await engine.dispose({ reason: 'runtime-disposed' });
+        }
+        expect(native).toHaveBeenCalledTimes(2); expect(disposed).toHaveBeenCalledTimes(2);
+        let resolve!: (result: Awaited<ReturnType<typeof retainPinnedCemMlTemplateArtifact>>) => void;
+        native.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+        const engine = new CemProcessingEngine(), pending = engine.compile(pinnedInput());
+        const rejected = expect(pending).rejects.toThrow('disposed');
+        await engine.dispose({ reason: 'runtime-disposed' });
+        resolve({ artifactId: 87654, stylesheets: [], moduleMap: null, diagnostics: [] });
+        await rejected; expect(disposed).toHaveBeenCalledWith(87654);
+    });
+
+    it('releases a superseded pinned admission without replacing the accepted native owner', async () => {
+        const native = vi.mocked(retainPinnedCemMlTemplateArtifact);
+        let resolve!: (result: Awaited<ReturnType<typeof retainPinnedCemMlTemplateArtifact>>) => void;
+        native.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+        const engine = new CemProcessingEngine();
+        const older = engine.compile(pinnedInput()), rejected = expect(older).rejects.toThrow('superseded');
+        try {
+            const accepted = await engine.compile(pinnedInput());
+            resolve({ artifactId: 87655, stylesheets: [], moduleMap: null, diagnostics: [] });
+            await rejected;
+            expect(disposeRetainedCemMlTemplate).toHaveBeenCalledWith(87655);
+            expect((await engine.compile(pinnedInput())).artifact).toEqual(accepted.artifact);
+        } finally { await engine.dispose({ reason: 'runtime-disposed' }); }
+    });
     it('lowers text storage as a named control, preserving empty values, and fences unsupported dynamic resources', async () => {
         for (const source of ['{local-storage @type=text}', '{local-storage @type=json}', '{location-element}']) {
             const engine = new CemProcessingEngine(), snapshot = snapshotFixture('1', 'storage-template', 'storage-policy');

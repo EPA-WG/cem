@@ -19,6 +19,10 @@ vi.mock('./cem-ql-render.js', () => ({
         formatVersion: 'cem-template-artifact/1',
         diagnostics: [],
     })),
+    retainPinnedCemMlTemplateArtifact: vi.fn(async (_bytes, contentHash, key) => {
+        if (key.cemQlVersion !== '0.1.0') throw Error('cem.ql.template_artifact_hash_mismatch');
+        return { artifactId: 32768, contentHash, formatVersion: 'cem-template-artifact/1', stylesheets: [], moduleMap: null, diagnostics: [] };
+    }),
     processNativeCemValue: vi.fn(async () => ({ text: 'null' })),
     prepareRetainedNativeSession: vi.fn(async () => ({ id: 701, length: 2 })),
     releaseRetainedNativeSession: vi.fn(),
@@ -45,7 +49,7 @@ vi.mock('./cem-ql-render.js', () => ({
     })),
 }));
 
-import { processRetainedTemplateStylesheet, processNativeCemValue, retainLoadedCemDocument, disposeLoadedCemDocument, processRetainedCemMlTemplate } from './cem-ql-render.js';
+import { processRetainedTemplateStylesheet, processNativeCemValue, retainLoadedCemDocument, disposeLoadedCemDocument, processRetainedCemMlTemplate, retainPinnedCemMlTemplateArtifact, retainCemMlTemplateSource } from './cem-ql-render.js';
 import type { DataIslandSnapshot } from '../../cem-elements.js';
 import { createCemDeclarationScope } from '../../declaration-scope.js';
 import { CemProcessingEngine } from './processing-engine.js';
@@ -62,6 +66,7 @@ import {
     type CemProcessingRequestEnvelope,
     type CemProcessingResponseEnvelope,
     type CemProcessingWorkerFactory,
+    type CemProcessingCompileInput,
 } from './processing-host.js';
 import type { CemProcessingSchedulingTraceEvent } from './processing-scheduler.js';
 
@@ -357,6 +362,55 @@ class DocumentFallbackWorker extends ControlledProcessingWorker {
         if (request.operation === 'document') this.respondDocument();
     }
 }
+
+it('replays only committed pinned bytes after worker loss and preserves them across a rejected replacement', async () => {
+    class PinnedWorker extends DocumentFallbackWorker {
+        override postMessage(request: CemProcessingRequestEnvelope): void {
+            if (request.operation === 'compile' && request.payload.source.kind === 'pinned-template-artifact-v1'
+                && request.payload.source.artifact.payloadKey.cemQlVersion === 'invalid') {
+                this.requests.push(request);
+                queueMicrotask(() => this.emit('message', createCemProcessingFailureEnvelope(request, 'failure', [
+                    { code: 'cem.ql.template_artifact_hash_mismatch', severity: 'error', message: 'fixture rejects the replaced pin' },
+                ])));
+                return;
+            }
+            super.postMessage(request);
+        }
+    }
+    const root = createCemDeclarationScope({ document: {} as Document }), worker = new PinnedWorker();
+    const host = cemProcessingHostForScope(root, { workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => worker as unknown as Worker });
+    const native = vi.mocked(retainPinnedCemMlTemplateArtifact); native.mockClear();
+    const source = vi.mocked(retainCemMlTemplateSource); source.mockClear();
+    const input: CemProcessingCompileInput = { ...compileInput('pinned-fallback'), sourceMapMode: 'prod',
+        source: { kind: 'pinned-template-artifact-v1', artifact: { kind: 'template-artifact',
+            bytes: new Uint8Array([1, 2, 3]).buffer, cacheKey: `cem-bin/1+blake3:${'a'.repeat(64)}`,
+            formatVersion: 'cem-template-artifact/1', policyStamp: 'scope-policy-v1', payloadKey: {
+                contentType: 'cem-template-artifact', sourceHash: `cem-bin/1+blake3:${'b'.repeat(64)}`,
+                cemMlVersion: '0.1.0', cemQlVersion: '0.1.0', sourceMapMode: 'prod',
+            } } } };
+    const good = structuredClone(input);
+    try {
+        const pending = host.compile(input);
+        if (input.source.kind !== 'pinned-template-artifact-v1') throw Error('fixture');
+        new Uint8Array(input.source.artifact.bytes)[0] = 99;
+        const { artifact } = await pending.result;
+        const bad = structuredClone(good);
+        if (bad.source.kind !== 'pinned-template-artifact-v1') throw Error('fixture');
+        bad.source.artifact.payloadKey.cemQlVersion = 'invalid';
+        await expect(host.compile(bad).result).rejects.toThrow('replaced pin');
+        expect(host.mode).toBe('worker');
+        const revision = { instanceId: 'pinned-fallback', dataRevision: '1', templateArtifactId: 'pinned-fallback',
+            scopePolicyStamp: 'scope-policy-v1', outputTarget: 'light-dom' as const };
+        await host.renderDiff({ artifact, revision, data: {}, snapshot: { ...revision } as DataIslandSnapshot, scopeUid: 'pinned' }).result;
+        expect(host.mode).toBe('main-thread'); expect(worker.terminated).toBe(true);
+        expect(native).toHaveBeenCalledTimes(2);
+        for (const [bytes, , key] of native.mock.calls) {
+            expect([...new Uint8Array(bytes)]).toEqual([1, 2, 3]); expect(key.cemQlVersion).toBe('0.1.0');
+        }
+        expect(source).not.toHaveBeenCalled();
+    } finally { await host.dispose({ reason: 'scope-disposed' }).result; root.dispose(); }
+});
 
 it('replays retained response bytes through native import after worker loss and releases them', async () => {
     const worker = new DocumentFallbackWorker();

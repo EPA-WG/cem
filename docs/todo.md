@@ -902,6 +902,22 @@ inventory, not the minimum set loaded by every app.
   Runtime general-registry assembly still occurs
   and remains a partitioning requirement. Production runtime, shared UI and
   credential handling are unchanged; no reduced WASM or browser app is claimed.
+- [x] Add strict native manifest-pinned template admission and a source-free
+  processing input shared by worker/fallback hosts. Add native/WASM and shared
+  host fixtures for missing/corrupt/mismatched hashes, versions, bindings and
+  scope, no source/compiler fallback, input mutation, cache identity, superseded
+  work, native ownership/disposal and replay into fresh processing owners.
+  Preserve the existing optional-cache source compilation path and test its
+  compatibility. This transport step does not yet register a whole application.
+  Implemented `importPinnedTemplateArtifact`, the shared render adapter and
+  `pinned-template-artifact-v1` input under processing protocol v30. Bounds are
+  checked before buffer copies; only accepted inputs are published for replay,
+  so rejected replacements preserve the committed template. Verification: six
+  native app-boundary tests, nine existing reload tests, separate-heap WASM
+  admission/disposal, 808 shared unit tests, worker/fallback browser admission
+  and live Login privacy/recovery acceptance. Native CSS parsing, source-driven
+  declaration registration and the full WASM remain in place. No generated
+  screenshots/attachments or user storage are included in this work.
 - [ ] Connect source-free compiled artifacts to shared component registration,
   worker/fallback processing and recovery, using manifest-pinned artifact/source
   hashes rather than downloading the original template source. Preserve all
