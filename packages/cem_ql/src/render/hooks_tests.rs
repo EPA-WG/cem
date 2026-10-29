@@ -2,6 +2,8 @@ use super::*;
 
 fn renderer() -> PlanRenderer<'static> {
     PlanRenderer {
+        #[cfg(not(target_arch = "wasm32"))]
+        selected_registry: None,
         read_dependencies: None,
         evaluation_context: EvaluationContext::default(),
         diagnostics: Vec::new(),

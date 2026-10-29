@@ -1094,6 +1094,42 @@ inventory, not the minimum set loaded by every app.
     implementation dependencies and build a selected registry. Keep unresolved
     dispatch/provider/source requirements explicit; inventory is not linked-code
     omission evidence or runtime authority.
+    - [x] Add a native selected-registry prototype for reviewed pure sequence/text
+      functions, with explicit transitive execution-unit requirements. Add fixtures
+      proving default/selected output equivalence, callbacks and pipeline checks,
+      denial before argument effects, cancellation and cache-receipt refusal.
+      Render the existing cart JSON cases with zero full-registry assemblies.
+      Add deterministic pinned CLI recipe/Rust generation and refusal fixtures;
+      keep unreviewed functions and behavior/provider/source contracts open.
+      Implemented immutable selection for 15 reviewed pure functions and a native
+      dispatcher sharing ordinary value/callback helpers. Exact module/name/arity
+      and pipeline adapters are checked before argument evaluation; native/URL
+      special routes, nested calls and preexisting receiver chains cannot escape
+      selection. The cart entry renders all six native JSON fixtures with identical
+      HTML and zero full function-catalogue assemblies. Transitive execution-unit
+      closure/source paths are recorded, including recursive evaluator/lambda
+      contracts; this is not a complete native symbol or link-liveness proof.
+      Optional `--selected-registry` emits pinned JSON plus generated Rust only
+      for closed/reviewed requirements; CLI fixtures compile and execute that Rust
+      and reject open/unreviewed projects before writing assets. Selected renders
+      cannot obtain read receipts or hit/populate pure-render caches; an existing
+      full-registry cache hit cannot hide a refusal. Full-runtime defaults and
+      worker/fallback admission/ownership remain unchanged. The prototype is
+      native-only; `nativeLinkClosureVerified` stays false.
+      Verification: 166 native library tests (four existing profiling cases
+      ignored), 45 declaration/reload/style/cache regressions, seven CLI cases
+      plus generated-Rust compilation/execution, bridge compilation, native WASM
+      admission/legacy stylesheet checks, 14 component browser cases, both full
+      Studio Login privacy/recovery cases, eight audit-tool cases, formatting and
+      script lint pass. The rebuilt full WASM remains 24,197,177 bytes (23.08 MiB),
+      with 28 imports/171 exports; gzip-9 is 7,373,854 bytes and Brotli-9 is
+      5,418,366 bytes. Source/interface/vendor audits pass. The 4 MiB checkpoint
+      limit, 5-second native handoff deadlines and entered-credential refusal
+      policy are unchanged; no application/component UI JavaScript was added.
+    - [ ] Promote the reviewed selected dispatcher into the separate application
+      WASM target, partition the general fallback/source/tooling paths and prove
+      actual linked-code omission. Close required shared behavior/provider/source
+      and native input/type contracts before treating a component app as complete.
 - [ ] Assemble and measure the compiled-UI + JSON shopping-cart profile first.
   Add declarative shared GraphQL transport only if existing resource capabilities
   cannot express it; alert the user before implementing new shared JavaScript.

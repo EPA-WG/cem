@@ -407,3 +407,50 @@ fn pinned_deployment_refuses_a_matching_but_invalid_build() {
         "cem.ql.template_artifact_invalid_build"
     );
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn shopping_cart_selected_registry_renders_changing_json_without_general_registry_assembly() {
+    use crate::selected_registry::{SelectedBuiltin, SelectedFunctionRegistry};
+    let selected = Arc::new(
+        SelectedFunctionRegistry::new([
+            SelectedBuiltin::SequenceFirst,
+            SelectedBuiltin::SequenceWhere,
+            SelectedBuiltin::SequenceCount,
+        ])
+        .unwrap(),
+    );
+    let compiled = compile_template_artifact(VIEW, &options(), TemplateArtifactSourceMapMode::Prod);
+    let artifact = compiled
+        .reload(&TemplateArtifactLoadContext {
+            expected_source_hash: Some(compiled.identity.source_hash.clone()),
+            host_bindings: options().host_bindings,
+            source_map_mode: TemplateArtifactSourceMapMode::Prod,
+        })
+        .unwrap();
+    for name in [
+        "cart.json",
+        "updated.json",
+        "removed.json",
+        "empty.json",
+        "partial-error.json",
+        "failed.json",
+    ] {
+        let ordinary = response(name);
+        let expected = render_plan_to_html(&render_compiled_template(&artifact, &ordinary));
+        let mut input = ordinary;
+        input.selected_registry = Some(selected.clone());
+        let (plan, stages) = measure(|| render_compiled_template(&artifact, &input));
+        assert!(
+            plan.diagnostics.is_empty(),
+            "{name}: {:?}",
+            plan.diagnostics
+        );
+        assert_eq!(render_plan_to_html(&plan), expected, "{name}");
+        assert!(
+            !stages.contains_key("stdlib/assemble-registry"),
+            "{name}: {stages:?}"
+        );
+        assert_runtime_stages(&stages);
+    }
+}

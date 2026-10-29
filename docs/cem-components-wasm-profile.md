@@ -52,7 +52,10 @@ binary still contains their parser.
 Native closure builds also emit a [pinned requirements inventory](cem-components-shopping-cart-profile.md#native-compiled-requirements-inventory)
 from compiled template/query IR and retained CSS: exact call arities, literal
 format demands, source/artifact identities and unresolved host/provider contracts.
-It is build-only; selected native registry/implementation closure remains open.
+The native [selected-registry prototype](cem-components-shopping-cart-profile.md#native-selected-registry-prototype)
+now generates exact reviewed entries and transitive execution-unit requirements,
+and renders the cart entry without full function-catalogue assembly. It remains
+native-only; WASM partitioning and behavior/provider implementation closure stay open.
 The browser's `retainCemMlTemplateArtifact` path still takes original
 template source for its optional source-cache behavior. A separate strict
 `retainPinnedCemMlTemplateArtifact` adapter and `pinned-template-artifact-v1`

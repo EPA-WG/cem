@@ -188,6 +188,10 @@ fn default_policy() -> ScopePolicy {
     ScopePolicy::host_root().with_queue_size(128)
 }
 fn ordinary_scope(data: &TemplateData) -> bool {
+    #[cfg(not(target_arch = "wasm32"))]
+    if data.selected_registry.is_some() {
+        return false;
+    }
     data.expression_scope.scopes.is_empty()
         && data.expression_scope.active.is_empty()
         && data.expression_scope.call_depth == 0

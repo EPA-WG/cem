@@ -45,6 +45,8 @@ pub(crate) use data::source_node as imported_source_node;
 pub use data::{imported_cem_tree, retained_cem_node, DataReaderCache, RetainedCemNode};
 pub(crate) use data::xpath_node as result_native_node;
 pub mod pipeline;
+#[cfg(not(target_arch = "wasm32"))]
+mod selected;
 mod url;
 pub mod set_ops;
 pub mod types_runtime;
@@ -638,6 +640,32 @@ impl Evaluator {
         Self::evaluate_internal(query, context, control, scope, true, None)
     }
 
+    /// Native selected-registry prototype; this does not enable tracked reuse
+    /// or confer host/native/resource capabilities.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn evaluate_with_selected_registry(
+        query: &CompiledQuery,
+        context: &EvaluationContext,
+        registry: Arc<crate::selected_registry::SelectedFunctionRegistry>,
+        control: &OperationControl,
+        scope: ExecutionScopeId,
+    ) -> ItemStream {
+        Self::evaluate_selected_internal(query, context, registry, control, scope, false)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn evaluate_selected_internal(
+        query: &CompiledQuery,
+        context: &EvaluationContext,
+        registry: Arc<crate::selected_registry::SelectedFunctionRegistry>,
+        control: &OperationControl,
+        scope: ExecutionScopeId,
+        protected: bool,
+    ) -> ItemStream {
+        let mut ctx = EvalCtx::new(query, context, control, scope);
+        ctx.selected_registry = Some(registry);
+        ctx.recovery_depth = usize::from(protected);
+        ctx.evaluate_root()
+    }
     pub(crate) fn evaluate_internal<'a>(
         query: &'a CompiledQuery,
         context: &'a EvaluationContext,
@@ -655,6 +683,8 @@ impl Evaluator {
 
 pub(crate) struct EvalCtx<'a> {
     query: &'a CompiledQuery,
+    #[cfg(not(target_arch = "wasm32"))]
+    selected_registry: Option<Arc<crate::selected_registry::SelectedFunctionRegistry>>,
     reads: Option<dependencies::ReadTracker>,
     template_host: Option<&'a mut dyn crate::native::TemplateQueryHost>,
     safe_points: SafePointPoller,
@@ -715,6 +745,8 @@ impl<'a> EvalCtx<'a> {
         }
         let mut ctx = Self {
             query,
+            #[cfg(not(target_arch = "wasm32"))]
+            selected_registry: None,
             reads: None,
             template_host: None,
             safe_points: SafePointPoller::new(control.clone(), scope),
@@ -923,6 +955,10 @@ impl<'a> EvalCtx<'a> {
             }
             IrNode::Call { callee, args } => self.eval_call(id, callee, &args),
             IrNode::StdlibCall { module, name, args } => {
+                #[cfg(not(target_arch = "wasm32"))]
+                if self.selected_registry.is_some() {
+                    return selected::call(&module.0,&name.local,&args,self);
+                }
                 if module.0 == crate::stdlib::native::MODULE_URI && name.local == "call" {
                     self.eval_native_call(id, &args)
                 } else if module.0 == crate::stdlib::url::MODULE_URI {

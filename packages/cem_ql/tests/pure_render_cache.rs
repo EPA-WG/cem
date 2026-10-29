@@ -563,3 +563,31 @@ fn decoding_memory_pressure_falls_back_without_poisoning_the_operation() {
     assert_eq!(control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
     assert!(run(&mut cache, &artifact, &data, &state).hit);
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn a_full_registry_hit_cannot_hide_a_selected_registry_refusal() {
+    let artifact = compile_template("{p | {$str:upper(\"a\")}}", &Default::default());
+    let state = admission(1);
+    let mut cache = PureRenderCache::default();
+    let ordinary = TemplateData::default();
+    assert!(!run(&mut cache, &artifact, &ordinary, &state).hit);
+    assert!(run(&mut cache, &artifact, &ordinary, &state).hit);
+    let selected = TemplateData {
+        selected_registry: Some(std::sync::Arc::new(
+            cem_ql::selected_registry::SelectedFunctionRegistry::new([]).unwrap(),
+        )),
+        ..Default::default()
+    };
+    for _ in 0..2 {
+        let refused = run(&mut cache, &artifact, &selected, &state);
+        assert!(!refused.hit);
+        assert!(refused
+            .plan
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("selected registry")));
+        assert!(!render_plan_to_html(&refused.plan).contains('A'));
+    }
+    assert!(run(&mut cache, &artifact, &ordinary, &state).hit);
+}

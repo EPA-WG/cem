@@ -458,6 +458,71 @@ cargo test --locked --offline -p cem-ql --test declaration_closure --test declar
 node packages/cem_ql/tests/build-declaration-fixtures.mjs
 ```
 
+## Native selected-registry prototype
+
+`--selected-registry` adds `selected-registry.json`, its exact native content pin
+in `selected-registry.hash`, and generated `selected_registry.rs`. Selection
+requires a complete static inventory before any assets are written. Open
+behavior/provider/source contracts, unreviewed functions, unsupported dispatch
+adapters and catalogue-kind mismatches refuse generation. Existing builds without
+this option keep the full-runtime path.
+
+The initial reviewed set has 15 pure functions: sequence `first`, `last`, `count`,
+`take`, `drop`, `map`, `flat_map`, `where`, `any`, `all`, `peek`; string `length`,
+`lower`, `upper`, `contains`. Entries use exact module/name/arity identities.
+The recipe binds `requirements.hash` and records the transitive execution-unit
+closure and its source paths. Callback recursion closes through an explicit
+fixed point: selected dispatch, evaluator/control, retained values/provenance,
+field navigation, local lambdas, boolean conversion and the relevant sequence or
+text helpers. These are reviewed execution contracts, not complete Rust symbol
+reachability or native byte-removal evidence.
+
+Generated Rust constructs an immutable `SelectedFunctionRegistry` from closed enum
+identifiers. It contains no template/query text and grants no native callbacks,
+resource access or application permissions. Native callers can pass it through
+`TemplateData.selected_registry`, or use
+`Evaluator::evaluate_with_selected_registry` with their existing operation
+control/scope. Standard calls use a selected dispatcher and the existing
+value/callback helpers; the full function catalogue is never assembled there.
+The ordinary path remains the default. Native code using complete `TemplateData`
+struct literals must initialize `selected_registry: None`; `Default` already does.
+
+Unselected calls refuse before evaluating arguments. Native/URL special routes
+and nested callback calls cannot fall back to the general dispatcher. Supported
+sequence pipelines check the implicit receiver arity. Receiver methods remain
+unsupported, including preexisting chain receivers; ordinary field navigation
+and local lambdas retain their shared native semantics. This is an execution
+selection for the prototype, not a sandbox for arbitrary host-provided values.
+
+Selected template renders deliberately remain ineligible for native read receipts
+and pure-render cache lookup/publication. Existing full-registry receipts cannot
+match selected data. Registry identity and admission must join those reuse
+contracts before enabling reuse; an output cache must not hide a refusal.
+Cancellation and operation budgets still pass through the ordinary evaluator.
+
+The existing cart entry template renders all six original/updated/removed/empty/
+partial-error/failed native JSON fixtures with identical HTML and zero full
+function-catalogue assemblies. This proves entry-template evaluation; it does
+not close shared component behavior/provider contracts or implement storefront
+networking/actions. CLI fixtures also compile and execute generated Rust and
+refuse unreviewed/open requirements before publication.
+
+The prototype is native-only (`cfg(not(target_arch = "wasm32"))`). Its recipe
+retains `nativeLinkClosureVerified: false`. The general evaluator/fallback and
+all optional language/tooling implementations are still present in the full
+build. Promote the reviewed dispatcher into the separate WASM target and prove
+actual partitioning/ABI/provider closure before claiming a reduced deployment.
+Credential recovery refusal and the existing 4 MiB/5-second budgets are unchanged.
+
+```bash
+cargo test --locked --offline -p cem-ql --lib selected_registry
+node packages/cem_ql/tests/build-declaration-fixtures.mjs
+# A closed native prototype project:
+dist/target/debug/examples/compile_declaration_closure \
+  ./components https://app.example/components/ ./build/components prod \
+  --compiled-css --selected-registry cem-static-app
+```
+
 ## Remaining delivery boundaries
 
 - Extend app-build function/resource closure generation and optional module

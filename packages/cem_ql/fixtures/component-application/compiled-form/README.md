@@ -37,3 +37,9 @@ V1/v2 external imports and dynamic/source styles retain native CSS parsing;
 source compilers are still present in the full WASM. Build assets contain no credentials. Recovery tests use temporary
 values in isolated browser realms; API transport and app-local behaviors are not
 added.
+
+The separate `--selected-registry` native prototype emits pinned registry recipes
+and Rust code only for closed, reviewed projects. This form intentionally retains
+provider/shared-behavior gaps, so that option refuses it. The default form build
+and browser runtime continue using the full runtime. See the
+[selected-registry boundary](../../../../../docs/cem-components-shopping-cart-profile.md#native-selected-registry-prototype).

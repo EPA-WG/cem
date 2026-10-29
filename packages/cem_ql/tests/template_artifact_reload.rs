@@ -335,6 +335,8 @@ fn load_context(source: &str) -> TemplateArtifactLoadContext {
 
 fn template_data() -> TemplateData {
     TemplateData {
+        #[cfg(not(target_arch = "wasm32"))]
+        selected_registry: None,
         value_types: Default::default(),
         attribute_contracts: Default::default(),
         expression_scope: Default::default(),

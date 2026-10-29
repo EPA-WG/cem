@@ -1,6 +1,8 @@
 //! Build-only requirements from native compiled IR. No source scanning, query
 //! execution, resource reads, grants or assertion of linked-code removability.
 mod query;
+mod registry;
+pub use registry::SelectedRegistryPlan;
 #[cfg(test)]
 mod tests;
 

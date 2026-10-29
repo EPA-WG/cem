@@ -44,6 +44,10 @@ pub(crate) fn apply_pipeline(
 ) -> ItemStream {
     let mut stream = source;
     for (index, step) in steps.iter().enumerate() {
+        #[cfg(not(target_arch = "wasm32"))]
+        if ctx.selected_registry.is_some() && matches!(step,IrStep::Method{..}) {
+            return ctx.unsupported(step_source(step),"receiver methods need a selected execution contract");
+        }
         if stream.chain && matches!(step, IrStep::Method { .. }) {
             return super::chain::apply(stream, &steps[index..], ctx);
         }
@@ -72,6 +76,10 @@ fn step_source(step: &IrStep) -> IrId {
 }
 
 fn apply_step(input: ItemStream, step: &IrStep, ctx: &mut EvalCtx<'_>) -> ItemStream {
+    #[cfg(not(target_arch = "wasm32"))]
+    let input=if ctx.selected_registry.is_some() {
+        match super::selected::pipeline_step(input,step,ctx) {Ok(result)=>return result,Err(input)=>input}
+    }else{input};
     match step {
         IrStep::Method { name, args } => super::chain::method(input, name, args, ctx),
         IrStep::Lambda(lambda) => apply_lambda_step(input, *lambda, ctx),
@@ -676,25 +684,25 @@ fn content_type(value: &str) -> ItemStream {
     ItemStream::once(Item::Atomic(AtomValue::String(value.to_owned())))
 }
 
-fn first(mut input: ItemStream) -> ItemStream {
+pub(super) fn first(mut input: ItemStream) -> ItemStream {
     input.items.truncate(1);
     input
 }
 
-fn last(mut input: ItemStream) -> ItemStream {
+pub(super) fn last(mut input: ItemStream) -> ItemStream {
     if let Some(item) = input.items.pop() {
         input.items = vec![item];
     }
     input
 }
 
-fn take(mut input: ItemStream, n: Option<&ItemStream>) -> ItemStream {
+pub(super) fn take(mut input: ItemStream, n: Option<&ItemStream>) -> ItemStream {
     let n = n.and_then(first_integer).unwrap_or(0).max(0) as usize;
     input.items.truncate(n);
     input
 }
 
-fn drop(mut input: ItemStream, n: Option<&ItemStream>) -> ItemStream {
+pub(super) fn drop(mut input: ItemStream, n: Option<&ItemStream>) -> ItemStream {
     let n = n.and_then(first_integer).unwrap_or(0).max(0) as usize;
     input.items = input.items.into_iter().skip(n).collect();
     input
@@ -1436,7 +1444,7 @@ pub(super) fn keyed_collection(
     out
 }
 
-fn callable_sequence(
+pub(super) fn callable_sequence(
     mut arg_streams: Vec<ItemStream>,
     ctx: &mut EvalCtx<'_>,
     arg_ids: &[IrId],
@@ -1476,7 +1484,7 @@ fn callable_sequence(
     out
 }
 
-fn any_all_sequence(
+pub(super) fn any_all_sequence(
     mut arg_streams: Vec<ItemStream>,
     ctx: &mut EvalCtx<'_>,
     arg_ids: &[IrId],
@@ -1519,7 +1527,7 @@ fn any_all_sequence(
     out
 }
 
-fn first_string(streams: &[ItemStream]) -> String {
+pub(super) fn first_string(streams: &[ItemStream]) -> String {
     streams
         .first()
         .and_then(|stream| stream.items.first())
@@ -1798,7 +1806,7 @@ fn nth_string(streams: &[ItemStream], index: usize) -> String {
         .unwrap_or_default()
 }
 
-fn string_predicate(streams: Vec<ItemStream>, f: fn(&str, &str) -> bool) -> ItemStream {
+pub(super) fn string_predicate(streams: Vec<ItemStream>, f: fn(&str, &str) -> bool) -> ItemStream {
     let left = first_string(&streams);
     let right = streams
         .get(1)

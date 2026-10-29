@@ -726,9 +726,12 @@ physical-generation recovery use the existing style installer. Legacy v1/v2
 source imports and source/dynamic CSS remain supported. Native build-only
 requirements sidecars now inventory compiled function calls/arities, literal
 format demands, the component graph and retained CSS source/resource identities;
-unresolved dispatch/providers remain explicit. Selected transitive native
-implementation/registry closure, API contracts and native code partitioning
-remain pending.
+unresolved dispatch/providers remain explicit. A native selected-registry prototype
+now executes 15 reviewed pure functions and the cart entry without full function-
+catalogue assembly; pinned recipes/Rust code carry transitive execution-unit
+contracts and preserve cache/admission refusal. WASM promotion, transitive linked
+implementation/behavior/provider closure, API contracts and native code
+partitioning remain pending.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

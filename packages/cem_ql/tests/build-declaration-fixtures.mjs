@@ -59,7 +59,7 @@ try {
     const probe = join(folder, `${tag}.xhtml`);
     writeFileSync(probe, `<cem-element tag="${tag}"><template id="${tag}" type="text/cem-ml">{p @title="{str:lower(datadom.attributes.label)}" | Static requirements}</template></cem-element>`);
     const buildStatic = output => execFileSync(`${root}dist/target/debug/examples/compile_declaration_closure`, [inputs,
-        'https://app.test/components/', output, 'prod', '--require-static-requirements', tag], {cwd:root,stdio:'pipe'});
+        'https://app.test/components/', output, 'prod', '--require-static-requirements', '--selected-registry', tag], {cwd:root,stdio:'pipe'});
     buildStatic(staticOutput);
     const report = JSON.parse(readFileSync(join(staticOutput, 'requirements.json'), 'utf8'));
     assert.equal(report.contract, 'cem-application-requirements/1');
@@ -71,5 +71,22 @@ try {
     const refused = join(temporary, 'open-requirements');
     assert.throws(() => buildStatic(refused), /unresolved dynamic\/host\/source contracts/);
     assert.equal(existsSync(refused), false, 'strict requirements failure published assets');
+    writeFileSync(probe, `<cem-element tag="${tag}"><template id="${tag}" type="text/cem-ml">{p @title="{num:abs(1)}" | Unreviewed registry}</template></cem-element>`);
+    const unreviewed = join(temporary, 'unreviewed-registry');
+    assert.throws(() => buildStatic(unreviewed), /outside reviewed selected core/);
+    assert.equal(existsSync(unreviewed), false, 'unreviewed registry published assets');
+    const plan = JSON.parse(readFileSync(join(staticOutput, 'selected-registry.json'), 'utf8'));
+    assert.equal(plan.nativeLinkClosureVerified, false);
+    assert.deepEqual(plan.entries, ['string-lower']);
+    assert.ok(plan.executionUnits.includes('unicode-case'));
+    assert.match(readFileSync(join(staticOutput, 'selected-registry.hash'), 'utf8').trim(), /^cem-bin\/1\+blake3:[0-9a-f]{64}$/);
+    // Compile and execute the generated Rust against the actual native library.
+    const messages = execFileSync('cargo', ['build', '--locked', '--offline', '-p', 'cem-ql', '--lib', '--message-format=json'], {cwd:root,encoding:'utf8',stdio:['ignore','pipe','pipe']});
+    const library = messages.trim().split('\n').map(line => JSON.parse(line)).find(row => row.reason === 'compiler-artifact' && row.target.name === 'cem_ql').filenames.find(name => name.endsWith('.rlib'));
+    const program = join(staticOutput, 'check.rs'), executable = join(staticOutput, 'check');
+    writeFileSync(program, 'include!("selected_registry.rs");\nfn main() { let registry = selected_registry(); assert!(registry.resolve("cem:stdlib/strings", "lower", 1).is_some()); assert!(registry.resolve("cem:stdlib/strings", "upper", 1).is_none()); }\n');
+    execFileSync('rustc', ['--edition=2021', program, '-L', `dependency=${root}dist/target/debug/deps`, '--extern', `cem_ql=${library}`, '-o', executable], {cwd:root,stdio:'pipe'});
+    execFileSync(executable, [], {cwd:root,stdio:'pipe'});
+
 } finally { rmSync(temporary, { recursive: true, force: true }); }
 console.log('Compiled closure fixtures: response budgets and outside-root/symlink/missing/oversized CSS and static-requirements admission/refusal passed.');
