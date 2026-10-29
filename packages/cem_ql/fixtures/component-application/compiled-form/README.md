@@ -10,7 +10,10 @@ example project.
 - The native `compile_declaration_closure` example discovers their static
   dependencies, closes stylesheet imports with `--compiled-css`, and generates
   metadata, binaries, a dependency inventory and
-  `declarations.html`. Include that markup in a document with the normal shared
+  `declarations.html`, plus pinned `requirements.json`/`requirements.hash` build
+  evidence. The report lists native compiled function/CSS requirements and explicit
+  provider/shared-behavior gaps; it does not prove native code removability.
+  Include that markup in a document with the normal shared
   runtime installed. Relative asset URLs use that document's resource base.
 - Run `node packages/cem_ql/tests/build-declaration-fixtures.mjs` from the repository
   root, then the `compiled-declaration-loader.stories.ts` browser tests.

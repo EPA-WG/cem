@@ -386,6 +386,78 @@ The full WASM still includes native CSS parsing for source/dynamic consumers.
 This gate establishes compiled import admission, not a smaller core binary or
 a completed shopping-cart application.
 
+## Native compiled requirements inventory
+
+The native declaration-closure CLI now also emits `requirements.json` and
+`requirements.hash`. The report is `cem-application-requirements/1` build-control
+metadata. Its exact byte pin is generated natively; a deployment must obtain
+trusted pins independently of downloaded files. The report does not grant native
+functions, resource access or runtime permissions.
+
+Requirement inspection uses admitted compiled artifacts and native IR, without
+scanning/reparsing query source, evaluating queries or parsing application data.
+Legacy v1 artifact admission retains its existing inline CSS importer; v2/v3
+admit compiled inline CSS instead. The public Rust
+`compiled_declaration_requirements` entrypoint validates metadata and template
+pins/format agreement before inspection. The closure builder records explicit
+entry/projected-content roots and the complete static component graph alongside
+each declaration's exact metadata/source/artifact hashes, host bindings and shared
+capability.
+
+The report conservatively collects resolved standard-library module/name/arity
+and dispatch kind from every IR node, including unused function bodies, lambdas,
+attribute expressions, conditional branches and loops. Pipeline calls account
+for their implicit stream argument; receiver operations and field reads are
+listed separately. Catalogue membership is not proof that every dispatch path
+is implemented. Unknown functions, unsupported pipeline adapters and unbound or
+dynamic calls/callbacks remain explicit gaps.
+
+Literal `data:read`/`data:parse` format/schema requests are recorded without
+reading input values or evaluating options. These are requested profiles, not
+validated parser/schema package selections. Dynamic format/schema choices and
+additional import options require further contracts. Host/native dispatch,
+template/state/module/source providers, projected/deferred payloads, shared
+behavior bindings and HTML resource/style construction also remain open where
+the compiled IR cannot establish their closure. Query text, arbitrary string
+literals and runtime values are absent from the report.
+
+CSS requirements use the same retained trees and native import state machine as
+runtime style admission. V3 closures are traversed without loading source;
+every stylesheet occurrence retains its original source URI/key, final URL base
+and ordered import/URL requirements. Repeated sheets remain distinct. V1/v2
+source imports are reported as unresolved; inspection does not fetch them.
+Resource URL metadata is a requirement, not asset contents or a source grant.
+
+Use `--require-static-requirements` to reject any unresolved requirements before
+publishing closure assets. Omit it to preserve existing full-runtime builds and
+produce a report showing the remaining gaps. Both modes emit the same native
+template binaries and declaration metadata; the sidecars add build evidence.
+
+```bash
+dist/target/debug/examples/compile_declaration_closure \
+  ./components https://app.example/components/ ./build/components prod \
+  --compiled-css --require-static-requirements cem-static-app
+```
+
+The report explicitly has `nativeLinkClosureVerified: false`. Even a static
+inventory does not prove transitive native implementation reachability, native
+code omission, a selected registry or a smaller WASM. The next step maps these
+requirements to implementation dependencies and explicit provider/source
+contracts before assembling a reduced target.
+
+Bounds remain 64 declarations, with at most 100,000 inspected template/IR items
+and storage edges per declaration, 64 template nesting levels and a 1 MiB report
+sidecar. IR storage cycles, dangling references and inconsistent tables fail
+before publication. This bounds inspection; it is not a native RAM measurement.
+The implementation is excluded from WASM with `cfg(not(target_arch = "wasm32"))`.
+No Studio/application UI behavior, runtime admission or credential policy changes.
+
+```bash
+cargo test --locked --offline -p cem-ql --lib application_requirements
+cargo test --locked --offline -p cem-ql --test declaration_closure --test declaration_artifact
+node packages/cem_ql/tests/build-declaration-fixtures.mjs
+```
+
 ## Remaining delivery boundaries
 
 - Extend app-build function/resource closure generation and optional module

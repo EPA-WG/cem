@@ -16,6 +16,7 @@ pub struct BuiltDeclarationClosure {
     pub declarations: BTreeMap<String, BuiltDeclarationArtifact>,
     pub dependencies: BTreeMap<String, BTreeSet<String>>,
     pub loader_html: String,
+    pub requirements: crate::application_requirements::ApplicationRequirements,
 }
 
 /// Roots include entry declarations and all custom-element types projected by
@@ -60,6 +61,8 @@ fn build_with_css(
     let mut dependencies = BTreeMap::new();
     let mut total_bytes = 0usize;
     let mut asset_bytes = 0usize;
+    let mut requirements = crate::application_requirements::ApplicationRequirements::default();
+    requirements.roots = roots.iter().cloned().collect();
     while let Some(tag) = pending.pop_first() {
         if declarations.contains_key(&tag) {
             continue;
@@ -102,6 +105,14 @@ fn build_with_css(
             .template
             .reload_pinned(&metadata.template)
             .map_err(|e| e.to_string())?;
+        requirements.declarations.insert(
+            tag.clone(),
+            crate::application_requirements::declaration_requirements(
+                &loaded,
+                &metadata,
+                &built.metadata_hash,
+            )?,
+        );
         let mut refs = BTreeSet::new();
         references(&loaded.nodes, &mut refs)?;
         for dep in &refs {
@@ -112,6 +123,7 @@ fn build_with_css(
         dependencies.insert(tag.clone(), refs);
         declarations.insert(tag, built);
     }
+    requirements.component_dependencies = dependencies.clone();
     // Files have validated tag-only names. Metadata pins originate in this build,
     // independently of downloaded metadata. No source or inline bootstrap JS.
     let loader_html = declarations.iter().map(|(tag, built)| format!(
@@ -121,6 +133,7 @@ fn build_with_css(
         declarations,
         dependencies,
         loader_html,
+        requirements,
     })
 }
 

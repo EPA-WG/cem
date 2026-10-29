@@ -723,8 +723,12 @@ now admit pinned compiled inline CSS through existing resource/scoping emission;
 opt-in v3 closes imported CSS responses at build time and replays them through
 current native URL/MIME/SRI/byte policy without source parsing. Shared loading and
 physical-generation recovery use the existing style installer. Legacy v1/v2
-source imports and source/dynamic CSS remain supported. Function/resource closure
-generation, API contracts and native code partitioning remain pending.
+source imports and source/dynamic CSS remain supported. Native build-only
+requirements sidecars now inventory compiled function calls/arities, literal
+format demands, the component graph and retained CSS source/resource identities;
+unresolved dispatch/providers remain explicit. Selected transitive native
+implementation/registry closure, API contracts and native code partitioning
+remain pending.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

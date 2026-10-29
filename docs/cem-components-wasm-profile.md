@@ -49,6 +49,10 @@ carries build-closed imported stylesheets and rechecks current URL/MIME/integrit
 and byte policy without CSS parsing. The [compiled CSS contract](cem-components-shopping-cart-profile.md#compiled-imported-stylesheet-closures)
 preserves v1/v2 authorized source imports and dynamic/source styles; the full
 binary still contains their parser.
+Native closure builds also emit a [pinned requirements inventory](cem-components-shopping-cart-profile.md#native-compiled-requirements-inventory)
+from compiled template/query IR and retained CSS: exact call arities, literal
+format demands, source/artifact identities and unresolved host/provider contracts.
+It is build-only; selected native registry/implementation closure remains open.
 The browser's `retainCemMlTemplateArtifact` path still takes original
 template source for its optional source-cache behavior. A separate strict
 `retainPinnedCemMlTemplateArtifact` adapter and `pinned-template-artifact-v1`

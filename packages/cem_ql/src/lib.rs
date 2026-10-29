@@ -19,6 +19,8 @@ pub mod diagnostics;
 pub mod declaration_artifact;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod declaration_closure;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod application_requirements;
 pub mod datatype_compilation;
 pub mod function_activation;
 pub mod datatype_conversion;

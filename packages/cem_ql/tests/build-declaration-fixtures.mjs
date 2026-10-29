@@ -1,6 +1,6 @@
 // Build canonical component fixtures with the native compiler, never a JS parser.
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -55,5 +55,21 @@ try {
             'https://app.test/components/', output, 'prod', '--compiled-css', tag], { cwd: root, stdio: 'pipe' }), expected);
         assert.equal(existsSync(output), false, `failed ${name} build published assets`);
     }
+    const staticOutput = join(temporary, 'static-requirements');
+    const probe = join(folder, `${tag}.xhtml`);
+    writeFileSync(probe, `<cem-element tag="${tag}"><template id="${tag}" type="text/cem-ml">{p @title="{str:lower(datadom.attributes.label)}" | Static requirements}</template></cem-element>`);
+    const buildStatic = output => execFileSync(`${root}dist/target/debug/examples/compile_declaration_closure`, [inputs,
+        'https://app.test/components/', output, 'prod', '--require-static-requirements', tag], {cwd:root,stdio:'pipe'});
+    buildStatic(staticOutput);
+    const report = JSON.parse(readFileSync(join(staticOutput, 'requirements.json'), 'utf8'));
+    assert.equal(report.contract, 'cem-application-requirements/1');
+    assert.equal(report.nativeLinkClosureVerified, false);
+    assert.ok(report.declarations[tag].functions.some(f => f.module === 'cem:stdlib/strings' && f.name === 'lower' && f.arity === 1));
+    assert.deepEqual(report.declarations[tag].unresolved, []);
+    assert.match(readFileSync(join(staticOutput, 'requirements.hash'), 'utf8').trim(), /^cem-bin\/1\+blake3:[0-9a-f]{64}$/);
+    writeFileSync(probe, `<cem-element tag="${tag}"><template id="${tag}" type="text/cem-ml">{slot}</template></cem-element>`);
+    const refused = join(temporary, 'open-requirements');
+    assert.throws(() => buildStatic(refused), /unresolved dynamic\/host\/source contracts/);
+    assert.equal(existsSync(refused), false, 'strict requirements failure published assets');
 } finally { rmSync(temporary, { recursive: true, force: true }); }
-console.log('Compiled closure fixtures: response budgets and outside-root/symlink/missing/oversized CSS refusals passed.');
+console.log('Compiled closure fixtures: response budgets and outside-root/symlink/missing/oversized CSS and static-requirements admission/refusal passed.');

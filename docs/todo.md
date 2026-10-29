@@ -1063,6 +1063,37 @@ inventory, not the minimum set loaded by every app.
   JSON decoding and validation for API/user data arriving after deployment.
   Generate the selected runtime function/behavior/module closure from native
   compiled metadata rather than assembling the complete general registry.
+  - [x] Generate bounded native build requirements from compiled template/query
+    IR and retained CSS closures. Add fixtures for branch/lambda/attribute calls,
+    import aliases and arities, data-format demand, dynamic/native/provider
+    blockers, malformed IR, deterministic hashes and no query execution or
+    query-source reparsing. Emit pinned requirements beside the declaration-closure assets.
+    Add CLI fixtures for deterministic pinned sidecars and strict refusal of
+    open requirements before any output is published.
+    Implemented native-only `application_requirements` and pinned
+    `requirements.json`/`requirements.hash` sidecars. Reports bind exact declaration
+    metadata/source/template hashes, roots/component edges, call module/name/arity
+    and dispatch kind, literal format/schema demands and retained CSS source/URL
+    requirements. All branches, attributes and function bodies are conservatively
+    inspected without query execution. Host/provider, shared-behavior, dynamic
+    dispatch, HTML resource/style and source-import gaps stay explicit; optional
+    `--require-static-requirements` refuses them before output publication.
+    `nativeLinkClosureVerified` remains false. Selected transitive implementation
+    closure, parser/profile validation and native registry generation remain open.
+    Verification: ten new native inventory cases, 17 declaration/closure/reload
+    regressions, six CLI admission/refusal fixtures, 14 component browser cases
+    (including real worker/fallback credential-safe recovery), eight audit-tool
+    tests, Rust formatting and script lint pass. Generated native template bins
+    and existing declaration JSON remain byte-identical. A rebuilt post-bindgen
+    WASM exactly matches the preceding optimizer input (27,480,746 bytes,
+    SHA-256 `d2623d68bbab6e0e70c4b47a110c7067e3e66c3c6ff734503c12353ac534c5dc`);
+    native JavaScript/types also match. Build-only code is excluded on wasm32:
+    shipped WASM stays 24,197,177 bytes (23.08 MiB), with unchanged ABI, ownership,
+    source loading and credential policy. The regenerated source audit matches.
+  - [ ] Map the collected function/module requirements to transitive native
+    implementation dependencies and build a selected registry. Keep unresolved
+    dispatch/provider/source requirements explicit; inventory is not linked-code
+    omission evidence or runtime authority.
 - [ ] Assemble and measure the compiled-UI + JSON shopping-cart profile first.
   Add declarative shared GraphQL transport only if existing resource capabilities
   cannot express it; alert the user before implementing new shared JavaScript.
