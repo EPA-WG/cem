@@ -57,7 +57,8 @@ tree color stage before the writer. Declaring a formatter or color profile also
 requires `output-syntax` and `encoding-category` so the pipeline identity is
 complete. When a CEMT converter declares
 formatter/coloring output profiles, validation reads the referenced template
-through the local package path or template resolver and compiles it as a
+through the supplied validation resource reader, or the local package path when
+no reader is supplied, and compiles it as a
 formatted CEM-tree producer before writer output is allowed. A CEMT converter
 that only declares source/target identity, `output-syntax`, or
 `encoding-category` is treated as metadata-only and does not get this executable

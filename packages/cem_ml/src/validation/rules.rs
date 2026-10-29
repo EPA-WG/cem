@@ -1540,6 +1540,20 @@ impl SchemaPackageContractCache {
         if !self.read_resources {
             return None;
         }
+        if let Some(resource_reader) = ctx.resource_reader {
+            let key = SchemaPackageResourceCacheKey {
+                uri: format!("{}\n{}", ctx.source_uri.unwrap_or_default(), path.trim()),
+                content_type_hint: content_type_hint.map(str::to_owned),
+            };
+            if let Some(cached) = self.resources.get(&key) {
+                return Some(cached.clone());
+            }
+            // Supplied readers govern package bodies even for local identities.
+            // Refusals must reach normal validation diagnostics, not disk fallback.
+            let result = resource_reader(path, ctx.source_uri, content_type_hint);
+            self.resources.insert(key, result.clone());
+            return Some(result);
+        }
         if let Some(source_path) = resolve_schema_package_resource_path(ctx.source_uri, path) {
             let key = SchemaPackageResourceCacheKey {
                 uri: source_path.display().to_string(),
@@ -1559,17 +1573,7 @@ impl SchemaPackageContractCache {
             return Some(result);
         }
 
-        let resource_reader = ctx.resource_reader?;
-        let key = SchemaPackageResourceCacheKey {
-            uri: format!("{}\n{}", ctx.source_uri.unwrap_or_default(), path.trim()),
-            content_type_hint: content_type_hint.map(str::to_owned),
-        };
-        if let Some(cached) = self.resources.get(&key) {
-            return Some(cached.clone());
-        }
-        let result = resource_reader(path, ctx.source_uri, content_type_hint);
-        self.resources.insert(key, result.clone());
-        Some(result)
+        None
     }
 
     fn parse_cemt_module(
@@ -5893,6 +5897,204 @@ mod tests {
             std::fs::write(path, source).expect("write CEMT fixture");
         }
         dir
+    }
+
+    const READER_PACKAGE_MANIFEST: &str = r#"{package @id=demo @version="1.0.0" |
+        {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+        {content-type @value="application/vnd.example.demo+cem" @primary=true}
+        {artifact @kind=formatter @path="formatters/demo.cemt"
+            @content-type="application/vnd.cem.transform+cem"
+            @schema="https://cem.dev/ns/transform/cem/1"
+            @target-content-type="application/cem" @target-schema="https://cem.dev/ns/cem-ml/1"
+            @target-category=cem-tree @function-name=demo.format @formatter-profile=compact}
+        {example @id=data @path="examples/data.xml" @content-type="application/xml"
+            @schema="https://cem.dev/ns/data/xml/1" @expected-result=pass}
+    }"#;
+
+    fn package_reader_diagnostics(
+        manifest: &str,
+        source_uri: &str,
+        reader: Option<&crate::validation::RuleResourceReader<'_>>,
+        read_resources: bool,
+    ) -> Vec<Diagnostic> {
+        let document = parse(manifest);
+        schema_package_contract_diagnostics(
+            &RuleContext {
+                lexical_scopes: None,
+                document: &document,
+                schema_uri: Some(CEM_SCHEMA_PACKAGE_URI),
+                content_type: Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+                source_uri: Some(source_uri),
+                resource_reader: reader,
+                schema_registry: None,
+                schema_document_models: None,
+                upstream_diagnostics: &document.diagnostics,
+                schema_behavior_evaluator: None,
+            },
+            read_resources,
+        )
+    }
+
+    #[test]
+    fn schema_package_resource_reader_overrides_conflicting_local_artifacts_and_examples() {
+        let dir = schema_package_artifact_contract_fixture_dir(
+            "reader-authority",
+            &[
+                (
+                    "formatters/demo.cemt",
+                    &demo_format_cemt_source().replace("demo.format", "disk.format"),
+                ),
+                ("examples/data.xml", "<broken"),
+            ],
+        );
+        let path = dir.join("package.cem");
+        for source_uri in [
+            path.display().to_string(),
+            url::Url::from_file_path(&path).unwrap().to_string(),
+        ] {
+            let reads = std::cell::RefCell::new(Vec::new());
+            let reader = |uri: &str, base: Option<&str>, hint: Option<&str>| {
+                assert_eq!(base, Some(source_uri.as_str()));
+                reads
+                    .borrow_mut()
+                    .push((uri.to_owned(), hint.map(str::to_owned)));
+                Ok(RuleResourceRead {
+                    uri: url::Url::parse(base.unwrap())
+                        .ok()
+                        .and_then(|base| base.join(uri).ok())
+                        .map(|uri| uri.to_string())
+                        .unwrap_or_else(|| dir.join(uri).display().to_string()),
+                    bytes: match uri {
+                        "formatters/demo.cemt" => demo_format_cemt_source().as_bytes().to_vec(),
+                        "examples/data.xml" => b"<data/>".to_vec(),
+                        _ => panic!("unexpected package read: {uri}"),
+                    },
+                    content_type: hint.map(str::to_owned),
+                })
+            };
+            let diagnostics =
+                package_reader_diagnostics(READER_PACKAGE_MANIFEST, &source_uri, Some(&reader), true);
+            assert!(
+                diagnostics.is_empty(),
+                "supplied sources should pass: {diagnostics:?}"
+            );
+            assert_eq!(
+                *reads.borrow(),
+                vec![
+                    (
+                        "formatters/demo.cemt".into(),
+                        Some(CEM_TRANSFORM_CONTENT_TYPE.into())
+                    ),
+                    ("examples/data.xml".into(), Some("application/xml".into())),
+                ]
+            );
+            let failed = package_reader_diagnostics(
+                &READER_PACKAGE_MANIFEST.replace("@expected-result=pass", "@expected-result=fail"),
+                &source_uri,
+                Some(&reader),
+                true,
+            );
+            assert!(
+                failed.iter().any(
+                    |diagnostic| diagnostic.code == "cem.schema_package.example_check"
+                        && diagnostic.details.as_ref().unwrap()["checkKind"]
+                            == "example-source-validation"
+                ),
+                "full validation must still check the supplied example: {failed:?}"
+            );
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn schema_package_resource_reader_refusal_never_uses_readable_local_files() {
+        let dir = schema_package_artifact_contract_fixture_dir(
+            "reader-refusal",
+            &[
+                ("formatters/demo.cemt", demo_format_cemt_source()),
+                ("examples/data.xml", "<data/>"),
+            ],
+        );
+        let manifest = READER_PACKAGE_MANIFEST.replace("    }", r#"
+            {converter @id=demo-to-html @implementation=cemt @template="formatters/demo.cemt"
+                @template-content-type="application/vnd.cem.transform+cem" @template-schema="https://cem.dev/ns/transform/cem/1"
+                @output-syntax=html @encoding-category=html-document @formatter-profile=compact |
+                {from @content-type="application/vnd.example.demo+cem" @schema="https://example.test/ns/demo/1"}
+                {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+            }
+        }"#);
+        let source_uri = url::Url::from_file_path(dir.join("package.cem"))
+            .unwrap()
+            .to_string();
+        let calls = std::cell::Cell::new(0);
+        let reader = |_: &str, _: Option<&str>, _: Option<&str>| {
+            calls.set(calls.get() + 1);
+            Err("host refused package resource".to_owned())
+        };
+        let diagnostics = package_reader_diagnostics(&manifest, &source_uri, Some(&reader), true);
+        let mut kinds = diagnostics
+            .iter()
+            .map(|diagnostic| {
+                assert_eq!(diagnostic.severity, Severity::Error);
+                let details = diagnostic.details.as_ref().unwrap();
+                assert_eq!(details["error"], "host refused package resource");
+                assert!(details["sourceRange"].is_object());
+                details["checkKind"].as_str().unwrap()
+            })
+            .collect::<Vec<_>>();
+        kinds.sort();
+        assert_eq!(
+            kinds,
+            [
+                "artifact-source-readable",
+                "converter-template-source-readable",
+                "example-source-readable"
+            ]
+        );
+        assert_eq!(
+            calls.get(),
+            2,
+            "same URI and MIME share one read, including refusal"
+        );
+        assert!(package_reader_diagnostics(&manifest, &source_uri, Some(&reader), false).is_empty());
+        assert_eq!(
+            calls.get(),
+            2,
+            "metadata-only admission must not acquire artifact/example bodies"
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn schema_package_resource_reader_absence_preserves_filesystem_validation() {
+        let dir = schema_package_artifact_contract_fixture_dir(
+            "reader-legacy-filesystem",
+            &[
+                ("formatters/demo.cemt", demo_format_cemt_source()),
+                ("examples/data.xml", "<data/>"),
+            ],
+        );
+        let path = dir.join("package.cem");
+        for source_uri in [
+            path.display().to_string(),
+            url::Url::from_file_path(&path).unwrap().to_string(),
+        ] {
+            let diagnostics =
+                package_reader_diagnostics(READER_PACKAGE_MANIFEST, &source_uri, None, true);
+            assert!(
+                diagnostics.is_empty(),
+                "legacy local validation: {diagnostics:?}"
+            );
+        }
+        std::fs::remove_file(dir.join("examples/data.xml")).unwrap();
+        let diagnostics =
+            package_reader_diagnostics(READER_PACKAGE_MANIFEST, path.to_str().unwrap(), None, true);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].details.as_ref().unwrap()["checkKind"],
+            "example-source-readable"
+        );
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     fn schema_package_example_fixture_path(file_name: &str) -> std::path::PathBuf {

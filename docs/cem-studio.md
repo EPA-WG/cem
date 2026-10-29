@@ -3885,6 +3885,14 @@ The URL cannot grant replacement authority, switch heaps or enable unavailable
 operations. Exact replacement grants come only from trusted embedding setup.
 See the [shared loader contract](../packages/cem-elements/README.md#persistent-activation-and-declarative-demand).
 
+Full schema-package validation uses its supplied native resource reader for
+artifact, converter-template and example bodies, including file-like manifest
+identities. A denied or missing read produces the existing validation diagnostic
+rather than borrowing a similarly named local file. Without a supplied reader,
+legacy local-file validation remains available. This full-validation contract is
+separate from metadata-only owned-pack admission and strict runtime artifact
+consumption; it does not grant access to unadmitted package bodies.
+
 The persistent owner is a nondiscardable `schema-package-owners` inventory root.
 Closed native admission rejects activation/import but allows exact-owner cleanup;
 live owners and asynchronous command activity block retirement. A fresh loader

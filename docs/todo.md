@@ -576,7 +576,12 @@ recovery bounds change. Relative Node output canonicalization is tracked below.
   Studio, optional-profile, deployed-demo and isolated worker/fallback Login
   recovery checks pass. Credential refusal and all recovery bounds are unchanged.
 
-- [ ] Make full schema-package artifact/example validation prefer its supplied resource reader over filesystem reads for file-like canonical URIs. Preserve full validation's diagnostics and legacy filesystem behavior when no reader is supplied; keep this separate from immutable owned-pack admission and strict runtime artifact consumption.
+- [x] Make full schema-package validation honor supplied resource readers for local identities. [Implementation and verification](archive/todo-completed-schema-package-reader-2026-10-28.md).
+  Artifact, converter-template and example reads use the supplied reader before
+  filesystem resolution; refusals retain full validation diagnostics. Legacy
+  no-reader filesystem checks, metadata-only admission and strict runtime
+  artifact consumption are preserved. Native, CLI, public WASM, Studio worker,
+  isolated credential recovery and deployed/offline demo checks pass.
 
 - [ ] Diagnose relative Node `--out` destination canonicalization before common command-service URI admission. `createNodeCommandService({ cwd })` plus `parse inventory.csv --out inspection.cem` currently refuses `runPlan.outputs.resolvedDestination=inspection.cem` as `cem.command_service.uri_invalid` before reaching Parse; an explicit `file:` destination works and preserves refused output. Add lowering/Node/executable fixtures first, determine the supported argv-path contract and retain strict prepared-URI/publication authority checks. Keep this separate from native Parse refusal policy.
 

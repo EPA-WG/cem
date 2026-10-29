@@ -153,9 +153,14 @@ retain their native activity. Closed admission permits cleanup only.
 Owned immutable package admission checks declaration metadata and compiles its
 native schema contract separately from deployment-example execution and eager
 formatter compilation. Full package `validate`/`check` keeps its existing resource
-checks. Runtime artifact readers remain authoritative, including strict refusal
-of missing selected bodies. Adding admitted bodies republishes a fresh immutable
-source binding; unchanged stores reuse their existing publication identity.
+checks. For artifact, converter-template and example bodies, a supplied validation
+resource reader takes precedence even when the manifest has a local path or
+`file:` URI. Its refusal becomes the existing resource diagnostic; validation
+does not substitute disk bytes. When no reader is supplied, local filesystem
+validation retains its existing behavior. Successful reads still undergo full
+source/contract and expected-example checks. Runtime artifact readers remain
+authoritative, including strict refusal of missing selected bodies. Adding admitted
+bodies republishes a fresh immutable source binding; unchanged stores reuse their existing publication identity.
 
 The shared optional loader exposes this through existing declarative HTTP
 resources and reimports/recompiles active packages on a distinct target heap.

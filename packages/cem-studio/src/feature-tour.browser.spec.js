@@ -1888,6 +1888,57 @@ describe('CEM Studio Feature Tour copies', () => {
         });
     }, 60_000);
 
+    it('validates package artifacts and examples through Studio resources without relaxing full checks', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const encode = value => new TextEncoder().encode(value);
+        const packageSource = loginPackage.replace(/\}\s*$/u, `
+ {artifact @kind=formatter @path="formatters/demo.cemt" @content-type="application/vnd.cem.transform+cem"
+  @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/cem"
+  @target-schema="https://cem.dev/ns/cem-ml/1" @target-category=cem-tree
+  @function-name=demo.format @formatter-profile=compact}
+ {example @id=data @path="examples/data.xml" @content-type="application/xml"
+  @schema="https://cem.dev/ns/data/xml/1" @expected-result=pass}
+}`);
+        const dependencies = [
+            { path: 'login-schema.cem', bytes: encode(loginSchema), contentType: 'application/cem', schema: 'https://cem.dev/ns/schema/1' },
+            { path: 'formatters/demo.cemt', bytes: encode(`@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+{module @version="1.0.0" |
+ {format-function @name=demo.format @category=cem-tree @subject=cem-ast-node @produces=cem-tree
+  @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1"
+  @canonical=true @deterministic=true @streamable=true}
+}`), contentType: 'application/vnd.cem.transform+cem', schema: 'https://cem.dev/ns/transform/cem/1' },
+            { path: 'examples/data.xml', bytes: encode('<data/>'), contentType: 'application/xml', schema: 'https://cem.dev/ns/data/xml/1' },
+        ];
+        const options = { bytes: encode(packageSource), uri: 'studio://package-resource-contract/package.cem',
+            projectId: 'package-resource-contract', projectRootUri: 'studio://package-resource-contract/', resourceScheme: 'studio',
+            contentType: 'application/vnd.cem.schema-package+cem', schema: 'https://cem.dev/ns/schema-package/1' };
+        const validate = async resources => {
+            try { return await validator.validateResource({ ...options, dependencies: resources }); }
+            catch (error) { if (!error.result) throw error; return error; }
+        };
+        expect((await validate(dependencies)).result.exitCode).toBe(0);
+        for (const [path, code, kind] of [
+            ['formatters/demo.cemt', 'cem.schema_package.artifact_check', 'artifact-source-readable'],
+            ['examples/data.xml', 'cem.schema_package.example_check', 'example-source-readable'],
+        ]) {
+            const refused = await validate(dependencies.filter(resource => resource.path !== path));
+            expect(refused.result.exitCode).toBe(1);
+            expect(refused.result.diagnostics.items).toEqual(expect.arrayContaining([
+                expect.objectContaining({ code, severity: 'error', details: expect.objectContaining({ checkKind: kind, invalidValues: expect.objectContaining({ path }) }) }),
+            ]));
+        }
+        const malformed = await validate(dependencies.map(resource => resource.path === 'examples/data.xml'
+            ? { ...resource, bytes: encode('<data>') } : resource));
+        expect(malformed.result.exitCode).toBe(1);
+        expect(malformed.result.diagnostics.items).toEqual(expect.arrayContaining([
+            expect.objectContaining({ code: 'cem.schema_package.example_check', severity: 'error',
+                details: expect.objectContaining({ checkKind: 'example-source-validation' }) }),
+        ]));
+        expect((await validate(dependencies)).result.exitCode).toBe(0);
+    }, 60_000);
+
     it('uses the real CEM-ML converter for canonical project.cem provider round trips', async () => {
         const validator = await createCemStudioBrowserValidator();
         validators.push(validator);

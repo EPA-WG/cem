@@ -140,6 +140,9 @@ pub struct RuleContext<'a> {
     pub schema_uri: Option<&'a str>,
     pub content_type: Option<&'a str>,
     pub source_uri: Option<&'a str>,
+    /// Governs schema-package artifact, converter-template and example reads,
+    /// including local identities. Refusals do not fall back to disk; absent
+    /// readers retain the legacy local-filesystem validation path.
     pub resource_reader: Option<&'a RuleResourceReader<'a>>,
     pub schema_registry: Option<&'a SchemaRegistry>,
     pub schema_document_models: Option<&'a SchemaDocumentModelRegistry>,

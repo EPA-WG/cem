@@ -781,3 +781,60 @@ fn native_asset_csv_activation_requires_an_actual_parser_contract_even_from_an_e
         Some(&SchemaPackageOrigin::Builtin)
     );
 }
+
+
+#[test]
+fn full_package_validation_uses_owned_reader_for_file_like_canonical_sources() {
+    use crate::engine::{FailLevel, ValidateProjection, ValidateRequest};
+    // These files exist in the native checkout but are not admitted to this pack.
+    assert!(std::path::Path::new(MANIFEST).is_file());
+    assert!(std::path::Path::new("schema-packages/csv/v1/formatters/compact.cemt").is_file());
+    let context = csv_context(pack(&[MANIFEST, CSV_SOURCE]));
+    let manifest = crate::schema::package_sources::builtin_schema_package_source("csv").unwrap();
+    let response = RealCemMlEngine
+        .validate(ValidateRequest {
+            inputs: vec![EngineInput {
+                uri: MANIFEST.into(),
+                bytes: manifest.manifest_source.as_bytes().to_vec(),
+                from_format: Some(InputFormat::Cem),
+                identity: Some(FormatIdentity {
+                    content_type: Some("application/vnd.cem.schema-package+cem".into()),
+                    schema: Some("https://cem.dev/ns/schema-package/1".into()),
+                    ..Default::default()
+                }),
+                root_scope: ScopeConfig {
+                    schema: Some("https://cem.dev/ns/schema-package/1".into()),
+                    default_content_type: Some("application/vnd.cem.schema-package+cem".into()),
+                    ..Default::default()
+                },
+            }],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context,
+        })
+        .unwrap();
+    for kind in ["artifact-source-readable", "example-source-readable"] {
+        assert!(
+            response.report.diagnostics.iter().any(|diagnostic| {
+                diagnostic.severity.is_hard_violation()
+                    && diagnostic
+                        .details
+                        .as_ref()
+                        .is_some_and(|details| details["checkKind"] == kind)
+            }),
+            "full validation cannot borrow unadmitted disk resources for {kind}: {:?}",
+            response
+                .report
+                .diagnostics
+                .iter()
+                .filter(|d| d.code.starts_with("cem.schema_package"))
+                .map(|d| (
+                    &d.code,
+                    d.details
+                        .as_ref()
+                        .and_then(|details| details.get("checkKind"))
+                ))
+                .collect::<Vec<_>>()
+        );
+    }
+}
