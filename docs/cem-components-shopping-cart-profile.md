@@ -528,8 +528,9 @@ dist/target/debug/examples/compile_declaration_closure \
 `component-runtime` is an opt-in Cargo feature propagated to `cem-ml`. The build
 script's `--component-runtime` mode uses a separate target directory and writes
 `packages/cem_ql/dist/wasm-component`; ordinary builds and their outputs stay on
-the complete ABI. This prototype exports `renderCompiledApplication` plus
-wasm-bindgen support, rather than either crate's general WASM tooling APIs.
+the complete ABI. This prototype exports `renderCompiledApplication`, passive
+`CompiledDeclarationOwner` methods, a counter-only inventory and wasm-bindgen
+support, rather than either crate's general WASM tooling APIs.
 The general standard-library/native/URL fallback and receiver-chain routes are
 compiled out of this target's evaluator; legacy v1 CSS source decoding is also
 excluded from its reload branch. This is a narrower execution boundary, not a
@@ -552,8 +553,9 @@ JavaScript object or serialized replacement AST is involved.
 
 Template/JSON inputs are each limited to 1 MiB, pin metadata to 16 KiB, and HTML
 results to 1 MiB. Native admission/memory accounting remains active in WASM;
-rendering uses a five-second operation policy. Owners are call-local and no
-handles or executable values cross instances. Failed admission/rendering returns
+rendering uses a five-second operation policy. The one-shot entry owns its
+inputs for the call; retained declaration owners are explicit below. Native
+pointers and executable values never cross instances. Failed admission/rendering returns
 a bounded error without echoing application content; there is no source fallback.
 Selected data remains excluded from read-receipt/pure-render cache reuse.
 
@@ -573,20 +575,20 @@ the isolated build uses `--no-default-features --features component-runtime`.
 
 | WASM measure | Full bytes | Prototype bytes |
 | --- | ---: | ---: |
-| Raw | 24,198,709 | 10,301,667 |
-| Gzip level 9 | 7,376,804 | 2,855,039 |
-| Brotli quality 9 | 5,422,643 | 2,156,757 |
-| Code section payload | 21,438,119 | 8,029,605 |
-| Data section payload | 2,731,590 | 2,260,125 |
+| Raw | 24,198,709 | 10,826,394 |
+| Gzip level 9 | 7,376,804 | 3,053,945 |
+| Brotli quality 9 | 5,422,643 | 2,300,625 |
+| Code section payload | 21,438,119 | 8,540,321 |
+| Data section payload | 2,731,590 | 2,273,432 |
 
-The prototype is 9.82 MiB raw, a 57.4% whole-file reduction.
-It has 10 imports/9 exports, compared with 28/171 for the full runtime.
-Its only public application entry is `renderCompiledApplication`; the other
-exports are memory and wasm-bindgen support. This proves a smaller linked surface
+The prototype is 10.32 MiB raw, a 55.3% whole-file reduction.
+It has 10 imports/17 exports, compared with 28/171 for the full runtime.
+The public surface is the one-shot renderer, passive declaration-owner methods
+and a counter-only inventory; remaining exports are wasm-bindgen support. This proves a smaller linked surface
 and reduced code/data sections, without attributing removed bytes to particular
 languages, schemas or functions. Complete application link closure remains false.
 
-Prototype SHA-256: `09315c82762a9ce7350cc58cca236e5fa0a39cb03c1a6c4b052a4916a836f8ea`.
+Prototype SHA-256: `e4010ec396bf5ea66c6ccd0146bb73e46e8a44beb8819f3571c2e9f822ecfb6e`.
 
 Full SHA-256: `6630fc0c74be29eb08613030e656d1f6845659b2cbaaee281fe22c55bab32d67`.
 
@@ -601,12 +603,99 @@ env -u CEM_APPLICATION_REGISTRY_RS cargo test --locked --offline -p cem-ql \
   --lib --features component-runtime application_runtime
 ```
 
-This is **not yet a bundle replacement** for `cem-elements` or the complete
-component library. It renders the compiled entry but does not install retained
-CSS, register component declarations, wire shared behaviors/providers or perform
-checkpoint/journal handoff. Runtime input/type contracts and demand-module
-transport remain open. No Storefront actions, Studio wiring, shared UI JavaScript
-or credential/checkpoint policy changes are included in this step.
+## Retained passive declarations and stylesheet leases
+
+The selected ABI now admits `CompiledDeclarationOwner` from original compiled
+bytes, declaration metadata and an independently supplied metadata hash. Native
+admission checks both metadata/template identities, the actual v2/v3 envelope
+format, module-map equality and authored stylesheet scope. Declarations requiring
+a widget capability refuse admission until their owned input/provider/recovery
+contracts exist. Source-only artifacts and source fallback remain unavailable.
+
+Each owner reuses `RetainedTemplate`, the native CEM JSON importer and the selected
+renderer. `renderJson` accepts original JSON bytes, their absolute source URI and
+a pinned host-binding name. It returns HTML and keeps data in native CEM trees.
+It does not construct a DOM data island or register a browser custom element.
+Data-island/attribute/slice bindings and widget/provider adapters remain delivery
+gates for using the complete component library on this profile.
+
+Styles reuse the existing native resolver, compiled-import policy replay,
+`RetainedStylesheet` identity/scoping emission and last-consumer invalidation.
+The declaration metadata fixes the base URL, declaration identity and private or
+shared scope; callers supply only consumer/occurrence and current resolver
+context. V2 source imports refuse instead of returning a fetch request; v3
+responses must be build-closed and pass current URL/MIME/integrity/byte policy.
+Imported responses retain the existing full-stylesheet profile restriction.
+`mode=stylesheet` currently does not override automatic scoped-block inference
+for `:host`; that follow-up is tracked without relaxing capsule checks.
+
+Every attempted native style load gets a private consumer identity. Failure
+removes its loader bookkeeping without touching a previous valid lease; success
+publishes the replacement before releasing the old native consumer. Owners are
+bounded to 64 per heap, 64 styles per declaration and 128 consumer/occurrence
+leases per owner. Stylesheet context controls are bounded to 64 KiB and emitted
+CSS to 1 MiB. Disposing/freeing an owner invalidates its output leases. The
+counter-only inventory counts native declaration allocations until `free`, even
+if `dispose` already made them inactive, so an external root cannot disappear
+from retirement accounting.
+
+The shared `@epa-wg/cem-elements/component-generation` entry has no runtime import
+of the full native facade. It consumes the separately generated
+`createCemComponentWasmBindings` factory and an immutable compiled
+`WebAssembly.Module`. Initialization awaits asynchronous native instantiation,
+which works with Chromium's main-thread synchronous-instantiation size limit.
+Each factory invocation owns separate glue caches, class finalizers and memory.
+Raw native objects stay inside the adapter; callers receive guarded declaration
+operations and metadata copies.
+
+`installStylesheets` commits native CSS through an existing
+`CemStylesheetConsumerLease` from `DeclarationStyleOwnership`. Connected-scope
+checks, staged replacement, context markers, shared membership, style-node reuse
+and disconnect cleanup remain owned by that service. It does not parse CSS or
+add application UI behavior. A failed/stale/reentrant commit releases only its
+own attempt. Active calls block disposal, closing prevents new owners, and
+cleanup is idempotent. Generation disposal refuses foreign native allocations
+and clears its binding caches only after its own roots/leases reach zero.
+
+The browser fixture uses the real profile, native-built private/shared v2/v3
+styles and the existing DOM ownership service. It verifies style application,
+stable prior nodes on import-policy refusal, disconnect cleanup and exactly one
+profile WASM fetch with no full-runtime/source downloads. The Node acceptance
+also checks two independent heaps, native JSON, bad metadata, disposed-unfreed
+foreign roots and reentrant cleanup. The factory gate pins the reviewed generated
+binding shape and refuses extra exports/imports/finalizers.
+
+```ts
+import { createCemComponentGeneration } from '@epa-wg/cem-elements/component-generation';
+import { createCemComponentWasmBindings } from './selected-runtime/cem_ql_factory.js';
+
+// Package the separate profile assets explicitly; this does not select a Studio backend.
+const module = await WebAssembly.compile(
+  await (await fetch('./selected-runtime/cem_ql_bg.wasm')).arrayBuffer(),
+);
+const generation = await createCemComponentGeneration(module, createCemComponentWasmBindings());
+const declaration = generation.open(templateBytes, metadataJson, metadataHash);
+// declaration.installStylesheets(consumer, context, existingStylesheetLease);
+// declaration.renderJson(originalJsonBytes, responseUri, admittedBinding);
+declaration.dispose();
+generation.dispose();
+```
+
+After the build/fixture commands above and the ordinary `cem-elements:build`:
+
+```bash
+node --test tools/scripts/cem-components-wasm-factory.test.mjs
+node packages/cem_ql/tests/component-owner-wasm.mjs
+yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook \
+  --run src/lib/component-generation.stories.ts --no-file-parallelism
+```
+
+This remains an experimental backend, with complete live-component registration,
+worker transport, widget/provider/source ownership, native input/type contracts,
+checkpoint/journal handoff and demand modules still open. Standalone owner
+cleanup is not a recovery permit or checkpoint endpoint. Studio continues using
+the full runtime. Entered-credential refusal and the existing checkpoint/handoff
+budgets remain unchanged; these passive owners do not capture widget state.
 
 ## Remaining delivery boundaries
 

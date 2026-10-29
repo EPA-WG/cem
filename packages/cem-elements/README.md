@@ -546,6 +546,15 @@ CSS source. See the [compiled imports contract](../../docs/cem-components-shoppi
 V1/v2 source imports and dynamic/source styles retain native CSS parsing;
 the full WASM remains in place until the separate core profile is assembled.
 
+The experimental `@epa-wg/cem-elements/component-generation` entry owns passive
+compiled declarations and native private/shared stylesheet leases on the separate
+component WASM profile. It initializes asynchronously, hides native pointers,
+uses the existing DOM stylesheet-ownership service and refuses foreign roots
+before disposal. Supply the separately built profile assets explicitly; the
+ordinary runtime continues using the full backend. Widget/provider inputs,
+processing-worker integration and checkpoint handoff remain open. See the
+[retained owner contract and fixtures](../../docs/cem-components-shopping-cart-profile.md#retained-passive-declarations-and-stylesheet-leases).
+
 External declaration loading through `src="#id"`, `src="url"`, and `src="url#id"`, plus `<http-request url="...">`
 resource loading, uses the [CEM-ML resource lifecycle](../../docs/cem-ml-resource-lifecycle.md) as the base contract and
 the [`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md) as the CEM Elements

@@ -2,6 +2,7 @@
 
 import { cemQlWasmFactory, cemQlWasmFactoryTypes } from './cem-ql-wasm-factory.mjs';
 import { optimizeWasm } from './wasm-opt.mjs';
+import { componentWasmFactory, componentWasmFactoryTypes } from './cem-components-wasm-factory.mjs';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -68,7 +69,10 @@ writeFileSync(resolve(reportRoot, componentRuntime ? 'cem-ql-component.json' : '
 const declarations = resolve(repoRoot, outDir, 'cem_ql.d.ts');
 writeFileSync(declarations, `/// <reference lib="esnext.disposable" />\n${readFileSync(declarations, 'utf8')}`);
 
-if (!componentRuntime) {
+if (componentRuntime) {
+    writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.js'), componentWasmFactory(readFileSync(resolve(repoRoot, outDir, 'cem_ql.js'), 'utf8')));
+    writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.d.ts'), componentWasmFactoryTypes);
+} else {
     // A separate lexical factory leaves the legacy module ABI unchanged.
     writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.js'), cemQlWasmFactory(readFileSync(resolve(repoRoot, outDir, 'cem_ql.js'), 'utf8')));
     writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.d.ts'), cemQlWasmFactoryTypes);

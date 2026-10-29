@@ -734,7 +734,10 @@ WASM build now uses a build-selected registry, a compiled v2/v3-only entry and
 shared JSON-only native import, without exporting the full tooling API or
 linking the evaluator fallback routes. Complete component ABI and transitive
 implementation/behavior/provider closure, input/type contracts and optional
-module transport remain pending.
+module transport remain pending. Passive compiled declaration owners and native
+scoped CSS leases now have a shared asynchronous generation adapter, DOM ownership
+acceptance and foreign-root cleanup refusal without full WASM bootstrap. Widget/
+provider bindings, worker transport and checkpoint/journal handoff remain open.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

@@ -1166,6 +1166,51 @@ inventory, not the minimum set loaded by every app.
       source and native input/type contracts before treating a component app as
       complete; measure remaining linked roots without claiming per-language
       omission from whole-file size alone.
+      - [x] Add retained compiled-declaration owners to the selected profile,
+        with native/WASM fixtures for metadata/template pins, scoped v2/v3 CSS,
+        closed-import policy refusal, consumer release and disposal. Add a shared
+        cem-elements generation/stylesheet-lease adapter and browser fixtures for
+        native CSS installation, independent heaps, foreign-root refusal and stale
+        lease cleanup without loading the full WASM bootstrap. Keep unsupported
+        widget/provider/recovery contracts explicit and fail closed.
+        Implemented pinned passive `CompiledDeclarationOwner` admission, actual
+        format/module-map/scope checks, repeated native JSON rendering, closed
+        compiled CSS replay and native consumer leases. Unsupported capabilities
+        and source fallback refuse. Internal per-attempt consumers bound failed
+        load bookkeeping and preserve old valid output. Counter-only inventories
+        include inactive-but-unfreed native allocations; limits are 64 owners,
+        64 styles and 128 leases per owner, with existing native admission/memory
+        guards. Shared `cem-elements/component-generation` exposes asynchronous
+        isolated bindings and existing DOM stylesheet-lease installation. It
+        hides native objects, blocks disposal during calls/new roots during close,
+        handles reentrant/stale cleanup, and refuses foreign allocations before
+        retiring binding caches. Chromium's >8 MiB sync-instantiation limit is
+        respected with async instantiation, without browser flags.
+        Verification: seven profile native tests, 166 full native tests (four
+        existing profiling cases ignored), 42 declaration/reload/style/cache
+        regressions, native fixture generation, two factory/eight audit tests,
+        optimized profile/owner WASM acceptance, shared pinned/CSS WASM checks,
+        15 component browser cases and both focused full Studio Login recovery
+        cases pass. Browser acceptance confirms private/shared/imported styles,
+        stable old nodes on failed replacement, disconnect cleanup and one reduced
+        WASM fetch without full/source downloads. Node acceptance covers separate
+        heaps, foreign inactive roots and busy/reentrant close fences. Rust format,
+        script/TypeScript lint, package build and fresh source/vendor audits pass.
+        The freshly built full target's post-bindgen bytes exactly match the
+        existing optimizer comparator input; full WASM remains 24,198,709 bytes.
+        Extended prototype: 10,826,394 bytes (10.32 MiB), gzip-9 3,053,945 and
+        Brotli-9 2,300,625, 10 imports/17 exports; whole-file reduction is 55.3%.
+        Code/data payloads are 8,540,321/2,273,432 bytes. No individual-language
+        omission or complete application closure is claimed. The adapter is not
+        yet the CEM processing worker/backend or a recovery endpoint; widget/
+        provider/attribute/slice bindings and checkpoint/journal handoff stay open.
+        Credential privacy, the 4 MiB checkpoint budget and five-second native
+        handoff deadlines remain unchanged; no component/application UI JS added.
+      - [ ] Fix explicit CSS stylesheet response entry-mode forcing: `:host` imports infer a
+        scoped block, which the compiled full-stylesheet capsule correctly refuses;
+        explicit `mode=stylesheet` currently does not override that heuristic.
+        Preserve original MIME/source identity and test source/compiled parity
+        before expanding imported-profile admission; do not weaken capsule checks.
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's
         worker/fallback edits, credential refusal and generation handoff without

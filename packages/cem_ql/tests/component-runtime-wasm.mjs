@@ -13,7 +13,7 @@ const wasm = await readFile(`${out}/cem_ql_bg.wasm`);
 const compiled = await WebAssembly.compile(wasm);
 const names = WebAssembly.Module.exports(compiled).map(entry => entry.name);
 assert.ok(names.includes('renderCompiledApplication'));
-assert.deepEqual(names.filter(name => name !== 'memory' && !name.startsWith('__')), ['renderCompiledApplication'], 'only the compiled application entry may be public');
+assert.deepEqual(names.filter(name => name !== 'memory' && !name.startsWith('__')).sort(), ['compiledDeclarationInventory', 'compileddeclarationowner_describe', 'compileddeclarationowner_dispose', 'compileddeclarationowner_new', 'compileddeclarationowner_releaseConsumer', 'compileddeclarationowner_renderJson', 'compileddeclarationowner_stylesheet', 'renderCompiledApplication'].sort(), 'only reviewed compiled application/owner entries may be public');
 const bytes = await readFile(`${fixture}/cart.bin`);
 const pins = await readFile(`${fixture}/cart.pins.json`, 'utf8');
 const entry = `${out}/cem_ql.js`;
@@ -61,14 +61,14 @@ assert.equal(selectedOptimization.mode, fullOptimization.mode);
 assert.equal(selectedOptimization.binaryen, fullOptimization.binaryen);
 const report = {
     contract: 'cem-selected-runtime-measurement/1',
-    scope: 'compiled-template-json-prototype', nativeLinkClosureVerified: false,
+    scope: 'compiled-template-json-and-passive-declaration-prototype', nativeLinkClosureVerified: false,
     selectionEvidence: 'build-command input and behavioral acceptance; no embedded registry stamp',
     fixtureRegistrySourceSha256: hash(await readFile(`${fixture}/selected_registry.rs`)),
     full: { bytes: full.length, sha256: hash(full), optimization: fullOptimization, sections: wasmSections(full) },
     selected: { bytes: wasm.length, sha256: hash(wasm), optimization: selectedOptimization, gzip9Bytes: gzipSync(wasm, {level:9}).length,
         brotli9Bytes: brotliCompressSync(wasm, {params: {[constants.BROTLI_PARAM_QUALITY]: 9}}).length,
         imports: WebAssembly.Module.imports(compiled), exports: WebAssembly.Module.exports(compiled), sections: wasmSections(wasm) },
-    limits: ['Not a complete component ABI or app closure', 'No CSS installation, providers or recovery handoff', 'No per-language symbol attribution or on-demand extension transport'],
+    limits: ['Not a complete component ABI or app closure', 'Widget/provider ownership and recovery handoff remain open', 'No per-language symbol attribution or on-demand extension transport'],
 };
 await mkdir('dist/reports/components-wasm', {recursive:true});
 await writeFile('dist/reports/components-wasm/selected-runtime.json', `${JSON.stringify(report, null, 2)}\n`);

@@ -135,7 +135,67 @@ fn main() {
         )
         .unwrap();
     }
+    owned_declarations(&output);
     // Trusted native fixture selection, not a claim that all cart component
     // behavior/provider dependencies have closed application build recipes.
     fs::write(output.join("selected_registry.rs"), "use cem_ql::selected_registry::{SelectedBuiltin, SelectedFunctionRegistry};\npub fn selected_registry() -> SelectedFunctionRegistry { SelectedFunctionRegistry::new([SelectedBuiltin::SequenceFirst, SelectedBuiltin::SequenceWhere, SelectedBuiltin::SequenceCount]).unwrap() }\n").unwrap();
+}
+
+fn owned_declarations(output: &std::path::Path) {
+    use cem_ml::module_resolution::*;
+    use cem_ql::{
+        declaration_artifact::{build_declaration_artifact, DeclarationArtifactMetadata},
+        template_artifact::compile_template_artifact_imports,
+    };
+    use std::sync::Arc;
+    let uri = "https://app.test/components/proof.xhtml";
+    for (name, imports) in [("owned-inline", false), ("owned-imports", true)] {
+        let import = if imports {
+            "@import './theme.css';"
+        } else {
+            ""
+        };
+        let source = format!(
+            r#"<cem-element tag="cem-owned-proof" scope="owned-proof"><template id="cem-owned-proof" type="text/cem-ml">{{style | ``` {import} :host {{ --private-proof: ready; }} ```}}{{style @scope=owned-proof | ``` .label {{ --shared-proof: ready; }} ```}}{{p | {{$datadom.children.children.children.children.value}}}}</template></cem-element>"#
+        );
+        let mut built =
+            build_declaration_artifact(&source, uri, TemplateArtifactSourceMapMode::Prod, None)
+                .unwrap();
+        if imports {
+            let handle = CemResolutionContextHandle::new("build");
+            let context = CemModuleUrlContext {
+                identity: "owned".into(),
+                resolver_identity: "resolver".into(),
+                resource_policy_stamp: "policy".into(),
+                frames: vec![CemModuleUrlFrame::new(
+                    "root",
+                    "https://app.test/components/",
+                )],
+            };
+            let cap = CemModuleUrlResolutionCapability::new(
+                Arc::new(CemScopedModuleUrlResolver::new().with_context(handle.clone(), context)),
+                handle,
+            );
+            built.template =
+                compile_template_artifact_imports(built.template, uri, cap, &mut |request| {
+                    Ok(cem_ml::resolver::ResolvedRead {
+                        uri: request.resolution.resolved_url.clone(),
+                        bytes: b":scope { --imported-proof: ready; }".to_vec(),
+                        content_type: Some("text/css".into()),
+                    })
+                })
+                .unwrap();
+            let mut meta: DeclarationArtifactMetadata =
+                serde_json::from_str(&built.metadata_json).unwrap();
+            meta.template_format = built.template.identity.artifact_version.clone();
+            meta.template.content_hash = built.template.content_hash.header_value();
+            built.metadata_json = serde_json::to_string(&meta).unwrap();
+            built.metadata_hash =
+                cem_ml::content_cache::ContentHash::from_blake3(built.metadata_json.as_bytes())
+                    .header_value();
+        }
+        fs::write(output.join(format!("{name}.bin")), built.template.bytes).unwrap();
+        fs::write(output.join(format!("{name}.json")), built.metadata_json).unwrap();
+        fs::write(output.join(format!("{name}.hash")), built.metadata_hash).unwrap();
+    }
 }

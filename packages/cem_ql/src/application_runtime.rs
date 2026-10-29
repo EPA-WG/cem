@@ -1,5 +1,5 @@
 //! Isolated compiled-component prototype. No source compile or dynamic selection ABI.
-//! Inputs and results are call-owned; no native handles outlive the operation.
+//! Retained declaration/style ownership is explicit; handles stay in one heap.
 use crate::{
     eval::{imported_cem_tree, ItemStream},
     render::{
@@ -12,6 +12,8 @@ use cem_ml::{
     scheduler::{AbortSignal, ScopePolicy},
 };
 use std::sync::Arc;
+
+pub mod owners;
 
 #[cfg(test)]
 mod tests;
@@ -61,6 +63,22 @@ pub fn render(
         .map_err(|error| error.code.to_owned())?
         .reload_pinned(&pins)
         .map_err(|error| error.code.to_owned())?;
+    render_loaded(&artifact, json, source_uri, binding)
+}
+
+fn render_loaded(
+    artifact: &crate::render::TemplateArtifact,
+    json: &[u8],
+    source_uri: &str,
+    binding: &str,
+) -> Result<String, String> {
+    if json.len() > MAX_INPUT_BYTES || source_uri.len() > 4096 || binding.len() > 256 {
+        return Err("compiled application input limit exceeded".into());
+    }
+    let uri = url::Url::parse(source_uri).map_err(|_| "JSON input needs an absolute source URI")?;
+    if uri.cannot_be_a_base() {
+        return Err("JSON input needs a hierarchical source URI".into());
+    }
     let tree = cem_ml::import::import_json_bytes(json, source_uri)
         .map_err(|_| "native JSON import failed")?;
     let mut data =
@@ -72,7 +90,7 @@ pub fn render(
     )
     .map_err(|error| error.to_string())?;
     let plan =
-        render_compiled_template_with_control(&artifact, &data, &control, ROOT_EXECUTION_SCOPE_ID);
+        render_compiled_template_with_control(artifact, &data, &control, ROOT_EXECUTION_SCOPE_ID);
     if plan
         .diagnostics
         .iter()
