@@ -196,6 +196,16 @@ service worker as a self-contained deployment under `/studio/`. Its security
 headers apply only to that subtree; its service worker stays scoped there.
 The local `serve:demo` command applies those same headers and serves WASM with
 the required MIME type. It defaults to port 8081; set `PORT` to choose another.
+For local previews, the home link and `/studio/` redirect use an inventory-based
+`/studio/__cem_preview__/<revision>/` address. The graph-emitted HTML uses that
+address as its base, so installed offline workers cannot supply older asset
+URLs after a new copy. Project/file query selection and origin-based storage
+stay intact; the worker remains scoped to the selected Studio revision and
+supports offline reload. The emitted deployment files are unchanged. If an
+already installed worker serves an old `/studio/` tab, follow the current link
+from the demo home page or the URL printed by `serve:demo`; no storage reset is
+needed. `node tools/scripts/verify-demo-refresh.mjs` checks stale-worker refresh
+with a saved project and unsaved source draft in a disposable browser profile.
 The demo uses the canonical component pages under `playgrounds/` and omits their
 duplicate built HTML copies. Theme generators reuse the primary `cem-elements`
 runtime through three rebased imports; standalone package outputs stay intact.

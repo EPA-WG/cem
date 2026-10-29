@@ -24,6 +24,11 @@ Entered passwords or one-time codes continue to block recovery until explicitly
 cleared by the user; automatic whole-Studio recovery remains disabled. Follow the
 [credential privacy policy](committed-checkpoints.md#credential-privacy-policy-for-live-login-recovery).
 
+- [x] Make local demo Studio links bypass stale installed-worker assets without clearing projects or drafts. [Implementation and verification](archive/todo-completed-demo-preview-refresh-2026-10-28.md).
+  Local links and redirects select an inventory-based Studio revision on the
+  same origin. Hosting, stale-cache/draft retention and complete demo acceptance
+  pass; port 8081 is restarted with the new handler.
+
 - [x] Clarify shared select labels and simplify Studio's output-tree presentation. [Implementation and verification](archive/todo-completed-studio-output-navigation-2026-10-28.md).
   Shared field captions use canonical tag typography and related spacing.
   Declarative output navigation hides redundant roots while preserving nested

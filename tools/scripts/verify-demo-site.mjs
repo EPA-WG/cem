@@ -77,16 +77,18 @@ try {
 
     await page.getByRole('link', { name: 'CEM Studio', exact: true }).click();
     const ready = async () => { await page.waitForFunction(() => globalThis.__cemStudioApplication?.workbenchView); await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled()); };
-    await ready(); assert.equal(new URL(page.url()).pathname, '/studio/');
+    await ready();
+    const studioPath = new URL(page.url()).pathname;
+    assert.match(studioPath, /^\/studio\/__cem_preview__\/[a-f0-9]{16}\/$/);
     await page.evaluate(() => navigator.serviceWorker.ready);
     await page.waitForFunction(() => navigator.serviceWorker.controller);
-    assert.equal(await page.evaluate(async () => (await navigator.serviceWorker.ready).scope), new URL('studio/', url).href);
+    assert.equal(await page.evaluate(async () => (await navigator.serviceWorker.ready).scope), new URL(studioPath, url).href);
     await page.evaluate(() => globalThis.__cemStudioApplication.workbench.openEntity('collection=content-types-documents-ui&sample=scss-stylesheet&build=build-html'));
     await ready();
     await page.getByRole('button', { name: 'Clone selected', exact: true }).click();
     await page.getByRole('dialog').getByRole('textbox').fill('Demo site verification');
     await page.getByRole('dialog').getByRole('button', { name: 'Clone', exact: true }).click(); await ready();
-    assert.equal(new URL(page.url()).pathname, '/studio/'); assert.ok(new URL(page.url()).searchParams.get('project'));
+    assert.equal(new URL(page.url()).pathname, studioPath); assert.ok(new URL(page.url()).searchParams.get('project'));
     const build = async () => {
         await page.getByRole('button', { name: 'Build project', exact: true }).click(); await ready();
         const result = await page.evaluate(() => { const preview = globalThis.__cemStudioApplication.workbench.snapshot().projectPreview; return { status: preview.attempt?.status, text: preview.projection?.output.text }; });
