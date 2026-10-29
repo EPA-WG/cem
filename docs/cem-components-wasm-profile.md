@@ -13,6 +13,23 @@ current full-runtime build, CLI, Studio defaults and package entry points intact
 
 ## Baseline and evidence
 
+The [capability, dependency and size audit](cem-components-wasm-audit.md)
+covers all 59 canonical component declarations, 24 shared behaviors and the
+current native binding/dependency roots. The [isolated browser baseline](cem-components-wasm-baseline.md)
+checks form editing, native JSON/CSV rendering and editor coloring in both
+worker and fallback modes. These are reference measurements of the full runtime;
+no component-core target or reduced binary exists yet.
+
+The measured code section occupies 88.6% of the binary, and data occupies 11.3%.
+Those sections do not attribute bytes to removable languages or assets. The
+audit identifies CSV parsing within native `data:read` evaluation and editor
+highlighting as required capabilities whose module boundaries must be proven.
+Source metadata is conservative evidence, not a complete native call graph or
+an exhaustive dynamic-mode proof. The local no-store worker runs also fetch the
+same WASM twice, so unique file size and repeated transfer cost are reported
+separately. Repeated timing runs, active-worker/aggregate memory and the full
+capability/offline total remain follow-up measurements.
+
 The component runtime currently vendors the CEM-QL binary, which depends on the
 common CEM-ML engine. The native binding facade imports that generated runtime
 statically. Default Cargo features include debug control, and the common crate
@@ -34,6 +51,27 @@ proof that the current local server supplies HTTP compression. Reproduce them
 with the same source, toolchain, optimizer and compression settings before
 setting a core download budget. Record the complete-runtime comparator from the
 same commit; do not compare a new optimized core against an old debug binary.
+
+Reproduce the audit from the repository root with Node and the installed Rust
+WASM toolchain available on `PATH`, generated catalog/full-runtime artifacts,
+the matching `dist/reports/wasm-optimization/cem-ql.json`, and cached locked Cargo
+dependencies. The browser baseline also requires Playwright Chromium and an
+assembled demo deployment with its inventory (default `~/cem-bin`; pass a path
+as the first argument to use another deployment). It opens isolated contexts
+and leaves existing browser sessions, projects and drafts untouched.
+
+```bash
+node --test tools/scripts/audit-components-wasm.test.mjs
+node tools/scripts/audit-components-wasm.mjs --write-doc
+node tools/scripts/audit-components-wasm.mjs --check
+node tools/scripts/measure-components-wasm.mjs --write-doc
+```
+
+The first script refuses declaration/catalog drift and mismatched canonical,
+vendored or optimizer hashes. The baseline verifies deployed declaration bytes
+and published response hashes against the deployment inventory. Generated JSON
+evidence stays under `dist/reports/components-wasm/`; the Markdown reports are
+committed reference observations, not timing thresholds.
 
 Source owners:
 

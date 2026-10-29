@@ -708,6 +708,10 @@ builds rather than promising an unmeasured core size.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.
+The [initial audit](docs/cem-components-wasm-audit.md) and
+[worker/fallback baseline](docs/cem-components-wasm-baseline.md) now cover the
+current full binary and canonical catalog. Native module/handoff proof, repeated
+and complete memory measurements, and a separate reduced target remain pending.
 Its [execution checklist](docs/todo.md#component-application-wasm-profile-separate-target)
 is a separate workstream with these delivery steps:
 

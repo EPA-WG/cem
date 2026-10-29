@@ -875,15 +875,37 @@ component capability, shared UI ownership and the credential policy above. Keep
 the current Studio execution order; run this as a separate component-library
 workstream when selected.
 
-- [ ] Audit the generated component catalog, declaration/capability metadata and
-  native import/call/export/registry roots. Map every component mode to required
-  core, source assets and candidate language/conversion/tooling modules; include
-  dynamic imports, providers, source-editor coloring, media and table workflows.
-- [ ] Add baseline fixtures for core-style UI cold start and demanding component
-  workflows. Record exact hashes/toolchain, raw/gzip-9/Brotli-9 bytes, requests,
-  first-use latency, linear/live/host memory and all-features totals. Reproduce
-  the full-profile comparator from the same commit; choose fixed size budgets
-  after the reachability/prototype report, not an invented minimum.
+- [x] Add reproducible audit tooling and fixtures for catalog/declaration drift,
+  capability inheritance and shared behavior imports; conservative static/dynamic
+  import evidence; matched WASM section/interface/compression measurements and
+  Cargo/native registry roots. Keep source references distinct from linked-code
+  liveness and candidate module labels distinct from removability proof.
+- [x] Add isolated baseline fixtures for a small control/form flow, native
+  JSON/CSV data-view parsing and source-editor highlighting. Capture cold/first-use
+  requests and sizes, correctness, native live/linear memory where available,
+  and host-memory availability without collecting user content. Verify baseline
+  fixture loading never adds component/application runtime behavior or resets
+  user projects/drafts.
+- [x] Audit the generated catalog/declarations, shared behavior imports and native
+  dependency/export/registry roots. Record required core, mode selectors and
+  candidate language/tooling boundaries for all 59 components, including dynamic
+  provider/template, editor, media and table extension points. Publish the
+  [source audit](cem-components-wasm-audit.md) and
+  [six worker/fallback reference runs](cem-components-wasm-baseline.md).
+  Verification: eight audit tests, six isolated component flows, audit freshness,
+  script lint and live Login credential-refusal/clear-and-recover acceptance.
+  No production runtime/UI behavior or credential policy changed. This source
+  inventory does not prove native liveness, exhaustive mode coverage or removal.
+- [ ] Extend the baseline with repeated cold/first-use latency, active-worker and
+  aggregate host/native memory, all-capabilities/offline totals and clean npm
+  consumer loading. Keep unavailable counters explicit. Diagnose duplicate full
+  WASM acquisition observed in local no-store worker runs (two transfers of one
+  unique binary; fallback one). Retain matched hashes/toolchains and fixed budget
+  selection after the native boundary/prototype report, not an invented minimum.
+- [ ] Prove native call reachability and dynamic mode/provider/template closure
+  alongside module extraction. Keep the conservative source matrix separate
+  from linked-code omission evidence; map required source packs and compiled
+  modules for each requested capability before moving its implementation.
 - [ ] Define and prototype the versioned core/module ABI and capability catalog
   with native fixtures for one isolated optional operation and one importer
   feeding a retained component. Prove typed CEM-tree/source-owner handoff or
@@ -891,6 +913,8 @@ workstream when selected.
   conversion or JavaScript parsing; retain types, namespaces/base URIs, ranges,
   diagnostics, cancellation and lease disposal. Keep a required parser in core
   until this boundary passes, and record the selected module-loading mechanism.
+  Use editor paint/highlighting as the isolated-operation candidate and CSV
+  feeding `cem-data-view` as the typed retained-data candidate from the audit.
 - [ ] Split native dependency/registry/export roots behind a separate component
   profile; add proposed `cem_ql:build:wasm-components`. Keep existing full builds
   and rendering/admission/recovery guards unchanged. Add native fixtures and
