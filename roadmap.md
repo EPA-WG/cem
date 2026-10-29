@@ -695,6 +695,53 @@ Acceptance:
   render latency, retained memory and output equivalence. Performance evidence must preserve
   validation, accessibility, offline behavior and existing release assertions.
 
+### 3.1.3 Minimal Component Runtime WASM Profile
+
+Plan a separate application distribution for `@epa-wg/cem-elements` and
+`@epa-wg/cem-components`: a dependency-audited native UI core with optional
+languages, conversions and tooling loaded on actual demand. Preserve every
+component capability through the core or a pinned module; keep the current
+full-runtime, CLI and Studio defaults unchanged. This is planned work, not an
+implemented profile or a measured minimum. The current UI WASM reference is
+22.96 MiB raw, 6.99 MiB gzip-9 and 5.14 MiB Brotli-9; record and compare matched
+builds rather than promising an unmeasured core size.
+
+The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
+capability boundaries, native handoff, package targets, lifecycle and acceptance.
+Its [execution checklist](docs/todo.md#component-application-wasm-profile-separate-target)
+is a separate workstream with these delivery steps:
+
+- Inventory native code/exports, registries and every component/mode's dependency
+  closure. Keep CEM-ML/CEM-QL rendering, native CSS, data ownership, diagnostics,
+  admission and recovery primitives in the required core; prove any further split.
+- Prototype an optional operation and an importer feeding retained core data.
+  Preserve typed native CEM trees and original source provenance across the
+  module boundary; never share cross-heap handles or use JSON/JavaScript ASTs.
+- Partition compiled native implementations as well as optional schema/template
+  assets. Existing source asset packs alone do not remove language engine code.
+- Add proposed `cem_ql:build:wasm-components`,
+  `cem-elements:build:components-runtime` and consumer-facing
+  `@epa-wg/cem-components:build:components-runtime` targets with separate output,
+  ABI, integrity and cache domains. Bundle matching shared loader/core/modules,
+  declarations and theme references without duplicating the engine per component.
+- Implement native requirement receipts and shared declarative demand/preload
+  in `cem-elements`; keep `cem-components` and application UI declarative. Preserve
+  readiness, error, focus/edit state and side-effect contracts during loading.
+- Extract optional languages, converters and tooling incrementally. Source-editor
+  highlighting, data-table imports, previews and optional template languages must
+  remain available and verified, including worker/fallback and offline use.
+- Verify complete component/mode, accessibility, theme and ownership parity;
+  prove cold core startup imports no optional/full engine. Measure initial and
+  all-modules bytes, first-use latency and native/host memory separately, then
+  pin size budgets from the measured prototype and gate them in CI.
+
+Optional endpoints must join the existing native ownership/recovery group.
+Entered credentials still block recovery until cleared; automatic whole-Studio
+recovery stays disabled and the 4 MiB budget/deadlines remain unchanged. This
+profile does not authorize a silent package-default switch or fallback to a
+server-side service. First implementation is the capability/size audit and native
+handoff prototype; module extraction follows that proof.
+
 ### 3.2 Primitives — `@epa-wg/cem-components`
 
 Deliverables:
@@ -707,6 +754,8 @@ Deliverables:
 - Accessibility contract for labels, descriptions, focus, keyboard behavior, roles, and live regions. Landed in
   [`packages/cem-components/docs/accessibility.md`](packages/cem-components/docs/accessibility.md).
 - Test harness for DOM rendering, events, accessibility assertions, and visual snapshots.
+- A separately bundled [component-runtime WASM profile](#313-minimal-component-runtime-wasm-profile)
+  with every component capability retained through audited core or on-demand modules.
 - Minimal primitives: action, field, surface, text, icon, stack, grid, list, nav, dialog shell.
 
 Exit criteria:

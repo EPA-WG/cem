@@ -862,6 +862,80 @@ changes, aliases and expression-valued attributes remain source-only. Keep
 credential recovery refusal, the aggregate 4 MiB checkpoint budget and separate
 physical-device/spoken AT acceptance.
 
+## Component application WASM profile (separate target)
+
+Planned 2026-10-28 at the user's request. Implement the
+[profile design](cem-components-wasm-profile.md) and
+[roadmap workstream](../roadmap.md#313-minimal-component-runtime-wasm-profile) as
+an explicit bundle for `cem-elements` plus `cem-components`, leaving existing
+full-runtime/CLI/Studio targets and defaults intact. No profile target is created
+by this planning update. Start with the audit and native boundary proof; establish
+size budgets from measurements before extraction is accepted. Preserve every
+component capability, shared UI ownership and the credential policy above. Keep
+the current Studio execution order; run this as a separate component-library
+workstream when selected.
+
+- [ ] Audit the generated component catalog, declaration/capability metadata and
+  native import/call/export/registry roots. Map every component mode to required
+  core, source assets and candidate language/conversion/tooling modules; include
+  dynamic imports, providers, source-editor coloring, media and table workflows.
+- [ ] Add baseline fixtures for core-style UI cold start and demanding component
+  workflows. Record exact hashes/toolchain, raw/gzip-9/Brotli-9 bytes, requests,
+  first-use latency, linear/live/host memory and all-features totals. Reproduce
+  the full-profile comparator from the same commit; choose fixed size budgets
+  after the reachability/prototype report, not an invented minimum.
+- [ ] Define and prototype the versioned core/module ABI and capability catalog
+  with native fixtures for one isolated optional operation and one importer
+  feeding a retained component. Prove typed CEM-tree/source-owner handoff or
+  original native reimport/recompile without cross-heap handles, JSON AST
+  conversion or JavaScript parsing; retain types, namespaces/base URIs, ranges,
+  diagnostics, cancellation and lease disposal. Keep a required parser in core
+  until this boundary passes, and record the selected module-loading mechanism.
+- [ ] Split native dependency/registry/export roots behind a separate component
+  profile; add proposed `cem_ql:build:wasm-components`. Keep existing full builds
+  and rendering/admission/recovery guards unchanged. Add native fixtures and
+  binary/import-graph evidence that optional compiled code and debug/tooling
+  initialization are absent, rather than merely hiding their JavaScript exports.
+- [ ] Add the reusable `cem-elements` module loader and proposed
+  `cem-elements:build:components-runtime` target. Alert the user before new shared
+  JavaScript capability implementation. Cover pinned ABI/version/hash/features,
+  dependency closure, bounded deduplicated acquisition, worker/owned-fallback
+  activation, exact-owner disposal and late/aborted/revoked publication. No
+  Studio/component-local JavaScript loader workaround is allowed.
+- [ ] Connect generated native requirements and existing declarative resource
+  demand to module readiness/preload. Add fixtures for external/dynamic template
+  languages, mode/resource changes, pending/failing demand, retry, concurrent
+  consumers and source-editor selection/IME/focus preservation. Preserve current
+  committed UI and exactly-once side effects; document explicit async readiness
+  for this new entry point without silently changing existing synchronous APIs.
+- [ ] Extract optional language/conversion/tooling modules one group at a time,
+  with native and browser parity fixtures for each mapped component mode and
+  original diagnostics/provenance. Reuse owned source packs for declarative
+  schemas/formatters/colorizers; do not emit a separate WASM per source template
+  or pull a monolithic full engine into every optional module.
+- [ ] Add proposed `@epa-wg/cem-components:build:components-runtime` assembly and
+  explicit package export/import-map wiring for declarations, matching shared
+  core/loader/modules and theme dependencies. Add clean npm-consumer/bundler,
+  standalone/subpath and full -> component -> full output/cache-isolation
+  fixtures; assert one canonical core asset and no eager full-runtime dependency.
+- [ ] Add offline/preload/update fixtures proving core-only installation fetches
+  no optional modules or packs, explicit feature sets remain usable offline, and
+  uncached offline demand fails without losing state or contacting an undeclared
+  service. Preserve integrity, cache scope, native source authority and saved
+  projects/drafts; never put credentials in public deployment caches.
+- [ ] Enroll every optional endpoint, active work and retained owner in existing
+  recovery groups. Add worker/fallback capture, drain, fresh-generation reimport,
+  re-demand and lease/late-acknowledgment fixtures. Re-run entered-password/OTP
+  refusal, require explicit clearing, keep automatic whole-Studio recovery off,
+  and preserve the 4 MiB budget and all current deadlines.
+- [ ] Run the complete catalog/mode, accessibility, theme/forced-color and shared
+  component suites on full and component profiles without skipping capabilities
+  or weakening assertions. Publish reproducible core/first-use/all-modules
+  byte/latency/memory and duplication reports; enforce agreed fixed budgets,
+  retained default builds and profile-specific optimizer/import/export checks.
+  Document installation, demand, preload/offline choices and measured limits
+  before advertising a minimum or considering a separate default-adoption step.
+
 ## Component gallery source-link maintenance (after Studio presentation work)
 
 - [ ] Migrate remaining extensionless canonical-source `cem-module-url` references to full declaration paths under the folder import-map convention. Add source/isolated-package fixtures without assuming a template has only id/type attributes. The current artifact-tree increment repairs and verifies cem-media-preview; a filtered passive-component gate keeps that verification scoped while this older bulk maintenance remains separate.
