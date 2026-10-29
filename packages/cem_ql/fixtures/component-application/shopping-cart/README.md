@@ -33,7 +33,10 @@ decoding, shared form/action behaviors, DOM updates and ownership/recovery
 controls. The current template wire format still reparses native CSS on reload;
 CSS is retained until a compiled style contract is proven. Other formats and
 authoring tools are demand-loaded candidates. Strict binary admission now works
-without source through the shared worker/fallback processing path. Automatic
-component registration still reads source, so a complete source-free application
-bundle and a smaller WASM remain pending. No test contacts an API, stores credentials
+without source through the shared worker/fallback processing path. Native
+build-generated metadata and the shared `registerCompiledDeclaration` API now
+register canonical components without downloading source, including form/action
+behaviors. See the [build/registration instructions](../../../../../docs/cem-components-shopping-cart-profile.md#build-generated-declarations).
+Automatic source loading, a complete declarative app bootstrap, compiled CSS
+admission and a smaller WASM remain separate work. No test contacts an API, stores credentials
 or changes credential recovery refusal, checkpoint budgets or deadlines.

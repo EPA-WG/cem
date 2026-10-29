@@ -703,7 +703,7 @@ languages, conversions and tooling loaded on actual demand. Preserve every
 component capability through the core or a pinned module; keep the current
 full-runtime, CLI and Studio defaults unchanged. This is planned work, not an
 implemented profile or a measured minimum. The current UI WASM reference is
-22.96 MiB raw, 6.99 MiB gzip-9 and 5.14 MiB Brotli-9; record and compare matched
+22.96 MiB raw, 7.00 MiB gzip-9 and 5.15 MiB Brotli-9; record and compare matched
 builds rather than promising an unmeasured core size.
 
 Clarified 2026-10-29: initial dependencies follow the deployed application's
@@ -714,8 +714,9 @@ modules when unused by that app. Retain runtime JSON/input checks and ownership
 guards. Prove source-free compiled loading and style admission, then measure the
 compiled-UI + JSON target before expanding optional format/tooling coverage.
 Native pinned artifact admission and the shared v30 worker/fallback binary-input
-path are implemented. Build-generated declaration registration, API contracts,
-compiled styles and native code partitioning remain pending.
+path and native build-generated declaration metadata/shared registration are
+implemented. Declarative compiled-asset bootstrapping, the complete dependency
+closure, API contracts, compiled styles and native code partitioning remain pending.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

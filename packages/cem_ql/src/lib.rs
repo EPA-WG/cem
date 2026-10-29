@@ -16,6 +16,7 @@ pub mod attribute_validation;
 #[cfg(feature = "debug-control")]
 pub mod debug_control;
 pub mod diagnostics;
+pub mod declaration_artifact;
 pub mod datatype_compilation;
 pub mod function_activation;
 pub mod datatype_conversion;

@@ -52,11 +52,15 @@ hashes without source text. Worker/fallback processing shares this path and neve
 falls back to source compilation when a deployment pin is refused. The processing
 protocol is v30; old source/cache inputs remain supported.
 
-Automatic `cem-element` registration still derives declaration metadata from
-source. Connect build-generated metadata and the full dependency closure before
-claiming a source-free application bundle. Keep CSS parsing until compiled style
-admission is implemented. This admission step does not establish omitted compiler
-code or a smaller binary.
+Native build-generated declaration metadata and explicit shared
+`CemElementRuntime.registerCompiledDeclaration` now register canonical components
+from hash-pinned metadata and binary IR, preserving capability/form association,
+styles and collision checks. Worker/fallback form/action composition is covered
+with source downloads forbidden. See the [build and registration contract](cem-components-shopping-cart-profile.md#build-generated-declarations).
+Automatic `cem-element src` registration still reads source. A declarative
+compiled-asset loader and complete dependency closure remain necessary for an
+application bundle. Keep CSS parsing until compiled style admission is implemented.
+These changes do not establish omitted compiler code or a smaller binary.
 The evaluator also assembles the general function registry during native render;
 profile-specific dispatch/registry roots remain necessary even with compiled IR.
 

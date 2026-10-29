@@ -1,7 +1,7 @@
 # Shopping-cart application deployment profile
 
-Status: native reference fixture and strict source-free worker/fallback artifact
-admission, 2026-10-29. A complete compiled browser app, GraphQL transport/validation
+Status: native reference fixture, strict artifact admission and shared compiled
+component registration in worker/fallback hosts, 2026-10-29. A complete compiled browser app, GraphQL transport/validation
 and reduced WASM remain pending.
 This is the first concrete application case for the
 [component WASM profile](cem-components-wasm-profile.md#application-build-and-deployment-boundary).
@@ -83,8 +83,8 @@ native owners.
 existing binary transfer fields. The transfer's format/policy/source-map identity
 must match the host request. Source/cache fallback, source-module overrides and
 XSLT/CSS compilation options cannot be mixed into this strict input. The shared
-processing protocol is v30. This remains an internal transport for the upcoming
-build/registration integration, not a new public application bootstrap API.
+processing protocol is v30. Shared compiled registration below uses this transport;
+a declarative application bootstrap and dependency-closure loader remain pending.
 
 The host validates bounds before copying buffers and owns deployment inputs
 across asynchronous dispatch. Cache identity includes the pinned artifact and
@@ -110,11 +110,69 @@ yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook
 Build the normal `cem_ql:build:wasm` and `cem-elements:build` targets before using
 these checks against packaged assets. No separate minimal target is introduced.
 
+## Build-generated declarations
+
+The native `declaration_artifact::build_declaration_artifact` builder emits a
+`cem-declaration-metadata/1` JSON sidecar, its independent CEM hash and binary
+native template IR. It preserves the declared tag and optional build alias,
+version, intrinsic capability, shared style scope, source URI/hash, resolved XML
+bases, link policy, module maps, bindings, compiler versions and source-map mode.
+Root capability precedence matches existing runtime registration. Attribute and
+slice defaults stay in native IR; JavaScript does not reconstruct a template AST.
+
+`CemElementRuntime.registerCompiledDeclaration(element, assets)` accepts
+`{ metadataJson, metadataHash, templateBytes }`. The element has a matching `tag`
+and no `src` or template children. Call it before connecting the element; it
+marks registration pending synchronously. The host must obtain the expected
+metadata hash from the admitted build manifest, independently of downloaded
+assets. A colocated `.hash` file is useful for tests, not a trust anchor.
+
+Native `admitDeclarationMetadata` validates exact metadata bytes and the compiler
+contract. The host owns a copy of inputs before awaiting admission, validates
+binary pins before defining a custom element, then reuses normal collision,
+capability, form-association, style ownership and remount handling. Header
+capability/scope/version/link-policy overrides and disposed scopes are refused.
+Worker and fallback rendering import the pinned IR; they never request original
+declaration source. Recovery replay uses the existing successful-input transport;
+complete application-owner recovery acceptance remains a follow-up.
+
+Build one declaration, supplying its original deployment URI:
+
+```bash
+cargo build --locked --offline -p cem-ql --example compile_declaration_artifact
+dist/target/debug/examples/compile_declaration_artifact \
+  packages/cem-components/src/components/cem-text-field/cem-text-field.xhtml \
+  dist/artifacts/cart/text-field \
+  https://app.example/components/cem-text-field/cem-text-field.xhtml prod
+```
+
+The output is `text-field.bin`, `text-field.json` and `text-field.hash`. An
+optional fifth argument sets a fixed build alias. Current support deliberately
+requires a single named canonical CEM-ML declaration. XPath source companions,
+external CEMT imports, legacy resource routing and unsupported declaration
+attributes are refused rather than silently omitted. Native CSS parsing is still
+required. Normal inline/`src` registration continues to use source.
+
+Reproduce canonical form/action/card browser checks and separate-heap admission:
+
+```bash
+node packages/cem_ql/tests/build-declaration-fixtures.mjs
+node packages/cem_ql/tests/declaration-artifact-wasm.mjs
+cargo test --locked --offline -p cem-ql --test declaration_artifact
+yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run src/lib/compiled-declaration.stories.ts --no-file-parallelism
+```
+
+Build the normal WASM and cem-elements assets first. Generated fixture files stay
+under ignored `dist/`. Browser checks cover intrinsic defaults, FormData, actions,
+scoped CSS, edits/focus/selection, remount, mutation, pin/capability/conflict refusal
+and disposal during admission, with declaration downloads forbidden.
+
 ## Remaining delivery boundaries
 
-- Connect the strict admission path to compiled registration for the complete
-  declaration closure, including metadata and runtime behaviors. Automatic
-  `cem-element` declaration registration still reads original source today.
+- Add a declarative compiled-asset bootstrap and generated complete declaration
+  closure. The explicit shared registration API is implemented; automatic
+  `cem-element src` loading still reads source. Prove full compiled-application
+  recovery and optional module acquisition with that loader.
 - Stylesheet v1 reload imports CSS source. Prove compiled style/scoping admission
   with original identity and URL bases before removing its parser dependency.
 - Generate/validate the app manifest and API contracts during the app build.

@@ -155,6 +155,25 @@ export interface CemMlTemplateArtifactPayloadKey {
     sourceMapMode: 'dev' | 'prod';
 }
 
+/** Native-validated build control metadata; contains no template/data AST. */
+export interface CemCompiledDeclarationMetadata {
+    contract: 'cem-declaration-metadata/1';
+    tag: string;
+    declaredTag: string;
+    version: string | null;
+    capability: string | null;
+    scope: string | null;
+    linkBase: 'document' | 'source';
+    sourceUri: string;
+    resourceBaseUrl: string;
+    declarationSourceHash: string;
+    template: {
+        contentHash: string; sourceHash: string; cemMlVersion: string; cemQlVersion: string;
+        hostBindings: string[]; sourceMapMode: 'dev' | 'prod';
+    };
+    moduleMap: CemBrowserModuleUrlMap | null;
+}
+
 export interface RetainedCemMlTemplate {
     artifactId: number;
     stylesheets: CemQlStylesheetArtifact[];
@@ -261,6 +280,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         disposeTemplate,
         importTemplateArtifact,
         importPinnedTemplateArtifact,
+        admitDeclarationMetadata,
         renderTemplateWithNativeValues,
         renderTemplateWithNativeValuesAndAdmission,
         importCemDocumentValue,
@@ -890,6 +910,17 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         })));
     });
 
+    const admitCompiledDeclarationMetadata = nativeCheckpointWork(async (
+        json: string, expectedHash: string
+    ): Promise<CemCompiledDeclarationMetadata> => {
+        await ensureRuntimeReady();
+        const result = JSON.parse(admitDeclarationMetadata(json, expectedHash)) as {
+            metadata?: CemCompiledDeclarationMetadata; diagnostics?: WasmDiagnostic[];
+        };
+        if (!result.metadata) throw new Error(`cem.declaration_artifact.invalid: ${result.diagnostics?.[0]?.message ?? 'invalid compiled declaration metadata'}`);
+        return result.metadata;
+    });
+
     function adoptTemplateImport(json: string): RetainedCemMlTemplate {
         const result = JSON.parse(json) as {
             artifactId?: number | null;
@@ -1463,6 +1494,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         retainCemMlTemplateModuleClosure,
         retainCemMlTemplateArtifact,
         retainPinnedCemMlTemplateArtifact,
+        admitCompiledDeclarationMetadata,
         disposeRetainedCemMlTemplate,
         convertLegacyTemplate,
         renderCemMlTemplate,
@@ -1506,6 +1538,7 @@ export const preflightCemMlTemplateModules = defaultBindings.preflightCemMlTempl
 export const retainCemMlTemplateModuleClosure = defaultBindings.retainCemMlTemplateModuleClosure;
 export const retainCemMlTemplateArtifact = defaultBindings.retainCemMlTemplateArtifact;
 export const retainPinnedCemMlTemplateArtifact = defaultBindings.retainPinnedCemMlTemplateArtifact;
+export const admitCompiledDeclarationMetadata = defaultBindings.admitCompiledDeclarationMetadata;
 export const disposeRetainedCemMlTemplate = defaultBindings.disposeRetainedCemMlTemplate;
 export const convertLegacyTemplate = defaultBindings.convertLegacyTemplate;
 export const renderCemMlTemplate = defaultBindings.renderCemMlTemplate;

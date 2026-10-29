@@ -923,6 +923,30 @@ inventory, not the minimum set loaded by every app.
   hashes rather than downloading the original template source. Preserve all
   existing source-driven/full-runtime entry points. Prove a compiled stylesheet
   path or retain required native CSS parsing until that boundary is complete.
+  - [x] Generate hash-pinned native declaration metadata alongside template IR,
+    preserving tag/alias, version, intrinsic capability, scope, original URI and
+    XML bases, link policy, module maps and binding/source-map contracts. Add
+    native fixtures for canonical cart components, metadata tampering, unsupported
+    declarations/imports, capability precedence and build errors.
+    Add a reproducible native fixture builder and separate-heap WASM checks for
+    metadata admission, invalid pins and binary-owner disposal.
+  - [x] Add shared registration from admitted metadata and binary bytes; reuse
+    collision checks, form association, retained styles, rendering and recovery.
+    Add worker/fallback browser fixtures for canonical field/action composition,
+    defaults, edits, FormData, scoped styles, source-loader refusal, failed pins,
+    registration conflicts, disconnected/remounted declarations and scope disposal.
+    Implemented native `cem-declaration-metadata/1`, the build example and
+    `registerCompiledDeclaration`; both worker/fallback paths use strict pinned
+    IR. Four native declaration tests cover five canonical components in dev/prod,
+    aliases/bases/capabilities, module maps, strict metadata and build refusal.
+    Separate-heap WASM admission/disposal, 808 units and six browser stories pass.
+    Both complete live Login worker/fallback recovery/privacy cases pass within
+    the existing 4 MiB budget. Credential refusal and deadlines are unchanged.
+    Existing CSS parsing and source-driven registration remain supported.
+  - [ ] Add declarative compiled-asset loading and a generated complete component
+    closure; prove whole-app recovery from that source-free deployment. Keep
+    XPath companions/external CEMT imports and legacy routes refused until their
+    compiled contracts exist. Do not claim a reduced runtime from metadata alone.
 - [ ] Add app-build dependency generation and GraphQL schema/operation validation,
   including variable/response contracts and compact runtime input checks. Treat
   application manifests as requirements, not native grants or permissions; retain

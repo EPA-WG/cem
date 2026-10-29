@@ -364,6 +364,16 @@ pub fn wasm_import_pinned_template_artifact(bytes: &[u8], context_json: &str) ->
     imported_template_json(artifact, template)
 }
 
+#[wasm_bindgen(js_name = "admitDeclarationMetadata")]
+pub fn wasm_admit_declaration_metadata(metadata_json: &str, expected_hash: &str) -> String {
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return cem_ml::runtime_admission::refusal_json(error) };
+    let _memory = match cem_ml::runtime_memory::admit_input(metadata_json.len()) { Ok(permit) => permit, Err(error) => return error_json(error.0, "WASM memory admission refused; recovery headroom is reserved") };
+    match crate::declaration_artifact::admit_declaration_metadata(metadata_json, expected_hash) {
+        Ok(metadata) => json!({ "metadata": metadata }).to_string(),
+        Err(message) => artifact_error_json("cem.declaration_artifact.invalid", message),
+    }
+}
+
 fn imported_template_json(artifact: CompiledTemplateArtifact, template: TemplateArtifact) -> String {
     let diagnostics = diagnostics_json(&template.diagnostics);
     let stylesheets = stylesheets_json(&template);

@@ -59,6 +59,7 @@ import {
     type CemMlTemplateModuleLoader,
     type CemMlTemplateModuleClosure,
     type CemQlStylesheetArtifact,
+    type CemCompiledDeclarationMetadata,
     type CemDomStylesheetSource,
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
@@ -800,6 +801,20 @@ export interface CemDeclarationRegistrationOptions {
     behaviorIdentity?: string;
 }
 
+/** Host-admitted build assets. Hashes must originate outside these assets. */
+export interface CemCompiledDeclarationRegistration {
+    metadataJson: string;
+    metadataHash: string;
+    templateBytes: ArrayBuffer;
+}
+
+interface AdmittedCompiledDeclaration {
+    metadata: CemCompiledDeclarationMetadata;
+    metadataHash: string;
+    bytes: ArrayBuffer;
+    stylesheets: CemQlStylesheetArtifact[];
+}
+
 /**
  * Reusable browser capabilities that a CEM-ML declaration can request without
  * supplying component-owned JavaScript. Capability implementations belong to
@@ -907,6 +922,7 @@ interface SliceDeclaration {
 }
 
 interface CompiledDeclaration {
+    pinnedDeclaration?: AdmittedCompiledDeclaration;
     linkBaseUrl: string | null;
     declarationElement: HTMLElement;
     declarationTag: string;
@@ -2069,6 +2085,70 @@ export class CemElementRuntime {
         }
     }
 
+    /** Register a named build artifact without loading or compiling declaration source.
+     * Call before connecting a generated declaration element; ordinary reconnect
+     * subsequently uses registerDeclaration and the existing remount lifecycle. */
+    registerCompiledDeclaration(declarationElement: HTMLElement, input: CemCompiledDeclarationRegistration,
+        options: CemDeclarationRegistrationOptions = {}): Promise<void> {
+        const tag = declarationElement.getAttribute('tag')?.trim() ?? '';
+        if (this.registeredDeclarationElements.has(declarationElement)) return Promise.reject(new Error('declaration is already registered or pending'));
+        const scope = this.scopeForDeclaration(declarationElement);
+        if (!scope) return Promise.reject(new Error('compiled declaration scope is unavailable'));
+        if (typeof input.metadataJson !== 'string' || input.metadataJson.length > 1024 * 1024
+            || typeof input.metadataHash !== 'string' || !(input.templateBytes instanceof ArrayBuffer)
+            || input.templateBytes.byteLength === 0 || input.templateBytes.byteLength > 64 * 1024 * 1024) {
+            return Promise.reject(new Error('invalid compiled declaration input bounds'));
+        }
+        const owned = { ...input, templateBytes: input.templateBytes.slice(0) };
+        let releaseCheckpointAdmission: (() => void) | undefined;
+        try { releaseCheckpointAdmission = this.checkpointPublication?.admit(); }
+        catch (error) { return Promise.reject(error); }
+        this.registeredDeclarationElements.add(declarationElement);
+        this.registrationOptions.set(declarationElement, options);
+        if (declarationElement.isConnected) this.connectedDeclarations.add(declarationElement);
+        const pending = (async () => {
+            if (!tag || declarationElement.getAttribute('src') || Array.from(declarationElement.childNodes).some(node =>
+                node.nodeType === 1 || (node.nodeType === 3 && Boolean(node.textContent?.trim())))) throw new Error('compiled registration requires a named declaration without source/template children');
+            const helpers = this.renderSupport(scope);
+            const metadata = await helpers.admitCompiledDeclarationMetadata(owned.metadataJson, owned.metadataHash);
+            const current = () => {
+                assertCemDeclarationScopeActive(scope);
+                if (tag !== metadata.tag || declarationElement.getAttribute('tag')?.trim() !== tag
+                    || declarationElement.ownerDocument !== scope.document || declarationElement.getAttribute('src')
+                    || Array.from(declarationElement.childNodes).some(node => node.nodeType === 1
+                        || (node.nodeType === 3 && Boolean(node.textContent?.trim())))) throw new Error('compiled declaration changed or differs from the admitted header');
+                for (const [name, expected] of Object.entries({ capability: metadata.capability, scope: metadata.scope,
+                    version: metadata.version, 'link-base': metadata.linkBase })) {
+                    if (declarationElement.hasAttribute(name) && declarationElement.getAttribute(name)?.trim() !== expected)
+                        throw new Error(`compiled declaration cannot override ${name}`);
+                }
+            };
+            current();
+            const pin = metadata.template;
+            const retained = await helpers.retainPinnedCemMlTemplateArtifact(owned.templateBytes, pin.contentHash, {
+                contentType: 'cem-template-artifact', sourceHash: pin.sourceHash, cemMlVersion: pin.cemMlVersion,
+                cemQlVersion: pin.cemQlVersion, sourceMapMode: pin.sourceMapMode,
+            }, pin.hostBindings);
+            const stylesheets = retained.stylesheets;
+            helpers.disposeRetainedCemMlTemplate(retained.artifactId);
+            current();
+            const template = declarationElement.ownerDocument.createElement('template');
+            template.setAttribute('type', 'text/cem-ml');
+            await this.registerResolvedDeclaration(declarationElement, tag, metadata.version, template, [], scope, {
+                sourceRef: { kind: 'url', value: metadata.sourceUri }, resolverIdentity: `compiled:${owned.metadataHash}`,
+                resourceBaseUrl: metadata.resourceBaseUrl,
+            }, { metadata, metadataHash: owned.metadataHash, bytes: owned.templateBytes, stylesheets });
+            if (!this.declarationOwners.has(declarationElement)) throw new Error('compiled declaration registration was refused');
+        })().catch((error: unknown) => {
+            this.registeredDeclarationElements.delete(declarationElement);
+            this.recordDiagnostics(declarationElement, [declarationDiagnostic('cem-element.compiled_declaration_invalid',
+                error instanceof Error ? error.message : 'compiled declaration was rejected', tag)]);
+            throw error;
+        }).finally(() => releaseCheckpointAdmission?.());
+        this.trackDeclarationSettlement(declarationElement, tag, pending);
+        return this.declarationSettled.get(declarationElement) ?? pending;
+    }
+
     registerDeclaration(declarationElement: HTMLElement, options: CemDeclarationRegistrationOptions = {}): boolean {
         if (declarationElement.isConnected) this.connectedDeclarations.add(declarationElement);
         if (this.registeredDeclarationElements.has(declarationElement)) {
@@ -2243,10 +2323,11 @@ export class CemElementRuntime {
         shapeDiagnostics: CemElementDiagnostic[],
         declarationScope: CemDeclarationScope,
         source: ResolvedDeclarationSource,
+        pinnedDeclaration?: AdmittedCompiledDeclaration,
     ): Promise<void> {
         const registrationOptions = this.registrationOptions.get(declarationElement);
-        const capabilityName = (declarationElement.getAttribute('capability')
-            ?? template.getAttribute('capability') ?? '').trim();
+        const capabilityName = (pinnedDeclaration ? pinnedDeclaration.metadata.capability ?? ''
+            : declarationElement.getAttribute('capability') ?? template.getAttribute('capability') ?? '').trim();
         if (capabilityName && registrationOptions?.behavior) {
             this.recordDiagnostics(declarationElement, [
                 declarationDiagnostic(
@@ -2272,6 +2353,7 @@ export class CemElementRuntime {
             return Promise.resolve();
         }
         const compiled = compileInlineDeclaration(declarationElement, tag, template, {
+            pinnedDeclaration,
             declarationTag: this.declarationTag,
             scopePolicyStamp: this.scopePolicyStamp,
             declarationVersion,
@@ -2650,6 +2732,7 @@ export class CemElementRuntime {
         declarationElement: HTMLElement,
         compiled: CompiledDeclaration,
     ): Promise<void> {
+        if (compiled.pinnedDeclaration) return;
         try {
             const result = await this.renderSupport(compiled.declarationScope).compileCemMlTemplate(compiled.cemMlSource ?? '');
             if (!compiled.moduleClosureReady) compiled.stylesheets = result.stylesheets;
@@ -4316,7 +4399,9 @@ export class CemElementRuntime {
                     ...compiled.declaredSlices.map(slice => slice.name), 'datadom', 'island', 'instanceID'];
                 const moduleClosure = await this.preflightDeclarationModules(compiled, hostBindings);
                 if (!compiled.stylesheets.length && !moduleClosure) return;
-                const result = await this.processingHost(compiled).compile({ language: 'cem-ml',
+                const result = await this.processingHost(compiled).compile(compiled.pinnedDeclaration
+                    ? this.pinnedDeclarationInput(compiled, `${compiled.artifactId}:retained-css`)
+                    : { language: 'cem-ml',
                     producedTag: compiled.producedTag, templateArtifactId: `${compiled.artifactId}:retained-css`,
                     registrationIdentity: compiled.registrationIdentity ?? compiled.artifactId,
                     source: createCemProcessingTextSource(compiled.cemMlSource ?? ''), sourceRef: compiled.sourceRef,
@@ -4486,11 +4571,31 @@ export class CemElementRuntime {
         return pending;
     }
 
+    private pinnedDeclarationInput(compiled: CompiledDeclaration, templateArtifactId = compiled.artifactId): CemProcessingCompileInput {
+        const pinned = compiled.pinnedDeclaration;
+        if (!pinned || !compiled.registrationIdentity) throw new Error('missing admitted compiled declaration');
+        const pin = pinned.metadata.template;
+        return { language: 'cem-ml', producedTag: compiled.producedTag, templateArtifactId,
+            registrationIdentity: compiled.registrationIdentity, sourceRef: compiled.sourceRef,
+            resolverIdentity: compiled.resolverIdentity, linkBaseUrl: compiled.linkBaseUrl ?? undefined,
+            scopePolicyStamp: this.scopePolicyStamp, sourceMapMode: pin.sourceMapMode,
+            hostBindings: [...pin.hostBindings], source: { kind: 'pinned-template-artifact-v1', artifact: {
+                kind: 'template-artifact', cacheKey: pin.contentHash, formatVersion: 'cem-template-artifact/1',
+                policyStamp: this.scopePolicyStamp, bytes: pinned.bytes, payloadKey: { contentType: 'cem-template-artifact',
+                    sourceHash: pin.sourceHash, cemMlVersion: pin.cemMlVersion, cemQlVersion: pin.cemQlVersion, sourceMapMode: pin.sourceMapMode },
+            } } };
+    }
+
     private async compileProcessingArtifact(
         compiled: CompiledDeclaration,
         registrationIdentity: string,
         renderBindings: readonly string[],
     ): Promise<CemProcessingCompileResult> {
+        if (compiled.pinnedDeclaration) {
+            const input = this.pinnedDeclarationInput(compiled);
+            this.nativeSuggestionsCompilations.set(compiled, Promise.resolve(input));
+            return this.processingHost(compiled).compile(input).result;
+        }
         const source = compiled.cemMlSource ?? '';
         const sourceMapMode = 'dev' as const;
         const hostBindings = [
@@ -8125,7 +8230,7 @@ export class CemElementRuntime {
             templateArtifactId: compiled.artifactId,
             dataRevision,
             outputTarget: 'light-dom',
-            sourceMapMode: 'dev',
+            sourceMapMode: compiled.pinnedDeclaration?.metadata.template.sourceMapMode ?? 'dev',
             scopePolicyStamp: this.scopePolicyStamp,
             ariaReferenceProfile: this.ariaReferenceProfile,
             privacyPolicyStamp: this.privacyPolicyStamp,
@@ -8395,7 +8500,7 @@ function compileInlineDeclaration(
 ): CompiledDeclaration {
     const mode = options.source.templateLanguage ?? templateMode(template);
     const diagnostics: CemElementDiagnostic[] = [];
-    const linkBase = declarationElement.getAttribute('link-base')?.trim() ?? 'document';
+    const linkBase = options.pinnedDeclaration?.metadata.linkBase ?? declarationElement.getAttribute('link-base')?.trim() ?? 'document';
     if (linkBase !== 'source' && linkBase !== 'document') {
         diagnostics.push(declarationDiagnostic('cem-element.link_base_invalid',
             'link-base requires source or document', producedTag));
@@ -8409,7 +8514,7 @@ function compileInlineDeclaration(
             : { nodes: rawTemplateSource, stylesheets: [], diagnostics: [] };
     const templateSource = domStyles.nodes;
     diagnostics.push(...domStyles.diagnostics);
-    const sharedStyleScope = declarationSharedStyleScope(declarationElement, producedTag);
+    const sharedStyleScope = declarationSharedStyleScope(declarationElement, producedTag, options.pinnedDeclaration?.metadata.scope);
     diagnostics.push(...sharedStyleScope.diagnostics);
     // DOM-parity templates extract their declarations here for the synchronous projection path.
     // CEM-ML and legacy-XSLT templates render through the cem_ql WASM boundary,
@@ -8438,7 +8543,7 @@ function compileInlineDeclaration(
     }
     const wasmEligible = mode === 'cem-ml' || mode === 'legacy-xslt' || mode === 'xslt';
     const occurrencePath = declarationOccurrencePath(declarationElement);
-    const sourceText = xsltSource ?? sourceTextForUidSeed(template, mode, cemMlSource, legacySource);
+    const sourceText = options.pinnedDeclaration?.metadataHash ?? xsltSource ?? sourceTextForUidSeed(template, mode, cemMlSource, legacySource);
     const xpathFunctionsRef = template.getAttribute('xpath-functions')?.trim() ?? null;
     if (xpathFunctionsRef !== null && (!xpathFunctionsRef || mode !== 'cem-ml')) {
         diagnostics.push(declarationDiagnostic('cem-element.xpath_functions_invalid',
@@ -8480,6 +8585,7 @@ function compileInlineDeclaration(
         options,
     );
     return {
+        pinnedDeclaration: options.pinnedDeclaration,
         declarationElement,
         linkBaseUrl,
         declarationTag: options.declarationTag,
@@ -8498,7 +8604,7 @@ function compileInlineDeclaration(
         sourceRef: options.source.sourceRef,
         resolverIdentity: options.source.resolverIdentity,
         resourceBaseUrl: options.source.resourceBaseUrl,
-        moduleMap: null,
+        moduleMap: options.pinnedDeclaration?.metadata.moduleMap ?? null,
         xpathFunctionsRef,
         template,
         templateSource,
@@ -8510,8 +8616,9 @@ function compileInlineDeclaration(
         wasmEligible,
         declaredAttributes,
         declaredSlices,
-        stylesheets: [],
-        stylesheetsReady: mode === 'dom' && domStyles.stylesheets.length === 0,
+        stylesheets: options.pinnedDeclaration?.stylesheets ?? [],
+        stylesheetsReady: Boolean(options.pinnedDeclaration) || (mode === 'dom' && domStyles.stylesheets.length === 0),
+        ...(options.pinnedDeclaration ? { legacyRuntimeResources: false, moduleClosureReady: true } : {}),
         domStylesheetSources: mode === 'dom' ? domStyles.stylesheets : undefined,
         diagnostics,
         behavior: options.behavior,
@@ -8521,10 +8628,11 @@ function compileInlineDeclaration(
 function declarationSharedStyleScope(
     declarationElement: HTMLElement,
     producedTag: string,
+    override?: string | null,
 ): { value: string | null; diagnostics: CemElementDiagnostic[] } {
     const result = resolveDeclarationStyleScope(
-        declarationElement.hasAttribute('scope'),
-        declarationElement.getAttribute('scope'),
+        override !== undefined ? override !== null : declarationElement.hasAttribute('scope'),
+        override !== undefined ? override : declarationElement.getAttribute('scope'),
     );
     if (!result.valid) {
         return {
@@ -8599,6 +8707,7 @@ function extractDomDeclarationStylesheets(
 }
 
 interface InlineDeclarationCompileOptions {
+    pinnedDeclaration?: AdmittedCompiledDeclaration;
     scopePolicyStamp: string;
     declarationTag: string;
     declarationVersion: string | null;
