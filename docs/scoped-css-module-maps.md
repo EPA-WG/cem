@@ -108,9 +108,16 @@ For example, the semantic portion of an adopted style would be shaped as follows
 
 Here `css` denotes `https://cem.dev/ns/data/css/1`. The schema's `style-block`
 child model now admits `import`, covered by native fixtures. Standalone stylesheets
-retain the schema's `stylesheet` root. The runtime tree must preserve enough
-lexical information to distinguish URL tokens and quoted `url(...)` functions
-from ordinary strings, comments and custom-property token sequences.
+retain the schema's `stylesheet` root. `text/css; mode=stylesheet` (or
+`entry=stylesheet` without `mode`) forces that entry before source heuristics,
+including when the response contains `:host`/`@scope` or a `scope` parameter.
+Explicit scoped-block and declaration-list selections also bypass inference;
+unqualified CSS retains its previous inference behavior. Compiled response
+capsules continue to require a full stylesheet root and preserve the original
+MIME profile, source bytes, URI and source-selection identity. The runtime tree
+must preserve enough lexical information to distinguish URL tokens and quoted
+`url(...)` functions from ordinary strings, comments and custom-property token
+sequences.
 
 Unknown at-rule bodies remain balanced component values because their grammar
 is not known. Quoted `url(...)` is a function containing a string; an unquoted

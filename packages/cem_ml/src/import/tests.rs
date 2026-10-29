@@ -175,3 +175,61 @@ fn json_only_boundary_matches_general_import_and_retains_original_owner() {
         assert_eq!(super::import_json_bytes(bytes, uri).unwrap_err(), super::import_data_bytes(bytes, "application/json", "cem", uri).unwrap_err());
     }
 }
+
+#[test]
+fn explicit_css_stylesheet_import_preserves_mime_source_and_capsule_profile() {
+    let source = ":host { --label: 'café'; color: red; }";
+    let uri = "https://app.test/styles/theme.css";
+    let mime = "text/css; charset=utf-8; mode=stylesheet";
+    let root_name = |tree: &RetainedCemTree| {
+        tree.node(tree.node(0).unwrap().children[0])
+            .unwrap()
+            .name
+            .as_ref()
+            .unwrap()
+            .local_name
+            .clone()
+    };
+    let original = import_data_bytes(source.as_bytes(), mime, "cem", uri).unwrap();
+    assert_eq!(root_name(&original), "stylesheet");
+    let encoded = crate::compiled_css::encode_response(&original, source, mime).unwrap();
+    let pin = crate::content_cache::ContentHash::from_blake3(&encoded).header_value();
+    let parsed = crate::validation::css::CSS_SOURCE_PARSE_CALLS.with(|n| n.get());
+    let restored = crate::compiled_css::admit(&encoded, &pin).unwrap();
+    assert_eq!(
+        crate::validation::css::CSS_SOURCE_PARSE_CALLS.with(|n| n.get()),
+        parsed
+    );
+    assert_eq!(restored.content_type, mime);
+    assert_eq!(restored.source, source);
+    assert_eq!(restored.tree.source_uri(), uri);
+    assert_eq!(restored.tree.ast().nodes.len(), original.ast().nodes.len());
+    for id in 0..original.ast().nodes.len() {
+        // The retained view includes semantic source overlays on the document root.
+        assert_eq!(
+            format!("{:?}", restored.tree.node(id as u32)),
+            format!("{:?}", original.node(id as u32))
+        );
+        assert_eq!(
+            restored.tree.source_key(id as u32),
+            original.source_key(id as u32)
+        );
+        let before = original.source_node_range(id as u32).unwrap();
+        let after = restored.tree.source_node_range(id as u32).unwrap();
+        assert_eq!((after.offset, after.length), (before.offset, before.length));
+        // Byte imports can mark selector line/column unknown (zero). The capsule
+        // reconstructs range metadata alongside the verified original source text.
+        if before.line != 0 {
+            assert_eq!((after.line, after.column), (before.line, before.column));
+        }
+    }
+    assert!(crate::compiled_css::admit_inline(&encoded, &pin).is_err());
+    for mime in ["text/css", "text/css; mode=scoped-style-block"] {
+        let scoped = import_data_bytes(source.as_bytes(), mime, "cem", uri).unwrap();
+        assert_eq!(root_name(&scoped), "style-block");
+        assert_ne!(scoped.source_key(0), original.source_key(0));
+        let invalid = crate::compiled_css::encode_response(&scoped, source, mime).unwrap();
+        let hash = crate::content_cache::ContentHash::from_blake3(&invalid).header_value();
+        assert!(crate::compiled_css::admit(&invalid, &hash).is_err());
+    }
+}

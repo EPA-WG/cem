@@ -60,9 +60,13 @@ cem-ml validate --format json \
 Validation runs through the typed lifecycle and emits neutral parser and policy
 facts. Executable contracts in `schema/css.cem` own diagnostic codes,
 severities, and policy metadata. Entry modes cover full stylesheets,
-declaration lists/style attributes, and scoped style blocks; callers can select
-the latter modes with `mode=style-attribute` or `mode=scoped-style-block` MIME
-parameters.
+declaration lists/style attributes, and scoped style blocks. Callers can force
+those entry modes with `mode=stylesheet`, `mode=style-attribute` or
+`mode=scoped-style-block` MIME parameters. A recognized explicit mode takes
+precedence over source hints such as `:host`, `@scope` or a `scope` parameter;
+`entry=stylesheet` is also accepted when `mode` is absent. Without an explicit
+recognized mode, the existing inference rules apply. These parameters select a
+parser entry; they grant no resource access or CSS installation authority.
 
 Parsing, validation, and formatting do not fetch `@import` resources, URLs,
 fonts, or other external references and do not evaluate cascade or host-document

@@ -142,10 +142,11 @@ The Login project uses an authored XPath mapping to compare its HTML and CEM
 field contracts; no evaluator branches interpret HTML attributes or parser ASTs.
 
 CSS imports use the registered CSS semantic vocabulary, retaining the native
-token owner and source locations. `text/css` supports stylesheet,
-`mode=scoped-style-block`, and `mode=style-attribute` roots. Import is a
-non-executing retention boundary: unresolved import/URL policy facts remain on
-the owner but do not prevent retaining references. All other hard CSS diagnostics
+token owner and source locations. `text/css` supports `mode=stylesheet`,
+`mode=scoped-style-block`, and `mode=style-attribute` roots. An explicit recognized
+mode precedes source inference; `entry` is the fallback parameter when `mode` is
+absent. Import is a non-executing retention boundary: unresolved import/URL
+policy facts remain on the owner but do not prevent retaining references. All other hard CSS diagnostics
 still reject import. Retention authorizes no fetch or style installation; the
 resolver/loader must enforce resource policy before either. CSS imports are
 bounded to 4096 source events and 64 nested component-value levels in addition

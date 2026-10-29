@@ -438,4 +438,67 @@ mod tests {
         .unwrap_err();
         assert!(cycle.contains("import_cycle"), "{cycle}");
     }
+
+    #[test]
+    fn explicit_stylesheet_host_imports_keep_source_compiled_policy_and_emission_parity() {
+        let source = ":host { --explicit-profile: ready; color:red; }";
+        let mime = "text/css; charset=utf-8; mode=stylesheet";
+        let loader = |request: &CssImportRequest| {
+            Ok(ResolvedRead {
+                uri: request.resolution.resolved_url.clone(),
+                bytes: source.as_bytes().to_vec(),
+                content_type: Some(mime.into()),
+            })
+        };
+        let root = root();
+        let artifact = compile(root.clone(), BASE, capability(None), &mut |request| {
+            loader(request)
+        })
+        .unwrap();
+        let mut text = closure(root.clone(), capability(None));
+        while let Some(request) = text.next_import().unwrap() {
+            text.complete_response(request.id, loader(&request).unwrap(), &Default::default())
+                .unwrap();
+        }
+        let parsed = crate::validation::css::CSS_SOURCE_PARSE_CALLS.with(|n| n.get());
+        let admitted = CompiledCssImports::admit(artifact).unwrap();
+        assert!(admitted
+            .responses
+            .iter()
+            .all(|response| response.content_type == mime && response.source == source));
+        let mut binary = closure(root.clone(), capability(None));
+        replay(&admitted, &mut binary, Default::default()).unwrap();
+        assert_eq!(
+            crate::validation::css::CSS_SOURCE_PARSE_CALLS.with(|n| n.get()),
+            parsed
+        );
+        assert_eq!(text.received_bytes(), binary.received_bytes());
+        for (left, right) in text.sheets().iter().zip(binary.sheets()) {
+            assert_eq!(left.url, right.url);
+            assert_eq!(
+                left.resources.tree.source_key(0),
+                right.resources.tree.source_key(0)
+            );
+        }
+        let scope = CssManagedScope::Private {
+            tag: "cem-explicit-profile".into(),
+            context: None,
+        };
+        let left = derive_css_stylesheet_identity(&text, &scope, "decl", "style:0").unwrap();
+        let right = derive_css_stylesheet_identity(&binary, &scope, "decl", "style:0").unwrap();
+        assert_eq!(left, right);
+        let expected = emit_css_import_closure(&text, &left.scope, &left.owner_key).unwrap();
+        let actual = emit_css_import_closure(&binary, &right.scope, &right.owner_key).unwrap();
+        assert_eq!(actual.css(), expected.css());
+        assert!(actual.css().contains("--explicit-profile:ready"));
+        // Admission of the binary never widens present-day MIME or integrity policy.
+        for mapping in [
+            CemModuleUrlMapping::target("./main.css").with_content_type("application/json"),
+            CemModuleUrlMapping::target("./main.css")
+                .with_integrity("sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="),
+        ] {
+            let mut denied = closure(root.clone(), capability(Some(("./main.css", mapping))));
+            assert!(replay(&admitted, &mut denied, Default::default()).is_err());
+        }
+    }
 }

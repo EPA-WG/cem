@@ -1206,11 +1206,30 @@ inventory, not the minimum set loaded by every app.
         provider/attribute/slice bindings and checkpoint/journal handoff stay open.
         Credential privacy, the 4 MiB checkpoint budget and five-second native
         handoff deadlines remain unchanged; no component/application UI JS added.
-      - [ ] Fix explicit CSS stylesheet response entry-mode forcing: `:host` imports infer a
-        scoped block, which the compiled full-stylesheet capsule correctly refuses;
-        explicit `mode=stylesheet` currently does not override that heuristic.
-        Preserve original MIME/source identity and test source/compiled parity
-        before expanding imported-profile admission; do not weaken capsule checks.
+      - [x] Fix explicit CSS stylesheet response entry-mode forcing. Recognized
+        `mode=stylesheet` now precedes `:host`, `@scope` and `scope` inference;
+        `entry=stylesheet` works when `mode` is absent. Existing default inference
+        and mode-over-entry precedence stay intact. Original MIME, UTF-8 source,
+        URI, source keys and byte ranges survive compiled response admission;
+        full-stylesheet capsule restrictions and current resource policy remain.
+        - [x] Add parser precedence/default fixtures, native import/capsule MIME
+          and source-identity parity/refusal fixtures, source-versus-compiled
+          import replay/emission fixtures and explicit-`:host` owned-declaration
+          WASM/browser acceptance before marking the mode fix complete.
+        Verification: 77 CSS/SCSS and 20 import native tests, seven profile owner
+        tests, 166 full QL tests (four existing profiling cases ignored), 42 focused
+        declaration/reload/style/cache regressions, bridge check, native fixtures,
+        ten factory/audit unit tests, full/profile WASM acceptance and 15 component
+        browser cases pass. Both full Studio Login privacy/recovery cases pass
+        (worker and fallback). Package build, Rust formatting and fresh matched
+        source/vendor audits pass. Reduced WASM: 10,826,438 bytes (10.32 MiB),
+        gzip-9 3,053,960 and Brotli-9 2,300,840; full comparator: 24,206,012 bytes,
+        gzip-9 7,377,289 and Brotli-9 5,424,626. Interfaces stay 10/17 and 28/171
+        imports/exports respectively; whole-file reduction stays 55.3%. This does
+        not complete application link closure, widget/provider bindings or recovery
+        handoff for the reduced backend. Credential privacy, the 4 MiB checkpoint
+        budget and five-second handoff deadlines remain unchanged. No component
+        or application UI JavaScript was added.
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's
         worker/fallback edits, credential refusal and generation handoff without

@@ -575,11 +575,11 @@ the isolated build uses `--no-default-features --features component-runtime`.
 
 | WASM measure | Full bytes | Prototype bytes |
 | --- | ---: | ---: |
-| Raw | 24,198,709 | 10,826,394 |
-| Gzip level 9 | 7,376,804 | 3,053,945 |
-| Brotli quality 9 | 5,422,643 | 2,300,625 |
-| Code section payload | 21,438,119 | 8,540,321 |
-| Data section payload | 2,731,590 | 2,273,432 |
+| Raw | 24,206,012 | 10,826,438 |
+| Gzip level 9 | 7,377,289 | 3,053,960 |
+| Brotli quality 9 | 5,424,626 | 2,300,840 |
+| Code section payload | 21,447,089 | 8,540,365 |
+| Data section payload | 2,729,913 | 2,273,432 |
 
 The prototype is 10.32 MiB raw, a 55.3% whole-file reduction.
 It has 10 imports/17 exports, compared with 28/171 for the full runtime.
@@ -588,9 +588,9 @@ and a counter-only inventory; remaining exports are wasm-bindgen support. This p
 and reduced code/data sections, without attributing removed bytes to particular
 languages, schemas or functions. Complete application link closure remains false.
 
-Prototype SHA-256: `e4010ec396bf5ea66c6ccd0146bb73e46e8a44beb8819f3571c2e9f822ecfb6e`.
+Prototype SHA-256: `950642ea87fa1f63cc9106aebd333c51e80ee79ceb7bcd10f4a488ab8e16885d`.
 
-Full SHA-256: `6630fc0c74be29eb08613030e656d1f6845659b2cbaaee281fe22c55bab32d67`.
+Full SHA-256: `82b564e6ede5f260ed556fba2a4171c28c787fcac3faf37c21cb89990aa3a3ac`.
 
 ```bash
 cargo run --locked --offline -p cem-ql --example component_runtime_fixture -- \
@@ -626,8 +626,13 @@ shared scope; callers supply only consumer/occurrence and current resolver
 context. V2 source imports refuse instead of returning a fetch request; v3
 responses must be build-closed and pass current URL/MIME/integrity/byte policy.
 Imported responses retain the existing full-stylesheet profile restriction.
-`mode=stylesheet` currently does not override automatic scoped-block inference
-for `:host`; that follow-up is tracked without relaxing capsule checks.
+`text/css; mode=stylesheet` now overrides automatic scoped-block inference for
+`:host`, `@scope` and `scope` hints; `entry=stylesheet` also works when `mode` is
+absent. The owned-import fixture uses an explicitly declared stylesheet response
+containing `:host`. Source and compiled loading retain the same original MIME,
+URI, bytes, source keys and native scoped emission. Unqualified/scoped inputs are
+still refused as response capsules when they produce a scoped-block root; no
+capsule, current-resource or credential checks are relaxed.
 
 Every attempted native style load gets a private consumer identity. Failure
 removes its loader bookkeeping without touching a previous valid lease; success

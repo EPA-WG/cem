@@ -996,6 +996,7 @@ fn infer_entry_mode(
         .or_else(|| parameters.get("entry"))
         .map(|value| value.trim().to_ascii_lowercase());
     match explicit_mode.as_deref() {
+        Some("stylesheet") => return CssEntryMode::Stylesheet,
         Some("style-attribute" | "declaration-list") => return CssEntryMode::DeclarationList,
         Some("scoped" | "style-block" | "scoped-style-block") => {
             return CssEntryMode::ScopedStyleBlock
@@ -1792,6 +1793,68 @@ mod tests {
             .facts
             .iter()
             .any(|fact| fact.kind == CssFactKind::ScopedStyleBlockObserved));
+    }
+
+    #[test]
+    fn explicit_stylesheet_mode_precedes_scoped_source_and_scope_hints() {
+        for source in [
+            ":host { color: red; }",
+            "@scope (.card) { .label { color:red; } }",
+        ] {
+            for mime in [
+                "text/css; mode=stylesheet",
+                "text/css; entry=stylesheet",
+                "text/css; mode=\" STYLESHEET \"; scope=card",
+                "text/css; mode=stylesheet; entry=style-attribute",
+            ] {
+                let (document, diagnostics) = parse(source, mime);
+                assert!(diagnostics.is_empty(), "{mime}: {diagnostics:?}");
+                assert_eq!(document.entry_mode, CssEntryMode::Stylesheet, "{mime}");
+                assert!(document
+                    .facts
+                    .iter()
+                    .any(|fact| fact.kind == CssFactKind::StylesheetObserved));
+                assert!(!document
+                    .facts
+                    .iter()
+                    .any(|fact| fact.kind == CssFactKind::ScopedStyleBlockObserved));
+            }
+        }
+    }
+
+    #[test]
+    fn entry_mode_defaults_and_mode_over_entry_precedence_stay_compatible() {
+        for (source, mime, expected) in [
+            (
+                ":host {color:red}",
+                "text/css",
+                CssEntryMode::ScopedStyleBlock,
+            ),
+            (
+                "@scope (.card) {p {color:red}}",
+                "text/css",
+                CssEntryMode::ScopedStyleBlock,
+            ),
+            (
+                "p {color:red}",
+                "text/css; scope=card",
+                CssEntryMode::ScopedStyleBlock,
+            ),
+            ("color:red", "text/css", CssEntryMode::DeclarationList),
+            ("p {color:red}", "text/css", CssEntryMode::Stylesheet),
+            (
+                ":host {color:red}",
+                "text/css; mode=scoped-style-block; entry=stylesheet",
+                CssEntryMode::ScopedStyleBlock,
+            ),
+            (
+                "color:red",
+                "text/css; mode=style-attribute; entry=stylesheet",
+                CssEntryMode::DeclarationList,
+            ),
+        ] {
+            assert_eq!(parse(source, mime).0.entry_mode, expected, "{mime}");
+        }
     }
 
     #[test]

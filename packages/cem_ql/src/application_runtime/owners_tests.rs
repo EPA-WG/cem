@@ -132,8 +132,8 @@ fn v3_replays_closed_imports_and_refuses_changed_resolution_without_losing_old_o
         &mut |request| {
             Ok(cem_ml::resolver::ResolvedRead {
                 uri: request.resolution.resolved_url.clone(),
-                bytes: b":scope { --imported: ready; }".to_vec(),
-                content_type: Some("text/css".into()),
+                bytes: b":host { --imported: ready; }".to_vec(),
+                content_type: Some("text/css; mode=stylesheet".into()),
             })
         },
     )

@@ -180,8 +180,8 @@ fn owned_declarations(output: &std::path::Path) {
                 compile_template_artifact_imports(built.template, uri, cap, &mut |request| {
                     Ok(cem_ml::resolver::ResolvedRead {
                         uri: request.resolution.resolved_url.clone(),
-                        bytes: b":scope { --imported-proof: ready; }".to_vec(),
-                        content_type: Some("text/css".into()),
+                        bytes: b":host { --imported-proof: ready; }".to_vec(),
+                        content_type: Some("text/css; mode=stylesheet".into()),
                     })
                 })
                 .unwrap();
