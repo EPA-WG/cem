@@ -45,7 +45,7 @@ pub(crate) use data::source_node as imported_source_node;
 pub use data::{imported_cem_tree, retained_cem_node, DataReaderCache, RetainedCemNode};
 pub(crate) use data::xpath_node as result_native_node;
 pub mod pipeline;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
 mod selected;
 mod url;
 pub mod set_ops;
@@ -642,7 +642,7 @@ impl Evaluator {
 
     /// Native selected-registry prototype; this does not enable tracked reuse
     /// or confer host/native/resource capabilities.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
     pub fn evaluate_with_selected_registry(
         query: &CompiledQuery,
         context: &EvaluationContext,
@@ -652,7 +652,7 @@ impl Evaluator {
     ) -> ItemStream {
         Self::evaluate_selected_internal(query, context, registry, control, scope, false)
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
     pub(crate) fn evaluate_selected_internal(
         query: &CompiledQuery,
         context: &EvaluationContext,
@@ -683,7 +683,7 @@ impl Evaluator {
 
 pub(crate) struct EvalCtx<'a> {
     query: &'a CompiledQuery,
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
     selected_registry: Option<Arc<crate::selected_registry::SelectedFunctionRegistry>>,
     reads: Option<dependencies::ReadTracker>,
     template_host: Option<&'a mut dyn crate::native::TemplateQueryHost>,
@@ -745,7 +745,7 @@ impl<'a> EvalCtx<'a> {
         }
         let mut ctx = Self {
             query,
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
             selected_registry: None,
             reads: None,
             template_host: None,
@@ -955,10 +955,13 @@ impl<'a> EvalCtx<'a> {
             }
             IrNode::Call { callee, args } => self.eval_call(id, callee, &args),
             IrNode::StdlibCall { module, name, args } => {
-                #[cfg(not(target_arch = "wasm32"))]
+                #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
                 if self.selected_registry.is_some() {
                     return selected::call(&module.0,&name.local,&args,self);
                 }
+                #[cfg(all(target_arch = "wasm32", feature = "component-runtime"))]
+                { self.unknown_function(id, "compiled component runtime requires a selected registry") }
+                #[cfg(not(all(target_arch = "wasm32", feature = "component-runtime")))]
                 if module.0 == crate::stdlib::native::MODULE_URI && name.local == "call" {
                     self.eval_native_call(id, &args)
                 } else if module.0 == crate::stdlib::url::MODULE_URI {

@@ -701,9 +701,9 @@ Plan a separate application distribution for `@epa-wg/cem-elements` and
 `@epa-wg/cem-components`: a dependency-audited native UI core with optional
 languages, conversions and tooling loaded on actual demand. Preserve every
 component capability through the core or a pinned module; keep the current
-full-runtime, CLI and Studio defaults unchanged. This is planned work, not an
-implemented profile or a measured minimum. The current UI WASM reference is
-23.08 MiB raw, 7.03 MiB gzip-9 and 5.17 MiB Brotli-9; record and compare matched
+full-runtime, CLI and Studio defaults unchanged. An isolated compiled-template/JSON WASM prototype now exists; the complete
+live-component distribution remains open, and no measured minimum is claimed. The current UI WASM reference is
+23.08 MiB raw, 7.04 MiB gzip-9 and 5.17 MiB Brotli-9; record and compare matched
 builds rather than promising an unmeasured core size.
 
 Clarified 2026-10-29: initial dependencies follow the deployed application's
@@ -729,16 +729,20 @@ format demands, the component graph and retained CSS source/resource identities;
 unresolved dispatch/providers remain explicit. A native selected-registry prototype
 now executes 15 reviewed pure functions and the cart entry without full function-
 catalogue assembly; pinned recipes/Rust code carry transitive execution-unit
-contracts and preserve cache/admission refusal. WASM promotion, transitive linked
-implementation/behavior/provider closure, API contracts and native code
-partitioning remain pending.
+contracts and preserve cache/admission refusal. The isolated `component-runtime`
+WASM build now uses a build-selected registry, a compiled v2/v3-only entry and
+shared JSON-only native import, without exporting the full tooling API or
+linking the evaluator fallback routes. Complete component ABI and transitive
+implementation/behavior/provider closure, input/type contracts and optional
+module transport remain pending.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.
 The [initial audit](docs/cem-components-wasm-audit.md) and
 [worker/fallback baseline](docs/cem-components-wasm-baseline.md) now cover the
 current full binary and canonical catalog. Native module/handoff proof, repeated
-and complete memory measurements, and a separate reduced target remain pending.
+and complete memory measurements, and complete component integration into the
+separate reduced target remain pending.
 Its [execution checklist](docs/todo.md#component-application-wasm-profile-separate-target)
 is a separate workstream with these delivery steps:
 

@@ -13,6 +13,8 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["debug-control"]
+# Separate compiled-component ABI; never used by the full/default build.
+component-runtime = ["cem-ml/component-runtime"]
 debug-control = ["cem-ml/debug-control"]
 
 [dependencies]

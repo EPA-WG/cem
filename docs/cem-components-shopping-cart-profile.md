@@ -2,8 +2,9 @@
 
 Status: native reference fixture, strict artifact admission, shared compiled
 registration, declarative static-closure loading and compiled-form recovery in
-worker/fallback hosts, 2026-10-29. A complete shopping-cart browser app, GraphQL transport/validation
-and reduced WASM remain pending.
+worker/fallback hosts, plus an isolated compiled-template/JSON WASM prototype,
+2026-10-29. A complete shopping-cart browser app, GraphQL transport/validation
+and reduced component integration remain pending.
 This is the first concrete application case for the
 [component WASM profile](cem-components-wasm-profile.md#application-build-and-deployment-boundary).
 
@@ -45,9 +46,9 @@ a positive build-stage control and asserts no template/query compilation during
 runtime reload and repeated rendering. Both dev and prod source-map modes are
 covered. JSON API documents are imported natively and retain their source owner;
 they do not cross a JSON AST or JavaScript object reconstruction boundary.
-The evaluator still assembles its general function registry during this path;
-that runtime dependency is distinct from source compilation and must also be
-partitioned before the minimal binary can exclude unused implementations.
+The ordinary full-runtime path still assembles its general function registry.
+The selected-registry and isolated WASM paths below avoid that assembly.
+Source-free reload by itself does not establish omitted implementations.
 
 The response sequence checks initial quantities, changed quantities and an added
 line, line removal, empty cart, partial data/errors and failed requests. Product
@@ -63,7 +64,7 @@ cargo test --locked --offline -p cem-ql --lib template_artifact::application_pro
 cargo test --locked --offline -p cem-ql --test template_artifact_reload
 ```
 
-The six app-boundary tests and nine existing artifact reload tests pass. This
+The seven app-boundary tests and nine existing artifact reload tests pass. This
 native proof does not establish browser recovery, code omission or size savings;
 those are delivery gates below. Full-runtime defaults remain in place. The
 separate admission path below adds opt-in processing support and preserves
@@ -507,11 +508,10 @@ not close shared component behavior/provider contracts or implement storefront
 networking/actions. CLI fixtures also compile and execute generated Rust and
 refuse unreviewed/open requirements before publication.
 
-The prototype is native-only (`cfg(not(target_arch = "wasm32"))`). Its recipe
-retains `nativeLinkClosureVerified: false`. The general evaluator/fallback and
-all optional language/tooling implementations are still present in the full
-build. Promote the reviewed dispatcher into the separate WASM target and prove
-actual partitioning/ABI/provider closure before claiming a reduced deployment.
+The full/default runtime retains its general evaluator and optional language/tooling
+implementations. The selected dispatcher is also available in the isolated WASM
+prototype below. Recipe `nativeLinkClosureVerified` remains false: selected
+execution and a smaller linked artifact do not close every component dependency.
 Credential recovery refusal and the existing 4 MiB/5-second budgets are unchanged.
 
 ```bash
@@ -522,6 +522,91 @@ dist/target/debug/examples/compile_declaration_closure \
   ./components https://app.example/components/ ./build/components prod \
   --compiled-css --selected-registry cem-static-app
 ```
+
+## Isolated compiled-component WASM prototype
+
+`component-runtime` is an opt-in Cargo feature propagated to `cem-ml`. The build
+script's `--component-runtime` mode uses a separate target directory and writes
+`packages/cem_ql/dist/wasm-component`; ordinary builds and their outputs stay on
+the complete ABI. This prototype exports `renderCompiledApplication` plus
+wasm-bindgen support, rather than either crate's general WASM tooling APIs.
+The general standard-library/native/URL fallback and receiver-chain routes are
+compiled out of this target's evaluator; legacy v1 CSS source decoding is also
+excluded from its reload branch. This is a narrower execution boundary, not a
+claim that every source parser or schema is absent from the linked result.
+
+The function selection is trusted **build input**, never request metadata. Set
+`CEM_APPLICATION_REGISTRY_RS` to the absolute path of native-generated
+`selected_registry.rs`. Cargo watches both that variable and the selected file.
+Without the variable, the generated registry is empty and function calls refuse;
+it does not substitute the full registry. Arbitrary Rust build input has the
+normal Rust build trust boundary; deployment artifacts cannot replace it.
+
+The call accepts bounded native v2/v3 template bytes, independently pinned
+hashes/versions/bindings/source-map mode, one original JSON response and its
+absolute source URI. Shared `cem-ml::import::import_json_bytes` uses the ordinary
+native JSON parser, limits, CEM-tree projection and retained owner, without the
+all-format loader dispatcher. A parity fixture checks source identities, trees,
+owners and malformed-input diagnostics against ordinary JSON import. No
+JavaScript object or serialized replacement AST is involved.
+
+Template/JSON inputs are each limited to 1 MiB, pin metadata to 16 KiB, and HTML
+results to 1 MiB. Native admission/memory accounting remains active in WASM;
+rendering uses a five-second operation policy. Owners are call-local and no
+handles or executable values cross instances. Failed admission/rendering returns
+a bounded error without echoing application content; there is no source fallback.
+Selected data remains excluded from read-receipt/pure-render cache reuse.
+
+The native fixture generator compiles the existing cart entry and writes reference
+HTML for six changing JSON responses, plus valid denied-call, plain, v3 and
+legacy-refusal cases. Its three-function selection is a **fixture**, not a closed
+recipe for the cart's complete component behavior graph. The WASM driver checks
+identical HTML on two independently instantiated heaps, refusal and subsequent
+valid calls, absent full API exports, actual linked size reduction and code/data
+section sizes. Measurements are written to
+`dist/reports/components-wasm/selected-runtime.json`; Binaryen input/output pins
+are in `dist/reports/wasm-optimization/cem-ql-component.json`.
+
+Matched release builds use the same Rust toolchain, wasm-bindgen 0.2.122 and
+Binaryen 132.0.0 `-Oz`. The full build retains its default debug/tooling surface;
+the isolated build uses `--no-default-features --features component-runtime`.
+
+| WASM measure | Full bytes | Prototype bytes |
+| --- | ---: | ---: |
+| Raw | 24,198,709 | 10,301,667 |
+| Gzip level 9 | 7,376,804 | 2,855,039 |
+| Brotli quality 9 | 5,422,643 | 2,156,757 |
+| Code section payload | 21,438,119 | 8,029,605 |
+| Data section payload | 2,731,590 | 2,260,125 |
+
+The prototype is 9.82 MiB raw, a 57.4% whole-file reduction.
+It has 10 imports/9 exports, compared with 28/171 for the full runtime.
+Its only public application entry is `renderCompiledApplication`; the other
+exports are memory and wasm-bindgen support. This proves a smaller linked surface
+and reduced code/data sections, without attributing removed bytes to particular
+languages, schemas or functions. Complete application link closure remains false.
+
+Prototype SHA-256: `09315c82762a9ce7350cc58cca236e5fa0a39cb03c1a6c4b052a4916a836f8ea`.
+
+Full SHA-256: `6630fc0c74be29eb08613030e656d1f6845659b2cbaaee281fe22c55bab32d67`.
+
+```bash
+cargo run --locked --offline -p cem-ql --example component_runtime_fixture -- \
+  dist/artifacts/cem_ql/component-runtime
+CEM_APPLICATION_REGISTRY_RS="$PWD/dist/artifacts/cem_ql/component-runtime/selected_registry.rs" \
+  node tools/scripts/build-cem-ql-wasm.mjs --component-runtime
+node packages/cem_ql/tests/component-runtime-wasm.mjs
+# Native default-deny fixtures deliberately use no selected build recipe:
+env -u CEM_APPLICATION_REGISTRY_RS cargo test --locked --offline -p cem-ql \
+  --lib --features component-runtime application_runtime
+```
+
+This is **not yet a bundle replacement** for `cem-elements` or the complete
+component library. It renders the compiled entry but does not install retained
+CSS, register component declarations, wire shared behaviors/providers or perform
+checkpoint/journal handoff. Runtime input/type contracts and demand-module
+transport remain open. No Storefront actions, Studio wiring, shared UI JavaScript
+or credential/checkpoint policy changes are included in this step.
 
 ## Remaining delivery boundaries
 
@@ -538,8 +623,8 @@ dist/target/debug/examples/compile_declaration_closure \
   GraphQL transport. The native render fixture sends no requests and has no
   interactive action bindings. Register a normal Studio example project with
   working build/preview only when those behaviors exist.
-- Partition native dependencies/exports/registries and measure the separate
-  compiled-UI + JSON distribution. Verify optional module acquisition, offline
+- Extend the isolated prototype to the complete compiled-UI + JSON distribution
+  with verified native dependency/ABI closure. Verify optional module acquisition, offline
   behavior and worker/fallback recovery with the same app state and semantics.
 
 Existing full builds/defaults stay intact. Entered passwords/OTPs continue to

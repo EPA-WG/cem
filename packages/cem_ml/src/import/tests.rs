@@ -157,3 +157,21 @@ fn csv_string_imports_keep_string_byte_and_value_limits_with_owned_contracts() {
     assert!(import_data_bytes_with_context(excessive.as_bytes(), "text/csv;header=absent", "cem", SOURCE_URI, Some(&context)).is_ok(),
         "the document boundary keeps its larger independent value budget");
 }
+
+#[test]
+fn json_only_boundary_matches_general_import_and_retains_original_owner() {
+    let uri = "app://cart/response.json";
+    for bytes in [br#"{"data":{"name":"Tea","qty":2},"errors":[]}"#.as_slice(), br#"[null,true,"\u0061"]"#] {
+        let selected = super::import_json_bytes(bytes, uri).unwrap();
+        let ordinary = super::import_data_bytes(bytes, "application/json", "cem", uri).unwrap();
+        assert!(matches!(selected.native_owner().unwrap().downcast_ref::<crate::lifecycle::LoadedInputAstStream>(), Some(crate::lifecycle::LoadedInputAstStream::JsonDocument(_))));
+        assert_eq!(selected.source_uri(), ordinary.source_uri());
+        assert_eq!(format!("{:?}",selected.ast()), format!("{:?}",ordinary.ast()));
+        for index in 0..selected.ast().nodes.len() {
+            assert_eq!(selected.source_key(index as u32), ordinary.source_key(index as u32));
+        }
+    }
+    for bytes in [b"{".as_slice(), b"[1,]", b"{\"a\":}"] {
+        assert_eq!(super::import_json_bytes(bytes, uri).unwrap_err(), super::import_data_bytes(bytes, "application/json", "cem", uri).unwrap_err());
+    }
+}

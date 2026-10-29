@@ -26,7 +26,7 @@ use crate::types::{FunctionSignature, TyConfig, Type, TypeChecker};
 mod json_boundary;
 pub(crate) use json_boundary::parse_template_data;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", not(feature = "component-runtime")))]
 pub mod wasm;
 
 pub mod native_values;

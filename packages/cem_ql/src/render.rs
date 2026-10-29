@@ -94,7 +94,7 @@ const MAX_TEMPLATE_CALL_DEPTH: usize = 32;
 #[derive(Debug, Clone, Default)]
 pub struct TemplateData {
     /// Native selected-registry prototype; ordinary/full runtimes leave this absent.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
     pub selected_registry: Option<std::sync::Arc<crate::selected_registry::SelectedFunctionRegistry>>,
     pub bindings: BTreeMap<String, ItemStream>,
     /// Host capabilities are not data bindings and never enter the data DOM.
@@ -1253,7 +1253,7 @@ fn render_compiled_template_internal(
     #[cfg(test)]
     profile.next("render/renderer-metadata");
     let mut renderer = PlanRenderer {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
         selected_registry: data.selected_registry.clone(),
         read_dependencies,
         evaluation_context: EvaluationContext {
@@ -2976,7 +2976,7 @@ impl TemplateCompiler<'_> {
 }
 
 struct PlanRenderer<'a> {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
     selected_registry: Option<std::sync::Arc<crate::selected_registry::SelectedFunctionRegistry>>,
     read_dependencies: Option<&'a mut read_dependencies::RenderReadTracker>,
     evaluation_context: EvaluationContext,
@@ -3208,7 +3208,7 @@ impl PlanRenderer<'_> {
                         &attributes,
                         source_map,
                         &TemplateData {
-                            #[cfg(not(target_arch = "wasm32"))]
+                            #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
                             selected_registry: self.selected_registry.clone(),
                             bindings: self.evaluation_context.policy_bindings.clone(),
                             native_functions: self.evaluation_context.native_functions.clone(),
@@ -3927,15 +3927,15 @@ impl PlanRenderer<'_> {
         let mut tracking = self.read_dependencies.take();
         let freshness = tracking.as_deref_mut().and_then(|tracker| tracker.query_freshness(query));
         let (stream, receipt) = if {
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
             { self.selected_registry.is_some() }
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(all(target_arch = "wasm32", not(feature = "component-runtime")))]
             { false }
         } {
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
             { (crate::eval::Evaluator::evaluate_selected_internal(query,&self.evaluation_context,
                 self.selected_registry.clone().unwrap(),&control,scope,protected),None) }
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(all(target_arch = "wasm32", not(feature = "component-runtime")))]
             { unreachable!() }
         } else if borrow_context {
             #[cfg(test)]

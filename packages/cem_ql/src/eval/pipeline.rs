@@ -44,10 +44,11 @@ pub(crate) fn apply_pipeline(
 ) -> ItemStream {
     let mut stream = source;
     for (index, step) in steps.iter().enumerate() {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
         if ctx.selected_registry.is_some() && matches!(step,IrStep::Method{..}) {
             return ctx.unsupported(step_source(step),"receiver methods need a selected execution contract");
         }
+        #[cfg(not(all(target_arch = "wasm32", feature = "component-runtime")))]
         if stream.chain && matches!(step, IrStep::Method { .. }) {
             return super::chain::apply(stream, &steps[index..], ctx);
         }
@@ -76,12 +77,17 @@ fn step_source(step: &IrStep) -> IrId {
 }
 
 fn apply_step(input: ItemStream, step: &IrStep, ctx: &mut EvalCtx<'_>) -> ItemStream {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
     let input=if ctx.selected_registry.is_some() {
         match super::selected::pipeline_step(input,step,ctx) {Ok(result)=>return result,Err(input)=>input}
     }else{input};
     match step {
-        IrStep::Method { name, args } => super::chain::method(input, name, args, ctx),
+        IrStep::Method { name: _, args } => {
+            #[cfg(all(target_arch = "wasm32", feature = "component-runtime"))]
+            { ctx.unsupported(args.first().copied().unwrap_or(IrId(0)), "receiver methods need a selected execution contract") }
+            #[cfg(not(all(target_arch = "wasm32", feature = "component-runtime")))]
+            { let IrStep::Method { name, .. } = step else { unreachable!() }; super::chain::method(input, name, args, ctx) }
+        },
         IrStep::Lambda(lambda) => apply_lambda_step(input, *lambda, ctx),
         IrStep::Named {
             binding,
@@ -108,7 +114,10 @@ fn apply_step(input: ItemStream, step: &IrStep, ctx: &mut EvalCtx<'_>) -> ItemSt
             out
         }
         IrStep::NamedStdlib { module, name, args } => {
-            apply_stdlib_step(input, module, name, args, ctx)
+            #[cfg(all(target_arch = "wasm32", feature = "component-runtime"))]
+            { let _ = (input, module, name); ctx.unknown_function(args.first().copied().unwrap_or(IrId(0)), "compiled component runtime requires a selected registry") }
+            #[cfg(not(all(target_arch = "wasm32", feature = "component-runtime")))]
+            { apply_stdlib_step(input, module, name, args, ctx) }
         }
     }
 }

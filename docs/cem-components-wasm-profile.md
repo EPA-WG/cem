@@ -1,7 +1,7 @@
 # Minimal component runtime WASM profile
 
-Status: planned separate build and distribution; no target or runtime switch is
-implemented by this document. Requested 2026-10-28. Product sequencing belongs to
+Status: separate compiled-template/JSON WASM prototype implemented; complete live
+component distribution and runtime switching remain in progress. Requested 2026-10-28. Product sequencing belongs to
 [roadmap phase 3.1.3](../roadmap.md#313-minimal-component-runtime-wasm-profile);
 implementation steps belong to the [execution checklist](todo.md#component-application-wasm-profile-separate-target).
 
@@ -55,7 +55,7 @@ format demands, source/artifact identities and unresolved host/provider contract
 The native [selected-registry prototype](cem-components-shopping-cart-profile.md#native-selected-registry-prototype)
 now generates exact reviewed entries and transitive execution-unit requirements,
 and renders the cart entry without full function-catalogue assembly. It remains
-native-only; WASM partitioning and behavior/provider implementation closure stay open.
+available in an [isolated WASM prototype](cem-components-shopping-cart-profile.md#isolated-compiled-component-wasm-prototype); complete component ABI, behavior/provider and input/type closure stay open.
 The browser's `retainCemMlTemplateArtifact` path still takes original
 template source for its optional source-cache behavior. A separate strict
 `retainPinnedCemMlTemplateArtifact` adapter and `pinned-template-artifact-v1`
@@ -78,9 +78,10 @@ See the [recovery acceptance](cem-components-shopping-cart-profile.md#compiled-a
 A complete function/resource closure remains pending. Ordinary `cem-element src`
 continues to support source. Keep native CSS parsing until compiled imported closures are admitted;
 compiled inline styles alone do not complete that exclusion gate.
-These changes do not establish omitted compiler code or a smaller binary.
-The evaluator also assembles the general function registry during native render;
-profile-specific dispatch/registry roots remain necessary even with compiled IR.
+The isolated prototype separates exports and removes general dispatch references
+from its WASM evaluator. Its measured reduction is evidence for this bounded
+entry-template/JSON surface; it does not establish per-language omission or a
+complete live-component replacement. The full runtime retains its general registry.
 
 ## Baseline and evidence
 
@@ -89,7 +90,8 @@ covers all 59 canonical component declarations, 24 shared behaviors and the
 current native binding/dependency roots. The [isolated browser baseline](cem-components-wasm-baseline.md)
 checks form editing, native JSON/CSV rendering and editor coloring in both
 worker and fallback modes. These are reference measurements of the full runtime;
-no component-core target or reduced binary exists yet.
+they are not measurements of the isolated compiled-template/JSON prototype.
+Complete live-component integration into that reduced target remains open.
 The browser baseline retains the original full-profile comparator identified by
 its recorded hash. The pinned-admission browser/WASM tests use the newly rebuilt
 runtime; the audit records that current binary separately.

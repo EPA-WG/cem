@@ -1126,10 +1126,54 @@ inventory, not the minimum set loaded by every app.
       5,418,366 bytes. Source/interface/vendor audits pass. The 4 MiB checkpoint
       limit, 5-second native handoff deadlines and entered-credential refusal
       policy are unchanged; no application/component UI JavaScript was added.
-    - [ ] Promote the reviewed selected dispatcher into the separate application
-      WASM target, partition the general fallback/source/tooling paths and prove
-      actual linked-code omission. Close required shared behavior/provider/source
-      and native input/type contracts before treating a component app as complete.
+    - [x] Add an isolated selected component WASM prototype and native/WASM
+      fixtures for pinned v2/v3 admission, six changing JSON responses, malformed
+      input, denied functions, missing build selection and independent heaps.
+      Measure its actual interface and linked bytes against the full runtime;
+      keep provider/type/source closure and complete component integration open.
+      Add JSON-only native-import parity/ownership/diagnostic fixtures before
+      using that shared boundary to avoid the all-format runtime dispatcher.
+      Implemented opt-in `component-runtime` Cargo/build-script mode with separate
+      target/output directories, build-owned generated Rust selection (empty and
+      default-deny without a recipe), one compiled v2/v3 native JSON/render entry,
+      no full tooling exports and no evaluator general/native/URL/chain fallback.
+      Shared JSON-only import preserves ordinary parser/limits/projection, source
+      identities and native ownership; no JS object/AST handoff or UI behavior was
+      added. Input bounds, native admission/memory accounting, controlled render
+      timeouts and selected-cache refusal remain active. This is an entry-template
+      prototype: CSS installation, shared component/provider ownership, generated
+      input/type contracts and recovery integration are still open. The fixture's
+      selection is build-input/behavioral evidence, not an embedded registry stamp
+      or complete application link proof; `nativeLinkClosureVerified` stays false.
+      Matched Binaryen 132.0.0 -Oz builds: prototype 10,301,667 bytes (9.82 MiB),
+      gzip-9 2,855,039 and Brotli-9 2,156,757; full default 24,198,709 bytes
+      (23.08 MiB), gzip-9 7,376,804 and Brotli-9 5,422,643. Raw reduction is 57.4%;
+      code payload 21,438,119 -> 8,029,605 and data 2,731,590 -> 2,260,125 bytes.
+      Prototype has 10 imports/9 exports (one app entry plus support), full has
+      28/171. This measures whole-file/section omission, not individual languages.
+      Verification: 166 native QL tests (four existing profiling cases ignored),
+      two native default-deny/admission tests, 19 shared import regressions,
+      45 declaration/reload/style/cache cases, CLI recipe/Rust fixtures and bridge
+      compilation pass. Final optimized WASM matches all six native cart outputs
+      on two independent heaps and rejects bad pins, JSON, sizes, v1/source input
+      and unselected functions. Full native CSS/pinned-admission WASM checks,
+      14 component browser cases, both focused full Studio Login worker/fallback
+      recovery cases, eight audit-tool cases, formatter/script lint and matching
+      source/interface/vendor audits pass. Entered-credential refusal, the 4 MiB
+      checkpoint budget and five-second native handoff deadlines are unchanged.
+    - [ ] Complete the separate application WASM target beyond the bounded
+      compiled-template/JSON prototype. Close required shared behavior/provider/
+      source and native input/type contracts before treating a component app as
+      complete; measure remaining linked roots without claiming per-language
+      omission from whole-file size alone.
+      - [ ] Bind compiled declarations, retained CSS installation and shared
+        behavior/provider ownership to the reduced ABI. Prove the compiled form's
+        worker/fallback edits, credential refusal and generation handoff without
+        substituting the full tooling bootstrap.
+      - [ ] Bind generated registry/artifact/input contracts to the selected
+        application build and specialize remaining execution/type/source roots.
+        Audit linked symbols and optional-module handoff before claiming unused
+        language/schema/function implementations are absent.
 - [ ] Assemble and measure the compiled-UI + JSON shopping-cart profile first.
   Add declarative shared GraphQL transport only if existing resource capabilities
   cannot express it; alert the user before implementing new shared JavaScript.

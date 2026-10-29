@@ -613,6 +613,30 @@ pub(crate) fn import_content_type(value: &str) -> Result<(&'static str, String),
     Ok((format, normalized))
 }
 
+/// JSON-only native admission for selected application runtimes. This shares
+/// the ordinary JSON parser, limits, projection and retained-owner construction,
+/// without depending on the all-format/source-loader dispatcher.
+pub fn import_json_bytes(bytes: &[u8], source_uri: &str) -> Result<Arc<RetainedCemTree>, String> {
+    if bytes.len() > MAX_DOCUMENT_BYTES {
+        return Err("Source exceeds the 16 MiB document import limit.".into());
+    }
+    let document = checked(json::json_document_ast_from_source_bytes(json::JsonSourceValidationRequest {
+        bytes, source_uri, content_type: Some("application/json"),
+    }))?;
+    validate_json_limits(&document, MAX_DOCUMENT_VALUES).map_err(|error| error.to_string())?;
+    let (ast, semantics) = project_json(&document, MAX_DOCUMENT_VALUES)?;
+    retain_projected_native(Arc::new(LoadedInputAstStream::JsonDocument(document)), ast, semantics,
+        "", source_uri, "application/json", bytes.len(),
+        Some(source_fingerprint(source_uri, bytes, &["data/1", "application/json", "cem"])))
+}
+
+fn project_json(document: &json::JsonDocumentAst, max_values: usize) -> Result<(CemDocument, CemTreeSemantics), String> {
+    let mut builder = ImportBuilder::new();
+    builder.max_values = max_values;
+    builder.generic_data(&document.to_generic_data_ast())?;
+    Ok((builder.ast, builder.semantics))
+}
+
 /// Import response bytes without a JavaScript or serialized AST intermediate.
 /// Byte readers retain their smaller limit; loaders additionally bound retained owners.
 pub fn import_data_bytes(
@@ -626,9 +650,9 @@ pub fn import_data_bytes(
 }
 
 fn runtime_import_context() -> Option<crate::engine::EngineContext> {
-    #[cfg(all(target_arch = "wasm32", feature = "schema-asset-packs"))]
+    #[cfg(all(target_arch = "wasm32", feature = "schema-asset-packs", not(feature = "component-runtime")))]
     { crate::api::wasm::schema_asset_context() }
-    #[cfg(not(all(target_arch = "wasm32", feature = "schema-asset-packs")))]
+    #[cfg(not(all(target_arch = "wasm32", feature = "schema-asset-packs", not(feature = "component-runtime"))))]
     { None }
 }
 
@@ -1063,7 +1087,7 @@ fn project_native(
     max_values: usize,
 ) -> Result<Arc<RetainedCemTree>, String> {
     validate_data_ast(native.as_ref(), max_values).map_err(|e| e.to_string())?;
-    let (ast, mut semantics) = match (projection, native.as_ref()) {
+    let (ast, semantics) = match (projection, native.as_ref()) {
         ("cem", LoadedInputAstStream::CssDocument(doc)) => css::project(doc)?,
         ("cem" | "xpath", LoadedInputAstStream::HtmlDocument(doc)) => html::project(doc)?,
         ("json-to-xml", LoadedInputAstStream::JsonDocument(doc)) =>
@@ -1083,9 +1107,9 @@ fn project_native(
             (imported.ast, imported.semantics)
         },
         ("xpath", _) => return Err("The xpath projection requires XML input; use the ordinary CEM import for other formats.".into()),
+        ("cem", LoadedInputAstStream::JsonDocument(doc)) => project_json(doc, max_values)?,
         ("cem", owner) => {
             let data = match owner {
-                LoadedInputAstStream::JsonDocument(doc) => doc.to_generic_data_ast(),
                 LoadedInputAstStream::JsonSchemaDocument(doc) => doc.json.to_generic_data_ast(),
                 LoadedInputAstStream::CsvDocument(doc) => doc.to_generic_data_ast(),
                 LoadedInputAstStream::YamlDocument(doc) => doc.to_generic_data_ast(),
@@ -1098,6 +1122,15 @@ fn project_native(
         },
         _ => return Err("Choose the cem, json-to-xml or xpath projection explicitly.".into()),
     };
+    retain_projected_native(native, ast, semantics, source, source_uri, format, byte_length, fingerprint)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn retain_projected_native(
+    native: Arc<LoadedInputAstStream>, ast: CemDocument, mut semantics: CemTreeSemantics,
+    source: &str, source_uri: &str, format: &str, byte_length: usize,
+    fingerprint: Option<[u8; 32]>,
+) -> Result<Arc<RetainedCemTree>, String> {
     semantics.source_fingerprint = fingerprint;
     semantics
         .sources

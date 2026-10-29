@@ -15,5 +15,5 @@
 pub mod html_render;
 pub mod source_highlight;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", not(feature = "component-runtime")))]
 pub mod wasm;

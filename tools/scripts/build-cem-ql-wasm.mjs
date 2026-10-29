@@ -9,9 +9,11 @@ import { fileURLToPath } from 'node:url';
 
 const requiredWasmBindgen = '0.2.122';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const targetDir = 'dist/target/cem_ql';
+const componentRuntime = process.argv.includes('--component-runtime');
+if (process.argv.slice(2).some(arg => arg !== '--component-runtime')) throw new Error('Unknown WASM build option');
+const targetDir = componentRuntime ? 'dist/target/cem_ql_component' : 'dist/target/cem_ql';
 const wasmInput = `${targetDir}/wasm32-unknown-unknown/release/cem_ql.wasm`;
-const outDir = 'packages/cem_ql/dist/wasm';
+const outDir = componentRuntime ? 'packages/cem_ql/dist/wasm-component' : 'packages/cem_ql/dist/wasm';
 
 run('cargo', [
     'build',
@@ -19,6 +21,7 @@ run('cargo', [
     '--package',
     'cem-ql',
     '--lib',
+    ...(componentRuntime ? ['--no-default-features', '--features', 'component-runtime'] : []),
     '--release',
     '--target',
     'wasm32-unknown-unknown',
@@ -58,19 +61,21 @@ run('wasm-bindgen', [
 const optimization = optimizeWasm(resolve(repoRoot, outDir, 'cem_ql_bg.wasm'));
 const reportRoot = resolve(repoRoot, 'dist/reports/wasm-optimization');
 mkdirSync(reportRoot, { recursive: true });
-writeFileSync(resolve(reportRoot, 'cem-ql.json'), `${JSON.stringify(optimization, null, 2)}\n`);
+writeFileSync(resolve(reportRoot, componentRuntime ? 'cem-ql-component.json' : 'cem-ql.json'), `${JSON.stringify(optimization, null, 2)}\n`);
 
 // Owned wasm-bindgen classes expose Symbol.dispose; keep ES2022 consumers
 // compatible by declaring its ambient library in the generated artifact.
 const declarations = resolve(repoRoot, outDir, 'cem_ql.d.ts');
 writeFileSync(declarations, `/// <reference lib="esnext.disposable" />\n${readFileSync(declarations, 'utf8')}`);
 
-// A separate lexical factory leaves the legacy module ABI unchanged.
-writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.js'), cemQlWasmFactory(readFileSync(resolve(repoRoot, outDir, 'cem_ql.js'), 'utf8')));
-writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.d.ts'), cemQlWasmFactoryTypes);
+if (!componentRuntime) {
+    // A separate lexical factory leaves the legacy module ABI unchanged.
+    writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.js'), cemQlWasmFactory(readFileSync(resolve(repoRoot, outDir, 'cem_ql.js'), 'utf8')));
+    writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.d.ts'), cemQlWasmFactoryTypes);
 
-for (const file of ['native-generation.js', 'native-generation.d.ts', 'schema-asset-protocol.js', 'schema-asset-protocol.d.ts']) {
-    copyFileSync(resolve(repoRoot, 'packages/cem_ql/runtime', file.replace('.d.ts', '.d.mts').replace('.js', '.mjs')), resolve(repoRoot, outDir, file));
+    for (const file of ['native-generation.js', 'native-generation.d.ts', 'schema-asset-protocol.js', 'schema-asset-protocol.d.ts']) {
+        copyFileSync(resolve(repoRoot, 'packages/cem_ql/runtime', file.replace('.d.ts', '.d.mts').replace('.js', '.mjs')), resolve(repoRoot, outDir, file));
+    }
 }
 
 // wasm-bindgen `--target web` emits ESM, but the out dir has no package.json, so

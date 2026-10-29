@@ -379,6 +379,9 @@ impl CompiledTemplateArtifact {
             }).collect::<Result<Vec<_>, TemplateArtifactLoadError>>()?;
             TemplateArtifactPayload { nodes: payload.nodes, stylesheets, module_map: payload.module_map, diagnostics_json: payload.diagnostics_json }
         } else {
+            #[cfg(all(target_arch = "wasm32", feature = "component-runtime"))]
+            { return Err(TemplateArtifactLoadError::unsupported("component runtime requires compiled CSS artifacts")); }
+            #[cfg(not(all(target_arch = "wasm32", feature = "component-runtime")))]
             rmp_serde::from_slice(&payload_bytes).map_err(|error| TemplateArtifactLoadError::unsupported(format!(
                 "component-template IR payload is invalid: {error}")))?
         };
