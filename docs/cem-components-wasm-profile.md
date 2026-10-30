@@ -63,9 +63,12 @@ small shared `cem-elements/component-generation` adapter initializes asynchronou
 uses existing DOM style ownership, isolates heaps and refuses foreign roots during
 manual cleanup. Passive declarations also render shared CEMV attribute/slice
 inputs with typed/source/reference retention, fixed admission limits and reserved
-runtime-root refusal. Each render owns a temporary native input frame. Complete
-receiver schemas, widget/provider input and recovery-group contracts remain open;
-no default Studio backend or credential policy changes are implied.
+runtime-root refusal. Optional host instance identity uses its own bounded input
+and cannot be supplied through JSON/attribute/slice roots. Pinned receiver
+declarations preserve required/default/conversion/facet checks. Each render owns
+a temporary native input frame. Complete named receiver schemas, widget/provider
+input and recovery-group contracts remain open; no default Studio backend or
+credential policy changes are implied.
 The browser's `retainCemMlTemplateArtifact` path still takes original
 template source for its optional source-cache behavior. A separate strict
 `retainPinnedCemMlTemplateArtifact` adapter and `pinned-template-artifact-v1`

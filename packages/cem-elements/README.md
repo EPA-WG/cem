@@ -553,9 +553,13 @@ uses the existing DOM stylesheet-ownership service and refuses foreign roots
 before disposal. Its `renderInputs(bytes, bindings)` accepts an opaque multi-root
 CEMV artifact with bounded native attribute/slice routing, preserving typed values,
 references and original source locations. Each render gets a fresh input frame;
-reserved runtime inputs and invalid or conflicting bindings refuse. Supply the
-separately built profile assets explicitly; the ordinary runtime continues using
-the full backend. Complete data-island/schema contracts, widget/provider inputs,
+reserved runtime inputs and invalid or conflicting bindings refuse. The optional
+third argument supplies host `instanceID`; it is checked and bound separately from
+the data channels and is never retained between renders. Pinned receiver
+attribute declarations enforce defaults, required values, scalar conversion and
+facets through the shared native renderer. Supply the separately built profile
+assets explicitly; the ordinary runtime continues using the full backend.
+Complete data-island/named-schema contracts, widget/provider inputs,
 processing-worker integration and checkpoint handoff remain open. See the
 [retained owner contract and fixtures](../../docs/cem-components-shopping-cart-profile.md#retained-passive-declarations-and-stylesheet-leases).
 

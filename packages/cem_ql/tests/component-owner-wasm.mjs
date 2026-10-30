@@ -57,6 +57,26 @@ for(const generation of [first,next]) {
     assert.throws(()=>owner.renderInputs(new Uint8Array(),routes),/disposed/);
     assert.equal(generation.inventory().liveDeclarationOwners,0);
 }
+const receiverFixture=await fixture('owned-receiver');
+const receiverRoutes=[{target:'attribute',name:'quantity',index:0}];
+for(const generation of [first,next]) {
+    const owner=generation.open(...receiverFixture);
+    for(const name of ['first','second']) {
+        const input=await readFile(new URL(`owned-receiver-${name}.cemv`,root));
+        const expected=await readFile(new URL(`owned-receiver-${name}.html`,root),'utf8');
+        assert.equal(owner.renderInputs(input,receiverRoutes,`receiver-${name}`),expected);
+        for(const invalid of ['low','high','invalid','missing']) {
+            const bad=await readFile(new URL(`owned-receiver-${invalid}.cemv`,root));
+            assert.throws(()=>owner.renderInputs(bad,invalid==='missing'?[]:receiverRoutes,'refused'),error=>error==='compiled application render failed');
+        }
+        for(const id of ['', 'a b', 'line\nbreak', 'x'.repeat(1025), 'é'.repeat(600), '\ud800']) assert.throws(()=>owner.renderInputs(input,receiverRoutes,id));
+        for(const name of ['instanceID','island','suggestions']) assert.throws(()=>owner.renderJson(Buffer.from('{}'),'app://data/receiver.json',name),error=>error==='compiled declaration needs a pinned native JSON binding');
+        assert.throws(()=>owner.renderInputs(input,receiverRoutes),error=>error==='compiled application render failed');
+        assert.equal(owner.renderInputs(input,receiverRoutes,`receiver-${name}`),expected);
+    }
+    owner.dispose();
+    assert.equal(generation.inventory().liveDeclarationOwners,0);
+}
 const foreign=bindings.open(...inline);
 foreign.dispose(); // Still a native allocation until its opaque owner is freed.
 assert.throws(()=>first.dispose(),/foreign-owner/);
@@ -74,6 +94,7 @@ const transport=createCemComponentWasmBindings();
 const guarded={...transport,open(...args){
     const raw=transport.open(...args);
     return {describe:()=>raw.describe(),stylesheet:(...input)=>raw.stylesheet(...input),releaseConsumer:input=>raw.releaseConsumer(input),dispose:()=>raw.dispose(),free:()=>raw.free(),
+        renderInstanceInputs(...input){assert.throws(()=>protectedOwner.dispose(),/busy/);assert.throws(()=>protectedGeneration.dispose(),/busy/);return raw.renderInstanceInputs(...input);},
         renderInputs(...input){assert.throws(()=>protectedOwner.dispose(),/busy/);assert.throws(()=>protectedGeneration.dispose(),/busy/);return raw.renderInputs(...input);},
         renderJson(...input){assert.throws(()=>protectedOwner.dispose(),/busy/);assert.throws(()=>protectedGeneration.dispose(),/busy/);return raw.renderJson(...input);}};
 }};
@@ -82,6 +103,9 @@ assert.match(protectedOwner.renderJson(Buffer.from('{"value":"Guarded"}'),'app:/
 const protectedInputs=protectedGeneration.open(...inputFixture);
 const input=await readFile(new URL('owned-input-first.cemv',root));
 assert.match(protectedInputs.renderInputs(input,routes),/Tea &lt;img&gt;/);
+const protectedReceiver=protectedGeneration.open(...receiverFixture);
+const receiverInput=await readFile(new URL('owned-receiver-first.cemv',root));
+assert.match(protectedReceiver.renderInputs(receiverInput,receiverRoutes,'protected'),/3\/3\/protected/);
 const reentrantInputs=protectedGeneration.open(...inputFixture);
 assert.throws(()=>reentrantInputs.renderInputs(input,{toJSON(){reentrantInputs.dispose();return routes;},length:2}),/disposed/);
 protectedGeneration.dispose();
@@ -89,4 +113,4 @@ const cleanup=await createCemComponentGeneration(module,createCemComponentWasmBi
 const cleanupOwner=cleanup.open(...inline), cleanupAbort=new AbortController();
 cleanupOwner.installStylesheets('cleanup',context,{signal:cleanupAbort.signal,commit:()=>true,release:()=>{cleanupAbort.abort();cleanupOwner.dispose();assert.throws(()=>cleanup.open(...inline),/retired/);cleanup.dispose();}});
 cleanup.dispose();cleanup.dispose();
-console.log('Selected declaration owners: native pins, scoped imports, native JSON/attribute/slice inputs, CSS leases, failed/stale/reentrant cleanup, independent heaps and foreign-root retirement refusal passed.');
+console.log('Selected declaration owners: native pins, scoped imports, native JSON/attribute/slice inputs, receiver constraints and instance identity, CSS leases, failed/stale/reentrant cleanup, independent heaps and foreign-root retirement refusal passed.');

@@ -137,6 +137,7 @@ fn main() {
     }
     owned_declarations(&output);
     owned_inputs(&output);
+    owned_receiver(&output);
     // Trusted native fixture selection, not a claim that all cart component
     // behavior/provider dependencies have closed application build recipes.
     fs::write(output.join("selected_registry.rs"), "use cem_ql::selected_registry::{SelectedBuiltin, SelectedFunctionRegistry};\npub fn selected_registry() -> SelectedFunctionRegistry { SelectedFunctionRegistry::new([SelectedBuiltin::SequenceFirst, SelectedBuiltin::SequenceWhere, SelectedBuiltin::SequenceCount]).unwrap() }\n").unwrap();
@@ -250,4 +251,72 @@ fn owned_inputs(output: &std::path::Path) {
         )
         .unwrap();
     }
+}
+
+fn owned_receiver(output: &std::path::Path) {
+    use cem_ql::{
+        declaration_artifact::build_declaration_artifact,
+        eval::{output::output_attribute, portable::encode_values, AtomValue, Item},
+        render::RenderPlanAttribute,
+    };
+    let source = r#"<cem-element tag="cem-owned-receiver"><template id="cem-owned-receiver" type="text/cem-ml">{attribute @name=quantity @type=integer @required=true @minInclusive=1 @maxInclusive=5}{p @id="{$instanceID}" | {$quantity}/{$datadom.attributes.quantity}/{$instanceID}}</template></cem-element>"#;
+    let built = build_declaration_artifact(
+        source,
+        "https://app.test/components/receiver.xhtml",
+        TemplateArtifactSourceMapMode::Prod,
+        None,
+    )
+    .unwrap();
+    let metadata: cem_ql::declaration_artifact::DeclarationArtifactMetadata =
+        serde_json::from_str(&built.metadata_json).unwrap();
+    let loaded = built.template.reload_pinned(&metadata.template).unwrap();
+    fs::write(output.join("owned-receiver.bin"), built.template.bytes).unwrap();
+    fs::write(output.join("owned-receiver.json"), built.metadata_json).unwrap();
+    fs::write(output.join("owned-receiver.hash"), built.metadata_hash).unwrap();
+    for (name, value) in [
+        ("first", "003"),
+        ("second", "004"),
+        ("low", "0"),
+        ("high", "6"),
+        ("invalid", "private credential"),
+    ] {
+        let quantity = output_attribute(RenderPlanAttribute {
+            name: "quantity".into(),
+            namespace: None,
+            qualified_name: None,
+            value: "wrong compatibility projection".into(),
+            value_stream: ItemStream::once(Item::Atomic(AtomValue::String(value.into()))),
+            contract: None,
+            source_map: Default::default(),
+        });
+        fs::write(
+            output.join(format!("owned-receiver-{name}.cemv")),
+            encode_values(&ItemStream::once(quantity.clone()), &Default::default()).unwrap(),
+        )
+        .unwrap();
+        let mut data = TemplateData::default().with_binding(
+            "instanceID",
+            ItemStream::once(Item::Atomic(AtomValue::String(format!("receiver-{name}")))),
+        );
+        data.bind_native_attribute(quantity).unwrap();
+        let plan = render_compiled_template(&loaded, &data);
+        if matches!(name, "first" | "second") {
+            assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+            fs::write(
+                output.join(format!("owned-receiver-{name}.html")),
+                render_plan_to_html(&plan),
+            )
+            .unwrap();
+        } else {
+            assert!(plan
+                .diagnostics
+                .iter()
+                .any(|d| d.severity.is_hard_violation()));
+        }
+    }
+    fs::write(
+        output.join("owned-receiver-missing.cemv"),
+        encode_values(&ItemStream::empty(), &Default::default()).unwrap(),
+    )
+    .unwrap();
 }

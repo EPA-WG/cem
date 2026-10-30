@@ -7,6 +7,11 @@ import type {CemModuleUrlContextWire} from './internal/runtime-support/module-ur
 
 export default {title:'CEM Elements/Selected Component Generation',tags:['test']} satisfies Meta;
 type Story=StoryObj;
+function networkTraceStart() {
+    // Retain current-story requests after Storybook's module/fixture downloads.
+    performance.setResourceTimingBufferSize(4096);
+    return performance.now();
+}
 const inputs=import.meta.glob<string>('../../../../dist/artifacts/cem_ql/component-runtime/owned-*',{eager:true,query:'?url',import:'default'});
 const runtime=import.meta.glob<string>('../../../cem_ql/dist/wasm-component/{cem_ql_factory.js,cem_ql_bg.wasm}',{eager:true,query:'?url',import:'default'});
 async function artifact(name:string,suffix:string) {
@@ -17,7 +22,7 @@ async function artifact(name:string,suffix:string) {
 export const NativeDeclarationAndStyleLeases:Story={
     render:()=>'<section aria-label="Selected runtime declaration ownership">Native compiled declarations and CSS leases.</section>',
     play:async({canvasElement})=>{
-        const started=performance.now();
+        const started=networkTraceStart();
         const root=canvasElement.querySelector('section');
         if(!root)throw Error('Missing selected runtime fixture');
         const factoryUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_factory.js'];
@@ -75,7 +80,7 @@ export const NativeDeclarationAndStyleLeases:Story={
 export const NativeAttributeAndSliceInputs:Story={
     render:()=>'<section aria-label="Selected runtime native inputs">Native attribute and slice values.</section>',
     play:async({canvasElement})=>{
-        const started=performance.now();
+        const started=networkTraceStart();
         const factoryUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_factory.js'];
         const wasmUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_bg.wasm'];
         if(!factoryUrl||!wasmUrl)throw Error('Build the selected component WASM profile before this story');
@@ -102,6 +107,56 @@ export const NativeAttributeAndSliceInputs:Story={
                     expect(()=>component.renderInputs(input,[{target:'attribute',name:'wrong',index:0}])).toThrow();
                     expect(()=>component.renderInputs(input,[{target:'slice',name:'suggestions',index:1}])).toThrow();
                     expect(component.renderInputs(input,routes)).toBe(expected);
+                }
+                component.dispose();expect(generation.inventory().liveDeclarationOwners).toBe(0);
+            }
+        } finally {first.dispose();second.dispose();}
+        const requests=performance.getEntriesByType('resource').filter(entry=>entry.startTime>=started&&(entry as PerformanceResourceTiming).initiatorType==='fetch').map(entry=>entry.name);
+        expect(requests.filter(name=>name.includes('cem_ql_bg.wasm'))).toEqual([new URL(wasmUrl,location.href).href]);
+        expect(requests.some(name=>name.endsWith('.xhtml')||name.endsWith('.cem'))).toBe(false);
+    },
+};
+
+export const NativeReceiversAndInstanceIdentity:Story={
+    render:()=>'<section aria-label="Selected runtime receiver contracts">Native receiver constraints and host instance identity.</section>',
+    play:async({canvasElement})=>{
+        const started=networkTraceStart();
+        const factoryUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_factory.js'];
+        const wasmUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_bg.wasm'];
+        if(!factoryUrl||!wasmUrl)throw Error('Build the selected component WASM profile before this story');
+        const factory=await import(/* @vite-ignore */ factoryUrl);
+        const module=await WebAssembly.compile(await(await fetch(wasmUrl)).arrayBuffer());
+        const root=canvasElement.querySelector('section');if(!root)throw Error('Missing receiver fixture');
+        const routes=[{target:'attribute' as const,name:'quantity',index:0}];
+        const first=await createCemComponentGeneration(module,factory.createCemComponentWasmBindings());
+        const second=await createCemComponentGeneration(module,factory.createCemComponentWasmBindings());
+        try {
+            expect(first.memory()).not.toBe(second.memory());
+            for(const generation of [first,second]) {
+                const component=generation.open(new Uint8Array(await(await artifact('owned-receiver','bin')).arrayBuffer()),await(await artifact('owned-receiver','json')).text(),(await(await artifact('owned-receiver','hash')).text()).trim());
+                for(const name of ['first','second']) {
+                    const input=new Uint8Array(await(await artifact(`owned-receiver-${name}`,'cemv')).arrayBuffer());
+                    const expected=await(await artifact(`owned-receiver-${name}`,'html')).text();
+                    const actual=component.renderInputs(input,routes,`receiver-${name}`);
+                    expect(actual).toBe(expected);
+                    root.innerHTML=actual; // Test projection of native output.
+                    expect(root.querySelector('p')?.id).toBe(`receiver-${name}`);
+                    expect(root.querySelector('p')?.textContent).toBe(`${name==='first'?3:4}/${name==='first'?3:4}/receiver-${name}`);
+                    for(const invalid of ['low','high','invalid','missing']) {
+                        const bytes=new Uint8Array(await(await artifact(`owned-receiver-${invalid}`,'cemv')).arrayBuffer());
+                        let failure:unknown;
+                        try {component.renderInputs(bytes,invalid==='missing'?[]:routes,'refused');} catch(error) {failure=error;}
+                        expect(failure).toBe('compiled application render failed');
+                    }
+                    expect(()=>component.renderInputs(input,routes,'a b')).toThrow();
+                    expect(()=>component.renderInputs(input,routes,'\ud800')).toThrow();
+                    expect(()=>component.renderInputs(input,[{target:'slice',name:'instanceID',index:0}],'protected')).toThrow();
+                    expect(()=>component.renderInputs(input,routes)).toThrow();
+                    expect(component.renderInputs(input,routes,`receiver-${name}`)).toBe(expected);
+                    const id='cart:é🛒"><svg>';
+                    root.innerHTML=component.renderInputs(input,routes,id);
+                    expect(root.querySelector('p')?.id).toBe(id);
+                    expect(root.querySelector('svg')).toBeNull();
                 }
                 component.dispose();expect(generation.inventory().liveDeclarationOwners).toBe(0);
             }

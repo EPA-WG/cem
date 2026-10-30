@@ -739,7 +739,9 @@ scoped CSS leases now have a shared asynchronous generation adapter, DOM ownersh
 acceptance and foreign-root cleanup refusal without full WASM bootstrap. Bounded
 native CEMV attribute/slice inputs now use the shared decoder and binding APIs,
 with typed values, references/source maps, reserved-root refusal and fresh input
-frames. Complete data-island/receiver schemas, widget/provider bindings, worker
+frames. Host instance identity now has a separate bounded native input, and
+compiled receiver declarations enforce required/default/conversion/facet checks.
+Complete data-island/named-schema contracts, widget/provider bindings, worker
 transport and checkpoint/journal handoff remain open.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,

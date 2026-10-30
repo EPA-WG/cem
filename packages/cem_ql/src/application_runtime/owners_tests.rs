@@ -234,3 +234,126 @@ fn native_inputs_bind_attributes_and_slices_without_json_or_stale_state() {
     let blank = owner.render_inputs_native(&empty, "[]").unwrap();
     assert!(!blank.contains("Later"));
 }
+
+#[test]
+fn json_inputs_cannot_replace_runtime_owned_roots() {
+    let built = fixture("{p | Static}");
+    let owner = CompiledDeclarationOwner::admit(
+        &built.template.bytes,
+        &built.metadata_json,
+        &built.metadata_hash,
+    )
+    .unwrap();
+    for binding in ["instanceID", "island", "suggestions"] {
+        assert!(
+            owner
+                .render_native(b"{}", "app://data/response.json", binding)
+                .is_err(),
+            "{binding}"
+        );
+    }
+    assert!(owner
+        .render_native(b"{}", "app://data/response.json", "datadom")
+        .is_ok());
+}
+
+#[test]
+fn instance_inputs_validate_compiled_receivers_and_never_retain_identity_or_failed_values() {
+    use crate::eval::{
+        output::output_attribute, portable::encode_values, AtomValue, Item, ItemStream,
+    };
+    let built = fixture(
+        r#"{attribute @name=quantity @type=integer @required=true @minInclusive=1 @maxInclusive=5}{p @id="{$instanceID}" | {$quantity}/{$datadom.attributes.quantity}/{$instanceID}}"#,
+    );
+    let mut owner = CompiledDeclarationOwner::admit(
+        &built.template.bytes,
+        &built.metadata_json,
+        &built.metadata_hash,
+    )
+    .unwrap();
+    let bytes = |value: &str| {
+        encode_values(
+            &ItemStream::once(output_attribute(crate::render::RenderPlanAttribute {
+                name: "quantity".into(),
+                namespace: None,
+                qualified_name: None,
+                value: "wrong compatibility projection".into(),
+                value_stream: ItemStream::once(Item::Atomic(AtomValue::String(value.into()))),
+                contract: None,
+                source_map: Default::default(),
+            })),
+            &Default::default(),
+        )
+        .unwrap()
+    };
+    let routing = r#"[{"target":"attribute","name":"quantity","index":0}]"#;
+    for id in ["first", "second", "cart:é"] {
+        let html = owner
+            .render_instance_inputs_native(&bytes("003"), routing, id)
+            .unwrap();
+        assert!(html.contains(&format!("id=\"{id}\"")), "{html}");
+        assert!(html.contains(&format!("3/3/{id}")), "{html}");
+        for value in ["0", "6", "private credential"] {
+            assert_eq!(
+                owner
+                    .render_instance_inputs_native(&bytes(value), routing, id)
+                    .unwrap_err(),
+                "compiled application render failed"
+            );
+        }
+    }
+    let empty = encode_values(&ItemStream::empty(), &Default::default()).unwrap();
+    assert_eq!(
+        owner
+            .render_instance_inputs_native(&empty, "[]", "missing")
+            .unwrap_err(),
+        "compiled application render failed"
+    );
+    for id in ["", " ", "a b", "line\nbreak", "\0", &"x".repeat(1025)] {
+        assert_eq!(
+            owner
+                .render_instance_inputs_native(&bytes("2"), routing, id)
+                .unwrap_err(),
+            "compiled declaration instance identity refused"
+        );
+    }
+    let valid = owner
+        .render_instance_inputs_native(&bytes("2"), routing, "valid")
+        .unwrap();
+    assert!(valid.contains("2/2/valid"));
+    assert_eq!(
+        owner
+            .render_inputs_native(&bytes("2"), routing)
+            .unwrap_err(),
+        "compiled application render failed"
+    );
+    let escaped = owner
+        .render_instance_inputs_native(&bytes("2"), routing, "quoted\"<svg>")
+        .unwrap();
+    assert!(!escaped.contains("<svg>"));
+    assert!(escaped.contains("&lt;svg&gt;"));
+    owner.dispose_native();
+    assert!(owner
+        .render_instance_inputs_native(&bytes("2"), routing, "disposed")
+        .is_err());
+}
+
+#[test]
+fn compiled_receiver_defaults_and_unresolved_types_keep_native_contracts() {
+    let empty = crate::eval::portable::encode_values(
+        &crate::eval::ItemStream::empty(),
+        &Default::default(),
+    )
+    .unwrap();
+    for (body, expected) in [
+        ("{attribute @name=quantity @type=integer @minInclusive=1 | 002}{p | {$quantity}/{$datadom.attributes.quantity}}", Some("2/2")),
+        ("{attribute @name=quantity @type=integer @maxInclusive=1 | 002}{p | {$quantity}}", None),
+        ("{attribute @name=quantity @type=warehouse-count | 002}{p | {$quantity}}", None),
+    ] {
+        let built = fixture(body);
+        let owner = CompiledDeclarationOwner::admit(&built.template.bytes, &built.metadata_json, &built.metadata_hash).unwrap();
+        let result = owner.render_instance_inputs_native(&empty, "[]", "default-owner");
+        if let Some(expected) = expected { assert!(result.unwrap().contains(expected)); }
+        else { assert_eq!(result.unwrap_err(), "compiled application render failed"); }
+    }
+}

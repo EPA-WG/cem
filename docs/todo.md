@@ -1265,6 +1265,50 @@ inventory, not the minimum set loaded by every app.
         and worker/recovery handoff remain open. Credential privacy, the 4 MiB
         checkpoint budget and five-second handoff deadlines remain unchanged;
         no component/application UI JavaScript or credential capture was added.
+      - [x] Bind host-owned instance identity and prove compiled receiver
+        declarations through the reduced native input ABI. Preserve existing
+        no-context calls, receiver conversion/constraints/defaults and refusal
+        without widening widget/provider or island admission.
+        The optional third `renderInputs` argument delegates to a separate native
+        `renderInstanceInputs` entry. Identity needs a pinned host binding, is
+        limited to 1,024 UTF-8 bytes, and rejects empty/whitespace/control input.
+        The shared adapter rejects unpaired UTF-16 surrogates before encoding;
+        Unicode/punctuation remain native-escaped values. Identity lives only in
+        the call's input frame. Owned declaration JSON input now refuses runtime
+        roots `instanceID`, `island` and `suggestions`; native attribute/slice
+        routes still cannot replace them. Pinned receiver attribute declarations
+        enforce required values, defaults, normalization and facets through the
+        existing native renderer. Unresolved named types and invalid defaults
+        fail closed with fixed diagnostics; no schema override is added.
+        - [x] Add native required/default/normalization/range/named-type refusal
+          and reserved-root/instance-boundary fixtures, plus native-built receiver
+          inputs and WASM/browser parity across changing identities, failures and
+          independent heaps. Keep metadata/template pins and privacy budgets.
+        - [x] Keep per-story resource timing observable after Storybook module
+          and fixture downloads fill the default buffer; assert exactly one
+          profile WASM fetch and no full/source downloads for each scenario.
+          Increase fixture-only timing capacity without clearing other entries
+          or relaxing per-story fetch assertions.
+        Verification: 14 profile native tests, 166 full native tests (four
+        existing profiling cases ignored), 33 receiver/declaration regressions,
+        native fixture generation, ten factory/audit unit tests, optimized
+        profile/owner WASM acceptance, 17 component browser cases and both full
+        Studio Login privacy/recovery cases pass. Studio ran with optimization
+        paused; the existing deadlines were preserved. Package build, Rust format,
+        script/TypeScript lint and fresh source/vendor audits pass. Reduced WASM:
+        11,155,464 bytes (10.64 MiB), gzip-9 3,143,400 and Brotli-9 2,366,057;
+        code/data payloads are 8,864,286/2,278,244 bytes, 10 imports/19 exports.
+        This adds 1,983 bytes and remains 53.9% smaller than the unchanged full
+        comparator. Identity is a host value, not an ownership/recovery grant.
+        Named schema contracts, canonical native island/projection, live shared
+        controls and worker/recovery integration remain open. Credential privacy,
+        the 4 MiB checkpoint budget and five-second handoff limits are unchanged;
+        no component/application UI JavaScript or credential capture was added.
+      - [ ] Add canonical native island/projection contracts before enrolling
+        the reduced ABI in shared processing. Reuse qualified lifecycle topology,
+        native payload/slot/value identities and projection ownership; refuse
+        unsupported island/schema input. Add native/WASM parity and malformed
+        topology/namespace/source fixtures before admitting live shared controls.
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's
         worker/fallback edits, credential refusal and generation handoff without

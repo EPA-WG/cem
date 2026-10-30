@@ -109,12 +109,13 @@ impl CompiledDeclarationOwner {
     }
     pub fn render_native(&self, json: &[u8], uri: &str, binding: &str) -> Result<String, String> {
         let artifact = self.active()?.artifact();
-        if !self
-            .metadata
-            .template
-            .host_bindings
-            .iter()
-            .any(|name| name == binding)
+        if matches!(binding, "instanceID" | "island" | "suggestions")
+            || !self
+                .metadata
+                .template
+                .host_bindings
+                .iter()
+                .any(|name| name == binding)
         {
             return Err("compiled declaration needs a pinned native JSON binding".into());
         }
@@ -123,13 +124,57 @@ impl CompiledDeclarationOwner {
     }
     /// Binary native values plus routing metadata; no JSON AST/data envelope.
     pub fn render_inputs_native(&self, bytes: &[u8], bindings: &str) -> Result<String, String> {
+        self.render_input_frame(bytes, bindings, None)
+    }
+    pub fn render_instance_inputs_native(
+        &self,
+        bytes: &[u8],
+        bindings: &str,
+        instance_id: &str,
+    ) -> Result<String, String> {
+        if instance_id.is_empty()
+            || instance_id.len() > 1024
+            || instance_id
+                .chars()
+                .any(|c| c.is_whitespace() || c.is_control())
+        {
+            return Err("compiled declaration instance identity refused".into());
+        }
+        if !self
+            .metadata
+            .template
+            .host_bindings
+            .iter()
+            .any(|name| name == "instanceID")
+        {
+            return Err("compiled declaration needs a pinned instance binding".into());
+        }
+        self.render_input_frame(bytes, bindings, Some(instance_id))
+    }
+    fn render_input_frame(
+        &self,
+        bytes: &[u8],
+        bindings: &str,
+        instance_id: Option<&str>,
+    ) -> Result<String, String> {
         let artifact = self.active()?.artifact();
         if bytes.len() > MAX_INPUT_BYTES || bindings.len() > super::inputs::MAX_BINDING_BYTES {
             return Err("compiled declaration input limit exceeded".into());
         }
-        let _permit = admission(false, bytes.len() + bindings.len())?;
+        let _permit = admission(
+            false,
+            bytes.len() + bindings.len() + instance_id.map_or(0, str::len),
+        )?;
         let control = super::render_control()?;
-        let data = super::inputs::bind(bytes, bindings, &control)?;
+        let mut data = super::inputs::bind(bytes, bindings, &control)?;
+        if let Some(id) = instance_id {
+            data.bindings.insert(
+                "instanceID".into(),
+                crate::eval::ItemStream::once(crate::eval::Item::Atomic(
+                    crate::eval::AtomValue::String(id.into()),
+                )),
+            );
+        }
         super::render_data(artifact, data, &control)
     }
     pub fn stylesheet_native(
@@ -311,6 +356,16 @@ impl CompiledDeclarationOwner {
         bindings: &str,
     ) -> Result<String, wasm_bindgen::JsValue> {
         self.render_inputs_native(bytes, bindings)
+            .map_err(|e| wasm_bindgen::JsValue::from_str(&e))
+    }
+    #[wasm_bindgen(js_name = "renderInstanceInputs")]
+    pub fn render_instance_inputs_wasm(
+        &self,
+        bytes: &[u8],
+        bindings: &str,
+        instance_id: &str,
+    ) -> Result<String, wasm_bindgen::JsValue> {
+        self.render_instance_inputs_native(bytes, bindings, instance_id)
             .map_err(|e| wasm_bindgen::JsValue::from_str(&e))
     }
     #[wasm_bindgen(js_name = "stylesheet")]

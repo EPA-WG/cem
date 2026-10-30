@@ -575,20 +575,20 @@ the isolated build uses `--no-default-features --features component-runtime`.
 
 | WASM measure | Full bytes | Prototype bytes |
 | --- | ---: | ---: |
-| Raw | 24,206,012 | 11,153,481 |
-| Gzip level 9 | 7,377,289 | 3,142,830 |
-| Brotli quality 9 | 5,424,626 | 2,365,084 |
-| Code section payload | 21,447,089 | 8,862,296 |
-| Data section payload | 2,729,913 | 2,278,291 |
+| Raw | 24,206,012 | 11,155,464 |
+| Gzip level 9 | 7,377,289 | 3,143,400 |
+| Brotli quality 9 | 5,424,626 | 2,366,057 |
+| Code section payload | 21,447,089 | 8,864,286 |
+| Data section payload | 2,729,913 | 2,278,244 |
 
 The prototype is 10.64 MiB raw, a 53.9% whole-file reduction.
-It has 10 imports/18 exports, compared with 28/171 for the full runtime.
+It has 10 imports/19 exports, compared with 28/171 for the full runtime.
 The public surface is the one-shot renderer, passive declaration-owner methods
 and a counter-only inventory; remaining exports are wasm-bindgen support. This proves a smaller linked surface
 and reduced code/data sections, without attributing removed bytes to particular
 languages, schemas or functions. Complete application link closure remains false.
 
-Prototype SHA-256: `e7ce616fcb9c2a6ed15cbf815a393067564607d0b568c450499f72874cb9c1cd`.
+Prototype SHA-256: `e35a33059a80182faa2775409f6844c64b2a6a59282c896782b134000274a3ea`.
 
 Full SHA-256: `82b564e6ede5f260ed556fba2a4171c28c787fcac3faf37c21cb89990aa3a3ac`.
 
@@ -640,9 +640,34 @@ attribute/slice envelopes make channel contents independent of routing order;
 the declaration owner stores no live inputs or checkpoints. A failed call leaves no stale inputs
 for the next call.
 
+`renderInputs(bytes, bindings, instanceId)` optionally supplies host-owned
+`instanceID` through a separate native `renderInstanceInputs` entry. Existing
+two-argument calls are unchanged. Identity must be a nonempty string of at most
+1,024 UTF-8 bytes without whitespace/control characters and must have a pinned
+host binding. The shared adapter rejects unpaired UTF-16 surrogates before
+UTF-8 transport, so encoding cannot silently change the supplied identity.
+Unicode and punctuation remain values and are escaped by the native HTML
+projector. The identity is bound only in the temporary render frame;
+a later call cannot inherit it. It is not an ownership, placement or recovery
+grant, and it is never automatically reflected to the DOM. Attribute/slice
+routing cannot replace runtime roots. Owned declaration `renderJson` calls now
+also refuse `instanceID`, `island` and `suggestions` as JSON binding targets;
+`datadom` keeps its existing native JSON behavior.
+
+Compiled receiver `{attribute ...}` declarations use the existing native renderer
+for required values, defaults, scalar conversion and facets. For example,
+`@type=integer @required=true @minInclusive=1 @maxInclusive=5` converts an
+incoming native string `003` to integer `3` in both the attribute alias and
+`datadom.attributes`, and rejects missing, invalid or out-of-range values. A
+looser producer value cannot override the pinned receiver declaration. Invalid
+defaults and unresolved named types refuse with a fixed diagnostic, without
+copying input content into errors. These contracts are already in pinned native
+template IR; no runtime schema text or JavaScript conversion path is added.
+
 Complete DOM data-island construction, multiple independent input artifacts,
-receiver schemas, widget/provider adapters and worker/recovery integration remain
-delivery gates for using the complete component library on this profile.
+named schema/type contracts, widget/provider adapters and worker/recovery
+integration remain delivery gates for using the complete component library on
+this profile.
 
 Styles reuse the existing native resolver, compiled-import policy replay,
 `RetainedStylesheet` identity/scoping emission and last-consumer invalidation.
@@ -694,7 +719,10 @@ profile WASM fetch with no full-runtime/source downloads. The Node acceptance
 also checks two independent heaps, native JSON/attribute/slice renders, original
 native HTML parity, bad metadata, disposed-unfreed foreign roots and reentrant
 cleanup. The native-input browser fixture verifies escaped text, changing inputs,
-post-refusal recovery and one profile WASM fetch without source/full downloads. The factory gate pins the reviewed generated
+post-refusal recovery and one profile WASM fetch without source/full downloads.
+Receiver fixtures additionally compare native reference HTML across changing
+identities, required/bound failures and independent heaps, and verify DOM identity
+escaping without materializing markup from the supplied identity. The factory gate pins the reviewed generated
 binding shape and refuses extra exports/imports/finalizers.
 
 ```ts
@@ -712,7 +740,7 @@ const declaration = generation.open(templateBytes, metadataJson, metadataHash);
 // declaration.renderInputs(nativeValueBytes, [
 //   { target: 'attribute', name: 'label', index: 0 },
 //   { target: 'slice', name: 'amount', index: 1 },
-// ]);
+// ], 'cart-item-1');
 declaration.dispose();
 generation.dispose();
 ```
