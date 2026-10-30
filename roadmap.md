@@ -752,8 +752,13 @@ Reviewed native payload references now retain occurrence/target/source-parent
 identity and index direct rendered slot roots without cloning or JavaScript AST
 conversion. Referenced descendants undergo the same credential/namespace/source
 checks, with bounded native DAG/depth/expanded-work admission. Remaining island
-domains, named-schema contracts, widget/provider bindings, worker transport and
-checkpoint/journal handoff remain open.
+domains, executable/node named-schema contracts, widget/provider bindings,
+worker transport and checkpoint/journal handoff remain open. The first native
+application declaration capsule now pins scalar facet types, their original
+schema/source identities and exact native IR requirements. Admission refuses
+changed/unavailable contracts before publishing an owner; existing JSON/input/
+island rendering binds them natively without schema/catalog loading or JavaScript
+conversion. Full-runtime declaration loading refuses the separate envelope.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

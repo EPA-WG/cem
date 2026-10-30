@@ -1412,6 +1412,46 @@ inventory, not the minimum set loaded by every app.
           - [ ] Bind app-specific named receiver schema/type contracts to pinned
             build artifacts; verify unavailable/changed contracts fail before
             publication without loading the general schema catalog.
+            - [x] Pin native named scalar facet contracts in an application-only
+              declaration envelope; add native build/admission, source identity,
+              missing/changed/duplicate/unreferenced type, unsupported executable
+              and stale-pin fixtures, plus separate-heap WASM/browser parity.
+              Added native-only `application_declaration::build` and the separate
+              CEMAPPD1 / cem-application-declaration/1 envelope. The independently
+              trusted outer metadata pins unchanged v2/v3 IR, the binary payload
+              and each scalar model's schema/source URI, source hash and compiled
+              contract hash. Exact IR type requirements must match the manifest
+              and provided definitions; changed/missing/duplicate/unused types,
+              unsupported policies, dynamic selection, reserved built-in names,
+              unknown/trailing payload fields and stale pins refuse before owner
+              publication. Full-runtime declaration admission refuses this
+              envelope. Existing generation `open` needs no new JS/API surface.
+              Fresh JSON/input/island frames bind pinned native models; defaults,
+              conversion, patterns/whitespace and receiver-local facet intersection
+              reuse the shared renderer. Models retain original schema source
+              maps and are released with the declaration. This first capsule
+              admits reviewed scalar facets over five primitive bases, not
+              executable/tokenizer/node-schema contracts; pattern evaluation uses
+              the existing native facet validator, not precompiled regex IR.
+              Limits: 64 types, 16 restrictions/type, 64 KiB accounted/model,
+              1 MiB aggregate models and each deployment input, 100,000 inspected
+              IR nodes/64 levels. No schema/catalog fetches or source fallback.
+              Verification: 56 native application/build/profile tests, 26 shared
+              value/declaration/reload/serialization regressions, ten factory/audit
+              unit cases, native fixtures, pre-optimized and final optimized WASM
+              parity on separate heaps, 21 component browser cases and both full
+              Studio Login recovery/privacy scenarios pass. Studio ran with
+              Binaryen paused, retaining existing deadlines and assertions.
+              Package build, changed Rust formatting, script/TypeScript lint and
+              source/vendor audits pass. Final profile: 11,471,605 bytes (10.94
+              MiB), gzip-9 3,240,672 and Brotli-9 2,429,535; code/data
+              9,176,661/2,281,758 bytes, 10 imports/21 exports. The unchanged full
+              comparator is 24,207,650 bytes; reduction is 52.6%. Native link
+              closure is still unproven. No component/application UI JavaScript,
+              backend switching or checkpoint grant was added; entered-credential
+              refusal, 4 MiB checkpoints and five-second handoffs remain unchanged.
+            - [ ] Define portable native executable/node-schema contract capsules
+              before admitting callback/tokenizer or node-valued named schemas.
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's
         worker/fallback edits, credential refusal and generation handoff without

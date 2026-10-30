@@ -574,9 +574,19 @@ identity; slots follow direct rendered roots in encounter order, including repea
 Empty references add no slot entry and nested references stay inside their element.
 All rendered targets pass the namespace/source/credential checks; cyclic, dangling,
 deep or excessively expanded graphs refuse. Remaining data-island domains,
-named-schema contracts, widget/provider inputs, processing-worker integration and
+executable/node named-schema contracts, widget/provider inputs, processing-worker integration and
 checkpoint handoff remain open. See the
 [retained owner contract and fixtures](../../docs/cem-components-shopping-cart-profile.md#retained-passive-declarations-and-stylesheet-leases).
+
+Native builds can wrap a v2/v3 declaration with reviewed named scalar receiver
+contracts using `application_declaration::build`. Supply its `CEMAPPD1` bytes and
+independently pinned `cem-application-declaration/1` metadata to the same generation
+`open` entry. Native admission checks exact type requirements and schema/source/
+contract identities before creating an owner. Fresh JSON, input and island frames
+reuse the native renderer's type/default/facet validation without fetching schemas
+or converting data in JavaScript. Full-runtime declaration loading refuses this
+application envelope. Executable/tokenizer/node schemas remain gated; see the
+[scalar capsule contract](../../docs/cem-components-shopping-cart-profile.md#retained-passive-declarations-and-stylesheet-leases).
 
 External declaration loading through `src="#id"`, `src="url"`, and `src="url#id"`, plus `<http-request url="...">`
 resource loading, uses the [CEM-ML resource lifecycle](../../docs/cem-ml-resource-lifecycle.md) as the base contract and

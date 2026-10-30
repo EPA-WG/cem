@@ -23,6 +23,8 @@ pub mod declaration_closure;
 pub mod application_requirements;
 #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
 pub mod selected_registry;
+#[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
+pub mod application_declaration;
 #[cfg(feature = "component-runtime")]
 pub mod application_runtime;
 pub mod datatype_compilation;

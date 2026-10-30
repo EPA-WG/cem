@@ -310,3 +310,58 @@ export const NativePayloadReferences:Story={
         expect(requests.some(name=>name.endsWith('.xhtml')||name.endsWith('.cem')||name.startsWith('app://island/'))).toBe(false);
     },
 };
+
+export const PinnedNamedReceiverTypes:Story={
+    render:()=>'<section aria-label="Selected runtime pinned named types">Schema-pinned receiver ranges, patterns and defaults.</section>',
+    play:async({canvasElement})=>{
+        const started=networkTraceStart();
+        const factoryUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_factory.js'];
+        const wasmUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_bg.wasm'];
+        if(!factoryUrl||!wasmUrl)throw Error('Build the selected component WASM profile before this story');
+        const factory=await import(/* @vite-ignore */ factoryUrl);
+        const module=await WebAssembly.compile(await(await fetch(wasmUrl)).arrayBuffer());
+        const root=canvasElement.querySelector('section');if(!root)throw Error('Missing type fixture');
+        const first=await createCemComponentGeneration(module,factory.createCemComponentWasmBindings());
+        const second=await createCemComponentGeneration(module,factory.createCemComponentWasmBindings());
+        try {
+            expect(first.memory()).not.toBe(second.memory());
+            for(const generation of [first,second]) {
+                const component=generation.open(new Uint8Array(await(await artifact('owned-types','bin')).arrayBuffer()),await(await artifact('owned-types','json')).text(),(await(await artifact('owned-types','hash')).text()).trim());
+                try {
+                    expect(component.metadata().tag).toBe('cem-owned-types');
+                    for(const name of ['first','second']) {
+                        const input=new Uint8Array(await(await artifact(`owned-types-${name}`,'cemv')).arrayBuffer());
+                        const routes=[{target:'attribute' as const,name:'quantity',index:0},...(name==='second'?[{target:'attribute' as const,name:'label',index:1}]:[])];
+                        const expected=await(await artifact(`owned-types-${name}`,'html')).text();
+                        const html=component.renderInputs(input,routes,'named-owner');
+                        expect(html).toBe(expected);
+                        root.innerHTML=html; // Test-only mounting of native output.
+                        expect(root.querySelector('p')?.id).toBe('named-owner');
+                        expect(root.querySelector('p')?.title).toBe(name==='first'?'ABC':'XYZ');
+                        expect(root.textContent).toBe(name==='first'?'3/3/ABC':'4/4/XYZ');
+                        for(const bad of ['low','high','pattern','short']) {
+                            const bytes=new Uint8Array(await(await artifact(`owned-types-${bad}`,'cemv')).arrayBuffer());
+                            const bindings=[{target:'attribute' as const,name:'quantity',index:0},...(['pattern','short'].includes(bad)?[{target:'attribute' as const,name:'label',index:1}]:[])];
+                            expect(()=>component.renderInputs(bytes,bindings,'named-owner')).toThrow();
+                        }
+                        for(const bad of ['changed','missing','duplicate','source','schema','unsupported','unbound','trailing','stale']) {
+                            const bytes=new Uint8Array(await(await artifact(`owned-types-${bad}`,'bin')).arrayBuffer());
+                            const json=await(await artifact(`owned-types-${bad}`,'json')).text();
+                            const pin=(await(await artifact(`owned-types-${bad}`,'hash')).text()).trim();
+                            expect(()=>generation.open(bytes,json,pin)).toThrow();
+                            expect(generation.inventory().liveDeclarationOwners).toBe(1);
+                        }
+                        expect(component.renderInputs(input,routes,'named-owner')).toBe(expected);
+                    }
+                    const island=new Uint8Array(await(await artifact('owned-types-island','cemv')).arrayBuffer());
+                    expect(component.renderIsland(island,'island-one')).toContain('3/3/ABC');
+                    expect(Array.from(component.projectIsland(island,'island-one').subarray(0,5))).toEqual([67,69,77,86,3]);
+                } finally {component.dispose();}
+                expect(generation.inventory().liveDeclarationOwners).toBe(0);
+            }
+        } finally {first.dispose();second.dispose();}
+        const requests=performance.getEntriesByType('resource').filter(entry=>entry.startTime>=started&&(entry as PerformanceResourceTiming).initiatorType==='fetch').map(entry=>entry.name);
+        expect(requests.filter(name=>name.includes('cem_ql_bg.wasm'))).toEqual([new URL(wasmUrl,location.href).href]);
+        expect(requests.some(name=>name.endsWith('.xml')||name.endsWith('.xhtml')||name.endsWith('.cem')||name.startsWith('app://types/'))).toBe(false);
+    },
+};

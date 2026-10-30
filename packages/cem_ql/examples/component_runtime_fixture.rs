@@ -8,6 +8,9 @@ use cem_ql::{
     },
 };
 use std::{fs, path::PathBuf};
+use cem_ql;
+#[path = "../fixtures/component-application/named_receiver_types.rs"]
+mod named_fixture;
 #[path = "../fixtures/component-application/payload_references.rs"]
 mod reference_fixture;
 fn main() {
@@ -143,6 +146,7 @@ fn main() {
     owned_island(&output);
     owned_domains(&output);
     owned_references(&output);
+    owned_types(&output);
     // Trusted native fixture selection, not a claim that all cart component
     // behavior/provider dependencies have closed application build recipes.
     fs::write(output.join("selected_registry.rs"), "use cem_ql::selected_registry::{SelectedBuiltin, SelectedFunctionRegistry};\npub fn selected_registry() -> SelectedFunctionRegistry { SelectedFunctionRegistry::new([SelectedBuiltin::SequenceFirst, SelectedBuiltin::SequenceWhere, SelectedBuiltin::SequenceCount]).unwrap() }\n").unwrap();
@@ -661,4 +665,110 @@ fn owned_references(output: &std::path::Path) {
         )
         .unwrap();
     }
+}
+
+fn owned_types(output: &std::path::Path) {
+    use cem_ql::{
+        application_declaration::build,
+        eval::{output::output_attribute, portable::encode_values, AtomValue, Item},
+        render::RenderPlanAttribute,
+    };
+    let declaration = named_fixture::declaration();
+    let metadata: cem_ql::declaration_artifact::DeclarationArtifactMetadata =
+        serde_json::from_str(&declaration.metadata_json).unwrap();
+    let loaded = declaration
+        .template
+        .reload_pinned(&metadata.template)
+        .unwrap();
+    let types = named_fixture::types();
+    let data_types = types
+        .iter()
+        .map(|t| (t.name.clone(), t.value.clone()))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let built = build(declaration, types).unwrap();
+    fs::write(output.join("owned-types.bin"), &built.bytes).unwrap();
+    fs::write(output.join("owned-types.json"), &built.metadata_json).unwrap();
+    fs::write(output.join("owned-types.hash"), &built.metadata_hash).unwrap();
+    for (name, bytes, json, pin) in named_fixture::invalid_cases(&built) {
+        fs::write(output.join(format!("owned-types-{name}.bin")), bytes).unwrap();
+        fs::write(output.join(format!("owned-types-{name}.json")), json).unwrap();
+        fs::write(output.join(format!("owned-types-{name}.hash")), pin).unwrap();
+    }
+    let string = |text: &str| Item::Atomic(AtomValue::String(text.into()));
+    for (name, quantity, label) in [
+        ("first", "003", None),
+        ("second", "004", Some("  XYZ  ")),
+        ("low", "1", None),
+        ("high", "5", None),
+        ("pattern", "3", Some("abc")),
+        ("short", "3", Some("AB")),
+    ] {
+        let attr = |name: &str, value: &str| {
+            output_attribute(RenderPlanAttribute {
+                name: name.into(),
+                namespace: None,
+                qualified_name: None,
+                value: value.into(),
+                value_stream: ItemStream::once(string(value)),
+                contract: None,
+                source_map: Default::default(),
+            })
+        };
+        let mut values = vec![attr("quantity", quantity)];
+        if let Some(label) = label {
+            values.push(attr("label", label));
+        }
+        fs::write(
+            output.join(format!("owned-types-{name}.cemv")),
+            encode_values(&ItemStream::from_items(values.clone()), &Default::default()).unwrap(),
+        )
+        .unwrap();
+        // Independent full renderer receives the native compiled schema models.
+        let mut data = TemplateData::default()
+            .with_binding("instanceID", ItemStream::once(string("named-owner")));
+        data.value_types = data_types.clone();
+        data.bindings.insert(
+            "datadom".into(),
+            ItemStream::once(Item::Record(Default::default())),
+        );
+        for attr in values {
+            data.bind_native_attribute(attr).unwrap();
+        }
+        let plan = render_compiled_template(&loaded, &data);
+        if matches!(name, "first" | "second") {
+            assert!(
+                !plan
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.severity.is_hard_violation()),
+                "{:?}",
+                plan.diagnostics
+            );
+            fs::write(
+                output.join(format!("owned-types-{name}.html")),
+                render_plan_to_html(&plan),
+            )
+            .unwrap();
+        } else {
+            assert!(plan
+                .diagnostics
+                .iter()
+                .any(|d| d.severity.is_hard_violation()));
+        }
+    }
+    let source = include_str!("../fixtures/component-application/island-domains.xhtml");
+    let imported = imported_cem_tree(
+        cem_ml::import::import_data_bytes(
+            source.as_bytes(),
+            "application/xml",
+            "cem",
+            "app://types/island.xhtml",
+        )
+        .unwrap(),
+    );
+    fs::write(
+        output.join("owned-types-island.cemv"),
+        encode_values(&ItemStream::once(imported), &Default::default()).unwrap(),
+    )
+    .unwrap();
 }

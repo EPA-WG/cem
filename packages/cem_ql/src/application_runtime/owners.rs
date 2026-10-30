@@ -36,6 +36,7 @@ pub struct CompiledDeclarationOwner {
     retained: Option<RetainedTemplate>,
     leases: BTreeMap<(String, usize), (String, Arc<RetainedStylesheet>)>,
     next_consumer: u64,
+    receiver_types: BTreeMap<String, cem_ml::schema::document_model::AttributeValueContract>,
 }
 struct OwnerAdmission {
     _entry: cem_ml::runtime_admission::NativeEntry<'static>,
@@ -62,24 +63,29 @@ impl CompiledDeclarationOwner {
             return Err("compiled declaration input limit exceeded".into());
         }
         let _permit = admission(false, bytes.len() + metadata_json.len())?;
-        let metadata = admit_declaration_metadata(metadata_json, pin)
-            .map_err(|_| "compiled declaration metadata refused")?;
-        // This milestone owns passive declarations only. Widget/provider inputs
-        // and their checkpoint contracts must be bound before those are admitted.
+        let (metadata, artifact, receiver_types) =
+            if bytes.starts_with(crate::application_declaration::MAGIC) {
+                let admitted = crate::application_declaration::admit(bytes, metadata_json, pin)?;
+                (admitted.metadata, admitted.artifact, admitted.types)
+            } else {
+                let metadata = admit_declaration_metadata(metadata_json, pin)
+                    .map_err(|_| "compiled declaration metadata refused")?;
+                if !(bytes.starts_with(b"CEMTPLA2\n") || bytes.starts_with(b"CEMTPLA3\n")) {
+                    return Err("compiled declaration requires compiled CSS v2/v3 artifacts".into());
+                }
+                let envelope = CompiledTemplateArtifact::from_bytes(bytes.to_vec())
+                    .map_err(|e| e.code.to_owned())?;
+                if envelope.identity.artifact_version != metadata.template_format {
+                    return Err("compiled declaration template format mismatch".into());
+                }
+                let artifact = envelope
+                    .reload_pinned(&metadata.template)
+                    .map_err(|e| e.code.to_owned())?;
+                (metadata, artifact, BTreeMap::new())
+            };
         if metadata.capability.is_some() {
             return Err("compiled declaration capability needs an owned runtime contract".into());
         }
-        if !(bytes.starts_with(b"CEMTPLA2\n") || bytes.starts_with(b"CEMTPLA3\n")) {
-            return Err("compiled declaration requires compiled CSS v2/v3 artifacts".into());
-        }
-        let envelope =
-            CompiledTemplateArtifact::from_bytes(bytes.to_vec()).map_err(|e| e.code.to_owned())?;
-        if envelope.identity.artifact_version != metadata.template_format {
-            return Err("compiled declaration template format mismatch".into());
-        }
-        let artifact = envelope
-            .reload_pinned(&metadata.template)
-            .map_err(|e| e.code.to_owned())?;
         if artifact.stylesheets.len() > 64
             || artifact.module_map != metadata.module_map
             || artifact
@@ -101,6 +107,7 @@ impl CompiledDeclarationOwner {
             retained: Some(RetainedTemplate::new(artifact)),
             leases: BTreeMap::new(),
             next_consumer: 0,
+            receiver_types,
         })
     }
     pub fn describe_native(&self) -> Result<String, String> {
@@ -120,7 +127,7 @@ impl CompiledDeclarationOwner {
             return Err("compiled declaration needs a pinned native JSON binding".into());
         }
         let _permit = admission(false, json.len())?;
-        render_loaded(artifact, json, uri, binding)
+        render_loaded(artifact, json, uri, binding, &self.receiver_types)
     }
     /// Binary native values plus routing metadata; no JSON AST/data envelope.
     pub fn render_inputs_native(&self, bytes: &[u8], bindings: &str) -> Result<String, String> {
@@ -174,7 +181,8 @@ impl CompiledDeclarationOwner {
         }
         let permit = admission(false, bytes.len() + instance_id.len())?;
         let control = super::render_control()?;
-        let data = super::island::bind(bytes, instance_id, &control)?;
+        let mut data = super::island::bind(bytes, instance_id, &control)?;
+        data.value_types = self.receiver_types.clone();
         Ok((permit, control, data))
     }
     pub fn render_island_native(&self, bytes: &[u8], instance_id: &str) -> Result<String, String> {
@@ -205,6 +213,7 @@ impl CompiledDeclarationOwner {
         )?;
         let control = super::render_control()?;
         let mut data = super::inputs::bind(bytes, bindings, &control)?;
+        data.value_types = self.receiver_types.clone();
         if let Some(id) = instance_id {
             data.bindings.insert(
                 "instanceID".into(),
@@ -334,6 +343,7 @@ impl CompiledDeclarationOwner {
     }
     pub fn dispose_native(&mut self) {
         if self.retained.take().is_some() {
+            self.receiver_types.clear();
             cem_ml::runtime_inventory::note_mutation();
             LEASES.fetch_sub(self.leases.len(), Ordering::SeqCst);
             self.leases.clear();

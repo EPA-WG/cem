@@ -65,7 +65,7 @@ pub fn render(
         .map_err(|error| error.code.to_owned())?
         .reload_pinned(&pins)
         .map_err(|error| error.code.to_owned())?;
-    render_loaded(&artifact, json, source_uri, binding)
+    render_loaded(&artifact, json, source_uri, binding, &Default::default())
 }
 
 fn render_loaded(
@@ -73,6 +73,10 @@ fn render_loaded(
     json: &[u8],
     source_uri: &str,
     binding: &str,
+    types: &std::collections::BTreeMap<
+        String,
+        cem_ml::schema::document_model::AttributeValueContract,
+    >,
 ) -> Result<String, String> {
     if json.len() > MAX_INPUT_BYTES || source_uri.len() > 4096 || binding.len() > 256 {
         return Err("compiled application input limit exceeded".into());
@@ -83,8 +87,9 @@ fn render_loaded(
     }
     let tree = cem_ml::import::import_json_bytes(json, source_uri)
         .map_err(|_| "native JSON import failed")?;
-    let data =
+    let mut data =
         TemplateData::default().with_binding(binding, ItemStream::once(imported_cem_tree(tree)));
+    data.value_types = types.clone();
     render_data(artifact, data, &render_control()?)
 }
 

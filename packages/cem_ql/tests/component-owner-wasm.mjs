@@ -145,6 +145,32 @@ for(const generation of [first,next]) {
     }
     owner.dispose();assert.equal(generation.inventory().liveDeclarationOwners,0);
 }
+const typeFixture=await fixture('owned-types');
+for(const generation of [first,next]) {
+    const owner=generation.open(...typeFixture);
+    assert.equal(owner.metadata().tag,'cem-owned-types');
+    for(const name of ['first','second']) {
+        const input=await readFile(new URL(`owned-types-${name}.cemv`,root));
+        const routes=[{target:'attribute',name:'quantity',index:0},...(name==='second'?[{target:'attribute',name:'label',index:1}]:[])];
+        const expected=await readFile(new URL(`owned-types-${name}.html`,root),'utf8');
+        assert.equal(owner.renderInputs(input,routes,'named-owner'),expected);
+        for(const bad of ['low','high','pattern','short']) {
+            const bytes=await readFile(new URL(`owned-types-${bad}.cemv`,root));
+            const bindings=[{target:'attribute',name:'quantity',index:0},...(['pattern','short'].includes(bad)?[{target:'attribute',name:'label',index:1}]:[])];
+            assert.throws(()=>owner.renderInputs(bytes,bindings,'named-owner'),error=>error==='compiled application render failed');
+        }
+        for(const bad of ['changed','missing','duplicate','source','schema','unsupported','unbound','trailing','stale']) {
+            const invalid=await fixture(`owned-types-${bad}`);
+            assert.throws(()=>generation.open(...invalid),error=>error==='compiled application receiver contracts refused');
+            assert.equal(generation.inventory().liveDeclarationOwners,1);
+        }
+        assert.equal(owner.renderInputs(input,routes,'named-owner'),expected);
+    }
+    const island=await readFile(new URL('owned-types-island.cemv',root));
+    assert.match(owner.renderIsland(island,'island-one'),/3\/3\/ABC/);
+    assert.equal(Buffer.from(owner.projectIsland(island,'island-one').subarray(0,5)).toString('hex'),'43454d5603');
+    owner.dispose();assert.equal(generation.inventory().liveDeclarationOwners,0);
+}
 const foreign=bindings.open(...inline);
 foreign.dispose(); // Still a native allocation until its opaque owner is freed.
 assert.throws(()=>first.dispose(),/foreign-owner/);

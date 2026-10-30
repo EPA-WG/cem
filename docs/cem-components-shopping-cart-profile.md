@@ -575,20 +575,20 @@ the isolated build uses `--no-default-features --features component-runtime`.
 
 | WASM measure | Full bytes | Prototype bytes |
 | --- | ---: | ---: |
-| Raw | 24,207,650 | 11,281,592 |
-| Gzip level 9 | 7,379,167 | 3,189,385 |
-| Brotli quality 9 | 5,424,656 | 2,398,485 |
-| Code section payload | 21,448,929 | 8,986,698 |
-| Data section payload | 2,729,720 | 2,281,737 |
+| Raw | 24,207,650 | 11,471,605 |
+| Gzip level 9 | 7,379,167 | 3,240,672 |
+| Brotli quality 9 | 5,424,656 | 2,429,535 |
+| Code section payload | 21,448,929 | 9,176,661 |
+| Data section payload | 2,729,720 | 2,281,758 |
 
-The prototype is 10.76 MiB raw, a 53.4% whole-file reduction.
+The prototype is 10.94 MiB raw, a 52.6% whole-file reduction.
 It has 10 imports/21 exports, compared with 28/171 for the full runtime.
 The public surface is the one-shot renderer, passive declaration-owner methods
 and a counter-only inventory; remaining exports are wasm-bindgen support. This proves a smaller linked surface
 and reduced code/data sections, without attributing removed bytes to particular
 languages, schemas or functions. Complete application link closure remains false.
 
-Prototype SHA-256: `b2f2c11e3834285226edb57eae57f9dda4b60d889ac13cc622e632815cc38327`.
+Prototype SHA-256: `efb711862ff65c1b439174ea7040f164ac823eace81daeab0239f40f8d0a681f`.
 
 Full SHA-256: `a6b5319be86c49564f390c4f4acaeeb120023b791981d8bcbee177840be61628`.
 
@@ -664,8 +664,54 @@ defaults and unresolved named types refuse with a fixed diagnostic, without
 copying input content into errors. These contracts are already in pinned native
 template IR; no runtime schema text or JavaScript conversion path is added.
 
+The native-only `application_declaration::build` wrapper now packages reviewed
+named scalar receiver contracts with a v2/v3 declaration. Its `CEMAPPD1` binary
+contains the unchanged pinned template bytes and native compiled facet records.
+The independently pinned `cem-application-declaration/1` control sidecar retains
+the original declaration JSON/hash, the whole binary hash and each type's schema
+URI, physical source URI, source-byte hash and compiled-contract hash. The trusted
+app build supplies already validated native scalar models; this wrapper does not
+compile arbitrary executable datatype definitions or prove issuer authority.
+
+The opt-in generation's existing `open(bytes, metadataJson, metadataHash)` accepts
+this envelope. Admission verifies all identities and requires exact agreement
+between named `attribute @type` uses found in native IR, metadata requirements and
+provided contracts. Missing, changed, duplicate, unused or unresolved types,
+dynamic type selection, trailing/unknown binary fields and stale pins refuse
+before a declaration owner is published. Named aliases cannot shadow shipped
+types or the reserved `schema:` namespace; names/URIs grant no scope access.
+Full-runtime declaration admission refuses the application envelope; it cannot silently discard required types.
+The regular v1 metadata and v2/v3 template inputs retain their existing behavior.
+`metadata()` returns the normalized original declaration; native owner identity
+uses the outer application pin, including its type-policy identity.
+
+Each fresh JSON, binary-input or island frame receives the owner's pinned named
+contracts through the shared native `value_types` binding. Required/default,
+scalar conversion and receiver-local restrictions use the existing renderer;
+a local facet cannot weaken its named base. The fixture's `cart-count` base range
+2–5 intersects a receiver maximum of 4; `003` becomes integer `3`, while 1 and 5
+refuse. String pattern, minimum length and whitespace collapse are also covered.
+Types are released with the declaration; no schema text, catalog lookup, host
+callback, JavaScript type conversion or source fallback is involved at runtime.
+
+This first capsule admits bounded native scalar facet models over string,
+integer, decimal/number and boolean bases, with enum, numeric/length/digit,
+pattern and whitespace restrictions. It keeps original model source maps and
+explicit schema/source identities. Schema and physical source identifiers are
+bounded hierarchical URIs in this first capsule. There are at most 64 types, 16 restrictions
+per type, 64 KiB accounted per contract and 1 MiB aggregate accounted contracts;
+the binary and metadata each retain their 1 MiB limits. Native IR inspection is
+bounded to 100,000 nodes and 64 levels. Executable datatype/tokenizer callbacks,
+node schemas, unresolved native type slots and other model policies remain
+refused until reviewed portable contracts exist. Patterns use the existing shared
+runtime facet validator; this gate does not establish precompiled regex/executable
+IR or per-parser code omission. No checkpoint authority is added.
+The [native schema/type fixture](../packages/cem_ql/fixtures/component-application/named_receiver_types.rs)
+compiles original schema facets and emits independent full-renderer reference
+outputs for the browser/WASM transport tests.
+
 Complete DOM data-island construction, multiple independent input artifacts,
-named schema/type contracts, widget/provider adapters and worker/recovery
+executable/node named-schema contracts, widget/provider adapters and worker/recovery
 integration remain delivery gates for using the complete component library on
 this profile.
 

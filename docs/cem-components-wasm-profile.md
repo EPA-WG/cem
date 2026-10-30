@@ -79,8 +79,13 @@ target/source-parent identities. Slots follow direct reference targets in order;
 empty references add no entry and nested references remain inside their element.
 The complete rendered target closure is checked before publication, including
 credential refusal, with native cycle/depth/expanded-work admission guards.
-Remaining island domains, named receiver schemas, widget/provider input and
-recovery-group contracts remain open;
+The native-only application declaration wrapper now pins reviewed named scalar
+facet contracts alongside unchanged v2/v3 IR. The existing generation `open` entry
+verifies exact named-type requirements and schema/source/contract identities
+before publishing an owner. JSON, binary-input and island frames bind those
+contracts natively without schema/catalog fetches; local facets still intersect.
+Executable/tokenizer/node-schema contracts, remaining island domains,
+widget/provider input and recovery-group contracts remain open;
 no default Studio backend or credential policy changes are implied.
 The browser's `retainCemMlTemplateArtifact` path still takes original
 template source for its optional source-cache behavior. A separate strict
