@@ -32,7 +32,7 @@ struct Binding {
     attribute: Option<String>,
 }
 
-fn name_allowed(name: &str) -> bool {
+pub(super) fn name_allowed(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 256
         && name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')

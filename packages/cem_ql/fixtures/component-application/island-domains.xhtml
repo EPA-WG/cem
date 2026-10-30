@@ -1,0 +1,21 @@
+<i:context-root xmlns:i="https://cem.dev/ns/runtime/data-island"
+ xmlns:h="https://cem.dev/ns/runtime/hydration-data"
+ xmlns:a="https://cem.dev/ns/runtime/instance-attributes"
+ xmlns:d="https://cem.dev/ns/runtime/instance-dataset"
+ xmlns:p="https://cem.dev/ns/runtime/instance-payload"
+ xmlns:s="https://cem.dev/ns/runtime/instance-slices"
+ xmlns:r="https://cem.dev/ns/runtime/resource-state"
+ xmlns:f="https://cem.dev/ns/runtime/form-state"
+ xmlns:v="https://cem.dev/ns/runtime/validation-state"
+ xmlns:e="https://cem.dev/ns/runtime/event-state"
+ xmlns:html="http://www.w3.org/1999/xhtml" version="0.2.0">
+ <h:data><h:field name="version" kind="string">0.2.0</h:field><h:field name="instanceId" kind="string">island-one</h:field><h:field name="outputTarget" kind="string">light-dom</h:field></h:data>
+ <a:attributes><a:attribute name="quantity" value="003"/><a:attribute name="data-count" value="003"/><a:attribute name="data-fruit-name" value="banana"/></a:attributes>
+ <d:dataset><d:entry key="count" value="003"/><d:entry key="fruitName" value="banana"/></d:dataset>
+ <p:payload content-type="text/html" schema="https://cem.dev/ns/data/html/1"><html:strong slot="heading">Heading</html:strong><html:span slot="heading">Second</html:span>Tail</p:payload>
+ <s:slices><s:slice name="cart" kind="record"><s:slice name="title" kind="string"> Tea &amp; cake </s:slice><s:slice name="ready" kind="boolean">true</s:slice><s:slice name="cost" kind="number">9007199254740993.25</s:slice><s:slice name="optional" kind="null"/><s:slice name="items" kind="array"><s:slice name="0" kind="string">first</s:slice><s:slice name="1" kind="string">second</s:slice></s:slice><s:slice name="kind" kind="string">document</s:slice><s:slice name="__proto__" kind="string">ordinary</s:slice></s:slice></s:slices>
+ <r:resources/>
+ <f:form-state/>
+ <v:validation-state/>
+ <e:event-state/>
+</i:context-root>

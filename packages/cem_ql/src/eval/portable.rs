@@ -125,6 +125,7 @@ fn encode_graph_checked(
             CemValueRecord {
                 lexical: crate::render::item_to_string(&Item::Atomic(atom)),
                 datatype,
+                provenance: view.and_then(|view| view.provenance()),
                 source: item.source_map().unwrap_or_default(),
                 ..Default::default()
             }

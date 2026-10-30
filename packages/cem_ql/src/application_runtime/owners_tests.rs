@@ -470,3 +470,94 @@ fn empty_native_island_projection_is_a_valid_empty_native_artifact() {
     assert!(graph.roots.is_empty());
     assert!(graph.records.is_empty());
 }
+
+#[test]
+fn island_domains_use_compiled_receiver_contracts_and_export_original_value_origins() {
+    use crate::eval::{imported_cem_tree, portable::encode_values, ItemStream};
+    use cem_ml::value::artifact::CemValueGraph;
+    let source = include_str!("../../fixtures/component-application/island-domains.xhtml");
+    let capsule = |text: &str| {
+        encode_values(
+            &ItemStream::once(imported_cem_tree(
+                cem_ml::import::import_data_bytes(
+                    text.as_bytes(),
+                    "application/xml",
+                    "cem",
+                    "app://island/domains.xhtml",
+                )
+                .unwrap(),
+            )),
+            &Default::default(),
+        )
+        .unwrap()
+    };
+    let bytes = capsule(source);
+    let built=fixture("{attribute @name=quantity @type=integer @required=true @minInclusive=1 @maxInclusive=5}{attribute @name=data-count @type=integer}{p @title='{$datadom.slices.cart.title}' | {$quantity}/{$datadom.attributes.quantity}/{$datadom.attributes.data-count}/{$datadom.dataset.count}/{$datadom.slices.cart.title}/{$datadom.slices.cart.cost}/{$datadom.slices.cart.ready}}");
+    let owner = CompiledDeclarationOwner::admit(
+        &built.template.bytes,
+        &built.metadata_json,
+        &built.metadata_hash,
+    )
+    .unwrap();
+    let html = owner.render_island_native(&bytes, "island-one").unwrap();
+    assert!(
+        html.contains("3/3/3/003/ Tea &amp; cake /9007199254740993.25/true"),
+        "{html}"
+    );
+    let projection = owner.project_island_native(&bytes, "island-one").unwrap();
+    let graph = CemValueGraph::decode(&projection, &Default::default()).unwrap();
+    let original = CemValueGraph::decode(&bytes, &Default::default()).unwrap();
+    let title = original
+        .records
+        .iter()
+        .find(|n| {
+            n.kind == "element"
+                && n.name == "slice"
+                && n.attributes.iter().any(|id| {
+                    original.records[*id as usize].name == "name"
+                        && original.records[*id as usize]
+                            .values
+                            .iter()
+                            .any(|v| original.records[*v as usize].lexical == "title")
+                })
+        })
+        .unwrap();
+    let exported = graph
+        .records
+        .iter()
+        .find(|n| n.datatype == "string" && n.lexical == " Tea & cake ")
+        .unwrap();
+    assert_eq!(exported.source, title.source);
+    assert_eq!(
+        exported.provenance.as_ref().unwrap().source_key,
+        title.provenance.as_ref().unwrap().source_key
+    );
+    for invalid in [
+        source.replace("value=\"003\"", "value=\"009\""),
+        source.replace("name=\"quantity\"", "name=\"missing\""),
+    ] {
+        assert_eq!(
+            owner
+                .render_island_native(&capsule(&invalid), "island-one")
+                .unwrap_err(),
+            "compiled application render failed"
+        );
+    }
+    assert_eq!(
+        owner.render_island_native(&bytes, "island-one").unwrap(),
+        html
+    );
+    let unresolved = fixture("{attribute @name=quantity @type=warehouse-count}{p | {$quantity}}");
+    let unresolved = CompiledDeclarationOwner::admit(
+        &unresolved.template.bytes,
+        &unresolved.metadata_json,
+        &unresolved.metadata_hash,
+    )
+    .unwrap();
+    assert_eq!(
+        unresolved
+            .render_island_native(&bytes, "island-one")
+            .unwrap_err(),
+        "compiled application render failed"
+    );
+}

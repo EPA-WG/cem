@@ -561,10 +561,17 @@ facets through the shared native renderer. Supply the separately built profile
 assets explicitly; the ordinary runtime continues using the full backend.
 The passive `renderIsland`/`projectIsland` entries admit a qualified CEMV island
 with matching lifecycle/host identity and empty unimplemented state domains.
-Native payload/slot references produce HTML or an opaque CEMV projection with
-original source metadata; JavaScript transports bytes. Full data-island domain
-adapters, named-schema contracts, widget/provider inputs, processing-worker
-integration and checkpoint handoff remain open. See the
+Native attribute/dataset/slice adapters retain original value sources and types:
+string host attributes, exact DOMStringMap projection and explicit
+string/boolean/finite-decimal/null/record/array slices. Receiver conversion updates
+semantic attributes while dataset strings stay lexical. Duplicate/reserved aliases,
+inconsistent dataset, malformed types/array indices and credential host metadata
+refuse. Native payload/slot references produce HTML or opaque CEMV with original
+source metadata; scalar re-export preserves provenance. Whole semantic records
+and arrays cannot enter CEMV: explicitly select their values. JavaScript only
+transports bytes. Payload references, remaining data-island domains, named-schema
+contracts, widget/provider inputs, processing-worker integration and checkpoint
+handoff remain open. See the
 [retained owner contract and fixtures](../../docs/cem-components-shopping-cart-profile.md#retained-passive-declarations-and-stylesheet-leases).
 
 External declaration loading through `src="#id"`, `src="url"`, and `src="url#id"`, plus `<http-request url="...">`

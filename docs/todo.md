@@ -1346,6 +1346,42 @@ inventory, not the minimum set loaded by every app.
         - [ ] Extend beyond passive islands with native attribute/dataset and
           slice domain adapters, including type/source preservation, payload
           references and schema-dependent input contracts, before live controls.
+          - [x] Preserve atomic native value provenance across CEMV re-export;
+            add a focused native roundtrip fixture before changing the codec.
+            The shared v3 writer now retains source URI/key/line metadata for
+            native atomic values, as it already did for nodes. Source-map and
+            provenance roundtrips pass without changing the binary contract.
+          - [x] Bind canonical string attributes, exact dataset projection and
+            declared scalar/array/record slice views without JSON AST conversion.
+            Add native type/source/alias/duplicate/credential/schema refusal
+            fixtures and native-built WASM/browser parity cases.
+            Native views retain original value/container source maps and keys;
+            DOMStringMap values share their source attribute identity. Receiver
+            conversion updates semantic attributes while preserving lexical
+            dataset strings. Strict scalar kinds, contiguous array indices,
+            duplicate/reserved/cross-channel aliases, 64-alias bounds and
+            credential host metadata are checked before publication. Whole
+            semantic record/array CEMV export remains refused. Resources/forms/
+            validation/events still require empty state; no checkpoint authority
+            or component/application UI JavaScript was added.
+            Verification: 25 profile native cases, 166 full native unit cases
+            (four existing profiling cases ignored), 38 focused regressions,
+            native fixtures, ten factory/audit tests, profile/owner and full
+            declaration/pinned-template/retained-CSS WASM checks, 19 component
+            browser cases and both complete Studio Login recovery/privacy
+            scenarios pass. Package build, changed-block Rust formatting,
+            script/TypeScript lint and source/vendor audits pass. Final reduced
+            WASM is 11,268,127 bytes (10.75 MiB), gzip-9 3,184,884 and Brotli-9
+            2,396,344; code/data 8,973,695/2,281,312 bytes, 10 imports/21 exports.
+            Matched full WASM is 24,207,650 bytes; reduction remains 53.5%.
+            Native link closure remains unproven. Credential privacy, the 4 MiB
+            checkpoint budget and five-second handoff deadlines remain unchanged.
+          - [ ] Admit reviewed native payload references while preserving target,
+            source-parent and slot identity. Add bounded cycle/dangling-target,
+            namespace/schema and credential-refusal fixtures before admission.
+          - [ ] Bind app-specific named receiver schema/type contracts to pinned
+            build artifacts; verify unavailable/changed contracts fail before
+            publication without loading the general schema catalog.
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's
         worker/fallback edits, credential refusal and generation handoff without

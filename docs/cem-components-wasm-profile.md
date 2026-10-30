@@ -68,9 +68,14 @@ and cannot be supplied through JSON/attribute/slice roots. Pinned receiver
 declarations preserve required/default/conversion/facet checks. Each render owns
 a temporary native input frame. Passive native island admission now checks
 qualified lifecycle/payload identity and produces HTML or a native CEMV projection
-with retained payload/slot/source references. Nonempty unimplemented state domains
-and credential controls without capture proof refuse. Full island domains, named
-receiver schemas, widget/provider input and recovery-group contracts remain open;
+with retained payload/slot/source references. Native island domain views now bind
+canonical string attributes, an exact DOMStringMap dataset and explicitly typed
+scalar/record/array slices without JSON AST conversion. Receiver normalization
+preserves lexical dataset strings; CEMV scalar re-export retains original source
+keys. Alias collisions, malformed types/dataset/array indices, nonempty unsupported
+state domains and host/payload credential metadata without capture proof refuse.
+Payload references, remaining island domains, named receiver schemas,
+widget/provider input and recovery-group contracts remain open;
 no default Studio backend or credential policy changes are implied.
 The browser's `retainCemMlTemplateArtifact` path still takes original
 template source for its optional source-cache behavior. A separate strict

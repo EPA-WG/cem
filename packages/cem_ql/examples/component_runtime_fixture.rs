@@ -139,6 +139,7 @@ fn main() {
     owned_inputs(&output);
     owned_receiver(&output);
     owned_island(&output);
+    owned_domains(&output);
     // Trusted native fixture selection, not a claim that all cart component
     // behavior/provider dependencies have closed application build recipes.
     fs::write(output.join("selected_registry.rs"), "use cem_ql::selected_registry::{SelectedBuiltin, SelectedFunctionRegistry};\npub fn selected_registry() -> SelectedFunctionRegistry { SelectedFunctionRegistry::new([SelectedBuiltin::SequenceFirst, SelectedBuiltin::SequenceWhere, SelectedBuiltin::SequenceCount]).unwrap() }\n").unwrap();
@@ -356,7 +357,7 @@ fn owned_island(output: &std::path::Path) {
         ("empty",original.replace("<html:strong slot=\"heading\">Heading</html:strong><html:span slot=\"heading\">Second</html:span>Tail","")),
         ("bad-version",original.replace("version=\"0.2.0\"","version=\"0.1.2\"")),
         ("bad-namespace",original.replace("runtime/instance-slices","runtime/foreign")),
-        ("bad-state",original.replace("<s:slices/>","<s:slices><s:slice name=\"value\" kind=\"string\">private credential</s:slice></s:slices>")),
+        ("bad-state",original.replace("<r:resources/>","<r:resources><r:resource name=\"unimplemented\"/></r:resources>")),
         ("credential",original.replace("Tail</p:payload>","<html:input autocomplete=\"one-time-code\"/></p:payload>")),
     ] {
         let tree=cem_ml::import::import_data_bytes(source.as_bytes(),"application/xml","cem",&format!("app://island/{name}.xhtml")).unwrap();
@@ -380,5 +381,146 @@ fn owned_island(output: &std::path::Path) {
         assert!(plan.diagnostics.is_empty(),"{name}: {:?}",plan.diagnostics);
         fs::write(output.join(format!("owned-island-{name}.html")),render_plan_to_html(&plan)).unwrap();
         fs::write(output.join(format!("owned-island-{name}.projection.cemv")),encode_values(&output_nodes(plan.nodes),&Default::default()).unwrap()).unwrap();
+    }
+}
+
+// Reference HTML comes from the full native renderer with independently supplied
+// typed control data. Domain provenance/export contracts are asserted natively;
+// browser/worker callers transport opaque CEMV and never reconstruct this frame.
+fn owned_domains(output: &std::path::Path) {
+    use cem_ql::{
+        declaration_artifact::build_declaration_artifact,
+        eval::{portable::encode_values, AtomValue, Item},
+    };
+    use std::collections::BTreeMap;
+    let body="{attribute @name=quantity @type=integer @required=true @minInclusive=1 @maxInclusive=5}{attribute @name=data-count @type=integer}{p @id='{$instanceID}' @title='{$datadom.slices.cart.title}' | {$quantity}/{$datadom.attributes.quantity}/{$datadom.attributes.data-count}/{$datadom.dataset.count}/{$datadom.dataset.fruitName}/{$datadom.slices.cart.title}/{$datadom.slices.cart.cost}/{$datadom.slices.cart.ready}}";
+    let source = format!(
+        r#"<cem-element tag="cem-owned-domains"><template id="cem-owned-domains" type="text/cem-ml">{body}</template></cem-element>"#
+    );
+    let built = build_declaration_artifact(
+        &source,
+        "https://app.test/components/domains.xhtml",
+        TemplateArtifactSourceMapMode::Prod,
+        None,
+    )
+    .unwrap();
+    let metadata: cem_ql::declaration_artifact::DeclarationArtifactMetadata =
+        serde_json::from_str(&built.metadata_json).unwrap();
+    let loaded = built.template.reload_pinned(&metadata.template).unwrap();
+    fs::write(output.join("owned-domains.bin"), built.template.bytes).unwrap();
+    fs::write(output.join("owned-domains.json"), built.metadata_json).unwrap();
+    fs::write(output.join("owned-domains.hash"), built.metadata_hash).unwrap();
+    let original = include_str!("../fixtures/component-application/island-domains.xhtml");
+    for (name, source) in [
+        ("first", original.to_owned()),
+        (
+            "second",
+            original
+                .replace("island-one", "island-two")
+                .replace("003", "004")
+                .replace("banana", "pear")
+                .replace("Tea &amp; cake", "Coffee &amp; cake"),
+        ),
+        (
+            "dataset",
+            original.replace(
+                "key=\"fruitName\" value=\"banana\"",
+                "key=\"fruitName\" value=\"wrong\"",
+            ),
+        ),
+        (
+            "boolean",
+            original.replace("kind=\"boolean\">true", "kind=\"boolean\">yes"),
+        ),
+        (
+            "alias",
+            original.replace("name=\"cart\"", "name=\"quantity\""),
+        ),
+        (
+            "credential",
+            original.replace(
+                "name=\"quantity\" value=\"003\"",
+                "name=\"autocomplete\" value=\"one-time-code\"",
+            ),
+        ),
+        ("bounds", original.replace("003", "009")),
+    ] {
+        let tree = cem_ml::import::import_data_bytes(
+            source.as_bytes(),
+            "application/xml",
+            "cem",
+            &format!("app://island/domains-{name}.xhtml"),
+        )
+        .unwrap();
+        fs::write(
+            output.join(format!("owned-domains-{name}.cemv")),
+            encode_values(
+                &ItemStream::once(imported_cem_tree(tree)),
+                &Default::default(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        if !matches!(name, "first" | "second") {
+            continue;
+        }
+        let second = name == "second";
+        let atom = |s: &str| Item::Atomic(AtomValue::String(s.into()));
+        let lexical = if second { "004" } else { "003" };
+        let id = if second { "island-two" } else { "island-one" };
+        let fields = BTreeMap::from([
+            (
+                "attributes".into(),
+                vec![Item::Record(BTreeMap::from([
+                    ("quantity".into(), vec![atom(lexical)]),
+                    ("data-count".into(), vec![atom(lexical)]),
+                ]))],
+            ),
+            (
+                "dataset".into(),
+                vec![Item::Record(BTreeMap::from([
+                    ("count".into(), vec![atom(lexical)]),
+                    (
+                        "fruitName".into(),
+                        vec![atom(if second { "pear" } else { "banana" })],
+                    ),
+                ]))],
+            ),
+            (
+                "slices".into(),
+                vec![Item::Record(BTreeMap::from([(
+                    "cart".into(),
+                    vec![Item::Record(BTreeMap::from([
+                        (
+                            "title".into(),
+                            vec![atom(if second {
+                                " Coffee & cake "
+                            } else {
+                                " Tea & cake "
+                            })],
+                        ),
+                        (
+                            "cost".into(),
+                            vec![Item::Atomic(AtomValue::Decimal(
+                                "9007199254740993.25".into(),
+                            ))],
+                        ),
+                        ("ready".into(), vec![Item::Atomic(AtomValue::Boolean(true))]),
+                    ]))],
+                )]))],
+            ),
+        ]);
+        let data = TemplateData::default()
+            .with_binding("datadom", ItemStream::once(Item::Record(fields)))
+            .with_binding("quantity", ItemStream::once(atom(lexical)))
+            .with_binding("data-count", ItemStream::once(atom(lexical)))
+            .with_binding("instanceID", ItemStream::once(atom(id)));
+        let plan = render_compiled_template(&loaded, &data);
+        assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+        fs::write(
+            output.join(format!("owned-domains-{name}.html")),
+            render_plan_to_html(&plan),
+        )
+        .unwrap();
     }
 }

@@ -703,7 +703,7 @@ languages, conversions and tooling loaded on actual demand. Preserve every
 component capability through the core or a pinned module; keep the current
 full-runtime, CLI and Studio defaults unchanged. An isolated compiled-template/JSON WASM prototype now exists; the complete
 live-component distribution remains open, and no measured minimum is claimed. The current UI WASM reference is
-23.08 MiB raw, 7.04 MiB gzip-9 and 5.17 MiB Brotli-9; record and compare matched
+23.09 MiB raw, 7.04 MiB gzip-9 and 5.17 MiB Brotli-9; record and compare matched
 builds rather than promising an unmeasured core size.
 
 Clarified 2026-10-29: initial dependencies follow the deployed application's
@@ -743,9 +743,14 @@ frames. Host instance identity now has a separate bounded native input, and
 compiled receiver declarations enforce required/default/conversion/facet checks.
 A passive native island gate now checks qualified topology/lifecycle/payload
 identity and exports HTML/CEMV projections with retained payload/slot/source
-references; unimplemented state domains must be empty. Full data-island domains,
-named-schema contracts, widget/provider bindings, worker transport and
-checkpoint/journal handoff remain open.
+references; unimplemented state domains must be empty. Native attribute/dataset
+and typed scalar/record/array slice adapters now retain source metadata, enforce
+DOMStringMap consistency and bound aliases without a JSON AST handoff. Receiver
+conversion preserves lexical dataset strings; scalar CEMV re-export keeps original
+provenance. Host/payload credential metadata without capture proof still refuses.
+Payload references, remaining island domains, named-schema contracts,
+widget/provider bindings, worker transport and checkpoint/journal handoff remain
+open.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

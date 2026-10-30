@@ -575,22 +575,22 @@ the isolated build uses `--no-default-features --features component-runtime`.
 
 | WASM measure | Full bytes | Prototype bytes |
 | --- | ---: | ---: |
-| Raw | 24,206,012 | 11,249,302 |
-| Gzip level 9 | 7,377,289 | 3,178,420 |
-| Brotli quality 9 | 5,424,626 | 2,387,834 |
-| Code section payload | 21,447,089 | 8,953,469 |
-| Data section payload | 2,729,913 | 2,282,732 |
+| Raw | 24,207,650 | 11,268,127 |
+| Gzip level 9 | 7,379,167 | 3,184,884 |
+| Brotli quality 9 | 5,424,656 | 2,396,344 |
+| Code section payload | 21,448,929 | 8,973,695 |
+| Data section payload | 2,729,720 | 2,281,312 |
 
-The prototype is 10.73 MiB raw, a 53.5% whole-file reduction.
+The prototype is 10.75 MiB raw, a 53.5% whole-file reduction.
 It has 10 imports/21 exports, compared with 28/171 for the full runtime.
 The public surface is the one-shot renderer, passive declaration-owner methods
 and a counter-only inventory; remaining exports are wasm-bindgen support. This proves a smaller linked surface
 and reduced code/data sections, without attributing removed bytes to particular
 languages, schemas or functions. Complete application link closure remains false.
 
-Prototype SHA-256: `13c0fec7c4b45a9b714ae019da700cee5006d9de5cdf4a5474ff8bb7335b4aa0`.
+Prototype SHA-256: `9a115ed738be30aa3fd40cff53c073e9fef751ea4cce6aab35aac3fe97274ac4`.
 
-Full SHA-256: `82b564e6ede5f260ed556fba2a4171c28c787fcac3faf37c21cb89990aa3a3ac`.
+Full SHA-256: `a6b5319be86c49564f390c4f4acaeeb120023b791981d8bcbee177840be61628`.
 
 ```bash
 cargo run --locked --offline -p cem-ql --example component_runtime_fixture -- \
@@ -678,9 +678,41 @@ Hydration contains exactly the matching version, host `instanceId` and
 expanded names are. A native drift fixture checks the schema's declared part
 order/namespaces and the shared runtime version.
 
-This is a deliberately passive admission subset. Attributes, dataset, slices,
-resources, forms, validation and events must be empty; reviewed domain adapters
-are still required. Payload identity must be `text/html` with
+The island gate now binds qualified attributes, dataset and slices through
+native semantic views over the original CEMV nodes. Literal attribute entries
+require unique canonical lowercase host names and string values. The dataset
+must exactly equal the DOMStringMap projection of the original `data-*`
+attributes, including hyphen conversion, punctuation and the empty key. Its
+values share the corresponding attribute value identity/source. Receiver
+conversion updates semantic aliases and `datadom.attributes`; dataset strings
+remain the original lexical values (`003` stays `003` while an integer receiver
+sees `3`). Attributes and top-level slices share at most 64 aliases; duplicate,
+reserved runtime-root and cross-channel collisions refuse. `dataset` is also
+reserved at this island boundary. Ordinary attribute aliases use the existing
+bounded ASCII naming policy; canonical `data-*` attributes additionally admit
+HTML-safe suffix punctuation and Unicode needed by DOMStringMap.
+
+Qualified `slice` entries declare `string`, `boolean`, `number`, `null`, `record`
+or `array` explicitly. Strings preserve whitespace, booleans require `true` or
+`false`, and numbers use shared finite-decimal validation without JavaScript
+number coercion or precision loss. Null has no content. Records require unique,
+nonempty child names of at most 256 UTF-8 bytes; arrays require contiguous ordered
+indices starting at zero. Nested values retain their original container/value source keys and maps through native
+record/array/scalar views. Keys such as `kind`, `constructor` and `__proto__` are
+ordinary record members, never inferred document/node shapes. Host strings use
+the original `value` attribute as their source. The shared CEMV writer now also
+preserves atomic provenance on re-export. CEMV still exports only native nodes
+and atomic values: select record fields or array members for export; whole
+semantic records/arrays refuse rather than inventing a JSON document.
+
+The [native domain fixture](../packages/cem_ql/fixtures/component-application/island-domains.xhtml)
+and native unit tests cover source identity, exact scalar types, nesting, alias
+bounds, malformed input and refusal. The native fixture generator independently
+supplies typed control data to the full renderer for reference HTML; two-heap
+WASM/browser checks transport CEMV without decoding/reconstructing the graph.
+
+Resources, forms, validation and events must remain empty until their reviewed
+adapters exist. Payload identity must be `text/html` with
 `https://cem.dev/ns/data/html/1`, containing canonical lowercase HTML names in the
 HTML namespace. Foreign namespaces, payload references, nodes without required
 source metadata, alternate payload schemas and CEM-ML source handoffs refuse.
@@ -706,10 +738,11 @@ Input/expanded-value and output budgets remain 1 MiB with 16,384 values/referenc
 depth 64 and five-second native operation control. Each call releases its input
 frame; owners retain no island or projection handles. Password/file controls and
 password/one-time-code autocomplete metadata refuse even when empty because this
-entry has no live property/capture proof. This does not change the full runtime's
-entered-credential recovery policy. It is not a checkpoint permit, live-control
-registration, DOM installation or worker/recovery adapter. Those gates, complete
-island domains and named schema contracts remain open.
+entry has no live property/capture proof. The same refusal applies to host
+`type=password|file` and credential autocomplete attributes. This does not change
+the full runtime's entered-credential recovery policy. It is not a checkpoint permit, live-control
+registration, DOM installation or worker/recovery adapter. Those gates,
+payload-reference admission, remaining island domains and app-specific named schema contracts remain open.
 
 Styles reuse the existing native resolver, compiled-import policy replay,
 `RetainedStylesheet` identity/scoping emission and last-consumer invalidation.

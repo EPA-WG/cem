@@ -213,3 +213,50 @@ export const PassiveNativeIslandProjection:Story={
         expect(requests.some(name=>name.endsWith('.xhtml')||name.endsWith('.cem')||name.startsWith('app://island/'))).toBe(false);
     },
 };
+
+export const NativeIslandDomains:Story={
+    render:()=>'<section aria-label="Selected runtime native island domains">Typed attributes, dataset and nested slices.</section>',
+    play:async({canvasElement})=>{
+        const started=networkTraceStart();
+        const factoryUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_factory.js'];
+        const wasmUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_bg.wasm'];
+        if(!factoryUrl||!wasmUrl)throw Error('Build the selected component WASM profile before this story');
+        const factory=await import(/* @vite-ignore */ factoryUrl);
+        const module=await WebAssembly.compile(await(await fetch(wasmUrl)).arrayBuffer());
+        const root=canvasElement.querySelector('section');if(!root)throw Error('Missing domain fixture');
+        const first=await createCemComponentGeneration(module,factory.createCemComponentWasmBindings());
+        const second=await createCemComponentGeneration(module,factory.createCemComponentWasmBindings());
+        try {
+            expect(first.memory()).not.toBe(second.memory());
+            for(const generation of [first,second]) {
+                const component=generation.open(new Uint8Array(await(await artifact('owned-domains','bin')).arrayBuffer()),await(await artifact('owned-domains','json')).text(),(await(await artifact('owned-domains','hash')).text()).trim());
+                for(const name of ['first','second']) {
+                    const input=new Uint8Array(await(await artifact(`owned-domains-${name}`,'cemv')).arrayBuffer());
+                    const expected=await(await artifact(`owned-domains-${name}`,'html')).text();
+                    const id=name==='second'?'island-two':'island-one';
+                    const html=component.renderIsland(input,id);
+                    expect(html).toBe(expected);
+                    root.innerHTML=html; // Test-only mounting of native HTML, with no UI implementation here.
+                    expect(root.querySelector('p')?.id).toBe(id);
+                    expect(root.querySelector('p')?.title).toBe(name==='first'?' Tea & cake ':' Coffee & cake ');
+                    expect(root.textContent).toContain('/9007199254740993.25/true');
+                    expect(root.querySelector('p')?.textContent).toContain(name==='first'?'3/3/3/003/banana':'4/4/4/004/pear');
+                    const projection=component.projectIsland(input,id);
+                    expect(Array.from(projection.subarray(0,5))).toEqual([67,69,77,86,3]);
+                    expect(component.projectIsland(input,id)).toEqual(projection);
+                    expect(()=>component.renderIsland(projection,id)).toThrow();
+                    for(const invalid of ['dataset','boolean','alias','credential','bounds']) {
+                        const bytes=new Uint8Array(await(await artifact(`owned-domains-${invalid}`,'cemv')).arrayBuffer());
+                        expect(()=>component.renderIsland(bytes,'island-one')).toThrow();
+                        expect(()=>component.projectIsland(bytes,'island-one')).toThrow();
+                    }
+                    expect(component.renderIsland(input,id)).toBe(expected);
+                }
+                component.dispose();expect(generation.inventory().liveDeclarationOwners).toBe(0);
+            }
+        } finally {first.dispose();second.dispose();}
+        const requests=performance.getEntriesByType('resource').filter(entry=>entry.startTime>=started&&(entry as PerformanceResourceTiming).initiatorType==='fetch').map(entry=>entry.name);
+        expect(requests.filter(name=>name.includes('cem_ql_bg.wasm'))).toEqual([new URL(wasmUrl,location.href).href]);
+        expect(requests.some(name=>name.endsWith('.xhtml')||name.endsWith('.cem')||name.startsWith('app://island/'))).toBe(false);
+    },
+};

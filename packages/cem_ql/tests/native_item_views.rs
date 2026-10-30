@@ -215,3 +215,50 @@ fn evaluator_polls_host_cancellation_after_native_view_work() {
         .iter()
         .any(|diagnostic| diagnostic.code == "cem.ql.aborted"));
 }
+
+#[test]
+fn portable_atomic_reexport_retains_native_provenance() {
+    use cem_ml::{
+        source::{ByteRange, SourceId},
+        source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind},
+        value::artifact::{CemValueGraph, CemValueProvenance, CemValueRecord},
+    };
+    use cem_ql::eval::portable::{decode_values, encode_values};
+    let record = CemValueRecord {
+        kind: "atomic".into(),
+        datatype: "string".into(),
+        lexical: "source value".into(),
+        source: SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(7),
+                span: FrameSpan::Single(ByteRange { start: 0, len: 12 }),
+                transform: TransformKind::SourceBoundary {
+                    uri: "app://island/values.xhtml".into(),
+                },
+            }],
+        },
+        provenance: Some(CemValueProvenance {
+            source_uri: Some("app://island/values.xhtml".into()),
+            source_key: Some("native-value-source".into()),
+            line_number: Some(1),
+        }),
+        ..Default::default()
+    };
+    let original = CemValueGraph {
+        roots: vec![0],
+        records: vec![record],
+    };
+    let input = original.encode(&Default::default()).unwrap();
+    let values = decode_values(&input, &Default::default()).unwrap();
+    let output = encode_values(&values, &Default::default()).unwrap();
+    let restored = CemValueGraph::decode(&output, &Default::default()).unwrap();
+    let actual = restored.records[0]
+        .provenance
+        .as_ref()
+        .expect("atomic provenance was lost");
+    let expected = original.records[0].provenance.as_ref().unwrap();
+    assert_eq!(actual.source_uri, expected.source_uri);
+    assert_eq!(actual.source_key, expected.source_key);
+    assert_eq!(actual.line_number, expected.line_number);
+    assert_eq!(restored.records[0].source, original.records[0].source);
+}

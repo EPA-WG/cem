@@ -1,4 +1,6 @@
-//! Passive native island admission. Domain adapters remain explicit gates.
+//! Native island admission with explicit domain and live-state gates.
+#[path = "island_domains.rs"]
+mod domains;
 use crate::{
     eval::{portable::decode_values_with_control, AtomValue, Item, ItemStream},
     render::TemplateData,
@@ -157,7 +159,7 @@ pub(super) fn bind(
         if index != 3 && !attrs(part)?.is_empty() {
             return Err(INVALID.into());
         }
-        if !matches!(index, 0 | 3) && !elements(part)?.is_empty() {
+        if !matches!(index, 0 | 1 | 2 | 3 | 4) && !elements(part)?.is_empty() {
             return Err(INVALID.into());
         }
     }
@@ -269,6 +271,7 @@ pub(super) fn bind(
             ("slots".into(), vec![Item::Record(slots)]),
         ]))),
     );
+    domains::bind(&mut data, &parts, control)?;
     Ok(data)
 }
 
