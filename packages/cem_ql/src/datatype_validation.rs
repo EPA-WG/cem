@@ -135,6 +135,8 @@ impl Default for ValidationLimits {
 enum Implementation {
     Native(Arc<dyn NativeDatatypeValidator>),
     Query(Arc<CompiledQuery>),
+    #[cfg(not(target_arch = "wasm32"))]
+    VerifiedQuery(Arc<crate::query_validator_capsule::LinkedValidatorQuery>),
 }
 #[derive(Debug, Clone)]
 struct Registration {
@@ -150,6 +152,24 @@ pub struct DatatypeValidationRegistry {
     entries: BTreeMap<(String, String), Arc<Registration>>,
 }
 impl DatatypeValidationRegistry {
+    /// Register verified instructions against independently supplied, checked
+    /// original native declarations. This never parses/compiles query source or
+    /// installs native callbacks, grants or generation ownership.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn register_verified_query(
+        &mut self,
+        contract: DatatypeBehaviorContract,
+        source: &cem_ml::schema::structural_capsule::SourceIdentity,
+        registry_hash: &str,
+        functions: &crate::selected_registry::SelectedFunctionRegistry,
+        query: Arc<crate::query_validator_capsule::VerifiedValidatorQuery>,
+        adapter: DatatypeResultAdapter,
+    ) -> Result<(), ValueContractError> {
+        let query = query
+            .link(&contract, source, registry_hash, functions)
+            .map_err(|_| error("verified-query-binding-mismatch", contract.behavior()))?;
+        self.insert(contract, adapter, None, Implementation::VerifiedQuery(query))
+    }
     pub fn signature(
         &self,
         owner: &SchemaDeclarationNode,
@@ -445,18 +465,7 @@ pub fn validate_rules(
         let execution = match &rule.registration.implementation {
             Implementation::Native(implementation) => implementation.validate(call),
             Implementation::Query(query) => {
-                let mut context = runtime.query.clone();
-                // Function roles are a closed binding environment; runtime capabilities
-                // and navigation restrictions stay on the supplied native views.
-                context.policy_bindings = BTreeMap::from([
-                    ("value".into(), ItemStream::from_items(input.value.clone())),
-                    ("datatype".into(), ItemStream::once(rule.datatype.clone())),
-                    (
-                        "candidate".into(),
-                        ItemStream::from_items(input.candidate.clone()),
-                    ),
-                ]);
-                context.current_item = None;
+                let context = query_context(input, rule, runtime);
                 RuleExecution::Complete(api::evaluate_with_control(
                     query,
                     &context,
@@ -464,6 +473,12 @@ pub fn validate_rules(
                     runtime.scope,
                 ))
             }
+            #[cfg(not(target_arch = "wasm32"))]
+            Implementation::VerifiedQuery(query) => RuleExecution::Complete(query.evaluate(
+                &query_context(input, rule, runtime),
+                runtime.control,
+                runtime.scope,
+            )),
         };
         if let Err(e) = runtime.control.check_scope(runtime.scope) {
             return stopped(completed, Some(rule), ValidationStopReason::Control(e));
@@ -518,6 +533,25 @@ pub fn validate_rules(
         completed,
         stopped: None,
     }
+}
+fn query_context(
+    input: &ValidationInput,
+    rule: &BoundDatatypeRule,
+    runtime: &ValidationRuntime<'_>,
+) -> EvaluationContext {
+    let mut context = runtime.query.clone();
+    // Fixed function roles share the enclosing allowance; scoped native views
+    // keep their original owners and navigation restrictions.
+    context.policy_bindings = BTreeMap::from([
+        ("value".into(), ItemStream::from_items(input.value.clone())),
+        ("datatype".into(), ItemStream::once(rule.datatype.clone())),
+        (
+            "candidate".into(),
+            ItemStream::from_items(input.candidate.clone()),
+        ),
+    ]);
+    context.current_item = None;
+    context
 }
 fn consume(
     registration: &Registration,

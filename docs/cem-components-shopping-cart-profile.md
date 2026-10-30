@@ -708,7 +708,7 @@ runtime facet validator; this gate does not establish precompiled regex/executab
 IR or per-parser code omission. No checkpoint authority is added.
 The [portable native schema contract design](cem-native-schema-capsules.md)
 defines separate inert records, explicit fresh-runtime linking and atomic
-publication for future executable/node contracts. Those adapters are not yet
+publication for future executable/node contracts. Those compiled-component adapters are not yet
 implemented; v1 refuses them even with internally consistent integrity pins.
 Native Rust now has a separate `CEMSC1` literal structural schema exporter and
 verifier. It preserves a source arena and passive namespaces, pins local
@@ -722,7 +722,10 @@ original literal schema node receiver and validate authorized targets through
 shared native rules. Live context/invocation receipts refuse stale hosts,
 relabelled captures, changed receiver metadata and retired contracts. This does
 not add template named-node bindings, an application envelope version or WASM
-admission. The [native linking contract](cem-native-schema-capsules.md#native-fresh-host-linking-and-node-receivers)
+admission. Native `CEMQV1` programs can now restore a bounded compiled query
+subset through the shared validation registry; original checked declarations
+remain explicit host dependencies, with portable source transport still pending.
+The [native linking contract](cem-native-schema-capsules.md#native-fresh-host-linking-and-node-receivers)
 defines its required source registration, explicit grants, bounds and lifetime.
 The [native schema/type fixture](../packages/cem_ql/fixtures/component-application/named_receiver_types.rs)
 compiles original schema facets and emits independent full-renderer reference

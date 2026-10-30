@@ -781,6 +781,14 @@ provenance and local cardinality; it never parses strings or evaluates nested
 references. Query/native implementation registration, compiled-component envelope
 admission and worker/recovery ownership bindings remain subsequent gates.
 
+Native `CEMQV1` validator programs now verify a closed typed instruction/function
+subset without source recompilation and register against separately supplied
+checked original declarations. They reuse shared validation/results, selected
+dispatch and cumulative invocation budgets. Portable query source dependencies,
+generation enrollment, exact native callback implementations and component/WASM
+receiver admission remain implementation gates; see the
+[query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
+
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.
 The [initial audit](docs/cem-components-wasm-audit.md) and

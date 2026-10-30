@@ -1584,8 +1584,59 @@ inventory, not the minimum set loaded by every app.
               production JavaScript, checkpoint grant or backend switching.
               Entered credentials still block recovery; 4 MiB checkpoints and
               five-second handoff deadlines remain unchanged.
-              - [ ] Add verified pure-query validator capsules and their complete
-                native function/signature closure without source recompilation.
+              - [x] Add verified pure-query validator capsules for an explicit
+                reviewed subset, with complete native function/signature closure
+                and no source recompilation at verification or registration.
+                - [x] Add native roundtrip/parity fixtures for typed validator IR,
+                  checked original declaration dependencies, exact function and
+                  input/result signatures, and original diagnostic provenance.
+                - [x] Reject repinned malformed/unsupported IR, dynamic or native
+                  calls, missing/extra function requirements, foreign declaration
+                  occurrences, bounds and cancellation before registration.
+                - [x] Verify the shared result adapter and cumulative invocation
+                  budget on reloaded programs; preserve existing WASM refusal
+                  and Studio's entered-credential recovery policy.
+                Native `CEMQV1` now carries typed query tables, original source
+                maps, fixed value/datatype/candidate roles, a source/declaration
+                fingerprint and exact reviewed function requirements. Verification
+                is inert; explicit registry registration requires checked original
+                native declarations and actual available host functions. Matching
+                hashes alone cannot supply an implementation. Execution keeps the
+                ordinary scoped native views, input checks, schema-owned results
+                and selected dispatcher; there is no general-catalog fallback.
+                Supported instructions include bounded literals, static records,
+                arrays/sequences, comparisons/binary operators, conditionals and
+                field reads, plus nine reviewed sequence/string functions. Dynamic
+                calls, callbacks/lambdas, loops, resource/state/type/template
+                providers and unsupported helpers refuse. The source dependency
+                remains separately supplied; this is not whole-schema or
+                compiled-component admission and creates no generation grant.
+                Wire cap: 64 KiB; instructions: 4,096; original query: 16 KiB;
+                graph/type depth: 64/32; one 100,000-visit verification allowance.
+                Structural and query capsules share bounded native MessagePack
+                preflight. Expanded instruction cost is charged cumulatively to
+                the enclosing invocation's native validator-work budget, capped
+                at the smaller of 100,000 and 64 times effective queue size.
+                Verification: seven capsule and seven query integration cases,
+                427 existing native regressions (441 distinct native cases),
+                both current WASM drivers, 18 component browser cases, ten
+                factory/audit cases and both Studio Login recovery/privacy
+                scenarios pass. Renamed headers, unavailable host functions and
+                invalid qualified-name spans were observed failing before repair.
+                Source audit freshness, changed formatting and documentation links
+                pass. No production JavaScript, WASM ABI/export, application wire
+                version, source fallback or cached verdict was added. Existing
+                optimized profile remains 11,471,605 bytes. Entered credentials
+                still block recovery; 4 MiB checkpoints and five-second handoff
+                deadlines remain unchanged. Studio acceptance ran without
+                concurrent native builds; the final span-only native guard
+                passed focused native coverage afterward.
+              - [ ] Transport original query declaration/source dependencies as
+                bounded native capsules, restore occurrence mappings and bind
+                query registrations to fresh host context/generation lifetimes.
+                Refuse expired/foreign/replaced owners without replaying source
+                queries or widening retained view grants; add native then worker/
+                fallback lifetime and privacy fixtures before enabling admission.
               - [ ] Link exact reviewed native validator/tokenizer/preparation/
                 conversion/equality/serializer registrations on fresh hosts;
                 preserve unavailable and checked-replacement states.

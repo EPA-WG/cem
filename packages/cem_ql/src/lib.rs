@@ -15,6 +15,8 @@ pub mod attribute_readiness;
 pub mod attribute_validation;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod structural_receiver;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod query_validator_capsule;
 #[cfg(feature = "debug-control")]
 pub mod debug_control;
 pub mod diagnostics;

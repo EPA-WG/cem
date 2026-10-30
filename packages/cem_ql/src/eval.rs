@@ -560,6 +560,8 @@ pub enum BudgetAxis {
     ExternalFetches,
     XPathTextBytes,
     XPathWorkUnits,
+    #[cfg(not(target_arch = "wasm32"))]
+    ValidatorWork,
 }
 
 impl BudgetAxis {
@@ -573,6 +575,8 @@ impl BudgetAxis {
             BudgetAxis::ExternalFetches => "external-fetches",
             BudgetAxis::XPathTextBytes => "xpath-text-bytes",
             BudgetAxis::XPathWorkUnits => "xpath-work-units",
+            #[cfg(not(target_arch = "wasm32"))]
+            BudgetAxis::ValidatorWork => "validator-work",
         }
     }
 }
@@ -664,6 +668,24 @@ impl Evaluator {
         let mut ctx = EvalCtx::new(query, context, control, scope);
         ctx.selected_registry = Some(registry);
         ctx.recovery_depth = usize::from(protected);
+        ctx.evaluate_root()
+    }
+    /// Charge the verified program's conservative expanded instruction cost to
+    /// the enclosing invocation before entering the ordinary selected evaluator.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn evaluate_verified_validator(
+        query: &CompiledQuery,
+        context: &EvaluationContext,
+        registry: Arc<crate::selected_registry::SelectedFunctionRegistry>,
+        work: u64,
+        control: &OperationControl,
+        scope: ExecutionScopeId,
+    ) -> ItemStream {
+        let mut ctx = EvalCtx::new(query, context, control, scope);
+        ctx.selected_registry = Some(registry);
+        if let Err(failure) = ctx.charge(BudgetAxis::ValidatorWork, work, query.tree.root) {
+            return failure;
+        }
         ctx.evaluate_root()
     }
     pub(crate) fn evaluate_internal<'a>(
@@ -1933,6 +1955,13 @@ pub(crate) fn first_integer(stream: &ItemStream) -> Option<i64> {
 
 fn limits_from_policy(policy: ScopePolicy) -> HashMap<BudgetAxis, u64> {
     [
+        #[cfg(not(target_arch = "wasm32"))]
+        (
+            BudgetAxis::ValidatorWork,
+            (policy.queue_size.max(1) as u64)
+                .saturating_mul(64)
+                .min(100_000),
+        ),
         (BudgetAxis::ItemsPerStage, policy.queue_size.max(1) as u64),
         (
             BudgetAxis::CallDepth,

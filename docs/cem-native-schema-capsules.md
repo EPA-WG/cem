@@ -2,9 +2,12 @@
 
 Status: the native-only structural `CEMSC1` exporter/verifier and explicit
 fresh-host node receiver linker are implemented. They restore a bounded shared
-model and bind its use to a concrete native host and invocation. Query/native
-implementation linking, WASM transport and compiled-component receiver admission
-remain **unimplemented**. The deployed `CEMAPPD1` format remains scalar-only. Its
+model and bind its use to a concrete native host and invocation. A native-only
+`CEMQV1` capsule also verifies a closed subset of compiled validator queries and
+registers them against separately supplied checked original declarations.
+Portable query declaration-source transport, exact native implementation linking,
+WASM transport and compiled-component receiver admission remain **unimplemented**.
+The deployed `CEMAPPD1` format remains scalar-only. Its
 existing wire version must not acquire executable semantics implicitly.
 
 This extends the [component profile](cem-components-wasm-profile.md) and
@@ -241,8 +244,81 @@ has independent native compilation/reload comparisons. The
 compares complete/incomplete and accepted/rejected results under fresh hosts,
 with explicit cross-owner grants, repeated reference placements and original
 candidate diagnostic URIs/ranges. Compiled-component receiver transport,
-inherited/imported schema composition, pure query validators and exact native
-implementation registration remain separate gates before deployment admission.
+inherited/imported schema composition, complete query declaration-source transport
+and exact native implementation registration remain gates before deployment admission.
+
+## Native compiled validator query subset
+
+[`cem_ql::query_validator_capsule`](../packages/cem_ql/src/query_validator_capsule.rs)
+provides native-only `export` and `verify` entry points for `CEMQV1` programs.
+Build compiles one checked inline validation function through the existing query
+compiler. The binary carries its typed instruction tables, original source maps,
+fixed role bindings and exact reviewed function requirements. It contains no
+query source to parse, JSON AST, callback or live registration. The older general
+query artifact's source-recompilation path is not used by this format.
+
+The independently trusted pin covers the whole binary, original source identity,
+declaration fingerprint and selected registry/build hash. The fingerprint binds
+the schema, behavior, function and body occurrences, their original headers and
+source maps, aliases, body hash, datatype/value representation, candidate
+requirement and schema-owned result name. Matching bytes do not grant access to
+any source or register a runtime implementation.
+The trusted build associates original byte identity with its native declaration
+capture, as in structural export; the exporter does not reparse source bytes to
+prove that association.
+
+The first instruction subset accepts string/integer/boolean/null literals,
+static records, arrays/sequences, comparisons and ordinary binary operations,
+non-reference unary operations, conditionals and unqualified field navigation.
+Every compiled instruction must be supported, reachable and postordered with
+valid tables, fixed input bindings and original query-relative provenance.
+Native lowering that introduces another operation or helper is refused rather
+than rewritten. Dynamic calls, lambdas/loops, external type/template/state or
+resource access, reference traversal, receiver methods and effect-bearing
+functions remain outside this subset.
+
+The reviewed function set is sequence `first`, `last`, `count`, `take`, `drop`
+and string `length`, `lower`, `upper`, `contains`. Requirements pin each exact
+module/name/arity, input/result contract and selected implementation ABI. The
+verifier recomputes the complete set across all branches; missing, extra,
+duplicate or changed requirements refuse even after repinning the binary.
+Execution uses the existing selected registry and value helpers with no general
+dispatcher fallback. This is a semantic closure, not evidence that the full
+evaluator or optional implementations were removed from a binary.
+
+Bounds are 64 KiB per program binary, 4,096 instructions, 16 KiB original query
+text at build time, 64 graph levels, 32 type levels and one 100,000-visit budget
+through shape preflight and instruction verification. The original source extent
+is at most 1 MiB. Structural and query capsules share the native MessagePack
+shape checker, which bounds claimed allocations before typed decoding;
+canonical re-encoding refuses ignored or trailing fields. These are wire and
+traversal limits, not a measurement of peak heap or total retained source cost.
+
+`DatatypeValidationRegistry::register_verified_query` is an explicit native host
+action. The host must independently supply a checked `DatatypeBehaviorContract`
+from the original retained declarations, their trusted `SourceIdentity` and its
+actual reviewed function registry. Matching registry hashes cannot supply a
+missing function. The host can support additional entries; the linked program
+dispatches only its verified requirements.
+The same byte identity on a fresh owner can match; changed occurrences, headers,
+body, signature, aliases or provenance cannot. Registration neither parses nor
+compiles a query. It retains the newly supplied owners through the ordinary
+registry; duplicate/failed registration preserves existing entries. Original
+declaration transport and host/generation enrollment are still required before
+this can be used as a self-contained application or recovery payload.
+
+Validation keeps the shared input checks, scoped native node views, required
+candidate rules and schema-owned result adapter. Scalar, list and node signatures
+remain distinct. Malformed result records remain incomplete. No cached verdict
+is installed. A verified query conservatively charges its full expanded graph
+cost to the enclosing query budget before evaluation. The native `validator-work`
+ceiling is the smaller of 100,000 and 64 times the effective queue size; rules in
+the same invocation share it and preserve exhaustion. Existing cancellation and
+original diagnostic attribution remain in force.
+
+This native step adds no component/app JavaScript, WASM export, receiver-envelope
+version, checkpoint content or recovery grant. Entered passwords/OTP still block
+recovery; the 4 MiB checkpoint budget and five-second handoff deadlines remain.
 
 ## Native fresh-host linking and node receivers
 

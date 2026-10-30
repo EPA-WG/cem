@@ -47,6 +47,8 @@ pub mod interpreter;
 pub mod legacy_custom_element;
 pub mod lifecycle;
 pub mod module_resolution;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod native_binary;
 pub(crate) mod module_map;
 pub mod navigation_links;
 pub mod resource_base;

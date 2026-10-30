@@ -283,15 +283,18 @@ The [portable native schema contract design](cem-native-schema-capsules.md)
 specifies build/export, inert verification, explicit fresh-host linking and
 atomic publication for future executable/node-valued receiver contracts. Live
 callbacks, preparation tokens and grants stay in-process. The existing v1
-application envelope remains scalar-only; query exporters and executable
-linkers remain separate implementation gates.
+application envelope remains scalar-only; compiled-component executable
+linking remains a separate implementation gate.
 The native-only `CEMSC1` structural exporter/verifier implements the literal
 single-schema subset and inert shared-model reload. A concrete fresh native host
 can now explicitly link a literal node receiver; live invocation receipts retain
 the exact context, originating attribute, selected contract and local metadata.
 Shared-host acceptance keeps reference readiness, source diagnostics and directed
-crossing grants independent of the artifact. Query/native implementation linking,
-WASM transport and compiled-component receiver admission remain separate gates;
+crossing grants independent of the artifact. Native `CEMQV1` also verifies a
+bounded typed query subset and registers it against separately supplied checked
+original declarations without query recompilation. Portable query source-owner
+dependencies, exact native implementation linking, WASM transport and
+compiled-component receiver admission remain separate gates;
 the deployed WASM ABI is unchanged by this native-only adapter.
 
 Do not equate downloaded code with an active native generation. Register every
