@@ -559,8 +559,12 @@ the data channels and is never retained between renders. Pinned receiver
 attribute declarations enforce defaults, required values, scalar conversion and
 facets through the shared native renderer. Supply the separately built profile
 assets explicitly; the ordinary runtime continues using the full backend.
-Complete data-island/named-schema contracts, widget/provider inputs,
-processing-worker integration and checkpoint handoff remain open. See the
+The passive `renderIsland`/`projectIsland` entries admit a qualified CEMV island
+with matching lifecycle/host identity and empty unimplemented state domains.
+Native payload/slot references produce HTML or an opaque CEMV projection with
+original source metadata; JavaScript transports bytes. Full data-island domain
+adapters, named-schema contracts, widget/provider inputs, processing-worker
+integration and checkpoint handoff remain open. See the
 [retained owner contract and fixtures](../../docs/cem-components-shopping-cart-profile.md#retained-passive-declarations-and-stylesheet-leases).
 
 External declaration loading through `src="#id"`, `src="url"`, and `src="url#id"`, plus `<http-request url="...">`

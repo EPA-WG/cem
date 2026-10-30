@@ -138,6 +138,7 @@ fn main() {
     owned_declarations(&output);
     owned_inputs(&output);
     owned_receiver(&output);
+    owned_island(&output);
     // Trusted native fixture selection, not a claim that all cart component
     // behavior/provider dependencies have closed application build recipes.
     fs::write(output.join("selected_registry.rs"), "use cem_ql::selected_registry::{SelectedBuiltin, SelectedFunctionRegistry};\npub fn selected_registry() -> SelectedFunctionRegistry { SelectedFunctionRegistry::new([SelectedBuiltin::SequenceFirst, SelectedBuiltin::SequenceWhere, SelectedBuiltin::SequenceCount]).unwrap() }\n").unwrap();
@@ -319,4 +320,65 @@ fn owned_receiver(output: &std::path::Path) {
         encode_values(&ItemStream::empty(), &Default::default()).unwrap(),
     )
     .unwrap();
+}
+
+fn owned_island(output: &std::path::Path) {
+    use cem_ql::{
+        declaration_artifact::build_declaration_artifact,
+        eval::{
+            output::output_nodes,
+            portable::{decode_values, encode_values},
+            AtomValue, Item,
+        },
+    };
+    use std::collections::BTreeMap;
+    let body="{cem:if @test='$datadom.slots.heading' | {article @id='{$instanceID}' | {$datadom.slots.heading}}}";
+    let source = format!(
+        r#"<cem-element tag="cem-owned-island"><template id="cem-owned-island" type="text/cem-ml">{body}</template></cem-element>"#
+    );
+    let built = build_declaration_artifact(
+        &source,
+        "https://app.test/components/island.xhtml",
+        TemplateArtifactSourceMapMode::Prod,
+        None,
+    )
+    .unwrap();
+    let metadata: cem_ql::declaration_artifact::DeclarationArtifactMetadata =
+        serde_json::from_str(&built.metadata_json).unwrap();
+    let loaded = built.template.reload_pinned(&metadata.template).unwrap();
+    fs::write(output.join("owned-island.bin"), built.template.bytes).unwrap();
+    fs::write(output.join("owned-island.json"), built.metadata_json).unwrap();
+    fs::write(output.join("owned-island.hash"), built.metadata_hash).unwrap();
+    let original = include_str!("../fixtures/component-application/passive-island.xhtml");
+    for (name,source) in [
+        ("first",original.to_owned()),
+        ("second",original.replace("island-one","island-two").replace("Heading","Updated")),
+        ("empty",original.replace("<html:strong slot=\"heading\">Heading</html:strong><html:span slot=\"heading\">Second</html:span>Tail","")),
+        ("bad-version",original.replace("version=\"0.2.0\"","version=\"0.1.2\"")),
+        ("bad-namespace",original.replace("runtime/instance-slices","runtime/foreign")),
+        ("bad-state",original.replace("<s:slices/>","<s:slices><s:slice name=\"value\" kind=\"string\">private credential</s:slice></s:slices>")),
+        ("credential",original.replace("Tail</p:payload>","<html:input autocomplete=\"one-time-code\"/></p:payload>")),
+    ] {
+        let tree=cem_ml::import::import_data_bytes(source.as_bytes(),"application/xml","cem",&format!("app://island/{name}.xhtml")).unwrap();
+        let input=encode_values(&ItemStream::once(imported_cem_tree(tree)),&Default::default()).unwrap();
+        fs::write(output.join(format!("owned-island-{name}.cemv")),&input).unwrap();
+        if !matches!(name,"first"|"second"|"empty"){continue;}
+        // Independent full-renderer reference, using the native values directly.
+        let values=decode_values(&input,&Default::default()).unwrap();
+        let children=|item:&Item|item.view().unwrap().field("children").unwrap_or_default();
+        let field=|item:&Item,key:&str|item.view().and_then(|view|view.field(key)).and_then(|items|items.first().and_then(Item::atom));
+        let root=children(&values.items[0]).into_iter().find(|item|field(item,"kind")==Some(AtomValue::String("element".into()))).unwrap();
+        let payload=children(&root).into_iter().find(|item|field(item,"name")==Some(AtomValue::String("payload".into()))).unwrap();
+        let payload_children=children(&payload);
+        let heading=payload_children.iter().filter(|item|field(item,"kind")==Some(AtomValue::String("element".into()))).cloned().collect();
+        let id=if name=="second"{"island-two"}else{"island-one"};
+        let data=TemplateData::default().with_binding("island",ItemStream::once(root)).with_binding("instanceID",ItemStream::once(Item::Atomic(AtomValue::String(id.into())))).with_binding("datadom",ItemStream::once(Item::Record(BTreeMap::from([
+            ("payload".into(),vec![payload]),
+            ("slots".into(),vec![Item::Record(BTreeMap::from([("heading".into(),heading)]))]),
+        ]))));
+        let plan=render_compiled_template(&loaded,&data);
+        assert!(plan.diagnostics.is_empty(),"{name}: {:?}",plan.diagnostics);
+        fs::write(output.join(format!("owned-island-{name}.html")),render_plan_to_html(&plan)).unwrap();
+        fs::write(output.join(format!("owned-island-{name}.projection.cemv")),encode_values(&output_nodes(plan.nodes),&Default::default()).unwrap()).unwrap();
+    }
 }

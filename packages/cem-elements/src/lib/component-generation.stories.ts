@@ -166,3 +166,50 @@ export const NativeReceiversAndInstanceIdentity:Story={
         expect(requests.some(name=>name.endsWith('.xhtml')||name.endsWith('.cem'))).toBe(false);
     },
 };
+
+export const PassiveNativeIslandProjection:Story={
+    render:()=>'<section aria-label="Selected runtime native island projection">Native island payload, slots and projection.</section>',
+    play:async({canvasElement})=>{
+        const started=networkTraceStart();
+        const factoryUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_factory.js'];
+        const wasmUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_bg.wasm'];
+        if(!factoryUrl||!wasmUrl)throw Error('Build the selected component WASM profile before this story');
+        const factory=await import(/* @vite-ignore */ factoryUrl);
+        const module=await WebAssembly.compile(await(await fetch(wasmUrl)).arrayBuffer());
+        const root=canvasElement.querySelector('section');if(!root)throw Error('Missing island fixture');
+        const first=await createCemComponentGeneration(module,factory.createCemComponentWasmBindings());
+        const second=await createCemComponentGeneration(module,factory.createCemComponentWasmBindings());
+        try {
+            expect(first.memory()).not.toBe(second.memory());
+            for(const generation of [first,second]) {
+                const component=generation.open(new Uint8Array(await(await artifact('owned-island','bin')).arrayBuffer()),await(await artifact('owned-island','json')).text(),(await(await artifact('owned-island','hash')).text()).trim());
+                for(const name of ['first','second','empty']) {
+                    const input=new Uint8Array(await(await artifact(`owned-island-${name}`,'cemv')).arrayBuffer());
+                    const expected=await(await artifact(`owned-island-${name}`,'html')).text();
+                    const expectedProjection=new Uint8Array(await(await artifact(`owned-island-${name}.projection`,'cemv')).arrayBuffer());
+                    const id=name==='second'?'island-two':'island-one';
+                    const html=component.renderIsland(input,id);
+                    expect(html).toBe(expected);
+                    const projection=component.projectIsland(input,id);
+                    expect(projection).toEqual(expectedProjection); // Opaque binary comparison; native code owns decoding.
+                    root.innerHTML=html; // Test-only projection of native HTML.
+                    expect(root.textContent).toBe(name==='empty'?'':`${name==='first'?'Heading':'Updated'}Second`);
+                    expect(root.querySelector('article')?.id).toBe(name==='empty'?undefined:id);
+                    expect(()=>component.renderIsland(projection,id)).toThrow();
+                    expect(()=>component.projectIsland(projection,id)).toThrow();
+                    expect(()=>component.renderIsland(input,'wrong-instance')).toThrow();
+                    for(const invalid of ['bad-version','bad-namespace','bad-state','credential']) {
+                        const bytes=new Uint8Array(await(await artifact(`owned-island-${invalid}`,'cemv')).arrayBuffer());
+                        expect(()=>component.renderIsland(bytes,id)).toThrow();
+                        expect(()=>component.projectIsland(bytes,id)).toThrow();
+                    }
+                    expect(component.renderIsland(input,id)).toBe(expected);
+                }
+                component.dispose();expect(generation.inventory().liveDeclarationOwners).toBe(0);
+            }
+        } finally {first.dispose();second.dispose();}
+        const requests=performance.getEntriesByType('resource').filter(entry=>entry.startTime>=started&&(entry as PerformanceResourceTiming).initiatorType==='fetch').map(entry=>entry.name);
+        expect(requests.filter(name=>name.includes('cem_ql_bg.wasm'))).toEqual([new URL(wasmUrl,location.href).href]);
+        expect(requests.some(name=>name.endsWith('.xhtml')||name.endsWith('.cem')||name.startsWith('app://island/'))).toBe(false);
+    },
+};

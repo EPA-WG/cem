@@ -357,3 +357,116 @@ fn compiled_receiver_defaults_and_unresolved_types_keep_native_contracts() {
         else { assert_eq!(result.unwrap_err(), "compiled application render failed"); }
     }
 }
+
+#[test]
+fn native_island_render_and_projection_preserve_payload_sources_without_json() {
+    use crate::eval::{imported_cem_tree, portable::encode_values, ItemStream};
+    use cem_ml::value::artifact::CemValueGraph;
+    let source = include_str!("../../fixtures/component-application/passive-island.xhtml");
+    let tree = cem_ml::import::import_data_bytes(
+        source.as_bytes(),
+        "application/xml",
+        "cem",
+        "app://island/source.xhtml",
+    )
+    .unwrap();
+    let bytes = encode_values(
+        &ItemStream::once(imported_cem_tree(tree)),
+        &Default::default(),
+    )
+    .unwrap();
+    let built = fixture("{article @id='{$instanceID}' | {$datadom.slots.heading}}");
+    let owner = CompiledDeclarationOwner::admit(
+        &built.template.bytes,
+        &built.metadata_json,
+        &built.metadata_hash,
+    )
+    .unwrap();
+    let html = owner.render_island_native(&bytes, "island-one").unwrap();
+    assert!(html.contains("Heading"));
+    assert!(html.contains("Second"));
+    assert!(!html.contains("Tail"));
+    assert!(html.find("Heading").unwrap() < html.find("Second").unwrap());
+    let projection = owner.project_island_native(&bytes, "island-one").unwrap();
+    assert!(owner
+        .render_island_native(&projection, "island-one")
+        .is_err());
+    assert!(owner
+        .project_island_native(&projection, "island-one")
+        .is_err());
+    let output = CemValueGraph::decode(&projection, &Default::default()).unwrap();
+    assert!(output
+        .records
+        .iter()
+        .any(|node| node.kind == "reference" && !node.targets.is_empty()));
+    let original = CemValueGraph::decode(&bytes, &Default::default()).unwrap();
+    let source = original
+        .records
+        .iter()
+        .find(|node| node.kind == "element" && node.name == "strong")
+        .unwrap();
+    let retained = output
+        .records
+        .iter()
+        .find(|node| node.kind == "element" && node.name == "strong")
+        .unwrap();
+    assert_eq!(retained.namespace, source.namespace);
+    assert_eq!(retained.source, source.source);
+    assert_eq!(
+        retained.provenance.as_ref().unwrap().source_key,
+        source.provenance.as_ref().unwrap().source_key
+    );
+    assert_eq!(
+        retained.provenance.as_ref().unwrap().source_uri,
+        source.provenance.as_ref().unwrap().source_uri
+    );
+    for invalid in [b"private credential".as_slice(), &bytes[..bytes.len() - 1]] {
+        assert!(owner.render_island_native(invalid, "island-one").is_err());
+        assert!(owner.project_island_native(invalid, "island-one").is_err());
+    }
+    assert!(owner
+        .render_island_native(&bytes, "other-instance")
+        .is_err());
+    assert!(owner
+        .project_island_native(&bytes, "other-instance")
+        .is_err());
+    assert_eq!(
+        owner.render_island_native(&bytes, "island-one").unwrap(),
+        html
+    );
+}
+
+#[test]
+fn empty_native_island_projection_is_a_valid_empty_native_artifact() {
+    use crate::eval::{imported_cem_tree, portable::encode_values, ItemStream};
+    use cem_ml::value::artifact::CemValueGraph;
+    let source = include_str!("../../fixtures/component-application/passive-island.xhtml");
+    let source=source.replace("<html:strong slot=\"heading\">Heading</html:strong><html:span slot=\"heading\">Second</html:span>Tail", "");
+    let tree = cem_ml::import::import_data_bytes(
+        source.as_bytes(),
+        "application/xml",
+        "cem",
+        "app://island/empty.xhtml",
+    )
+    .unwrap();
+    let input = encode_values(
+        &ItemStream::once(imported_cem_tree(tree)),
+        &Default::default(),
+    )
+    .unwrap();
+    let built = fixture("{$datadom.slots.heading}");
+    let owner = CompiledDeclarationOwner::admit(
+        &built.template.bytes,
+        &built.metadata_json,
+        &built.metadata_hash,
+    )
+    .unwrap();
+    assert_eq!(
+        owner.render_island_native(&input, "island-one").unwrap(),
+        ""
+    );
+    let output = owner.project_island_native(&input, "island-one").unwrap();
+    let graph = CemValueGraph::decode(&output, &Default::default()).unwrap();
+    assert!(graph.roots.is_empty());
+    assert!(graph.records.is_empty());
+}

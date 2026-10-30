@@ -13,7 +13,7 @@ const wasm = await readFile(`${out}/cem_ql_bg.wasm`);
 const compiled = await WebAssembly.compile(wasm);
 const names = WebAssembly.Module.exports(compiled).map(entry => entry.name);
 assert.ok(names.includes('renderCompiledApplication'));
-assert.deepEqual(names.filter(name => name !== 'memory' && !name.startsWith('__')).sort(), ['compiledDeclarationInventory', 'compileddeclarationowner_describe', 'compileddeclarationowner_dispose', 'compileddeclarationowner_new', 'compileddeclarationowner_releaseConsumer', 'compileddeclarationowner_renderJson', 'compileddeclarationowner_renderInputs', 'compileddeclarationowner_renderInstanceInputs', 'compileddeclarationowner_stylesheet', 'renderCompiledApplication'].sort(), 'only reviewed compiled application/owner entries may be public');
+assert.deepEqual(names.filter(name => name !== 'memory' && !name.startsWith('__')).sort(), ['compiledDeclarationInventory', 'compileddeclarationowner_describe', 'compileddeclarationowner_dispose', 'compileddeclarationowner_new', 'compileddeclarationowner_releaseConsumer', 'compileddeclarationowner_renderJson', 'compileddeclarationowner_renderInputs', 'compileddeclarationowner_renderInstanceInputs', 'compileddeclarationowner_renderIsland', 'compileddeclarationowner_projectIsland', 'compileddeclarationowner_stylesheet', 'renderCompiledApplication'].sort(), 'only reviewed compiled application/owner entries may be public');
 const bytes = await readFile(`${fixture}/cart.bin`);
 const pins = await readFile(`${fixture}/cart.pins.json`, 'utf8');
 const entry = `${out}/cem_ql.js`;

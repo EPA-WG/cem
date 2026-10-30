@@ -132,6 +132,11 @@ impl CompiledDeclarationOwner {
         bindings: &str,
         instance_id: &str,
     ) -> Result<String, String> {
+        self.validate_instance_identity(instance_id)?;
+        self.render_input_frame(bytes, bindings, Some(instance_id))
+    }
+    fn validate_instance_identity(&self, instance_id: &str) -> Result<(), String> {
+        self.active()?;
         if instance_id.is_empty()
             || instance_id.len() > 1024
             || instance_id
@@ -149,7 +154,40 @@ impl CompiledDeclarationOwner {
         {
             return Err("compiled declaration needs a pinned instance binding".into());
         }
-        self.render_input_frame(bytes, bindings, Some(instance_id))
+        Ok(())
+    }
+    fn island_frame(
+        &self,
+        bytes: &[u8],
+        instance_id: &str,
+    ) -> Result<
+        (
+            OwnerAdmission,
+            cem_ml::operation_control::OperationControl,
+            crate::render::TemplateData,
+        ),
+        String,
+    > {
+        self.validate_instance_identity(instance_id)?;
+        if bytes.len() > MAX_INPUT_BYTES {
+            return Err("compiled declaration input limit exceeded".into());
+        }
+        let permit = admission(false, bytes.len() + instance_id.len())?;
+        let control = super::render_control()?;
+        let data = super::island::bind(bytes, instance_id, &control)?;
+        Ok((permit, control, data))
+    }
+    pub fn render_island_native(&self, bytes: &[u8], instance_id: &str) -> Result<String, String> {
+        let (_permit, control, data) = self.island_frame(bytes, instance_id)?;
+        super::render_data(self.active()?.artifact(), data, &control)
+    }
+    pub fn project_island_native(
+        &self,
+        bytes: &[u8],
+        instance_id: &str,
+    ) -> Result<Vec<u8>, String> {
+        let (_permit, control, data) = self.island_frame(bytes, instance_id)?;
+        super::project_data(self.active()?.artifact(), data, &control)
     }
     fn render_input_frame(
         &self,
@@ -366,6 +404,24 @@ impl CompiledDeclarationOwner {
         instance_id: &str,
     ) -> Result<String, wasm_bindgen::JsValue> {
         self.render_instance_inputs_native(bytes, bindings, instance_id)
+            .map_err(|e| wasm_bindgen::JsValue::from_str(&e))
+    }
+    #[wasm_bindgen(js_name = "renderIsland")]
+    pub fn render_island_wasm(
+        &self,
+        bytes: &[u8],
+        instance_id: &str,
+    ) -> Result<String, wasm_bindgen::JsValue> {
+        self.render_island_native(bytes, instance_id)
+            .map_err(|e| wasm_bindgen::JsValue::from_str(&e))
+    }
+    #[wasm_bindgen(js_name = "projectIsland")]
+    pub fn project_island_wasm(
+        &self,
+        bytes: &[u8],
+        instance_id: &str,
+    ) -> Result<Vec<u8>, wasm_bindgen::JsValue> {
+        self.project_island_native(bytes, instance_id)
             .map_err(|e| wasm_bindgen::JsValue::from_str(&e))
     }
     #[wasm_bindgen(js_name = "stylesheet")]

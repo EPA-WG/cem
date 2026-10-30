@@ -77,6 +77,30 @@ for(const generation of [first,next]) {
     owner.dispose();
     assert.equal(generation.inventory().liveDeclarationOwners,0);
 }
+const islandFixture=await fixture('owned-island');
+for(const generation of [first,next]) {
+    const owner=generation.open(...islandFixture);
+    for(const name of ['first','second','empty']) {
+        const input=await readFile(new URL(`owned-island-${name}.cemv`,root));
+        const expected=await readFile(new URL(`owned-island-${name}.html`,root),'utf8');
+        const expectedProjection=await readFile(new URL(`owned-island-${name}.projection.cemv`,root));
+        const id=name==='second'?'island-two':'island-one';
+        assert.equal(owner.renderIsland(input,id),expected);
+        const projected=owner.projectIsland(input,id);
+        assert.deepEqual(Buffer.from(projected),expectedProjection);
+        assert.throws(()=>owner.renderIsland(projected,id));
+        assert.throws(()=>owner.projectIsland(projected,id));
+        assert.throws(()=>owner.renderIsland(input,'wrong-instance'));
+        for(const invalid of ['bad-version','bad-namespace','bad-state','credential']) {
+            const bytes=await readFile(new URL(`owned-island-${invalid}.cemv`,root));
+            assert.throws(()=>owner.renderIsland(bytes,id),error=>error==='compiled declaration native island refused');
+            assert.throws(()=>owner.projectIsland(bytes,id),error=>error==='compiled declaration native island refused');
+        }
+        assert.equal(owner.renderIsland(input,id),expected);
+    }
+    owner.dispose();assert.throws(()=>owner.projectIsland(new Uint8Array(),'island-one'),/disposed/);
+    assert.equal(generation.inventory().liveDeclarationOwners,0);
+}
 const foreign=bindings.open(...inline);
 foreign.dispose(); // Still a native allocation until its opaque owner is freed.
 assert.throws(()=>first.dispose(),/foreign-owner/);
@@ -94,6 +118,8 @@ const transport=createCemComponentWasmBindings();
 const guarded={...transport,open(...args){
     const raw=transport.open(...args);
     return {describe:()=>raw.describe(),stylesheet:(...input)=>raw.stylesheet(...input),releaseConsumer:input=>raw.releaseConsumer(input),dispose:()=>raw.dispose(),free:()=>raw.free(),
+        renderIsland(...input){assert.throws(()=>protectedOwner.dispose(),/busy/);assert.throws(()=>protectedGeneration.dispose(),/busy/);return raw.renderIsland(...input);},
+        projectIsland(...input){assert.throws(()=>protectedOwner.dispose(),/busy/);assert.throws(()=>protectedGeneration.dispose(),/busy/);return raw.projectIsland(...input);},
         renderInstanceInputs(...input){assert.throws(()=>protectedOwner.dispose(),/busy/);assert.throws(()=>protectedGeneration.dispose(),/busy/);return raw.renderInstanceInputs(...input);},
         renderInputs(...input){assert.throws(()=>protectedOwner.dispose(),/busy/);assert.throws(()=>protectedGeneration.dispose(),/busy/);return raw.renderInputs(...input);},
         renderJson(...input){assert.throws(()=>protectedOwner.dispose(),/busy/);assert.throws(()=>protectedGeneration.dispose(),/busy/);return raw.renderJson(...input);}};
@@ -106,6 +132,12 @@ assert.match(protectedInputs.renderInputs(input,routes),/Tea &lt;img&gt;/);
 const protectedReceiver=protectedGeneration.open(...receiverFixture);
 const receiverInput=await readFile(new URL('owned-receiver-first.cemv',root));
 assert.match(protectedReceiver.renderInputs(receiverInput,receiverRoutes,'protected'),/3\/3\/protected/);
+const protectedIsland=protectedGeneration.open(...islandFixture);
+const islandInput=await readFile(new URL('owned-island-first.cemv',root));
+assert.match(protectedIsland.renderIsland(islandInput,'island-one'),/Heading/);
+assert.ok(protectedIsland.projectIsland(islandInput,'island-one').byteLength>0);
+const reentrantIsland=protectedGeneration.open(...islandFixture);
+assert.throws(()=>reentrantIsland.renderIsland({get byteLength(){reentrantIsland.dispose();return 0;}},'island-one'),/disposed/);
 const reentrantInputs=protectedGeneration.open(...inputFixture);
 assert.throws(()=>reentrantInputs.renderInputs(input,{toJSON(){reentrantInputs.dispose();return routes;},length:2}),/disposed/);
 protectedGeneration.dispose();
@@ -113,4 +145,4 @@ const cleanup=await createCemComponentGeneration(module,createCemComponentWasmBi
 const cleanupOwner=cleanup.open(...inline), cleanupAbort=new AbortController();
 cleanupOwner.installStylesheets('cleanup',context,{signal:cleanupAbort.signal,commit:()=>true,release:()=>{cleanupAbort.abort();cleanupOwner.dispose();assert.throws(()=>cleanup.open(...inline),/retired/);cleanup.dispose();}});
 cleanup.dispose();cleanup.dispose();
-console.log('Selected declaration owners: native pins, scoped imports, native JSON/attribute/slice inputs, receiver constraints and instance identity, CSS leases, failed/stale/reentrant cleanup, independent heaps and foreign-root retirement refusal passed.');
+console.log('Selected declaration owners: native pins, scoped imports, native JSON/attribute/slice inputs, receiver constraints, native island projections and instance identity, CSS leases, failed/stale/reentrant cleanup, independent heaps and foreign-root retirement refusal passed.');

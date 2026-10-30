@@ -575,20 +575,20 @@ the isolated build uses `--no-default-features --features component-runtime`.
 
 | WASM measure | Full bytes | Prototype bytes |
 | --- | ---: | ---: |
-| Raw | 24,206,012 | 11,155,464 |
-| Gzip level 9 | 7,377,289 | 3,143,400 |
-| Brotli quality 9 | 5,424,626 | 2,366,057 |
-| Code section payload | 21,447,089 | 8,864,286 |
-| Data section payload | 2,729,913 | 2,278,244 |
+| Raw | 24,206,012 | 11,249,302 |
+| Gzip level 9 | 7,377,289 | 3,178,420 |
+| Brotli quality 9 | 5,424,626 | 2,387,834 |
+| Code section payload | 21,447,089 | 8,953,469 |
+| Data section payload | 2,729,913 | 2,282,732 |
 
-The prototype is 10.64 MiB raw, a 53.9% whole-file reduction.
-It has 10 imports/19 exports, compared with 28/171 for the full runtime.
+The prototype is 10.73 MiB raw, a 53.5% whole-file reduction.
+It has 10 imports/21 exports, compared with 28/171 for the full runtime.
 The public surface is the one-shot renderer, passive declaration-owner methods
 and a counter-only inventory; remaining exports are wasm-bindgen support. This proves a smaller linked surface
 and reduced code/data sections, without attributing removed bytes to particular
 languages, schemas or functions. Complete application link closure remains false.
 
-Prototype SHA-256: `e35a33059a80182faa2775409f6844c64b2a6a59282c896782b134000274a3ea`.
+Prototype SHA-256: `13c0fec7c4b45a9b714ae019da700cee5006d9de5cdf4a5474ff8bb7335b4aa0`.
 
 Full SHA-256: `82b564e6ede5f260ed556fba2a4171c28c787fcac3faf37c21cb89990aa3a3ac`.
 
@@ -669,6 +669,48 @@ named schema/type contracts, widget/provider adapters and worker/recovery
 integration remain delivery gates for using the complete component library on
 this profile.
 
+The passive native island gate adds `renderIsland(bytes, instanceId)` and
+`projectIsland(bytes, instanceId)`. Both consume one native CEMV v3 context root
+(or a document containing that root), check the nine ordered expanded-name parts
+against the canonical lifecycle topology, and require lifecycle `0.2.0`.
+Hydration contains exactly the matching version, host `instanceId` and
+`outputTarget=light-dom` string fields. Namespace prefixes are not identity;
+expanded names are. A native drift fixture checks the schema's declared part
+order/namespaces and the shared runtime version.
+
+This is a deliberately passive admission subset. Attributes, dataset, slices,
+resources, forms, validation and events must be empty; reviewed domain adapters
+are still required. Payload identity must be `text/html` with
+`https://cem.dev/ns/data/html/1`, containing canonical lowercase HTML names in the
+HTML namespace. Foreign namespaces, payload references, nodes without required
+source metadata, alternate payload schemas and CEM-ML source handoffs refuse.
+The root and payload nodes require source maps, nonempty source keys and absolute
+hierarchical source URIs. These checks retain supplied native source metadata;
+they are not issuer authentication or complete HTML schema validation. The
+producer still owns source import and app-build/domain validation. XML and
+CEM-ML parsing for fixtures/builds stays outside this runtime entry.
+
+`island` points to the original qualified context root. `datadom.payload` is the
+native payload section and `datadom.slots` groups direct native children by slot
+name in encounter order, including the empty default name and ordinary keys such
+as `__proto__`. Grouping retains references, namespaces, source keys and parents;
+it does not clone nodes or construct JavaScript data records.
+`renderIsland` returns native HTML. `projectIsland` exports the native render
+result with the existing CEMV writer, preserving reference/source edges and
+supporting empty output. Referenced source context can include unrendered
+siblings/ancestors needed for source-parent access. The projection is derived
+output, never replacement island state: feeding it back into either island entry
+refuses. JavaScript transports bytes and never decodes the value graph.
+
+Input/expanded-value and output budgets remain 1 MiB with 16,384 values/references,
+depth 64 and five-second native operation control. Each call releases its input
+frame; owners retain no island or projection handles. Password/file controls and
+password/one-time-code autocomplete metadata refuse even when empty because this
+entry has no live property/capture proof. This does not change the full runtime's
+entered-credential recovery policy. It is not a checkpoint permit, live-control
+registration, DOM installation or worker/recovery adapter. Those gates, complete
+island domains and named schema contracts remain open.
+
 Styles reuse the existing native resolver, compiled-import policy replay,
 `RetainedStylesheet` identity/scoping emission and last-consumer invalidation.
 The declaration metadata fixes the base URL, declaration identity and private or
@@ -737,6 +779,8 @@ const generation = await createCemComponentGeneration(module, createCemComponent
 const declaration = generation.open(templateBytes, metadataJson, metadataHash);
 // declaration.installStylesheets(consumer, context, existingStylesheetLease);
 // declaration.renderJson(originalJsonBytes, responseUri, admittedBinding);
+// declaration.renderIsland(admittedNativeIslandBytes, 'cart-item-1');
+// const nativeProjectionBytes = declaration.projectIsland(admittedNativeIslandBytes, 'cart-item-1');
 // declaration.renderInputs(nativeValueBytes, [
 //   { target: 'attribute', name: 'label', index: 0 },
 //   { target: 'slice', name: 'amount', index: 1 },

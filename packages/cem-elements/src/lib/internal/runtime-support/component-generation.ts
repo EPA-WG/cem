@@ -8,6 +8,8 @@ export interface CemComponentNativeDeclaration {
     renderJson(bytes: Uint8Array, uri: string, binding: string): string;
     renderInputs(bytes: Uint8Array, bindings: string): string;
     renderInstanceInputs(bytes: Uint8Array, bindings: string, instanceId: string): string;
+    renderIsland(bytes: Uint8Array, instanceId: string): string;
+    projectIsland(bytes: Uint8Array, instanceId: string): Uint8Array;
     stylesheet(consumer: string, index: number, context: string): string;
     releaseConsumer(consumer: string): number;
     dispose(): void;
@@ -32,12 +34,19 @@ export interface CemComponentDeclaration {
     renderJson(bytes: Uint8Array, uri: string, binding: string): string;
     /** One opaque multi-root CEMV artifact; routing is control metadata only. */
     renderInputs(bytes: Uint8Array, bindings: readonly CemComponentInputBinding[], instanceId?: string): string;
+    /** Canonical passive island CEMV input; native code owns admission/projection. */
+    renderIsland(bytes: Uint8Array, instanceId: string): string;
+    projectIsland(bytes: Uint8Array, instanceId: string): Uint8Array;
     installStylesheets(consumer: string, context: CemModuleUrlContextWire, lease: CemStylesheetConsumerLease): { dispose(): void };
     dispose(): void;
 }
 export type CemComponentInputBinding =
     | { target: 'attribute'; name: string; index: number }
     | { target: 'slice'; name: string; index: number; attribute?: string };
+
+function assertInstanceIdentity(instanceId: string): void {
+    if (typeof instanceId !== 'string' || !instanceId || instanceId.length > 1024 || /[\uD800-\uDFFF]/u.test(instanceId)) throw new Error('cem.component.declaration.instance-identity');
+}
 
 /** Selected-profile ownership only: no full WASM facade, UI rendering or source fallback. */
 export async function createCemComponentGeneration(module: WebAssembly.Module, bindings: CemComponentWasmBindings) {
@@ -74,6 +83,12 @@ export async function createCemComponentGeneration(module: WebAssembly.Module, b
             let closed = false, sequence = 0;
             const installations = new Set<{ dispose(): void }>();
             const current = () => { active(); if (closed) throw new Error('cem.component.declaration.disposed'); };
+            const checkIsland = (data: Uint8Array, instanceId: string) => {
+                current();
+                if (data.byteLength > 1024 * 1024) throw new Error('cem.component.declaration.input-limit');
+                assertInstanceIdentity(instanceId);
+                current();
+            };
             const declaration: CemComponentDeclaration = Object.freeze({
                 metadata() { current(); return structuredClone(descriptor.metadata); },
                 renderJson(data: Uint8Array, uri: string, binding: string) {
@@ -84,11 +99,19 @@ export async function createCemComponentGeneration(module: WebAssembly.Module, b
                 renderInputs(data: Uint8Array, inputs: readonly CemComponentInputBinding[], instanceId?: string) {
                     current();
                     if (data.byteLength > 1024 * 1024 || inputs.length > 64) throw new Error('cem.component.declaration.input-limit');
-                    if (instanceId !== undefined && (typeof instanceId !== 'string' || !instanceId || instanceId.length > 1024 || /[\uD800-\uDFFF]/u.test(instanceId))) throw new Error('cem.component.declaration.instance-identity');
+                    if (instanceId !== undefined) assertInstanceIdentity(instanceId);
                     const routing = JSON.stringify(inputs);
                     if (routing.length > 16 * 1024) throw new Error('cem.component.declaration.input-limit');
                     current(); // Serializing host routing may invoke a reentrant callback.
                     return invoke(() => instanceId === undefined ? native.renderInputs(data, routing) : native.renderInstanceInputs(data, routing, instanceId));
+                },
+                renderIsland(data: Uint8Array, instanceId: string) {
+                    checkIsland(data, instanceId);
+                    return invoke(() => native.renderIsland(data, instanceId));
+                },
+                projectIsland(data: Uint8Array, instanceId: string) {
+                    checkIsland(data, instanceId);
+                    return invoke(() => native.projectIsland(data, instanceId));
                 },
                 installStylesheets(consumer: string, context: CemModuleUrlContextWire, lease: CemStylesheetConsumerLease) {
                     current();

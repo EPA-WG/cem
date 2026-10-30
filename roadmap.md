@@ -741,8 +741,11 @@ native CEMV attribute/slice inputs now use the shared decoder and binding APIs,
 with typed values, references/source maps, reserved-root refusal and fresh input
 frames. Host instance identity now has a separate bounded native input, and
 compiled receiver declarations enforce required/default/conversion/facet checks.
-Complete data-island/named-schema contracts, widget/provider bindings, worker
-transport and checkpoint/journal handoff remain open.
+A passive native island gate now checks qualified topology/lifecycle/payload
+identity and exports HTML/CEMV projections with retained payload/slot/source
+references; unimplemented state domains must be empty. Full data-island domains,
+named-schema contracts, widget/provider bindings, worker transport and
+checkpoint/journal handoff remain open.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

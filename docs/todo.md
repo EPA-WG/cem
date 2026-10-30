@@ -1309,6 +1309,43 @@ inventory, not the minimum set loaded by every app.
         native payload/slot/value identities and projection ownership; refuse
         unsupported island/schema input. Add native/WASM parity and malformed
         topology/namespace/source fixtures before admitting live shared controls.
+        - [x] Implement bounded passive native CEMV island admission and native
+          projection export: qualified ordered parts, lifecycle/payload identity,
+          host identity, retained payload/slot references and empty unimplemented
+          state domains. Refuse credential controls without capture proof.
+        - [x] Add native schema-drift, malformed topology/namespace/version,
+          source/reference/slot and privacy refusal fixtures; native-built
+          islands plus WASM/browser parity and independent generation acceptance.
+          Implemented the qualified lifecycle `0.2.0` passive gate, exact
+          host/hydration identity, HTML payload identity, lowercase names and
+          required source metadata. Unimplemented domains must be empty; missing
+          source metadata, payload references, alternate schemas and credential
+          controls without live capture proof refuse. Native payload/slot groups
+          retain node identity/order, namespace, source key/URI and source-parent
+          edges. `renderIsland` returns HTML; `projectIsland` exports opaque CEMV
+          through the shared native writer, including valid empty output. Derived
+          projections cannot be reused as island state. The shared cem-elements
+          adapter transports bytes with existing reentrancy/disposal guards.
+          Verification: 20 profile native tests, 166 full native tests (four
+          existing profiling cases ignored), 35 value/receiver/declaration/export
+          regressions, native fixtures, ten factory/audit unit tests, optimized
+          profile/owner WASM acceptance, 18 component browser cases and both full
+          Studio Login privacy/recovery cases pass. Rust format, script/TypeScript
+          lint, package build and fresh source/vendor audits pass. Each browser
+          scenario fetches one profile WASM and no source/full runtime. HTML and
+          binary projections match independent full-native reference output on
+          separate heaps; refusal preserves later valid calls and no native roots
+          survive disposal. Reduced WASM: 11,249,302 bytes (10.73 MiB), gzip-9
+          3,178,420 and Brotli-9 2,387,834; code/data 8,953,469/2,282,732 bytes,
+          10 imports/21 exports, 53.5% smaller than the unchanged full comparator.
+          This is structural passive admission, not full domain/schema validation,
+          live registration, DOM installation or a checkpoint/recovery permit.
+          Parent delivery gate remains open. Credential privacy, the 4 MiB
+          checkpoint budget and five-second handoff deadlines are unchanged;
+          no component/application UI JavaScript or credential capture was added.
+        - [ ] Extend beyond passive islands with native attribute/dataset and
+          slice domain adapters, including type/source preservation, payload
+          references and schema-dependent input contracts, before live controls.
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's
         worker/fallback edits, credential refusal and generation handoff without

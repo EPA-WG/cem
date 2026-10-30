@@ -14,6 +14,7 @@ use cem_ml::{
 use std::sync::Arc;
 
 mod inputs;
+pub mod island;
 pub mod owners;
 
 #[cfg(test)]
@@ -95,11 +96,11 @@ fn render_control() -> Result<OperationControl, String> {
     .map_err(|error| error.to_string())
 }
 
-fn render_data(
+fn render_plan_data(
     artifact: &crate::render::TemplateArtifact,
     mut data: TemplateData,
     control: &OperationControl,
-) -> Result<String, String> {
+) -> Result<crate::render::RenderPlan, String> {
     data.selected_registry = Some(Arc::new(generated::selected_registry()));
     let plan =
         render_compiled_template_with_control(artifact, &data, control, ROOT_EXECUTION_SCOPE_ID);
@@ -108,15 +109,37 @@ fn render_data(
         .iter()
         .any(|d| d.severity.is_hard_violation())
     {
-        // Do not copy expressions, input content or credential values to errors.
         return Err("compiled application render failed".into());
     }
+    Ok(plan)
+}
+fn render_data(
+    artifact: &crate::render::TemplateArtifact,
+    data: TemplateData,
+    control: &OperationControl,
+) -> Result<String, String> {
+    let plan = render_plan_data(artifact, data, control)?;
     let output = render_plan_to_html_with_control(&plan, control, ROOT_EXECUTION_SCOPE_ID)
         .map_err(|error| error.code().to_owned())?;
     if output.rendered.len() > MAX_INPUT_BYTES {
         return Err("compiled application output limit exceeded".into());
     }
     Ok(output.rendered)
+}
+fn project_data(
+    artifact: &crate::render::TemplateArtifact,
+    data: TemplateData,
+    control: &OperationControl,
+) -> Result<Vec<u8>, String> {
+    let plan = render_plan_data(artifact, data, control)?;
+    crate::eval::portable::encode_values_with_control(
+        &crate::eval::output::output_nodes(plan.nodes),
+        &inputs::LIMITS,
+        crate::eval::QueryContextScope(0),
+        control,
+        ROOT_EXECUTION_SCOPE_ID,
+    )
+    .map_err(|_| "compiled declaration native projection refused".into())
 }
 
 #[cfg(target_arch = "wasm32")]
