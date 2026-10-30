@@ -575,11 +575,11 @@ the isolated build uses `--no-default-features --features component-runtime`.
 
 | WASM measure | Full bytes | Prototype bytes |
 | --- | ---: | ---: |
-| Raw | 24,207,650 | 11,471,605 |
-| Gzip level 9 | 7,379,167 | 3,240,672 |
-| Brotli quality 9 | 5,424,656 | 2,429,535 |
-| Code section payload | 21,448,929 | 9,176,661 |
-| Data section payload | 2,729,720 | 2,281,758 |
+| Raw | 24,202,382 | 11,474,094 |
+| Gzip level 9 | 7,372,989 | 3,243,949 |
+| Brotli quality 9 | 5,422,451 | 2,430,810 |
+| Code section payload | 21,443,655 | 9,176,474 |
+| Data section payload | 2,729,774 | 2,284,396 |
 
 The prototype is 10.94 MiB raw, a 52.6% whole-file reduction.
 It has 10 imports/21 exports, compared with 28/171 for the full runtime.
@@ -588,9 +588,9 @@ and a counter-only inventory; remaining exports are wasm-bindgen support. This p
 and reduced code/data sections, without attributing removed bytes to particular
 languages, schemas or functions. Complete application link closure remains false.
 
-Prototype SHA-256: `efb711862ff65c1b439174ea7040f164ac823eace81daeab0239f40f8d0a681f`.
+Prototype SHA-256: `b9ae8e07460c1d04143355f30909d7e83bbf3439b727fe450185fef8da92937b`.
 
-Full SHA-256: `a6b5319be86c49564f390c4f4acaeeb120023b791981d8bcbee177840be61628`.
+Full SHA-256: `d57c36d274e564eae7b826bc7b0fb69286ed15ffce9b08d168722aa31837ede3`.
 
 ```bash
 cargo run --locked --offline -p cem-ql --example component_runtime_fixture -- \
@@ -755,6 +755,11 @@ host. Only exported roots validate; copied sources, stale/foreign contexts and
 missing implementations refuse. This does not prove complete behavior/native
 code closure or enable scalar/executable named receiver admission. Existing
 application formats and the WASM ABI remain unchanged.
+Native root preparation now freezes input and issues sealed immutable evidence,
+with fresh validation on consumption, cumulative budgets and exact live issuer
+checks. Shared tokenizer retirement guards protect root and attribute receipts.
+The [handoff contract](cem-native-schema-capsules.md#guarded-datatype-preparation-handoff)
+keeps complete behavior/imported closure and receiver/runtime admission pending.
 
 The [native linking contract](cem-native-schema-capsules.md#native-fresh-host-linking-and-node-receivers)
 defines its required source registration, explicit grants, bounds and lifetime.

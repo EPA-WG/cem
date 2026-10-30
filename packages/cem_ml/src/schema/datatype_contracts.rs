@@ -145,6 +145,21 @@ impl RegisteredTokenizer {
     pub fn invocations(&self) -> usize {
         self.inherited.len().saturating_add(1)
     }
+    /// Check retained tokenizer owners without replaying tokenization. A sealed
+    /// lexical receipt still depends on every original tokenizer being live.
+    pub fn check_available(
+        &self,
+        control: &OperationControl,
+        scope: ExecutionScopeId,
+    ) -> Result<(), TokenizationError> {
+        control.check_scope(scope).map_err(TokenizationError::Control)?;
+        for implementation in self.inherited.iter().chain(std::iter::once(&self.implementation)) {
+            control.check_scope(scope).map_err(TokenizationError::Control)?;
+            implementation.check_available()?;
+            control.check_scope(scope).map_err(TokenizationError::Control)?;
+        }
+        Ok(())
+    }
     pub fn tokenize(
         &self,
         input: Option<LexicalInput>,

@@ -814,10 +814,16 @@ Native-only CEMDT1 now transports complete original local datatype source
 snapshots and exact literal base/list-item field dependencies. A checked fresh
 host compiles explicit registrations through the ordinary datatype compiler and
 validates only exported roots, preserving inherited scalar/list semantics and
-source ownership. Full behavior/imported/executable closure, guarded preparation
-handoff and a new mixed receiver format remain pending; no existing application
-or WASM ABI changes. See the
+source ownership. Full behavior/imported/executable closure and a new mixed
+receiver format remain pending; no existing application or WASM ABI changes. See the
 [datatype source contract](docs/cem-native-schema-capsules.md#native-datatype-source-closure-and-compilation).
+Native datatype-root preparation now issues issuer-bound immutable evidence and
+validates it afresh without replaying preparation or resetting work allowances.
+Dropping/retiring owners, stale contexts and selected/inherited tokenizer
+retirement invalidate use; readiness and work callbacks refuse reentrancy.
+Complete behavior/query/imported closure, a mixed receiver format and runtime
+transport/admission remain separate gates; see the
+[guarded handoff](docs/cem-native-schema-capsules.md#guarded-datatype-preparation-handoff).
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

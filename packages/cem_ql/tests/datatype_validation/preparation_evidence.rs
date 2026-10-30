@@ -20,6 +20,14 @@ fn build(
     list: bool,
     preparer: impl FnOnce(&DatatypeSource) -> RegisteredLexicalPreparation,
 ) -> BoundAttributeFacets {
+    build_with_tokenizer(ty, list, preparer, RegisteredTokenizer::whitespace())
+}
+fn build_with_tokenizer(
+    ty: T,
+    list: bool,
+    preparer: impl FnOnce(&DatatypeSource) -> RegisteredLexicalPreparation,
+    tokenizer: RegisteredTokenizer,
+) -> BoundAttributeFacets {
     let declarations = if list {
         "{type @name=item @kind=scalar} {type @name=sample @kind=list @base=item}"
     } else {
@@ -46,7 +54,7 @@ fn build(
             panic!()
         };
         let mut entry = implementation(sample, DatatypeKind::List, ValueRepresentation::List(p));
-        entry.tokenizer = TokenizerBinding::Ready(RegisteredTokenizer::whitespace());
+        entry.tokenizer = TokenizerBinding::Ready(tokenizer);
         implementations.register(entry).unwrap();
         implementations
             .select_preparation(
@@ -610,4 +618,51 @@ fn reentrant_issuance_cannot_obtain_another_allowance_and_unwind_spends_the_rese
     assert_eq!(live.remaining_limits().max_preparations, 0);
     assert_eq!(live.remaining_limits().validation.max_diagnostics, 0);
     assert!(live.prepare().evidence.is_none());
+}
+
+#[test]
+fn retained_attribute_evidence_expires_when_its_list_tokenizer_retires() {
+    use cem_ml::schema::datatype_contracts::{TokenizationError, TokenizationRequest, Tokenizer};
+    #[derive(Debug)]
+    struct Guarded(Arc<std::sync::atomic::AtomicBool>);
+    impl Tokenizer for Guarded {
+        fn check_available(&self) -> Result<(), TokenizationError> {
+            if self.0.load(Ordering::Acquire) {
+                Err(TokenizationError::Unavailable)
+            } else {
+                Ok(())
+            }
+        }
+        fn tokenize(
+            &self,
+            request: TokenizationRequest<'_>,
+        ) -> Result<Vec<std::ops::Range<usize>>, TokenizationError> {
+            Ok(RegisteredTokenizer::whitespace()
+                .tokenize(
+                    Some(request.input.clone()),
+                    request.control,
+                    request.scope,
+                    request.limits,
+                )?
+                .tokens)
+        }
+    }
+    let closed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let bound = build_with_tokenizer(
+        T::String,
+        true,
+        |s| cem_ql::datatype_shipped::lexical_preparation(s.clone(), T::String).unwrap(),
+        RegisteredTokenizer::new("guarded", Guarded(closed.clone())).unwrap(),
+    );
+    let live = invocation(
+        &bound,
+        input("tea coffee"),
+        &OperationControl::default(),
+        Default::default(),
+    );
+    let evidence = live.prepare().evidence.unwrap();
+    assert!(evidence.is_live());
+    closed.store(true, Ordering::Release);
+    assert!(!evidence.is_live());
+    assert!(evidence.verify(&live).is_err());
 }

@@ -2042,6 +2042,75 @@ inventory, not the minimum set loaded by every app.
                   - [ ] Complete behavior/query/imported type dependencies and
                     guarded lexical/typed preparation handoff before defining the
                     new mixed receiver format and enabling receiver installation.
+                    - [ ] Define a separately versioned behavior/query/imported
+                      source dependency contract with original declaration/field
+                      occurrences, complete lexical snapshots and exact QD1/NR1/
+                      datatype-module pins. Keep CEMDT1 refusal unchanged; inert
+                      references/query text cannot grant execution or source reuse.
+                    - [ ] Bind imported QName/type selections through actual fresh
+                      source scopes, per-source policies and directed crossing
+                      grants. Add missing/stale/unavailable/import-cycle and
+                      original-namespace fixtures before cross-source compilation;
+                      never substitute defaults or consumer-side aliases.
+                    - [x] Add native datatype-root preparation invocations using
+                      shared evidence immutability/metadata checks and cumulative
+                      preparation/validation budgets. Add scalar/list, missing/
+                      empty/rejected/pending/unavailable and untracked-view fixtures.
+                    - [x] Bind sealed datatype evidence to the exact compilation,
+                      root, frozen input/candidate and invocation; cover foreign
+                      host/root/invocation, source mismatch, stale context, dropped/
+                      retired owner and callback-time cancellation/retirement.
+                    - [x] Reject retained root and attribute evidence after a
+                      selected/inherited tokenizer retires; add a shared bounded
+                      availability check without repeating tokenization.
+                    - [x] Verify fresh validation on every consumption, cumulative
+                      budget exhaustion and reentrancy refusal without callback
+                      replay, raw token export or wire-format changes.
+                    - [x] Run native/WASM/component and isolated Studio Login
+                      credential privacy acceptance; retain behavior/query/imported
+                      closure and mixed receiver format as separate pending gates.
+
+                    Native datatype-root preparation now exposes checked frozen
+                    invocations with sealed immutable values, lexical text, decoded
+                    spans, original candidate/source metadata and no cached verdict.
+                    Consumption reruns the shared validator under one cumulative
+                    reservation for preparations, output/input visits, rules,
+                    comparisons and diagnostics. Shared immutable/metadata checks
+                    and refund accounting are reused by attribute preparation.
+                    Compilation ownership is weak; closing/dropping/retiring the
+                    compilation, invocation or actual host/context invalidates
+                    evidence. Wrong roots/hosts/invocations and untracked views
+                    refuse. Readiness hooks and preparation/validation callbacks
+                    cannot obtain reentrant allowances; unwind spends reservations.
+                    A reproduced tokenizer-retirement gap is repaired for root and
+                    attribute evidence through read-only checks of selected and
+                    inherited tokenizers, without tokenization replay. Callback
+                    cancellation/retirement cannot complete a handoff. No wire
+                    format, endpoint, component admission or permission is added.
+                    Complete behavior/query/imported closure, mixed receiver
+                    contracts, local facets and external typed-producer admission
+                    remain separate pending gates.
+
+                    Verification: 15 new root preparation cases and one shared
+                    attribute regression pass alongside 524 prior native cases
+                    (540 distinct total). Red fixtures reproduced tokenizer-owner
+                    retirement and readiness-hook reentrancy gaps before repair.
+                    Selected and inherited tokenizer retirement both refuse retained
+                    receipts. WASM compilation, both optimized separate-heap WASM
+                    drivers, 18 component browser cases, ten audit/factory cases
+                    and both full Login worker/fallback credential privacy scenarios
+                    pass. Both WASM profiles were rebuilt with matched Binaryen
+                    132.0.0 -Oz optimization: selected component 11,474,094 bytes,
+                    full 24,202,382 bytes. The selected build uses the documented
+                    generated fixture registry; a build without it correctly denied
+                    the fixture calls. Canonical/vendor full assets match. Native
+                    builds drained before Studio acceptance. Formatting, 245 local
+                    documentation file links, audit freshness and diff checks pass.
+                    No production JavaScript, new WASM endpoint, wire codec or
+                    cached validation verdict was added. Entered credentials still
+                    block recovery; automatic whole-Studio recovery stays disabled,
+                    with 4 MiB checkpoints and five-second deadlines unchanged.
+                    Generated WASM, screenshots and Vitest attachments are excluded.
                 - [ ] Enroll portable query source/binding/invocation owners in
                   actual worker/owned-fallback generation and inventory groups;
                   add fresh-heap transport, shutdown/replacement, stale receipt,

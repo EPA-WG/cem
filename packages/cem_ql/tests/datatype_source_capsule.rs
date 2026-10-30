@@ -508,3 +508,6 @@ fn validation_limits_and_cancellation_preserve_stop_semantics() {
         )
         .is_err());
 }
+
+#[path = "datatype_source_capsule/preparation.rs"]
+mod preparation;

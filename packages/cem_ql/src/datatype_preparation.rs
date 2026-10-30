@@ -178,6 +178,12 @@ impl BoundLexicalPreparation {
             .chain(std::iter::once(&self.selected))
             .all(|step| step.registration.availability.is_available())
     }
+    pub(crate) fn uses_tokenizer(&self) -> bool {
+        self.inherited
+            .iter()
+            .chain(std::iter::once(&self.selected))
+            .any(|step| matches!(step.registration.implementation, Implementation::ListItems))
+    }
     pub fn identity(&self) -> &PreparationIdentity {
         self.selected.registration.identity()
     }
@@ -288,7 +294,15 @@ impl ExecutableDatatype {
             stopped: None,
         };
         let mut visits = 0;
-        if let Err(stop) = prepare(self, input, runtime, limits, &mut report, &mut visits, validate) {
+        if let Err(stop) = prepare(
+            self,
+            input,
+            runtime,
+            limits,
+            &mut report,
+            &mut visits,
+            validate,
+        ) {
             report.stopped = Some(stop);
             report.accepted = None;
         }

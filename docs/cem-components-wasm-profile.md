@@ -320,6 +320,11 @@ host. Only exported roots validate; copied sources, stale/foreign contexts and
 missing implementations refuse. This does not prove complete behavior/native
 code closure or enable scalar/executable named receiver admission. Existing
 application formats and the WASM ABI remain unchanged.
+Native root preparation now freezes input and issues sealed immutable evidence,
+with fresh validation on consumption, cumulative budgets and exact live issuer
+checks. Shared tokenizer retirement guards protect root and attribute receipts.
+The [handoff contract](cem-native-schema-capsules.md#guarded-datatype-preparation-handoff)
+keeps complete behavior/imported closure and receiver/runtime admission pending.
 
 Do not equate downloaded code with an active native generation. Register every
 physical endpoint and its resources with the shared ownership/recovery group.

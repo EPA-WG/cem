@@ -30,12 +30,15 @@ use std::{
 
 /// Bound additional source/diagnostic metadata retained by an evidence handle.
 pub const MAX_EVIDENCE_METADATA_BYTES: usize = 1_048_576;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod datatype;
 
 pub(crate) fn check_attribute_source_metadata(
     source: &cem_ml::source_map::SourceMapStack,
     control: &OperationControl,
 ) -> Result<(), EvidenceStop> {
-    let mut budget = MetadataBudget::new(control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID);
+    let mut budget =
+        MetadataBudget::new(control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID);
     budget.source(source)?;
     // The lexical input and its diagnostic fallback retain separate stacks.
     budget.source(source)
@@ -74,6 +77,7 @@ struct InvocationState {
     scope: ExecutionScopeId,
     query: EvaluationContext,
     closed: AtomicBool,
+    checking: AtomicBool,
     budget: Mutex<Budget>,
 }
 impl fmt::Debug for InvocationState {
@@ -94,9 +98,12 @@ impl InvocationState {
         self.control
             .check_scope(self.scope)
             .map_err(EvidenceStop::Control)?;
-        if !self.binding.is_available() || !self.binding.binding().datatype.preparation_available() {
+        let _checking = AvailabilityLease::acquire(&self.checking)?;
+        if !self.binding.is_available() || !self.binding.binding().datatype.preparation_available()
+        {
             return Err(EvidenceStop::Closed);
         }
+        check_tokenizers(&self.binding.binding().datatype, &self.control, self.scope)?;
         if self
             .query
             .execution_budget
@@ -105,6 +112,12 @@ impl InvocationState {
             .is_some()
         {
             return Err(EvidenceStop::QueryFailed);
+        }
+        self.control
+            .check_scope(self.scope)
+            .map_err(EvidenceStop::Control)?;
+        if self.closed.load(Ordering::Acquire) {
+            return Err(EvidenceStop::Closed);
         }
         Ok(())
     }
@@ -138,7 +151,7 @@ impl AttributePreparationInvocation {
         if let Err(reason) = evidence.verify(self) {
             return stop(reason);
         }
-        let mut lease = match BudgetLease::acquire(self.state.clone()) {
+        let mut lease = match BudgetLease::acquire(&self.state) {
             Ok(lease) => lease,
             Err(reason) => return stop(reason),
         };
@@ -244,7 +257,7 @@ impl AttributePreparationInvocation {
         let mut metadata = MetadataBudget::new(runtime.control, runtime.scope);
         metadata.source(&input.lexical.source)?;
         metadata.attribution(&input.fallback)?;
-        let origin = original_source(binding, &input)?;
+        let origin = original_source(Some(binding), &input)?;
         let shared = runtime.with_query_budget();
         let state = Arc::new(InvocationState {
             binding: binding.clone(),
@@ -254,6 +267,7 @@ impl AttributePreparationInvocation {
             scope: runtime.scope,
             query: shared.query,
             closed: AtomicBool::new(false),
+            checking: AtomicBool::new(false),
             budget: Mutex::new(Budget {
                 remaining: limits,
                 busy: false,
@@ -278,7 +292,7 @@ impl AttributePreparationInvocation {
             report: empty_report(&self.state),
             stopped: None,
         };
-        let mut lease = match BudgetLease::acquire(self.state.clone()) {
+        let mut lease = match BudgetLease::acquire(&self.state) {
             Ok(lease) => lease,
             Err(stop) => {
                 result.stopped = Some(stop);
@@ -296,40 +310,7 @@ impl AttributePreparationInvocation {
             .binding()
             .datatype
             .prepare_without_validation(&self.state.input, &runtime, lease.available);
-        let output_count = report.value.as_ref().map_or_else(
-            || {
-                if report.token_spans.is_empty() {
-                    usize::from(report.preparations > 0)
-                } else {
-                    report.token_spans.len()
-                }
-            },
-            Vec::len,
-        );
-        lease.refund = Some(PreparationLimits {
-            max_preparations: lease
-                .available
-                .max_preparations
-                .saturating_sub(report.preparations),
-            max_output_values: lease
-                .available
-                .max_output_values
-                .saturating_sub(output_count),
-            validation: crate::datatype_validation::ValidationLimits {
-                max_input_values: lease
-                    .available
-                    .validation
-                    .max_input_values
-                    .saturating_sub(visits),
-                max_diagnostics: lease
-                    .available
-                    .validation
-                    .max_diagnostics
-                    .saturating_sub(report.diagnostics.len()),
-                ..lease.available.validation
-            },
-            ..lease.available
-        });
+        lease.refund = Some(preparation_refund(lease.available, &report, visits));
         result.report = report;
         let outcome = (|| {
             self.state.check()?;
@@ -339,50 +320,15 @@ impl AttributePreparationInvocation {
             let Some(values) = &result.report.value else {
                 return Ok(None);
             };
-            let mut metadata = MetadataBudget::new(&self.state.control, self.state.scope);
-            metadata.source(&self.state.input.lexical.source)?;
-            metadata.attribution(&self.state.input.fallback)?;
-            let mut bytes = 0usize;
-            let mut token_buffers = BTreeSet::new();
-            for (index, value) in values.iter().enumerate() {
-                if index % 64 == 0 {
-                    self.state.check()?;
-                }
-                // A representation-id or atom() result cannot prove immutability.
-                let size = match value {
-                    Item::Atomic(
-                        AtomValue::String(s) | AtomValue::Decimal(s) | AtomValue::AnyUri(s),
-                    ) => s.len(),
-                    Item::Atomic(_) => 0,
-                    _ => {
-                        if let Some((s, source)) = crate::typed_scalar::immutable_storage(value) {
-                            if let Some(source) = source {
-                                metadata.source(source)?;
-                            }
-                            s.len()
-                        } else if let Some((lexical, _)) =
-                            crate::datatype_shipped::token_source(value)
-                        {
-                            if token_buffers.insert(lexical as *const LexicalInput as usize) {
-                                metadata.source(&lexical.source)?;
-                                lexical.text.len()
-                            } else {
-                                0
-                            }
-                        } else {
-                            return Err(EvidenceStop::UntrackedView);
-                        }
-                    }
-                };
-                bytes = bytes.saturating_add(size);
-                if bytes > lease.available.max_lexical_bytes {
-                    return Err(EvidenceStop::Limit("value-bytes"));
-                }
-            }
-            self.state.check()?;
-            for diagnostic in &result.report.diagnostics {
-                metadata.diagnostic(diagnostic)?;
-            }
+            inspect_prepared_values(
+                &self.state.input,
+                values,
+                &result.report.diagnostics,
+                &self.state.control,
+                self.state.scope,
+                lease.available,
+                &mut || self.state.check(),
+            )?;
             let evidence = SealedPreparationEvidence {
                 inner: Arc::new(EvidenceInner {
                     invocation: Arc::downgrade(&self.state),
@@ -445,7 +391,10 @@ impl<'a> MetadataBudget<'a> {
             .ok_or(EvidenceStop::Limit("metadata-bytes"))?;
         Ok(())
     }
-    pub(crate) fn source(&mut self, source: &cem_ml::source_map::SourceMapStack) -> Result<(), EvidenceStop> {
+    pub(crate) fn source(
+        &mut self,
+        source: &cem_ml::source_map::SourceMapStack,
+    ) -> Result<(), EvidenceStop> {
         use cem_ml::source_map::{FrameSpan, SourceMapFrame, TransformKind};
         self.charge(
             source
@@ -546,16 +495,19 @@ impl<'a> MetadataBudget<'a> {
 
 // A lease reserves all remaining capacity during callbacks. Reentrant/concurrent
 // calls cannot obtain another allowance. Unwinding conservatively spends it all.
-struct BudgetLease {
-    state: Arc<InvocationState>,
+struct BudgetLease<'a> {
+    budget: &'a Mutex<Budget>,
     available: PreparationLimits,
     refund: Option<PreparationLimits>,
 }
-impl BudgetLease {
-    fn acquire(state: Arc<InvocationState>) -> Result<Self, EvidenceStop> {
+impl<'a> BudgetLease<'a> {
+    fn acquire(state: &'a InvocationState) -> Result<Self, EvidenceStop> {
         state.check()?;
+        Self::from_budget(&state.budget)
+    }
+    fn from_budget(budget: &'a Mutex<Budget>) -> Result<Self, EvidenceStop> {
         let available = {
-            let mut budget = state.budget.lock().unwrap_or_else(|e| e.into_inner());
+            let mut budget = budget.lock().unwrap_or_else(|e| e.into_inner());
             if budget.busy {
                 return Err(EvidenceStop::Busy);
             }
@@ -570,15 +522,15 @@ impl BudgetLease {
             available
         };
         Ok(Self {
-            state,
+            budget,
             available,
             refund: None,
         })
     }
 }
-impl Drop for BudgetLease {
+impl Drop for BudgetLease<'_> {
     fn drop(&mut self) {
-        let mut budget = self.state.budget.lock().unwrap_or_else(|e| e.into_inner());
+        let mut budget = self.budget.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(refund) = self.refund {
             budget.remaining = refund;
         }
@@ -587,7 +539,7 @@ impl Drop for BudgetLease {
 }
 
 fn original_source(
-    binding: &BoundAttributeFacets,
+    binding: Option<&BoundAttributeFacets>,
     input: &PreparationInput,
 ) -> Result<PreparationOrigin, EvidenceStop> {
     let candidate = match input.candidate.as_slice() {
@@ -615,10 +567,10 @@ fn original_source(
     {
         return Err(EvidenceStop::SourceMismatch);
     }
-    let is_default = binding.binding().constraint_fields().iter().any(|field| {
+    let is_default = binding.is_some_and(|binding| binding.binding().constraint_fields().iter().any(|field| {
         field.identity() == node.identity()
             && matches!(field.node(), CemAstNode::Attribute {expanded_name,..} if expanded_name.namespace_uri.is_empty() && expanded_name.local_name == "default")
-    });
+    }));
     Ok(if is_default {
         PreparationOrigin::Default(node)
     } else {
@@ -709,4 +661,130 @@ pub struct PreparationEvidenceResult {
     /// Freely inspectable, never a constructor or authorization for evidence.
     pub report: DatatypePreparation,
     pub stopped: Option<EvidenceStop>,
+}
+
+fn inspect_prepared_values(
+    input: &PreparationInput,
+    values: &[Item],
+    diagnostics: &[Diagnostic],
+    control: &OperationControl,
+    scope: ExecutionScopeId,
+    limits: PreparationLimits,
+    poll: &mut dyn FnMut() -> Result<(), EvidenceStop>,
+) -> Result<(), EvidenceStop> {
+    let mut metadata = MetadataBudget::new(control, scope);
+    metadata.source(&input.lexical.source)?;
+    metadata.attribution(&input.fallback)?;
+    let mut bytes = 0usize;
+    let mut token_buffers = BTreeSet::new();
+    for (index, value) in values.iter().enumerate() {
+        if index % 64 == 0 {
+            poll()?;
+        }
+        // A representation-id or atom() result cannot prove immutability.
+        let size = match value {
+            Item::Atomic(AtomValue::String(s) | AtomValue::Decimal(s) | AtomValue::AnyUri(s)) => {
+                s.len()
+            }
+            Item::Atomic(_) => 0,
+            _ => {
+                if let Some((s, source)) = crate::typed_scalar::immutable_storage(value) {
+                    if let Some(source) = source {
+                        metadata.source(source)?;
+                    }
+                    s.len()
+                } else if let Some((lexical, _)) = crate::datatype_shipped::token_source(value) {
+                    if token_buffers.insert(lexical as *const LexicalInput as usize) {
+                        metadata.source(&lexical.source)?;
+                        lexical.text.len()
+                    } else {
+                        0
+                    }
+                } else {
+                    return Err(EvidenceStop::UntrackedView);
+                }
+            }
+        };
+        bytes = bytes.saturating_add(size);
+        if bytes > limits.max_lexical_bytes {
+            return Err(EvidenceStop::Limit("value-bytes"));
+        }
+    }
+    poll()?;
+    for diagnostic in diagnostics {
+        metadata.diagnostic(diagnostic)?;
+    }
+    Ok(())
+}
+
+fn preparation_refund(
+    available: PreparationLimits,
+    report: &DatatypePreparation,
+    visits: usize,
+) -> PreparationLimits {
+    let output_count = report.value.as_ref().map_or_else(
+        || {
+            if report.token_spans.is_empty() {
+                usize::from(report.preparations > 0)
+            } else {
+                report.token_spans.len()
+            }
+        },
+        Vec::len,
+    );
+    PreparationLimits {
+        max_preparations: available
+            .max_preparations
+            .saturating_sub(report.preparations),
+        max_output_values: available.max_output_values.saturating_sub(output_count),
+        validation: crate::datatype_validation::ValidationLimits {
+            max_input_values: available.validation.max_input_values.saturating_sub(visits),
+            max_diagnostics: available
+                .validation
+                .max_diagnostics
+                .saturating_sub(report.diagnostics.len()),
+            ..available.validation
+        },
+        ..available
+    }
+}
+
+fn check_tokenizers(
+    datatype: &crate::datatype_compilation::ExecutableDatatype,
+    control: &OperationControl,
+    scope: ExecutionScopeId,
+) -> Result<(), EvidenceStop> {
+    if datatype.preparation().is_some_and(|p| p.uses_tokenizer()) {
+        if let Some(tokenizer) = datatype.tokenizer() {
+            tokenizer
+                .check_available(control, scope)
+                .map_err(|error| match error {
+                    cem_ml::schema::datatype_contracts::TokenizationError::Control(error) => {
+                        EvidenceStop::Control(error)
+                    }
+                    _ => EvidenceStop::Closed,
+                })?;
+        }
+    }
+    if let Some(item) = datatype.item() {
+        check_tokenizers(item, control, scope)?;
+    }
+    Ok(())
+}
+
+// Availability hooks run outside the work reservation. Guard their callbacks as
+// well, so reentrant readiness cannot recursively prepare before reserving work.
+struct AvailabilityLease<'a>(&'a AtomicBool);
+impl<'a> AvailabilityLease<'a> {
+    fn acquire(checking: &'a AtomicBool) -> Result<Self, EvidenceStop> {
+        checking
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map_err(|_| EvidenceStop::Busy)?;
+        Ok(Self(checking))
+    }
+}
+impl Drop for AvailabilityLease<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
 }

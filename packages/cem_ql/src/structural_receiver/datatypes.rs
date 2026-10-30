@@ -14,13 +14,15 @@ use cem_ml::schema::{
     attribute_datatypes::AttributeDatatypeContextLease,
     datatype_contracts::{CompiledDatatypeContract, DatatypeCompilation},
 };
+mod preparation;
+pub use preparation::FreshDatatypePreparationInvocation;
 const INVALID: &str = "fresh datatype source compilation refused";
 pub struct FreshDatatypeCompilation {
     sources: Arc<VerifiedDatatypeSources>,
     compilation: DatatypeCompilation,
     context: AttributeDatatypeContextLease,
     scope: DeclarationScope,
-    active: AtomicBool,
+    active: Arc<AtomicBool>,
 }
 impl FreshDatatypeCompilation {
     fn check(&self, host: &FreshStructuralHost) -> Result<(), String> {
@@ -155,7 +157,7 @@ impl FreshStructuralHost {
             compilation,
             context,
             scope,
-            active: AtomicBool::new(true),
+            active: Arc::new(AtomicBool::new(true)),
         };
         result.check(self)?;
         Ok(result)

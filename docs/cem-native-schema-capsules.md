@@ -19,6 +19,9 @@ Native `CEMDT1` now carries original local datatype sources and exact literal
 base/list-item dependency fields. A checked fresh-host adapter compiles these
 sources through the shared compiler with explicit implementation registrations.
 This is not executable/behavior closure proof or named receiver admission.
+Datatype roots now issue guarded process-local preparation evidence and consume
+it with fresh validation and one cumulative work allowance. Retired tokenizer
+owners also invalidate retained evidence in the shared attribute path.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -791,8 +794,8 @@ stops and original source attribution. Dependency types do not become implicit
 entrypoints. Actual host/source/context and control are checked before and after
 validation, so a stopped or stale invocation cannot return a completed result.
 Retiring the compilation or closing/changing its host refuses subsequent use.
-The wrapper exposes inert source metadata, not cloned executable types,
-preparation tokens or a portable permission receipt.
+The wrapper exposes inert source metadata and the guarded preparation API below,
+not cloned executable types, raw prepared tokens or a portable permission receipt.
 
 `share_native_source` permits explicit NR1 operation installation on the same
 original source owner only after source/registry identities and the **complete**
@@ -814,14 +817,80 @@ verification allowance. These are admission bounds, not measured peak heap.
 cover reload, roots, native compilation, source sharing, ownership, control,
 repinned incompatibilities and limits.
 
-Remaining work includes complete behavior/query/imported-source dependency
-contracts, guarded lexical/typed preparation handoff, a new application receiver
+Guarded root preparation is implemented below. Remaining work includes complete
+behavior/query/imported-source dependency contracts, a new application receiver
 format for mixed node/scalar/executable bindings, and atomic receiver installation
 with actual worker/fallback generation and checkpoint ownership. CEMAPPD1 and
 CEMAPPD2 are unchanged; existing runtimes do not admit CEMDT1 or scalar/executable
 receiver substitutions. No WASM endpoint or component/application JavaScript was
 added. Entered credentials still block recovery; automatic whole-Studio recovery
 remains disabled, with 4 MiB checkpoints and five-second deadlines unchanged.
+
+## Guarded datatype preparation handoff
+
+`FreshDatatypeCompilation::preparation_invocation` creates a frozen lexical
+invocation for an explicitly exported root on the actual live host. It returns
+[`FreshDatatypePreparationInvocation`](../packages/cem_ql/src/structural_receiver/datatypes/preparation.rs),
+which offers `prepare`, `validate_prepared`, `close` and `remaining_limits`.
+The shared [datatype evidence implementation](../packages/cem_ql/src/preparation_evidence/datatype.rs)
+uses the existing attribute evidence's immutable-value checks, metadata accounting,
+work reservation and preparation refund rules. It does not add a parallel
+parser, datatype validator or conversion path.
+
+Preparation returns inspectable diagnostics and a separate optional sealed
+`SealedDatatypePreparationEvidence`. The seal has no public constructor, codec,
+mutable access or acceptance verdict. Raw inspection reports and caller-authored
+value/text pairs cannot manufacture it. Primitive values and the engine's exact
+immutable scalar/token adapters are eligible; an unrelated view imitating their
+representation string refuses. Original lexical text, decoded ordered token
+spans, diagnostics and the frozen candidate remain distinct. A present empty
+list can carry evidence; missing evidence stays incomplete. Rejection, pending,
+unavailable, failed or untracked preparation cannot issue a seal, and a
+typed-only datatype never gains implicit lexical preparation.
+
+The issuer is bound to the exact compilation, root and invocation. Identical
+names, pins, values or input text do not authorize another invocation, root or
+host to consume a receipt. The compilation is held weakly: dropping or retiring
+it invalidates retained invocations/evidence. Closing the invocation or changing,
+closing or dropping its actual host/context invalidates use too. Source-less
+input is explicit; an authored candidate must be an original literal attribute
+with matching text and source stack. Root preparation makes no attribute-default,
+local facet, crossing-grant or receiver-publication claim.
+
+Every `validate_prepared` call reruns the ordinary datatype validator and current
+rules against the sealed immutable values. Native callback state may now reject
+or remain pending where an earlier consumption accepted. Preparation is not
+replayed and no verdict is cached in the receipt. Host/compilation/context and
+control are checked around calls; callback-time retirement or cancellation cannot
+publish a completed handoff. Executable snapshots remain private, and no raw
+preparation capability is exported.
+
+Preparation and consumption share one finite remaining allowance for preparer
+calls, output values, inspected/scheduled input visits, rules, comparisons and
+diagnostics. Even empty receipts spend inspection work. Cloned evidence or
+retaining an invocation does not reset its budget. The shared reservation refuses
+reentrant callbacks; an unwind conservatively spends the reserved allowance.
+Availability hooks have a separate reentrancy guard so they cannot prepare
+recursively before reservation. Existing lexical, value and 1 MiB evidence
+metadata limits remain unchanged; these checks are not a measured peak heap.
+
+Selected and inherited tokenizer owners now receive read-only, control-checked
+availability inspection before retained root **and attribute** evidence is used.
+Retiring a tokenizer invalidates its lexical proof without repeating tokenization.
+The existing checked preparation/facet guards remain in force. The
+[root fixtures](../packages/cem_ql/tests/datatype_source_capsule/preparation.rs)
+and [attribute regression](../packages/cem_ql/tests/datatype_validation/preparation_evidence.rs)
+cover original spans, empty/missing/stopped input, immutable-view refusal, source
+metadata, foreign/stale issuers, lifetime, fresh rules, cumulative limits,
+callback reentrancy/unwind and tokenizer retirement.
+
+This is a native, process-local root handoff. CEMDT1 still rejects executable query
+bodies, imported/reference dependencies and constants requiring their own
+adapters. Complete behavior/query/imported closure, mixed receiver wire contracts,
+local receiver installation and worker/fallback generation/checkpoint enrollment
+remain pending. No component/application JavaScript or WASM endpoint was added;
+existing wire formats, credential refusal, disabled automatic whole-Studio
+recovery, 4 MiB checkpoints and five-second deadlines are unchanged.
 
 ## Native fresh-host linking and node receivers
 
