@@ -378,6 +378,9 @@ impl VerifiedNativeRequirement {
             requirement,
         })
     }
+    pub(crate) fn source_snapshot_hash(&self) -> &str {
+        &self.source_snapshot_hash
+    }
     pub fn pin(&self) -> &NativeRequirementPin {
         &self.pin
     }

@@ -810,6 +810,15 @@ admission/publication remain implementation gates; scalar CEMAPPD1 is unchanged.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 
+Native-only CEMDT1 now transports complete original local datatype source
+snapshots and exact literal base/list-item field dependencies. A checked fresh
+host compiles explicit registrations through the ordinary datatype compiler and
+validates only exported roots, preserving inherited scalar/list semantics and
+source ownership. Full behavior/imported/executable closure, guarded preparation
+handoff and a new mixed receiver format remain pending; no existing application
+or WASM ABI changes. See the
+[datatype source contract](docs/cem-native-schema-capsules.md#native-datatype-source-closure-and-compilation).
+
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.
 The [initial audit](docs/cem-components-wasm-audit.md) and

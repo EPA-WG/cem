@@ -747,6 +747,15 @@ explicitly linked query/native guards, with checked native slot replacement.
 Scalar/executable named receiver composition, physical worker/fallback transport
 and component admission/publication remain pending. Scalar CEMAPPD1 and the current WASM ABI remain unchanged and
 refuse this new native envelope.
+The native-only
+[datatype source contract](cem-native-schema-capsules.md#native-datatype-source-closure-and-compilation)
+now preserves exact original local scalar/list source dependencies and compiles
+explicit registrations through the shared native compiler on a checked fresh
+host. Only exported roots validate; copied sources, stale/foreign contexts and
+missing implementations refuse. This does not prove complete behavior/native
+code closure or enable scalar/executable named receiver admission. Existing
+application formats and the WASM ABI remain unchanged.
+
 The [native linking contract](cem-native-schema-capsules.md#native-fresh-host-linking-and-node-receivers)
 defines its required source registration, explicit grants, bounds and lifetime.
 The [native schema/type fixture](../packages/cem_ql/fixtures/component-application/named_receiver_types.rs)

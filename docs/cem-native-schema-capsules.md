@@ -15,6 +15,10 @@ source-result profiles now have explicit checked bindings too. The native-only
 declarations and typed capsules with a bounded declared dependency graph.
 Native named-node assembly now stages exact receiver occurrences and query/native
 bindings against one fresh host, with a checked in-process replacement slot.
+Native `CEMDT1` now carries original local datatype sources and exact literal
+base/list-item dependency fields. A checked fresh-host adapter compiles these
+sources through the shared compiler with explicit implementation registrations.
+This is not executable/behavior closure proof or named receiver admission.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -744,6 +748,80 @@ type dependency closure need their own versioned contracts before admission.
 Deployed CEMAPPD1, WASM/worker/fallback endpoints and runtime component admission
 are unchanged. Entered credentials still block recovery; automatic whole-Studio
 recovery remains disabled, with 4 MiB checkpoints and five-second deadlines.
+
+## Native datatype source closure and compilation
+
+[`cem_ql::datatype_source_capsule`](../packages/cem_ql/src/datatype_source_capsule.rs)
+implements native-only `CEMDT1` / `cem.native-datatype-sources/1`.
+`export`/`verify` preserve the complete original `NativeSourceSnapshot`, trusted
+source/registry pins, explicitly selected root type occurrences and their exact
+local literal dependency graph. The graph is recomputed through the shared
+`DatatypeSource::plan`: inherited bases, list items and inherited lists retain
+original attribute occurrences and targets. The verifier never manufactures
+reference nodes, parses source text, evaluates queries or registers code.
+Reload creates new owners; source URIs, native IDs and hashes alone supply no
+runtime scope or implementation authority.
+
+This first profile accepts one original schema's unqualified local type names
+and scalar, lexical, list or inherited source kinds. Missing/cyclic/duplicate
+names, qualified/imported dependencies, native references, type-child constants,
+inline query bodies and unsupported kinds refuse. All original source records
+remain intact; unselected type declarations are passive source data, not exports
+or implicitly registered implementations. Unknown semantic fields cannot become
+ready through transport: the shared compiler still owns field/facet admission,
+kind compatibility, effective restrictions and actual implementation checks.
+`executable_closure_verified()` always returns `false`. Literal source closure
+is neither complete behavior/executable closure nor linked native code proof.
+
+[`FreshStructuralHost::compile_datatype_sources`](../packages/cem_ql/src/structural_receiver/datatypes.rs)
+requires the actual source tree and a ready scope on that concrete fresh host,
+matching registry identity, current operation control and explicit native
+`DatatypeImplementations`/`DatatypeValidationRegistry` inputs. An isolated
+compiler scope preserves the actual scope's traversal policy and binds only the
+verified same-source literal targets. It uses ordinary `compile_datatypes` and
+changes no registry/context on the caller's host. Missing registrations,
+unsupported fields, unavailable validation, incomplete compilation, cancellation
+or foreign/pending scopes refuse; prior compiled owners remain usable.
+Compilation does not prepare lexical input or evaluate source queries.
+
+The resulting `FreshDatatypeCompilation` keeps executable snapshots private.
+`validate` accepts only explicitly exported roots and delegates to the ordinary
+native scalar/list validator, retaining inherited cardinality, item checks,
+stops and original source attribution. Dependency types do not become implicit
+entrypoints. Actual host/source/context and control are checked before and after
+validation, so a stopped or stale invocation cannot return a completed result.
+Retiring the compilation or closing/changing its host refuses subsequent use.
+The wrapper exposes inert source metadata, not cloned executable types,
+preparation tokens or a portable permission receipt.
+
+`share_native_source` permits explicit NR1 operation installation on the same
+original source owner only after source/registry identities and the **complete**
+verified snapshot agree. A different arena claiming the same source hash refuses.
+Existing operation linkers/installers retain exact declaration, registration and
+lifetime checks; copying or relabelling a datatype cannot acquire the binding.
+Typed validation does not imply lexical preparation or conversion readiness.
+
+The format is capped at 64 KiB, 32 exported roots, 64 local type declarations
+(including unselected declarations) and dependency depth 32. Native source arenas
+retain their 16,384-node bound; outer MessagePack preflight allows 16,384 records
+and 64 nesting levels, with canonical encoding and 100,000 verification checks.
+The wire limit can require fewer types; source arenas are never pruned and no
+budget is raised to make them fit. Compiler/validation work additionally uses
+the actual host policy and existing shared limits, not a reset or enlarged
+verification allowance. These are admission bounds, not measured peak heap.
+[Integration fixtures](../packages/cem_ql/tests/datatype_source_capsule.rs) and
+[wire/boundary fixtures](../packages/cem_ql/src/datatype_source_capsule/tests.rs)
+cover reload, roots, native compilation, source sharing, ownership, control,
+repinned incompatibilities and limits.
+
+Remaining work includes complete behavior/query/imported-source dependency
+contracts, guarded lexical/typed preparation handoff, a new application receiver
+format for mixed node/scalar/executable bindings, and atomic receiver installation
+with actual worker/fallback generation and checkpoint ownership. CEMAPPD1 and
+CEMAPPD2 are unchanged; existing runtimes do not admit CEMDT1 or scalar/executable
+receiver substitutions. No WASM endpoint or component/application JavaScript was
+added. Entered credentials still block recovery; automatic whole-Studio recovery
+remains disabled, with 4 MiB checkpoints and five-second deadlines unchanged.
 
 ## Native fresh-host linking and node receivers
 

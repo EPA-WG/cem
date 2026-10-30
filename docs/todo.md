@@ -1984,6 +1984,64 @@ inventory, not the minimum set loaded by every app.
                   implementation, closure and atomic replacement fixtures before
                   enabling component admission; keep native code closure unproven
                   until linked implementation evidence exists.
+                  - [x] Export/verify a bounded native original datatype-source
+                    capsule with exact literal local base/list-base/item closure,
+                    original field occurrences, source snapshots and trusted pins.
+                    Add deterministic/reload, missing/cyclic/duplicate/qualified,
+                    unsupported reference/constant/kind and malformed wire fixtures.
+                  - [x] Compile verified local source closures through the shared
+                    native datatype compiler under the actual fresh host's source,
+                    context, control and traversal policy. Require explicit actual
+                    implementations; cover inherited scalar/list typed validation,
+                    limits, cancellation, foreign/pending scopes and stale owners.
+                  - [x] Share a complete verified source with NR1 requirements
+                    before explicit operation installation; test exact snapshot
+                    agreement, registration/source mismatches and retirement.
+                  - [x] Run native/WASM/component and isolated Studio worker/fallback
+                    credential privacy acceptance; document native source closure
+                    separately from full executable/behavior/receiver/code closure.
+
+                  Native CEMDT1 / cem.native-datatype-sources/1 now pins original
+                  whole source snapshots, selected roots and exact shared-plan
+                  literal local base/list-item dependencies with original field
+                  occurrences. Native verification is inert and bounded; it does
+                  not deserialize executable types. The fresh host's compiler
+                  adapter preserves actual source/scope/context/control/traversal
+                  policy, requires explicit implementations and retains private
+                  executable snapshots for checked root-only typed validation.
+                  Complete verified source agreement enables original NR1
+                  operation installation. Scalar/list inheritance, original
+                  owners, missing registrations, cancellation, foreign/stale/
+                  pending scopes and prior-owner refusal are covered. Bounds:
+                  64 KiB wire, 32 roots, 64 local type declarations and depth 32,
+                  with existing source/preflight/compiler budgets unchanged.
+                  Whole behavior/imported/query closure, guarded preparation,
+                  mixed scalar/executable receiver formats and atomic receiver
+                  installation remain open. Existing CEMAPPD1/CEMAPPD2, WASM
+                  endpoints and native code closure flags are unchanged.
+
+                  Verification: nine new integration and three wire/boundary
+                  cases plus 512 existing native cases (524 total) pass, including
+                  exact same-source operation installation and a different arena
+                  claiming the same source identity refusing to share. A regression
+                  first exposed inherited dependencies as unintended validation
+                  entrypoints; root-only checks now refuse them. WASM compilation,
+                  both existing separate-heap WASM drivers, 18 component browser
+                  cases, ten audit/factory cases and both full Login worker/fallback
+                  credential privacy checks pass. Formatting, 238 local
+                  documentation file links, audit freshness and diff checks pass.
+                  Current optimized component WASM is 11,471,605 bytes; it was
+                  exercised, not rebuilt for the native-only contracts. No new
+                  production JavaScript, WASM endpoint, callback serialization,
+                  cached verdict or permission receipt was added. Entered
+                  credentials still block recovery; automatic whole-Studio recovery
+                  stays disabled, with 4 MiB checkpoints and five-second deadlines
+                  unchanged. Native builds finished before Studio acceptance.
+                  Generated screenshots and Vitest attachments are excluded.
+
+                  - [ ] Complete behavior/query/imported type dependencies and
+                    guarded lexical/typed preparation handoff before defining the
+                    new mixed receiver format and enabling receiver installation.
                 - [ ] Enroll portable query source/binding/invocation owners in
                   actual worker/owned-fallback generation and inventory groups;
                   add fresh-heap transport, shutdown/replacement, stale receipt,

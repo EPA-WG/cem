@@ -27,6 +27,8 @@ use std::{
 };
 const INVALID: &str = "fresh structural host refused";
 pub mod application;
+mod datatypes;
+pub use datatypes::FreshDatatypeCompilation;
 mod native;
 mod query;
 pub use native::{FreshNativeOperation, FreshNativeTokenizer, NativeResultAdapter};

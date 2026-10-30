@@ -312,6 +312,15 @@ receiver composition, physical worker/fallback enrollment, WASM transport and
 compiled-component admission/publication remain separate gates. The deployed
 scalar CEMAPPD1 WASM ABI is unchanged and refuses the new envelope.
 
+The native-only
+[datatype source contract](cem-native-schema-capsules.md#native-datatype-source-closure-and-compilation)
+now preserves exact original local scalar/list source dependencies and compiles
+explicit registrations through the shared native compiler on a checked fresh
+host. Only exported roots validate; copied sources, stale/foreign contexts and
+missing implementations refuse. This does not prove complete behavior/native
+code closure or enable scalar/executable named receiver admission. Existing
+application formats and the WASM ABI remain unchanged.
+
 Do not equate downloaded code with an active native generation. Register every
 physical endpoint and its resources with the shared ownership/recovery group.
 Preparation, atomic publication, cancellation and exact-owner disposal retain
