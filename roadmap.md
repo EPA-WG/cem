@@ -792,7 +792,10 @@ native registrations with weak host ownership, source checks, shared results and
 checked tokenizer replacement. Direct typed scalar preparation, conversion,
 equality and list-serializer requirements now install through the ordinary
 compiler, preserving checked preparation replacement, original owners, budgets,
-completion states and weak callback lifetimes. Remaining capability closures,
+completion states and weak callback lifetimes. Native constant/facet/list-item
+contracts and canonical native source-result profiles now preserve ordinary
+compiler/adaptation behavior, original owners and retained-consumer liveness.
+Complete bounded application closure admission,
 physical worker/fallback generation enrollment and component/WASM
 receiver admission remain implementation gates; see the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).

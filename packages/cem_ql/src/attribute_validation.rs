@@ -62,6 +62,7 @@ pub enum AttributeValidationStop {
     Datatype,
     Facets(FacetExecutionError<ControlError>),
     Control(ControlError),
+    Unavailable,
 }
 #[derive(Debug)]
 pub struct AttributeValidation {
@@ -254,6 +255,12 @@ impl BoundAttributeFacets {
         runtime: &ValidationRuntime<'_>,
         limits: AttributeValidationLimits,
     ) -> AttributeValidation {
+        if let Err(error) = runtime.control.check_scope(runtime.scope) {
+            return report.stop(AttributeValidationStop::Control(error));
+        }
+        if !self.is_available() {
+            return report.stop(AttributeValidationStop::Unavailable);
+        }
         let Some(remaining) = limits
             .preparation
             .validation
@@ -272,6 +279,12 @@ impl BoundAttributeFacets {
             },
             &mut || runtime.control.check_scope(runtime.scope),
         );
+        if let Err(error) = runtime.control.check_scope(runtime.scope) {
+            return report.stop(AttributeValidationStop::Control(error));
+        }
+        if !self.is_available() {
+            return report.stop(AttributeValidationStop::Unavailable);
+        }
         match result {
             Ok(facets) => {
                 report.accepted = Some(datatype_accepted && facets.accepted);

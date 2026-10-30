@@ -297,8 +297,10 @@ the original source dependency and binds validation to actual native host scope,
 context and invocation lifetimes. Native `CEMNR1` now links exact host-registered
 validators/tokenizers, scalar lexical preparers, converters, scalar equality and
 list serializers through the existing compiler. Shared result adaptation,
-checked replacement and unavailable states are preserved. Remaining native
-capability closures, physical worker/fallback enrollment, WASM transport and
+checked replacement and unavailable states are preserved. Explicit native
+constant/facet/list-item and canonical source-result contracts now preserve
+shared compiler semantics and retained-consumer availability. Complete bounded
+application dependency admission, physical worker/fallback enrollment, WASM transport and
 compiled-component receiver admission remain separate gates;
 the deployed WASM ABI is unchanged by this native-only adapter.
 

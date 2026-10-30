@@ -98,9 +98,20 @@ macro_rules! capability {
         pub struct $registration {
             identity: ScalarCapabilityIdentity,
             representation: ScalarRepresentation,
+            availability: crate::datatype_availability::Availability,
             pub(crate) implementation: Arc<dyn $native>,
         }
         impl $registration {
+            pub fn with_availability(
+                mut self,
+                guard: Arc<dyn crate::datatype_availability::DatatypeAvailability>,
+            ) -> Self {
+                self.availability.restrict(guard);
+                self
+            }
+            pub(crate) fn is_available(&self) -> bool {
+                self.availability.is_available()
+            }
             pub fn new(
                 source: DatatypeSource,
                 id: impl Into<String>,
@@ -117,6 +128,7 @@ macro_rules! capability {
                         implementation: id,
                     },
                     representation,
+                    availability: Default::default(),
                     implementation: Arc::new(implementation),
                 })
             }
@@ -257,6 +269,9 @@ impl EnumerationRestriction {
                 return Err(ValidationStopReason::Limit("comparisons"));
             }
             *comparisons -= 1;
+            if !self.equality.registration.is_available() {
+                return Err(ValidationStopReason::Unavailable(vec![]));
+            }
             let result = self
                 .equality
                 .registration
@@ -279,7 +294,12 @@ impl EnumerationRestriction {
                 .check_scope(runtime.scope)
                 .map_err(ValidationStopReason::Control)?;
             if let Some(failure) = runtime.query_failure() {
-                return Err(ValidationStopReason::Result(crate::datatype_results::DatatypeResultError::Execution(failure)));
+                return Err(ValidationStopReason::Result(
+                    crate::datatype_results::DatatypeResultError::Execution(failure),
+                ));
+            }
+            if !self.equality.registration.is_available() {
+                return Err(ValidationStopReason::Unavailable(vec![]));
             }
             let (equal, mut details, state) = match result {
                 EqualityExecution::Complete { equal, diagnostics } => (Some(equal), diagnostics, 0),

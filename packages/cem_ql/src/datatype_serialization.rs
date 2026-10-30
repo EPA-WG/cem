@@ -65,9 +65,17 @@ pub trait NativeListSerializer: Debug + Send + Sync {
 pub struct RegisteredListSerializer {
     identity: ListSerializerIdentity,
     signature: ListSerializationSignature,
+    availability: crate::datatype_availability::Availability,
     implementation: Arc<dyn NativeListSerializer>,
 }
 impl RegisteredListSerializer {
+    pub fn with_availability(
+        mut self,
+        guard: Arc<dyn crate::datatype_availability::DatatypeAvailability>,
+    ) -> Self {
+        self.availability.restrict(guard);
+        self
+    }
     pub fn new(
         source: DatatypeSource,
         implementation_id: impl Into<String>,
@@ -84,6 +92,7 @@ impl RegisteredListSerializer {
                 implementation: implementation_id,
             },
             signature,
+            availability: Default::default(),
             implementation: Arc::new(implementation),
         })
     }
@@ -115,6 +124,9 @@ pub struct BoundListSerializer {
     datatype: Item,
 }
 impl BoundListSerializer {
+    pub(crate) fn is_available(&self) -> bool {
+        self.registration.availability.is_available()
+    }
     pub fn identity(&self) -> &ListSerializerIdentity {
         self.registration.identity()
     }
@@ -172,6 +184,25 @@ impl ExecutableDatatype {
         runtime: &ValidationRuntime<'_>,
         limits: SerializationLimits,
     ) -> DatatypeSerialization {
+        let mut result = self.serialize_list_phase(input, runtime, limits);
+        if self
+            .list_serializer()
+            .is_some_and(|selected| !selected.is_available())
+        {
+            result.text = None;
+            result.accepted = None;
+            if !matches!(result.stopped, Some(SerializationStop::Control(_))) {
+                result.stopped = Some(SerializationStop::Unavailable);
+            }
+        }
+        result
+    }
+    fn serialize_list_phase(
+        &self,
+        input: &ValidationInput,
+        runtime: &ValidationRuntime<'_>,
+        limits: SerializationLimits,
+    ) -> DatatypeSerialization {
         let shared_runtime = runtime.with_query_budget();
         let runtime = &shared_runtime;
         let selected = self.list_serializer();
@@ -193,6 +224,9 @@ impl ExecutableDatatype {
         let Some(selected) = selected else {
             return result.stop(SerializationStop::NoSerializer);
         };
+        if !selected.is_available() {
+            return result.stop(SerializationStop::Unavailable);
+        }
         if selected.signature().candidate == CandidateRequirement::Required
             && input.candidate.is_empty()
         {

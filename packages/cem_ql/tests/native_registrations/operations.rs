@@ -1162,3 +1162,6 @@ fn known_unsupported_preparation_modes_refuse_before_compilation() {
         );
     }
 }
+
+#[path = "closures.rs"]
+mod closures;

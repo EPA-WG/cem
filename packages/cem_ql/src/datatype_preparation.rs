@@ -70,6 +70,7 @@ pub struct RegisteredLexicalPreparation {
     identity: PreparationIdentity,
     signature: PreparationSignature,
     implementation: Implementation,
+    availability: crate::datatype_availability::Availability,
 }
 impl RegisteredLexicalPreparation {
     pub fn new(
@@ -123,7 +124,15 @@ impl RegisteredLexicalPreparation {
             },
             signature,
             implementation,
+            availability: Default::default(),
         })
+    }
+    pub fn with_availability(
+        mut self,
+        guard: Arc<dyn crate::datatype_availability::DatatypeAvailability>,
+    ) -> Self {
+        self.availability.restrict(guard);
+        self
     }
     pub fn identity(&self) -> &PreparationIdentity {
         &self.identity
@@ -163,6 +172,12 @@ pub struct BoundLexicalPreparation {
     inherited: Vec<Arc<PreparationStep>>,
 }
 impl BoundLexicalPreparation {
+    pub(crate) fn is_available(&self) -> bool {
+        self.inherited
+            .iter()
+            .chain(std::iter::once(&self.selected))
+            .all(|step| step.registration.availability.is_available())
+    }
     pub fn identity(&self) -> &PreparationIdentity {
         self.selected.registration.identity()
     }
@@ -232,6 +247,10 @@ pub struct DatatypePreparation {
     pub stopped: Option<PreparationStop>,
 }
 impl ExecutableDatatype {
+    pub(crate) fn preparation_available(&self) -> bool {
+        self.preparation().is_none_or(|p| p.is_available())
+            && self.item().is_none_or(|item| item.preparation_available())
+    }
     pub fn prepare_lexical(
         &self,
         input: &PreparationInput,
@@ -272,6 +291,13 @@ impl ExecutableDatatype {
         if let Err(stop) = prepare(self, input, runtime, limits, &mut report, &mut visits, validate) {
             report.stopped = Some(stop);
             report.accepted = None;
+        }
+        if !self.preparation_available() {
+            report.value = None;
+            report.accepted = None;
+            if !matches!(report.stopped, Some(PreparationStop::Control(_))) {
+                report.stopped = Some(PreparationStop::Unavailable);
+            }
         }
         (report, visits)
     }
@@ -320,6 +346,9 @@ fn prepare(
         return Err(PreparationStop::Limit("lexical-bytes"));
     }
     let selected = d.preparation().ok_or(PreparationStop::NoPreparation)?;
+    if !d.preparation_available() {
+        return Err(PreparationStop::Unavailable);
+    }
     candidate(selected, input)?;
     let mut attribution = input
         .candidate

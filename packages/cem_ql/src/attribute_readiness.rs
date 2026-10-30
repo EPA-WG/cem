@@ -79,6 +79,13 @@ impl BoundAttributeFacets {
         limits: AttributeValidationLimits,
     ) -> AttributeDeclarationReadiness {
         let mut report = self.check_declaration_readiness_inner(host, diagnostics, runtime, limits);
+        if !self.is_available() {
+            report.issue(
+                AttributeReadinessState::Pending,
+                "attribute-facet-profile-unavailable",
+                self.binding().declaration.clone(),
+            );
+        }
         if let Err(error) = runtime.control.check_scope(runtime.scope) {
             report.state = AttributeReadinessState::Pending;
             report.control_stop = Some(error);

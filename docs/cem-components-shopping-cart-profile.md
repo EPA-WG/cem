@@ -730,8 +730,11 @@ requirements and binds actual explicitly registered implementations to the same
 fresh host. It preserves the shared compiler's checked tokenizer replacement
 and unavailable outcomes; callbacks, preparation tokens and grants stay local.
 Direct typed preparation/conversion/equality/list-serializer adapters now feed
-the ordinary native compiler with weak fresh-host guards. Remaining capability
-closures and physical worker/fallback transport and ownership remain pending;
+the ordinary native compiler with weak fresh-host guards. Constant/facet/shared
+list-item and canonical native source-result bindings now retain those guards
+through preparation, result adaptation and retained attribute consumers.
+Complete application closure admission and physical worker/fallback transport
+and ownership remain pending;
 no application envelope or runtime ABI is changed by this native step.
 The [native linking contract](cem-native-schema-capsules.md#native-fresh-host-linking-and-node-receivers)
 defines its required source registration, explicit grants, bounds and lifetime.

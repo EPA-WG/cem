@@ -20,7 +20,7 @@ use cem_ml::schema::{
 };
 use std::{ops::Range, sync::Weak};
 mod operations;
-pub use operations::FreshNativeOperation;
+pub use operations::{FreshNativeOperation, NativeResultAdapter};
 
 pub(super) struct Entry {
     identity: ImplementationIdentity,
@@ -33,6 +33,12 @@ enum Actual {
     Conversion(Arc<dyn crate::datatype_conversion::NativeDatatypeConverter>),
     Equality(Arc<dyn crate::datatype_enumeration::NativeScalarEquality>),
     ListSerializer(Arc<dyn crate::datatype_serialization::NativeListSerializer>),
+    Constant(Arc<dyn crate::datatype_enumeration::NativeConstantInterpreter>),
+    FacetProfile(cem_ml::schema::document_model::attribute_facets::FacetFamily),
+    ListItems(cem_ml::schema::datatype_validation::ScalarRepresentation),
+    SourceConversion(Arc<dyn crate::datatype_conversion::SourceDatatypeConverter>),
+    SourceEquality(Arc<dyn crate::datatype_enumeration::SourceScalarEquality>),
+    SourceConstant(Arc<dyn crate::datatype_enumeration::SourceConstantInterpreter>),
 }
 #[derive(Clone)]
 struct Guard {

@@ -94,6 +94,9 @@ impl InvocationState {
         self.control
             .check_scope(self.scope)
             .map_err(EvidenceStop::Control)?;
+        if !self.binding.is_available() || !self.binding.binding().datatype.preparation_available() {
+            return Err(EvidenceStop::Closed);
+        }
         if self
             .query
             .execution_budget

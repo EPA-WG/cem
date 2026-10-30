@@ -8,9 +8,11 @@ use crate::{
         RegisteredDatatypeConverter,
     },
     datatype_enumeration::{
-        EqualityBinding, EqualityCall, EqualityExecution, NativeScalarEquality,
-        RegisteredScalarEquality,
+        ConstantBinding, ConstantCall, ConstantExecution, EqualityBinding, EqualityCall,
+        EqualityExecution, NativeConstantInterpreter, NativeScalarEquality,
+        RegisteredConstantInterpreter, RegisteredScalarEquality,
     },
+    datatype_facets::{FacetProfileBinding, RegisteredFacetProfile},
     datatype_preparation::{
         NativeLexicalPreparer, PreparationBinding, PreparationCall, PreparationExecution,
         RegisteredLexicalPreparation,
@@ -19,9 +21,21 @@ use crate::{
         ListSerializationCall, ListSerializerBinding, NativeListSerializer,
         RegisteredListSerializer, SerializationExecution,
     },
-    native_registrations::{OperationMode, PreparationMode},
+    native_registrations::{FacetMode, OperationMode, PreparationMode},
 };
 use cem_ml::schema::datatype_registry::DatatypeSource;
+use cem_ml::schema::{
+    datatype_validation::ScalarRepresentation, document_model::attribute_facets::FacetFamily,
+};
+pub use source_profiles::NativeResultAdapter;
+
+#[derive(Debug)]
+struct Lease(Guard);
+impl crate::datatype_availability::DatatypeAvailability for Lease {
+    fn is_available(&self) -> bool {
+        self.0.entry().is_some()
+    }
+}
 
 #[derive(Debug)]
 struct Proxy(Guard);
@@ -76,12 +90,20 @@ proxy!(
     ListSerializer
 );
 
+proxy!(
+    NativeConstantInterpreter,
+    interpret,
+    ConstantCall,
+    ConstantExecution,
+    Constant
+);
 /// Keep this owner alive for the lifetime of its installed compiler selections.
 /// Neither this binding nor the resulting registrations serialize live authority.
 pub struct FreshNativeOperation {
     requirement: Arc<VerifiedNativeRequirement>,
     active: Arc<AtomicBool>,
     guard: Guard,
+    source_registration: Option<source_profiles::SourceRegistration>,
 }
 impl FreshNativeOperation {
     pub fn retire(&self) {
@@ -94,9 +116,12 @@ impl FreshNativeOperation {
         source: &DatatypeSource,
         implementations: &mut DatatypeImplementations,
     ) -> Result<(), NativeLinkError> {
-        self.guard.entry().ok_or(NativeLinkError::Expired)?;
-        let Requirement::Operation(original, mode) = &self.requirement.requirement else {
-            return Err(NativeLinkError::InvalidSource);
+        let entry = self.guard.entry().ok_or(NativeLinkError::Expired)?;
+        let original = match &self.requirement.requirement {
+            Requirement::Operation(original, _) | Requirement::SourceOperation(original, _) => {
+                original
+            }
+            _ => return Err(NativeLinkError::InvalidSource),
         };
         if source.scope().identity() != original.scope().identity()
             || source.declaration().identity() != original.declaration().identity()
@@ -106,57 +131,131 @@ impl FreshNativeOperation {
         let identity = self.requirement.implementation();
         let proxy = Proxy(self.guard.clone());
         let source = source.clone();
-        let result = match (&identity.signature, mode) {
-            (NativeSignature::Preparation(signature), OperationMode::Preparation(mode)) => {
-                let registration = RegisteredLexicalPreparation::new(
-                    source.clone(),
-                    &identity.id,
-                    *signature,
-                    proxy,
-                )
-                .map_err(|_| NativeLinkError::InvalidSource)?;
-                let binding = match mode {
-                    PreparationMode::Ready => PreparationBinding::Ready(registration),
-                    PreparationMode::CheckedReplacement => {
-                        PreparationBinding::CheckedReplacement(registration)
+        let lease = Arc::new(Lease(self.guard.clone()));
+        let result = if let Some(registration) = &self.source_registration {
+            registration.install(source, implementations)
+        } else {
+            let Requirement::Operation(_, mode) = &self.requirement.requirement else {
+                return Err(NativeLinkError::InvalidSource);
+            };
+            match (&identity.signature, mode) {
+                (NativeSignature::Preparation(signature), OperationMode::Preparation(mode)) => {
+                    let registration = RegisteredLexicalPreparation::new(
+                        source.clone(),
+                        &identity.id,
+                        *signature,
+                        proxy,
+                    )
+                    .map_err(|_| NativeLinkError::InvalidSource)?
+                    .with_availability(lease);
+                    let binding = match mode {
+                        PreparationMode::Ready => PreparationBinding::Ready(registration),
+                        PreparationMode::CheckedReplacement => {
+                            PreparationBinding::CheckedReplacement(registration)
+                        }
+                    };
+                    implementations.select_preparation(source, binding)
+                }
+                (NativeSignature::Conversion(signature), OperationMode::Conversion) => {
+                    let registration = RegisteredDatatypeConverter::new(
+                        source.clone(),
+                        &identity.id,
+                        *signature,
+                        proxy,
+                    )
+                    .map_err(|_| NativeLinkError::InvalidSource)?
+                    .with_availability(lease);
+                    implementations.select_converter(source, ConverterBinding::Ready(registration))
+                }
+                (NativeSignature::Equality(representation), OperationMode::Equality) => {
+                    let registration = RegisteredScalarEquality::new(
+                        source.clone(),
+                        &identity.id,
+                        *representation,
+                        proxy,
+                    )
+                    .map_err(|_| NativeLinkError::InvalidSource)?
+                    .with_availability(lease);
+                    implementations.select_equality(source, EqualityBinding::Ready(registration))
+                }
+                (NativeSignature::ListSerializer(signature), OperationMode::ListSerializer) => {
+                    let registration = RegisteredListSerializer::new(
+                        source.clone(),
+                        &identity.id,
+                        *signature,
+                        proxy,
+                    )
+                    .map_err(|_| NativeLinkError::InvalidSource)?
+                    .with_availability(lease);
+                    implementations
+                        .select_list_serializer(source, ListSerializerBinding::Ready(registration))
+                }
+                (NativeSignature::Constant(rep), OperationMode::Constant) => {
+                    let registration = RegisteredConstantInterpreter::new(
+                        source.clone(),
+                        &identity.id,
+                        *rep,
+                        proxy,
+                    )
+                    .map_err(|_| NativeLinkError::InvalidSource)?
+                    .with_availability(lease);
+                    implementations
+                        .select_constant_interpreter(source, ConstantBinding::Ready(registration))
+                }
+                (NativeSignature::FacetProfile(family), OperationMode::FacetProfile(mode)) => {
+                    let Actual::FacetProfile(actual) = &entry.actual else {
+                        return Err(NativeLinkError::IdentityMismatch);
+                    };
+                    if actual != family {
+                        return Err(NativeLinkError::IdentityMismatch);
                     }
-                };
-                implementations.select_preparation(source, binding)
+                    let registration =
+                        RegisteredFacetProfile::new(source.clone(), &identity.id, *actual)
+                            .map_err(|_| NativeLinkError::InvalidSource)?
+                            .with_availability(lease);
+                    implementations.select_facets(
+                        source,
+                        match mode {
+                            FacetMode::Ready => FacetProfileBinding::Ready(registration),
+                            FacetMode::CheckedReplacement => {
+                                FacetProfileBinding::CheckedReplacement(registration)
+                            }
+                        },
+                    )
+                }
+                (NativeSignature::ListItems(item), OperationMode::ListItems(mode)) => {
+                    let Actual::ListItems(actual) = &entry.actual else {
+                        return Err(NativeLinkError::IdentityMismatch);
+                    };
+                    if actual != item {
+                        return Err(NativeLinkError::IdentityMismatch);
+                    }
+                    let registration = RegisteredLexicalPreparation::list_items(
+                        source.clone(),
+                        &identity.id,
+                        *actual,
+                    )
+                    .map_err(|_| NativeLinkError::InvalidSource)?
+                    .with_availability(lease);
+                    implementations.select_preparation(
+                        source,
+                        match mode {
+                            PreparationMode::Ready => PreparationBinding::Ready(registration),
+                            PreparationMode::CheckedReplacement => {
+                                PreparationBinding::CheckedReplacement(registration)
+                            }
+                        },
+                    )
+                }
+                _ => return Err(NativeLinkError::InvalidSource),
             }
-            (NativeSignature::Conversion(signature), OperationMode::Conversion) => {
-                let registration = RegisteredDatatypeConverter::new(
-                    source.clone(),
-                    &identity.id,
-                    *signature,
-                    proxy,
-                )
-                .map_err(|_| NativeLinkError::InvalidSource)?;
-                implementations.select_converter(source, ConverterBinding::Ready(registration))
-            }
-            (NativeSignature::Equality(representation), OperationMode::Equality) => {
-                let registration = RegisteredScalarEquality::new(
-                    source.clone(),
-                    &identity.id,
-                    *representation,
-                    proxy,
-                )
-                .map_err(|_| NativeLinkError::InvalidSource)?;
-                implementations.select_equality(source, EqualityBinding::Ready(registration))
-            }
-            (NativeSignature::ListSerializer(signature), OperationMode::ListSerializer) => {
-                let registration =
-                    RegisteredListSerializer::new(source.clone(), &identity.id, *signature, proxy)
-                        .map_err(|_| NativeLinkError::InvalidSource)?;
-                implementations
-                    .select_list_serializer(source, ListSerializerBinding::Ready(registration))
-            }
-            _ => return Err(NativeLinkError::InvalidSource),
         };
         result.map_err(|code| match code {
             "duplicate-preparation-selection"
             | "duplicate-converter-selection"
             | "duplicate-scalar-capability-selection"
             | "duplicate-list-serializer-selection" => NativeLinkError::Duplicate,
+            "duplicate-facet-profile-selection" => NativeLinkError::Duplicate,
             _ => NativeLinkError::InvalidSource,
         })
     }
@@ -182,6 +281,11 @@ macro_rules! register {
     };
 }
 impl FreshStructuralHost {
+    register!(
+        register_native_constant_interpreter,
+        NativeConstantInterpreter,
+        Constant
+    );
     register!(register_native_preparer, NativeLexicalPreparer, Preparation);
     register!(
         register_native_converter,
@@ -195,6 +299,26 @@ impl FreshStructuralHost {
         ListSerializer
     );
 
+    pub fn register_native_facet_profile(
+        &mut self,
+        identity: ImplementationIdentity,
+        actual: FacetFamily,
+    ) -> Result<(), NativeLinkError> {
+        if identity.signature != NativeSignature::FacetProfile(actual) {
+            return Err(NativeLinkError::IdentityMismatch);
+        }
+        self.register_implementation(identity, Actual::FacetProfile(actual))
+    }
+    pub fn register_list_item_preparation(
+        &mut self,
+        identity: ImplementationIdentity,
+        actual: ScalarRepresentation,
+    ) -> Result<(), NativeLinkError> {
+        if identity.signature != NativeSignature::ListItems(actual) {
+            return Err(NativeLinkError::IdentityMismatch);
+        }
+        self.register_implementation(identity, Actual::ListItems(actual))
+    }
     pub fn link_native_operation(
         &self,
         requirement: Arc<VerifiedNativeRequirement>,
@@ -216,6 +340,9 @@ impl FreshStructuralHost {
             requirement,
             active,
             guard,
+            source_registration: None,
         })
     }
 }
+
+mod source_profiles;

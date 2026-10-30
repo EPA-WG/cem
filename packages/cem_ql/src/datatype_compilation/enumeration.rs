@@ -177,6 +177,9 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
                     span,
                     form,
                 };
+                if !interpreter.registration.is_available() {
+                    return Err(fail("datatype-constant-unavailable"));
+                }
                 let execution = interpreter
                     .registration
                     .implementation
@@ -195,6 +198,9 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
                 if let Some(failure) = runtime.query_failure() {
                     self.diagnostics.extend(failure.diagnostics);
                     return Err(fail("datatype-constant-query-budget"));
+                }
+                if !interpreter.registration.is_available() {
+                    return Err(fail("datatype-constant-unavailable"));
                 }
                 let (value, mut diagnostics, issue) = match execution {
                     ConstantExecution::Prepared { value, diagnostics } => {

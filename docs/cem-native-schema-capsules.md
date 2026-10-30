@@ -8,9 +8,11 @@ registers them against separately supplied checked original declarations.
 Native `CEMQD1` now carries those declarations and binds query use to a concrete
 host scope, context epoch and invocation. Native `CEMNR1` requirements now link
 exact registered validators, tokenizers, scalar lexical preparers, converters,
-scalar equality and list serializers to those host lifetimes. Additional native
-capability closures, WASM transport/generation enrollment and compiled-component
-receiver admission remain **unimplemented**.
+scalar equality and list serializers to those host lifetimes. Native constant
+interpreters, facet families, shared list-item orchestration and canonical native
+source-result profiles now have explicit checked bindings too. WASM transport/
+generation enrollment and compiled-component receiver admission remain
+**unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
 existing wire version must not acquire executable semantics implicitly.
 
@@ -516,12 +518,86 @@ The [operation fixtures](../packages/cem_ql/tests/native_registrations/operation
 exercise these boundaries through real compiled descriptors, plus repinned
 incompatible records, metadata/owner mismatch, invalid output shapes, candidate
 requirements, checked replacement and weak ownership. This is the direct typed
-native-trait subset. Portable constant-interpreter/facet contracts, explicit
-shared list-item orchestration and source-backed operation result profiles still
-need reviewed closures before complete application admission. Existing full
-compiler APIs continue supplying them explicitly. No prepared/admission token,
+native-trait subset. The additional native contracts below use the same ordinary
+compiler and preserve explicit selection. No prepared/admission token,
 callback, worker owner or permission is serialized. WASM/envelope transport and
 atomic whole-generation publication remain separate implementation gates.
+
+## Constants, facets, list orchestration and source-result profiles
+
+`CEMNR1` additionally carries `Constant`, `FacetProfile` and `ListItems`
+signatures. `register_native_constant_interpreter` supplies an actual native
+constant interpreter. `register_native_facet_profile` explicitly supplies the
+selected shared `FacetFamily`; `register_list_item_preparation` explicitly selects
+the shared list-item algorithm and item representation. The family/representation
+must match the pinned signature. These shared algorithms are not inferred from
+a datatype name, source declaration or a requirement alone. Their code/hash
+association remains a trusted embedding assertion, not binary attestation.
+
+Facet and list-item modes pin `Ready` or `CheckedReplacement` against the original
+datatype occurrence. Known incompatible modes/kinds refuse in the inert verifier;
+the ordinary compiler resolves the remaining base/representation dependencies.
+Facet replacement intersects every retained family, so unsupported local fields
+cannot disappear under a less restrictive replacement. List-item orchestration
+uses the explicitly selected tokenizer and effective item preparer. Original
+decoded spans, duplicates, inherited admission and cumulative budgets remain
+unchanged. Missing tokenizer/item preparation stays unavailable; even an empty
+list cannot manufacture the orchestration capability.
+
+The shared in-process `DatatypeAvailability` restriction adds no admission or
+portable authority. Additional guards intersect; they cannot replace an earlier
+refusal. Installed native selections retain weak guards. Compiler
+readiness, datatype/facet validation, declaration readiness, sealed preparation
+and external typed producers check applicable availability. Preparation checks
+the complete inherited orchestration chain before and after execution, including
+empty output. Conversion, equality and constant handling check through result
+adaptation; a lazy native record that retires its owner while its fields are read
+cannot publish a value or verdict. List export also checks its selected owner
+at completion. Existing caller-control stops retain precedence over unavailable
+states. Unguarded ordinary full-runtime registrations keep their existing behavior.
+
+Constant interpretation still happens explicitly during native compilation under
+its existing budget. The compiler preserves original token/constant owners and
+validates interpreted values before retaining them. Completed immutable constants
+are compiler data, not cached validation verdicts or portable prepared tokens;
+retiring the interpreter prevents new compilation through that registration.
+
+`export_source_operation` additionally pins an original native behavior occurrence
+for conversion, equality or constant interpretation. The datatype and behavior
+must be members of the same original schema/source in this first subset.
+Verification rebuilds the shared `ConversionBehaviorContract`,
+`EqualityBehaviorContract` or `ConstantBehaviorContract`, checks roles, QName
+bindings, primitive identity and canonical result profile, and admits only a
+native implementation. It performs no query compilation, evaluation or fetch.
+Canonical profiles are `schema:datatype-conversion-result`,
+`schema:datatype-equality-result` and `schema:datatype-constant-result`.
+
+The fresh host explicitly registers the corresponding `SourceDatatypeConverter`,
+`SourceScalarEquality` or `SourceConstantInterpreter`, then calls
+`link_native_source_operation` with a checked `NativeResultAdapter`. The existing
+`from_source` registrars validate the adapter/profile match. Result schemas and
+adapters are supplied afresh by the trusted embedding; live `ValueContracts`,
+callbacks and registrations are not deserialized. Typed shape/status checks,
+original diagnostic sources, pending/unavailable execution and diagnostic/value
+limits use the ordinary result adapters. A record containing a pending-like tag
+is an invalid result, not completed success or a loading signal.
+
+The [closure fixtures](../packages/cem_ql/tests/native_registrations/closures.rs)
+cover real compiler/attribute consumers, sealed/typed producer retirement,
+original constants and spans, late adapter retirement, result errors and
+repinned incompatible records. All requirements retain the existing 64 KiB
+wire, 100,000-check and source limits. Large source arenas refuse; independent
+source modules are explicit, and source sharing still requires the complete
+verified snapshot identity. No limit is raised or original arena silently pruned.
+
+This completes these native capability adapters, not whole application admission.
+Custom result QNames, cross-source/imported behavior closures and compiled-query
+operation profiles beyond the existing validator subset remain outside this
+source-result format. Full APIs retain those capabilities. The new application
+envelope must pin a complete bounded dependency closure and establish physical
+worker/fallback ownership before component use. Credential refusal, disabled
+automatic whole-Studio recovery, the 4 MiB checkpoint budget and five-second
+deadlines remain unchanged. No production JavaScript or WASM endpoint is added.
 
 ## Native fresh-host linking and node receivers
 

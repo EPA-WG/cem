@@ -34,6 +34,7 @@ pub mod application_declaration;
 #[cfg(feature = "component-runtime")]
 pub mod application_runtime;
 pub mod datatype_compilation;
+pub mod datatype_availability;
 pub mod function_activation;
 pub mod datatype_conversion;
 pub mod datatype_preparation;

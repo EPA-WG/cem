@@ -76,9 +76,17 @@ pub struct ConverterIdentity {
 pub struct RegisteredDatatypeConverter {
     identity: ConverterIdentity,
     signature: ConversionSignature,
+    availability: crate::datatype_availability::Availability,
     implementation: Arc<dyn NativeDatatypeConverter>,
 }
 impl RegisteredDatatypeConverter {
+    pub fn with_availability(
+        mut self,
+        guard: Arc<dyn crate::datatype_availability::DatatypeAvailability>,
+    ) -> Self {
+        self.availability.restrict(guard);
+        self
+    }
     pub fn new(
         source: DatatypeSource,
         id: impl Into<String>,
@@ -96,6 +104,7 @@ impl RegisteredDatatypeConverter {
                 implementation: id,
             },
             signature,
+            availability: Default::default(),
             implementation: Arc::new(implementation),
         })
     }
@@ -127,6 +136,9 @@ pub struct BoundDatatypeConverter {
     datatype: Item,
 }
 impl BoundDatatypeConverter {
+    pub(crate) fn is_available(&self) -> bool {
+        self.registration.availability.is_available()
+    }
     pub fn identity(&self) -> &ConverterIdentity {
         self.registration.identity()
     }
@@ -213,6 +225,25 @@ impl ExecutableDatatype {
         runtime: &ValidationRuntime<'_>,
         limits: ConversionLimits,
     ) -> DatatypeConversion {
+        let mut result = self.convert_phase(input, runtime, limits);
+        if self
+            .converter()
+            .is_some_and(|selected| !selected.is_available())
+        {
+            result.value = None;
+            result.accepted = None;
+            if !matches!(result.stopped, Some(ConversionStop::Control(_))) {
+                result.stopped = Some(ConversionStop::Unavailable);
+            }
+        }
+        result
+    }
+    fn convert_phase(
+        &self,
+        input: &ConversionInput,
+        runtime: &ValidationRuntime<'_>,
+        limits: ConversionLimits,
+    ) -> DatatypeConversion {
         let shared_runtime = runtime.with_query_budget();
         let runtime = &shared_runtime;
         let selected = self.converter();
@@ -234,6 +265,9 @@ impl ExecutableDatatype {
         let Some(selected) = selected else {
             return result.stop(ConversionStop::NoConverter);
         };
+        if !selected.is_available() {
+            return result.stop(ConversionStop::Unavailable);
+        }
         let signature = selected.signature();
         if input.candidate.len() > 1
             || input

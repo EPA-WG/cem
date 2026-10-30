@@ -15,6 +15,7 @@ use cem_ml::{
             ValidationImplementation, ValidationSignature, ValueRepresentation,
         },
         declaration_references::SchemaDeclarationNode,
+        document_model::attribute_facets::FacetFamily,
         machine::LexicallyScopedDocument,
         native_source::NativeSourceSnapshot,
         registry::CEM_SCHEMA_URI,
@@ -28,6 +29,9 @@ pub const MAGIC: &[u8] = b"CEMNR1\n";
 const ABI: &str = "cem.native-registration/1";
 const INVALID: &str = "native implementation requirement refused";
 const MAX_BYTES: usize = 64 * 1024;
+mod source_profiles;
+pub(crate) use source_profiles::SourceContract;
+pub use source_profiles::{export_source_operation, SourceProfile};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NativeSignature {
     Validator(ValidationSignature),
@@ -36,6 +40,12 @@ pub enum NativeSignature {
     Conversion(ConversionSignature),
     Equality(ScalarRepresentation),
     ListSerializer(ListSerializationSignature),
+    Constant(ScalarRepresentation),
+    FacetProfile(FacetFamily),
+    ListItems(ScalarRepresentation),
+    SourceConversion(ConversionSignature),
+    SourceEquality(ScalarRepresentation),
+    SourceConstant(ScalarRepresentation),
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -47,6 +57,90 @@ pub struct ImplementationIdentity {
     pub signature: NativeSignature,
 }
 impl ImplementationIdentity {
+    pub fn constant_interpreter(
+        id: impl Into<String>,
+        module_hash: impl Into<String>,
+        export: impl Into<String>,
+        representation: ScalarRepresentation,
+    ) -> Self {
+        Self::operation(
+            id,
+            module_hash,
+            export,
+            "cem.native-constant-interpreter/1",
+            NativeSignature::Constant(representation),
+        )
+    }
+    pub fn facet_profile(
+        id: impl Into<String>,
+        module_hash: impl Into<String>,
+        export: impl Into<String>,
+        family: FacetFamily,
+    ) -> Self {
+        Self::operation(
+            id,
+            module_hash,
+            export,
+            "cem.shared-facet-profile/1",
+            NativeSignature::FacetProfile(family),
+        )
+    }
+    pub fn list_items(
+        id: impl Into<String>,
+        module_hash: impl Into<String>,
+        export: impl Into<String>,
+        item: ScalarRepresentation,
+    ) -> Self {
+        Self::operation(
+            id,
+            module_hash,
+            export,
+            "cem.shared-list-item-preparation/1",
+            NativeSignature::ListItems(item),
+        )
+    }
+    pub fn source_conversion(
+        id: impl Into<String>,
+        module_hash: impl Into<String>,
+        export: impl Into<String>,
+        signature: ConversionSignature,
+    ) -> Self {
+        Self::operation(
+            id,
+            module_hash,
+            export,
+            "cem.native-source-converter/1",
+            NativeSignature::SourceConversion(signature),
+        )
+    }
+    pub fn source_equality(
+        id: impl Into<String>,
+        module_hash: impl Into<String>,
+        export: impl Into<String>,
+        representation: ScalarRepresentation,
+    ) -> Self {
+        Self::operation(
+            id,
+            module_hash,
+            export,
+            "cem.native-source-equality/1",
+            NativeSignature::SourceEquality(representation),
+        )
+    }
+    pub fn source_constant(
+        id: impl Into<String>,
+        module_hash: impl Into<String>,
+        export: impl Into<String>,
+        representation: ScalarRepresentation,
+    ) -> Self {
+        Self::operation(
+            id,
+            module_hash,
+            export,
+            "cem.native-source-constant/1",
+            NativeSignature::SourceConstant(representation),
+        )
+    }
     fn operation(
         id: impl Into<String>,
         module_hash: impl Into<String>,
@@ -181,6 +275,16 @@ impl ImplementationIdentity {
             }
             NativeSignature::Equality(_) if self.abi == "cem.native-scalar-equality/1" => (),
             NativeSignature::ListSerializer(_) if self.abi == "cem.native-list-serializer/1" => (),
+            NativeSignature::Constant(_) if self.abi == "cem.native-constant-interpreter/1" => (),
+            NativeSignature::FacetProfile(_) if self.abi == "cem.shared-facet-profile/1" => (),
+            NativeSignature::ListItems(_) if self.abi == "cem.shared-list-item-preparation/1" => (),
+            NativeSignature::SourceConversion(sig)
+                if self.abi == "cem.native-source-converter/1" && sig.check().is_ok() =>
+            {
+                ()
+            }
+            NativeSignature::SourceEquality(_) if self.abi == "cem.native-source-equality/1" => (),
+            NativeSignature::SourceConstant(_) if self.abi == "cem.native-source-constant/1" => (),
             _ => return Err(INVALID.into()),
         }
         Ok(())
@@ -202,6 +306,14 @@ pub enum OperationMode {
     Conversion,
     Equality,
     ListSerializer,
+    Constant,
+    FacetProfile(FacetMode),
+    ListItems(PreparationMode),
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FacetMode {
+    Ready,
+    CheckedReplacement,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeLinkError {
@@ -225,6 +337,7 @@ pub(crate) enum Requirement {
     Validator(DatatypeBehaviorContract),
     Tokenizer(DatatypeSource, TokenizerMode),
     Operation(DatatypeSource, OperationMode),
+    SourceOperation(DatatypeSource, SourceContract),
 }
 pub struct VerifiedNativeRequirement {
     pin: NativeRequirementPin,
@@ -293,6 +406,12 @@ enum Selection {
         scope: u32,
         declaration: u32,
         mode: OperationMode,
+    },
+    SourceOperation {
+        scope: u32,
+        declaration: u32,
+        behavior: u32,
+        profile: SourceProfile,
     },
 }
 #[derive(Serialize, Deserialize)]
@@ -485,7 +604,8 @@ fn check_operation(
             Some(sig.kind)
         }
         (NativeSignature::Conversion(sig), OperationMode::Conversion) => Some(sig.kind),
-        (NativeSignature::Equality(_), OperationMode::Equality) => {
+        (NativeSignature::Equality(_), OperationMode::Equality)
+        | (NativeSignature::Constant(_), OperationMode::Constant) => {
             if matches!(
                 plan.kind,
                 DatatypeKindSource::Explicit(DatatypeKind::List | DatatypeKind::Node)
@@ -496,6 +616,38 @@ fn check_operation(
         }
         (NativeSignature::ListSerializer(_), OperationMode::ListSerializer) => {
             Some(DatatypeKind::List)
+        }
+        (NativeSignature::ListItems(_), OperationMode::ListItems(mode)) => {
+            check_tokenizer(
+                source,
+                match mode {
+                    PreparationMode::Ready => TokenizerMode::Ready,
+                    PreparationMode::CheckedReplacement => TokenizerMode::CheckedReplacement,
+                },
+            )?;
+            Some(DatatypeKind::List)
+        }
+        (NativeSignature::FacetProfile(family), OperationMode::FacetProfile(mode)) => {
+            let kind = match family.representation() {
+                ValueRepresentation::Scalar(_) => None,
+                ValueRepresentation::List(_) => Some(DatatypeKind::List),
+                ValueRepresentation::Nodes => Some(DatatypeKind::Node),
+            };
+            let inherited = if kind == Some(DatatypeKind::List) {
+                source.attribute("list-base").is_some()
+            } else {
+                source.attribute("base").is_some()
+            };
+            if inherited != (mode == FacetMode::CheckedReplacement)
+                || (kind.is_none()
+                    && matches!(
+                        plan.kind,
+                        DatatypeKindSource::Explicit(DatatypeKind::List | DatatypeKind::Node)
+                    ))
+            {
+                return Err(INVALID.into());
+            }
+            kind
         }
         _ => return Err(INVALID.into()),
     };
@@ -672,6 +824,23 @@ fn restore_requirement(
             let source = datatype(capture, scope, declaration)?;
             check_operation(&source, implementation, mode)?;
             Requirement::Operation(source, mode)
+        }
+        Selection::SourceOperation {
+            scope,
+            declaration,
+            behavior,
+            profile,
+        } => {
+            let source = datatype(capture, scope, declaration)?;
+            let contract = source_profiles::restore(
+                capture,
+                &source,
+                behavior,
+                profile,
+                implementation,
+                work,
+            )?;
+            Requirement::SourceOperation(source, contract)
         }
     };
     Ok(requirement)

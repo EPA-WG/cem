@@ -28,7 +28,7 @@ use std::{
 const INVALID: &str = "fresh structural host refused";
 mod native;
 mod query;
-pub use native::{FreshNativeOperation, FreshNativeTokenizer};
+pub use native::{FreshNativeOperation, FreshNativeTokenizer, NativeResultAdapter};
 pub use query::{FreshQueryBinding, FreshQueryInvocation};
 /// Never cloned/serialized. Contexts belong to this actual host allocation.
 pub struct FreshStructuralHost {

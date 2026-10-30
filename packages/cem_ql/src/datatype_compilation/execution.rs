@@ -92,6 +92,9 @@ impl ExecutableDatatype {
             if let Err(e) = runtime.control.check_scope(runtime.scope) {
                 return result.stop(ValidationStopReason::Control(e));
             }
+            if !descriptor.facets_available() {
+                return result.stop(ValidationStopReason::Unavailable(vec![]));
+            }
             rules = rules.saturating_add(descriptor.rules.len());
             values = values
                 .saturating_add(value.len())
@@ -232,6 +235,12 @@ impl ExecutableDatatype {
             }
         }
         result.stopped_item = None;
+        if let Err(e) = runtime.control.check_scope(runtime.scope) {
+            return result.stop(ValidationStopReason::Control(e));
+        }
+        if !self.facets_available() {
+            return result.stop(ValidationStopReason::Unavailable(vec![]));
+        }
         result
     }
 }

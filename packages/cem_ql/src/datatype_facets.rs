@@ -12,6 +12,7 @@ pub struct RegisteredFacetProfile {
     source: DatatypeSource,
     implementation: String,
     family: FacetFamily,
+    availability: crate::datatype_availability::Availability,
 }
 impl RegisteredFacetProfile {
     pub fn new(
@@ -27,6 +28,7 @@ impl RegisteredFacetProfile {
             source,
             implementation,
             family,
+            availability: Default::default(),
         })
     }
     pub fn source(&self) -> &DatatypeSource {
@@ -37,6 +39,22 @@ impl RegisteredFacetProfile {
     }
     pub fn family(&self) -> FacetFamily {
         self.family
+    }
+    pub fn with_availability(
+        mut self,
+        guard: std::sync::Arc<dyn crate::datatype_availability::DatatypeAvailability>,
+    ) -> Self {
+        self.availability.restrict(guard);
+        self
+    }
+    pub(crate) fn is_available(&self) -> bool {
+        self.availability.is_available()
+    }
+}
+impl crate::datatype_compilation::ExecutableDatatype {
+    pub(crate) fn facets_available(&self) -> bool {
+        self.facet_profiles().iter().all(|p| p.is_available())
+            && self.item().is_none_or(|item| item.facets_available())
     }
 }
 #[derive(Debug, Clone)]
@@ -49,6 +67,7 @@ pub enum FacetProfileBinding {
 #[derive(Debug, Clone)]
 pub enum AttributeFacetBindingError {
     MissingProfile,
+    Unavailable,
     Contract(FacetCompilationError),
 }
 #[derive(Debug, Clone)]
@@ -59,6 +78,9 @@ pub struct BoundAttributeFacets {
     contract: AttributeFacetContract,
 }
 impl BoundAttributeFacets {
+    pub(crate) fn is_available(&self) -> bool {
+        self.binding.datatype.facets_available()
+    }
     pub(crate) fn same_binding(&self, other: &Self) -> bool {
         std::sync::Arc::ptr_eq(&self.identity, &other.identity)
     }
@@ -84,6 +106,9 @@ impl BoundAttributeDatatype {
         schema_uri: &str,
         limits: FacetLimits,
     ) -> Result<BoundAttributeFacets, AttributeFacetBindingError> {
+        if !self.datatype.facets_available() {
+            return Err(AttributeFacetBindingError::Unavailable);
+        }
         let profile = self
             .datatype
             .facet_profile()

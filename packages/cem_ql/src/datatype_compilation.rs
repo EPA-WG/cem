@@ -1209,6 +1209,12 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
                 inherited.to_vec()
             }
         };
+        if facet_profiles.iter().any(|p| !p.is_available()) {
+            return Err(pending(
+                "datatype-facet-profile-unavailable",
+                source.declaration(),
+            ));
+        }
         if facet_profiles
             .iter()
             .any(|p| p.family().representation() != representation)
@@ -1266,6 +1272,15 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
         if source.attribute("values").is_some() || !plan.constant_slots.is_empty() {
             let restriction = self.prepare_enumeration(&descriptor, plan)?;
             descriptor.enumerations.push(Arc::new(restriction));
+        }
+        if matches!(&descriptor.interpreter, Some(ConstantBinding::Ready(registration)) if !registration.is_available()) {
+            return Err(pending("datatype-constant-unavailable", source.declaration()));
+        }
+        if !descriptor.facets_available() {
+            return Err(pending(
+                "datatype-facet-profile-unavailable",
+                source.declaration(),
+            ));
         }
         Ok(Arc::new(descriptor))
     }

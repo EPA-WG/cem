@@ -42,9 +42,10 @@ struct Admission {
 }
 impl Admission {
     fn current(&self) -> bool {
-        self.publication
-            .as_ref()
-            .is_none_or(|p| p.upgrade().is_some_and(|p| p.load(Ordering::Acquire)))
+        self.binding.is_available()
+            && self.publication.as_ref().is_none_or(|p| {
+                p.upgrade().is_some_and(|p| p.load(Ordering::Acquire))
+            })
     }
 }
 #[derive(Debug)]

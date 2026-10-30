@@ -1795,12 +1795,78 @@ inventory, not the minimum set loaded by every app.
                 whole-Studio recovery stays disabled, with the 4 MiB checkpoint
                 budget and five-second deadlines unchanged. Generated screenshots
                 and Vitest attachments remain excluded from the commit.
-              - [ ] Complete portable native capability closures for constant
+              - [x] Complete bounded native capability adapters for constant
                 interpretation, facet profiles, explicit shared list-item lexical
                 orchestration and source-backed operation result profiles before
                 complete compiled-datatype/component admission. Pin exact
                 implementations and original sources; never infer registrations,
                 serialize prepared tokens or replay source queries as a fallback.
+                - [x] Add native constant/facet/list-orchestration requirement
+                  roundtrip and mismatch fixtures; require explicit actual
+                  registrations and preserve original source allocations.
+                - [x] Exercise constants, checked facet intersection and list
+                  orchestration through the ordinary compiler, including empty
+                  lists, inherited policies, original spans and owner retirement.
+                - [x] Add shared availability checks for retained facet rules,
+                  declaration readiness and sealed preparation; refuse stale
+                  owners before/after execution without retaining native code;
+                  intersect additional guards without erasing a prior refusal.
+                - [x] Export/verify original native source-backed conversion,
+                  equality and constant profiles; bind checked result adapters
+                  and explicit native callbacks without source-query replay.
+                - [x] Test result shape/status/source diagnostics, missing and
+                  incompatible adapters, cancellation, budgets, metadata/source
+                  mismatches and weak lifetime release for all new contracts.
+                - [x] Run native/WASM/component and both Studio Login recovery/
+                  privacy acceptance checks; retain credential refusal, the 4 MiB
+                  budget and five-second deadlines, then document remaining gates.
+
+                Native `CEMNR1` now pins constant representation, exact facet
+                family and list-item orchestration mode against original types.
+                Actual constant callbacks and shared family/item algorithms must
+                be registered explicitly. Existing compiler preparation, facet
+                intersection, constant validation and list tokenization remain
+                authoritative, including empty lists, absent dependencies and
+                inherited restrictions. Shared availability guards intersect and
+                propagate through retained facet/declaration readiness, sealed
+                preparation, typed producers and result processing. An expired
+                owner cannot publish a value/verdict even when retirement occurs
+                during lazy native result-field reads. Caller control stops retain
+                precedence. Native source conversion/equality/constant profiles
+                restore original behavior roles/aliases and canonical result
+                contracts, then use explicitly supplied fresh checked adapters.
+                Callback/adapter/runtime objects and prepared tokens stay local;
+                no source query is compiled or replayed by these adapters.
+                Constant values remain immutable compiler data, not cached runtime
+                validation or portable preparation proofs. The 64 KiB per-record
+                limit stays unchanged: larger arenas refuse, with explicit source
+                modules rather than silent pruning or increased limits. Custom
+                result QNames, cross-source/imported profiles and query operation
+                profiles beyond the existing validator subset remain outside this
+                bounded format. Full APIs retain their capabilities; complete
+                application closure admission and physical runtime transport are
+                still pending below.
+                Verification: eleven new closure cases and 470 existing native
+                cases pass (481 distinct), including 30 registration cases and
+                48 repinned additional-record refusals. Late native record reads
+                explicitly retire their owner during adaptation and cannot publish.
+                Retained sealed preparations and typed producers refuse retired
+                facet owners; empty lists retain orchestration guards. Shared
+                caller cancellation remains a control stop. The combined large
+                source fixture exceeded 64 KiB and refused as required; it was
+                split into explicit source modules without changing limits. Native
+                builds finished before both Studio Login worker/fallback recovery/
+                privacy scenarios passed. Both current WASM drivers, the WASM
+                compile check, 18 component browser cases, ten factory/audit cases,
+                formatting, local documentation links and audit freshness pass.
+                No production JavaScript, application envelope, WASM endpoint,
+                callback serialization or cached runtime verdict was introduced.
+                Current optimized component WASM remains 11,471,605 bytes; it was
+                exercised, not rebuilt for the native adapters. Entered credentials
+                still block recovery; automatic whole-Studio recovery remains
+                disabled, with the 4 MiB checkpoint budget and five-second
+                deadlines unchanged. Generated screenshots and Vitest attachments
+                remain excluded from the commit.
               - [ ] Carry node contract requirements into a new application
                 envelope and reduced WASM/worker receiver transport with fresh
                 generation ownership, recapture and privacy acceptance.

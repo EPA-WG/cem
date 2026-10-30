@@ -5,6 +5,10 @@ use crate::schema::datatype_validation::{ScalarRepresentation, ValueRepresentati
 use shipped_datatypes::ShippedDatatype;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum FacetFamily {
     Shipped(ShippedDatatype),
     List(ScalarRepresentation),
