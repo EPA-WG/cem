@@ -13,6 +13,8 @@ pub mod attribute_activation;
 pub mod attribute_datatypes;
 pub mod attribute_readiness;
 pub mod attribute_validation;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod structural_receiver;
 #[cfg(feature = "debug-control")]
 pub mod debug_control;
 pub mod diagnostics;

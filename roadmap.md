@@ -773,6 +773,13 @@ source parsing or a JSON tree. Unsupported executable/imported policies and
 unbounded or inconsistent graphs refuse. Fresh-host receiver linking and WASM
 deployment admission remain pending; no runtime ownership or recovery grant is
 created by verifying a schema capsule.
+Native structural receivers now have an explicit fresh-host linker over the
+shared validator. Original receiver declarations and live context/invocation
+receipts prevent stale or foreign captures, changed local metadata and closed
+hosts from authorizing a node verdict. Literal target validation retains source
+provenance and local cardinality; it never parses strings or evaluates nested
+references. Query/native implementation registration, compiled-component envelope
+admission and worker/recovery ownership bindings remain subsequent gates.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

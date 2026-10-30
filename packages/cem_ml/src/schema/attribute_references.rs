@@ -193,6 +193,8 @@ pub(crate) fn has_unconsumed_constraints(attribute: &document_model::AttributeMo
 /// Private edges prevent query adapters from manufacturing wider authority.
 #[derive(Debug, Clone)]
 pub struct NativeAttributeTargetAccess {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) invocation: Option<AttributeAccessInvocation>,
     pub(crate) nodes: Vec<SchemaDeclarationNode>,
     pub(crate) input_views: Vec<Option<super::input_references::InputNodeView>>,
     pub(crate) roots: Vec<usize>,
@@ -200,7 +202,49 @@ pub struct NativeAttributeTargetAccess {
     pub(crate) children: Vec<Vec<usize>>,
     pub(crate) complete: bool,
 }
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, Clone)]
+pub(crate) struct AttributeAccessInvocation {
+    pub context: super::attribute_datatypes::AttributeDatatypeContextLease,
+    pub attribute: SchemaDeclarationNode,
+    pub tree: std::sync::Arc<crate::parser::tree::RetainedCemTree>,
+    pub receiver: Option<(
+        SchemaDeclarationNode,
+        String,
+        document_model::AttributeModel,
+    )>,
+}
 impl NativeAttributeTargetAccess {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn matches_receiver(
+        &self,
+        declaration: &SchemaDeclarationNode,
+        schema_uri: &str,
+        model: &document_model::AttributeModel,
+    ) -> bool {
+        self.invocation
+            .as_ref()
+            .and_then(|p| p.receiver.as_ref())
+            .is_some_and(|(source, schema, metadata)| {
+                std::sync::Arc::ptr_eq(source.document(), declaration.document())
+                    && source.node_id() == declaration.node_id()
+                    && schema == schema_uri
+                    && metadata == model
+            })
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn matches_invocation(
+        &self,
+        context: &super::attribute_datatypes::AttributeDatatypeContext,
+        tree: &std::sync::Arc<crate::parser::tree::RetainedCemTree>,
+        source: &CemAstNode,
+    ) -> bool {
+        self.invocation.as_ref().is_some_and(|proof| {
+            proof.context.matches(context)
+                && std::sync::Arc::ptr_eq(&proof.tree, tree)
+                && std::ptr::eq(proof.attribute.node(), source)
+        })
+    }
     /// Execution name/provenance snapshot, independent of later host assignments.
     pub fn input_view(&self, index: usize) -> Option<&super::input_references::InputNodeView> {
         self.input_views.get(index)?.as_ref()

@@ -257,6 +257,21 @@ pub(super) fn declarations(
     schema_uri: &str,
     control: &Work<'_>,
 ) -> Result<BTreeMap<AstNodeId, String>, String> {
+    declarations_with_node_counts(document, schema_uri, control, false)
+}
+pub(super) fn receiver_declarations(
+    document: &CemDocument,
+    schema_uri: &str,
+    control: &Work<'_>,
+) -> Result<BTreeMap<AstNodeId, String>, String> {
+    declarations_with_node_counts(document, schema_uri, control, true)
+}
+fn declarations_with_node_counts(
+    document: &CemDocument,
+    schema_uri: &str,
+    control: &Work<'_>,
+    node_counts: bool,
+) -> Result<BTreeMap<AstNodeId, String>, String> {
     let mut roles = BTreeMap::new();
     let mut pending = vec![(0u32, "root")];
     let mut schema_count = 0;
@@ -300,6 +315,25 @@ pub(super) fn declarations(
                         "required-attributes",
                         "optional-attributes",
                         "children",
+                    ],
+                    ("attributes", "attribute") if node_counts => &[
+                        "name",
+                        "type",
+                        "values",
+                        "minInclusive",
+                        "maxInclusive",
+                        "minExclusive",
+                        "maxExclusive",
+                        "minLength",
+                        "maxLength",
+                        "length",
+                        "totalDigits",
+                        "fractionDigits",
+                        "pattern",
+                        "whiteSpace",
+                        "itemCount",
+                        "minItems",
+                        "maxItems",
                     ],
                     ("attributes", "attribute") => &[
                         "name",

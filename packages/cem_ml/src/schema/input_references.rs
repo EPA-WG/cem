@@ -25,6 +25,14 @@ pub const INVALID_STRUCTURAL_TARGET: &str = "cem.schema_validation.invalid_refer
 
 /// Retained-node adaptation is independent of schema-declaration lookup.
 pub trait InputReferenceHost: ReferenceResolutionHost {
+    /// Native-only fresh-host receiver experiment. A context is live authority,
+    /// never decoded from source/capsule identities. Legacy hosts omit it.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn attribute_receiver_context(
+        &self,
+    ) -> Option<&super::attribute_datatypes::AttributeDatatypeContext> {
+        None
+    }
     fn input_consumed_namespace_attribute(&self, _source: &SchemaDeclarationNode) -> bool {
         false
     }

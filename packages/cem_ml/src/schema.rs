@@ -18,6 +18,8 @@ pub mod document_model;
 // Native build/verification experiment; no runtime receiver or WASM ABI yet.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod structural_capsule;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod structural_receiver;
 pub mod ir;
 pub mod input_references;
 pub mod attribute_references;

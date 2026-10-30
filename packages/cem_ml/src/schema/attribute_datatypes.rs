@@ -133,6 +133,16 @@ pub struct AttributeDatatypeValidation {
     pub diagnostics: Vec<Diagnostic>,
 }
 pub trait CompiledAttributeDatatype: Debug + Send + Sync {
+    /// Native fresh-host adapters bind the exact consuming snapshot. Existing
+    /// engine contracts keep their own lifecycle checks; no wire field grants it.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn receiver_snapshot_matches(
+        &self,
+        _model: &super::document_model::SchemaDocumentModel,
+        _name: &str,
+    ) -> bool {
+        true
+    }
     fn typed_admission(&self) -> Option<NativeAttributeTypedAdmission> {
         None
     }

@@ -27,6 +27,24 @@ const MAX_BYTES: usize = 64 * 1024;
 const MAX_RECORDS: usize = 16_384;
 const MAX_WORK: usize = 100_000;
 
+/// The linker accepts the same bounded literal source vocabulary, with node
+/// cardinality fields. This inspects retained syntax; no parser/evaluator runs.
+pub fn validate_literal_receiver_source(
+    document: &CemDocument,
+    schema_uri: &str,
+    control: &OperationControl,
+) -> Result<(), String> {
+    if !uri(schema_uri)
+        || document.nodes.len() > MAX_RECORDS
+        || !document.typed_preludes.is_empty()
+        || !document.diagnostics.is_empty()
+    {
+        return Err(INVALID.into());
+    }
+    source::receiver_declarations(document, schema_uri, &Work::new(control))?;
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct SourceIdentity {
@@ -58,11 +76,15 @@ pub struct BuiltStructuralCapsule {
     pub pin: CapsulePin,
 }
 pub struct VerifiedStructuralCapsule {
+    pin: CapsulePin,
     model: SchemaDocumentModel,
     source: Arc<crate::parser::tree::RetainedCemTree>,
     capture: LexicallyScopedDocument,
 }
 impl VerifiedStructuralCapsule {
+    pub fn pin(&self) -> &CapsulePin {
+        &self.pin
+    }
     pub fn model(&self) -> &SchemaDocumentModel {
         &self.model
     }
@@ -637,6 +659,7 @@ pub fn verify(
     .map_err(|_| INVALID)?;
     check(control)?;
     Ok(VerifiedStructuralCapsule {
+        pin: expected.clone(),
         model,
         source,
         capture,

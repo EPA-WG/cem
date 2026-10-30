@@ -1,9 +1,10 @@
 # Portable native schema contracts for component applications
 
-Status: the native-only structural `CEMSC1` exporter/verifier is implemented.
-It restores a bounded literal shared structural model and its source owner;
-executable linking, WASM transport and component receiver admission remain
-**unimplemented**. The deployed `CEMAPPD1` format remains scalar-only. Its
+Status: the native-only structural `CEMSC1` exporter/verifier and explicit
+fresh-host node receiver linker are implemented. They restore a bounded shared
+model and bind its use to a concrete native host and invocation. Query/native
+implementation linking, WASM transport and compiled-component receiver admission
+remain **unimplemented**. The deployed `CEMAPPD1` format remains scalar-only. Its
 existing wire version must not acquire executable semantics implicitly.
 
 This extends the [component profile](cem-components-wasm-profile.md) and
@@ -239,9 +240,89 @@ has independent native compilation/reload comparisons. The
 [shared-host integration test](../packages/cem_ql/tests/structural_capsule.rs)
 compares complete/incomplete and accepted/rejected results under fresh hosts,
 with explicit cross-owner grants, repeated reference placements and original
-candidate diagnostic URIs/ranges. Component receiver linking, inherited/imported
-schema composition, pure query validators and exact native implementation
-registration remain separate gates before deployment admission.
+candidate diagnostic URIs/ranges. Compiled-component receiver transport,
+inherited/imported schema composition, pure query validators and exact native
+implementation registration remain separate gates before deployment admission.
+
+## Native fresh-host linking and node receivers
+
+[`cem_ql::structural_receiver::FreshStructuralHost`](../packages/cem_ql/src/structural_receiver.rs)
+owns a concrete query host, operation control and a private live context. It is
+neither cloneable nor serializable. Its configured trusted registry hash must
+match the verified capsule's retained pin; matching names, source URIs or hashes
+alone do not register an implementation or grant access to another scope.
+
+Register the receiver declaration source and data scopes, set contexts and grant
+directed crossings first. Then call `link_receiver` with the verified capsule,
+receiving schema URI, exact registered declaration tree and original attribute
+occurrence. Linking checks the receiving schema/collection, literal `node` or
+`schema:node` type, original owner, unique declaration and supported local
+cardinality fields. The receiving source uses the bounded literal schema
+inspector, with node count fields enabled. Unknown policies, duplicate namespace headers, dynamic preludes
+and unsupported collections refuse instead of being ignored by compilation.
+It constructs the shared native
+[`StructuralNodeReceiver`](../packages/cem_ml/src/schema/structural_receiver.rs)
+and returns a new receiving model only after live-context checks. A failed link
+does not replace a previously returned model or mutate grants. The expected
+registry/build hash is supplied by the trusted embedding; physical worker/module
+registry attestation remains a later deployment gate.
+
+This first adapter uses ordinary schema attribute declarations with explicit host
+selection of the structural schema. It does not resolve a named type alias from
+`TemplateData.value_types`, add a template renderer API, or admit `CEMAPPD2`.
+Defaults, scalar facets on a node receiver, unsupported declarations and
+unavailable executable/tokenizer implementations refuse. Local `itemCount`,
+`minItems` and `maxItems` must be consistent literal bounds from 0 through 64;
+the shared native default is exactly one node when no count facet is authored.
+Explicit minimum zero admits a completed empty selection, not a pending one.
+
+`validate_input` uses the ordinary native reference walker and its directed
+grants to capture targets. Only this host supplies the native receiver context.
+The captured access privately records the live epoch, exact originating data
+attribute/tree, selected original receiver declaration, schema identity and local
+receiver metadata. None of those live receipts is serialized. A bare node
+capture cannot stand in for a linked receiver invocation, and an otherwise valid
+capture cannot be relabelled to another attribute or host. The shared dispatch
+checks the receiving snapshot before calling the contract; changed metadata
+requires relinking instead of silently ignoring new restrictions.
+
+The linked adapter validates the already-authorized literal forest through the
+same shared structural validator and scalar/count rules. It preserves order,
+repeated occurrences, original owners and name snapshots. A closed access host
+exposes only the captured owning closure, polls operation control and has no
+reference evaluator or resource loader. Nested references/native expression
+slots, unsupported root kinds and unavailable names remain incomplete; strings
+are never parsed into nodes. Original target diagnostics match independent
+full-native validation, while local receiver-count failures belong to the
+original caller attribute. Compiling the receiving model uses retained native
+declarations; neither target data nor source text is reparsed during validation.
+
+The value gate permits at most 64 element roots, 16,384 captured placements, 64
+levels and 1 MiB of accounted literal/name/source-map content. One 100,000-visit
+budget is shared by literal-access preflight and subsequent closed-host name
+reads across the complete root sequence. Node roots must carry complete original
+source/name snapshots. Each root's shared literal validation is bounded by that
+aggregate preflight and the existing traversal limits. This is a bounded native
+adapter, not a claim to cover dynamic schema evaluation or measure peak heap.
+
+Registering a scope, replacing a context or adding a grant advances the host
+epoch and expires old links/captures. Repeating an existing grant is idempotent.
+Relink and recapture under the current host before further validation. Explicit
+close and drop invalidate the context even if another caller retained a context
+clone; a closed host cannot reopen by registering a scope. Model retirement
+deactivates its exact adapter. Control, epoch and retirement checks run again
+before returning a verdict; acceptance is not cached or issued as a portable
+preparation capability.
+
+The [native receiver acceptance tests](../packages/cem_ql/tests/structural_receiver.rs)
+cover structural/scalar/cardinality parity, mixed source owners, repeated/empty
+targets, provenance, registry/source mismatch, stale and relabelled captures,
+foreign/closed hosts, model changes, retirement, bounds and cancellation. This
+delivery adds no application/component JavaScript or worker/checkpoint entry
+point. Existing WASM generations continue refusing native schema capsules;
+compiled-component/worker integration must establish fresh ownership and demand
+contracts separately. Entered credentials still block recovery, with the same
+4 MiB checkpoint budget and five-second handoff deadlines.
 
 Current regression fixtures in
 [`named_receiver_types.rs`](../packages/cem_ql/fixtures/component-application/named_receiver_types.rs)

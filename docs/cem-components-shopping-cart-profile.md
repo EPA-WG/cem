@@ -714,9 +714,16 @@ Native Rust now has a separate `CEMSC1` literal structural schema exporter and
 verifier. It preserves a source arena and passive namespaces, pins local
 attribute/child dependencies, and reloads inert shared validation models without
 source parsing. It is not in the WASM ABI or application envelope; fresh-host
-receiver linking and runtime admission remain pending. The
+compiled-component receiver transport and runtime admission remain pending. The
 [implemented subset and limits](cem-native-schema-capsules.md#implemented-native-structural-subset)
 describe its scalar fields, child-count rules, provenance and refusal policies.
+A native `FreshStructuralHost` can now link that verified structural model to an
+original literal schema node receiver and validate authorized targets through
+shared native rules. Live context/invocation receipts refuse stale hosts,
+relabelled captures, changed receiver metadata and retired contracts. This does
+not add template named-node bindings, an application envelope version or WASM
+admission. The [native linking contract](cem-native-schema-capsules.md#native-fresh-host-linking-and-node-receivers)
+defines its required source registration, explicit grants, bounds and lifetime.
 The [native schema/type fixture](../packages/cem_ql/fixtures/component-application/named_receiver_types.rs)
 compiles original schema facets and emits independent full-renderer reference
 outputs for the browser/WASM transport tests.

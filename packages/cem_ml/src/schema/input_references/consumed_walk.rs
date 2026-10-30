@@ -434,6 +434,34 @@ where
     for (site_id, (site, indices)) in sites.into_iter().zip(site_indices).enumerate() {
         let model = models.model(site.model);
         let mut access = NativeAttributeTargetAccess {
+            #[cfg(not(target_arch = "wasm32"))]
+            invocation: tagged_host
+                .inner
+                .attribute_receiver_context()
+                .and_then(|context| {
+                    Some(
+                        crate::schema::attribute_references::AttributeAccessInvocation {
+                            context: context.lease(),
+                            attribute: site.attribute.clone(),
+                            tree: tagged_host.inner.input_source_tree(&site.attribute)?,
+                            receiver: {
+                                let name = match site.attribute.node() {
+                                    CemAstNode::Attribute { expanded_name, .. } => {
+                                        &expanded_name.local_name
+                                    }
+                                    _ => return None,
+                                };
+                                model.attribute_datatypes.get(name).and_then(|contract| {
+                                    Some((
+                                        contract.declaration().clone(),
+                                        model.schema_uri.clone(),
+                                        model.attributes.get(name)?.clone(),
+                                    ))
+                                })
+                            },
+                        },
+                    )
+                }),
             nodes: vec![],
             input_views: vec![],
             roots: vec![],
@@ -528,19 +556,45 @@ where
                 use crate::schema::attribute_datatypes::{
                     AttributeDatatypeInput, AttributeDatatypeValue,
                 };
-                let result = contract.validate(AttributeDatatypeInput {
-                    value: AttributeDatatypeValue::Nodes(access.clone()),
-                    source: site.attribute.node(),
-                    source_tree: tagged_host.inner.input_source_tree(&site.attribute),
-                    element_name: &site.element,
-                    attribute_values: &Default::default(),
-                    control: &crate::operation_control::OperationControl::default(),
-                    context: None,
-                });
-                complete &= result.accepted.is_some();
-                diagnostics.extend(result.diagnostics);
+                #[cfg(not(target_arch = "wasm32"))]
+                if !contract.receiver_snapshot_matches(model, name) {
+                    complete = false;
+                    diagnostics.push(crate::diagnostics::Diagnostic {
+                        code: "cem.schema_validation.attribute_datatype_incomplete".into(),
+                        message: "Native receiver snapshot changed; explicit relinking is required"
+                            .into(),
+                        severity: crate::diagnostics::Severity::Error,
+                        source_map: Some(
+                            document_model::source_stack_for_node(site.attribute.node()).clone(),
+                        ),
+                        ..Default::default()
+                    });
+                }
+                if complete {
+                    let result = contract.validate(AttributeDatatypeInput {
+                        value: AttributeDatatypeValue::Nodes(access.clone()),
+                        source: site.attribute.node(),
+                        source_tree: tagged_host.inner.input_source_tree(&site.attribute),
+                        element_name: &site.element,
+                        attribute_values: &Default::default(),
+                        control: &crate::operation_control::OperationControl::default(),
+                        context: {
+                            #[cfg(not(target_arch = "wasm32"))]
+                            {
+                                tagged_host.inner.attribute_receiver_context()
+                            }
+                            #[cfg(target_arch = "wasm32")]
+                            {
+                                None
+                            }
+                        },
+                    });
+                    complete &= result.accepted.is_some();
+                    diagnostics.extend(result.diagnostics);
+                }
             }
         }
+
         attributes.push((
             site.owner.and_then(|owner| structural_map[owner]),
             ConsumedAttributeValue {
@@ -664,6 +718,10 @@ fn value_role<H: InputReferenceHost>(host: &H, node: &H::Node, site: usize) -> R
     } else {
         Role::Value(site)
     }
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn receiver_owning_edges(node: &CemAstNode) -> Vec<crate::parser::AstNodeId> {
+    owning_edges(node)
 }
 fn owning_edges(node: &CemAstNode) -> Vec<crate::parser::AstNodeId> {
     match node {

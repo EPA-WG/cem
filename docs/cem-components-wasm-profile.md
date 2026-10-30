@@ -285,11 +285,14 @@ atomic publication for future executable/node-valued receiver contracts. Live
 callbacks, preparation tokens and grants stay in-process. The existing v1
 application envelope remains scalar-only; query exporters and executable
 linkers remain separate implementation gates.
-The native-only `CEMSC1` structural exporter/verifier now implements the literal
-single-schema subset and inert shared-model reload. Shared-host acceptance keeps
-reference readiness, source diagnostics and directed crossing grants independent
-of the artifact. WASM transport, executable linking and component receiver
-admission remain separate gates; this step does not change a deployed WASM binary.
+The native-only `CEMSC1` structural exporter/verifier implements the literal
+single-schema subset and inert shared-model reload. A concrete fresh native host
+can now explicitly link a literal node receiver; live invocation receipts retain
+the exact context, originating attribute, selected contract and local metadata.
+Shared-host acceptance keeps reference readiness, source diagnostics and directed
+crossing grants independent of the artifact. Query/native implementation linking,
+WASM transport and compiled-component receiver admission remain separate gates;
+the deployed WASM ABI is unchanged by this native-only adapter.
 
 Do not equate downloaded code with an active native generation. Register every
 physical endpoint and its resources with the shared ownership/recovery group.

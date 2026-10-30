@@ -1537,6 +1537,61 @@ inventory, not the minimum set loaded by every app.
               verified node contracts, then pure query/exact native exports.
               Keep unavailable callbacks/tokenizers pending or refused; never
               infer a registration from an export name or source identity.
+              - [x] Link verified CEMSC1 models to concrete fresh native hosts and
+                exact literal node receiver declarations; test registry mismatch,
+                foreign hosts, epoch changes, disposal and failed installation.
+              - [x] Stamp native captured attribute access with its live context
+                and original invocation; add receiver validation fixtures for
+                structural/scalar/count failures, local cardinality, duplicate/
+                cross-owner targets, stale captures, strings/defaults, nested
+                references, cancellation and original diagnostic provenance.
+              - [x] Verify native full/reloaded parity and current WASM refusal,
+                component browser behavior and Studio credential recovery policy.
+              - [x] Reuse bounded literal-source inspection for receiving schemas;
+                test duplicate namespace headers and unknown source policies so
+                compilation cannot silently discard required semantics.
+              Native linking now uses a non-cloneable `FreshStructuralHost` over
+              the real query host, explicit scopes/grants, pinned registry
+              identity and live context. It constructs a `StructuralNodeReceiver`
+              only for the original registered literal node declaration and
+              returns a new model after liveness checks; failure mutates no
+              existing binding. Access receipts retain the current context,
+              exact caller attribute/tree and selected declaration/schema/local
+              metadata. Untyped, stale, relabelled or foreign captures cannot
+              supply an invocation, and changed receiver snapshots require
+              relinking. Closed/dropped hosts cannot reopen; retirement and
+              cancellation cannot reuse a verdict. The adapter traverses the
+              authorized literal forest through shared validation, preserves
+              repeated/mixed-owner roots and full-native diagnostic provenance,
+              applies local cardinality, and leaves nested expressions incomplete.
+              Limits: 64 roots, 16,384 placements, 64 levels, 1 MiB accounted
+              literal/name/source-map content and 100,000 shared preflight/name
+              visits. Strings, defaults and unsupported source/executable policies
+              never become ready node inputs. Context proofs stay native and
+              process-local; no source parsing, callback deserialization or
+              template named-node/WASM admission was added.
+              Verification: 13 receiver cases, ten capsule cases, 86 shared core
+              cases, 260 additional query/datatype/value/declaration regressions
+              and 58 profile cases pass (427 native tests). Independent original
+              compilation matches linked validation including URI/ranges/line/
+              column; closed-host reopening and changed-metadata/source-policy
+              cases were first observed failing and then repaired. Both current
+              WASM drivers, 21 component browser cases, ten factory/audit cases
+              and both full Studio Login recovery/privacy scenarios pass. Native
+              builds finished before Studio acceptance. Changed formatting,
+              documentation links and source/vendor audits pass. Existing WASM
+              artifacts/ABI and the 11,471,605-byte profile are unchanged; no new
+              production JavaScript, checkpoint grant or backend switching.
+              Entered credentials still block recovery; 4 MiB checkpoints and
+              five-second handoff deadlines remain unchanged.
+              - [ ] Add verified pure-query validator capsules and their complete
+                native function/signature closure without source recompilation.
+              - [ ] Link exact reviewed native validator/tokenizer/preparation/
+                conversion/equality/serializer registrations on fresh hosts;
+                preserve unavailable and checked-replacement states.
+              - [ ] Carry node contract requirements into a new application
+                envelope and reduced WASM/worker receiver transport with fresh
+                generation ownership, recapture and privacy acceptance.
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's
         worker/fallback edits, credential refusal and generation handoff without
