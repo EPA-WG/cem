@@ -63,6 +63,14 @@ pub fn invalid_cases(
         "unbound",
         "trailing",
         "stale",
+        "node",
+        "list",
+        "content-type",
+        "restriction-node",
+        "restriction-pending",
+        "policy",
+        "callback-extension",
+        "future-envelope",
     ] {
         let mut payload: Payload =
             rmp_serde::from_slice(&built.bytes[cem_ql::application_declaration::MAGIC.len()..])
@@ -89,13 +97,65 @@ pub fn invalid_cases(
                     .unwrap()
                     .remove(&removed.name);
             }
+            "node" => payload.types[0].value.model.value_type = Some("node".into()),
+            "list" => payload.types[0].value.model.value_type = Some("list".into()),
+            "content-type" => payload.types[0].value.content_type = Some("application/xml".into()),
+            "restriction-node" | "restriction-pending" => {
+                let mut restriction = payload.types[0].value.model.clone();
+                if name == "restriction-node" {
+                    restriction.value_type = Some("node".into());
+                } else {
+                    restriction.native_type_pending = true;
+                }
+                payload.types[0].value.restrictions.push(restriction);
+            }
+            "policy" => payload.types[0].value.model.min_items = Some("1".into()),
             _ => {}
         }
-        let mut bytes = [
-            cem_ql::application_declaration::MAGIC,
-            &rmp_serde::to_vec_named(&payload).unwrap(),
-        ]
-        .concat();
+        // Deliberately give unsupported contracts internally consistent pins:
+        // policy admission must refuse even when integrity checks would pass.
+        if matches!(
+            name,
+            "node"
+                | "list"
+                | "content-type"
+                | "restriction-node"
+                | "restriction-pending"
+                | "policy"
+        ) {
+            for ty in &payload.types {
+                metadata["types"][&ty.name]["contractHash"] =
+                    cem_ml::content_cache::ContentHash::from_blake3(
+                        &rmp_serde::to_vec_named(ty).unwrap(),
+                    )
+                    .header_value()
+                    .into();
+            }
+        }
+        let body = if name == "callback-extension" {
+            // Unknown native records cannot install callbacks. No callback,
+            // pointer, source tree or JavaScript object is serialized here.
+            #[derive(Serialize)]
+            struct UnsupportedExtension<'a> {
+                template: &'a [u8],
+                types: &'a [NamedReceiverType],
+                executables: [&'a str; 1],
+            }
+            rmp_serde::to_vec_named(&UnsupportedExtension {
+                template: &payload.template,
+                types: &payload.types,
+                executables: ["cem:test-validator/1"],
+            })
+            .unwrap()
+        } else {
+            rmp_serde::to_vec_named(&payload).unwrap()
+        };
+        let magic: &[u8] = if name == "future-envelope" {
+            b"CEMAPPD2\n"
+        } else {
+            cem_ql::application_declaration::MAGIC
+        };
+        let mut bytes = [magic, &body].concat();
         if name == "trailing" {
             bytes.push(0);
         }

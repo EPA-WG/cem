@@ -344,7 +344,7 @@ export const PinnedNamedReceiverTypes:Story={
                             const bindings=[{target:'attribute' as const,name:'quantity',index:0},...(['pattern','short'].includes(bad)?[{target:'attribute' as const,name:'label',index:1}]:[])];
                             expect(()=>component.renderInputs(bytes,bindings,'named-owner')).toThrow();
                         }
-                        for(const bad of ['changed','missing','duplicate','source','schema','unsupported','unbound','trailing','stale']) {
+                        for(const bad of ['changed','missing','duplicate','source','schema','unsupported','unbound','trailing','stale','node','list','content-type','restriction-node','restriction-pending','policy','callback-extension','future-envelope']) {
                             const bytes=new Uint8Array(await(await artifact(`owned-types-${bad}`,'bin')).arrayBuffer());
                             const json=await(await artifact(`owned-types-${bad}`,'json')).text();
                             const pin=(await(await artifact(`owned-types-${bad}`,'hash')).text()).trim();

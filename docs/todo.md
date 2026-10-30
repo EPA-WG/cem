@@ -1450,8 +1450,48 @@ inventory, not the minimum set loaded by every app.
               closure is still unproven. No component/application UI JavaScript,
               backend switching or checkpoint grant was added; entered-credential
               refusal, 4 MiB checkpoints and five-second handoffs remain unchanged.
-            - [ ] Define portable native executable/node-schema contract capsules
+            - [x] Define portable native executable/node-schema contract capsules
               before admitting callback/tokenizer or node-valued named schemas.
+              [Design contract](cem-native-schema-capsules.md). The proposed wire
+              formats remain unavailable; v1 continues to admit only its reviewed
+              scalar subset. Executable export/linking is separate work below.
+              - [x] Specify native build/export, inert decoding, fresh host linking,
+                original source identity, bounded dependency closure and atomic
+                publication; keep live callbacks, leases and grants off the wire.
+              - [x] Add fully repinned refusal fixtures for node/list/content-type
+                contracts, unsupported inherited restrictions/model policies,
+                executable extensions and a future envelope version. Verify native
+                admission and separate WASM/browser heaps preserve live owners and
+                accept a subsequent valid render.
+              - [x] Repair the preparation-evidence and required-candidate fixture
+                inputs to distinguish original lexical maps from retained-view
+                URI provenance; keep exact source/text mismatch refusal and
+                independent candidate identity/provenance assertions.
+              Verification: 58 native application/profile tests, all 234 native
+              datatype execution tests, 12 named-receiver/declaration regressions,
+              ten factory/audit unit cases, generated native fixtures, both
+              existing optimized WASM drivers, 21 component browser cases and
+              both full Studio Login recovery/privacy scenarios pass. Changed
+              Rust formatting, TypeScript/script lint, document links and source/
+              vendor audits pass. Eight new refusal fixtures retain existing owners and valid
+              subsequent renders on separate heaps; native checks prove all
+              integrity/type requirement pins match for unsupported models.
+              The broad native run initially exposed two older fixtures mixing
+              lexical parser maps with URI-enriched retained views; corrected
+              fixture inputs keep exact map/text refusal and independent source
+              assertions. No production runtime or WASM binary changed; profile
+              remains 11,471,605 bytes (10.94 MiB). No app/component UI JavaScript
+              or credential/checkpoint/admission policy changes were introduced;
+              entered credentials still block live recovery, with the existing
+              4 MiB checkpoint budget and five-second handoff deadlines.
+            - [ ] Implement a native structural node-contract exporter/verifier
+              over shared retained validation models, with original source
+              occurrences and exact dependency pins; prove native reload parity
+              before adding it to the application envelope.
+            - [ ] Add an explicit fresh-host linker and receiver adapter for
+              verified node contracts, then pure query/exact native exports.
+              Keep unavailable callbacks/tokenizers pending or refused; never
+              infer a registration from an export name or source identity.
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's
         worker/fallback edits, credential refusal and generation handoff without

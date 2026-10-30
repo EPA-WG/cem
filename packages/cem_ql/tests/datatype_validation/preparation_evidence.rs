@@ -377,12 +377,34 @@ fn source_candidate_must_be_original_literal_attribute_with_matching_text_and_ma
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     let candidate = native(&bound.binding().slot);
     let mut request = input("sample");
-    request.lexical.source = candidate.source_map().unwrap();
+    // Lexical evidence uses the original parser map. The retained query view
+    // additionally carries its owner URI; it is not the original lexical map.
+    let CemAstNode::Attribute { source, .. } = bound.binding().slot.node() else {
+        panic!("literal attribute slot required")
+    };
+    request.lexical.source = source.clone();
     request.candidate = vec![candidate.clone()];
     let live = invocation(&bound, request.clone(), &control, Default::default());
     let evidence = live.prepare().evidence.unwrap();
     assert_eq!(evidence.candidate()[0].identity(), candidate.identity());
-    assert_eq!(evidence.lexical().source, candidate.source_map().unwrap());
+    assert_eq!(&evidence.lexical().source, source);
+    assert_eq!(evidence.candidate()[0].source_map(), candidate.source_map());
+    let mut projected_map = request.clone();
+    projected_map.lexical.source = candidate.source_map().unwrap();
+    assert_ne!(projected_map.lexical.source, request.lexical.source);
+    assert!(matches!(
+        AttributePreparationInvocation::new(
+            &bound,
+            projected_map,
+            &ValidationRuntime {
+                control: &control,
+                scope: ROOT_EXECUTION_SCOPE_ID,
+                query: Default::default(),
+            },
+            Default::default()
+        ),
+        Err(EvidenceStop::SourceMismatch)
+    ));
     let mut wrong_map = request.clone();
     assert!(!wrong_map.lexical.source.frames.is_empty());
     wrong_map.lexical.source.frames.clear();

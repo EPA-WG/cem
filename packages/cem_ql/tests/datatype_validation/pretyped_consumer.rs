@@ -692,7 +692,10 @@ fn required_original_candidate_is_retained_without_new_navigation_authority() {
     );
     let control = OperationControl::default();
     let candidate = native(&f.bound.binding().slot);
-    let source = candidate.source_map().unwrap();
+    let candidate_source = candidate.source_map().unwrap();
+    let CemAstNode::Attribute { source, .. } = f.bound.binding().slot.node() else {
+        panic!("literal attribute slot required")
+    };
     let live = AttributePreparationInvocation::new(
         &f.bound,
         PreparationInput {
@@ -711,10 +714,12 @@ fn required_original_candidate_is_retained_without_new_navigation_authority() {
     let evidence = live.prepare().evidence.unwrap();
     let result = consume(&f, &live, Some(&evidence));
     assert_eq!(result.accepted, Some(true), "{result:?}");
+    assert_eq!(&evidence.lexical().source, source);
     assert_eq!(evidence.candidate()[0].identity(), candidate.identity());
-    assert_eq!(evidence.candidate()[0].source_map(), Some(source));
+    assert_eq!(evidence.candidate()[0].source_map(), Some(candidate_source));
     assert_eq!(f.rules.load(Ordering::SeqCst), 1);
 }
+
 #[test]
 fn reentrant_consumption_cannot_reset_budget_and_callback_close_or_panic_cannot_accept() {
     for close in [false, true] {

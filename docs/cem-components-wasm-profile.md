@@ -279,6 +279,13 @@ closure to the core build; reject mixed versions, corrupt bytes, missing imports
 or incompatible memory/features before publication. A module requirement is
 advisory metadata, not a host permission, replacement grant or native owner.
 
+The [portable native schema contract design](cem-native-schema-capsules.md)
+specifies build/export, inert verification, explicit fresh-host linking and
+atomic publication for future executable/node-valued receiver contracts. Live
+callbacks, preparation tokens and grants stay in-process. The existing v1
+application envelope remains scalar-only; the proposed structural/query
+exporters and linkers are separate implementation gates.
+
 Do not equate downloaded code with an active native generation. Register every
 physical endpoint and its resources with the shared ownership/recovery group.
 Preparation, atomic publication, cancellation and exact-owner disposal retain

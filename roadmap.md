@@ -759,6 +759,13 @@ schema/source identities and exact native IR requirements. Admission refuses
 changed/unavailable contracts before publishing an owner; existing JSON/input/
 island rendering binds them natively without schema/catalog loading or JavaScript
 conversion. Full-runtime declaration loading refuses the separate envelope.
+The [portable native schema capsule contract](docs/cem-native-schema-capsules.md)
+now defines a separate inert binary representation and fresh native host linker,
+starting with shared structural node validation, then pure queries and explicitly
+registered native implementations. Existing callback/lease/grant objects never
+cross the wire. Executable/node admission remains blocked pending exporter,
+verifier, linker and receiver parity; correctly repinned unsupported v1 records
+are covered by native and separate-heap WASM/browser refusal checks.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

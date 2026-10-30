@@ -706,6 +706,10 @@ node schemas, unresolved native type slots and other model policies remain
 refused until reviewed portable contracts exist. Patterns use the existing shared
 runtime facet validator; this gate does not establish precompiled regex/executable
 IR or per-parser code omission. No checkpoint authority is added.
+The [portable native schema contract design](cem-native-schema-capsules.md)
+defines separate inert records, explicit fresh-runtime linking and atomic
+publication for future executable/node contracts. Those adapters are not yet
+implemented; v1 refuses them even with internally consistent integrity pins.
 The [native schema/type fixture](../packages/cem_ql/fixtures/component-application/named_receiver_types.rs)
 compiles original schema facets and emits independent full-renderer reference
 outputs for the browser/WASM transport tests.

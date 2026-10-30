@@ -214,6 +214,83 @@ fn native_wasm_cases_reject_newly_pinned_but_inconsistent_contracts() {
 }
 
 #[test]
+fn consistent_integrity_pins_do_not_authorize_executable_or_node_contracts() {
+    let built = build(fixture::declaration(), fixture::types()).unwrap();
+    let cases = fixture::invalid_cases(&built);
+    for name in [
+        "node",
+        "list",
+        "content-type",
+        "restriction-node",
+        "restriction-pending",
+        "policy",
+    ] {
+        let (_, bytes, json, pin) = cases.iter().find(|case| case.0 == name).unwrap();
+        let metadata: Metadata = serde_json::from_str(json).unwrap();
+        let payload: Payload = rmp_serde::from_slice(&bytes[MAGIC.len()..]).unwrap();
+        assert_eq!(hash(json.as_bytes()), *pin, "{name}");
+        assert_eq!(hash(bytes), metadata.payload_hash, "{name}");
+        assert_eq!(
+            rmp_serde::to_vec_named(&payload).unwrap(),
+            bytes[MAGIC.len()..]
+        );
+        for ty in &payload.types {
+            assert_eq!(
+                hash(&rmp_serde::to_vec_named(ty).unwrap()),
+                metadata.types[&ty.name].contract_hash,
+                "{name}"
+            );
+        }
+        let (_, artifact) = load_template(
+            &payload.template,
+            &metadata.declaration_json,
+            &metadata.declaration_hash,
+        )
+        .unwrap();
+        assert_eq!(
+            required(&artifact).unwrap(),
+            metadata.types.keys().cloned().collect()
+        );
+        assert_eq!(
+            admit(bytes, json, pin).err().as_deref(),
+            Some(INVALID),
+            "{name}"
+        );
+        assert_eq!(
+            build(fixture::declaration(), payload.types)
+                .err()
+                .as_deref(),
+            Some(INVALID),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn executable_extensions_and_future_versions_cannot_reinterpret_scalar_envelopes() {
+    let built = build(fixture::declaration(), fixture::types()).unwrap();
+    for (name, bytes, json, pin) in fixture::invalid_cases(&built)
+        .into_iter()
+        .filter(|case| matches!(case.0, "callback-extension" | "future-envelope"))
+    {
+        let metadata: Metadata = serde_json::from_str(&json).unwrap();
+        assert_eq!(hash(json.as_bytes()), pin, "{name}");
+        assert_eq!(hash(&bytes), metadata.payload_hash, "{name}");
+        assert_eq!(admit(&bytes, &json, &pin).err().as_deref(), Some(INVALID));
+        #[cfg(feature = "component-runtime")]
+        assert!(
+            crate::application_runtime::owners::CompiledDeclarationOwner::admit(
+                &bytes, &json, &pin
+            )
+            .is_err(),
+            "{name}"
+        );
+    }
+    // Refusing an unsupported artifact cannot poison normal scalar admission.
+    assert!(admit(&built.bytes, &built.metadata_json, &built.metadata_hash).is_ok());
+}
+
+#[test]
 fn named_capsules_cannot_replace_shipped_type_names_or_schema_namespace() {
     use crate::{
         declaration_artifact::build_declaration_artifact,

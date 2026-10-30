@@ -159,9 +159,10 @@ for(const generation of [first,next]) {
             const bindings=[{target:'attribute',name:'quantity',index:0},...(['pattern','short'].includes(bad)?[{target:'attribute',name:'label',index:1}]:[])];
             assert.throws(()=>owner.renderInputs(bytes,bindings,'named-owner'),error=>error==='compiled application render failed');
         }
-        for(const bad of ['changed','missing','duplicate','source','schema','unsupported','unbound','trailing','stale']) {
+        for(const bad of ['changed','missing','duplicate','source','schema','unsupported','unbound','trailing','stale','node','list','content-type','restriction-node','restriction-pending','policy','callback-extension','future-envelope']) {
             const invalid=await fixture(`owned-types-${bad}`);
-            assert.throws(()=>generation.open(...invalid),error=>error==='compiled application receiver contracts refused');
+            const message=bad==='future-envelope'?'compiled declaration metadata refused':'compiled application receiver contracts refused';
+            assert.throws(()=>generation.open(...invalid),error=>error===message);
             assert.equal(generation.inventory().liveDeclarationOwners,1);
         }
         assert.equal(owner.renderInputs(input,routes,'named-owner'),expected);
