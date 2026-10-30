@@ -26,6 +26,8 @@ use std::{
     },
 };
 const INVALID: &str = "fresh structural host refused";
+mod query;
+pub use query::{FreshQueryBinding, FreshQueryInvocation};
 /// Never cloned/serialized. Contexts belong to this actual host allocation.
 pub struct FreshStructuralHost {
     inner: CemQlSchemaDeclarationHost,

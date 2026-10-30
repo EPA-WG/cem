@@ -31,8 +31,8 @@ use cem_ql::{
 };
 use std::{collections::BTreeMap, sync::Arc};
 
-fn source(text: &str) -> ValueContractSource {
-    let captured = Arc::new(
+fn capture(text: &str) -> Arc<cem_ml::schema::machine::LexicallyScopedDocument> {
+    Arc::new(
         CemSchemaMachine::new(
             CompiledSchema::cem_core(),
             CemEventNormalizer::new(CemTokenizer::from_source(BytesSource::new(
@@ -41,7 +41,14 @@ fn source(text: &str) -> ValueContractSource {
             ))),
         )
         .build_with_lexical_scopes(),
-    );
+    )
+}
+fn source(text: &str) -> ValueContractSource {
+    from_capture(capture(text))
+}
+fn from_capture(
+    captured: Arc<cem_ml::schema::machine::LexicallyScopedDocument>,
+) -> ValueContractSource {
     assert!(captured.document().diagnostics.is_empty());
     let schema = captured
         .document()
@@ -64,6 +71,9 @@ fn source(text: &str) -> ValueContractSource {
     .with_captured_names(captured)
     .unwrap()
 }
+
+#[path = "query_validator_capsule/declarations.rs"]
+mod declarations;
 fn node(source: &ValueContractSource, name: &str) -> SchemaDeclarationNode {
     source
         .schema

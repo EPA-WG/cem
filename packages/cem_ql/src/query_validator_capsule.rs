@@ -25,6 +25,7 @@ use cem_ml::{
 use serde::{Deserialize, Serialize};
 use std::{cell::Cell, collections::BTreeMap, sync::Arc};
 mod instructions;
+pub mod declarations;
 use instructions::{inspect, FunctionRequirement};
 
 pub const MAGIC: &[u8] = b"CEMQV1\n";
@@ -454,6 +455,10 @@ pub fn verify(
     control: &OperationControl,
 ) -> Result<VerifiedValidatorQuery, String> {
     let work = Work::new(control);
+    verify_with_work(bytes, expected, &work)
+}
+fn verify_with_work(bytes: &[u8], expected: &QueryCapsulePin, work: &Work<'_>)
+    -> Result<VerifiedValidatorQuery, String> {
     work.check()?;
     if bytes.len() > MAX_BYTES
         || !bytes.starts_with(MAGIC)
@@ -478,8 +483,8 @@ pub fn verify(
     {
         return Err(INVALID.into());
     }
-    validate_declaration(&capsule.declaration, &capsule.source, &work)?;
-    let inspected = inspect(&capsule, &work)?;
+    validate_declaration(&capsule.declaration, &capsule.source, work)?;
+    let inspected = inspect(&capsule, work)?;
     if inspected.functions != capsule.functions {
         return Err(INVALID.into());
     }

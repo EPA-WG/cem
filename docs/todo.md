@@ -1631,18 +1631,71 @@ inventory, not the minimum set loaded by every app.
                 deadlines remain unchanged. Studio acceptance ran without
                 concurrent native builds; the final span-only native guard
                 passed focused native coverage afterward.
-              - [ ] Transport original query declaration/source dependencies as
+              - [x] Transport original query declaration/source dependencies as
                 bounded native capsules, restore occurrence mappings and bind
-                query registrations to fresh host context/generation lifetimes.
+                query registrations to concrete native host context lifetimes.
                 Refuse expired/foreign/replaced owners without replaying source
-                queries or widening retained view grants; add native then worker/
-                fallback lifetime and privacy fixtures before enabling admission.
+                queries or widening retained view grants; keep new worker/
+                fallback transport and recovery admission gated.
+                - [x] Add native declaration-source roundtrip and diagnostic
+                  parity fixtures, preserving original occurrences, passive
+                  lexical/namespace metadata and physical/base source URIs
+                  without source parsing or query recompilation on reload.
+                - [x] Reject malformed/repinned source graphs, mixed program
+                  pins, unrelated captures, dynamic source inputs, allocation/
+                  traversal limits and cancellation before linking.
+                - [x] Exercise actual host scope/context epochs, pending/foreign
+                  scopes, replacement/retirement, close/drop, fresh owners and
+                  cumulative invocation budgets; keep worker/fallback admission
+                  gated and rerun existing Login credential-privacy acceptance.
+                - [x] Prove retained pure-query invocations do not retain unused
+                  host-native callback capabilities after their host is dropped.
+                Native `CEMQD1` carries the verified program and original typed
+                source arena/passive lexical metadata. Reload creates new owners,
+                preserves original occurrences/ranges/physical URIs, checks the
+                original declarations through the shared contract source checker
+                and never parses, lowers, fetches or evaluates source queries.
+                Structural/query sources share the native arena codec with
+                separate whitespace/text profiles; CEMSC1's wire shape and
+                original admission profile remain unchanged. Pending namespace
+                declarations, dynamic source references, unrelated captures,
+                mixed program pins and foreign node/namespace provenance refuse.
+                The full envelope is capped at 64 KiB, source arenas at 16,384
+                records/64 levels and source coordinates at 1 MiB. Outer/nested
+                verification shares one 100,000-visit allowance and control.
+                Fresh bindings use the actual registered source tree/scope and
+                private host epoch, actual available functions and source kind.
+                Invocations derive their scope/policy from the concrete host and
+                share their query budget. New scopes, context/grant changes,
+                retirement and close/drop expire receipts. Failed replacement
+                leaves the existing binding live; successful staging atomically
+                retires it. Ambient callbacks/resolvers/inputs are not inherited
+                or retained by a closed validator invocation. This binds one
+                validator, not a complete effective datatype or component receiver.
+                Verification: three native source cases, seven program cases,
+                14 query integration cases, 427 existing native regressions
+                (451 distinct native cases), both current WASM drivers, 18
+                component browser cases, ten factory/audit cases and both Studio
+                Login recovery/privacy scenarios pass. Foreign namespace
+                provenance and unavailable callback retention were observed
+                failing before repair. Formatting, documentation links and audit
+                freshness pass. No production JavaScript, WASM ABI/export,
+                application envelope change, source fallback, cached verdict or
+                checkpoint grant was added. Existing optimized component WASM
+                remains 11,471,605 bytes. Entered credentials still block recovery;
+                the 4 MiB checkpoint budget and five-second deadlines remain.
+                Native builds finished before Studio acceptance.
               - [ ] Link exact reviewed native validator/tokenizer/preparation/
                 conversion/equality/serializer registrations on fresh hosts;
                 preserve unavailable and checked-replacement states.
               - [ ] Carry node contract requirements into a new application
                 envelope and reduced WASM/worker receiver transport with fresh
                 generation ownership, recapture and privacy acceptance.
+                - [ ] Enroll portable query source/binding/invocation owners in
+                  actual worker/owned-fallback generation and inventory groups;
+                  add fresh-heap transport, shutdown/replacement, stale receipt,
+                  drain/cancellation and entered-credential recovery fixtures
+                  before exposing a new endpoint or enabling admission.
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's
         worker/fallback edits, credential refusal and generation handoff without

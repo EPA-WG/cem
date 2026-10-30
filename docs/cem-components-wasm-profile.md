@@ -292,8 +292,10 @@ the exact context, originating attribute, selected contract and local metadata.
 Shared-host acceptance keeps reference readiness, source diagnostics and directed
 crossing grants independent of the artifact. Native `CEMQV1` also verifies a
 bounded typed query subset and registers it against separately supplied checked
-original declarations without query recompilation. Portable query source-owner
-dependencies, exact native implementation linking, WASM transport and
+original declarations without query recompilation. Native `CEMQD1` now restores
+the original source dependency and binds validation to actual native host scope,
+context and invocation lifetimes. Exact native implementation linking, physical
+worker/fallback enrollment, WASM transport and
 compiled-component receiver admission remain separate gates;
 the deployed WASM ABI is unchanged by this native-only adapter.
 

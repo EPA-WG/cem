@@ -5,8 +5,10 @@ fresh-host node receiver linker are implemented. They restore a bounded shared
 model and bind its use to a concrete native host and invocation. A native-only
 `CEMQV1` capsule also verifies a closed subset of compiled validator queries and
 registers them against separately supplied checked original declarations.
-Portable query declaration-source transport, exact native implementation linking,
-WASM transport and compiled-component receiver admission remain **unimplemented**.
+Native `CEMQD1` now carries those declarations and binds query use to a concrete
+host scope, context epoch and invocation. Exact native implementation linking,
+WASM transport/generation enrollment and compiled-component receiver admission
+remain **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
 existing wire version must not acquire executable semantics implicitly.
 
@@ -244,8 +246,8 @@ has independent native compilation/reload comparisons. The
 compares complete/incomplete and accepted/rejected results under fresh hosts,
 with explicit cross-owner grants, repeated reference placements and original
 candidate diagnostic URIs/ranges. Compiled-component receiver transport,
-inherited/imported schema composition, complete query declaration-source transport
-and exact native implementation registration remain gates before deployment admission.
+inherited/imported schema composition, worker/fallback query ownership and exact
+native implementation registration remain gates before deployment admission.
 
 ## Native compiled validator query subset
 
@@ -303,9 +305,10 @@ dispatches only its verified requirements.
 The same byte identity on a fresh owner can match; changed occurrences, headers,
 body, signature, aliases or provenance cannot. Registration neither parses nor
 compiles a query. It retains the newly supplied owners through the ordinary
-registry; duplicate/failed registration preserves existing entries. Original
-declaration transport and host/generation enrollment are still required before
-this can be used as a self-contained application or recovery payload.
+registry; duplicate/failed registration preserves existing entries. The native
+`CEMQD1` wrapper below adds portable declarations and host binding. Physical
+worker/fallback ownership enrollment remains required before application or
+recovery admission.
 
 Validation keeps the shared input checks, scoped native node views, required
 candidate rules and schema-owned result adapter. Scalar, list and node signatures
@@ -319,6 +322,65 @@ original diagnostic attribution remain in force.
 This native step adds no component/app JavaScript, WASM export, receiver-envelope
 version, checkpoint content or recovery grant. Entered passwords/OTP still block
 recovery; the 4 MiB checkpoint budget and five-second handoff deadlines remain.
+
+## Native query declaration sources and host lifetimes
+
+[`query_validator_capsule::declarations`](../packages/cem_ql/src/query_validator_capsule/declarations.rs)
+exports and verifies `CEMQD1`: a pinned `CEMQV1` program plus its original source
+arena and passive lexical metadata. The independent pin covers the complete
+envelope and the original program/source identities. Verification uses the
+shared native source codec with its text-bearing profile; structural `CEMSC1`
+keeps its existing whitespace-only profile and wire representation.
+
+Source records preserve original arena indices, ordered owning edges, literal
+attributes, text/raw text, comments, explicit boundaries, source ranges and
+physical URI. Passive names and namespace/schema snapshots restore against a
+new allocation; old owner handles cannot read the fresh capture. Namespace
+provenance is bounded against the same original source as node provenance.
+Empty pending-binding maps are passive metadata, while unresolved declarations
+or nonempty pending bindings refuse. Dynamic references/value nodes, typed
+preludes, source diagnostics and unsupported node records refuse.
+
+The source must contain one top-level schema and the one selected inline query
+body. Reload checks its original behavior/function declarations through the
+shared `DatatypeBehaviorContract` source checker and matches the program's
+occurrences, headers, signature, aliases, body hash and provenance. The retained
+body text is original source data; no tokenizer, query parser/lowerer, source
+fetch or evaluator runs during verification. This does not compile an entire
+effective datatype or grant execution to other declarations in the source.
+
+The complete envelope, including program and source, is at most 64 KiB. Source
+graphs retain the 16,384-record/64-level limits and 1 MiB coordinate extent.
+Outer preflight, nested program verification, source graph/provenance checks and
+declaration inspection share one 100,000-visit allowance and operation control.
+These limits do not measure peak heap or the memory of an embedding's owners.
+
+[`FreshStructuralHost`'s query adapter](../packages/cem_ql/src/structural_receiver/query.rs)
+requires explicit registration of the exact restored source tree in a ready
+scope owned by that concrete host. `link_query` checks a simple original named
+type's kind and source membership, actual host functions and registry pin, then
+privately retains the ordinary bound validation rule. It is a validator binding,
+not complete type/base/facet/tokenizer or named component-receiver admission.
+
+`query_invocation` obtains the scope and policy from that actual host record and
+establishes an enclosing shared query budget. `validate_query` accepts only a
+matching live binding/invocation pair, preserving input node views and their
+existing restrictions. Context changes, new scopes or new directed grants expire
+both receipts. Repeating an existing grant does not expire them. Closing/dropping
+the host, explicit retirement, foreign scopes and old-generation receipts refuse.
+Checks run before and after validation. `replace_query` stages the new binding
+first and atomically retires the old one only after successful checks; failed
+staging leaves the previous binding usable. No source query is replayed to link.
+Invocations retain the selected query scope, policy, diagnostics and budget;
+unavailable host callbacks, module resolvers, ambient bindings and context items
+are not inherited or kept alive after host disposal.
+
+This is native host lifetime evidence. It adds no WASM entry point, worker or
+owned-fallback endpoint, public checkpoint state, permission or publication
+receipt. Physical endpoint/inventory enrollment, fresh-heap transport and
+credential/privacy acceptance for a new transport remain deployment gates.
+Existing Login recovery still refuses entered passwords/OTP and keeps the
+4 MiB checkpoint budget and five-second handoff deadlines.
 
 ## Native fresh-host linking and node receivers
 

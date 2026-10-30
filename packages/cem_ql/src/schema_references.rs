@@ -268,6 +268,38 @@ impl CemQlSchemaDeclarationHost {
             .find(|scope| Arc::ptr_eq(scope.tree.ast_owner(), source.document()))
             .map(|scope| &scope.tree)
     }
+    /// In-process fresh-host adapter boundary. A source identity or scope index
+    /// alone cannot select another registered owner's runtime context. Closed
+    /// validators never inherit ambient callbacks, module resolvers or inputs.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn registered_validator_context(
+        &self,
+        scope: DeclarationScope,
+        tree: &Arc<RetainedCemTree>,
+    ) -> Option<EvaluationContext> {
+        let record = self.scope_record(scope)?;
+        if !Arc::ptr_eq(&record.tree, tree) {
+            return None;
+        }
+        let context = record.context.as_ref()?;
+        if context.diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
+            return None;
+        }
+        Some(EvaluationContext {
+            scope: context.scope,
+            scope_policy: context.scope_policy,
+            diagnostics: context.diagnostics.clone(),
+            ..Default::default()
+        })
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn registered_scope_validator_context(
+        &self,
+        scope: DeclarationScope,
+    ) -> Option<EvaluationContext> {
+        let record = self.scope_record(scope)?;
+        self.registered_validator_context(scope, &record.tree)
+    }
     pub fn reference_scope_policy(&self, scope: DeclarationScope) -> Option<&ReferenceScopePolicy> {
         Some(&self.scope_record(scope)?.policy)
     }

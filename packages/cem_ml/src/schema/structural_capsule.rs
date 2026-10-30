@@ -3,7 +3,7 @@
 use super::document_model::{AttributeModel, ElementModel, FieldContract, SchemaDocumentModel};
 use crate::{
     operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID},
-    parser::{document::CemDocument, AstNodeId, CemAstNode, ExpandedName},
+    parser::{document::CemDocument, AstNodeId, CemAstNode},
     schema::machine::{LexicalReloadMetadata, LexicallyScopedDocument},
     source::SourceId,
     source_map::SourceMapStack,
@@ -96,17 +96,7 @@ impl VerifiedStructuralCapsule {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct SourceNode {
-    kind: String,
-    name: Option<ExpandedName>,
-    attributes: Vec<AstNodeId>,
-    children: Vec<AstNodeId>,
-    value: Option<String>,
-    boundary: bool,
-    source: SourceMapStack,
-}
+use super::native_source::SourceNode;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Count {
