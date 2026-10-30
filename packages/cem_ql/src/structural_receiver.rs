@@ -26,6 +26,7 @@ use std::{
     },
 };
 const INVALID: &str = "fresh structural host refused";
+pub mod application;
 mod native;
 mod query;
 pub use native::{FreshNativeOperation, FreshNativeTokenizer, NativeResultAdapter};
@@ -118,6 +119,16 @@ impl FreshStructuralHost {
         source: Arc<RetainedCemTree>,
         attribute: AstNodeId,
     ) -> Result<SchemaDocumentModel, String> {
+        self.link_receiver_with_guard(capsule, schema_uri, source, attribute)
+            .map(|(model, _)| model)
+    }
+    fn link_receiver_with_guard(
+        &self,
+        capsule: Arc<VerifiedStructuralCapsule>,
+        schema_uri: &str,
+        source: Arc<RetainedCemTree>,
+        attribute: AstNodeId,
+    ) -> Result<(SchemaDocumentModel, Arc<StructuralNodeReceiver>), String> {
         self.check().map_err(|_| INVALID)?;
         cem_ml::schema::structural_capsule::validate_literal_receiver_source(
             source.ast(),
@@ -179,8 +190,8 @@ impl FreshStructuralHost {
         }
         self.check().map_err(|_| INVALID)?;
         let mut model = model;
-        model.attribute_datatypes.insert(name, contract);
-        Ok(model)
+        model.attribute_datatypes.insert(name, contract.clone());
+        Ok((model, contract))
     }
     pub fn validate_input(
         &mut self,

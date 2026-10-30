@@ -741,9 +741,11 @@ content-addressed native blobs. Independently trusted pins, exact declared graph
 closure, recomputed IR requirements and registry recipe, bounded canonical
 verification and complete-source sharing are implemented. Structural receiver
 requirements are inert metadata, not live receiver bindings. Explicit contract
-edges do not prove complete semantic/native code dependencies; combined fresh
-receiver assembly, physical worker/fallback transport and admission/publication
-remain pending. Scalar CEMAPPD1 and the current WASM ABI remain unchanged and
+edges do not prove complete semantic/native code dependencies. Native named-node
+assembly now checks original receiver occurrences/local cardinality and retains
+explicitly linked query/native guards, with checked native slot replacement.
+Scalar/executable named receiver composition, physical worker/fallback transport
+and component admission/publication remain pending. Scalar CEMAPPD1 and the current WASM ABI remain unchanged and
 refuse this new native envelope.
 The [native linking contract](cem-native-schema-capsules.md#native-fresh-host-linking-and-node-receivers)
 defines its required source registration, explicit grants, bounds and lifetime.

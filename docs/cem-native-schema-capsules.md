@@ -13,6 +13,8 @@ interpreters, facet families, shared list-item orchestration and canonical nativ
 source-result profiles now have explicit checked bindings too. The native-only
 `CEMAPPD2` dependency envelope now packages and inertly verifies compiled
 declarations and typed capsules with a bounded declared dependency graph.
+Native named-node assembly now stages exact receiver occurrences and query/native
+bindings against one fresh host, with a checked in-process replacement slot.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -670,14 +672,78 @@ pins, all three capsule kinds, deterministic packing, source/implementation
 conflicts, cancellation, malformed and repinned records, closure failures,
 limits and unchanged legacy refusal.
 
-Remaining gates are combined fresh-host receiver assembly (including scalar and
-executable named contracts), exact original receiver occurrence binding, runtime
+The native assembly below now checks literal named-node receiver occurrences.
+Remaining gates are scalar/executable named contract composition, runtime
 admission/publication, and actual reduced WASM/worker/fallback transport with
 physical generation, inventory and checkpoint ownership. Current WASM loaders
 continue using scalar `CEMAPPD1` and refuse `CEMAPPD2`; no ABI or endpoint was
 added. Entered passwords/one-time codes still block recovery, automatic
 whole-Studio recovery remains disabled, and the 4 MiB checkpoint budget and
 five-second deadlines remain unchanged.
+
+## Native application receiver assembly
+
+[`structural_receiver::application`](../packages/cem_ql/src/structural_receiver/application.rs)
+adds `stage`, `LinkedApplication` and `ApplicationSlot`. Staging takes a verified
+CEMAPPD2 envelope, the actual fresh native host, explicit
+`ComponentReceiverSource` records and typed `ContractBinding` requests. The
+embedding must establish all source/data scopes, contexts, directed grants and
+native registrations first. Staging does not change the host registry/context,
+fetch modules, parse source text, execute queries or invoke native callbacks.
+No source tree, callback, live token or binding crosses JSON or the wire.
+
+The first assembly subset binds top-level literal named-node directives. Each
+compiled attribute name, type alias and local `itemCount`/`minItems`/`maxItems`
+field must match its selected original native receiver occurrence. The native
+source uses literal `node`/`schema:node`; its selected SC1 capsule supplies the
+checked structural contract. It must be the actual tree registered on this host,
+under its original schema/attribute parent, with no extra receiver attributes.
+Relabelled or reconstructed copies, changed cardinality, duplicate/nested
+receiver directives, dynamic fields, defaults and unsupported policies refuse.
+Multiple fields and components keep their own original occurrence owners and
+merge checked contracts into complete per-component receiver models.
+
+Every QD1 and NR1 dependency needs exactly one matching link request; missing,
+extra or wrong-role requests refuse. Structural capsules remain inert until
+selected by a receiver. Query/validator requests supply exact source scopes,
+datatype occurrences, function selections and result adapters. Tokenizer,
+operation and source-result requests call their existing shared native linkers.
+Actual implementation identities/registrations and current source scopes are
+checked there. The assembly retains their liveness guards and exposes checked
+receipts. Operation/tokenizer receipts still require explicit installation on
+the exact original datatype through the ordinary compiler; linking is not
+complete executable datatype construction or native code dependency proof.
+
+`ApplicationSlot::publish` rechecks the candidate's actual context and retained
+node/query/native guards immediately before one synchronous native slot replacement.
+A failed stage or publication preserves the prior slot; partially staged owners
+are disposed. Replacing/clearing a slot or abandoning a staged assembly retires
+its models and guards, including cloned models held by another consumer. Closing
+or changing the host context, cancellation and retired node/query/native bindings
+make checked access unavailable. Host lifetime is separate: the assembly keeps
+a weak context lease and cannot keep native code or an old host alive.
+This slot is not a component registry, physical-generation transaction, rendering
+commit, optional-module activation or recovery/publication permission.
+
+Assembly retains the envelope's 32-component/64-contract limits and adds at most
+64 receiver occurrences per component, 256 total, 16,384 nodes per receiving
+source tree and 65,536 nodes across distinct receiving tree owners overall.
+Reusing the same retained tree counts once for this in-process bound, without
+acquiring authority from pointer identity. Compiled receiver inspection keeps 100,000-node/64-depth limits per
+component and the same operation control. Existing nested linker/validator
+budgets remain independent; this is not a measured peak heap or a raised recovery
+budget. [Assembly fixtures](../packages/cem_ql/tests/application_envelope/assembly.rs)
+and [boundary fixtures](../packages/cem_ql/src/structural_receiver/application/occurrences/tests.rs)
+cover native validation, source/occurrence refusal, all-or-nothing replacement,
+stale/foreign/cancelled candidates, dependency registration and cleanup.
+
+CEMAPPD2 still carries structural named receivers only. A scalar/executable
+receiver substitution refuses rather than clearing pending state or widening a
+node contract. Portable scalar/executable receiver composition and exact complete
+type dependency closure need their own versioned contracts before admission.
+Deployed CEMAPPD1, WASM/worker/fallback endpoints and runtime component admission
+are unchanged. Entered credentials still block recovery; automatic whole-Studio
+recovery remains disabled, with 4 MiB checkpoints and five-second deadlines.
 
 ## Native fresh-host linking and node receivers
 

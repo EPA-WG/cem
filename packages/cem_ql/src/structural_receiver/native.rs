@@ -121,6 +121,9 @@ pub struct FreshNativeTokenizer {
     guard: Guard,
 }
 impl FreshNativeTokenizer {
+    pub(super) fn is_live(&self) -> bool {
+        self.guard.entry().is_some()
+    }
     pub fn retire(&self) {
         self.active.store(false, Ordering::Release);
     }

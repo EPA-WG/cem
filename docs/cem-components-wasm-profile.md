@@ -304,8 +304,11 @@ shared compiler semantics and retained-consumer availability. The native-only
 now packages compiled declarations and typed structural/query/native capsules,
 with trusted pins, exact declared graph closure, deterministic ordering and
 bounded inert verification. Explicit contract edges are build assertions;
-complete semantic/native code closure is not proven. Combined fresh-host
-receiver assembly, physical worker/fallback enrollment, WASM transport and
+complete semantic/native code closure is not proven. Native named-node assembly
+now binds exact original receiver occurrences and query/native dependency guards
+against one host context, with all-or-nothing native slot replacement. This does
+not install executable datatypes or publish components. Scalar/executable named
+receiver composition, physical worker/fallback enrollment, WASM transport and
 compiled-component admission/publication remain separate gates. The deployed
 scalar CEMAPPD1 WASM ABI is unchanged and refuses the new envelope.
 

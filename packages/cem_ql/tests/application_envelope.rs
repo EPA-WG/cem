@@ -557,3 +557,6 @@ fn declared_graph_edge_budget_accepts_boundary_and_refuses_one_more_edge() {
         assert_eq!(result.is_err(), overflow);
     }
 }
+
+#[path = "application_envelope/assembly.rs"]
+mod assembly;

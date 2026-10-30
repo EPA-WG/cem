@@ -106,6 +106,9 @@ pub struct FreshNativeOperation {
     source_registration: Option<source_profiles::SourceRegistration>,
 }
 impl FreshNativeOperation {
+    pub(in crate::structural_receiver) fn is_live(&self) -> bool {
+        self.guard.entry().is_some()
+    }
     pub fn retire(&self) {
         self.active.store(false, Ordering::Release);
     }

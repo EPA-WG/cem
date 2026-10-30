@@ -1923,12 +1923,67 @@ inventory, not the minimum set loaded by every app.
                 deadlines unchanged. Generated screenshots and Vitest attachments
                 remain excluded from this commit.
 
-                - [ ] Assemble combined fresh-native-host receiver bindings from
-                  the verified envelope, including exact original declaration
-                  occurrences, scalar/executable named contract policies, explicit
-                  registrations and atomic all-or-nothing admission. Add missing
-                  implementation, stale context, partial failure and prior-owner
-                  preservation fixtures before component publication.
+                - [x] Assemble bounded fresh-native-host named-node bindings from
+                  the verified envelope with exact original occurrences, explicit
+                  query/native registrations and all-or-nothing native slot
+                  replacement. Keep scalar/executable receiver substitutions
+                  unavailable; component/runtime admission remains separate.
+                  - [x] Add native assembly fixtures for exact compiled named-node
+                    occurrences and literal local cardinality, multiple component
+                    models, missing/extra/relabelled sources, scalar substitutions
+                    and unsupported receiver policies.
+                  - [x] Stage every portable query/native dependency through the
+                    existing explicit host linkers; cover missing implementations,
+                    wrong roles/scopes and retained binding liveness.
+                  - [x] Refuse publication/access after a consumer retires a
+                    staged structural model; retain the exact typed node guard
+                    without replacing source identity or adding callback proxies.
+                  - [x] Add atomic native assembly-slot replacement, stale/foreign
+                    context and cancellation refusals, staged cleanup and prior
+                    committed owner preservation before runtime publication.
+                  - [x] Verify fixed assembly/source bounds, legacy refusal and
+                    native/WASM/component/Studio credential privacy regressions;
+                    document the remaining runtime transport/admission gates.
+
+                  Native `structural_receiver::application` now stages exact
+                  compiled named-node occurrences/local cardinality against actual
+                  registered source trees and one host context. Per-component
+                  models retain exact typed node guards; all QD1/NR1 dependencies
+                  require explicit existing linker requests/registrations. The
+                  checked native slot replaces complete assemblies together and
+                  retires superseded/abandoned models and proxies. Failed/stale/
+                  foreign/cancelled candidates preserve the prior slot; no host
+                  registry/context is mutated by staging. Assembly caps receiving
+                  tree nodes at 16,384 each/65,536 distinct total, with 64 receiver
+                  occurrences per component/256 total. Scalar/executable named
+                  receiver substitutions remain unavailable. This is native
+                  binding assembly, not complete executable datatype installation,
+                  semantic/native code closure, runtime publication or permission.
+
+                  Verification: 13 new assembly/boundary cases and 499 existing
+                  native cases (512 total), WASM compile checking, both existing
+                  separate-heap WASM drivers, 18 component browser cases, ten
+                  audit/factory cases and both complete live Login worker/fallback
+                  credential privacy checks pass. The retired-model regression
+                  fails before retaining/checking the exact typed node guard and
+                  passes with it. Formatting, 231 local documentation file links,
+                  audit freshness and diff checks pass. Existing optimized
+                  component WASM is 11,471,605 bytes; it was exercised, not rebuilt
+                  for this native-only assembly. No production JavaScript, WASM
+                  endpoint, callback serialization, cached verdict or runtime
+                  permission receipt was added. Entered credentials still block
+                  recovery; automatic whole-Studio recovery remains disabled,
+                  with 4 MiB checkpoints and five-second deadlines unchanged.
+                  Native builds finished before Studio acceptance. Generated
+                  screenshots and Vitest attachments remain excluded.
+
+                - [ ] Extend the portable application receiver contracts and
+                  assembly to scalar/executable named types with exact original
+                  base/item/behavior dependencies and explicit compiler
+                  installations. Add mixed node/scalar/executable, missing/stale
+                  implementation, closure and atomic replacement fixtures before
+                  enabling component admission; keep native code closure unproven
+                  until linked implementation evidence exists.
                 - [ ] Enroll portable query source/binding/invocation owners in
                   actual worker/owned-fallback generation and inventory groups;
                   add fresh-heap transport, shutdown/replacement, stale receipt,

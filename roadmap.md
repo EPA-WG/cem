@@ -800,8 +800,12 @@ A separate native-only
 now inertly verifies pinned compiled declarations and typed structural/query/native
 capsules, exact declared graph closure, source sharing and deterministic packing
 within fixed package/graph limits. Declared contract edges remain build assertions;
-complete semantic/native code closure is not proven. Combined fresh receiver
-assembly, physical worker/fallback generation enrollment and component/WASM
+complete semantic/native code closure is not proven. Native named-node assembly
+now checks exact original receiver occurrences/local fields and explicit
+query/native dependency linking before an atomic native slot replacement.
+Stale/foreign/cancelled candidates preserve prior owners; retired assemblies
+invalidate retained models. Scalar/executable named receiver composition,
+physical worker/fallback generation enrollment and component/WASM
 admission/publication remain implementation gates; scalar CEMAPPD1 is unchanged.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).

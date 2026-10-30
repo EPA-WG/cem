@@ -150,6 +150,11 @@ impl StructuralNodeReceiver {
             active: AtomicBool::new(true),
         }))
     }
+    /// Read-only availability of this exact binding in the supplied context.
+    /// This cannot register a receiver or authorize an invocation.
+    pub fn is_available(&self, context: &AttributeDatatypeContext) -> bool {
+        self.live(context)
+    }
     fn live(&self, context: &AttributeDatatypeContext) -> bool {
         self.active.load(Ordering::Acquire)
             && self.context.matches(context)
