@@ -147,9 +147,42 @@ fn main() {
     owned_domains(&output);
     owned_references(&output);
     owned_types(&output);
+    structural_schema(&output);
     // Trusted native fixture selection, not a claim that all cart component
     // behavior/provider dependencies have closed application build recipes.
     fs::write(output.join("selected_registry.rs"), "use cem_ql::selected_registry::{SelectedBuiltin, SelectedFunctionRegistry};\npub fn selected_registry() -> SelectedFunctionRegistry { SelectedFunctionRegistry::new([SelectedBuiltin::SequenceFirst, SelectedBuiltin::SequenceWhere, SelectedBuiltin::SequenceCount]).unwrap() }\n").unwrap();
+}
+
+fn structural_schema(output: &std::path::Path) {
+    use cem_ml::{
+        import::import_bytes_with_lexical_scopes,
+        operation_control::OperationControl,
+        schema::{
+            structural_capsule::{export, verify, SourceIdentity},
+            vocab::CompiledSchema,
+        },
+        source::SourceId,
+    };
+    let source = include_str!("../../cem_ml/fixtures/structural-cart.cem");
+    let uri = "https://app.test/schema/cart.cem";
+    let captured = import_bytes_with_lexical_scopes(
+        source.as_bytes(),
+        "text/cem-ml",
+        uri,
+        CompiledSchema::cem_core(),
+    )
+    .unwrap();
+    let built = export(
+        &captured.captured,
+        SourceIdentity::new(uri, SourceId(1), source.as_bytes()),
+        "https://app.test/schema/cart/1",
+        &cem_ml::content_cache::ContentHash::from_blake3(b"reviewed structural registry fixture")
+            .header_value(),
+        &OperationControl::default(),
+    )
+    .unwrap();
+    verify(&built.bytes, &built.pin, &OperationControl::default()).unwrap();
+    fs::write(output.join("owned-structural.bin"), built.bytes).unwrap();
 }
 
 fn owned_declarations(output: &std::path::Path) {

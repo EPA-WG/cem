@@ -1,8 +1,9 @@
 # Portable native schema contracts for component applications
 
-Status: design contract for the separate component-application WASM target.
-Executable and node-schema capsule export, reload and receiver admission are
-**not implemented**. The deployed `CEMAPPD1` format remains scalar-only. Its
+Status: the native-only structural `CEMSC1` exporter/verifier is implemented.
+It restores a bounded literal shared structural model and its source owner;
+executable linking, WASM transport and component receiver admission remain
+**unimplemented**. The deployed `CEMAPPD1` format remains scalar-only. Its
 existing wire version must not acquire executable semantics implicitly.
 
 This extends the [component profile](cem-components-wasm-profile.md) and
@@ -28,10 +29,10 @@ tokens and context leases must retain their in-process-only contracts.
 
 ## Proposed wire boundary
 
-Reserve a separate native schema capsule, tentatively `CEMSC1`, embedded by a
-future application declaration version, tentatively `CEMAPPD2`. These identifiers
-are design names, not available loaders or package exports. Older runtimes must
-refuse them. Do not reinterpret a v1 scalar model, attach ignored executable
+The native structural capsule uses `CEMSC1`; embedding requires a future
+application declaration version, tentatively `CEMAPPD2`. The latter remains a
+design name, not an available component loader or package export. Existing
+component runtimes refuse both. Do not reinterpret a v1 scalar model, attach ignored executable
 fields to it, or silently route it to a general schema parser.
 
 The binary is a bounded, explicitly versioned native representation. JSON may
@@ -166,10 +167,86 @@ checkpoint budget and five-second handoff deadlines remain unchanged.
 | Recovery/privacy | Recreate implementations and contexts in a new generation; reject old preparations/admissions and stale publications. Keep entered-credential refusal and existing byte/deadline assertions. |
 | Size/closure | Report actual optimized binary/transfer costs and linked implementation evidence. A new binary envelope or moved source pack does not prove parsers or validators are absent. |
 
+## Implemented native structural subset
+
+[`cem_ml::schema::structural_capsule`](../packages/cem_ml/src/schema/structural_capsule.rs)
+is available on native Rust targets. `export` accepts an original
+`LexicallyScopedDocument`, original source identity made from its bytes, the
+logical schema URI, an independently selected registry/build hash and operation
+control. The trusted build must supply the matching capture and byte identity;
+the exporter does not reparse bytes to establish that association.
+
+Build inspects the entire original arena and compiles it through
+`compile_schema_document_model_from_retained`. The portable projection must
+equal the selected native element/attribute models, including every field
+contract. Unsupported source fields are refused before compilation can ignore
+them. Import/base selection, dynamic slots, parser contracts, named executable
+types, defaults, custom behaviors/diagnostics, conditionals and wildcard child
+policies are outside this first subset. Unknown or unreferenced declarations
+cannot disappear during projection.
+
+The binary contains a flat typed CEM source arena, passive lexical/namespace
+metadata, compiled element/attribute/count records and sorted exact dependency
+pins. It does not use the debug CEMB codec, JSON trees or embedded source text.
+Original arena indices identify source occurrences within the capsule; reload
+creates a new allocation and restores captured lookups against that allocation.
+An old owner cannot use the fresh capture. The source's physical hierarchical
+URI, raw-byte BLAKE3 hash/length and local source ID are distinct from its logical
+schema URI. Native source maps, expanded declaration names, ordered owning
+edges, comments, whitespace and explicit content boundaries are preserved.
+Source frames must fit that original input; foreign resource boundaries refuse.
+The shared parser's reserved source ID 0 for document-level builder trivia is
+preserved with its original ranges. That exception cannot authorize a schema
+declaration or field, a foreign source ID or an external resource boundary.
+
+`verify(bytes, trustedPin, control)` checks the whole binary hash, native ABI,
+engine version, expected registry hash, logical schema and original source
+identity. An allocation-free MessagePack preflight bounds collection lengths,
+byte spans, depth and work before typed decoding. Canonical re-encoding refuses
+unknown nested fields, alternate shapes and trailing bytes. Verification checks
+owning source edges, reachability, occurrence roles, supported record policies
+and exact dependency targets/hashes, without parsing source or compiling a
+schema. Changing an integrity pin does not enable unsupported operations.
+
+Every element is an explicit exported root. Required/optional attribute and
+direct child declarations must resolve inside this single schema; unused
+attribute definitions and recursive or dangling child dependencies refuse.
+Supported scalar fields use string, integer, decimal/number and boolean bases
+with the reviewed scalar facets. Child rules support exact/minimum/maximum total
+element counts through the existing shared `FieldContract` model. Name matching,
+facet conversion and cardinality evaluation use shared validation semantics;
+the capsule creates no namespace or reference-crossing permission.
+
+This first format limits the entire binary to 64 KiB and the original source
+coordinate extent to 1 MiB. It retains the design ceilings of 64 combined
+element/attribute definitions, 16 count rules per element, 16,384 records/edges,
+64 levels and one 100,000-visit budget across each verification operation.
+Conservative retained accounting charges the source owner to every consuming
+root, bounds each root plus reachable contracts to 64 KiB and the aggregate to
+1 MiB. This accounting is a retention bound, not a measurement of peak heap or
+allocator overhead. Source/model verification and dependency walks poll the
+shared operation control; expanded DAG paths cannot reset the budget.
+
+The returned object owns an inert `SchemaDocumentModel`, retained native source
+and passive capture. It has no callback/preparation registry, grant, generation
+owner or serialization implementation. Native callers can explicitly supply
+that model to existing validation hosts. Component `open`, workers and recovery
+have no new entry point. WASM binaries and the full/default backend are unchanged;
+no parser-omission or reduced linked-code claim follows from this native step.
+
+The [literal cart schema fixture](../packages/cem_ml/fixtures/structural-cart.cem)
+has independent native compilation/reload comparisons. The
+[shared-host integration test](../packages/cem_ql/tests/structural_capsule.rs)
+compares complete/incomplete and accepted/rejected results under fresh hosts,
+with explicit cross-owner grants, repeated reference placements and original
+candidate diagnostic URIs/ranges. Component receiver linking, inherited/imported
+schema composition, pure query validators and exact native implementation
+registration remain separate gates before deployment admission.
+
 Current regression fixtures in
 [`named_receiver_types.rs`](../packages/cem_ql/fixtures/component-application/named_receiver_types.rs)
 exercise correctly repinned node/list/content-type, unsupported inherited
 restriction/model-policy, executable-extension and future-version refusal
 against v1 native admission and independent WASM/browser heaps. They preserve a
 live scalar owner and a subsequent valid render. These tests protect today's
-boundary; they do not implement any stage of the proposed executable loader.
+boundary; they do not implement the proposed executable linker or component admission.

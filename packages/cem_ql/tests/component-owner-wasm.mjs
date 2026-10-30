@@ -7,6 +7,7 @@ const root=new URL('../../../dist/artifacts/cem_ql/component-runtime/',import.me
 const context={identity:'owned',resolverIdentity:'resolver',resourcePolicyStamp:'policy',frames:[{frameId:'root',baseUrl:'https://app.test/components/',scopes:[],specifiers:{imports:{},resources:{}}}]};
 const fixture=async name=>[await readFile(new URL(`${name}.bin`,root)),await readFile(new URL(`${name}.json`,root),'utf8'),await readFile(new URL(`${name}.hash`,root),'utf8')];
 const inline=await fixture('owned-inline'), imported=await fixture('owned-imports');
+const structural=await readFile(new URL('owned-structural.bin',root));
 const bindings=createCemComponentWasmBindings(), first=await createCemComponentGeneration(module,bindings);
 const next=await createCemComponentGeneration(module,createCemComponentWasmBindings());
 assert.notEqual(first.memory(),next.memory());
@@ -19,6 +20,9 @@ for (const generation of [first,next]) {
         assert.equal(generation.inventory().liveDeclarationOwners,1);
         const metadata=declaration.metadata();metadata.tag='changed-by-caller';assert.equal(declaration.metadata().tag,'cem-owned-proof');
         assert.match(declaration.renderJson(Buffer.from('{"value":"Tea <img>"}'),'app://cart/response.json','datadom'),/Tea &lt;img&gt;/);
+        assert.throws(()=>generation.open(structural,inline[1],inline[2]),error=>error==='compiled declaration requires compiled CSS v2/v3 artifacts');
+        assert.equal(generation.inventory().liveDeclarationOwners,1);
+        assert.match(declaration.renderJson(Buffer.from('{"value":"After refusal"}'),'app://cart/response.json','datadom'),/After refusal/);
         const controller=new AbortController(); let committed;
         const lease={signal:controller.signal,commit:outputs=>{committed=outputs;return true;},release:()=>controller.abort()};
         const installation=declaration.installStylesheets('client',context,lease);

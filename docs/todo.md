@@ -1453,7 +1453,7 @@ inventory, not the minimum set loaded by every app.
             - [x] Define portable native executable/node-schema contract capsules
               before admitting callback/tokenizer or node-valued named schemas.
               [Design contract](cem-native-schema-capsules.md). The proposed wire
-              formats remain unavailable; v1 continues to admit only its reviewed
+              component-facing formats remain unavailable; v1 admits only its reviewed
               scalar subset. Executable export/linking is separate work below.
               - [x] Specify native build/export, inert decoding, fresh host linking,
                 original source identity, bounded dependency closure and atomic
@@ -1484,10 +1484,55 @@ inventory, not the minimum set loaded by every app.
               or credential/checkpoint/admission policy changes were introduced;
               entered credentials still block live recovery, with the existing
               4 MiB checkpoint budget and five-second handoff deadlines.
-            - [ ] Implement a native structural node-contract exporter/verifier
+            - [x] Implement a native structural node-contract exporter/verifier
               over shared retained validation models, with original source
               occurrences and exact dependency pins; prove native reload parity
               before adding it to the application envelope.
+              - [x] Add native literal structural fixtures covering scalar fields,
+                required/allowed attributes, child bounds, retained source/namespace
+                occurrences and independent full-model reload parity.
+              - [x] Add refusal fixtures for unsupported source/model policies,
+                stale/mixed pins, altered occurrences/dependencies, cycles,
+                retained accounting, oversized/malformed binary collections and
+                cancellation.
+              - [x] Prove reloaded structural models preserve native reference
+                readiness, directed cross-owner grants, repeated placements and
+                original candidate diagnostics through the shared query host.
+              - [x] Generate a native structural capsule fixture and prove existing
+                component WASM/browser generations refuse it without changing
+                live owners or preventing the next valid render.
+              Added native-only `cem_ml::schema::structural_capsule` CEMSC1
+              build/verification. It pins the logical schema, original physical
+              source/hash/extent and selected registry identity, preserves a flat
+              native arena and passive lexical namespaces, and checks exact local
+              attribute/child dependency hashes. The compiled projection must
+              equal the shared literal element/attribute/total-child-count model;
+              unsupported source and executable policies cannot disappear. Reload
+              parses no source and creates no callback, grant or runtime owner.
+              Bounds include a 64 KiB binary, 64 combined definitions, 16 count
+              rules/element, 16,384 records/edges, 64 levels, one 100,000-visit
+              verification budget, 64 KiB accounted per consuming root and 1 MiB
+              aggregate retained accounting. Source ownership, original ranges,
+              canonical binary shape and expanded dependency work are checked.
+              The shared parser's source-ID-0 document trivia is retained exactly;
+              it cannot substitute for a declaration/field's pinned source.
+              Verification: ten new native capsule cases, 11 shared reference/
+              diagnostic regressions, 58 selected-profile tests and 246 datatype/
+              receiver/declaration regressions pass (325 native tests). Native
+              build fixtures, both optimized WASM drivers, 21 component browser
+              cases, ten factory/audit cases, formatting, lint, document links and
+              source/vendor audits pass. The generated structural fixture is
+              21,312 bytes. Separate browser/WASM heaps refuse that native schema
+              as a component declaration, preserve their live owner and render
+              successfully afterward. Both deployed WASM binaries are unchanged;
+              the selected profile remains 11,471,605 bytes (10.94 MiB). Component
+              receiver linking, executable registration and worker/recovery
+              admission remain open. No app/component UI JavaScript, backend
+              switching, checkpoint grant or credential-policy change was added.
+              Both full Studio Login recovery/privacy scenarios pass with native
+              builds finished before acceptance. Entered credentials still block
+              recovery; the 4 MiB checkpoint budget and five-second handoff
+              deadlines remain unchanged.
             - [ ] Add an explicit fresh-host linker and receiver adapter for
               verified node contracts, then pure query/exact native exports.
               Keep unavailable callbacks/tokenizers pending or refused; never

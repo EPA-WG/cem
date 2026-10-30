@@ -1,0 +1,7 @@
+{schema @name=cart @namespace=https://app.test/schema/cart/1 |
+ {elements | {element @name=cart @required-attributes=title @children=item}
+             {element @name=item @required-attributes=quantity}}
+ {attributes | {attribute @name=title @type=string @minLength=2}
+               {attribute @name=quantity @type=integer @minInclusive=1 @maxInclusive=5}}
+ {field-contracts | {field-contract @name=size @target=cart @min-total-children=1 @max-total-children=3}}
+}

@@ -710,6 +710,13 @@ The [portable native schema contract design](cem-native-schema-capsules.md)
 defines separate inert records, explicit fresh-runtime linking and atomic
 publication for future executable/node contracts. Those adapters are not yet
 implemented; v1 refuses them even with internally consistent integrity pins.
+Native Rust now has a separate `CEMSC1` literal structural schema exporter and
+verifier. It preserves a source arena and passive namespaces, pins local
+attribute/child dependencies, and reloads inert shared validation models without
+source parsing. It is not in the WASM ABI or application envelope; fresh-host
+receiver linking and runtime admission remain pending. The
+[implemented subset and limits](cem-native-schema-capsules.md#implemented-native-structural-subset)
+describe its scalar fields, child-count rules, provenance and refusal policies.
 The [native schema/type fixture](../packages/cem_ql/fixtures/component-application/named_receiver_types.rs)
 compiles original schema facets and emits independent full-renderer reference
 outputs for the browser/WASM transport tests.

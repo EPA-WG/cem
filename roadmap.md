@@ -766,6 +766,13 @@ registered native implementations. Existing callback/lease/grant objects never
 cross the wire. Executable/node admission remains blocked pending exporter,
 verifier, linker and receiver parity; correctly repinned unsupported v1 records
 are covered by native and separate-heap WASM/browser refusal checks.
+The native structural `CEMSC1` exporter/verifier now pins a literal schema's
+original source arena, passive namespace capture and exact local dependency
+closure. Reload uses shared structural models and validation semantics without
+source parsing or a JSON tree. Unsupported executable/imported policies and
+unbounded or inconsistent graphs refuse. Fresh-host receiver linking and WASM
+deployment admission remain pending; no runtime ownership or recovery grant is
+created by verifying a schema capsule.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

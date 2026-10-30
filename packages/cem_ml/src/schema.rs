@@ -15,6 +15,9 @@ pub mod function_references;
 pub(crate) mod diagnostics;
 pub mod disposition;
 pub mod document_model;
+// Native build/verification experiment; no runtime receiver or WASM ABI yet.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod structural_capsule;
 pub mod ir;
 pub mod input_references;
 pub mod attribute_references;

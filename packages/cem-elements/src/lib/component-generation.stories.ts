@@ -329,6 +329,12 @@ export const PinnedNamedReceiverTypes:Story={
                 const component=generation.open(new Uint8Array(await(await artifact('owned-types','bin')).arrayBuffer()),await(await artifact('owned-types','json')).text(),(await(await artifact('owned-types','hash')).text()).trim());
                 try {
                     expect(component.metadata().tag).toBe('cem-owned-types');
+                    const structural=new Uint8Array(await(await artifact('owned-structural','bin')).arrayBuffer());
+                    const structuralMetadata=await(await artifact('owned-inline','json')).text();
+                    const structuralPin=(await(await artifact('owned-inline','hash')).text()).trim();
+                    // A native verified schema is not a component declaration or grant.
+                    expect(()=>generation.open(structural,structuralMetadata,structuralPin)).toThrow();
+                    expect(generation.inventory().liveDeclarationOwners).toBe(1);
                     for(const name of ['first','second']) {
                         const input=new Uint8Array(await(await artifact(`owned-types-${name}`,'cemv')).arrayBuffer());
                         const routes=[{target:'attribute' as const,name:'quantity',index:0},...(name==='second'?[{target:'attribute' as const,name:'label',index:1}]:[])];
