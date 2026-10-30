@@ -748,9 +748,12 @@ and typed scalar/record/array slice adapters now retain source metadata, enforce
 DOMStringMap consistency and bound aliases without a JSON AST handoff. Receiver
 conversion preserves lexical dataset strings; scalar CEMV re-export keeps original
 provenance. Host/payload credential metadata without capture proof still refuses.
-Payload references, remaining island domains, named-schema contracts,
-widget/provider bindings, worker transport and checkpoint/journal handoff remain
-open.
+Reviewed native payload references now retain occurrence/target/source-parent
+identity and index direct rendered slot roots without cloning or JavaScript AST
+conversion. Referenced descendants undergo the same credential/namespace/source
+checks, with bounded native DAG/depth/expanded-work admission. Remaining island
+domains, named-schema contracts, widget/provider bindings, worker transport and
+checkpoint/journal handoff remain open.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

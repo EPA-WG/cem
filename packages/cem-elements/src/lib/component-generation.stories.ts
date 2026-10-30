@@ -260,3 +260,53 @@ export const NativeIslandDomains:Story={
         expect(requests.some(name=>name.endsWith('.xhtml')||name.endsWith('.cem')||name.startsWith('app://island/'))).toBe(false);
     },
 };
+
+export const NativePayloadReferences:Story={
+    render:()=>'<section aria-label="Selected runtime native payload references">Repeated, nested and empty native references.</section>',
+    play:async({canvasElement})=>{
+        const started=networkTraceStart();
+        const factoryUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_factory.js'];
+        const wasmUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_bg.wasm'];
+        if(!factoryUrl||!wasmUrl)throw Error('Build the selected component WASM profile before this story');
+        const factory=await import(/* @vite-ignore */ factoryUrl);
+        const module=await WebAssembly.compile(await(await fetch(wasmUrl)).arrayBuffer());
+        const root=canvasElement.querySelector('section');if(!root)throw Error('Missing reference fixture');
+        const first=await createCemComponentGeneration(module,factory.createCemComponentWasmBindings());
+        const second=await createCemComponentGeneration(module,factory.createCemComponentWasmBindings());
+        try {
+            expect(first.memory()).not.toBe(second.memory());
+            for(const generation of [first,second]) {
+                const component=generation.open(new Uint8Array(await(await artifact('owned-references','bin')).arrayBuffer()),await(await artifact('owned-references','json')).text(),(await(await artifact('owned-references','hash')).text()).trim());
+                try {
+                    for(const name of ['first','second','empty']) {
+                        const input=new Uint8Array(await(await artifact(`owned-references-${name}`,'cemv')).arrayBuffer());
+                        const expected=await(await artifact(`owned-references-${name}`,'html')).text();
+                        const projected=new Uint8Array(await(await artifact(`owned-references-${name}.projection`,'cemv')).arrayBuffer());
+                        const id=name==='second'?'island-two':'island-one';
+                        const html=component.renderIsland(input,id);
+                        expect(html).toBe(expected);
+                        expect(component.projectIsland(input,id)).toEqual(projected);
+                        root.innerHTML=html; // Test-only mounting; native code owns reference/slot projection.
+                        const word=name==='second'?'Updated':'Referenced';
+                        expect(root.querySelector('header')?.textContent??'').toBe(name==='empty'?'':`HeadingSecond${word}${word}`);
+                        expect(root.querySelector('main')?.textContent??'').toBe(name==='empty'?'':`Default${word}`);
+                        expect(root.querySelectorAll('header > mark').length).toBe(name==='empty'?0:2);
+                        expect(root.querySelectorAll('main > section > mark').length).toBe(name==='empty'?0:1);
+                        expect(root.querySelector('article')?.id).toBe(name==='empty'?undefined:id);
+                        expect(()=>component.renderIsland(projected,id)).toThrow();
+                        for(const invalid of ['foreign','source','opaque-source','password','file','otp','nested-credential','document','atomic','reference-source','schema','cycle','dangling','depth','expanded']) {
+                            const bytes=new Uint8Array(await(await artifact(`owned-references-${invalid}`,'cemv')).arrayBuffer());
+                            expect(()=>component.renderIsland(bytes,'island-one')).toThrow();
+                            expect(()=>component.projectIsland(bytes,'island-one')).toThrow();
+                        }
+                        expect(component.renderIsland(input,id)).toBe(expected);
+                    }
+                } finally {component.dispose();}
+                expect(generation.inventory().liveDeclarationOwners).toBe(0);
+            }
+        } finally {first.dispose();second.dispose();}
+        const requests=performance.getEntriesByType('resource').filter(entry=>entry.startTime>=started&&(entry as PerformanceResourceTiming).initiatorType==='fetch').map(entry=>entry.name);
+        expect(requests.filter(name=>name.includes('cem_ql_bg.wasm'))).toEqual([new URL(wasmUrl,location.href).href]);
+        expect(requests.some(name=>name.endsWith('.xhtml')||name.endsWith('.cem')||name.startsWith('app://island/'))).toBe(false);
+    },
+};

@@ -569,9 +569,13 @@ inconsistent dataset, malformed types/array indices and credential host metadata
 refuse. Native payload/slot references produce HTML or opaque CEMV with original
 source metadata; scalar re-export preserves provenance. Whole semantic records
 and arrays cannot enter CEMV: explicitly select their values. JavaScript only
-transports bytes. Payload references, remaining data-island domains, named-schema
-contracts, widget/provider inputs, processing-worker integration and checkpoint
-handoff remain open. See the
+transports bytes. Native payload references retain occurrence/target/source-parent
+identity; slots follow direct rendered roots in encounter order, including repeats.
+Empty references add no slot entry and nested references stay inside their element.
+All rendered targets pass the namespace/source/credential checks; cyclic, dangling,
+deep or excessively expanded graphs refuse. Remaining data-island domains,
+named-schema contracts, widget/provider inputs, processing-worker integration and
+checkpoint handoff remain open. See the
 [retained owner contract and fixtures](../../docs/cem-components-shopping-cart-profile.md#retained-passive-declarations-and-stylesheet-leases).
 
 External declaration loading through `src="#id"`, `src="url"`, and `src="url#id"`, plus `<http-request url="...">`

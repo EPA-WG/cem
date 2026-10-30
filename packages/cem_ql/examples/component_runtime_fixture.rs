@@ -8,6 +8,8 @@ use cem_ql::{
     },
 };
 use std::{fs, path::PathBuf};
+#[path = "../fixtures/component-application/payload_references.rs"]
+mod reference_fixture;
 fn main() {
     let output = PathBuf::from(std::env::args().nth(1).expect("fixture output directory"));
     fs::create_dir_all(&output).unwrap();
@@ -140,6 +142,7 @@ fn main() {
     owned_receiver(&output);
     owned_island(&output);
     owned_domains(&output);
+    owned_references(&output);
     // Trusted native fixture selection, not a claim that all cart component
     // behavior/provider dependencies have closed application build recipes.
     fs::write(output.join("selected_registry.rs"), "use cem_ql::selected_registry::{SelectedBuiltin, SelectedFunctionRegistry};\npub fn selected_registry() -> SelectedFunctionRegistry { SelectedFunctionRegistry::new([SelectedBuiltin::SequenceFirst, SelectedBuiltin::SequenceWhere, SelectedBuiltin::SequenceCount]).unwrap() }\n").unwrap();
@@ -520,6 +523,141 @@ fn owned_domains(output: &std::path::Path) {
         fs::write(
             output.join(format!("owned-domains-{name}.html")),
             render_plan_to_html(&plan),
+        )
+        .unwrap();
+    }
+}
+
+fn owned_references(output: &std::path::Path) {
+    use cem_ql::{
+        declaration_artifact::build_declaration_artifact,
+        eval::{
+            output::output_nodes,
+            portable::{decode_values, encode_values},
+            AtomValue, Item,
+        },
+    };
+    use std::collections::BTreeMap;
+    let source = r#"<cem-element tag="cem-owned-references"><template id="cem-owned-references" type="text/cem-ml">{cem:if @test='$datadom.slots.heading' | {article @id='{$instanceID}' | {header | {$datadom.slots.heading}}{main | {$datadom.slots.body}}}}</template></cem-element>"#;
+    let built = build_declaration_artifact(
+        source,
+        "https://app.test/components/references.xhtml",
+        TemplateArtifactSourceMapMode::Prod,
+        None,
+    )
+    .unwrap();
+    let metadata: cem_ql::declaration_artifact::DeclarationArtifactMetadata =
+        serde_json::from_str(&built.metadata_json).unwrap();
+    let loaded = built.template.reload_pinned(&metadata.template).unwrap();
+    fs::write(output.join("owned-references.bin"), built.template.bytes).unwrap();
+    fs::write(output.join("owned-references.json"), built.metadata_json).unwrap();
+    fs::write(output.join("owned-references.hash"), built.metadata_hash).unwrap();
+    let imported = imported_cem_tree(
+        cem_ml::import::import_data_bytes(
+            reference_fixture::source().as_bytes(),
+            "application/xml",
+            "cem",
+            "app://island/references.xhtml",
+        )
+        .unwrap(),
+    );
+    let original = reference_fixture::graph(
+        &encode_values(&ItemStream::once(imported), &Default::default()).unwrap(),
+    );
+    for (name, graph) in reference_fixture::invalid_cases(&original) {
+        fs::write(
+            output.join(format!("owned-references-{name}.cemv")),
+            reference_fixture::unchecked(&graph),
+        )
+        .unwrap();
+    }
+    let mut second = original.clone();
+    for node in &mut second.records {
+        if node.lexical == "island-one" {
+            node.lexical = "island-two".into();
+        }
+        if node.lexical == "Referenced" {
+            node.lexical = "Updated".into();
+        }
+    }
+    let mut empty = original.clone();
+    let payload = reference_fixture::element(&empty, "payload") as usize;
+    let empty_ref = *empty.records[payload]
+        .children
+        .iter()
+        .find(|id| {
+            let node = &empty.records[**id as usize];
+            node.kind == "reference" && node.targets.is_empty()
+        })
+        .unwrap();
+    let previous = std::mem::replace(&mut empty.records[payload].children, vec![empty_ref]);
+    for id in previous {
+        if id != empty_ref {
+            empty.records[id as usize].parent = None;
+        }
+    }
+    for (name, graph) in [("first", original), ("second", second), ("empty", empty)] {
+        let bytes = graph.encode(&Default::default()).unwrap();
+        fs::write(output.join(format!("owned-references-{name}.cemv")), &bytes).unwrap();
+        // Independent full renderer: select the known fixture nodes explicitly,
+        // without invoking the new admission/slot-indexing implementation.
+        let values = decode_values(&bytes, &Default::default()).unwrap();
+        let root = values.items[0].clone();
+        let field = |node: &Item, name: &str| node.view().unwrap().field(name).unwrap();
+        let payload = field(&root, "children")
+            .into_iter()
+            .find(|node| {
+                field(node, "kind")[0].atom() == Some(AtomValue::String("element".into()))
+                    && node.view().unwrap().field("name").is_some_and(|name| {
+                        name[0].atom() == Some(AtomValue::String("payload".into()))
+                    })
+            })
+            .unwrap();
+        let children = field(&payload, "children");
+        let (heading, body) = if name == "empty" {
+            (vec![], vec![])
+        } else {
+            let first = field(&children[3], "targets");
+            (
+                vec![
+                    children[0].clone(),
+                    children[1].clone(),
+                    first[0].clone(),
+                    first[0].clone(),
+                ],
+                vec![first[1].clone(), children[6].clone()],
+            )
+        };
+        let id = if name == "second" {
+            "island-two"
+        } else {
+            "island-one"
+        };
+        let data = TemplateData::default()
+            .with_binding(
+                "instanceID",
+                ItemStream::once(Item::Atomic(AtomValue::String(id.into()))),
+            )
+            .with_binding(
+                "datadom",
+                ItemStream::once(Item::Record(BTreeMap::from([(
+                    "slots".into(),
+                    vec![Item::Record(BTreeMap::from([
+                        ("heading".into(), heading),
+                        ("body".into(), body),
+                    ]))],
+                )]))),
+            );
+        let plan = render_compiled_template(&loaded, &data);
+        assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+        fs::write(
+            output.join(format!("owned-references-{name}.html")),
+            render_plan_to_html(&plan),
+        )
+        .unwrap();
+        fs::write(
+            output.join(format!("owned-references-{name}.projection.cemv")),
+            encode_values(&output_nodes(plan.nodes), &Default::default()).unwrap(),
         )
         .unwrap();
     }

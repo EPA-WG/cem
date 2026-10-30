@@ -74,8 +74,13 @@ scalar/record/array slices without JSON AST conversion. Receiver normalization
 preserves lexical dataset strings; CEMV scalar re-export retains original source
 keys. Alias collisions, malformed types/dataset/array indices, nonempty unsupported
 state domains and host/payload credential metadata without capture proof refuse.
-Payload references, remaining island domains, named receiver schemas,
-widget/provider input and recovery-group contracts remain open;
+Reviewed native payload references now preserve their occurrences and original
+target/source-parent identities. Slots follow direct reference targets in order;
+empty references add no entry and nested references remain inside their element.
+The complete rendered target closure is checked before publication, including
+credential refusal, with native cycle/depth/expanded-work admission guards.
+Remaining island domains, named receiver schemas, widget/provider input and
+recovery-group contracts remain open;
 no default Studio backend or credential policy changes are implied.
 The browser's `retainCemMlTemplateArtifact` path still takes original
 template source for its optional source-cache behavior. A separate strict

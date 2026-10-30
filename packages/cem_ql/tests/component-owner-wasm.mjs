@@ -125,6 +125,26 @@ for(const generation of [first,next]) {
     assert.throws(()=>owner.projectIsland(new Uint8Array(),'island-one'),/disposed/);
     assert.equal(generation.inventory().liveDeclarationOwners,0);
 }
+const referenceFixture=await fixture('owned-references');
+for(const generation of [first,next]) {
+    const owner=generation.open(...referenceFixture);
+    for(const name of ['first','second','empty']) {
+        const input=await readFile(new URL(`owned-references-${name}.cemv`,root));
+        const expected=await readFile(new URL(`owned-references-${name}.html`,root),'utf8');
+        const projected=await readFile(new URL(`owned-references-${name}.projection.cemv`,root));
+        const id=name==='second'?'island-two':'island-one';
+        assert.equal(owner.renderIsland(input,id),expected);
+        assert.deepEqual(Buffer.from(owner.projectIsland(input,id)),projected);
+        assert.throws(()=>owner.renderIsland(projected,id));
+        for(const invalid of ['foreign','source','opaque-source','password','file','otp','nested-credential','document','atomic','reference-source','schema','cycle','dangling','depth','expanded']) {
+            const bytes=await readFile(new URL(`owned-references-${invalid}.cemv`,root));
+            assert.throws(()=>owner.renderIsland(bytes,'island-one'),error=>error==='compiled declaration native island refused');
+            assert.throws(()=>owner.projectIsland(bytes,'island-one'),error=>error==='compiled declaration native island refused');
+        }
+        assert.equal(owner.renderIsland(input,id),expected);
+    }
+    owner.dispose();assert.equal(generation.inventory().liveDeclarationOwners,0);
+}
 const foreign=bindings.open(...inline);
 foreign.dispose(); // Still a native allocation until its opaque owner is freed.
 assert.throws(()=>first.dispose(),/foreign-owner/);

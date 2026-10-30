@@ -575,20 +575,20 @@ the isolated build uses `--no-default-features --features component-runtime`.
 
 | WASM measure | Full bytes | Prototype bytes |
 | --- | ---: | ---: |
-| Raw | 24,207,650 | 11,268,127 |
-| Gzip level 9 | 7,379,167 | 3,184,884 |
-| Brotli quality 9 | 5,424,656 | 2,396,344 |
-| Code section payload | 21,448,929 | 8,973,695 |
-| Data section payload | 2,729,720 | 2,281,312 |
+| Raw | 24,207,650 | 11,281,592 |
+| Gzip level 9 | 7,379,167 | 3,189,385 |
+| Brotli quality 9 | 5,424,656 | 2,398,485 |
+| Code section payload | 21,448,929 | 8,986,698 |
+| Data section payload | 2,729,720 | 2,281,737 |
 
-The prototype is 10.75 MiB raw, a 53.5% whole-file reduction.
+The prototype is 10.76 MiB raw, a 53.4% whole-file reduction.
 It has 10 imports/21 exports, compared with 28/171 for the full runtime.
 The public surface is the one-shot renderer, passive declaration-owner methods
 and a counter-only inventory; remaining exports are wasm-bindgen support. This proves a smaller linked surface
 and reduced code/data sections, without attributing removed bytes to particular
 languages, schemas or functions. Complete application link closure remains false.
 
-Prototype SHA-256: `9a115ed738be30aa3fd40cff53c073e9fef751ea4cce6aab35aac3fe97274ac4`.
+Prototype SHA-256: `b2f2c11e3834285226edb57eae57f9dda4b60d889ac13cc622e632815cc38327`.
 
 Full SHA-256: `a6b5319be86c49564f390c4f4acaeeb120023b791981d8bcbee177840be61628`.
 
@@ -714,19 +714,36 @@ WASM/browser checks transport CEMV without decoding/reconstructing the graph.
 Resources, forms, validation and events must remain empty until their reviewed
 adapters exist. Payload identity must be `text/html` with
 `https://cem.dev/ns/data/html/1`, containing canonical lowercase HTML names in the
-HTML namespace. Foreign namespaces, payload references, nodes without required
-source metadata, alternate payload schemas and CEM-ML source handoffs refuse.
-The root and payload nodes require source maps, nonempty source keys and absolute
-hierarchical source URIs. These checks retain supplied native source metadata;
-they are not issuer authentication or complete HTML schema validation. The
+HTML namespace. Native CEMV references may select further references or these
+reviewed HTML/text/whitespace/CDATA/comment nodes. Document, attribute and atomic
+targets, foreign namespaces, nodes without required source metadata, alternate
+payload schemas and CEM-ML source handoffs refuse.
+The root, reference occurrences and every rendered target/descendant require
+source maps, nonempty source keys and absolute hierarchical source URIs. These
+checks retain supplied native source metadata; they are not issuer authentication or complete HTML schema validation. The
 producer still owns source import and app-build/domain validation. XML and
 CEM-ML parsing for fixtures/builds stays outside this runtime entry.
 
 `island` points to the original qualified context root. `datadom.payload` is the
-native payload section and `datadom.slots` groups direct native children by slot
-name in encounter order, including the empty default name and ordinary keys such
-as `__proto__`. Grouping retains references, namespaces, source keys and parents;
-it does not clone nodes or construct JavaScript data records.
+native payload section, retaining original reference occurrences, target edges
+and source parents. `datadom.slots` indexes direct rendered roots: direct
+references are followed in target order and each terminal root supplies its own
+`slot` name, including the empty default name and ordinary keys such as
+`__proto__`. Multi-target references can supply several slots; repeated targets
+remain repeated entries sharing the original native node identity. An empty
+reference contributes no slot entry. A reference inside an HTML element stays
+inside that element and does not become a root slot entry. Grouping appends native
+values without cloning source nodes or constructing JavaScript data records.
+
+Admission checks the complete rendered reference/child closure before publishing
+any groups, including references nested inside HTML. Every referenced password,
+file or credential-autocomplete control is subject to the same refusal as direct
+payload controls. The shared CEMV decoder checks the entire retained graph's
+backlinks, dangling targets, cycles, depth and expanded work; the island traversal
+also polls operation control and bounds visits. Source-parent edges stay
+provenance/context edges, not rendered content or a schema/recovery grant. Native
+fixtures exercise repeated, nested, multi-target and empty references and compare
+HTML and opaque CEMV against an independent full-native renderer on separate heaps.
 `renderIsland` returns native HTML. `projectIsland` exports the native render
 result with the existing CEMV writer, preserving reference/source edges and
 supporting empty output. Referenced source context can include unrendered
@@ -740,9 +757,10 @@ frame; owners retain no island or projection handles. Password/file controls and
 password/one-time-code autocomplete metadata refuse even when empty because this
 entry has no live property/capture proof. The same refusal applies to host
 `type=password|file` and credential autocomplete attributes. This does not change
-the full runtime's entered-credential recovery policy. It is not a checkpoint permit, live-control
-registration, DOM installation or worker/recovery adapter. Those gates,
-payload-reference admission, remaining island domains and app-specific named schema contracts remain open.
+the full runtime's entered-credential recovery policy. It is not a checkpoint
+permit, live-control registration, DOM installation or worker/recovery adapter.
+Those gates, remaining island domains and app-specific named schema contracts
+remain open.
 
 Styles reuse the existing native resolver, compiled-import policy replay,
 `RetainedStylesheet` identity/scoping emission and last-consumer invalidation.

@@ -1376,9 +1376,39 @@ inventory, not the minimum set loaded by every app.
             Matched full WASM is 24,207,650 bytes; reduction remains 53.5%.
             Native link closure remains unproven. Credential privacy, the 4 MiB
             checkpoint budget and five-second handoff deadlines remain unchanged.
-          - [ ] Admit reviewed native payload references while preserving target,
+          - [x] Admit reviewed native payload references while preserving target,
             source-parent and slot identity. Add bounded cycle/dangling-target,
             namespace/schema and credential-refusal fixtures before admission.
+            - [x] Add native reference graph fixtures for repeated/multi-target,
+              nested and empty projections, source/slot/parent preservation,
+              cycle/dangling/depth/expansion refusal and referenced credential
+              metadata; verify native-built WASM and browser parity.
+            Payload keeps original native reference occurrences and target edges.
+            Slot indexes follow direct rendered targets in order, append repeats
+            without cloning source nodes and omit empty references; nested
+            references remain inside their HTML element. Full rendered target/
+            descendant closure passes namespace/source/credential checks before
+            publication. Document/atomic/attribute targets remain refused. Shared
+            CEMV graph admission checks source backlinks, dangling edges, DAG,
+            depth and expanded work; native traversal also polls/bounds visits.
+            Verification: 31 profile native cases, 25 native value/reference/
+            serialization regressions, ten factory/audit unit cases, native
+            fixtures, optimized profile/owner WASM acceptance, 20 component
+            browser cases and both complete Studio Login recovery/privacy cases
+            pass. HTML and opaque CEMV projections match an independent full-
+            native renderer on separate heaps; no source/full WASM fetches occur
+            in profile scenarios and disposal leaves no declaration owners.
+            The first Studio run hit fallback/resume-2's five-second deadline
+            during concurrent native build work; pausing Binaryen for the rerun
+            passed both modes without changing deadlines, assertions or policy.
+            Package build, changed Rust formatting, TypeScript/script lint and
+            source/vendor audits pass. Optimized profile: 11,281,592 bytes
+            (10.76 MiB), gzip-9 3,189,385, Brotli-9 2,398,485; code/data
+            8,986,698/2,281,737 bytes, 10 imports/21 exports. The full comparator
+            stays 24,207,650 bytes; reduction is 53.4%. Only the opt-in profile's
+            admission changed; no component/application UI JavaScript, checkpoint
+            authority or Studio backend switching was added. Entered credentials
+            still block live recovery; 4 MiB and five-second limits remain.
           - [ ] Bind app-specific named receiver schema/type contracts to pinned
             build artifacts; verify unavailable/changed contracts fail before
             publication without loading the general schema catalog.

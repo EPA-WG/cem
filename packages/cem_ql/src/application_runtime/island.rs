@@ -1,6 +1,8 @@
 //! Native island admission with explicit domain and live-state gates.
 #[path = "island_domains.rs"]
 mod domains;
+#[path = "island_payload.rs"]
+mod payload;
 use crate::{
     eval::{portable::decode_values_with_control, AtomValue, Item, ItemStream},
     render::TemplateData,
@@ -27,7 +29,6 @@ pub const PARTS: &[(&str, &str)] = &[
     ),
     ("event-state", "https://cem.dev/ns/runtime/event-state"),
 ];
-const HTML: &str = "http://www.w3.org/1999/xhtml";
 const INVALID: &str = "compiled declaration native island refused";
 
 fn has_source(item: &Item) -> bool {
@@ -205,58 +206,7 @@ pub(super) fn bind(
         return Err(INVALID.into());
     }
     let payload = children(&parts[3])?;
-    let mut pending = payload.clone();
-    while let Some(item) = pending.pop() {
-        control
-            .check_scope(ROOT_EXECUTION_SCOPE_ID)
-            .map_err(|_| INVALID)?;
-        if !has_source(&item) {
-            return Err(INVALID.into());
-        }
-        match field(&item, "kind").as_deref() {
-            Some("element") => {
-                if field(&item, "namespace").as_deref() != Some(HTML) {
-                    return Err(INVALID.into());
-                }
-                let attributes = attrs(&item)?;
-                let tag = field(&item, "name").ok_or(INVALID)?;
-                if tag != tag.to_ascii_lowercase()
-                    || attributes
-                        .keys()
-                        .any(|name| *name != name.to_ascii_lowercase())
-                {
-                    return Err(INVALID.into());
-                }
-                if (matches!(tag.as_str(), "input" | "textarea")
-                    && attributes.get("type").is_some_and(|v| {
-                        matches!(v.to_ascii_lowercase().as_str(), "password" | "file")
-                    }))
-                    || attributes.get("autocomplete").is_some_and(|v| {
-                        v.split_ascii_whitespace().any(|part| {
-                            matches!(
-                                part.to_ascii_lowercase().as_str(),
-                                "one-time-code" | "current-password" | "new-password"
-                            )
-                        })
-                    })
-                {
-                    return Err(INVALID.into());
-                }
-                pending.extend(children(&item)?);
-            }
-            Some("text" | "whitespace" | "cdata" | "comment") => {}
-            _ => return Err(INVALID.into()),
-        }
-    }
-    let mut slots = BTreeMap::<String, Vec<Item>>::new();
-    for item in &payload {
-        let slot = if field(item, "kind").as_deref() == Some("element") {
-            attrs(item)?.get("slot").cloned().unwrap_or_default()
-        } else {
-            String::new()
-        };
-        slots.entry(slot).or_default().push(item.clone());
-    }
+    let slots = self::payload::slots(&payload, control)?;
     let mut data = TemplateData::default().with_binding("island", ItemStream::once(root));
     data.bindings.insert(
         "instanceID".into(),
@@ -278,3 +228,7 @@ pub(super) fn bind(
 #[cfg(test)]
 #[path = "island_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "island_payload_tests.rs"]
+mod payload_tests;
