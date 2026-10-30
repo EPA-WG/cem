@@ -786,8 +786,11 @@ subset without source recompilation and register against separately supplied
 checked original declarations. They reuse shared validation/results, selected
 dispatch and cumulative invocation budgets. Native `CEMQD1` now restores original
 source dependencies and guards actual host scope/context/invocation lifetimes,
-retirement and staged replacement without replaying source queries. Physical
-worker/fallback generation enrollment, exact native callbacks and component/WASM
+retirement and staged replacement without replaying source queries. Native
+`CEMNR1` now pins exact validator/tokenizer requirements and links explicit actual
+native registrations with weak host ownership, source checks, shared results and
+checked tokenizer replacement. Preparation/conversion/equality/serializer
+adapters, physical worker/fallback generation enrollment and component/WASM
 receiver admission remain implementation gates; see the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 

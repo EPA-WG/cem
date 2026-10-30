@@ -43,6 +43,12 @@ impl AttributeDatatypeContext {
 #[derive(Debug, Clone)]
 pub struct AttributeDatatypeContextLease(Weak<AtomicBool>);
 impl AttributeDatatypeContextLease {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn is_live(&self) -> bool {
+        self.0
+            .upgrade()
+            .is_some_and(|state| state.load(Ordering::Acquire))
+    }
     pub fn matches(&self, current: &AttributeDatatypeContext) -> bool {
         self.0
             .upgrade()

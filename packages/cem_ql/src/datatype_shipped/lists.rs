@@ -80,6 +80,7 @@ impl NativeDatatypeConverter for ListConverter {
             },
         ) {
             Ok(tokens) => Arc::new(tokens),
+            Err(TokenizationError::Unavailable) => return ConversionExecution::Unavailable(vec![]),
             Err(TokenizationError::Limit) => return ConversionExecution::Limit("tokenization"),
             Err(TokenizationError::Rejected) => return ConversionExecution::Rejected { diagnostics: vec![] },
             Err(_) => return ConversionExecution::Failed(vec![]),

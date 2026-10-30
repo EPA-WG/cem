@@ -725,8 +725,13 @@ not add template named-node bindings, an application envelope version or WASM
 admission. Native `CEMQV1` programs can now restore a bounded compiled query
 subset through the shared validation registry; original checked declarations
 can travel in a `CEMQD1` native source capsule and bind to an explicitly registered
-fresh native host scope. Physical worker/fallback transport and ownership remain
-pending; no application envelope or runtime ABI is changed by this native step.
+fresh native host scope. Native `CEMNR1` now carries exact validator/tokenizer
+requirements and binds actual explicitly registered implementations to the same
+fresh host. It preserves the shared compiler's checked tokenizer replacement
+and unavailable outcomes; callbacks, preparation tokens and grants stay local.
+Other preparation/conversion/equality/serializer adapters and physical
+worker/fallback transport and ownership remain pending; no application envelope
+or runtime ABI is changed by this native step.
 The [native linking contract](cem-native-schema-capsules.md#native-fresh-host-linking-and-node-receivers)
 defines its required source registration, explicit grants, bounds and lifetime.
 The [native schema/type fixture](../packages/cem_ql/fixtures/component-application/named_receiver_types.rs)

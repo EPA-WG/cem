@@ -13,17 +13,29 @@ use crate::{
 use cem_ml::schema::attribute_datatypes::AttributeDatatypeContextLease;
 
 pub struct FreshQueryBinding {
-    declaration: Arc<VerifiedQueryDeclaration>,
-    scope: DeclarationScope,
-    context: AttributeDatatypeContextLease,
-    rule: BoundDatatypeRule,
-    active: AtomicBool,
+    pub(super) declaration: BindingOwner,
+    pub(super) scope: DeclarationScope,
+    pub(super) context: AttributeDatatypeContextLease,
+    pub(super) rule: BoundDatatypeRule,
+    pub(super) active: Arc<AtomicBool>,
+}
+pub(super) enum BindingOwner {
+    Query(Arc<VerifiedQueryDeclaration>),
+    Native(Arc<crate::native_registrations::VerifiedNativeRequirement>),
+}
+impl BindingOwner {
+    fn source(&self) -> &Arc<RetainedCemTree> {
+        match self {
+            Self::Query(owner) => owner.source(),
+            Self::Native(owner) => owner.source(),
+        }
+    }
 }
 impl FreshQueryBinding {
     pub fn retire(&self) {
         self.active.store(false, Ordering::Release);
     }
-    fn live(&self, host: &FreshStructuralHost) -> bool {
+    pub(super) fn live(&self, host: &FreshStructuralHost) -> bool {
         self.active.load(Ordering::Acquire)
             && self.context.matches(&host.context)
             && host
@@ -98,11 +110,11 @@ impl FreshStructuralHost {
             .map_err(|_| INVALID)?;
         self.check().map_err(|_| INVALID)?;
         Ok(FreshQueryBinding {
-            declaration,
+            declaration: BindingOwner::Query(declaration),
             scope,
             context: self.context.lease(),
             rule,
-            active: AtomicBool::new(true),
+            active: Arc::new(AtomicBool::new(true)),
         })
     }
     pub fn query_invocation(

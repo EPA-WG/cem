@@ -67,6 +67,7 @@ impl Default for TokenizationLimits {
 }
 #[derive(Debug, Clone)]
 pub enum TokenizationError {
+    Unavailable,
     AbsentInput,
     Rejected,
     IncompatibleReplacement,
@@ -83,6 +84,11 @@ pub struct TokenizationRequest<'a> {
     pub limits: TokenizationLimits,
 }
 pub trait Tokenizer: Debug + Send + Sync {
+    /// A selected implementation may outlive a retired module/host. Availability
+    /// must be checked separately from rejecting lexical input.
+    fn check_available(&self) -> Result<(), TokenizationError> {
+        Ok(())
+    }
     /// Return ordered source byte spans; normalization and item conversion are separate.
     /// Implementations must poll control and bound their allocations/work.
     fn tokenize(
@@ -162,6 +168,7 @@ impl RegisteredTokenizer {
             control
                 .check_scope(scope)
                 .map_err(TokenizationError::Control)?;
+            implementation.check_available()?;
             let outcome = implementation.tokenize(TokenizationRequest {
                 input: &input,
                 control,
@@ -171,6 +178,7 @@ impl RegisteredTokenizer {
             control
                 .check_scope(scope)
                 .map_err(TokenizationError::Control)?;
+            implementation.check_available()?;
             let tokens = outcome?;
             if tokens.len() > limits.max_tokens {
                 return Err(TokenizationError::Limit);
@@ -190,12 +198,16 @@ impl RegisteredTokenizer {
                 {
                     return Err(TokenizationError::InvalidSpan);
                 }
-                if !implementation.accepts_separator(&input.text[end..span.start]) {
+                let accepted = implementation.accepts_separator(&input.text[end..span.start]);
+                implementation.check_available()?;
+                if !accepted {
                     return Err(TokenizationError::UnaccountedInput);
                 }
                 end = span.end;
             }
-            if !implementation.accepts_separator(&input.text[end..]) {
+            let accepted = implementation.accepts_separator(&input.text[end..]);
+            implementation.check_available()?;
+            if !accepted {
                 return Err(TokenizationError::UnaccountedInput);
             }
             control

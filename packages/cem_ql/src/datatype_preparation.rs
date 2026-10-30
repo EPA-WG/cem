@@ -368,6 +368,7 @@ fn prepare(
                 }
                 Err(e) => {
                     return Err(match e {
+                        TokenizationError::Unavailable => PreparationStop::Unavailable,
                         TokenizationError::Control(e) => PreparationStop::Control(e),
                         TokenizationError::Limit => PreparationStop::Limit("tokenization"),
                         TokenizationError::IncompatibleReplacement => {

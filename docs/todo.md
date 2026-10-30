@@ -1685,9 +1685,60 @@ inventory, not the minimum set loaded by every app.
                 remains 11,471,605 bytes. Entered credentials still block recovery;
                 the 4 MiB checkpoint budget and five-second deadlines remain.
                 Native builds finished before Studio acceptance.
-              - [ ] Link exact reviewed native validator/tokenizer/preparation/
-                conversion/equality/serializer registrations on fresh hosts;
+              - [x] Link exact reviewed native validator/tokenizer registrations
+                on fresh hosts through native-only requirement capsules;
                 preserve unavailable and checked-replacement states.
+                - [x] Add exact native validator/tokenizer requirement and
+                  source roundtrip fixtures, including ABI/module/export/
+                  signature mismatch, missing/duplicate implementations and
+                  source-owner refusal without deserializing callbacks.
+                - [x] Exercise real fresh-host epochs, retirement/replacement,
+                  cancellation and callback release; check unavailable verdicts
+                  and preserve the shared validator result adapter.
+                - [x] Integrate guarded tokenizer selections with the existing
+                  datatype compiler; prove inherited admission, original decoded
+                  token spans, checked replacement, limits and stale handles.
+                - [x] Prove explicit source-owner sharing uses the complete
+                  verified source snapshot and identity, allowing related native
+                  requirements to feed one compiler without pointer/name guessing.
+                - [x] Keep preparation/conversion/equality/serializer adapters
+                  explicitly pending and rerun browser/WASM and Login privacy
+                  acceptance before publishing this native-only increment.
+
+                Native `CEMNR1` now pins the original typed source and declaration
+                occurrences, exact implementation ID/kind ABI/module hash/export
+                and passive signature. The embedding explicitly supplies actual
+                implementations; this association is trusted embedding metadata,
+                not code attestation or linked-symbol omission proof. Source
+                verification is inert and bounded; callbacks and live contexts
+                remain in-process. Weak proxy ownership prevents retained
+                selections from keeping retired callbacks alive. Successful
+                registration/removal advances the context; duplicates and failed
+                staged replacements preserve live bindings. The shared compiler
+                retains inherited tokenization, original decoded spans, checked
+                replacement and limits. Availability changes during separator
+                checks remain unavailable, including through the host proxy.
+                Canonical accepted-record validator results are supported;
+                diagnostics-only legacy result policies are not transported yet.
+                Verification: nine new native registration cases and 451 existing
+                native cases pass (460 total), including source/program/receiver,
+                datatype, structural and component-profile regressions. The
+                component-runtime WASM target compiles; both current WASM drivers,
+                18 component browser cases, ten factory/audit cases and both
+                worker/fallback Studio Login recovery/privacy cases pass.
+                Proxy availability loss during separator checking was observed
+                failing before repair. Formatting, documentation links and audit
+                freshness pass. Native builds finished before Studio acceptance.
+                No production JavaScript, application envelope, WASM ABI/export,
+                source fallback, cached verdict or checkpoint grant was added.
+                Current optimized component WASM remains 11,471,605 bytes; it was
+                exercised, not rebuilt for these native-only adapters. Entered
+                credentials still block recovery; automatic whole-Studio recovery
+                stays disabled, with the 4 MiB budget and five-second deadlines.
+              - [ ] Link the remaining exact native preparation/conversion/
+                equality/serializer registrations on fresh hosts; preserve their
+                typed admission, source ownership, unavailable states and
+                checked replacement contracts without serializing callbacks.
               - [ ] Carry node contract requirements into a new application
                 envelope and reduced WASM/worker receiver transport with fresh
                 generation ownership, recapture and privacy acceptance.

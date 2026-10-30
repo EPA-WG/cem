@@ -19,14 +19,16 @@ use cem_ml::{
     value::reference_resolution::*,
 };
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
 };
 const INVALID: &str = "fresh structural host refused";
+mod native;
 mod query;
+pub use native::FreshNativeTokenizer;
 pub use query::{FreshQueryBinding, FreshQueryInvocation};
 /// Never cloned/serialized. Contexts belong to this actual host allocation.
 pub struct FreshStructuralHost {
@@ -36,6 +38,7 @@ pub struct FreshStructuralHost {
     control: OperationControl,
     grants: BTreeSet<(DeclarationScope, DeclarationScope)>,
     closed: AtomicBool,
+    native_implementations: BTreeMap<String, Arc<native::Entry>>,
 }
 impl FreshStructuralHost {
     pub fn new(registry_hash: &str, control: OperationControl) -> Result<Self, String> {
@@ -61,6 +64,7 @@ impl FreshStructuralHost {
             control,
             grants: BTreeSet::new(),
             closed: AtomicBool::new(false),
+            native_implementations: BTreeMap::new(),
         })
     }
     pub fn register_scope(

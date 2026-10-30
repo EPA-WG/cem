@@ -13,6 +13,10 @@ use crate::parser::CemAstNode;
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum ScalarRepresentation {
     String,
     Boolean,
@@ -22,22 +26,38 @@ pub enum ScalarRepresentation {
     AnyUri,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum ValueRepresentation {
     Scalar(ScalarRepresentation),
     List(ScalarRepresentation),
     Nodes,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum CandidateRequirement {
     Optional,
     Required,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum ResultRepresentation {
     Accepted(ContractName),
     Diagnostics(ContractName),
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct ValidationSignature {
     pub kind: DatatypeKind,
     pub value: ValueRepresentation,

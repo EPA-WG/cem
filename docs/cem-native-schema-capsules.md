@@ -6,9 +6,10 @@ model and bind its use to a concrete native host and invocation. A native-only
 `CEMQV1` capsule also verifies a closed subset of compiled validator queries and
 registers them against separately supplied checked original declarations.
 Native `CEMQD1` now carries those declarations and binds query use to a concrete
-host scope, context epoch and invocation. Exact native implementation linking,
-WASM transport/generation enrollment and compiled-component receiver admission
-remain **unimplemented**.
+host scope, context epoch and invocation. Native `CEMNR1` requirements now link
+exact registered validators and tokenizers to those host lifetimes. Native
+preparation/conversion/equality/serializer adapters, WASM transport/generation
+enrollment and compiled-component receiver admission remain **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
 existing wire version must not acquire executable semantics implicitly.
 
@@ -381,6 +382,85 @@ receipt. Physical endpoint/inventory enrollment, fresh-heap transport and
 credential/privacy acceptance for a new transport remain deployment gates.
 Existing Login recovery still refuses entered passwords/OTP and keeps the
 4 MiB checkpoint budget and five-second handoff deadlines.
+
+## Exact native validator and tokenizer requirements
+
+[`cem_ql::native_registrations`](../packages/cem_ql/src/native_registrations.rs)
+exports and verifies native-only `CEMNR1` requirements. Each record carries an
+implementation ID, kind-specific ABI, module BLAKE3 hash, export name, passive
+signature, original declaration occurrences and a native source snapshot. The
+whole binary, source identity and registry hash must match independently supplied
+trusted pins. Verification uses canonical bounded MessagePack and reconstructs
+the original native source/namespace capture; it does not deserialize a callback,
+parse a query, evaluate an expression, fetch a resource or infer a tokenizer.
+Only passive signature types gain serialization; executable contracts and live
+context/preparation receipts remain in-process.
+
+The requirement is limited to 64 KiB, 16,384 MessagePack/source placements and
+64 levels. Shared source restoration also enforces its 1 MiB original source
+extent limit. One 100,000-check operation budget covers preflight, source restoration
+and declaration checking. Cancellation refuses verification. Unsupported dynamic
+source forms, foreign declaration members, incompatible versions, ABI/signature
+changes and noncanonical/trailing bytes refuse even when a caller repins the
+outer bytes. Behavior QName aliases come from their original attribute lexical
+scopes; conflicting aliases cannot be flattened into a guessed binding.
+
+The embedding explicitly calls `FreshStructuralHost::register_native_validator`
+or `register_native_tokenizer` with both the exact descriptor and the actual
+implementation. Matching all descriptor fields is required when linking; an ID
+alone grants nothing. The descriptor-to-code association is the trusted native
+embedding's assertion, not binary attestation or proof of Rust symbol omission.
+Missing implementations return `NativeLinkError::Unavailable`; incompatible
+metadata, foreign source owners, expired hosts and duplicates have distinct
+errors. Register/remove operations advance the context epoch on success.
+A refused duplicate leaves existing bindings usable. Prepare registrations,
+source scopes, contexts and grants before creating invocation receipts.
+
+`link_native_validator` checks the exact registered source tree/scope and original
+datatype declaration. It uses the ordinary native validation registry, result
+adapter and `FreshQueryBinding`/invocation guards. The initial subset requires
+the canonical accepted/diagnostics record result; legacy diagnostics-only result
+policies remain unsupported here. `replace_native_validator` stages the new
+binding before atomically retiring the previous one, preserving a live previous
+binding when staging fails. Unavailable callback execution remains incomplete
+and never becomes an accepted or rejected validation verdict.
+
+`link_native_tokenizer` returns an opaque `FreshNativeTokenizer`. Keep it alive
+while using the compiled selection; dropping or retiring it expires that
+selection. `install` accepts only the exact original list declaration/scope and
+preserves the pinned `Ready` or `CheckedReplacement` policy. The existing datatype
+compiler still enforces inherited tokenizer admission, passes the original
+decoded input to each tokenizer, checks byte spans/separators and compares
+replacement spans. No whitespace/default tokenizer is inferred from a name.
+Availability checks surround calls and separator handling; loss of availability
+is `TokenizationError::Unavailable` and preparation/conversion unavailability,
+rather than a lexical rejection. Existing limits and operation control apply.
+Linking this selection is not complete datatype/preparation admission: ordinary
+compiler registrations and in-process prepared-token policies remain required.
+No compiled datatype or prepared proof is exported by this adapter.
+
+Actual implementations belong to the fresh host. Bound proxies hold weak
+implementation/context/active-binding references, so retaining a compiled type
+or retired binding cannot retain an old callback after host disposal. Context
+changes, new registrations, removal, explicit retirement, cancellation and
+host closure invalidate use. Checking before and after execution prevents a
+callback that loses availability from publishing a verdict.
+
+Related independently verified requirements initially have separate source
+allocations. `VerifiedNativeRequirement::share_source` explicitly maps one onto
+the other's source only when the complete verified source snapshot hash, source
+identity and registry pin match, then rechecks the selected original declaration.
+This allows a base and derived list requirement to feed the same ordinary
+compiler without equating owners by name or URI alone.
+
+The [native registration fixtures](../packages/cem_ql/tests/native_registrations.rs)
+cover exact/missing registrations, repinned incompatible records, owner
+mismatches, lifecycle and callback release, original UTF-8 spans, inherited
+checked replacement, limits and unavailable outcomes. This adds no production
+JavaScript, application envelope or WASM export. Actual worker/fallback generation
+transport and remaining preparation/conversion/equality/serializer adapters are
+separate gates. Entered credentials still block recovery; the 4 MiB checkpoint
+budget, five-second deadlines and disabled automatic whole-Studio recovery remain.
 
 ## Native fresh-host linking and node receivers
 
