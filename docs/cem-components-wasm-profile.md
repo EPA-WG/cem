@@ -295,9 +295,10 @@ bounded typed query subset and registers it against separately supplied checked
 original declarations without query recompilation. Native `CEMQD1` now restores
 the original source dependency and binds validation to actual native host scope,
 context and invocation lifetimes. Native `CEMNR1` now links exact host-registered
-validators and tokenizers, preserving shared result adaptation, checked
-replacement and unavailable states. Remaining native preparation/conversion/
-equality/serializer adapters, physical worker/fallback enrollment, WASM transport and
+validators/tokenizers, scalar lexical preparers, converters, scalar equality and
+list serializers through the existing compiler. Shared result adaptation,
+checked replacement and unavailable states are preserved. Remaining native
+capability closures, physical worker/fallback enrollment, WASM transport and
 compiled-component receiver admission remain separate gates;
 the deployed WASM ABI is unchanged by this native-only adapter.
 

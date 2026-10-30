@@ -18,7 +18,11 @@ use cem_ml::{
 use std::{fmt::Debug, ops::Range, sync::Arc};
 mod replacement;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct PreparationSignature {
     pub kind: DatatypeKind,
     pub output: ValueRepresentation,

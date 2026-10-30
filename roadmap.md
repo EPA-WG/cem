@@ -789,8 +789,11 @@ source dependencies and guards actual host scope/context/invocation lifetimes,
 retirement and staged replacement without replaying source queries. Native
 `CEMNR1` now pins exact validator/tokenizer requirements and links explicit actual
 native registrations with weak host ownership, source checks, shared results and
-checked tokenizer replacement. Preparation/conversion/equality/serializer
-adapters, physical worker/fallback generation enrollment and component/WASM
+checked tokenizer replacement. Direct typed scalar preparation, conversion,
+equality and list-serializer requirements now install through the ordinary
+compiler, preserving checked preparation replacement, original owners, budgets,
+completion states and weak callback lifetimes. Remaining capability closures,
+physical worker/fallback generation enrollment and component/WASM
 receiver admission remain implementation gates; see the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 

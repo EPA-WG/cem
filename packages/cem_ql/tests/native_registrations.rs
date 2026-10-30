@@ -971,3 +971,6 @@ fn compiler_preserves_checked_tokenizer_replacement_admission_and_spans() {
         assert_eq!(expired.accepted, None);
     }
 }
+
+#[path = "native_registrations/operations.rs"]
+mod operations;

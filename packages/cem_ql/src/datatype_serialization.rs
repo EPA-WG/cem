@@ -18,6 +18,10 @@ use cem_ml::{
 use std::{fmt::Debug, sync::Arc};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct ListSerializationSignature {
     pub item: ScalarRepresentation,
     pub candidate: CandidateRequirement,

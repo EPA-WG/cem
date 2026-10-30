@@ -7,9 +7,10 @@ model and bind its use to a concrete native host and invocation. A native-only
 registers them against separately supplied checked original declarations.
 Native `CEMQD1` now carries those declarations and binds query use to a concrete
 host scope, context epoch and invocation. Native `CEMNR1` requirements now link
-exact registered validators and tokenizers to those host lifetimes. Native
-preparation/conversion/equality/serializer adapters, WASM transport/generation
-enrollment and compiled-component receiver admission remain **unimplemented**.
+exact registered validators, tokenizers, scalar lexical preparers, converters,
+scalar equality and list serializers to those host lifetimes. Additional native
+capability closures, WASM transport/generation enrollment and compiled-component
+receiver admission remain **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
 existing wire version must not acquire executable semantics implicitly.
 
@@ -400,8 +401,8 @@ The requirement is limited to 64 KiB, 16,384 MessagePack/source placements and
 64 levels. Shared source restoration also enforces its 1 MiB original source
 extent limit. One 100,000-check operation budget covers preflight, source restoration
 and declaration checking. Cancellation refuses verification. Unsupported dynamic
-source forms, foreign declaration members, incompatible versions, ABI/signature
-changes and noncanonical/trailing bytes refuse even when a caller repins the
+source forms, foreign declaration members, incompatible versions, invalid
+ABI/signature combinations and noncanonical/trailing bytes refuse even when a caller repins the
 outer bytes. Behavior QName aliases come from their original attribute lexical
 scopes; conflicting aliases cannot be flattened into a guessed binding.
 
@@ -458,9 +459,69 @@ cover exact/missing registrations, repinned incompatible records, owner
 mismatches, lifecycle and callback release, original UTF-8 spans, inherited
 checked replacement, limits and unavailable outcomes. This adds no production
 JavaScript, application envelope or WASM export. Actual worker/fallback generation
-transport and remaining preparation/conversion/equality/serializer adapters are
-separate gates. Entered credentials still block recovery; the 4 MiB checkpoint
+transport and complete compiled-component datatype admission remain separate
+gates. Entered credentials still block recovery; the 4 MiB checkpoint
 budget, five-second deadlines and disabled automatic whole-Studio recovery remain.
+
+## Native preparation, conversion, equality and list export
+
+`native_registrations::export_operation` extends `CEMNR1` with an exact original
+datatype occurrence, an `OperationMode` and a kind-specific passive signature.
+It uses the same bounded source snapshot, canonical encoding, independently
+pinned metadata and inert verifier described above. Older readers refuse the
+new variants; existing validator/tokenizer encodings retain their semantics.
+
+| Requirement | Explicit fresh-host registration | Shared compiler selection |
+| --- | --- | --- |
+| Scalar lexical preparation | `register_native_preparer` with `NativeLexicalPreparer` | `PreparationBinding::Ready` or `CheckedReplacement` |
+| Conversion | `register_native_converter` with `NativeDatatypeConverter` | `ConverterBinding::Ready` |
+| Scalar equality | `register_native_equality` with `NativeScalarEquality` | `EqualityBinding::Ready` |
+| Typed-list lexical export | `register_native_list_serializer` with `NativeListSerializer` | `ListSerializerBinding::Ready` |
+
+`link_native_operation` checks the exact implementation descriptor and registered
+source allocation, then returns an opaque `FreshNativeOperation`. Keep the owner
+alive while using its installed selections. `install` requires the exact original
+datatype/scope and feeds ordinary `DatatypeImplementations` methods; refused
+foreign sources and duplicate selections leave the registry unchanged. It does
+not publish or replace a complete compiled datatype. The descriptor-to-code
+association remains an explicit trusted embedding assertion.
+
+Preparation pins `Ready` or `CheckedReplacement`. A known unsupported `Ready`
+selection on a derived type, a checked selection without a base, or a scalar
+preparer on a whole-list base refuses during verification. The shared compiler
+still resolves inherited types, checks actual representation compatibility and
+preserves the original preparation chain. Every checked step receives the same
+original lexical input/candidate and must produce compatible typed output;
+inherited rejection and the cumulative preparation budget remain effective.
+Signatures and a verified source plan are not a complete compiled-type proof.
+
+Callbacks receive the ordinary native operation call and caller-supplied runtime;
+capsules do not restore an ambient runtime, grants or context. Shared ingress
+checks required candidates before callbacks run. Preparation and conversion
+validate typed output and retain their separate rejected, pending, unavailable
+and failed states. Validation never invokes conversion or lexical export
+implicitly. Equality runs through the existing enumeration/constant machinery,
+preserving original constant owners. List serialization validates effective
+typed restrictions first, retains order/duplicates and applies existing output
+and diagnostic budgets. It does not export an AST or invent lexical input.
+
+All four proxy kinds use weak implementation/context/active-binding references
+and check liveness before and after a call. Registration/removal epochs,
+retirement, owner disposal, context changes and cancellation expire use. A
+callback that cancels its native host while returning success yields unavailable,
+without publishing a prepared value, converted value, equality verdict or text.
+Keeping a compiled descriptor cannot retain native code after its host is dropped.
+
+The [operation fixtures](../packages/cem_ql/tests/native_registrations/operations.rs)
+exercise these boundaries through real compiled descriptors, plus repinned
+incompatible records, metadata/owner mismatch, invalid output shapes, candidate
+requirements, checked replacement and weak ownership. This is the direct typed
+native-trait subset. Portable constant-interpreter/facet contracts, explicit
+shared list-item orchestration and source-backed operation result profiles still
+need reviewed closures before complete application admission. Existing full
+compiler APIs continue supplying them explicitly. No prepared/admission token,
+callback, worker owner or permission is serialized. WASM/envelope transport and
+atomic whole-generation publication remain separate implementation gates.
 
 ## Native fresh-host linking and node receivers
 

@@ -19,6 +19,8 @@ use cem_ml::schema::{
     datatype_registry::DatatypeKind,
 };
 use std::{ops::Range, sync::Weak};
+mod operations;
+pub use operations::FreshNativeOperation;
 
 pub(super) struct Entry {
     identity: ImplementationIdentity,
@@ -27,6 +29,10 @@ pub(super) struct Entry {
 enum Actual {
     Validator(Arc<dyn NativeDatatypeValidator>),
     Tokenizer(Arc<dyn Tokenizer>),
+    Preparation(Arc<dyn crate::datatype_preparation::NativeLexicalPreparer>),
+    Conversion(Arc<dyn crate::datatype_conversion::NativeDatatypeConverter>),
+    Equality(Arc<dyn crate::datatype_enumeration::NativeScalarEquality>),
+    ListSerializer(Arc<dyn crate::datatype_serialization::NativeListSerializer>),
 }
 #[derive(Clone)]
 struct Guard {

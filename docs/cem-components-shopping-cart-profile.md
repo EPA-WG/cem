@@ -729,9 +729,10 @@ fresh native host scope. Native `CEMNR1` now carries exact validator/tokenizer
 requirements and binds actual explicitly registered implementations to the same
 fresh host. It preserves the shared compiler's checked tokenizer replacement
 and unavailable outcomes; callbacks, preparation tokens and grants stay local.
-Other preparation/conversion/equality/serializer adapters and physical
-worker/fallback transport and ownership remain pending; no application envelope
-or runtime ABI is changed by this native step.
+Direct typed preparation/conversion/equality/list-serializer adapters now feed
+the ordinary native compiler with weak fresh-host guards. Remaining capability
+closures and physical worker/fallback transport and ownership remain pending;
+no application envelope or runtime ABI is changed by this native step.
 The [native linking contract](cem-native-schema-capsules.md#native-fresh-host-linking-and-node-receivers)
 defines its required source registration, explicit grants, bounds and lifetime.
 The [native schema/type fixture](../packages/cem_ql/fixtures/component-application/named_receiver_types.rs)

@@ -10,11 +10,19 @@ use super::{
     value_contracts::{ContractName, ValueContractError, ValueContractSource},
 };
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum ConversionRepresentation {
     Lexical,
     Values(ValueRepresentation),
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct ConversionSignature {
     pub kind: DatatypeKind,
     pub input: ConversionRepresentation,

@@ -1735,10 +1735,72 @@ inventory, not the minimum set loaded by every app.
                 exercised, not rebuilt for these native-only adapters. Entered
                 credentials still block recovery; automatic whole-Studio recovery
                 stays disabled, with the 4 MiB budget and five-second deadlines.
-              - [ ] Link the remaining exact native preparation/conversion/
-                equality/serializer registrations on fresh hosts; preserve their
+              - [x] Link exact direct native preparation/conversion/equality/
+                list-serializer registrations on fresh hosts; preserve their
                 typed admission, source ownership, unavailable states and
                 checked replacement contracts without serializing callbacks.
+                - [x] Add native operation requirement roundtrip/refusal fixtures
+                  for exact ABI/module/export/signatures, operation modes and
+                  original datatype ownership, including incompatible repinned bytes.
+                - [x] Exercise fresh-host native preparation, conversion, equality
+                  and list serialization through the ordinary datatype compiler;
+                  preserve candidates, source attribution, order and explicit
+                  boundaries, with no implicit conversion or inferred capability.
+                - [x] Prove checked preparation replacement retains inherited
+                  admission and output compatibility; test budgets and unavailable
+                  outcomes through real compiled descriptors.
+                - [x] Check required native candidates, invalid output shapes,
+                  original constant owners and compiler representation mismatch;
+                  refuse invalid input before invoking the registered callbacks.
+                - [x] Exercise operation retirement, registration/removal epochs,
+                  cancellation and weak callback release; refuse stale publication
+                  while keeping duplicate selections and failed installs atomic.
+                - [x] Rerun native/component/WASM and Studio Login recovery/privacy
+                  acceptance, document remaining admission/transport gates and
+                  preserve the 4 MiB budget and existing credential refusal.
+
+                `CEMNR1` now carries direct typed native operation signatures,
+                exact original datatype occurrences and preparation mode. A fresh
+                native host explicitly registers actual implementations and links
+                an opaque operation owner. Its installed selections use the
+                existing datatype compiler, candidate checks, output validation,
+                budgets and enumeration/list export machinery. Checked preparation
+                preserves inherited admission and compatible output. Known invalid
+                Ready/derived, checked/root and scalar/whole-list combinations
+                refuse before compilation; the ordinary compiler remains the
+                authority over resolved representation compatibility. Proxies
+                share weak host/context/active-binding ownership and check before
+                and after calls. Stale or cancelled implementations publish no
+                value/verdict/text, even when a callback returned success. Keeping
+                compiled descriptors does not retain disposed native callbacks.
+                Duplicate/foreign selections leave existing registry entries
+                unchanged. Inert metadata does not attest code or constitute
+                complete datatype/prepared-token/component admission. Constant,
+                facet, list-item orchestration and source-backed result-profile
+                closures remain explicit follow-up work below.
+                Verification: ten new operation cases and 460 existing native
+                cases pass (470 distinct); the final registration suite has 19
+                cases, including 28 lifecycle/callback-publication scenarios and
+                32 repinned operation-record refusals. Unsupported Ready/derived
+                preparation was observed failing the early-refusal fixture before
+                repair. Both current WASM drivers, the component-runtime WASM
+                compile check, 18 component browser cases, ten factory/audit cases
+                and both worker/fallback Studio Login recovery/privacy cases pass.
+                Formatting, documentation links and audit freshness pass. Native
+                builds finished before Studio acceptance. No production JavaScript,
+                application envelope, WASM ABI/export, cached verdict or checkpoint
+                grant was added. Current optimized component WASM remains
+                11,471,605 bytes and was exercised, not rebuilt for the native-only
+                adapters. Entered credentials still block recovery; automatic
+                whole-Studio recovery stays disabled, with the 4 MiB checkpoint
+                budget and five-second deadlines unchanged. Generated screenshots
+                and Vitest attachments remain excluded from the commit.
+              - [ ] Complete portable native capability closures for constant
+                interpretation, facet profiles, explicit shared list-item lexical
+                orchestration and source-backed operation result profiles before
+                complete compiled-datatype/component admission. Pin exact
+                implementations and original sources; never infer registrations,
+                serialize prepared tokens or replay source queries as a fallback.
               - [ ] Carry node contract requirements into a new application
                 envelope and reduced WASM/worker receiver transport with fresh
                 generation ownership, recapture and privacy acceptance.

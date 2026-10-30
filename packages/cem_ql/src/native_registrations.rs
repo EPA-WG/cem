@@ -1,5 +1,9 @@
 //! Exact native implementation requirements. Wire records carry inert source and
 //! compatibility metadata; only an explicit fresh host supplies implementations.
+use crate::{
+    datatype_conversion::ConversionSignature, datatype_preparation::PreparationSignature,
+    datatype_serialization::ListSerializationSignature,
+};
 use cem_ml::{
     content_cache::ContentHash,
     operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID},
@@ -7,8 +11,8 @@ use cem_ml::{
     schema::{
         datatype_registry::{DatatypeKind, DatatypeKindSource, DatatypeRegistry, DatatypeSource},
         datatype_validation::{
-            DatatypeBehaviorContract, ResultRepresentation, ValidationImplementation,
-            ValidationSignature,
+            DatatypeBehaviorContract, ResultRepresentation, ScalarRepresentation,
+            ValidationImplementation, ValidationSignature, ValueRepresentation,
         },
         declaration_references::SchemaDeclarationNode,
         machine::LexicallyScopedDocument,
@@ -28,6 +32,10 @@ const MAX_BYTES: usize = 64 * 1024;
 pub enum NativeSignature {
     Validator(ValidationSignature),
     TokenizerSpans,
+    Preparation(PreparationSignature),
+    Conversion(ConversionSignature),
+    Equality(ScalarRepresentation),
+    ListSerializer(ListSerializationSignature),
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -39,6 +47,77 @@ pub struct ImplementationIdentity {
     pub signature: NativeSignature,
 }
 impl ImplementationIdentity {
+    fn operation(
+        id: impl Into<String>,
+        module_hash: impl Into<String>,
+        export: impl Into<String>,
+        abi: &str,
+        signature: NativeSignature,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            abi: abi.into(),
+            module_hash: module_hash.into(),
+            export: export.into(),
+            signature,
+        }
+    }
+    pub fn preparation(
+        id: impl Into<String>,
+        module_hash: impl Into<String>,
+        export: impl Into<String>,
+        signature: PreparationSignature,
+    ) -> Self {
+        Self::operation(
+            id,
+            module_hash,
+            export,
+            "cem.native-lexical-preparer/1",
+            NativeSignature::Preparation(signature),
+        )
+    }
+    pub fn conversion(
+        id: impl Into<String>,
+        module_hash: impl Into<String>,
+        export: impl Into<String>,
+        signature: ConversionSignature,
+    ) -> Self {
+        Self::operation(
+            id,
+            module_hash,
+            export,
+            "cem.native-datatype-converter/1",
+            NativeSignature::Conversion(signature),
+        )
+    }
+    pub fn equality(
+        id: impl Into<String>,
+        module_hash: impl Into<String>,
+        export: impl Into<String>,
+        representation: ScalarRepresentation,
+    ) -> Self {
+        Self::operation(
+            id,
+            module_hash,
+            export,
+            "cem.native-scalar-equality/1",
+            NativeSignature::Equality(representation),
+        )
+    }
+    pub fn list_serializer(
+        id: impl Into<String>,
+        module_hash: impl Into<String>,
+        export: impl Into<String>,
+        signature: ListSerializationSignature,
+    ) -> Self {
+        Self::operation(
+            id,
+            module_hash,
+            export,
+            "cem.native-list-serializer/1",
+            NativeSignature::ListSerializer(signature),
+        )
+    }
     pub fn validator(
         id: impl Into<String>,
         module_hash: impl Into<String>,
@@ -67,7 +146,7 @@ impl ImplementationIdentity {
         }
     }
     pub(crate) fn check(&self) -> Result<(), String> {
-        if self.id.is_empty()
+        if self.id.trim().is_empty()
             || self.id.len() > 4096
             || self.id.chars().any(char::is_control)
             || !valid_hash(&self.module_hash)
@@ -88,6 +167,20 @@ impl ImplementationIdentity {
                 ()
             }
             NativeSignature::TokenizerSpans if self.abi == "cem.native-tokenizer-spans/1" => (),
+            NativeSignature::Preparation(sig)
+                if self.abi == "cem.native-lexical-preparer/1"
+                    && !matches!(sig.kind, DatatypeKind::Node | DatatypeKind::List)
+                    && matches!(sig.output, ValueRepresentation::Scalar(_)) =>
+            {
+                ()
+            }
+            NativeSignature::Conversion(sig)
+                if self.abi == "cem.native-datatype-converter/1" && sig.check().is_ok() =>
+            {
+                ()
+            }
+            NativeSignature::Equality(_) if self.abi == "cem.native-scalar-equality/1" => (),
+            NativeSignature::ListSerializer(_) if self.abi == "cem.native-list-serializer/1" => (),
             _ => return Err(INVALID.into()),
         }
         Ok(())
@@ -97,6 +190,18 @@ impl ImplementationIdentity {
 pub enum TokenizerMode {
     Ready,
     CheckedReplacement,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PreparationMode {
+    Ready,
+    CheckedReplacement,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OperationMode {
+    Preparation(PreparationMode),
+    Conversion,
+    Equality,
+    ListSerializer,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeLinkError {
@@ -119,6 +224,7 @@ pub struct BuiltNativeRequirement {
 pub(crate) enum Requirement {
     Validator(DatatypeBehaviorContract),
     Tokenizer(DatatypeSource, TokenizerMode),
+    Operation(DatatypeSource, OperationMode),
 }
 pub struct VerifiedNativeRequirement {
     pin: NativeRequirementPin,
@@ -182,6 +288,11 @@ enum Selection {
         scope: u32,
         declaration: u32,
         mode: TokenizerMode,
+    },
+    Operation {
+        scope: u32,
+        declaration: u32,
+        mode: OperationMode,
     },
 }
 #[derive(Serialize, Deserialize)]
@@ -358,6 +469,48 @@ fn check_tokenizer(source: &DatatypeSource, mode: TokenizerMode) -> Result<(), S
     }
     Ok(())
 }
+fn check_operation(
+    source: &DatatypeSource,
+    implementation: &ImplementationIdentity,
+    mode: OperationMode,
+) -> Result<(), String> {
+    let plan = source.plan();
+    let kind = match (&implementation.signature, mode) {
+        (NativeSignature::Preparation(sig), OperationMode::Preparation(mode)) => {
+            let inherited = source.attribute("base").is_some();
+            let requires_base = mode == PreparationMode::CheckedReplacement;
+            if inherited != requires_base {
+                return Err(INVALID.into());
+            }
+            Some(sig.kind)
+        }
+        (NativeSignature::Conversion(sig), OperationMode::Conversion) => Some(sig.kind),
+        (NativeSignature::Equality(_), OperationMode::Equality) => {
+            if matches!(
+                plan.kind,
+                DatatypeKindSource::Explicit(DatatypeKind::List | DatatypeKind::Node)
+            ) {
+                return Err(INVALID.into());
+            }
+            None
+        }
+        (NativeSignature::ListSerializer(_), OperationMode::ListSerializer) => {
+            Some(DatatypeKind::List)
+        }
+        _ => return Err(INVALID.into()),
+    };
+    if !plan.issues.is_empty()
+        || (source.attribute("list-base").is_some() && kind != Some(DatatypeKind::List))
+        || match plan.kind {
+            DatatypeKindSource::Inherited => false,
+            DatatypeKindSource::Explicit(actual) => kind.is_some_and(|expected| actual != expected),
+            _ => true,
+        }
+    {
+        return Err(INVALID.into());
+    }
+    Ok(())
+}
 fn build(
     capture: &LexicallyScopedDocument,
     identity: SourceIdentity,
@@ -446,6 +599,32 @@ pub fn export_tokenizer(
         control,
     )
 }
+pub fn export_operation(
+    capture: &LexicallyScopedDocument,
+    source: &DatatypeSource,
+    mode: OperationMode,
+    identity: SourceIdentity,
+    implementation: ImplementationIdentity,
+    registry_hash: &str,
+    control: &OperationControl,
+) -> Result<BuiltNativeRequirement, String> {
+    if !Arc::ptr_eq(capture.document(), source.declaration().document()) {
+        return Err(INVALID.into());
+    }
+    check_operation(source, &implementation, mode)?;
+    build(
+        capture,
+        identity,
+        implementation,
+        Selection::Operation {
+            scope: source.scope().node_id(),
+            declaration: source.declaration().node_id(),
+            mode,
+        },
+        registry_hash,
+        control,
+    )
+}
 fn restore_requirement(
     capture: &Arc<LexicallyScopedDocument>,
     implementation: &ImplementationIdentity,
@@ -484,6 +663,15 @@ fn restore_requirement(
             let source = datatype(capture, scope, declaration)?;
             check_tokenizer(&source, mode)?;
             Requirement::Tokenizer(source, mode)
+        }
+        Selection::Operation {
+            scope,
+            declaration,
+            mode,
+        } => {
+            let source = datatype(capture, scope, declaration)?;
+            check_operation(&source, implementation, mode)?;
+            Requirement::Operation(source, mode)
         }
     };
     Ok(requirement)
