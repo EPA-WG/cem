@@ -137,7 +137,7 @@ fn build_with_css(
     })
 }
 
-fn references(nodes: &[TemplateNode], tags: &mut BTreeSet<String>) -> Result<(), String> {
+pub(crate) fn references(nodes: &[TemplateNode], tags: &mut BTreeSet<String>) -> Result<(), String> {
     for node in nodes {
         match node {
             TemplateNode::Element { tag, children, .. } => {

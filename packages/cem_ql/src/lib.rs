@@ -27,6 +27,8 @@ pub mod declaration_artifact;
 pub mod declaration_closure;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod application_requirements;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod application_envelope;
 #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
 pub mod selected_registry;
 #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]

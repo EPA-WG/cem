@@ -299,10 +299,15 @@ validators/tokenizers, scalar lexical preparers, converters, scalar equality and
 list serializers through the existing compiler. Shared result adaptation,
 checked replacement and unavailable states are preserved. Explicit native
 constant/facet/list-item and canonical source-result contracts now preserve
-shared compiler semantics and retained-consumer availability. Complete bounded
-application dependency admission, physical worker/fallback enrollment, WASM transport and
-compiled-component receiver admission remain separate gates;
-the deployed WASM ABI is unchanged by this native-only adapter.
+shared compiler semantics and retained-consumer availability. The native-only
+[CEMAPPD2 dependency envelope](cem-native-schema-capsules.md#bounded-native-application-dependency-envelope)
+now packages compiled declarations and typed structural/query/native capsules,
+with trusted pins, exact declared graph closure, deterministic ordering and
+bounded inert verification. Explicit contract edges are build assertions;
+complete semantic/native code closure is not proven. Combined fresh-host
+receiver assembly, physical worker/fallback enrollment, WASM transport and
+compiled-component admission/publication remain separate gates. The deployed
+scalar CEMAPPD1 WASM ABI is unchanged and refuses the new envelope.
 
 Do not equate downloaded code with an active native generation. Register every
 physical endpoint and its resources with the shared ownership/recovery group.

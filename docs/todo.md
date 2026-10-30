@@ -1870,6 +1870,65 @@ inventory, not the minimum set loaded by every app.
               - [ ] Carry node contract requirements into a new application
                 envelope and reduced WASM/worker receiver transport with fresh
                 generation ownership, recapture and privacy acceptance.
+                - [x] Build and inertly verify a separate bounded native
+                  application dependency envelope with content-addressed blobs,
+                  independent manifest/build pins and typed existing capsules.
+                - [x] Add exact compiled declaration/component/receiver closure
+                  fixtures, including missing/orphan/duplicate/cyclic dependencies,
+                  dynamic unsupported forms and registry/ABI/source mismatches.
+                - [x] Exercise structural, portable query-source and native
+                  requirement dependencies, aggregate limits, cancellation,
+                  deterministic packing and complete-source owner sharing.
+                - [x] Preserve legacy scalar refusal and prior verified owners
+                  on verification failure; keep verification distinct from native
+                  linking, publication, code liveness and recovery permission.
+                - [x] Exercise the 1,024/1,025-edge graph boundary and reject
+                  alternate per-byte array encodings for native binary blobs.
+                - [x] Run native/WASM/component and both Studio Login privacy
+                  acceptance checks; document bounds, trusted assertions and the
+                  remaining reduced-runtime transport/ownership gates.
+
+                Native `application_envelope` now builds/verifies CEMAPPD2 /
+                cem-application-dependencies/2. It pins exact ML/QL/registry,
+                manifest, compiled IR requirements and registry recipe, and
+                deduplicates opaque native declaration/template/SC1/QD1/NR1
+                blobs. Static component references and exact structural receiver
+                names/schema URIs must match. Only records reachable from
+                component roots or explicit standalone contract roots are allowed;
+                missing, unused, cyclic or conflicting records refuse. Dependency
+                order is deterministic. Native sources share only after complete
+                snapshot agreement; conflicting same-ID implementations refuse.
+                Bounds: 4 MiB encoded package and unique blob bytes, 32 components,
+                64 contracts, 128 blobs, 1,024 edges and depth 32; per-template,
+                metadata, nested capsule and operation limits remain enforced.
+                The outer verifier has 100,000 checks; nested capsules retain
+                their own budgets with the same cancellation control. This is
+                neither a peak-heap measurement nor a higher checkpoint budget.
+                Declared contract edges are trusted build assertions; complete
+                semantic/native code closure is not proven. Verification remains
+                inert, and native_link_closure_verified() remains false. Scalar
+                CEMAPPD1 and current WASM admission remain unchanged.
+
+                Verification: 15 new envelope cases and 484 existing native cases
+                (499 total), the WASM compile check, both separate-heap WASM
+                drivers, 18 component browser cases, ten audit/factory cases and
+                both complete live Login worker/fallback privacy recovery checks
+                pass. Formatting, 228 local documentation links, audit freshness
+                and diff checks pass. Current optimized component WASM is
+                11,471,605 bytes; it was exercised, not rebuilt for this native-only
+                package adapter. No production JavaScript, WASM endpoint, callback
+                serialization or live permission receipt was added. Entered
+                credentials still block recovery; automatic whole-Studio recovery
+                remains disabled, with the 4 MiB checkpoint budget and five-second
+                deadlines unchanged. Generated screenshots and Vitest attachments
+                remain excluded from this commit.
+
+                - [ ] Assemble combined fresh-native-host receiver bindings from
+                  the verified envelope, including exact original declaration
+                  occurrences, scalar/executable named contract policies, explicit
+                  registrations and atomic all-or-nothing admission. Add missing
+                  implementation, stale context, partial failure and prior-owner
+                  preservation fixtures before component publication.
                 - [ ] Enroll portable query source/binding/invocation owners in
                   actual worker/owned-fallback generation and inventory groups;
                   add fresh-heap transport, shutdown/replacement, stale receipt,

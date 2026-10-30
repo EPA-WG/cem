@@ -64,7 +64,8 @@ impl SourceIdentity {
         }
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CapsulePin {
     pub hash: String,
     pub schema_uri: String,

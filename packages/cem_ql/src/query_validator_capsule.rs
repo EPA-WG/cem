@@ -35,7 +35,8 @@ const MAX_BYTES: usize = 64 * 1024;
 const MAX_RECORDS: usize = 4096;
 const MAX_WORK: usize = 100_000;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct QueryCapsulePin {
     pub hash: String,
     pub source: SourceIdentity,

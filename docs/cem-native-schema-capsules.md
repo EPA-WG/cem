@@ -10,8 +10,10 @@ host scope, context epoch and invocation. Native `CEMNR1` requirements now link
 exact registered validators, tokenizers, scalar lexical preparers, converters,
 scalar equality and list serializers to those host lifetimes. Native constant
 interpreters, facet families, shared list-item orchestration and canonical native
-source-result profiles now have explicit checked bindings too. WASM transport/
-generation enrollment and compiled-component receiver admission remain
+source-result profiles now have explicit checked bindings too. The native-only
+`CEMAPPD2` dependency envelope now packages and inertly verifies compiled
+declarations and typed capsules with a bounded declared dependency graph.
+WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
 existing wire version must not acquire executable semantics implicitly.
@@ -39,11 +41,12 @@ tokens and context leases must retain their in-process-only contracts.
 
 ## Proposed wire boundary
 
-The native structural capsule uses `CEMSC1`; embedding requires a future
-application declaration version, tentatively `CEMAPPD2`. The latter remains a
-design name, not an available component loader or package export. Existing
-component runtimes refuse both. Do not reinterpret a v1 scalar model, attach ignored executable
-fields to it, or silently route it to a general schema parser.
+The native structural capsule uses `CEMSC1`; the separate native dependency
+envelope now uses `CEMAPPD2` / `cem-application-dependencies/2`. It is an inert
+package verifier, not an available component loader or WASM package export.
+Existing component runtimes refuse it. Do not reinterpret a v1 scalar model,
+attach ignored executable fields to it, or silently route it to a general schema
+parser.
 
 The binary is a bounded, explicitly versioned native representation. JSON may
 carry a named control sidecar of hashes, identifiers and requirements; schema
@@ -593,11 +596,88 @@ verified snapshot identity. No limit is raised or original arena silently pruned
 This completes these native capability adapters, not whole application admission.
 Custom result QNames, cross-source/imported behavior closures and compiled-query
 operation profiles beyond the existing validator subset remain outside this
-source-result format. Full APIs retain those capabilities. The new application
-envelope must pin a complete bounded dependency closure and establish physical
-worker/fallback ownership before component use. Credential refusal, disabled
-automatic whole-Studio recovery, the 4 MiB checkpoint budget and five-second
+source-result format. Full APIs retain those capabilities. The native envelope
+below verifies the declared dependency graph; complete semantic/native code
+closure and physical worker/fallback ownership must still be established before
+component use. Credential refusal, disabled automatic whole-Studio recovery,
+the 4 MiB checkpoint budget and five-second
 deadlines remain unchanged. No production JavaScript or WASM endpoint is added.
+
+## Bounded native application dependency envelope
+
+[`cem_ql::application_envelope`](../packages/cem_ql/src/application_envelope.rs)
+implements native-only `CEMAPPD2`. `EnvelopeBuilder` accepts compiled declaration
+artifacts and `ContractArtifact::{structural,query,native}` inputs. These retain
+existing `CEMSC1`, original-source `CEMQD1` and `CEMNR1` bytes and typed pins;
+raw `CEMQV1` without its original declaration source is not a package input.
+`build` validates before returning bytes and an `ApplicationEnvelopePin`.
+`verify` produces an inert `VerifiedApplicationEnvelope` with typed capsule
+accessors, declaration metadata, compiled templates, the selected registry plan,
+receiver requirements and a deterministic dependency-first order.
+
+The independent trusted pin includes the whole package hash, manifest hash and
+selected registry hash. The manifest pins exact native ML/QL versions, compiled
+IR requirements and registry recipe, component roots, explicit standalone
+contract roots and every declared dependency. Opaque native blobs are stored
+once by content hash using MessagePack binary records. The existing declaration
+metadata JSON is an explicit control sidecar; source trees, queries, schema
+models and typed values never become JSON ASTs or JavaScript records.
+
+The verifier recomputes static component references and named receiver names
+from compiled templates through the shared declaration/IR inventory. It checks
+that every named receiver maps to a verified structural capsule with the exact
+schema URI. Static component references, receiver bindings and explicit contract
+dependencies must resolve completely from the selected roots. Missing records,
+unreachable components/contracts/blobs, conflicting identities, cycles and
+unsupported dynamic elements, resources, providers, payloads or behaviors
+refuse. This first package subset also refuses recursive component cycles.
+Standalone query/native/structural requirements must be explicit contract roots
+or reachable dependencies; adding unused assets is not allowed.
+
+Declared contract dependency edges are trusted build assertions, not an inferred
+proof of every executable or native implementation dependency. The IR registry
+recipe retains the shared inventory's limits too. Consequently
+`native_link_closure_verified()` always returns `false`. A matching registry hash
+is an integrity identity, not evidence that code is linked, a callback is
+registered, a scope is authorized or an optional module is active. Verification
+performs no fetch, source compilation, evaluation, callback registration or
+runtime publication. It creates fresh inert owners; it does not touch a live
+host or the last committed UI.
+
+Identical native requirement source identities share a reconstructed arena only
+after the existing verifier confirms the complete source snapshot matches.
+Conflicting snapshots with the same claimed identity refuse. Exact native
+implementation IDs must agree on the full implementation identity, including
+ABI, module hash, export and signature. Independent envelope verification builds
+fresh owners. Failed component insertion preserves builder staging, and failed
+verification cannot publish a partial registry or replace prior verified owners.
+
+| Bound | Native package limit |
+| --- | --- |
+| Encoded package and total unique blob bytes | Each at most 4 MiB, including package overhead for the encoded limit. This is independent of the unchanged recovery checkpoint budget. |
+| Components / contracts / unique blobs | 32 / 64 / 128. |
+| Individual template / declaration metadata | 1 MiB / 64 KiB. Inner capsule formats retain their existing smaller limits. |
+| Named receivers | At most 64 per component, with exact required-name agreement. This subset carries structural node requirements only. |
+| Declared graph | At most 1,024 distinct edges and dependency depth 32, with complete reachability and no cycles. |
+| Outer binary preflight | At most 32,768 MessagePack records and 64 nesting levels, canonical encoding, no unknown fields, trailing data or alternate blob encoding. |
+| Verification work | 100,000 outer checks with cancellation; each of the at most 64 nested capsules additionally retains its own existing verifier budget and the same operation control. This is not a single 100,000-check budget across all nested capsules. |
+
+These bounds limit accepted inputs; they do not establish a measured peak heap
+budget. Source arenas are never pruned to make a package fit. The
+[integration fixtures](../packages/cem_ql/tests/application_envelope.rs) and
+[wire fixtures](../packages/cem_ql/src/application_envelope/tests.rs) cover exact
+pins, all three capsule kinds, deterministic packing, source/implementation
+conflicts, cancellation, malformed and repinned records, closure failures,
+limits and unchanged legacy refusal.
+
+Remaining gates are combined fresh-host receiver assembly (including scalar and
+executable named contracts), exact original receiver occurrence binding, runtime
+admission/publication, and actual reduced WASM/worker/fallback transport with
+physical generation, inventory and checkpoint ownership. Current WASM loaders
+continue using scalar `CEMAPPD1` and refuse `CEMAPPD2`; no ABI or endpoint was
+added. Entered passwords/one-time codes still block recovery, automatic
+whole-Studio recovery remains disabled, and the 4 MiB checkpoint budget and
+five-second deadlines remain unchanged.
 
 ## Native fresh-host linking and node receivers
 

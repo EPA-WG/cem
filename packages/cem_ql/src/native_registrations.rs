@@ -323,7 +323,8 @@ pub enum NativeLinkError {
     Expired,
     Duplicate,
 }
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NativeRequirementPin {
     pub hash: String,
     pub source: SourceIdentity,

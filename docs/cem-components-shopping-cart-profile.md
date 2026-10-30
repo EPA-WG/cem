@@ -713,16 +713,17 @@ implemented; v1 refuses them even with internally consistent integrity pins.
 Native Rust now has a separate `CEMSC1` literal structural schema exporter and
 verifier. It preserves a source arena and passive namespaces, pins local
 attribute/child dependencies, and reloads inert shared validation models without
-source parsing. It is not in the WASM ABI or application envelope; fresh-host
-compiled-component receiver transport and runtime admission remain pending. The
+source parsing. The inert native dependency envelope described below can now
+carry this capsule. WASM transport and fresh-host compiled-component runtime
+admission remain pending. The
 [implemented subset and limits](cem-native-schema-capsules.md#implemented-native-structural-subset)
 describe its scalar fields, child-count rules, provenance and refusal policies.
 A native `FreshStructuralHost` can now link that verified structural model to an
 original literal schema node receiver and validate authorized targets through
 shared native rules. Live context/invocation receipts refuse stale hosts,
 relabelled captures, changed receiver metadata and retired contracts. This does
-not add template named-node bindings, an application envelope version or WASM
-admission. Native `CEMQV1` programs can now restore a bounded compiled query
+not admit template named-node bindings or alter the deployed WASM ABI.
+Native `CEMQV1` programs can now restore a bounded compiled query
 subset through the shared validation registry; original checked declarations
 can travel in a `CEMQD1` native source capsule and bind to an explicitly registered
 fresh native host scope. Native `CEMNR1` now carries exact validator/tokenizer
@@ -733,9 +734,17 @@ Direct typed preparation/conversion/equality/list-serializer adapters now feed
 the ordinary native compiler with weak fresh-host guards. Constant/facet/shared
 list-item and canonical native source-result bindings now retain those guards
 through preparation, result adaptation and retained attribute consumers.
-Complete application closure admission and physical worker/fallback transport
-and ownership remain pending;
-no application envelope or runtime ABI is changed by this native step.
+The separate native-only
+[CEMAPPD2 dependency envelope](cem-native-schema-capsules.md#bounded-native-application-dependency-envelope)
+now packages compiled declarations and structural/query/native requirements in
+content-addressed native blobs. Independently trusted pins, exact declared graph
+closure, recomputed IR requirements and registry recipe, bounded canonical
+verification and complete-source sharing are implemented. Structural receiver
+requirements are inert metadata, not live receiver bindings. Explicit contract
+edges do not prove complete semantic/native code dependencies; combined fresh
+receiver assembly, physical worker/fallback transport and admission/publication
+remain pending. Scalar CEMAPPD1 and the current WASM ABI remain unchanged and
+refuse this new native envelope.
 The [native linking contract](cem-native-schema-capsules.md#native-fresh-host-linking-and-node-receivers)
 defines its required source registration, explicit grants, bounds and lifetime.
 The [native schema/type fixture](../packages/cem_ql/fixtures/component-application/named_receiver_types.rs)

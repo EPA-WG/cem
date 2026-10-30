@@ -770,9 +770,9 @@ The native structural `CEMSC1` exporter/verifier now pins a literal schema's
 original source arena, passive namespace capture and exact local dependency
 closure. Reload uses shared structural models and validation semantics without
 source parsing or a JSON tree. Unsupported executable/imported policies and
-unbounded or inconsistent graphs refuse. Fresh-host receiver linking and WASM
-deployment admission remain pending; no runtime ownership or recovery grant is
-created by verifying a schema capsule.
+unbounded or inconsistent graphs refuse. No runtime ownership or recovery grant
+is created by verifying a schema capsule. The explicit native linker below now
+handles literal node receivers; WASM deployment admission remains pending.
 Native structural receivers now have an explicit fresh-host linker over the
 shared validator. Original receiver declarations and live context/invocation
 receipts prevent stale or foreign captures, changed local metadata and closed
@@ -795,9 +795,15 @@ compiler, preserving checked preparation replacement, original owners, budgets,
 completion states and weak callback lifetimes. Native constant/facet/list-item
 contracts and canonical native source-result profiles now preserve ordinary
 compiler/adaptation behavior, original owners and retained-consumer liveness.
-Complete bounded application closure admission,
-physical worker/fallback generation enrollment and component/WASM
-receiver admission remain implementation gates; see the
+A separate native-only
+[CEMAPPD2 dependency envelope](docs/cem-native-schema-capsules.md#bounded-native-application-dependency-envelope)
+now inertly verifies pinned compiled declarations and typed structural/query/native
+capsules, exact declared graph closure, source sharing and deterministic packing
+within fixed package/graph limits. Declared contract edges remain build assertions;
+complete semantic/native code closure is not proven. Combined fresh receiver
+assembly, physical worker/fallback generation enrollment and component/WASM
+admission/publication remain implementation gates; scalar CEMAPPD1 is unchanged.
+See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,

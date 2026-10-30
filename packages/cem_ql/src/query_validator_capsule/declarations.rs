@@ -13,7 +13,8 @@ use cem_ml::{
 pub const MAGIC: &[u8] = b"CEMQD1\n";
 const SOURCE_ABI: &str = "cem.native-query-declaration/1";
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct QueryDeclarationPin {
     pub hash: String,
     pub program: QueryCapsulePin,

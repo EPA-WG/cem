@@ -72,7 +72,7 @@ fn primitive(name: &str) -> bool {
         "string" | "integer" | "decimal" | "number" | "boolean"
     )
 }
-fn reserved(name: &str) -> bool {
+pub(crate) fn reserved(name: &str) -> bool {
     name.starts_with("schema:")
         || primitive(name)
         || cem_ml::schema::document_model::shipped_datatypes::ShippedDatatype::ALL
@@ -159,7 +159,7 @@ fn pins(types: &[NamedReceiverType]) -> Result<BTreeMap<String, TypePin>, String
     }
     Ok(result)
 }
-fn required(artifact: &TemplateArtifact) -> Result<std::collections::BTreeSet<String>, String> {
+pub(crate) fn required(artifact: &TemplateArtifact) -> Result<std::collections::BTreeSet<String>, String> {
     use crate::render::{TemplateAttributeValue, TemplateNode};
     let mut pending = artifact
         .nodes
@@ -214,7 +214,7 @@ fn required(artifact: &TemplateArtifact) -> Result<std::collections::BTreeSet<St
     }
     Ok(result)
 }
-fn load_template(
+pub(crate) fn load_template(
     bytes: &[u8],
     json: &str,
     pin: &str,
