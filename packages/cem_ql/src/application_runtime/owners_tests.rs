@@ -182,3 +182,55 @@ fn metadata_cannot_relabel_the_compiled_template_format() {
         "compiled declaration template format mismatch"
     );
 }
+
+#[test]
+fn native_inputs_bind_attributes_and_slices_without_json_or_stale_state() {
+    use crate::eval::{portable::encode_values, AtomValue, Item, ItemStream};
+    use cem_ml::value::artifact::CemValueArtifactLimits;
+    let built = fixture("{attribute @name=label}{p @title='{$label}' | {$datadom.attributes.label} / {$datadom.slices.amount}}");
+    let owner = CompiledDeclarationOwner::admit(
+        &built.template.bytes,
+        &built.metadata_json,
+        &built.metadata_hash,
+    )
+    .unwrap();
+    let values = |label: &str, amount: i64| {
+        let input = crate::render::RenderPlanAttribute {
+            name: "label".into(),
+            value: label.into(),
+            value_stream: ItemStream::once(Item::Atomic(AtomValue::String(label.into()))),
+            namespace: None,
+            qualified_name: None,
+            contract: None,
+            source_map: Default::default(),
+        };
+        encode_values(
+            &ItemStream::from_items(vec![
+                crate::eval::output::output_attribute(input),
+                Item::Atomic(AtomValue::Integer(amount)),
+            ]),
+            &CemValueArtifactLimits::default(),
+        )
+        .unwrap()
+    };
+    let bindings = r#"[{"name":"label","index":0,"target":"attribute"},{"name":"amount","index":1,"target":"slice"}]"#;
+    let first = owner
+        .render_inputs_native(&values("Tea <img>", 2), bindings)
+        .unwrap();
+    assert!(first.contains("title=\"Tea &lt;img&gt;\""), "{first}");
+    assert!(first.contains("Tea &lt;img&gt; / 2"), "{first}");
+    assert!(owner
+        .render_inputs_native(
+            &values("Later", 3),
+            r#"[{"name":"label","index":1,"target":"attribute"}]"#
+        )
+        .is_err());
+    let next = owner
+        .render_inputs_native(&values("Later", 3), bindings)
+        .unwrap();
+    assert!(next.contains("Later / 3"), "{next}");
+    assert!(!next.contains("Tea"));
+    let empty = encode_values(&ItemStream::empty(), &CemValueArtifactLimits::default()).unwrap();
+    let blank = owner.render_inputs_native(&empty, "[]").unwrap();
+    assert!(!blank.contains("Later"));
+}

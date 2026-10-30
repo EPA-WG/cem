@@ -121,6 +121,17 @@ impl CompiledDeclarationOwner {
         let _permit = admission(false, json.len())?;
         render_loaded(artifact, json, uri, binding)
     }
+    /// Binary native values plus routing metadata; no JSON AST/data envelope.
+    pub fn render_inputs_native(&self, bytes: &[u8], bindings: &str) -> Result<String, String> {
+        let artifact = self.active()?.artifact();
+        if bytes.len() > MAX_INPUT_BYTES || bindings.len() > super::inputs::MAX_BINDING_BYTES {
+            return Err("compiled declaration input limit exceeded".into());
+        }
+        let _permit = admission(false, bytes.len() + bindings.len())?;
+        let control = super::render_control()?;
+        let data = super::inputs::bind(bytes, bindings, &control)?;
+        super::render_data(artifact, data, &control)
+    }
     pub fn stylesheet_native(
         &mut self,
         consumer: &str,
@@ -291,6 +302,15 @@ impl CompiledDeclarationOwner {
         binding: &str,
     ) -> Result<String, wasm_bindgen::JsValue> {
         self.render_native(json, uri, binding)
+            .map_err(|e| wasm_bindgen::JsValue::from_str(&e))
+    }
+    #[wasm_bindgen(js_name = "renderInputs")]
+    pub fn render_inputs_wasm(
+        &self,
+        bytes: &[u8],
+        bindings: &str,
+    ) -> Result<String, wasm_bindgen::JsValue> {
+        self.render_inputs_native(bytes, bindings)
             .map_err(|e| wasm_bindgen::JsValue::from_str(&e))
     }
     #[wasm_bindgen(js_name = "stylesheet")]

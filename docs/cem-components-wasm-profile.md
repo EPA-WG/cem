@@ -1,8 +1,8 @@
 # Minimal component runtime WASM profile
 
 Status: separate compiled-template/JSON WASM prototype with passive declaration
-and retained-style ownership implemented; complete live
-component distribution and runtime switching remain in progress. Requested 2026-10-28. Product sequencing belongs to
+and retained-style ownership and bounded native attribute/slice inputs implemented;
+complete live component distribution and runtime switching remain in progress. Requested 2026-10-28. Product sequencing belongs to
 [roadmap phase 3.1.3](../roadmap.md#313-minimal-component-runtime-wasm-profile);
 implementation steps belong to the [execution checklist](todo.md#component-application-wasm-profile-separate-target).
 
@@ -61,7 +61,10 @@ The [retained declaration/style layer](cem-components-shopping-cart-profile.md#r
 now owns pinned passive declarations and native scoped v2/v3 style leases. The
 small shared `cem-elements/component-generation` adapter initializes asynchronously,
 uses existing DOM style ownership, isolates heaps and refuses foreign roots during
-manual cleanup. Widget/provider input and recovery-group contracts remain open;
+manual cleanup. Passive declarations also render shared CEMV attribute/slice
+inputs with typed/source/reference retention, fixed admission limits and reserved
+runtime-root refusal. Each render owns a temporary native input frame. Complete
+receiver schemas, widget/provider input and recovery-group contracts remain open;
 no default Studio backend or credential policy changes are implied.
 The browser's `retainCemMlTemplateArtifact` path still takes original
 template source for its optional source-cache behavior. A separate strict

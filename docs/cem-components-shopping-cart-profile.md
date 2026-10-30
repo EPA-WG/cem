@@ -575,20 +575,20 @@ the isolated build uses `--no-default-features --features component-runtime`.
 
 | WASM measure | Full bytes | Prototype bytes |
 | --- | ---: | ---: |
-| Raw | 24,206,012 | 10,826,438 |
-| Gzip level 9 | 7,377,289 | 3,053,960 |
-| Brotli quality 9 | 5,424,626 | 2,300,840 |
-| Code section payload | 21,447,089 | 8,540,365 |
-| Data section payload | 2,729,913 | 2,273,432 |
+| Raw | 24,206,012 | 11,153,481 |
+| Gzip level 9 | 7,377,289 | 3,142,830 |
+| Brotli quality 9 | 5,424,626 | 2,365,084 |
+| Code section payload | 21,447,089 | 8,862,296 |
+| Data section payload | 2,729,913 | 2,278,291 |
 
-The prototype is 10.32 MiB raw, a 55.3% whole-file reduction.
-It has 10 imports/17 exports, compared with 28/171 for the full runtime.
+The prototype is 10.64 MiB raw, a 53.9% whole-file reduction.
+It has 10 imports/18 exports, compared with 28/171 for the full runtime.
 The public surface is the one-shot renderer, passive declaration-owner methods
 and a counter-only inventory; remaining exports are wasm-bindgen support. This proves a smaller linked surface
 and reduced code/data sections, without attributing removed bytes to particular
 languages, schemas or functions. Complete application link closure remains false.
 
-Prototype SHA-256: `950642ea87fa1f63cc9106aebd333c51e80ee79ceb7bcd10f4a488ab8e16885d`.
+Prototype SHA-256: `e7ce616fcb9c2a6ed15cbf815a393067564607d0b568c450499f72874cb9c1cd`.
 
 Full SHA-256: `82b564e6ede5f260ed556fba2a4171c28c787fcac3faf37c21cb89990aa3a3ac`.
 
@@ -616,8 +616,33 @@ Each owner reuses `RetainedTemplate`, the native CEM JSON importer and the selec
 renderer. `renderJson` accepts original JSON bytes, their absolute source URI and
 a pinned host-binding name. It returns HTML and keeps data in native CEM trees.
 It does not construct a DOM data island or register a browser custom element.
-Data-island/attribute/slice bindings and widget/provider adapters remain delivery
-gates for using the complete component library on this profile.
+
+`renderInputs` accepts one multi-root native CEMV artifact and a routing array.
+JavaScript transports the original bytes and JSON control metadata containing
+only `target`, `name`, `index` and an optional slice `attribute`. Native code uses
+its existing CEMV decoder, `TemplateData::bind_native_attribute` and
+`bind_native_slice` APIs. Attribute roots must match their requested names;
+authoritative typed value sequences are used instead of compatibility strings.
+A slice can keep a native root/reference intact or unwrap the values of a named
+native attribute. Typed values, reference identity and original source maps stay
+native. This is not a JSON AST or document-shape adapter.
+
+This entry bounds the input artifact to 1 MiB, routing to 16 KiB/64 bindings,
+values/references to 16,384 and depth to 64, with the existing five-second native
+operation control. Encoded bytes and accounted native graph storage share the
+1 MiB decoder budget. Input names use ASCII letters/digits, underscore and hyphen,
+starting with a letter or underscore. Runtime roots (`datadom`, `attributes`,
+`slices`, `island`, `instanceID`, `suggestions`, `input`, `position`), duplicate
+aliases across either channel, invalid indices and unknown control fields refuse.
+Failures return a fixed diagnostic without embedding input content. Every call
+uses a fresh native input frame and releases it after rendering. Explicit
+attribute/slice envelopes make channel contents independent of routing order;
+the declaration owner stores no live inputs or checkpoints. A failed call leaves no stale inputs
+for the next call.
+
+Complete DOM data-island construction, multiple independent input artifacts,
+receiver schemas, widget/provider adapters and worker/recovery integration remain
+delivery gates for using the complete component library on this profile.
 
 Styles reuse the existing native resolver, compiled-import policy replay,
 `RetainedStylesheet` identity/scoping emission and last-consumer invalidation.
@@ -666,8 +691,10 @@ The browser fixture uses the real profile, native-built private/shared v2/v3
 styles and the existing DOM ownership service. It verifies style application,
 stable prior nodes on import-policy refusal, disconnect cleanup and exactly one
 profile WASM fetch with no full-runtime/source downloads. The Node acceptance
-also checks two independent heaps, native JSON, bad metadata, disposed-unfreed
-foreign roots and reentrant cleanup. The factory gate pins the reviewed generated
+also checks two independent heaps, native JSON/attribute/slice renders, original
+native HTML parity, bad metadata, disposed-unfreed foreign roots and reentrant
+cleanup. The native-input browser fixture verifies escaped text, changing inputs,
+post-refusal recovery and one profile WASM fetch without source/full downloads. The factory gate pins the reviewed generated
 binding shape and refuses extra exports/imports/finalizers.
 
 ```ts
@@ -682,6 +709,10 @@ const generation = await createCemComponentGeneration(module, createCemComponent
 const declaration = generation.open(templateBytes, metadataJson, metadataHash);
 // declaration.installStylesheets(consumer, context, existingStylesheetLease);
 // declaration.renderJson(originalJsonBytes, responseUri, admittedBinding);
+// declaration.renderInputs(nativeValueBytes, [
+//   { target: 'attribute', name: 'label', index: 0 },
+//   { target: 'slice', name: 'amount', index: 1 },
+// ]);
 declaration.dispose();
 generation.dispose();
 ```

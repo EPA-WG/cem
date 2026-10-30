@@ -6,6 +6,7 @@ import type { CemOwnedStylesheet, CemStylesheetConsumerLease } from '../../decla
 export interface CemComponentNativeDeclaration {
     describe(): string;
     renderJson(bytes: Uint8Array, uri: string, binding: string): string;
+    renderInputs(bytes: Uint8Array, bindings: string): string;
     stylesheet(consumer: string, index: number, context: string): string;
     releaseConsumer(consumer: string): number;
     dispose(): void;
@@ -28,9 +29,14 @@ export interface CemComponentDeclaration {
     /** A control-metadata copy; never a native data/AST projection. */
     metadata(): CemCompiledDeclarationMetadata;
     renderJson(bytes: Uint8Array, uri: string, binding: string): string;
+    /** One opaque multi-root CEMV artifact; routing is control metadata only. */
+    renderInputs(bytes: Uint8Array, bindings: readonly CemComponentInputBinding[]): string;
     installStylesheets(consumer: string, context: CemModuleUrlContextWire, lease: CemStylesheetConsumerLease): { dispose(): void };
     dispose(): void;
 }
+export type CemComponentInputBinding =
+    | { target: 'attribute'; name: string; index: number }
+    | { target: 'slice'; name: string; index: number; attribute?: string };
 
 /** Selected-profile ownership only: no full WASM facade, UI rendering or source fallback. */
 export async function createCemComponentGeneration(module: WebAssembly.Module, bindings: CemComponentWasmBindings) {
@@ -73,6 +79,14 @@ export async function createCemComponentGeneration(module: WebAssembly.Module, b
                     current();
                     if (data.byteLength > 1024 * 1024 || uri.length > 4096 || binding.length > 256) throw new Error('cem.component.declaration.input-limit');
                     return invoke(() => native.renderJson(data, uri, binding));
+                },
+                renderInputs(data: Uint8Array, inputs: readonly CemComponentInputBinding[]) {
+                    current();
+                    if (data.byteLength > 1024 * 1024 || inputs.length > 64) throw new Error('cem.component.declaration.input-limit');
+                    const routing = JSON.stringify(inputs);
+                    if (routing.length > 16 * 1024) throw new Error('cem.component.declaration.input-limit');
+                    current(); // Serializing host routing may invoke a reentrant callback.
+                    return invoke(() => native.renderInputs(data, routing));
                 },
                 installStylesheets(consumer: string, context: CemModuleUrlContextWire, lease: CemStylesheetConsumerLease) {
                     current();

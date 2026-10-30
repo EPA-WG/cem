@@ -1230,6 +1230,41 @@ inventory, not the minimum set loaded by every app.
         handoff for the reduced backend. Credential privacy, the 4 MiB checkpoint
         budget and five-second handoff deadlines remain unchanged. No component
         or application UI JavaScript was added.
+      - [x] Bind native attribute and slice inputs to passive compiled declarations
+        in the reduced ABI, using the shared CEMV codec and native TemplateData
+        binding APIs. Bound bytes/values/depth/bindings and refuse duplicate,
+        reserved, malformed or mismatched inputs without retaining failed state.
+        `renderInputs` takes one opaque multi-root CEMV artifact and routing
+        controls, with no JSON data/AST adapter. Attribute wrappers must match;
+        slices keep native roots or unwrap an explicitly named attribute. Typed
+        values, references, source maps/keys and native identity remain intact.
+        Explicit attribute/slice envelopes make input order irrelevant. Inputs
+        live only for the call, with 1 MiB encoded/accounted graph budget, 16 KiB
+        controls, 64 bindings, 16,384 values/references, depth 64 and five-second
+        native execution control. Shared cem-elements guards disposal/reentrancy;
+        unsupported widget/provider capabilities still refuse admission.
+        - [x] Add native input parity, order-independent attribute/slice channels,
+          typed/reference/provenance, refusal and post-failure fixtures, plus
+          selected-WASM and shared generation browser acceptance with independent
+          heaps and no full/source runtime download. Per-story network evidence
+          excludes earlier stories while still requiring exactly one profile
+          fetch and no source/full downloads for each scenario.
+        Verification: 11 profile native tests, 166 full native tests (four existing
+        profiling cases ignored), 30 declaration/style/cache regressions, native
+        fixture generation, ten factory/audit unit tests, optimized profile/owner
+        WASM acceptance and 16 component browser cases pass. Both full Studio
+        Login privacy/recovery cases pass in a quiet rerun; an initial concurrent
+        release-build run hit existing resume deadlines. No timeout was increased.
+        Package build, Rust formatting, script/TypeScript lint and fresh matched
+        source/vendor audits pass. Reduced WASM is 11,153,481 bytes (10.64 MiB),
+        gzip-9 3,142,830 and Brotli-9 2,365,084, with 10 imports/18 exports.
+        Code/data payloads are 8,862,296/2,278,291 bytes, a 53.9% whole-file
+        reduction against the unchanged 24,206,012-byte full comparator. Linked
+        application closure is still unverified. Complete data-island/receiver
+        contracts, multiple independent input artifacts, widget/provider ownership
+        and worker/recovery handoff remain open. Credential privacy, the 4 MiB
+        checkpoint budget and five-second handoff deadlines remain unchanged;
+        no component/application UI JavaScript or credential capture was added.
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's
         worker/fallback edits, credential refusal and generation handoff without

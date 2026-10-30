@@ -736,8 +736,11 @@ linking the evaluator fallback routes. Complete component ABI and transitive
 implementation/behavior/provider closure, input/type contracts and optional
 module transport remain pending. Passive compiled declaration owners and native
 scoped CSS leases now have a shared asynchronous generation adapter, DOM ownership
-acceptance and foreign-root cleanup refusal without full WASM bootstrap. Widget/
-provider bindings, worker transport and checkpoint/journal handoff remain open.
+acceptance and foreign-root cleanup refusal without full WASM bootstrap. Bounded
+native CEMV attribute/slice inputs now use the shared decoder and binding APIs,
+with typed values, references/source maps, reserved-root refusal and fresh input
+frames. Complete data-island/receiver schemas, widget/provider bindings, worker
+transport and checkpoint/journal handoff remain open.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

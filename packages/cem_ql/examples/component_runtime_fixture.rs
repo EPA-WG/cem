@@ -136,6 +136,7 @@ fn main() {
         .unwrap();
     }
     owned_declarations(&output);
+    owned_inputs(&output);
     // Trusted native fixture selection, not a claim that all cart component
     // behavior/provider dependencies have closed application build recipes.
     fs::write(output.join("selected_registry.rs"), "use cem_ql::selected_registry::{SelectedBuiltin, SelectedFunctionRegistry};\npub fn selected_registry() -> SelectedFunctionRegistry { SelectedFunctionRegistry::new([SelectedBuiltin::SequenceFirst, SelectedBuiltin::SequenceWhere, SelectedBuiltin::SequenceCount]).unwrap() }\n").unwrap();
@@ -197,5 +198,56 @@ fn owned_declarations(output: &std::path::Path) {
         fs::write(output.join(format!("{name}.bin")), built.template.bytes).unwrap();
         fs::write(output.join(format!("{name}.json")), built.metadata_json).unwrap();
         fs::write(output.join(format!("{name}.hash")), built.metadata_hash).unwrap();
+    }
+}
+
+fn owned_inputs(output: &std::path::Path) {
+    use cem_ql::{
+        declaration_artifact::build_declaration_artifact,
+        eval::{output::output_attribute, portable::encode_values, AtomValue, Item},
+        render::RenderPlanAttribute,
+    };
+    let source = r#"<cem-element tag="cem-owned-inputs"><template id="cem-owned-inputs" type="text/cem-ml">{attribute @name=label}{p @title='{$label}' | {$datadom.attributes.label} / {$datadom.slices.amount}}</template></cem-element>"#;
+    let built = build_declaration_artifact(
+        source,
+        "https://app.test/components/inputs.xhtml",
+        TemplateArtifactSourceMapMode::Prod,
+        None,
+    )
+    .unwrap();
+    let metadata: cem_ql::declaration_artifact::DeclarationArtifactMetadata =
+        serde_json::from_str(&built.metadata_json).unwrap();
+    let loaded = built.template.reload_pinned(&metadata.template).unwrap();
+    fs::write(output.join("owned-inputs.bin"), built.template.bytes).unwrap();
+    fs::write(output.join("owned-inputs.json"), built.metadata_json).unwrap();
+    fs::write(output.join("owned-inputs.hash"), built.metadata_hash).unwrap();
+    for (name, label, amount) in [("first", "Tea <img>", 2), ("second", "Coffee & cake", 3)] {
+        let attribute = output_attribute(RenderPlanAttribute {
+            name: "label".into(),
+            namespace: None,
+            qualified_name: None,
+            value: "compatibility projection must not be used".into(),
+            value_stream: ItemStream::once(Item::Atomic(AtomValue::String(label.into()))),
+            contract: None,
+            source_map: Default::default(),
+        });
+        let amount = Item::Atomic(AtomValue::Integer(amount));
+        let values = ItemStream::from_items(vec![attribute.clone(), amount.clone()]);
+        fs::write(
+            output.join(format!("owned-input-{name}.cemv")),
+            encode_values(&values, &Default::default()).unwrap(),
+        )
+        .unwrap();
+        let mut data = TemplateData::default();
+        data.bind_native_attribute(attribute).unwrap();
+        data.bind_native_slice("amount", ItemStream::once(amount))
+            .unwrap();
+        let plan = render_compiled_template(&loaded, &data);
+        assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+        fs::write(
+            output.join(format!("owned-input-{name}.html")),
+            render_plan_to_html(&plan),
+        )
+        .unwrap();
     }
 }

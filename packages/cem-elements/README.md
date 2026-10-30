@@ -550,8 +550,12 @@ The experimental `@epa-wg/cem-elements/component-generation` entry owns passive
 compiled declarations and native private/shared stylesheet leases on the separate
 component WASM profile. It initializes asynchronously, hides native pointers,
 uses the existing DOM stylesheet-ownership service and refuses foreign roots
-before disposal. Supply the separately built profile assets explicitly; the
-ordinary runtime continues using the full backend. Widget/provider inputs,
+before disposal. Its `renderInputs(bytes, bindings)` accepts an opaque multi-root
+CEMV artifact with bounded native attribute/slice routing, preserving typed values,
+references and original source locations. Each render gets a fresh input frame;
+reserved runtime inputs and invalid or conflicting bindings refuse. Supply the
+separately built profile assets explicitly; the ordinary runtime continues using
+the full backend. Complete data-island/schema contracts, widget/provider inputs,
 processing-worker integration and checkpoint handoff remain open. See the
 [retained owner contract and fixtures](../../docs/cem-components-shopping-cart-profile.md#retained-passive-declarations-and-stylesheet-leases).
 

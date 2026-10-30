@@ -13,6 +13,7 @@ use cem_ml::{
 };
 use std::sync::Arc;
 
+mod inputs;
 pub mod owners;
 
 #[cfg(test)]
@@ -81,16 +82,27 @@ fn render_loaded(
     }
     let tree = cem_ml::import::import_json_bytes(json, source_uri)
         .map_err(|_| "native JSON import failed")?;
-    let mut data =
+    let data =
         TemplateData::default().with_binding(binding, ItemStream::once(imported_cem_tree(tree)));
-    data.selected_registry = Some(Arc::new(generated::selected_registry()));
-    let control = OperationControl::with_root_policy(
+    render_data(artifact, data, &render_control()?)
+}
+
+fn render_control() -> Result<OperationControl, String> {
+    OperationControl::with_root_policy(
         AbortSignal::new(),
         ScopePolicy::host_root().with_timeout_ms(Some(5000)),
     )
-    .map_err(|error| error.to_string())?;
+    .map_err(|error| error.to_string())
+}
+
+fn render_data(
+    artifact: &crate::render::TemplateArtifact,
+    mut data: TemplateData,
+    control: &OperationControl,
+) -> Result<String, String> {
+    data.selected_registry = Some(Arc::new(generated::selected_registry()));
     let plan =
-        render_compiled_template_with_control(artifact, &data, &control, ROOT_EXECUTION_SCOPE_ID);
+        render_compiled_template_with_control(artifact, &data, control, ROOT_EXECUTION_SCOPE_ID);
     if plan
         .diagnostics
         .iter()
@@ -99,7 +111,7 @@ fn render_loaded(
         // Do not copy expressions, input content or credential values to errors.
         return Err("compiled application render failed".into());
     }
-    let output = render_plan_to_html_with_control(&plan, &control, ROOT_EXECUTION_SCOPE_ID)
+    let output = render_plan_to_html_with_control(&plan, control, ROOT_EXECUTION_SCOPE_ID)
         .map_err(|error| error.code().to_owned())?;
     if output.rendered.len() > MAX_INPUT_BYTES {
         return Err("compiled application output limit exceeded".into());

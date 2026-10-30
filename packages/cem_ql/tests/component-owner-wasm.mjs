@@ -39,6 +39,24 @@ for (const generation of [first,next]) {
         assert.equal(generation.inventory().liveDeclarationOwners,0);
     }
 }
+// Binary attributes/slices use the shared native codec, never a JSON data frame.
+const inputFixture=await fixture('owned-inputs');
+const routes=[{target:'attribute',name:'label',index:0},{target:'slice',name:'amount',index:1}];
+for(const generation of [first,next]) {
+    const owner=generation.open(...inputFixture);
+    for(const name of ['first','second']) {
+        const input=await readFile(new URL(`owned-input-${name}.cemv`,root));
+        const expected=await readFile(new URL(`owned-input-${name}.html`,root),'utf8');
+        assert.equal(owner.renderInputs(input,routes),expected);
+        assert.equal(owner.renderInputs(input,routes.toReversed()),expected);
+        assert.throws(()=>owner.renderInputs(input,[{target:'attribute',name:'wrong',index:0}]));
+        assert.throws(()=>owner.renderInputs(input,[{target:'slice',name:'suggestions',index:1}]));
+        assert.equal(owner.renderInputs(input,routes),expected);
+    }
+    owner.dispose();
+    assert.throws(()=>owner.renderInputs(new Uint8Array(),routes),/disposed/);
+    assert.equal(generation.inventory().liveDeclarationOwners,0);
+}
 const foreign=bindings.open(...inline);
 foreign.dispose(); // Still a native allocation until its opaque owner is freed.
 assert.throws(()=>first.dispose(),/foreign-owner/);
@@ -56,13 +74,19 @@ const transport=createCemComponentWasmBindings();
 const guarded={...transport,open(...args){
     const raw=transport.open(...args);
     return {describe:()=>raw.describe(),stylesheet:(...input)=>raw.stylesheet(...input),releaseConsumer:input=>raw.releaseConsumer(input),dispose:()=>raw.dispose(),free:()=>raw.free(),
+        renderInputs(...input){assert.throws(()=>protectedOwner.dispose(),/busy/);assert.throws(()=>protectedGeneration.dispose(),/busy/);return raw.renderInputs(...input);},
         renderJson(...input){assert.throws(()=>protectedOwner.dispose(),/busy/);assert.throws(()=>protectedGeneration.dispose(),/busy/);return raw.renderJson(...input);}};
 }};
 const protectedGeneration=await createCemComponentGeneration(module,guarded);const protectedOwner=protectedGeneration.open(...inline);
 assert.match(protectedOwner.renderJson(Buffer.from('{"value":"Guarded"}'),'app://cart/response.json','datadom'),/Guarded/);
+const protectedInputs=protectedGeneration.open(...inputFixture);
+const input=await readFile(new URL('owned-input-first.cemv',root));
+assert.match(protectedInputs.renderInputs(input,routes),/Tea &lt;img&gt;/);
+const reentrantInputs=protectedGeneration.open(...inputFixture);
+assert.throws(()=>reentrantInputs.renderInputs(input,{toJSON(){reentrantInputs.dispose();return routes;},length:2}),/disposed/);
 protectedGeneration.dispose();
 const cleanup=await createCemComponentGeneration(module,createCemComponentWasmBindings());
 const cleanupOwner=cleanup.open(...inline), cleanupAbort=new AbortController();
 cleanupOwner.installStylesheets('cleanup',context,{signal:cleanupAbort.signal,commit:()=>true,release:()=>{cleanupAbort.abort();cleanupOwner.dispose();assert.throws(()=>cleanup.open(...inline),/retired/);cleanup.dispose();}});
 cleanup.dispose();cleanup.dispose();
-console.log('Selected declaration owners: native pins, scoped imports, native JSON, CSS leases, failed/stale/reentrant cleanup, independent heaps and foreign-root retirement refusal passed.');
+console.log('Selected declaration owners: native pins, scoped imports, native JSON/attribute/slice inputs, CSS leases, failed/stale/reentrant cleanup, independent heaps and foreign-root retirement refusal passed.');

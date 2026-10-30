@@ -17,6 +17,7 @@ async function artifact(name:string,suffix:string) {
 export const NativeDeclarationAndStyleLeases:Story={
     render:()=>'<section aria-label="Selected runtime declaration ownership">Native compiled declarations and CSS leases.</section>',
     play:async({canvasElement})=>{
+        const started=performance.now();
         const root=canvasElement.querySelector('section');
         if(!root)throw Error('Missing selected runtime fixture');
         const factoryUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_factory.js'];
@@ -65,8 +66,48 @@ export const NativeDeclarationAndStyleLeases:Story={
                 generation.dispose();expect(()=>component.metadata()).toThrow('retired');
             } finally {scope.dispose();generation.dispose();declaration.remove();first.remove();second.remove();}
         }
-        const wasmRequests=performance.getEntriesByType('resource').filter(entry=>(entry as PerformanceResourceTiming).initiatorType==='fetch').map(entry=>entry.name).filter(name=>name.includes('cem_ql_bg.wasm'));
+        const wasmRequests=performance.getEntriesByType('resource').filter(entry=>entry.startTime>=started&&(entry as PerformanceResourceTiming).initiatorType==='fetch').map(entry=>entry.name).filter(name=>name.includes('cem_ql_bg.wasm'));
         expect(wasmRequests).toEqual([new URL(wasmUrl,location.href).href]);
         expect(performance.getEntriesByType('resource').some(entry=>entry.name.startsWith('https://app.test/'))).toBe(false);
+    },
+};
+
+export const NativeAttributeAndSliceInputs:Story={
+    render:()=>'<section aria-label="Selected runtime native inputs">Native attribute and slice values.</section>',
+    play:async({canvasElement})=>{
+        const started=performance.now();
+        const factoryUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_factory.js'];
+        const wasmUrl=runtime['../../../cem_ql/dist/wasm-component/cem_ql_bg.wasm'];
+        if(!factoryUrl||!wasmUrl)throw Error('Build the selected component WASM profile before this story');
+        const factory=await import(/* @vite-ignore */ factoryUrl);
+        const module=await WebAssembly.compile(await(await fetch(wasmUrl)).arrayBuffer());
+        const root=canvasElement.querySelector('section');if(!root)throw Error('Missing native input fixture');
+        const routes=[{target:'attribute' as const,name:'label',index:0},{target:'slice' as const,name:'amount',index:1}];
+        const first=await createCemComponentGeneration(module,factory.createCemComponentWasmBindings());
+        const second=await createCemComponentGeneration(module,factory.createCemComponentWasmBindings());
+        try {
+            expect(first.memory()).not.toBe(second.memory());
+            for(const generation of [first,second]) {
+                const component=generation.open(new Uint8Array(await(await artifact('owned-inputs','bin')).arrayBuffer()),await(await artifact('owned-inputs','json')).text(),(await(await artifact('owned-inputs','hash')).text()).trim());
+                for(const name of ['first','second']) {
+                    const input=new Uint8Array(await(await artifact(`owned-input-${name}`,'cemv')).arrayBuffer());
+                    const expected=await(await artifact(`owned-input-${name}`,'html')).text();
+                    const output=component.renderInputs(input,routes);
+                    expect(output).toBe(expected);
+                    expect(component.renderInputs(input,[...routes].reverse())).toBe(expected);
+                    root.innerHTML=output; // Test projection only; production ownership API returns native HTML.
+                    const paragraph=root.querySelector('p');if(!paragraph)throw Error('Missing native input output');
+                    expect(paragraph.textContent).toBe(name==='first'?'Tea <img> / 2':'Coffee & cake / 3');
+                    expect(root.querySelector('img')).toBeNull();
+                    expect(()=>component.renderInputs(input,[{target:'attribute',name:'wrong',index:0}])).toThrow();
+                    expect(()=>component.renderInputs(input,[{target:'slice',name:'suggestions',index:1}])).toThrow();
+                    expect(component.renderInputs(input,routes)).toBe(expected);
+                }
+                component.dispose();expect(generation.inventory().liveDeclarationOwners).toBe(0);
+            }
+        } finally {first.dispose();second.dispose();}
+        const requests=performance.getEntriesByType('resource').filter(entry=>entry.startTime>=started&&(entry as PerformanceResourceTiming).initiatorType==='fetch').map(entry=>entry.name);
+        expect(requests.filter(name=>name.includes('cem_ql_bg.wasm'))).toEqual([new URL(wasmUrl,location.href).href]);
+        expect(requests.some(name=>name.endsWith('.xhtml')||name.endsWith('.cem'))).toBe(false);
     },
 };
