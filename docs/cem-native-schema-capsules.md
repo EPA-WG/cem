@@ -60,8 +60,11 @@ The [CEMAPPD3 native installation](#native-assembly-application-installation)
 now stages exact graph/root compilation owners and atomically replaces guarded
 native root invocations. Mixed receiver/runtime publication remains a separate
 gate; CEMDM1 is unchanged.
-WASM transport/generation enrollment and compiled-component receiver admission remain
-**unimplemented**.
+The [mixed receiver declaration contract](#mixed-receiver-declaration-contracts)
+now separately pins node capsules, closed scalar facets and assembly-root demands
+in CEMMRC1. Its verifier remains inert; live mixed binding and application
+composition remain gates. WASM transport/generation enrollment and
+compiled-component receiver admission remain **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
 existing wire version must not acquire executable semantics implicitly.
 
@@ -887,6 +890,103 @@ still refuses CEMAPPD3; the envelope's selection/executable/native-link closure
 flags remain false. Entered credentials continue to block recovery until
 explicitly cleared; automatic whole-Studio recovery stays disabled, with 4 MiB
 checkpoints and five-second deadlines.
+
+## Mixed receiver declaration contracts
+
+[`application_envelope::mixed`](../packages/cem_ql/src/application_envelope/mixed.rs)
+implements native-only `CEMMRC1` / `cem.native-mixed-receivers/1`. This standalone
+contract packages one compiled declaration and its named node, closed scalar and
+executable-root requirements against an independently verified CEMAPPD3 package.
+It does not append the declaration to that package or install it in a runtime.
+Existing CEMAPPD1/CEMAPPD2/CEMAPPD3 readers and admission rules remain unchanged.
+
+`build` takes the built declaration, an `Arc<VerifiedApplicationEnvelope>` from
+the CEMAPPD3 verifier, an alias map and the caller's operation control. `verify`
+checks the bytes against a separately typed `MixedReceiverPin` and the supplied
+verified parent. The pin covers package hash, manifest hash, parent application
+hash and registry hash. The canonical manifest also retains the complete parent
+pin, exact ML/QL versions, compiled template/declaration hashes, shared native
+requirement-inventory hash and every typed receiver requirement. Template and
+existing declaration JSON metadata are opaque binary blobs; the JSON remains an
+explicit control sidecar, never a schema/data/AST handoff.
+
+The receiver variants preserve distinct meanings:
+
+| Variant | Checked requirement |
+| --- | --- |
+| `Node(CapsulePin)` | An exact SC1 structural capsule already present in the parent application. Its complete schema/source/registry pin must match; a hash pointing at another artifact kind refuses. |
+| `Scalar(NamedReceiverType)` | The existing CEMAPPD1 closed scalar-facet policy, reused without changing it. Alias, schema/source pins, original source maps, restrictions and supported primitive facets are retained. Nodes, lists, content-type contracts, pending native types and unsupported model policies refuse. |
+| `Executable { root, target }` | An exact named root and `AssemblyRoot` target from the parent, selecting an original exported datatype in its CEMDM2 graph. Parent verification already checks exact CEMOP2/CEMOS1 dependencies and source agreement. This record carries no callback, descriptor, prepared value, implementation registration or execution grant. |
+
+Closed scalar records remain trusted build-supplied facet projections. Their
+source URI/hash assertions must agree with other scalar records and the parent's
+native source identities. This is not an independent reconstruction or proof of
+the scalar schema's complete original AST. Native SC1/module/profile sources
+retain their existing complete-source verification in the parent; no source
+arena is fabricated to turn a projection into an owner. Comparing the original
+receiving occurrences and live compiler contracts remains part of explicit host
+binding before publication.
+
+The verifier uses the shared native IR inventory and original compiled template.
+Every named type must have exactly one map entry and be used; multiple distinct
+attributes may use the same alias. All receiver directives must be top-level
+literal `attribute` elements with unique nonempty names. This wire subset admits
+only `name`, `type`, `itemCount`, `minItems` and `maxItems` fields and no children.
+It retains exact field text for subsequent original-occurrence comparison,
+including primitive receiver occurrences. Dynamic/nested/qualified directives,
+duplicates, defaults, local extra facets, unknown policies and missing/unused
+aliases refuse. The closed named scalar profile still retains its supported
+schema-owned facets. Existing full/source declaration APIs retain their broader
+capabilities.
+
+Literal cardinalities reuse the SC1 count-envelope validator in
+[`cem_ml::schema::structural_capsule`](../packages/cem_ml/src/schema/structural_capsule.rs).
+Explicit counts use its existing bounded integer policy (0–100,000); contradictory
+minimum/maximum/exact fields, malformed values and overflow refuse. Absent local
+count fields are preserved as absent. This validates metadata consistency, not a
+runtime value, token sequence, input-node capture or navigation permission. The
+SC1 wire and ordinary full schema/runtime count rules are unchanged.
+
+Static component dependencies must already exist in the parent, and the new
+public tag must not shadow any parent declaration. Unknown construction,
+resources/providers and other unresolved inventory gaps refuse. The verified
+object exposes the exact shared `requirements()` inventory and component
+dependencies so later composition can prepare their demand. A matching registry
+hash is integrity metadata; verification does not extend the parent's registry
+recipe, prove that additional functions are linked, activate an optional module
+or authorize resource access.
+
+`VerifiedMixedReceiverDeclaration` exposes the declaration, compiled artifact,
+receiver records, original field occurrences, structural capsule owners and
+assembly graph owners. Equal pinned parents can be independently verified into
+fresh original source owners; the mixed contract binds to the supplied owner's
+arenas. Such metadata sharing is not a cross-host selection or installation
+receipt. `runtime_admission_verified()` and `executable_closure_verified()` remain
+`false`; verification parses no source text and invokes no user code.
+
+| Bound | Mixed declaration limit |
+| --- | --- |
+| Complete encoded CEMMRC1 package | 1 MiB, including metadata, template and manifest overhead. |
+| Declaration metadata | 64 KiB. |
+| Named aliases / all receiver occurrences | 64 / 64; primitive occurrences count toward the latter limit. Alias and attribute names have at most 256 ASCII letters/digits, hyphens, underscores or colons; built-in/reserved type names cannot be aliases. |
+| Closed scalar projections | Existing D1 limit: 64 KiB accounted bytes and 16 restriction models per record; at most 1 MiB aggregate accounted scalar bytes, with the stricter complete encoded limit still applying. |
+| Outer preflight / work | 32,768 MessagePack records, depth 64, canonical encoding, no unknown/trailing/alternate blob shapes; 100,000 caller-controlled outer checks. Shared IR inventory and parent formats retain their independent limits. |
+| Parent package | Existing independently verified CEMAPPD3 bounds, including its 4 MiB encoded limit; it is referenced rather than duplicated in the mixed contract. |
+
+These are input and metadata limits, not a measured peak heap or recovery budget.
+[Native integration fixtures](../packages/cem_ql/tests/application_envelope/mixed.rs)
+and [wire fixtures](../packages/cem_ql/src/application_envelope/mixed/tests.rs)
+cover all variants, scalar rendering parity, exact dependency/alias/occurrence
+agreement, source claims, cardinalities, limits, malformed/repinned inputs,
+cancellation, fresh owners and unchanged legacy refusal.
+
+Next gates are binding all three variants to original receiving declarations and
+live actual-host guards, then composing them into a separately versioned complete
+application publication. Mixed rendering, generation-bound worker/fallback
+transport and checkpoint ownership are not enabled by this format. Entered
+credentials continue to block recovery until explicitly cleared. Automatic
+whole-Studio recovery remains disabled, with 4 MiB checkpoints and five-second
+deadlines. No application/component JavaScript is introduced.
 
 ## Native application receiver assembly
 

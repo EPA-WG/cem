@@ -814,7 +814,11 @@ and native implementation agreement. Its native verifier remains inert. The
 [native installation slot](docs/cem-native-schema-capsules.md#native-assembly-application-installation)
 now stages exact actual-host compilation owners and atomically replaces guarded
 root invocations, with installation-wide weak-owner checks and late-result
-suppression. Mixed receiver publication and generation-bound transport remain next.
+suppression. The separate [CEMMRC1 declaration contract](docs/cem-native-schema-capsules.md#mixed-receiver-declaration-contracts)
+now pins structural nodes, existing closed scalar facet projections and exact
+assembly-root demands, preserving original fields and dependency identities.
+It remains inert; live mixed binding, complete application publication and
+generation-bound transport remain next.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 

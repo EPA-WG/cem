@@ -83,7 +83,7 @@ pub(crate) fn reserved(name: &str) -> bool {
             "any" | "node" | "date" | "time" | "dateTime" | "datetime"
         )
 }
-fn valid_type(value: &NamedReceiverType) -> bool {
+pub(crate) fn valid_type(value: &NamedReceiverType) -> bool {
     if value.name.is_empty()
         || value.name.len() > 256
         || reserved(&value.name)

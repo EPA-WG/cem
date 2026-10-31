@@ -64,7 +64,8 @@ struct Envelope {
     manifest: Manifest,
     blobs: BTreeMap<String, Blob>,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ApplicationEnvelopePin {
     pub hash: String,
     pub manifest_hash: String,

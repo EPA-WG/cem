@@ -427,3 +427,6 @@ fn aggregate_module_inventory_is_bounded_even_with_shared_original_sources() {
         );
     }
 }
+
+#[path = "mixed.rs"]
+mod mixed;

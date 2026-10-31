@@ -1,5 +1,5 @@
 use super::*;
-fn built() -> BuiltApplicationEnvelope {
+pub(super) fn built() -> BuiltApplicationEnvelope {
     let source = r#"<cem-element tag="cem-app"><template id="cem-app" type="text/cem-ml">{p | Hello}</template></cem-element>"#;
     let declaration = crate::declaration_artifact::build_declaration_artifact(
         source,

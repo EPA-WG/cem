@@ -26,6 +26,7 @@ use std::{
 };
 mod blob;
 mod graph;
+pub mod mixed;
 pub mod v3;
 use blob::Blob;
 pub const MAGIC: &[u8] = b"CEMAPPD2\n";

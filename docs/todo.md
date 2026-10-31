@@ -9,8 +9,8 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [atomic CEMAPPD3 root and owner installation](archive/todo-completed-assembly-application-installation-2026-10-31.md).
-The [versioned envelope record](archive/todo-completed-assembly-application-envelope-2026-10-31.md) preserves the preceding stage.
+Latest completion: [mixed receiver declaration contracts](archive/todo-completed-mixed-receiver-contracts-2026-10-31.md).
+The [atomic root installation record](archive/todo-completed-assembly-application-installation-2026-10-31.md) preserves the preceding stage.
 
 Prioritize Studio functionality and presentation samples before unrelated helper
 work and physical-device/browser/AT acceptance. Examples remain ordinary projects
@@ -393,9 +393,15 @@ inventory, not the minimum set loaded by every app.
                         original selectors, explicit owners and weak lifetimes.
                         - [ ] Version application-envelope and mixed-receiver
                           publication before worker/fallback transport and admission.
-                          - [ ] Define mixed node/scalar/executable named receivers
-                            before generation-bound worker/fallback transport and
-                            its ownership, shutdown and privacy acceptance.
+                          - [ ] Bind CEMMRC1 contracts to original native receiving
+                            occurrences, closed scalar source projections and exact
+                            live root/owner guards. Test local facet/count intersections,
+                            node scope grants, typed/prepared value handoff, peer owner
+                            loss and atomic mixed replacement before publication.
+                          - [ ] Compose mixed declarations into a separately versioned
+                            complete application publication with exact registry demand
+                            and code/owner closure before worker/fallback endpoint
+                            transport or component admission.
 
                 - [ ] Enroll portable query source/binding/invocation owners in
                   actual worker/owned-fallback generation and inventory groups;

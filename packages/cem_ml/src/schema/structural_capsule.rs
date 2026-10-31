@@ -215,32 +215,42 @@ fn scalar(model: &AttributeModel) -> bool {
     rest.white_space = None;
     rest == Default::default()
 }
-fn count_field(
-    count: &Count,
-    target: &str,
-    source: SourceMapStack,
-) -> Result<FieldContract, String> {
-    let number = |v: &Option<String>| -> Result<Option<usize>, String> {
-        v.as_ref()
-            .map(|s| {
-                s.parse::<usize>()
-                    .ok()
-                    .filter(|n| *n <= MAX_WORK)
-                    .ok_or_else(|| INVALID.to_owned())
-            })
-            .transpose()
+/// Literal count-envelope policy shared by native structural capsules and
+/// receiver declaration contracts. This validates bounded metadata, not values
+/// or source-navigation authority. Full schema/runtime count rules are unchanged.
+pub fn validate_literal_cardinality(
+    exact: Option<&str>,
+    min: Option<&str>,
+    max: Option<&str>,
+) -> Result<(), String> {
+    let number = |v: Option<&str>| -> Result<Option<usize>, String> {
+        v.map(|s| {
+            s.parse::<usize>()
+                .ok()
+                .filter(|n| *n <= MAX_WORK)
+                .ok_or_else(|| INVALID.to_owned())
+        })
+        .transpose()
     };
-    let (exact, min, max) = (
-        number(&count.exact)?,
-        number(&count.min)?,
-        number(&count.max)?,
-    );
+    let (exact, min, max) = (number(exact)?, number(min)?, number(max)?);
     if (exact.is_none() && min.is_none() && max.is_none())
         || min.zip(max).is_some_and(|(a, b)| a > b)
         || exact.is_some_and(|n| min.is_some_and(|m| n < m) || max.is_some_and(|m| n > m))
     {
         return Err(INVALID.into());
     }
+    Ok(())
+}
+fn count_field(
+    count: &Count,
+    target: &str,
+    source: SourceMapStack,
+) -> Result<FieldContract, String> {
+    validate_literal_cardinality(
+        count.exact.as_deref(),
+        count.min.as_deref(),
+        count.max.as_deref(),
+    )?;
     Ok(FieldContract {
         name: count.name.clone(),
         target: target.into(),

@@ -380,8 +380,12 @@ Its inert verifier preserves the CEMAPPD2 structural application and all nested
 bounds. The [native installation slot](cem-native-schema-capsules.md#native-assembly-application-installation)
 now binds exact caller-held actual-host compilation owners and atomically replaces
 root guards. Shared weak ownership checks cover every retained root, peer loss,
-reentry and late output. Mixed receiver publication and generation-bound transport
-remain next; no portable/runtime admission is implied.
+reentry and late output. The [mixed declaration contract](cem-native-schema-capsules.md#mixed-receiver-declaration-contracts)
+now uses separate CEMMRC1 records for exact structural capsules, shared closed
+scalar facets and assembly-root demands. Its bounded verifier preserves original
+metadata, source assertions and receiver fields; it grants no execution or registry
+extension. Live mixed binding, complete application composition and generation-bound
+transport remain next; no portable/runtime admission is implied.
 
 
 Do not equate downloaded code with an active native generation. Register every
