@@ -41,6 +41,9 @@ Native `CEMOP1` separately groups exact CEMNR1 operation/constant dependencies
 by original datatype, with checked roles, representations and whole-source
 agreement. Its verified records remain inert; module-compiler integration is
 a separate gate.
+Native `CEMOS1` separately retains dependency-bearing operation sources and
+constant-reference slots. It preserves original contexts through the shared
+dependency snapshot, without widening CEMNR1/CEMOP1 or resolving selectors.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -1362,6 +1365,63 @@ release, malformed repinned records, limits and cancellation. No application or
 component JavaScript was added. Entered credentials still block recovery;
 automatic whole-Studio recovery remains disabled, with the 4 MiB checkpoint
 budget and five-second handoff deadlines unchanged.
+
+## Dependency-aware operation sources and constant-reference slots
+
+[`native_registrations::dependency_sources`](../packages/cem_ql/src/native_registrations/dependency_sources.rs)
+exports and verifies the separate native `CEMOS1` /
+`cem.native-operation-source/1` format. Each record retains one operation's exact
+implementation identity, mode, original schema/type/behavior occurrences and
+complete `NativeDependencySourceSnapshot`. The shared snapshot preserves
+unevaluated native references, their original owning contexts, source frames and
+lexical namespace metadata. It refuses resolved targets, forged contexts, partial
+lexical snapshots and unknown source-node fields; it never exports live scopes
+or runtime authority.
+
+Shared CEMNR1 routines check original membership, implementation ABI/signature,
+ready versus checked-replacement mode and source-backed result contracts. The
+shared datatype plan provides original inherited-base, list-item, whole-list and
+validation-rule fields. `constant_slots()` exposes the selected datatype's
+original nontrivia child slots, including native references, in source order.
+`references()` inventories every original reference in the complete source,
+including other declarations. These views resolve nothing. In particular, a
+retained slot is not a certified constant: only the existing shared enumeration
+compiler may select targets, validate literal constant declarations and interpret
+values under actual source policies, contexts, grants and runtime limits. There
+is no second constant parser, selector evaluator or target reconstruction here.
+
+Independent verifications create fresh source owners. Explicit `share_source`
+requires complete source-identity, registry and dependency-snapshot fingerprint
+agreement, then restores the checked operation and its original field/slot views
+into the chosen verified arena. Matching URI/hash/name alone is insufficient;
+metadata mapping creates no operation registration or source crossing grant.
+
+Records are limited to 64 KiB, with 16,384-value / 64-depth MessagePack preflight,
+a 100,000-visit phase allowance and actual operation controls. The selected
+datatype has at most 128 dependency fields and 128 constant slots; the complete
+source has at most 128 references. The shared snapshot retains its existing
+source/lexical bounds. Export capture, wire verification and explicit occurrence
+mapping are separately bounded phases, not one cumulative heap reservation.
+Unknown magic/ABI/compiler/source-profile versions, noncanonical/trailing input,
+wrong pins, validator selections, unsupported modes/signatures, oversized or
+cancelled work refuse before returning a verified source record.
+
+Both portable selection and executable-closure flags remain false. There is no
+`VerifiedNativeRequirement` conversion, native-linker or CEMOP1 admission path.
+CEMNR1 still refuses reference-bearing sources, and CEMOP1 still accepts only its
+exact closed CEMNR1 dependencies. Separately versioned profile pins and actual-host
+module/envelope installation remain follow-ups. Unevaluated reference expressions
+are not an evaluated dependency graph or proof against runtime selection cycles.
+No application/component JavaScript, WASM endpoint or receiver publication was
+added. Entered credentials still block recovery; automatic whole-Studio recovery
+remains disabled, with the existing 4 MiB budget and five-second deadlines.
+
+The [native fixtures](../packages/cem_ql/tests/native_registrations/dependency_sources.rs)
+cover all direct/source-backed operations, tokenizers and checked replacements;
+base/list/rule fields and constant-reference slots; original contexts, frames,
+lexical metadata and arena isolation; explicit whole-snapshot sharing and foreign
+input refusal; existing-reader refusal; repinned malformed/version/unknown-field,
+resolved-target/context/source-profile corruption, bounds and cancellation.
 
 ## Guarded datatype preparation handoff
 

@@ -31,6 +31,7 @@ const INVALID: &str = "native implementation requirement refused";
 const MAX_BYTES: usize = 64 * 1024;
 mod source_profiles;
 pub mod profiles;
+pub mod dependency_sources;
 pub(crate) use source_profiles::SourceContract;
 pub use source_profiles::{export_source_operation, SourceProfile};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

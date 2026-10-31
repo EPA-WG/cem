@@ -351,6 +351,10 @@ now group exact CEMNR1 dependencies by original datatype, checking roles,
 representations and whole-source agreement. These native records remain inert;
 operation installation in dependency-bearing module compilation and runtime
 transport remain explicit follow-up gates.
+The separate [dependency-aware operation sources](cem-native-schema-capsules.md#dependency-aware-operation-sources-and-constant-reference-slots)
+now retain original native dependency fields and constant-reference slots through
+the shared source snapshot and datatype planner. They remain inert source records;
+versioned profile pins and actual-host module/envelope installation come next.
 
 
 Do not equate downloaded code with an active native generation. Register every

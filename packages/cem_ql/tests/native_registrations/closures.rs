@@ -1461,3 +1461,6 @@ fn additional_availability_guards_cannot_erase_an_existing_refusal() {
 
 #[path = "dependency_profiles.rs"]
 mod dependency_profiles;
+
+#[path = "dependency_sources.rs"]
+mod dependency_sources;
