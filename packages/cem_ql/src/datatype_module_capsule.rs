@@ -189,6 +189,21 @@ impl VerifiedDatatypeModules {
     pub fn leaf_ids(&self) -> impl Iterator<Item = &str> {
         self.leaves.keys().map(String::as_str)
     }
+    pub fn leaf_source(&self, id: &str) -> Option<&Arc<RetainedCemTree>> {
+        self.leaves.get(id).map(VerifiedArtifact::tree)
+    }
+    pub fn leaf_capture(&self, id: &str) -> Option<&Arc<LexicallyScopedDocument>> {
+        self.leaves.get(id).map(VerifiedArtifact::capture)
+    }
+    pub fn leaf_datatypes(&self, id: &str) -> Option<&BTreeMap<AstNodeId, DatatypeSource>> {
+        match self.leaves.get(id)? {
+            VerifiedArtifact::Datatype(a) => Some(a.sources()),
+            _ => None,
+        }
+    }
+    pub(crate) fn leaf(&self, id: &str) -> Option<&VerifiedArtifact> {
+        self.leaves.get(id)
+    }
     pub fn module_order(&self) -> &[String] {
         &self.module_order
     }

@@ -157,6 +157,13 @@ pub(crate) enum VerifiedArtifact {
     Native(VerifiedNativeRequirement),
 }
 impl VerifiedArtifact {
+    pub(crate) fn tree(&self) -> &Arc<RetainedCemTree> {
+        match self {
+            Self::Datatype(a) => a.source(),
+            Self::Query(a) => a.source(),
+            Self::Native(a) => a.source(),
+        }
+    }
     pub(crate) fn source(&self) -> &SourceIdentity {
         match self {
             Self::Datatype(a) => &a.pin().source,

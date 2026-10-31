@@ -2313,9 +2313,23 @@ inventory, not the minimum set loaded by every app.
                         exports, aggregate depth/work/bytes and cancellation.
                       - [x] Add repinned malformed/version/unknown/trailing/deep/
                         oversized capsule fixtures and preserve nested leaf limits.
-                      - [ ] Wire verified module graphs into actual fresh-host
+                      - [x] Wire verified module graphs into actual fresh-host
                         selection/compilation with explicit imports, scopes, grants
                         and rule owners before enabling module execution.
+                        - [x] Add actual-host module chain/list/diamond fixtures,
+                          preserving original sources, root-only validation and
+                          fresh selector evaluation through the shared compiler.
+                        - [x] Test explicit source/occurrence readiness, imports,
+                          per-hop directed grants, foreign/copy/extra scopes and
+                          aliases without implicit registration or catalog retention.
+                        - [x] Test reachable query/native rule owners, unused exports,
+                          original diagnostics, shared limits, retirement/cancellation,
+                          reentry and weak callback lifetime release.
+                        - [x] Run native/WASM/component and isolated Studio Login
+                          privacy acceptance; document the native-only boundary.
+                      - [ ] Add separately versioned operation/constant dependency
+                        profiles, with exact original sources, ownership, limits and
+                        compatibility checks before claiming complete code closure.
                       - [x] Run native/WASM/component and isolated Studio Login
                         privacy acceptance; document the inert source-backed boundary.
 
@@ -2329,10 +2343,47 @@ inventory, not the minimum set loaded by every app.
                       module cycles. Combined depth counts through modules and DT1
                       leaves; outer work and total bytes stay bounded, while nested
                       leaf decoders keep their own existing limits. This remains
-                      inert metadata: source selections/code closure are not proven,
-                      no callbacks run, and the distinct verified type does not enter
-                      existing CEMDP1 fresh-host APIs. Module runtime binding and
-                      additional operation/constant profiles remain open above.
+                      inert metadata in the wire verifier: selections/code closure
+                      are not proven and verification runs no callbacks. Explicit
+                      native module entry points now borrow these sources through
+                      the same actual-host resolver/compiler as CEMDP1, with original
+                      source scopes, per-hop grants, imports and weak reachable rule
+                      owners. Existing CEMDP1 APIs do not accept the distinct verified
+                      type implicitly. Additional operation/constant profiles remain
+                      open above.
+
+                      The [actual-host module path](cem-native-schema-capsules.md#actual-host-datatype-module-binding)
+                      uses borrowed verified inputs, not a fabricated CEMDP1 capsule
+                      or a replacement host. It reuses ordinary source discovery,
+                      traversal, compiler and guards. All original source scopes and
+                      captured occurrences remain explicit; imports name actual
+                      exported roots and grants follow each declaring hop. A bounded
+                      metadata closure identifies required fields and reachable
+                      query/native owners, while compilation renews actual selections.
+                      Unused exported rules require no owner or prepared occurrence.
+                      Private typed validation preserves original source/diagnostic
+                      arenas, shared limits, reentry protection and weak callback
+                      ownership. Portable closure flags, wire formats and runtime
+                      admission remain unchanged.
+
+                      Actual-host module verification: the missing entry points and
+                      read-only leaf inputs had a failing-first native fixture.
+                      Fifteen new module runtime cases now pass. All 630 distinct
+                      native cases passed (432 integration and 198 core/shared
+                      traversal), including the legacy source/selection/compilation
+                      contracts. The WASM-target check, 18 component browser cases,
+                      ten audit/factory cases and both WASM drivers passed. Isolated
+                      Studio Login recovery passed in worker and fallback modes
+                      (two selected cases, six filtered), after native builds drained.
+                      Source audit, focused Rust formatting, 285 local documentation
+                      targets and diff checks passed. Existing component (11,474,094
+                      bytes) and full (24,202,382 bytes) WASM assets were exercised,
+                      not rebuilt. No application JavaScript, wire change, new WASM
+                      endpoint or receiver admission was added. Entered credentials
+                      still block recovery; automatic whole-Studio recovery stays
+                      disabled, with 4 MiB checkpoints and five-second deadlines
+                      unchanged. Generated screenshots and Vitest attachments
+                      are excluded.
 
                       Module-graph verification: a missing-API fixture failed first;
                       eleven new integration and five native verifier/order cases

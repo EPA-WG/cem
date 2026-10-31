@@ -59,18 +59,27 @@ impl FreshStructuralHost {
         scope: DeclarationScope,
         registration: DatatypeDependencyRuleRegistration,
     ) -> Result<FreshDatatypeRuleBinding, String> {
+        self.link_input_rule(InputRef::Dependencies(capsule), module, scope, registration)
+    }
+    pub(super) fn link_input_rule(
+        &self,
+        input: InputRef<'_>,
+        module: &str,
+        scope: DeclarationScope,
+        registration: DatatypeDependencyRuleRegistration,
+    ) -> Result<FreshDatatypeRuleBinding, String> {
         self.check().map_err(|_| REFUSED)?;
-        if capsule.pin().registry_hash != self.registry_hash {
+        if input.registry() != self.registry_hash {
             return Err(REFUSED.into());
         }
-        let source = capsule.dependency_source(module).ok_or(REFUSED)?;
+        let source = input.view(Some(module))?.tree;
         self.inner
             .registered_validator_context(scope, source)
             .ok_or(REFUSED)?;
         let active = Arc::new(AtomicBool::new(true));
         let (registry, behavior) = match registration {
             DatatypeDependencyRuleRegistration::Query { functions, adapter } => {
-                let declaration = capsule.query_module(module).ok_or(REFUSED)?;
+                let declaration = input.query(module).ok_or(REFUSED)?;
                 let mut registry = DatatypeValidationRegistry::default();
                 registry
                     .register_verified_query(
@@ -85,7 +94,7 @@ impl FreshStructuralHost {
                 (registry, declaration.contract.behavior().clone())
             }
             DatatypeDependencyRuleRegistration::NativeValidator { adapter } => {
-                let requirement = capsule.native_module(module).ok_or(REFUSED)?;
+                let requirement = input.native(module).ok_or(REFUSED)?;
                 let Requirement::Validator(contract) = &requirement.requirement else {
                     return Err(REFUSED.into());
                 };
@@ -113,19 +122,11 @@ impl FreshStructuralHost {
 pub(super) type RuleOwners = BTreeMap<String, Weak<FreshDatatypeRuleBinding>>;
 pub(super) fn registrations(
     host: &FreshStructuralHost,
-    capsule: &VerifiedDatatypeDependencies,
+    input: InputRef<'_>,
     scopes: &BTreeMap<String, DeclarationScope>,
     bindings: &BTreeMap<String, Arc<FreshDatatypeRuleBinding>>,
+    required: &BTreeSet<String>,
 ) -> Result<(DatatypeValidationRegistry, RuleOwners), String> {
-    let required = capsule
-        .sites()
-        .iter()
-        .filter_map(|s| match &s.target {
-            crate::datatype_dependency_capsule::DependencyTarget::Query(p) => Some(p.hash.clone()),
-            crate::datatype_dependency_capsule::DependencyTarget::Native(p) => Some(p.hash.clone()),
-            _ => None,
-        })
-        .collect::<BTreeSet<_>>();
     if required.len() != bindings.len() || required.iter().any(|id| !bindings.contains_key(id)) {
         return Err(REFUSED.into());
     }
@@ -135,24 +136,10 @@ pub(super) fn registrations(
         if !binding.is_live(host)
             || binding.module != *id
             || scopes.get(id) != Some(&binding.scope)
-            || capsule
-                .dependency_source(id)
-                .is_none_or(|source| !Arc::ptr_eq(source, &binding.source))
-            || capsule
-                .sites()
-                .iter()
-                .filter(|s| match &s.target {
-                    crate::datatype_dependency_capsule::DependencyTarget::Query(p) => p.hash == *id,
-                    crate::datatype_dependency_capsule::DependencyTarget::Native(p) => {
-                        p.hash == *id
-                    }
-                    _ => false,
-                })
-                .any(|s| {
-                    capsule
-                        .expected_target(&s.target)
-                        .is_none_or(|n| n.identity() != binding.behavior.identity())
-                })
+            || !Arc::ptr_eq(input.view(Some(id))?.tree, &binding.source)
+            || input
+                .rule_behavior(id)
+                .is_none_or(|n| n.identity() != binding.behavior.identity())
         {
             return Err(REFUSED.into());
         }

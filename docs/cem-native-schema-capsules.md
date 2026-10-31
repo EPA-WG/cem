@@ -34,8 +34,9 @@ typed validation. Imported query/native rules now bind explicit owners and use
 original source contexts; preparation/tokenizer hooks remain separate gates.
 Native `CEMDM1` now carries flat dependency-bearing datatype modules with stable
 module IDs, original sources, shared datatype/leaf checks and bounded acyclic
-module/declaration orders. It is inert metadata; fresh-host module graph binding
-is the next gate and existing CEMDP1 execution semantics are unchanged.
+module/declaration orders. Its immutable metadata now has explicit fresh-host
+selection/compilation entry points sharing the existing checked resolver and
+compiler. Existing CEMDP1 wire semantics remain unchanged.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -975,9 +976,8 @@ reevaluates selectors. The primitive compiler below performs selection and
 compilation in its checked invocation rather than trust a historical result.
 Portable `selections_verified()` and `executable_closure_verified()` remain false.
 No datatype/validator implementation is compiled or registered by this adapter,
-and no receiver is installed. Fresh-host binding for dependency-bearing datatype
-modules, wider
-operation/constant closure, executable preparation/tokenizer hooks and worker/fallback
+and no receiver is installed. Wider operation/constant closure, executable
+preparation/tokenizer hooks and worker/fallback
 transport/checkpoint enrollment remain pending. Existing application formats,
 WASM endpoints, credential refusal, disabled automatic whole-Studio recovery,
 4 MiB checkpoints and five-second deadlines are unchanged.
@@ -1110,9 +1110,9 @@ grants, source-specific policies, shared inherited/item work, rule/diagnostic
 limits, dropped/retired/stale owners, removed implementations, callback-time stops,
 weak callback release and reentry refusal.
 
-Portable selection and executable-closure flags remain false. Actual-host binding
-of dependency-bearing datatype modules, additional operation/constant profiles, executable preparation
-hooks, mixed receivers and worker/fallback transport/recovery remain separate
+Portable selection and executable-closure flags remain false. Additional
+operation/constant profiles, executable preparation hooks, mixed receivers and
+worker/fallback transport/recovery remain separate
 checklist gates. Entered credentials still block recovery; automatic whole-Studio
 recovery stays disabled, with 4 MiB checkpoints and five-second deadlines unchanged.
 
@@ -1139,9 +1139,9 @@ classified by the same [datatype inspector](../packages/cem_ql/src/datatype_depe
 as CEMDP1, using the shared native source plan. Local names and qualified imported
 literal names must agree with their asserted targets. Native references and their
 complete lexical/namespace snapshots remain passive source occurrences. This is
-not a name-resolution or selection verdict: actual source contexts, original
-aliases, explicit exports and directed grants must still be checked by the future
-fresh-host consumer.
+not a name-resolution or selection verdict: the explicit fresh-host consumer
+below checks actual source contexts, original aliases, explicit exports and
+directed grants again.
 
 The [shared leaf verifier](../packages/cem_ql/src/datatype_dependency_capsule/leaves.rs)
 checks exact DT1/QD1/NR1 pins, registry identities and existing leaf format limits.
@@ -1202,12 +1202,103 @@ and module tests share the same checked rule-artifact builders.
 
 `selections_verified()` and `executable_closure_verified()` remain false.
 `VerifiedDatatypeModules` is a distinct type; existing fresh-host CEMDP1 APIs do
-not accept it implicitly. Actual-host selection/compilation with explicit module
-scopes, policies, imports, grants and rule owners is the next checklist gate.
-Additional operation/constant profiles, mixed receivers and WASM/worker/fallback
+not accept it implicitly. The explicit actual-host module entry points below now
+supply scoped selection/compilation. Additional operation/constant profiles,
+mixed receivers and WASM/worker/fallback
 transport remain pending. No application JavaScript or new WASM entry point is
 introduced. Entered credentials still block recovery; automatic whole-Studio
 recovery stays disabled, with 4 MiB checkpoints and five-second deadlines unchanged.
+
+## Actual-host datatype module binding
+
+The native [module entry points](../packages/cem_ql/src/structural_receiver/dependencies/modules.rs)
+consume CEMDM1 through a borrowed verified-input view. This is not conversion into
+a CEMDP1 capsule, a replacement host, a serialized executable or automatic module
+activation. Both formats use the same actual `FreshStructuralHost`, original name
+catalog, ordinary reference traversal, primitive compiler and rule-owner guards.
+
+Use `register_datatype_module_scope` for the graph's root module, other module IDs
+and every supplied leaf hash. Provide each actual context/readiness and reference
+policy explicitly. Registration attaches exact original captured names and
+namespaces but creates no crossing grant. Raw tree registration or a reloaded
+copy with equal hashes cannot substitute for the verified capture. The
+`leaf_source`, `leaf_capture` and `leaf_datatypes` metadata accessors expose original
+leaf inputs for explicit preparation and primitive registrations.
+
+Call `prepare_datatype_module_lexical_scopes` with each source's original occurrence
+contexts/policy overrides. Missing contexts stay pending, even with a ready root
+context. Supply directed grants at every actual declaring-module hop: an app's
+grant to a grandchild does not replace its intermediate module's grant. Literal
+qualified references also require `DatatypeDependencyImport` requests on the
+original consuming source scope. Imports must name actual exported roots and use
+their original namespace/name; they cannot repair an author's wrong alias or
+manufacture a grant. A shared module in a diamond keeps one source owner and its
+own scope.
+
+`select_datatype_modules` takes the graph, the actual root declaration scope, a map
+of every other source ID to scope, explicit imports and traversal limits. The root
+scope must own the exact source named by `graph.pin().root`. Missing, extra,
+foreign, duplicate or copied scope mappings refuse. This returns the same local
+`FreshDatatypeDependencySelection` inspection API; liveness/counts are not retained
+permission to compile or publish.
+
+`compile_datatype_modules` takes those inputs plus explicit primitive metadata and
+a map of reachable leaf IDs to caller-held `Arc<FreshDatatypeRuleBinding>` owners.
+Create these owners with `link_datatype_module_rule`, using the same explicit
+query-function selection/result adapter or exact preinstalled native implementation
+as the CEMDP1 path. Register native implementations and prepare scopes/grants
+before linking owners, since these actions advance the host context epoch.
+The primitive-only kinds/representations and no tokenizer/validator metadata-hook
+rules remain enforced. Additional converter/preparation/constant profiles are not
+implicitly enabled.
+
+A bounded [input planner](../packages/cem_ql/src/structural_receiver/dependencies/inputs.rs)
+indexes intended original fields and targets and derives the root's reachable
+requirements. It does not execute or authorize selectors. A transitive rule reached
+through imported inheritance or list items requires its exact live owner; an unused
+export's rule requires neither an owner nor a prepared rule occurrence. Source
+metadata still needs explicit registered ready scopes for discovery. The binding
+map must match the reachable rules exactly, so extra owners do not activate code.
+
+Compilation independently reruns ordinary selectors under actual original contexts
+and policies. Shared native admission compares every completed singleton selection
+with its intended original field/target before executable construction. A mutated
+callback selecting another otherwise valid source, a dynamic reference cycle or
+callback-time cancellation refuses. Every reachable intended field must appear in
+the completed selection. An earlier successful inspection cannot authorize a later
+changed target. Unchanged private compilations survive failed attempts that change
+no context.
+
+Only the graph root's exported datatype IDs are validation entry points. Original
+base/item declarations and imported rule behaviors keep their original arenas,
+including cardinality and validation diagnostic provenance. The existing private
+compilation wrapper reruns typed validation with actual rule-source contexts,
+shared rule/input/query/diagnostic limits, weak rule ownership and reentry guards.
+Validation does not replay dependency selectors or cache an acceptance verdict.
+Retired/dropped rule owners, removed native implementations, changed/stale/foreign
+contexts or a closed/dropped host disable use. Retaining graph inspections or
+compilations retains no host selector/validator callback or source runtime context.
+
+Requests still refuse zero work/depth, depth above 64, work above 100,000, or more
+than 128 import requests. Metadata planning, name discovery and ordinary traversal
+are separately bounded phases under actual operation controls. Traversal shares its
+remaining work across root exports and preserves destination policies. This does
+not claim a single cumulative heap/phase reservation. CEMDM1's wire/source/graph
+limits remain unchanged.
+
+The [actual-host fixtures](../packages/cem_ql/tests/datatype_module_runtime.rs)
+cover chains, shared diamonds, original lists/facets, per-hop grants, source and
+occurrence readiness, raw/copy/foreign/extra scope refusals, qualified imports,
+request/destination limits, fresh mutable selectors, dynamic cycles, exact DT1
+arenas, transitive query/native owners, unused exports, shared item budgets,
+callback-time retirement/stops/reentry and weak callback release. Wire tests share
+the same original source builders.
+
+Portable selection/code-closure flags stay false. There is no new wire semantics,
+WASM entry point, receiver publication or application JavaScript. Broader operation/
+constant profiles, mixed receivers and runtime transport/recovery remain separate
+gates. Entered credentials still block recovery; automatic whole-Studio recovery
+stays disabled, with 4 MiB checkpoints and five-second deadlines unchanged.
 
 ## Guarded datatype preparation handoff
 

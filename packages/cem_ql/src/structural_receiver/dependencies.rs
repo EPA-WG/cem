@@ -15,6 +15,9 @@ use cem_ml::schema::{
 };
 mod compilation;
 mod host;
+mod inputs;
+mod modules;
+use inputs::{InputRef, Inputs};
 mod rules;
 pub use compilation::{DatatypeDependencyCompileError, FreshDependencyDatatypeCompilation};
 pub use rules::{DatatypeDependencyRuleRegistration, FreshDatatypeRuleBinding};
@@ -28,7 +31,7 @@ pub struct DatatypeDependencyImport {
 /// An inspection of a completed selection, not permission to compile or publish.
 /// Context liveness does not freeze mutable native callback/provider state.
 pub struct FreshDatatypeDependencySelection {
-    capsule: Arc<VerifiedDatatypeDependencies>,
+    inputs: Inputs,
     context: AttributeDatatypeContextLease,
     active: AtomicBool,
     sites: usize,
@@ -39,7 +42,7 @@ impl FreshDatatypeDependencySelection {
         host.check().map_err(|_| REFUSED)?;
         if !self.active.load(Ordering::Acquire)
             || !self.context.matches(&host.context)
-            || self.capsule.pin().registry_hash != host.registry_hash
+            || self.inputs.borrow().registry() != host.registry_hash
         {
             return Err(REFUSED.into());
         }
@@ -61,7 +64,7 @@ impl FreshDatatypeDependencySelection {
     }
 }
 fn view<'a>(
-    capsule: &'a VerifiedDatatypeDependencies,
+    input: InputRef<'a>,
     id: Option<&str>,
 ) -> Result<
     (
@@ -71,24 +74,8 @@ fn view<'a>(
     ),
     String,
 > {
-    Ok(match id {
-        None => (
-            capsule.source(),
-            capsule.capture(),
-            capsule
-                .sources()
-                .values()
-                .next()
-                .ok_or(REFUSED)?
-                .scope()
-                .clone(),
-        ),
-        Some(id) => (
-            capsule.dependency_source(id).ok_or(REFUSED)?,
-            capsule.dependency_capture(id).ok_or(REFUSED)?,
-            capsule.dependency_schema(id).ok_or(REFUSED)?,
-        ),
-    })
+    let v = input.view(id)?;
+    Ok((v.tree, v.capture, v.schema))
 }
 fn literal(
     capture: &LexicallyScopedDocument,
@@ -141,11 +128,20 @@ impl FreshStructuralHost {
         context: Option<StandaloneExpressionContext>,
         policy: ReferenceScopePolicy,
     ) -> Result<DeclarationScope, String> {
+        self.register_input_scope(InputRef::Dependencies(capsule), id, context, policy)
+    }
+    fn register_input_scope(
+        &mut self,
+        input: InputRef<'_>,
+        id: Option<&str>,
+        context: Option<StandaloneExpressionContext>,
+        policy: ReferenceScopePolicy,
+    ) -> Result<DeclarationScope, String> {
         self.check().map_err(|_| REFUSED)?;
-        if capsule.pin().registry_hash != self.registry_hash {
+        if input.registry() != self.registry_hash {
             return Err(REFUSED.into());
         }
-        let (tree, capture, _) = view(capsule, id)?;
+        let (tree, capture, _) = view(input, id)?;
         let scope = self.register_scope(tree.clone(), context, policy)?;
         self.inner
             .attach_captured_names(capture)
@@ -177,11 +173,29 @@ impl FreshStructuralHost {
             ReferenceScopePolicyOverrides,
         ),
     {
+        self.prepare_input_lexical_scopes(InputRef::Dependencies(capsule), id, prepare)
+    }
+    fn prepare_input_lexical_scopes<F>(
+        &mut self,
+        input: InputRef<'_>,
+        id: Option<&str>,
+        prepare: F,
+    ) -> Result<Vec<(AstNodeId, DeclarationScope)>, String>
+    where
+        F: FnMut(
+            &SchemaDeclarationNode,
+            &LexicalScopeSnapshot,
+            DeclarationScope,
+        ) -> (
+            Option<StandaloneExpressionContext>,
+            ReferenceScopePolicyOverrides,
+        ),
+    {
         self.check().map_err(|_| REFUSED)?;
-        if capsule.pin().registry_hash != self.registry_hash {
+        if input.registry() != self.registry_hash {
             return Err(REFUSED.into());
         }
-        let (_, capture, _) = view(capsule, id)?;
+        let (_, capture, _) = view(input, id)?;
         if !self.inner.has_datatype_source_capture(capture) {
             return Err(REFUSED.into());
         }
@@ -203,13 +217,26 @@ impl FreshStructuralHost {
         imports: &[DatatypeDependencyImport],
         limits: ReferenceTraversalLimits,
     ) -> Result<FreshDatatypeDependencySelection, String> {
+        self.select_inputs(Inputs::Dependencies(capsule), root, scopes, imports, limits)
+    }
+    fn select_inputs(
+        &mut self,
+        inputs: Inputs,
+        root: DeclarationScope,
+        scopes: &BTreeMap<String, DeclarationScope>,
+        imports: &[DatatypeDependencyImport],
+        limits: ReferenceTraversalLimits,
+    ) -> Result<FreshDatatypeDependencySelection, String> {
+        let input = inputs.borrow();
         let Environment {
             context,
             catalog,
             allowed,
             expected,
             captures,
-        } = self.dependency_environment(&capsule, root, scopes, imports, limits)?;
+            required,
+            ..
+        } = self.dependency_environment(input, root, scopes, imports, limits)?;
         let mut adapter = host::Host {
             inner: &mut self.inner,
             catalog: &catalog,
@@ -223,9 +250,15 @@ impl FreshStructuralHost {
         let mut remaining = limits;
         let mut selected = BTreeMap::new();
         let mut datatypes = BTreeSet::new();
-        for root in capsule.roots() {
+        let root_view = input.view(None)?;
+        for root in root_view.exports.ok_or(REFUSED)? {
             adapter.check().map_err(|_| REFUSED)?;
-            let source = capsule.sources().get(root).ok_or(REFUSED)?.clone();
+            let source = root_view
+                .datatypes
+                .ok_or(REFUSED)?
+                .get(root)
+                .ok_or(REFUSED)?
+                .clone();
             let walk = traverse_native_datatype_dependencies(source, &mut adapter, remaining)
                 .map_err(|_| REFUSED)?;
             if !walk.is_complete() {
@@ -263,14 +296,11 @@ impl FreshStructuralHost {
             }
         }
         adapter.check().map_err(|_| REFUSED)?;
-        if capsule.sites().iter().any(|s| {
-            SchemaDeclarationNode::new(capsule.capture().document().clone(), s.field)
-                .is_none_or(|n| !selected.contains_key(&n.identity()))
-        }) {
+        if required.iter().any(|id| !selected.contains_key(id)) {
             return Err(REFUSED.into());
         }
         let result = FreshDatatypeDependencySelection {
-            capsule,
+            inputs,
             context,
             active: AtomicBool::new(true),
             sites: selected.len(),
@@ -287,24 +317,28 @@ struct Environment {
     allowed: BTreeMap<String, DatatypeSource>,
     expected: BTreeMap<String, String>,
     captures: Vec<Arc<LexicallyScopedDocument>>,
+    required: BTreeSet<String>,
+    rules: BTreeSet<String>,
 }
 impl FreshStructuralHost {
     fn dependency_environment(
         &mut self,
-        capsule: &VerifiedDatatypeDependencies,
+        input: InputRef<'_>,
         root: DeclarationScope,
         scopes: &BTreeMap<String, DeclarationScope>,
         imports: &[DatatypeDependencyImport],
         limits: ReferenceTraversalLimits,
     ) -> Result<Environment, String> {
         self.check().map_err(|_| REFUSED)?;
-        if capsule.pin().registry_hash != self.registry_hash
+        let ids = input.ids();
+        if input.registry() != self.registry_hash
             || limits.max_work == 0
             || limits.max_work > 100_000
             || limits.max_depth == 0
             || limits.max_depth > 64
             || imports.len() > 128
-            || scopes.len() != capsule.dependency_ids().count()
+            || scopes.len() != ids.len()
+            || ids.iter().any(|id| !scopes.contains_key(*id))
         {
             return Err(REFUSED.into());
         }
@@ -312,8 +346,8 @@ impl FreshStructuralHost {
         let mut inputs = vec![];
         let mut registered = BTreeMap::new();
         let mut captures = vec![];
-        for id in std::iter::once(None).chain(capsule.dependency_ids().map(Some)) {
-            let (tree, capture, schema) = view(capsule, id)?;
+        for id in std::iter::once(None).chain(ids.into_iter().map(Some)) {
+            let (tree, capture, schema) = view(input, id)?;
             let scope = match id {
                 None => root,
                 Some(id) => *scopes.get(id).ok_or(REFUSED)?,
@@ -330,7 +364,9 @@ impl FreshStructuralHost {
             {
                 return Err(REFUSED.into());
             }
-            registered.insert(scope, inputs.len());
+            if registered.insert(scope, inputs.len()).is_some() {
+                return Err(REFUSED.into());
+            }
             captures.push(capture.clone());
             inputs.push(DatatypeSchemaSource {
                 schema,
@@ -344,19 +380,24 @@ impl FreshStructuralHost {
                 return Err(REFUSED.into());
             }
             let index = *registered.get(&request.consumer).ok_or(REFUSED)?;
-            let module = capsule.datatype_module(&request.module).ok_or(REFUSED)?;
-            if !module.roots().contains(&request.root) {
+            let module = input.view(Some(&request.module))?;
+            if !module.exports.ok_or(REFUSED)?.contains(&request.root) {
                 return Err(REFUSED.into());
             }
-            let source = module.sources().get(&request.root).ok_or(REFUSED)?;
-            let namespace = literal(module.capture(), source.scope(), "namespace")?;
-            let name = literal(module.capture(), source.declaration(), "name")?;
+            let source = module
+                .datatypes
+                .ok_or(REFUSED)?
+                .get(&request.root)
+                .ok_or(REFUSED)?;
+            let namespace = literal(module.capture, source.scope(), "namespace")?;
+            let name = literal(module.capture, source.declaration(), "name")?;
             inputs[index].imports.push(DatatypeExport {
                 namespace,
                 name,
                 source: source.clone(),
             });
         }
+        let plan = input.plan(limits.max_work, &self.control)?;
         let catalog = DatatypeNameCatalog::discover_with_limits(
             &inputs,
             &mut self.inner,
@@ -367,40 +408,6 @@ impl FreshStructuralHost {
             limits,
         )
         .map_err(|_| REFUSED)?;
-        let mut allowed = BTreeMap::new();
-        let mut expected = BTreeMap::new();
-        for source in capsule.sources().values().chain(
-            capsule
-                .datatype_modules()
-                .flat_map(|m| m.sources().values()),
-        ) {
-            allowed.insert(source.declaration().identity(), source.clone());
-        }
-        for site in capsule.sites() {
-            let field =
-                SchemaDeclarationNode::new(capsule.capture().document().clone(), site.field)
-                    .ok_or(REFUSED)?;
-            expected.insert(
-                field.identity(),
-                capsule
-                    .expected_target(&site.target)
-                    .ok_or(REFUSED)?
-                    .identity(),
-            );
-        }
-        for module in capsule.datatype_modules() {
-            for source in module.sources().values() {
-                for dep in source.plan().dependencies {
-                    let cem_ml::schema::datatype_registry::DatatypeDependencyValue::Literal(name) =
-                        &dep.value
-                    else {
-                        return Err(REFUSED.into());
-                    };
-                    let target = module.source_named(name).ok_or(REFUSED)?;
-                    expected.insert(dep.attribute.identity(), target.declaration().identity());
-                }
-            }
-        }
         self.check().map_err(|_| REFUSED)?;
         if !context.matches(&self.context) {
             return Err(REFUSED.into());
@@ -408,9 +415,11 @@ impl FreshStructuralHost {
         Ok(Environment {
             context,
             catalog,
-            allowed,
-            expected,
+            allowed: plan.allowed,
+            expected: plan.expected,
             captures,
+            required: plan.required,
+            rules: plan.rules,
         })
     }
 }

@@ -61,7 +61,7 @@ impl std::fmt::Display for DatatypeDependencyCompileError {
 impl std::error::Error for DatatypeDependencyCompileError {}
 /// Private executable snapshots; never a receiver/publication or portable proof.
 pub struct FreshDependencyDatatypeCompilation {
-    capsule: Arc<VerifiedDatatypeDependencies>,
+    inputs: Inputs,
     compilation: DatatypeCompilation,
     context: AttributeDatatypeContextLease,
     root: DeclarationScope,
@@ -80,14 +80,14 @@ impl FreshDependencyDatatypeCompilation {
         host.check().map_err(|_| REFUSED)?;
         if !self.active.load(Ordering::Acquire)
             || !self.context.matches(&host.context)
-            || self.capsule.pin().registry_hash != host.registry_hash
+            || self.inputs.borrow().registry() != host.registry_hash
             || self
                 .rules
                 .values()
                 .any(|b| b.upgrade().is_none_or(|b| !b.is_live(host)))
             || host
                 .inner
-                .registered_validator_context(self.root, self.capsule.source())
+                .registered_validator_context(self.root, self.inputs.borrow().view(None)?.tree)
                 .is_none()
         {
             return Err(REFUSED.into());
@@ -112,10 +112,15 @@ impl FreshDependencyDatatypeCompilation {
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .map_err(|_| REFUSED)?;
         let _entry = ValidationEntry(&self.validating);
-        if !self.capsule.roots().contains(&root) {
+        let root_view = self.inputs.borrow().view(None)?;
+        if !root_view.exports.ok_or(REFUSED)?.contains(&root) {
             return Err(REFUSED.into());
         }
-        let source = self.capsule.sources().get(&root).ok_or(REFUSED)?;
+        let source = root_view
+            .datatypes
+            .ok_or(REFUSED)?
+            .get(&root)
+            .ok_or(REFUSED)?;
         let descriptor = self
             .compilation
             .contracts
@@ -131,7 +136,7 @@ impl FreshDependencyDatatypeCompilation {
             scope: ROOT_EXECUTION_SCOPE_ID,
             query: host
                 .inner
-                .registered_validator_context(self.root, self.capsule.source())
+                .registered_validator_context(self.root, self.inputs.borrow().view(None)?.tree)
                 .ok_or(REFUSED)?,
         };
         let result = descriptor.validate_with_rule_contexts(
@@ -180,8 +185,29 @@ impl FreshStructuralHost {
         bindings: &BTreeMap<String, Arc<FreshDatatypeRuleBinding>>,
         limits: ReferenceTraversalLimits,
     ) -> Result<FreshDependencyDatatypeCompilation, DatatypeDependencyCompileError> {
+        self.compile_inputs(
+            Inputs::Dependencies(capsule),
+            root,
+            scopes,
+            imports,
+            implementations,
+            bindings,
+            limits,
+        )
+    }
+    pub(super) fn compile_inputs(
+        &mut self,
+        inputs: Inputs,
+        root: DeclarationScope,
+        scopes: &BTreeMap<String, DeclarationScope>,
+        imports: &[DatatypeDependencyImport],
+        implementations: &[DatatypeImplementation],
+        bindings: &BTreeMap<String, Arc<FreshDatatypeRuleBinding>>,
+        limits: ReferenceTraversalLimits,
+    ) -> Result<FreshDependencyDatatypeCompilation, DatatypeDependencyCompileError> {
+        let input = inputs.borrow();
         self.check().map_err(|_| REFUSED)?;
-        if bindings.is_empty() && capsule.sites().iter().any(|s| s.role == "validation-rule") {
+        if bindings.is_empty() && input.root_has_rules() {
             return Err(DatatypeDependencyCompileError::refused(
                 "datatype-dependency-rule-bindings-unavailable",
             ));
@@ -192,8 +218,16 @@ impl FreshStructuralHost {
             allowed,
             expected,
             captures,
-        } = self.dependency_environment(&capsule, root, scopes, imports, limits)?;
-        let (validations, owners) = rules::registrations(self, &capsule, scopes, bindings)?;
+            required,
+            rules: required_rules,
+        } = self.dependency_environment(input, root, scopes, imports, limits)?;
+        if bindings.is_empty() && !required_rules.is_empty() {
+            return Err(DatatypeDependencyCompileError::refused(
+                "datatype-dependency-rule-bindings-unavailable",
+            ));
+        }
+        let (validations, owners) =
+            rules::registrations(self, input, scopes, bindings, &required_rules)?;
         let mut primitive = DatatypeImplementations::default();
         if implementations.len() > allowed.len() {
             return Err(DatatypeDependencyCompileError::refused(
@@ -222,19 +256,21 @@ impl FreshStructuralHost {
                 .register(implementation.clone())
                 .map_err(|_| REFUSED)?;
         }
+        let root_view = input.view(None)?;
         let runtime = ValidationRuntime {
             control: &self.control,
             scope: ROOT_EXECUTION_SCOPE_ID,
             query: self
                 .inner
-                .registered_validator_context(root, capsule.source())
+                .registered_validator_context(root, root_view.tree)
                 .ok_or(REFUSED)?,
         };
-        let roots = capsule
-            .roots()
+        let roots = root_view
+            .exports
+            .ok_or(REFUSED)?
             .iter()
-            .map(|id| capsule.sources()[id].clone())
-            .collect::<Vec<_>>();
+            .map(|id| root_view.datatypes.ok_or(REFUSED).map(|d| d[id].clone()))
+            .collect::<Result<Vec<_>, _>>()?;
         let mut adapter = host::Host {
             inner: &mut self.inner,
             catalog: &catalog,
@@ -246,7 +282,7 @@ impl FreshStructuralHost {
             control: &self.control,
         };
         let compilation = compile_datatypes_with_runtime(
-            capsule.capture().document().clone(),
+            root_view.capture.document().clone(),
             &roots,
             &mut adapter,
             &primitive,
@@ -277,18 +313,18 @@ impl FreshStructuralHost {
                 ));
             }
         }
-        if capsule.sites().iter().any(|s| {
-            !compilation.dependency_sites.iter().any(|site| {
-                site.attribute.node_id() == s.field
-                    && Arc::ptr_eq(site.attribute.document(), capsule.capture().document())
-            })
+        if required.iter().any(|id| {
+            !compilation
+                .dependency_sites
+                .iter()
+                .any(|s| s.attribute.identity() == *id)
         }) {
             return Err(DatatypeDependencyCompileError::refused(
                 "datatype-dependency-selection-incomplete",
             ));
         }
         let result = FreshDependencyDatatypeCompilation {
-            capsule,
+            inputs,
             compilation,
             context,
             root,

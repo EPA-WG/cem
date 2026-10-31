@@ -342,7 +342,10 @@ admission remain pending.
 The [native module graph](cem-native-schema-capsules.md#dependency-bearing-datatype-module-graphs)
 now verifies flat dependency-bearing modules, original sources and bounded
 acyclic module/declaration orders through shared datatype and leaf checks.
-It remains inert: actual-host module binding and runtime admission are pending.
+The [explicit actual-host module path](cem-native-schema-capsules.md#actual-host-datatype-module-binding)
+now reuses the shared resolver/compiler with original source scopes, per-hop
+grants, explicit imports, fresh selections and weak reachable rule owners.
+Portable/runtime admission remains pending.
 
 
 Do not equate downloaded code with an active native generation. Register every
