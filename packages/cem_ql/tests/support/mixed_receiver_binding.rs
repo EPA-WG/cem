@@ -59,6 +59,7 @@ struct Setup {
     selector_calls: Arc<AtomicUsize>,
     control: OperationControl,
     installed: Arc<install::LinkedApplication>,
+    base_source: Option<legacy_install::ComponentReceiverSource>,
     contract: Arc<records::VerifiedMixedReceiverDeclaration>,
     source: mixed::MixedReceiverSource,
     scalar: mixed::ScalarReceiverSource,
@@ -128,6 +129,81 @@ fn configured_profile(
     rule: bool,
     typed: bool,
 ) -> Setup {
+    configured_with_parent(
+        input_text,
+        receiver_text,
+        receiver_grant,
+        input_grant,
+        rule,
+        typed,
+        |b, _, control| Arc::new(envelope::verify(&b.bytes, &b.pin, control).unwrap()),
+    )
+}
+fn configured_with_parent(
+    input_text: &str,
+    receiver_text: &str,
+    receiver_grant: bool,
+    input_grant: bool,
+    rule: bool,
+    typed: bool,
+    load: impl FnOnce(
+        envelope::BuiltApplicationEnvelope,
+        &cem_ql::application_declaration::NamedReceiverType,
+        &OperationControl,
+    ) -> Arc<envelope::VerifiedApplicationEnvelope>,
+) -> Setup {
+    configured_with_parent_and_sources(
+        input_text,
+        receiver_text,
+        receiver_grant,
+        input_grant,
+        rule,
+        typed,
+        load,
+        |_, _| {},
+    )
+}
+fn configured_with_parent_and_sources(
+    input_text: &str,
+    receiver_text: &str,
+    receiver_grant: bool,
+    input_grant: bool,
+    rule: bool,
+    typed: bool,
+    load: impl FnOnce(
+        envelope::BuiltApplicationEnvelope,
+        &cem_ql::application_declaration::NamedReceiverType,
+        &OperationControl,
+    ) -> Arc<envelope::VerifiedApplicationEnvelope>,
+    extra: impl FnOnce(&mut FreshStructuralHost, &Arc<assembly::VerifiedDatatypeModules>),
+) -> Setup {
+    configured_application(
+        input_text,
+        receiver_text,
+        receiver_grant,
+        input_grant,
+        rule,
+        typed,
+        load,
+        extra,
+        false,
+    )
+}
+fn configured_application(
+    input_text: &str,
+    receiver_text: &str,
+    receiver_grant: bool,
+    input_grant: bool,
+    rule: bool,
+    typed: bool,
+    load: impl FnOnce(
+        envelope::BuiltApplicationEnvelope,
+        &cem_ql::application_declaration::NamedReceiverType,
+        &OperationControl,
+    ) -> Arc<envelope::VerifiedApplicationEnvelope>,
+    extra: impl FnOnce(&mut FreshStructuralHost, &Arc<assembly::VerifiedDatatypeModules>),
+    base_receiver: bool,
+) -> Setup {
     let choice = Arc::new(AtomicUsize::new(0));
     let selector_calls = Arc::new(AtomicUsize::new(0));
     let control = OperationControl::default();
@@ -172,8 +248,28 @@ fn configured_profile(
     let id = b
         .add_contract(legacy::ContractArtifact::structural(sc), BTreeSet::new())
         .unwrap();
-    let decl=cem_ql::declaration_artifact::build_declaration_artifact("<cem-element tag=\"cem-app\"><template id=\"cem-app\" type=\"text/cem-ml\">{p | Hello}</template></cem-element>","file:///app/base.xhtml",cem_ql::template_artifact::TemplateArtifactSourceMapMode::Dev,None).unwrap();
-    b.add_component(decl, BTreeMap::new()).unwrap();
+    let base_source=base_receiver.then(||{
+        let (tree,_)=imported("{schema @name=base @namespace=https://app.test/base-receiver/1 | {elements | {element @name=view @required-attributes=items @optional-attributes=\"count choice names\"}} {attributes | {attribute @name=items @type=node @maxItems=2}}}","file:///app/base-receiver.cem");
+        legacy_install::ComponentReceiverSource{schema_uri:"https://app.test/base-receiver/1".into(),attributes:attributes(&tree),source:tree}
+    });
+    let body = if base_receiver {
+        "{attribute @name=items @type=cart-lines @maxItems=2}{p | Hello}"
+    } else {
+        "{p | Hello}"
+    };
+    let decl=cem_ql::declaration_artifact::build_declaration_artifact(&format!("<cem-element tag=\"cem-app\"><template id=\"cem-app\" type=\"text/cem-ml\">{body}</template></cem-element>"),"file:///app/base.xhtml",cem_ql::template_artifact::TemplateArtifactSourceMapMode::Dev,None).unwrap();
+    let receivers = if base_receiver {
+        BTreeMap::from([(
+            "cart-lines".into(),
+            legacy::NodeReceiverRequirement {
+                contract: id.clone(),
+                schema_uri: "https://app.test/schema/cart/1".into(),
+            },
+        )])
+    } else {
+        BTreeMap::new()
+    };
+    b.add_component(decl, receivers).unwrap();
     let base = b
         .build(
             BTreeSet::from(["cem-app".into()]),
@@ -215,7 +311,7 @@ fn configured_profile(
                     &control,
                 )
                 .unwrap();
-            let p = Arc::new(envelope::verify(&b.bytes, &b.pin, &control).unwrap());
+            let p = load(b, &named, &control);
             let g = p.assembly_owner(&id).unwrap().clone();
             *metadata.borrow_mut() = Some(g.clone());
             parent = Some(p);
@@ -304,11 +400,43 @@ fn configured_profile(
             if input_grant {
                 h.allow_scope_crossing(from, to);
             }
+            if let Some(source) = &base_source {
+                h.register_scope(
+                    source.source.clone(),
+                    Some(Default::default()),
+                    ReferenceScopePolicy::schema_defaults().unwrap(),
+                )
+                .unwrap();
+            }
+            extra(h, g);
         },
     );
     let parent = parent.unwrap();
     let owner = Arc::new(f.c);
-    let installed = Arc::new(candidate(&f.h, &parent, &owner).unwrap());
+    let sources = base_source
+        .as_ref()
+        .map(|s| {
+            (
+                "cem-app".into(),
+                legacy_install::ComponentReceiverSource {
+                    schema_uri: s.schema_uri.clone(),
+                    source: s.source.clone(),
+                    attributes: s.attributes.clone(),
+                },
+            )
+        })
+        .into_iter()
+        .collect();
+    let installed = Arc::new(
+        install::stage(
+            &f.h,
+            parent.clone(),
+            sources,
+            BTreeMap::new(),
+            &BTreeMap::from([(parent.roots()["scalar"].assembly.clone(), owner.clone())]),
+        )
+        .unwrap(),
+    );
     let decl=cem_ql::declaration_artifact::build_declaration_artifact("<cem-element tag=\"cem-bound-mixed\"><template id=\"cem-bound-mixed\" type=\"text/cem-ml\">{attribute @name=items @type=cart-lines @maxItems=2}{attribute @name=count @type=cart-count}{attribute @name=choice @type=cart-scalar}{attribute @name=names @type=cart-list @maxItems=2}{p | Mixed}</template></cem-element>","file:///app/mixed.xhtml",cem_ql::template_artifact::TemplateArtifactSourceMapMode::Dev,None).unwrap();
     let contracts = BTreeMap::from([
         (
@@ -346,6 +474,7 @@ fn configured_profile(
         selector_calls,
         control: f.control,
         installed,
+        base_source,
         contract,
         source: mixed::MixedReceiverSource {
             schema_uri: RECEIVER_URI.into(),
@@ -914,3 +1043,6 @@ fn mixed_binding_withholds_spans_after_tokenizer_readiness_retires_the_group() {
     f.state.mode.store(0, Ordering::SeqCst);
     assert!(f.owner.is_live(&f.h));
 }
+
+#[path = "application_publication.rs"]
+mod publication;

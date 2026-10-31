@@ -146,7 +146,9 @@ fn structural() -> ContractArtifact {
         .unwrap(),
     )
 }
-fn query() -> ContractArtifact {
+fn query() -> ContractArtifact {query_body("{accepted: true, diagnostics: ()}")}
+fn query_body(body:&str) -> ContractArtifact {ContractArtifact::query(query_declaration(body))}
+fn query_declaration(body:&str)->query::BuiltQueryDeclaration{
     let text = r#"@ns schema = "https://cem.dev/ns/schema/1"
 @default schema
 {schema @name=example @namespace=urn:example |
@@ -156,7 +158,8 @@ fn query() -> ContractArtifact {
  {result @type=schema:datatype-validation-result}
  {function @name=run @returns=datatype-validation-result | {param @name=value @type=string @required=true @cardinality=one} {param @name=datatype @type=node @required=true @cardinality=one} {param @name=candidate @type=node @required=false @cardinality=zero-or-one} {body | {$ {accepted: true, diagnostics: ()} }}}}}
 }"#;
-    let c = capture(text);
+    let text=text.replace("{accepted: true, diagnostics: ()}",body);
+    let c = capture(&text);
     let source = ValueContractSource::new(
         node(&c, "schema"),
         NS,
@@ -172,8 +175,7 @@ fn query() -> ContractArtifact {
     };
     let contract =
         DatatypeBehaviorContract::compile(&source, &node(&c, "behavior"), signature).unwrap();
-    ContractArtifact::query(
-        query::export(
+    query::export(
             &c,
             &contract,
             SourceIdentity::new(
@@ -184,8 +186,7 @@ fn query() -> ContractArtifact {
             &hash(b"registry"),
             &OperationControl::default(),
         )
-        .unwrap(),
-    )
+        .unwrap()
 }
 #[test]
 fn graph_pins_structural_query_and_native_dependencies_and_shares_complete_sources() {

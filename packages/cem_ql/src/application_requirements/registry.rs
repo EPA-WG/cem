@@ -83,6 +83,9 @@ impl ApplicationRequirements {
     }
 }
 impl SelectedRegistryPlan {
+    pub fn execution_units(&self) -> &BTreeSet<NativeExecutionUnit> {
+        &self.execution_units
+    }
     pub fn registry(&self) -> SelectedFunctionRegistry {
         SelectedFunctionRegistry::new(self.entries.iter().copied())
             .expect("unique reviewed registry")

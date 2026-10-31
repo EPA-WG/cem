@@ -820,8 +820,12 @@ assembly-root demands, preserving original fields and dependency identities.
 Its verifier remains inert. The [native original-receiver binder](docs/cem-native-schema-capsules.md#native-original-mixed-receiver-binding)
 now binds exact registered source occurrences and live parent-root owners, with
 renewed receiving selectors, shared field validation/preparation and atomic group
-replacement. Complete application publication and generation-bound transport
-remain next; this field-only API grants no renderer or runtime admission.
+replacement. The [CEMAPPD4 publication](docs/cem-native-schema-capsules.md#versioned-complete-application-publication)
+now composes the parent and mixed declarations with recomputed template/query
+registry demand, source-claim agreement and one live native registry/code/peer
+guard. Generation-bound transport and checkpoint enrollment remain next; this
+native publication grants no renderer or runtime admission and claims no linked
+binary omission or arbitrary provider closure.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 

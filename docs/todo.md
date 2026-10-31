@@ -9,8 +9,8 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [original mixed receivers and live host guards](archive/todo-completed-original-mixed-receivers-2026-10-31.md).
-The [mixed declaration contract](archive/todo-completed-mixed-receiver-contracts-2026-10-31.md) preserves the preceding stage.
+Latest completion: [complete native application publication](archive/todo-completed-complete-application-publication-2026-10-31.md).
+The [original mixed receiver binding](archive/todo-completed-original-mixed-receivers-2026-10-31.md) preserves the preceding stage.
 
 Prioritize Studio functionality and presentation samples before unrelated helper
 work and physical-device/browser/AT acceptance. Examples remain ordinary projects
@@ -391,12 +391,14 @@ inventory, not the minimum set loaded by every app.
                         compilation and the application dependency envelope
                         through separately versioned contracts; preserve CEMDM1,
                         original selectors, explicit owners and weak lifetimes.
-                        - [ ] Version application-envelope and mixed-receiver
-                          publication before worker/fallback transport and admission.
-                          - [ ] Compose mixed declarations into a separately versioned
-                            complete application publication with exact registry demand
-                            and code/owner closure before worker/fallback endpoint
-                            transport or component admission.
+                        - [ ] Bind versioned application-envelope and mixed-receiver
+                          publication to actual worker/owned-fallback generations
+                          before transport endpoints or component admission.
+                          - [ ] Enroll CEMAPPD4 publication, exact registry selection,
+                            original receiving sources and all code/peer owners in
+                            generation inventories and retirement. Add native fixtures
+                            for draining, timeouts, cancellation, stale receipts and
+                            fresh source reimport/recompilation before new endpoints.
 
                 - [ ] Enroll portable query source/binding/invocation owners in
                   actual worker/owned-fallback generation and inventory groups;

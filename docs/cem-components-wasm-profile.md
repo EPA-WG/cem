@@ -388,8 +388,11 @@ extension. The [native original-receiver binder](cem-native-schema-capsules.md#n
 now provides guarded field-only node/scalar/executable consumption, with exact
 registered sources, renewed receiving selectors, local facet/count intersections
 and issuer-bound preparation budgets. Atomic group replacement observes every
-required weak owner. Complete application composition and generation-bound
-transport remain next; no portable/runtime admission is implied.
+required weak owner. The [CEMAPPD4 publication](cem-native-schema-capsules.md#versioned-complete-application-publication)
+now composes the parent and mixed declarations, recomputes template/query registry
+demand and atomically installs one live native guard over registry, code and peer
+owners. Generation-bound transport/checkpoint enrollment and linked-code
+attestation remain next; no portable/runtime admission is implied.
 
 
 Do not equate downloaded code with an active native generation. Register every

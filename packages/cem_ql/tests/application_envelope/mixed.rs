@@ -1,4 +1,7 @@
 use super::*;
+
+#[path = "publication.rs"]
+mod publication;
 use ::cem_ql;
 use cem_ql::application_envelope::mixed::{self as mixed, ReceiverContract};
 #[allow(dead_code)]
@@ -8,6 +11,9 @@ fn application() -> (
     envelope::BuiltApplicationEnvelope,
     Arc<envelope::VerifiedApplicationEnvelope>,
 ) {
+    application_query(false)
+}
+fn application_query(with_query:bool)->(envelope::BuiltApplicationEnvelope,Arc<envelope::VerifiedApplicationEnvelope>){
     let control = OperationControl::default();
     let mut b = super::super::EnvelopeBuilder::new(&hash(b"registry")).unwrap();
     let id = b
@@ -18,10 +24,12 @@ fn application() -> (
         BTreeMap::new(),
     )
     .unwrap();
+    let mut contract_roots=BTreeSet::from([id]);
+    if with_query {contract_roots.insert(b.add_contract(super::super::query_body("{accepted: seq:count(value) == 1, diagnostics: ()}"),BTreeSet::new()).unwrap());}
     let b = b
         .build(
             BTreeSet::from(["cem-app".into()]),
-            BTreeSet::from([id]),
+            contract_roots,
             &control,
         )
         .unwrap();

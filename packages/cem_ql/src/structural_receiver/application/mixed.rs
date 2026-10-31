@@ -13,7 +13,7 @@ use cem_ml::schema::{
     machine::LexicallyScopedDocument,
     structural_capsule::SourceIdentity,
 };
-use std::sync::{atomic::AtomicBool, Weak};
+use std::sync::{atomic::AtomicBool, OnceLock, Weak};
 mod preparation;
 mod sources;
 mod values;
@@ -51,7 +51,7 @@ struct Receiver {
     local: AttributeModel,
     binding: Binding,
 }
-struct Group {
+pub(super) struct Group {
     contract: Arc<VerifiedMixedReceiverDeclaration>,
     source: Arc<RetainedCemTree>,
     schema_uri: String,
@@ -59,21 +59,47 @@ struct Group {
     receivers: BTreeMap<String, Receiver>,
     active: AtomicBool,
     busy: AtomicBool,
+    publication: OnceLock<Weak<super::publication::Guard>>,
 }
 impl Group {
+    fn publication(&self) -> Result<Option<Arc<super::publication::Guard>>, String> {
+        self.publication
+            .get()
+            .map(|guard| guard.upgrade().ok_or_else(|| REFUSED.into()))
+            .transpose()
+    }
+    pub(super) fn enroll(&self, guard: &Arc<super::publication::Guard>) -> Result<(), String> {
+        self.publication
+            .set(Arc::downgrade(guard))
+            .map_err(|_| REFUSED.into())
+    }
     fn refresh(&self, host: &mut FreshStructuralHost) -> Result<(), String> {
-        self.check(host)?;
+        if let Some(guard) = self.publication()? {
+            guard.refresh(host)
+        } else {
+            self.refresh_local(host)
+        }
+    }
+    pub(super) fn refresh_local(&self, host: &mut FreshStructuralHost) -> Result<(), String> {
+        self.check_local(host)?;
         for receiver in self.receivers.values() {
             if let Binding::Executable { root } = &receiver.binding {
                 root.upgrade()
                     .ok_or(REFUSED)?
                     .bind_receiver(host, receiver.declaration.clone())?;
-                self.check(host)?;
+                self.check_local(host)?;
             }
         }
         Ok(())
     }
     fn check(&self, host: &FreshStructuralHost) -> Result<(), String> {
+        self.check_local(host)?;
+        if let Some(guard) = self.publication()? {
+            guard.check(host)?;
+        }
+        Ok(())
+    }
+    pub(super) fn check_local(&self, host: &FreshStructuralHost) -> Result<(), String> {
         host.check().map_err(|_| REFUSED)?;
         if !self.active.load(Ordering::Acquire) || !self.context.matches(&host.context) {
             return Err(REFUSED.into());
@@ -102,12 +128,19 @@ impl Group {
     }
     fn enter(&self, host: &FreshStructuralHost) -> Result<Entry<'_>, String> {
         self.check(host)?;
+        let publication = self
+            .publication()?
+            .map(|guard| guard.enter(host))
+            .transpose()?;
         self.busy
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .map_err(|_| REFUSED)?;
-        Ok(Entry(&self.busy))
+        Ok(Entry {
+            busy: &self.busy,
+            _publication: publication,
+        })
     }
-    fn retire(&self) {
+    pub(super) fn retire(&self) {
         self.active.store(false, Ordering::Release);
         for r in self.receivers.values() {
             if let Binding::Node { guard, .. } = &r.binding {
@@ -116,19 +149,27 @@ impl Group {
         }
     }
 }
-struct Entry<'a>(&'a AtomicBool);
+struct Entry<'a> {
+    busy: &'a AtomicBool,
+    _publication: Option<super::publication::Entry>,
+}
 impl Drop for Entry<'_> {
     fn drop(&mut self) {
-        self.0.store(false, Ordering::Release);
+        self.busy.store(false, Ordering::Release);
     }
 }
 pub struct LinkedMixedReceivers {
-    group: Arc<Group>,
+    pub(super) group: Arc<Group>,
 }
 impl LinkedMixedReceivers {
     fn check(&self, host: &FreshStructuralHost) -> Result<(), String> {
         self.group.check(host)?;
-        if self.group.busy.load(Ordering::Acquire) {
+        if self.group.busy.load(Ordering::Acquire)
+            || self
+                .group
+                .publication()?
+                .is_some_and(|guard| guard.is_busy())
+        {
             return Err(REFUSED.into());
         }
         Ok(())
@@ -199,6 +240,7 @@ pub fn stage(
             receivers,
             active: AtomicBool::new(true),
             busy: AtomicBool::new(false),
+            publication: OnceLock::new(),
         }),
     };
     result.check(host)?;

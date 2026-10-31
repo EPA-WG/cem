@@ -64,8 +64,10 @@ The [mixed receiver declaration contract](#mixed-receiver-declaration-contracts)
 now separately pins node capsules, closed scalar facets and assembly-root demands
 in CEMMRC1. Its verifier remains inert. The
 [original-receiver binder](#native-original-mixed-receiver-binding) now provides
-explicit guarded field consumption; complete application composition remains a
-gate. WASM transport/generation enrollment and
+explicit guarded field consumption. The
+[complete application publication](#versioned-complete-application-publication)
+now composes these declarations with exact registry demand and live native owner
+guards. WASM transport/generation enrollment and
 compiled-component receiver admission remain **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
 existing wire version must not acquire executable semantics implicitly.
@@ -78,8 +80,8 @@ Implementation and fixture gates are in
 The separately versioned [CEMAPPD3 envelope](#versioned-assembly-aware-application-envelope)
 now adds exact module/profile/operation-source inventories and explicit application
 roots, with whole-source agreement and bounded native verification. Native root
-installation and scoped mixed field binding are implemented; complete application
-publication and worker/fallback admission remain separate gates.
+installation, scoped mixed field binding and native application publication are
+implemented; worker/fallback transport and admission remain separate gates.
 
 ## Why a separate contract is required
 
@@ -985,7 +987,8 @@ cancellation, fresh owners and unchanged legacy refusal.
 
 The [native binder](#native-original-mixed-receiver-binding) now connects all
 three variants to original receiving declarations and live actual-host guards.
-The next gate is a separately versioned complete application publication.
+The [CEMAPPD4 publication](#versioned-complete-application-publication) now composes
+these declarations with a recomputed registry demand and common native guard.
 Mixed rendering, generation-bound worker/fallback
 transport and checkpoint ownership are not enabled by this format. Entered
 credentials continue to block recovery until explicitly cleared. Automatic
@@ -1055,11 +1058,117 @@ exercise all three kinds, primitive fields, local facet/count intersections,
 explicit typed admission, native preparation spans and budgets, mutable
 selectors, exact original sources, grants, weak owners and atomic replacement.
 The inert CEMMRC1 verifier, legacy formats, renderer and worker/WASM endpoints
-remain unchanged. Complete application composition, exact registry/code closure
-and generation-bound transport/checkpoint enrollment remain subsequent gates.
+remain unchanged. The [CEMAPPD4 publication](#versioned-complete-application-publication)
+now composes these native bindings under a common registry/owner guard.
+Generation-bound transport/checkpoint enrollment and linked-code/deployment
+attestation remain subsequent gates.
 Entered credentials still block recovery until explicitly cleared; automatic
 whole-Studio recovery remains off, with 4 MiB checkpoints and five-second
 deadlines.
+
+## Versioned complete application publication
+
+[`application_envelope::v4`](../packages/cem_ql/src/application_envelope/v4.rs)
+implements native-only `CEMAPPD4` / `cem-application-dependencies/4`. It composes
+one independently verified CEMAPPD3 parent, one or more CEMMRC1 declarations and
+explicit component roots. The outer package stores the original native blobs
+once by content hash. Its typed pin covers the package, manifest and parent
+registry identity. The canonical manifest pins native ML/QL versions, the entire
+parent pin, each mixed declaration pin, component roots, recomputed requirements
+and combined registry demand. Legacy readers retain their original formats and
+refuse CEMAPPD4.
+
+Verification restores the parent once and verifies every mixed declaration
+against that exact original owner. It does not independently restore a parent
+for each child, reinterpret older formats or fabricate schema/query sources.
+The existing bounded dependency-order implementation checks the complete static
+component graph: duplicate/shadowed tags, missing or unreachable components,
+unknown roots and cycles refuse. Source assertions must agree across parent
+native sources, declaration source identities and closed scalar projections.
+The parent's complete native snapshot/implementation agreement is preserved;
+declaration/scalar hashes remain trusted build assertions, not reconstructed
+original byte proofs or source permissions.
+
+The [combined demand](../packages/cem_ql/src/application_envelope/v4/demand.rs)
+is recomputed from every checked original template through the shared IR
+inventory and selected-registry planner. It also includes the checked function
+requirements of portable validator programs in both parent standalone contracts
+and assembly leaves. The exact union, original requirements pin, template-plan
+pin and reviewed execution-unit recipe form
+`cem-application-registry-demand/1`. Its JSON projection is an explicit build
+control sidecar of identifiers and hashes, never an AST/DOM/data handoff. The
+parent registry recipe remains unchanged; a matching registry identity does not
+implicitly extend its function selection or prove linked-code omission.
+
+| Boundary | Limit |
+| --- | --- |
+| Complete encoded outer package | 4 MiB, including original parent and mixed blobs plus manifest overhead. |
+| Mixed declarations / all component declarations | 32 / 64. Existing parent limits still apply. |
+| Original mixed receiving occurrences | 256 total; the existing per-declaration 64 limit is unchanged. |
+| Component graph | Shared dependency policy: at most 1,024 edges and depth 32, with exact reachability from explicit roots. |
+| Outer binary/control work | 32,768 MessagePack records, depth 64, canonical records, exact blob inventory and 100,000 caller-controlled checks. Each nested format retains its own bounds. |
+| Requirements / registry control sidecar | At most 1 MiB each. These are metadata/input bounds, not heap or checkpoint measurements. |
+
+CEMMRC1 continues to permit static references only to parent components. Each
+added mixed declaration must therefore be a selected component root in this
+version; sibling references require their own future declaration contract.
+Unknown/dynamic/provider/resource policies retain the existing refusal rules.
+The original receiving schemas, data scopes, directed grants and executable
+registrations are supplied by the trusted actual embedding for native linking;
+this package does not yet transport those live inputs into another heap.
+
+[`structural_receiver::application::publication`](../packages/cem_ql/src/structural_receiver/application/publication.rs)
+adds a caller-held `RegistryOwner`, `MixedSource`, `LinkedApplication` and atomic
+`ApplicationSlot`. `link_registry` checks the exact derived function set and
+stamps the original package instance and actual host epoch. Missing/extra
+entries or an equal-pinned independent package cannot substitute that owner.
+The native embedding retains the registry and reusable compilation/operation/
+rule owners; the publication keeps weak authority links to them.
+
+`stage` requires complete parent source/binding/compilation inputs and an exact
+mixed-source map. It reuses CEMAPPD3 staging and original mixed receiver linking,
+then enrolls every mixed group in one publication guard. That guard checks the
+actual host, exact registry owner, parent installation, all required native code
+owners and every peer field group. Source selectors still run on the real host
+through the ordinary resolver. Staging changes no host registry or last
+committed slot. As with the preceding native APIs, a prepared staged application
+can be inspected/validated before choosing to publish it.
+
+Every field/preparation/receipt operation renews the whole publication's original
+receiving selectors. The native API also wraps exported-root validation,
+preparation, conversion and list serialization, parent structural input
+validation and a synchronous borrowed-registry callback. It does not expose raw
+parent installation/root handles or whole-schema models as unchecked publication
+authority. A common busy guard rejects reentry, including peer/readiness access.
+Read-only availability remains liveness rather than a frozen selector receipt.
+
+Publication checks candidates again before replacing one slot. Failed candidates
+preserve the previous installation. Clearing, replacing, dropping or retiring a
+publication invalidates retained application handles and mixed preparation
+receipts, even when an embedding still holds an `Arc` to the old application.
+Registry/peer/code-owner loss, host epoch changes, closure and cancellation
+invalidate all operations. Post-call checks withhold late results; the registry
+callback releases its temporary owner lease before rechecking caller ownership.
+Private parent guards retire with this publication while reusable compilations
+and separately staged installations remain available. Retained handles keep no
+host callback, reusable compilation or caller-held registry owner alive.
+
+This establishes an explicit **live native owner closure** for the selected
+publication. It is not an attestation of binary symbol omission, arbitrary
+provider code closure, optional-module activation, physical runtime generation
+ownership or deployment authority. Inert `native_link_closure_verified()` and
+`runtime_admission_verified()` remain `false`. There is no renderer/component
+admission, worker/fallback endpoint, checkpoint transport or new production
+JavaScript. Those require generation-bound enrollment and fresh-source/owner
+handoff before use. Credential refusal, disabled automatic whole-Studio recovery,
+the 4 MiB checkpoint budget and five-second deadlines remain unchanged.
+
+The [composition fixtures](../packages/cem_ql/tests/application_envelope/publication.rs),
+[wire/bounds fixtures](../packages/cem_ql/src/application_envelope/v4/tests.rs)
+and [native lifecycle fixtures](../packages/cem_ql/tests/support/application_publication.rs)
+cover original owners, query demand, source conflicts, malformed/repinned inputs,
+limits, exact registry selection, peer invalidation, stale receipts, weak
+lifetimes, reentry, callback retirement and atomic replacement.
 
 ## Native application receiver assembly
 

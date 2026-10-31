@@ -5,7 +5,7 @@ use crate::{
     datatype_validation::{compile_function_query, value_type},
     ir::{CompiledQuery, IrTree},
     resolve::BindingId,
-    selected_registry::SelectedFunctionRegistry,
+    selected_registry::{SelectedBuiltin, SelectedFunctionRegistry},
     types::{NodeKind, Type},
 };
 use cem_ml::{
@@ -64,6 +64,15 @@ impl std::fmt::Debug for VerifiedValidatorQuery {
 impl VerifiedValidatorQuery {
     pub fn function_count(&self) -> usize {
         self.functions.len()
+    }
+    /// Inert demand from the checked native program, not execution authority.
+    pub(crate) fn required_functions(
+        &self,
+    ) -> Result<std::collections::BTreeSet<SelectedBuiltin>, String> {
+        self.functions
+            .iter()
+            .map(FunctionRequirement::selected)
+            .collect()
     }
     pub fn pin(&self) -> &QueryCapsulePin {
         &self.pin

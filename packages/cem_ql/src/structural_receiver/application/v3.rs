@@ -18,7 +18,7 @@ pub struct LinkedApplication {
     roots: BTreeMap<String, Arc<InstalledDatatypeRoot>>,
 }
 impl LinkedApplication {
-    fn check(&self, host: &FreshStructuralHost) -> Result<(), String> {
+    pub(super) fn check(&self, host: &FreshStructuralHost) -> Result<(), String> {
         self.ownership.check(host)
     }
     pub fn envelope(&self) -> &Arc<VerifiedApplicationEnvelope> {

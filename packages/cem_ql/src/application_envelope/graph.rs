@@ -132,11 +132,7 @@ pub(super) fn closure(manifest: &Manifest, work: &Work<'_>) -> Result<Vec<Depend
             deps.iter().cloned().map(DependencyKey::Contract).collect(),
         );
     }
-    let edges = graph.values().map(BTreeSet::len).sum::<usize>();
-    if edges > 1024 || graph.values().flatten().any(|dep| !graph.contains_key(dep)) {
-        return Err(INVALID.into());
-    }
-    let mut pending = manifest
+    let roots = manifest
         .roots
         .iter()
         .cloned()
@@ -149,6 +145,23 @@ pub(super) fn closure(manifest: &Manifest, work: &Work<'_>) -> Result<Vec<Depend
                 .map(DependencyKey::Contract),
         )
         .collect::<BTreeSet<_>>();
+    order(graph, roots, work)
+}
+/// Shared bounded dependency order for independently versioned application graphs.
+pub(super) fn order<K: Clone + Ord>(
+    mut graph: BTreeMap<K, BTreeSet<K>>,
+    mut pending: BTreeSet<K>,
+    work: &Work<'_>,
+) -> Result<Vec<K>, String> {
+    let edges = graph.values().map(BTreeSet::len).sum::<usize>();
+    if graph.is_empty()
+        || graph.len() > 128
+        || pending.is_empty()
+        || edges > 1024
+        || graph.values().flatten().any(|dep| !graph.contains_key(dep))
+    {
+        return Err(INVALID.into());
+    }
     let mut reachable = BTreeSet::new();
     while let Some(node) = pending.pop_first() {
         work.check()?;

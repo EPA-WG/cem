@@ -53,7 +53,8 @@ struct Envelope {
     metadata: Blob,
     template: Blob,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MixedReceiverPin {
     pub hash: String,
     pub manifest_hash: String,

@@ -28,6 +28,7 @@ mod blob;
 mod graph;
 pub mod mixed;
 pub mod v3;
+pub mod v4;
 use blob::Blob;
 pub const MAGIC: &[u8] = b"CEMAPPD2\n";
 const ABI: &str = "cem-application-dependencies/2";
