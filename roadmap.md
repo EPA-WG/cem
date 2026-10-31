@@ -824,6 +824,12 @@ retirement invalidate use; readiness and work callbacks refuse reentrancy.
 Complete behavior/query/imported closure, a mixed receiver format and runtime
 transport/admission remain separate gates; see the
 [guarded handoff](docs/cem-native-schema-capsules.md#guarded-datatype-preparation-handoff).
+Native CEMDP1 separately pins original datatype dependency fields and intended
+local/DT1/QD1/NR1 targets, retaining passive reference and namespace occurrences.
+Verification checks supplied artifacts and complete-source agreement; intended
+selections remain trusted assertions until the actual fresh host resolves them
+under source policies and crossing grants. It enables neither compilation nor
+receiver publication. See the [dependency contract](docs/cem-native-schema-capsules.md#inert-datatype-dependency-assertions).
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

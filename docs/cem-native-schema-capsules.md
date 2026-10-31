@@ -22,6 +22,9 @@ This is not executable/behavior closure proof or named receiver admission.
 Datatype roots now issue guarded process-local preparation evidence and consume
 it with fresh validation and one cumulative work allowance. Retired tokenizer
 owners also invalidate retained evidence in the shared attribute path.
+Native `CEMDP1` separately pins intended datatype dependency fields and verified
+DT1/QD1/NR1 inputs, including passive original references. These are source-backed
+build assertions, not checked host selections, crossing grants or executable closure.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -825,6 +828,75 @@ CEMAPPD2 are unchanged; existing runtimes do not admit CEMDT1 or scalar/executab
 receiver substitutions. No WASM endpoint or component/application JavaScript was
 added. Entered credentials still block recovery; automatic whole-Studio recovery
 remains disabled, with 4 MiB checkpoints and five-second deadlines unchanged.
+
+## Inert datatype dependency assertions
+
+[`datatype_dependency_capsule`](../packages/cem_ql/src/datatype_dependency_capsule.rs)
+adds native-only `CEMDP1` / `cem.native-datatype-dependencies/1`, separate from
+CEMDT1 and existing application formats. `export` accepts the original capture,
+source/registry identity, root occurrences, a field-to-target map and explicit
+`DependencyArtifact` inputs. `verify` requires the independently pinned bytes and
+the exact supplied artifact set. It does not fetch modules, parse query source,
+register implementations, grant access or compile executable datatypes.
+
+The shared datatype source plan determines every reachable base, whole-list,
+list-item and native validation-rule dependency. The capsule retains each original
+attribute occurrence and, for native values, its original reference occurrence,
+expression, lexical containing-node index and source/namespace snapshots. Targets
+are either local datatype occurrences, explicitly exported CEMDT1 roots, original
+QD1 validator declarations or NR1 validator requirements. Exact nested pins and
+registry identities must agree with independently verified artifacts. Missing,
+unused or duplicate artifacts, wrong dependency roles/artifact categories and
+missing/extra field bindings refuse.
+Literal local names must match their selected declaration; imported literal forms
+must carry a qualified name with the expected target local name. Literal rules
+remain descriptive and acquire no executable target.
+
+**Intended targets are trusted build assertions.** Inert verification cannot prove
+that a retained native reference or imported prefix actually selects its asserted
+target. Original namespace snapshots are retained, without replacing them with a
+consumer's aliases. `selections_verified()` and `executable_closure_verified()`
+both remain false, including for a correctly pinned package. The next linker must
+resolve the original field through actual fresh source scopes, source policies
+and directed crossing grants, compare the exact original selected target and
+retain readiness/ownership guards before compilation. This format grants no
+permission to reuse an independently allocated source or publish a receiver.
+
+The new [dependency source snapshot](../packages/cem_ml/src/schema/native_source/dependencies.rs)
+is versioned separately and shares the existing source graph, span and lexical
+metadata validation. It permits unevaluated reference records and a single native
+reference in an attribute value. A reference's context must be its actual lexical
+container, including the containing element for an attribute value. Retained
+runtime target lists, missing lexical sidecars, foreign spans, invalid owning
+edges and unknown versions refuse. Reload creates a fresh owning allocation and
+restores the original occurrence/namespace sidecars without evaluation. The
+literal `NativeSourceSnapshot` profile and CEMDT1 still reject references.
+
+All modules claiming one source URI must agree on the **complete** source identity
+and dependency snapshot, including lexical metadata; matching IDs or hashes alone
+are insufficient. Distinct module roots over agreeing complete sources are
+allowed, but verification does not merge their owners. Local dependency cycles
+refuse, with a deterministic local dependency order. Cross-module resolution and
+cycles involving future dependency-capsule modules remain a linking gate.
+
+Bounds remain explicit: 64 KiB capsule bytes, 32 roots, 64 source type declarations,
+128 field bindings and local graph depth 32; at most 64 independently verified
+artifacts and 4 MiB capsule-plus-artifact bytes. Each nested format retains its
+own 64 KiB and operation limits. The outer verifier has 100,000 checks, sharing
+cancellation with nested checks rather than claiming a single aggregate work
+allowance or measured peak heap. Strict binary preflight precedes deserialization;
+canonical encoding, versions, outer pins and original source metadata are checked.
+
+This bounded contract supports scalar/lexical/list and inherited declarations.
+Constants, other datatype kinds, authored ID tables, unresolved namespace/typed
+prelude metadata, non-reference native attribute values and additional NR1
+operation dependencies remain outside this format. Inline query text retained in
+a source is passive; only a separately verified QD1 pin describes a supported
+validator program, and even that program is not registered by verification.
+Mixed receiver formats, native code closure, application/WASM admission and
+worker/fallback checkpoint enrollment remain pending. Existing credential refusal,
+4 MiB checkpoints, five-second deadlines and disabled automatic whole-Studio
+recovery are unchanged.
 
 ## Guarded datatype preparation handoff
 

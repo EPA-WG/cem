@@ -2042,16 +2042,81 @@ inventory, not the minimum set loaded by every app.
                   - [ ] Complete behavior/query/imported type dependencies and
                     guarded lexical/typed preparation handoff before defining the
                     new mixed receiver format and enabling receiver installation.
-                    - [ ] Define a separately versioned behavior/query/imported
+                    - [x] Define a separately versioned behavior/query/imported
                       source dependency contract with original declaration/field
                       occurrences, complete lexical snapshots and exact QD1/NR1/
                       datatype-module pins. Keep CEMDT1 refusal unchanged; inert
                       references/query text cannot grant execution or source reuse.
+                      - [x] Add a distinct passive reference-source snapshot with
+                        exact attribute value/reference/context edges and lexical
+                        snapshots. Test original names/spans, fresh allocation,
+                        legacy refusal, stale provenance, contexts, graph ownership,
+                        unresolved/retained targets, bounded preflight and cancellation.
+                      - [x] Add an inert datatype dependency capsule binding exact
+                        original dependency fields to local types or independently
+                        verified DT1/QD1/NR1 pins. Test scalar/list/rule/imported
+                        requirements, deterministic reload, missing/orphan/conflicting
+                        modules, repinning, cycles, bounds and source agreement.
+                        Keep intended target assertions distinct from host selection,
+                        crossing grants, compilation, registration and publication.
+                      - [x] Run native/WASM/component and isolated Studio Login
+                        privacy acceptance; document the remaining linking and
+                        receiver/runtime gates without changing existing formats.
+
+                      Native CEMDP1 / cem.native-datatype-dependencies/1 now pins
+                      original datatype field occurrences and intended local,
+                      DT1 exported-root, QD1 declaration or NR1 validator targets.
+                      A distinct versioned passive source profile retains original
+                      reference expressions, lexical containing-node indices,
+                      attribute value edges, names, namespaces and spans. The
+                      shared source/lexical validators check original ownership;
+                      existing literal snapshots and CEMDT1 still reject references.
+                      Nested artifacts are supplied explicitly and verified against
+                      exact pins; missing, extra, duplicate, wrong-role and corrupt
+                      inputs refuse. Complete source snapshots must agree for one
+                      source URI, even when identity/hash claims match. No allocation
+                      sharing follows from agreement. Intended selections remain
+                      trusted build assertions: selections_verified() and
+                      executable_closure_verified() both remain false. No parser,
+                      callback, host binding, crossing grant, executable datatype,
+                      component admission or receiver publication is created.
+                      Bounds: 64 KiB capsule, 32 roots, 64 source declarations,
+                      128 bindings, local depth 32 and 64 supplied artifacts within
+                      4 MiB total bytes. Nested formats keep their existing limits
+                      and share cancellation, not a new aggregate work allowance.
+                      Dependency-bearing datatype modules, additional operation/
+                      constant profiles and actual imported-source linking remain
+                      separate pending gates below.
+
+                      Verification: seven new integration, three new wire/graph
+                      and two new native source cases pass alongside 540 prior
+                      native cases (552 distinct). Original fields, namespaces,
+                      fresh owners, pins, source agreement/conflicts, actual context
+                      ownership independent of integrity hashes, local cycles,
+                      cardinality/depth/wire bounds and cancellation are covered.
+                      The WASM compile check, both current separate-heap WASM
+                      drivers, 18 component browser cases, ten audit/factory cases
+                      and both complete live Login worker/fallback credential
+                      privacy scenarios pass. Native builds drained before Studio
+                      acceptance. Formatting, 250 local documentation file links,
+                      refreshed audit metadata and diff checks pass. All production
+                      changes are native-only; the current optimized component
+                      (11,474,094 bytes) and full (24,202,382 bytes) WASM assets
+                      were exercised, not rebuilt. No production JavaScript or new
+                      WASM endpoint was introduced. Entered credentials still block
+                      recovery; automatic whole-Studio recovery stays disabled,
+                      with 4 MiB checkpoints and five-second deadlines unchanged.
+                      Generated screenshots and Vitest attachments are excluded.
                     - [ ] Bind imported QName/type selections through actual fresh
                       source scopes, per-source policies and directed crossing
                       grants. Add missing/stale/unavailable/import-cycle and
                       original-namespace fixtures before cross-source compilation;
                       never substitute defaults or consumer-side aliases.
+                    - [ ] Extend separately versioned dependency records for
+                      dependency-bearing datatype modules and additional native
+                      operation/constant profiles before claiming complete executable
+                      or code closure. Preserve original source snapshots and nested
+                      format limits; test cross-module cycles and source agreement.
                     - [x] Add native datatype-root preparation invocations using
                       shared evidence immutability/metadata checks and cumulative
                       preparation/validation budgets. Add scalar/list, missing/

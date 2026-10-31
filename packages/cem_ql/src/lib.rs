@@ -18,6 +18,8 @@ pub mod structural_receiver;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod datatype_source_capsule;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod datatype_dependency_capsule;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod native_registrations;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod query_validator_capsule;

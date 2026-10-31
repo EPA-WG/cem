@@ -6,6 +6,9 @@ use crate::{
     source_map::SourceMapStack,
 };
 use serde::{Deserialize, Serialize};
+pub mod dependencies;
+#[cfg(test)]
+mod dependency_tests;
 #[cfg(test)]
 mod tests;
 const INVALID: &str = "native source arena refused";
@@ -68,68 +71,83 @@ impl NativeSourceSnapshot {
         poll: &mut dyn FnMut() -> Result<(), String>,
     ) -> Result<std::sync::Arc<super::machine::LexicallyScopedDocument>, String> {
         poll()?;
-        let mut document = restore(&self.nodes, identity, true, poll)?;
-        document.format_identity = self.lexical.format_identity.clone();
-        if self.lexical.version != 2
-            || !self.lexical.typed_preludes.is_empty()
-            || !self.lexical.diagnostics.is_empty()
-            || !self.lexical.pending_namespace_declarations.is_empty()
-            || !self.lexical.pending_namespace_names.is_empty()
-            || self
-                .lexical
-                .pending_namespace_bindings
-                .values()
-                .any(|pending| !pending.is_empty())
-        {
-            return Err(INVALID.into());
-        }
-        // Lexical validation performs no source parsing or evaluation. Its
-        // passive occurrences remain tied to the new arena, never old handles.
+        let document = restore(&self.nodes, identity, true, poll)?;
         let fingerprint =
             *blake3::hash(&rmp_serde::to_vec_named(&self.nodes).map_err(|_| INVALID)?).as_bytes();
-        self.lexical
-            .validate(&document, fingerprint)
-            .map_err(|_| INVALID)?;
-        for map in self.lexical.source_maps() {
+        restore_lexical(document, &self.lexical, identity, fingerprint, poll)
+    }
+}
+fn restore_lexical(
+    mut document: CemDocument,
+    lexical: &super::machine::LexicalReloadMetadata,
+    identity: &SourceIdentity,
+    fingerprint: [u8; 32],
+    poll: &mut dyn FnMut() -> Result<(), String>,
+) -> Result<std::sync::Arc<super::machine::LexicallyScopedDocument>, String> {
+    document.format_identity = lexical.format_identity.clone();
+    if lexical.version != 2
+        || !lexical.typed_preludes.is_empty()
+        || !lexical.diagnostics.is_empty()
+        || !lexical.pending_namespace_declarations.is_empty()
+        || !lexical.pending_namespace_names.is_empty()
+        || lexical
+            .pending_namespace_bindings
+            .values()
+            .any(|pending| !pending.is_empty())
+    {
+        return Err(INVALID.into());
+    }
+    // Lexical validation performs no source parsing or evaluation. Its
+    // passive occurrences remain tied to the new arena, never old handles.
+    lexical
+        .validate(&document, fingerprint)
+        .map_err(|_| INVALID)?;
+    for map in lexical.source_maps() {
+        poll()?;
+        if map.frames.len() > 64 {
+            return Err(INVALID.into());
+        }
+        for frame in &map.frames {
             poll()?;
-            if map.frames.len() > 64 {
+            if frame.source_id != identity.id
+                || matches!(&frame.transform, crate::source_map::TransformKind::SourceBoundary { uri } if uri != &identity.uri)
+                || matches!(&frame.transform, crate::source_map::TransformKind::ScssOrigin { module_uri, .. } if module_uri != &identity.uri)
+            {
                 return Err(INVALID.into());
             }
-            for frame in &map.frames {
+            let ranges = match &frame.span {
+                crate::source_map::FrameSpan::Single(range) => std::slice::from_ref(range),
+                crate::source_map::FrameSpan::Multi(ranges) => ranges.as_slice(),
+            };
+            if ranges.len() > 64 {
+                return Err(INVALID.into());
+            }
+            for range in ranges {
                 poll()?;
-                if frame.source_id != identity.id
-                    || matches!(&frame.transform, crate::source_map::TransformKind::SourceBoundary { uri } if uri != &identity.uri)
-                    || matches!(&frame.transform, crate::source_map::TransformKind::ScssOrigin { module_uri, .. } if module_uri != &identity.uri)
+                if range
+                    .start
+                    .checked_add(range.len as u64)
+                    .is_none_or(|end| end > identity.byte_length as u64)
                 {
                     return Err(INVALID.into());
                 }
-                let ranges = match &frame.span {
-                    crate::source_map::FrameSpan::Single(range) => std::slice::from_ref(range),
-                    crate::source_map::FrameSpan::Multi(ranges) => ranges.as_slice(),
-                };
-                if ranges.len() > 64 {
-                    return Err(INVALID.into());
-                }
-                for range in ranges {
-                    poll()?;
-                    if range
-                        .start
-                        .checked_add(range.len as u64)
-                        .is_none_or(|end| end > identity.byte_length as u64)
-                    {
-                        return Err(INVALID.into());
-                    }
-                }
             }
         }
-        poll()?;
-        Ok(std::sync::Arc::new(
-            self.lexical.restore(std::sync::Arc::new(document)),
-        ))
     }
+    poll()?;
+    Ok(std::sync::Arc::new(
+        lexical.restore(std::sync::Arc::new(document)),
+    ))
 }
 
 pub(crate) fn nodes(document: &CemDocument, text: bool) -> Result<Vec<SourceNode>, String> {
+    nodes_profile(document, text, false)
+}
+fn nodes_profile(
+    document: &CemDocument,
+    text: bool,
+    references: bool,
+) -> Result<Vec<SourceNode>, String> {
     if !document.diagnostics.is_empty()
         || !document.id_table.is_empty()
         || !document.unresolved_slots.is_empty()
@@ -183,10 +201,16 @@ pub(crate) fn nodes(document: &CemDocument, text: bool) -> Result<Vec<SourceNode
                     value,
                     value_nodes,
                     ..
-                } if value_nodes.is_empty() => {
+                } if value_nodes.is_empty() || (references && value.is_none() && matches!(value_nodes.as_slice(), [id] if matches!(document.get(*id), Some(CemAstNode::Reference { targets: None, .. })))) => {
                     result.kind = "attribute".into();
                     result.name = Some(expanded_name.clone());
                     result.value = value.clone();
+                    result.children = value_nodes.clone();
+                    *node_id
+                }
+                CemAstNode::Reference { node_id, expression, targets: None, .. } if references => {
+                    result.kind = "reference".into();
+                    result.value = Some(expression.clone());
                     *node_id
                 }
                 CemAstNode::Text { node_id, data, .. }
@@ -227,6 +251,15 @@ pub(crate) fn restore(
     text: bool,
     poll: &mut dyn FnMut() -> Result<(), String>,
 ) -> Result<CemDocument, String> {
+    restore_profile(nodes, source, text, None, poll)
+}
+fn restore_profile(
+    nodes: &[SourceNode],
+    source: &SourceIdentity,
+    text: bool,
+    contexts: Option<&std::collections::BTreeMap<AstNodeId, AstNodeId>>,
+    poll: &mut dyn FnMut() -> Result<(), String>,
+) -> Result<CemDocument, String> {
     if nodes.is_empty()
         || nodes.len() > MAX_RECORDS
         || !uri(&source.uri)
@@ -237,6 +270,7 @@ pub(crate) fn restore(
     }
     let mut document = CemDocument::default();
     let mut parents = vec![0u8; nodes.len()];
+    let mut owners = vec![None; nodes.len()];
     for (index, node) in nodes.iter().enumerate() {
         poll()?;
         if node.source.frames.len() > 64 || (index > 0 && node.source.frames.is_empty()) {
@@ -290,6 +324,7 @@ pub(crate) fn restore(
                 return Err(INVALID.into());
             }
             parents[child] = 1;
+            owners[child] = Some(index);
         }
         let node_id = index as u32;
         let source = node.source.clone();
@@ -318,14 +353,37 @@ pub(crate) fn restore(
             "attribute"
                 if index > 0
                     && node.attributes.is_empty()
-                    && node.children.is_empty()
+                    && (node.children.is_empty()
+                        || (contexts.is_some()
+                            && node.value.is_none()
+                            && matches!(node.children.as_slice(), [id] if nodes.get(*id as usize).is_some_and(|n|n.kind=="reference"))))
                     && node.boundary =>
             {
                 CemAstNode::Attribute {
                     node_id,
                     expanded_name: node.name.clone().ok_or(INVALID)?,
                     value: node.value.clone(),
-                    value_nodes: vec![],
+                    value_nodes: node.children.clone(),
+                    source,
+                }
+            }
+            "reference"
+                if contexts.is_some()
+                    && index > 0
+                    && node.name.is_none()
+                    && node.attributes.is_empty()
+                    && node.children.is_empty()
+                    && node.boundary =>
+            {
+                let expression = node.value.clone().ok_or(INVALID)?;
+                if !expression.trim_start().starts_with('#') || expression.len() > 65_536 {
+                    return Err(INVALID.into());
+                }
+                CemAstNode::Reference {
+                    node_id,
+                    expression,
+                    context: *contexts.unwrap().get(&node_id).ok_or(INVALID)?,
+                    targets: None,
                     source,
                 }
             }
@@ -364,6 +422,27 @@ pub(crate) fn restore(
             _ => return Err(INVALID.into()),
         };
         document.nodes.push(ast);
+    }
+    if let Some(contexts) = contexts {
+        let mut count = 0;
+        for (index, node) in document.nodes.iter().enumerate() {
+            poll()?;
+            if let CemAstNode::Reference { context, .. } = node {
+                count += 1;
+                let mut owner = owners[index].ok_or(INVALID)?;
+                if nodes[owner].kind == "attribute" {
+                    owner = owners[owner].ok_or(INVALID)?;
+                }
+                if *context as usize != owner
+                    || !matches!(nodes[owner].kind.as_str(), "document" | "element")
+                {
+                    return Err(INVALID.into());
+                }
+            }
+        }
+        if contexts.len() != count {
+            return Err(INVALID.into());
+        }
     }
     if parents.iter().skip(1).any(|n| *n != 1) {
         return Err(INVALID.into());

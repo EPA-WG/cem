@@ -760,6 +760,9 @@ with fresh validation on consumption, cumulative budgets and exact live issuer
 checks. Shared tokenizer retirement guards protect root and attribute receipts.
 The [handoff contract](cem-native-schema-capsules.md#guarded-datatype-preparation-handoff)
 keeps complete behavior/imported closure and receiver/runtime admission pending.
+Native CEMDP1 now records original dependency fields and exact DT1/QD1/NR1
+inputs, including passive references. Its [inert dependency assertions](cem-native-schema-capsules.md#inert-datatype-dependency-assertions)
+retain original lexical scopes but do not prove target selection or grant access.
 
 The [native linking contract](cem-native-schema-capsules.md#native-fresh-host-linking-and-node-receivers)
 defines its required source registration, explicit grants, bounds and lifetime.
