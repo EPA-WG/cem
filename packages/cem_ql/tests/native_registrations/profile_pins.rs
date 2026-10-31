@@ -771,6 +771,29 @@ fn run_compiled_assembly(
         },
     );
     if let Ok(c) = &result {
+        if source_profile == Some(SourceProfile::Conversion) {
+            let report = c
+                .convert(
+                    &h,
+                    datatype(m.capture(), "choice").declaration().node_id(),
+                    &ConversionInput {
+                        value: ConversionValue::Lexical(LexicalInput::new(
+                            Arc::from("red"),
+                            Default::default(),
+                        )),
+                        candidate: vec![],
+                        fallback: Default::default(),
+                    },
+                    Default::default(),
+                )
+                .unwrap();
+            assert_eq!(report.accepted, Some(true));
+            assert_eq!(report.diagnostics.len(), 1);
+            assert_eq!(
+                report.diagnostics[0].uri.as_deref(),
+                Some(m.identity().uri.as_str())
+            );
+        }
         assert_eq!(
             c.validate(
                 &h,

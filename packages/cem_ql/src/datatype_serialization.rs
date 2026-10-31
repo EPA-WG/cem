@@ -1,5 +1,7 @@
 //! Explicit lexical export of validated typed lists. Conversion and authored
 //! lexical input are separate; this boundary never serializes native AST nodes.
+#[cfg(not(target_arch = "wasm32"))]
+use crate::datatype_validation;
 use crate::{
     datatype_compilation::{DatatypeValidation, ExecutableDatatype},
     datatype_results::DiagnosticAttribution,
@@ -184,7 +186,40 @@ impl ExecutableDatatype {
         runtime: &ValidationRuntime<'_>,
         limits: SerializationLimits,
     ) -> DatatypeSerialization {
-        let mut result = self.serialize_list_phase(input, runtime, limits);
+        self.serialize_in_contexts(
+            input,
+            runtime,
+            limits,
+            #[cfg(not(target_arch = "wasm32"))]
+            None,
+        )
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn serialize_with_contexts(
+        &self,
+        input: &ValidationInput,
+        runtime: &ValidationRuntime<'_>,
+        limits: SerializationLimits,
+        contexts: &dyn datatype_validation::RuleValidationContexts,
+    ) -> DatatypeSerialization {
+        self.serialize_in_contexts(input, runtime, limits, Some(contexts))
+    }
+    fn serialize_in_contexts(
+        &self,
+        input: &ValidationInput,
+        runtime: &ValidationRuntime<'_>,
+        limits: SerializationLimits,
+        #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+            &dyn datatype_validation::RuleValidationContexts,
+        >,
+    ) -> DatatypeSerialization {
+        let mut result = self.serialize_list_phase(
+            input,
+            runtime,
+            limits,
+            #[cfg(not(target_arch = "wasm32"))]
+            contexts,
+        );
         if self
             .list_serializer()
             .is_some_and(|selected| !selected.is_available())
@@ -202,6 +237,9 @@ impl ExecutableDatatype {
         input: &ValidationInput,
         runtime: &ValidationRuntime<'_>,
         limits: SerializationLimits,
+        #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+            &dyn datatype_validation::RuleValidationContexts,
+        >,
     ) -> DatatypeSerialization {
         let shared_runtime = runtime.with_query_budget();
         let runtime = &shared_runtime;
@@ -234,6 +272,13 @@ impl ExecutableDatatype {
         }
         // Validation preflights representation/candidate access and checks all
         // effective typed list and item restrictions without executing conversion.
+        #[cfg(not(target_arch = "wasm32"))]
+        let validation = if let Some(contexts) = contexts {
+            self.validate_with_rule_contexts(input, runtime, limits.validation, contexts)
+        } else {
+            self.validate(input, runtime, limits.validation)
+        };
+        #[cfg(target_arch = "wasm32")]
         let validation = self.validate(input, runtime, limits.validation);
         let accepted = validation.accepted;
         let mut remaining = limits.validation.max_diagnostics;
@@ -264,23 +309,36 @@ impl ExecutableDatatype {
             .first()
             .map(DiagnosticAttribution::from_node)
             .unwrap_or_else(|| input.fallback.clone());
-        let execution = selected
-            .registration
-            .implementation
-            .serialize(ListSerializationCall {
-                value: &input.value,
-                datatype: &selected.datatype,
-                candidate: &input.candidate,
+        let execution = {
+            #[cfg(not(target_arch = "wasm32"))]
+            let scoped_runtime = match datatype_validation::operation_runtime(
                 runtime,
-                limits: SerializationLimits {
-                    validation: ValidationLimits {
-                        max_diagnostics: remaining,
-                        ..limits.validation
+                selected.identity().source.declaration(),
+                contexts,
+            ) {
+                Ok(runtime) => runtime,
+                Err(()) => return result.stop(SerializationStop::Unavailable),
+            };
+            #[cfg(not(target_arch = "wasm32"))]
+            let runtime = &scoped_runtime;
+            selected
+                .registration
+                .implementation
+                .serialize(ListSerializationCall {
+                    value: &input.value,
+                    datatype: &selected.datatype,
+                    candidate: &input.candidate,
+                    runtime,
+                    limits: SerializationLimits {
+                        validation: ValidationLimits {
+                            max_diagnostics: remaining,
+                            ..limits.validation
+                        },
+                        ..limits
                     },
-                    ..limits
-                },
-                fallback: &attribution,
-            });
+                    fallback: &attribution,
+                })
+        };
         if let Err(e) = runtime.control.check_scope(runtime.scope) {
             return result.stop(SerializationStop::Control(e));
         }

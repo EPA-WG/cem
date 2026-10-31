@@ -54,8 +54,9 @@ intended constant-reference targets, with explicit module imports and bounded
 graph checks. Its explicit actual-host inspection now renews datatype/constant
 selections against original scopes and per-hop grants. Native CEMDM2 compilation
 now renews those selections inside the shared compiler and installs exact,
-explicitly owned CEMOS1 profiles. Application/receiver publication remains a
-separate gate; CEMDM1 is unchanged.
+explicitly owned CEMOS1 profiles. Guarded synchronous root preparation, conversion
+and list serialization now share its actual source contexts and owner guards.
+Application/receiver publication remains a separate gate; CEMDM1 is unchanged.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -1748,10 +1749,9 @@ work. Failed attempts that change no context preserve earlier snapshots. Mutable
 providers are evaluated on each new compilation; an earlier completed snapshot
 remains a snapshot and grants no permission for a changed selection.
 
-Validation entry points remain the graph root's exported datatype IDs. General
-root preparation/conversion/list-serialization invocation APIs, versioned envelope
-and mixed-receiver publication, and worker/fallback transport remain separate
-gates. Portable selection/code-closure flags remain false; this is a native local
+All execution entry points remain the graph root's exported datatype IDs. The
+explicit root operation APIs below now share this guard. Versioned envelope and
+mixed-receiver publication, plus worker/fallback transport, remain separate gates. Portable selection/code-closure flags remain false; this is a native local
 compiler installation, not a code-closure or deployment attestation. No WASM endpoint
 or application/component JavaScript is added. Credential privacy, disabled automatic
 whole-Studio recovery, 4 MiB checkpoints and five-second deadlines are unchanged.
@@ -1762,6 +1762,70 @@ maps, copied-source and weak-owner refusal, mutable selections, pending contexts
 grants, literal diagnostics, fixed limits, imported rules, unused exports and late
 cancellation. [Profile fixtures](../packages/cem_ql/tests/native_registrations/profile_pins.rs)
 exercise all operation roles/tokenizers and every source-backed result profile.
+
+## Guarded assembly root operations
+
+[`FreshDependencyDatatypeCompilation`](../packages/cem_ql/src/structural_receiver/dependencies/compilation/root_invocations.rs)
+now offers synchronous native `prepare_lexical`, `convert` and `serialize_list`
+methods for CEMDM2 assembly roots. Each takes the actual `FreshStructuralHost`, an
+exported root datatype ID, the existing shared input type and its operation limits.
+It returns the existing `DatatypePreparation`, `DatatypeConversion` or
+`DatatypeSerialization` report behind a host/lifetime `Result` guard.
+
+One common execution guard now covers validation and all three operations. It
+checks the actual host/context, graph root membership, compilation liveness and
+every required weak operation/tokenizer/rule owner before and after execution.
+A single reentry lock covers cross-operation calls as well as validation, and is
+released after success, refusal or an interrupted call. Invalid/hidden roots,
+foreign or closed hosts, changed epochs and dropped/retired owners refuse before
+execution. A late cancellation or owner retirement withholds the complete report,
+so a successful callback cannot expose a stale result. CEMDP1/CEMDM1 keep their
+existing typed validation boundary; these new operation methods require CEMDM2.
+
+The wrapper delegates to the existing shared preparation, conversion and
+serialization engines. It adds no parser, converter, validation loop or list
+formatter. Every inherited/checked preparation step receives the restricted actual
+context of its original declaration. List-item preparation uses each item's
+original preparer context. Conversion and serialization use their selected
+implementation's original context. Subsequent validation uses each original rule
+and equality context, sharing one query budget across all phases and items.
+Closed native context filtering still excludes ambient inputs, callbacks and
+module resolvers; no live context is stored in a descriptor or report.
+
+Preparation preserves decoded UTF-8 token spans, scalar/list shape checks,
+checked-preparer/tokenizer compatibility, cumulative call/input/diagnostic limits
+and the meaningful distinction between empty lists and missing preparation.
+Conversion validates its result without invoking preparation. List serialization
+validates effective list/item constraints before calling the selected serializer,
+then checks output byte limits. It does not serialize native ASTs. Each API runs
+only its own explicitly selected capability; it never falls back to a different
+operation. Missing capabilities retain the shared `NoPreparation`, `NoConverter`
+or `NoSerializer` stop rather than activating a default.
+
+Shared reports preserve accepted, rejected, pending, unavailable, failed, invalid
+shape and budget/control stop semantics. Prepared/converted values can remain
+inspectable after ordinary validation rejection; successful publication still
+requires `accepted == Some(true)`. Diagnostic attribution and original candidate
+handles survive the shared adapters. Failed typed validation produces no list
+export text. Empty validated lists can explicitly serialize to empty text.
+
+One call is one bounded invocation. Nested callbacks, inherited steps, item work,
+validation and query work share that call's existing allowances; independent calls
+start fresh allowances. These synchronous reports are not sealed preparation
+receipts, a portable execution grant or receiver publication. The existing sealed
+CEMDT1 handoff below is unchanged. No WASM endpoint, runtime transport or app/UI
+JavaScript is added. Entered credentials still block recovery until explicitly
+cleared; automatic whole-Studio recovery stays disabled, with 4 MiB checkpoints
+and five-second deadlines unchanged.
+
+The [root-operation fixtures](../packages/cem_ql/tests/support/datatype_assembly_root_ops.rs)
+cover inherited/checked source contexts, decoded spans, empty lists, rule-source
+validation, pre-export rejection, completion states, incompatible replacements,
+candidate/diagnostic provenance, cumulative/query limits, weak owners, stale/foreign
+hosts, cross-operation reentry, late cancellation and retirement. The
+[module fixtures](../packages/cem_ql/tests/datatype_module_runtime.rs) preserve
+legacy-format refusal; [profile fixtures](../packages/cem_ql/tests/native_registrations/profile_pins.rs)
+exercise checked source-backed conversion through the same root entry point.
 
 ## Guarded datatype preparation handoff
 

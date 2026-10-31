@@ -225,7 +225,40 @@ impl ExecutableDatatype {
         runtime: &ValidationRuntime<'_>,
         limits: ConversionLimits,
     ) -> DatatypeConversion {
-        let mut result = self.convert_phase(input, runtime, limits);
+        self.convert_in_contexts(
+            input,
+            runtime,
+            limits,
+            #[cfg(not(target_arch = "wasm32"))]
+            None,
+        )
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn convert_with_contexts(
+        &self,
+        input: &ConversionInput,
+        runtime: &ValidationRuntime<'_>,
+        limits: ConversionLimits,
+        contexts: &dyn datatype_validation::RuleValidationContexts,
+    ) -> DatatypeConversion {
+        self.convert_in_contexts(input, runtime, limits, Some(contexts))
+    }
+    fn convert_in_contexts(
+        &self,
+        input: &ConversionInput,
+        runtime: &ValidationRuntime<'_>,
+        limits: ConversionLimits,
+        #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+            &dyn datatype_validation::RuleValidationContexts,
+        >,
+    ) -> DatatypeConversion {
+        let mut result = self.convert_phase(
+            input,
+            runtime,
+            limits,
+            #[cfg(not(target_arch = "wasm32"))]
+            contexts,
+        );
         if self
             .converter()
             .is_some_and(|selected| !selected.is_available())
@@ -243,6 +276,9 @@ impl ExecutableDatatype {
         input: &ConversionInput,
         runtime: &ValidationRuntime<'_>,
         limits: ConversionLimits,
+        #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+            &dyn datatype_validation::RuleValidationContexts,
+        >,
     ) -> DatatypeConversion {
         let shared_runtime = runtime.with_query_budget();
         let runtime = &shared_runtime;
@@ -314,18 +350,31 @@ impl ExecutableDatatype {
                 attribution.source_map = Some(lexical.source.clone());
             }
         }
-        let execution = selected
-            .registration
-            .implementation
-            .convert(ConversionCall {
-                value: &input.value,
-                datatype: &selected.datatype,
-                tokenizer: self.tokenizer(),
-                candidate: &input.candidate,
+        let execution = {
+            #[cfg(not(target_arch = "wasm32"))]
+            let scoped_runtime = match datatype_validation::operation_runtime(
                 runtime,
-                limits,
-                fallback: &attribution,
-            });
+                selected.identity().source.declaration(),
+                contexts,
+            ) {
+                Ok(runtime) => runtime,
+                Err(()) => return result.stop(ConversionStop::Unavailable),
+            };
+            #[cfg(not(target_arch = "wasm32"))]
+            let runtime = &scoped_runtime;
+            selected
+                .registration
+                .implementation
+                .convert(ConversionCall {
+                    value: &input.value,
+                    datatype: &selected.datatype,
+                    tokenizer: self.tokenizer(),
+                    candidate: &input.candidate,
+                    runtime,
+                    limits,
+                    fallback: &attribution,
+                })
+        };
         if let Err(e) = runtime.control.check_scope(runtime.scope) {
             return result.stop(ConversionStop::Control(e));
         }
@@ -405,18 +454,28 @@ impl ExecutableDatatype {
                 }
             }
         }
-        let validation = self.validate(
-            &ValidationInput {
-                value: value.clone(),
-                candidate: input.candidate.clone(),
-                fallback: attribution,
-            },
-            runtime,
-            ValidationLimits {
-                max_diagnostics: limits.validation.max_diagnostics - result.diagnostics.len(),
-                ..limits.validation
-            },
-        );
+        let validation_input = ValidationInput {
+            value: value.clone(),
+            candidate: input.candidate.clone(),
+            fallback: attribution,
+        };
+        let validation_limits = ValidationLimits {
+            max_diagnostics: limits.validation.max_diagnostics - result.diagnostics.len(),
+            ..limits.validation
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        let validation = if let Some(contexts) = contexts {
+            self.validate_with_rule_contexts(
+                &validation_input,
+                runtime,
+                validation_limits,
+                contexts,
+            )
+        } else {
+            self.validate(&validation_input, runtime, validation_limits)
+        };
+        #[cfg(target_arch = "wasm32")]
+        let validation = self.validate(&validation_input, runtime, validation_limits);
         result.accepted = validation.accepted;
         result.value = Some(value);
         result.validation = Some(validation);

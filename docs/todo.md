@@ -9,8 +9,8 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [shared CEMDM2 compilation](archive/todo-completed-cemdm2-compilation-2026-10-31.md).
-The [CEMOS1 owner-linking record](archive/todo-completed-cemos1-operation-owners-2026-10-31.md) preserves the preceding stage.
+Latest completion: [guarded assembly root operations](archive/todo-completed-assembly-root-operations-2026-10-31.md).
+The [CEMDM2 compilation record](archive/todo-completed-cemdm2-compilation-2026-10-31.md) preserves the preceding stage.
 
 Prioritize Studio functionality and presentation samples before unrelated helper
 work and physical-device/browser/AT acceptance. Examples remain ordinary projects
@@ -391,12 +391,18 @@ inventory, not the minimum set loaded by every app.
                         compilation and the application dependency envelope
                         through separately versioned contracts; preserve CEMDM1,
                         original selectors, explicit owners and weak lifetimes.
-                        - [ ] Add guarded root preparation, conversion and list
-                          serialization invocations for compiled assemblies; preserve
-                          original operation/rule contexts, shared budgets, owner
-                          checks and decoded span/diagnostic provenance.
                         - [ ] Version application-envelope and mixed-receiver
                           publication before worker/fallback transport and admission.
+                          - [ ] Define a separately versioned assembly-aware
+                            application envelope with exact CEMDM2/CEMOP2/CEMOS1
+                            pins, bounded inventories and whole-source agreement;
+                            preserve existing CEMAPPD1/CEMAPPD2 admission semantics.
+                          - [ ] Stage explicit root/owner installation and replacement
+                            atomically; failed staging must preserve prior bindings
+                            without creating partial receiver permissions.
+                          - [ ] Define mixed node/scalar/executable named receivers
+                            before generation-bound worker/fallback transport and
+                            its ownership, shutdown and privacy acceptance.
 
                 - [ ] Enroll portable query source/binding/invocation owners in
                   actual worker/owned-fallback generation and inventory groups;

@@ -369,9 +369,11 @@ tokenizers, retaining original declarations, checked result adapters and weak
 callback ownership. Linking does not evaluate dependencies. The [shared CEMDM2 compiler](cem-native-schema-capsules.md#shared-cemdm2-compilation-with-renewed-selections)
 now renews datatype/constant selections during ordinary compilation, admits exact
 reachable operation/rule owners and uses original restricted source contexts with
-shared budgets. Its private snapshots retain weak owners and root-only typed
-validation. Guarded root preparation/conversion/list export and versioned module/
-envelope publication remain next; no portable/runtime admission is implied.
+shared budgets. Its private snapshots retain weak owners. The [guarded root operations](cem-native-schema-capsules.md#guarded-assembly-root-operations)
+now expose synchronous preparation, conversion and list export through shared
+execution paths, with original callback/rule contexts, per-invocation budgets,
+decoded span/provenance preservation and one liveness/reentry guard. Versioned
+module/envelope publication remains next; no portable/runtime admission is implied.
 
 
 Do not equate downloaded code with an active native generation. Register every

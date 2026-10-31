@@ -189,3 +189,60 @@ mod admission;
 mod outcomes;
 #[path = "datatype_module_runtime/owners.rs"]
 mod owners;
+
+#[test]
+fn legacy_module_compilation_does_not_implicitly_admit_assembly_root_operations() {
+    use cem_ml::schema::datatype_contracts::LexicalInput;
+    use cem_ql::{
+        datatype_conversion::{ConversionInput, ConversionValue},
+        datatype_preparation::PreparationInput,
+    };
+    let g = verified(&chain());
+    let (mut h, root, scopes) = prepared(&g, true);
+    let c = h
+        .compile_datatype_modules(
+            g.clone(),
+            root,
+            &scopes,
+            &[],
+            &implementations(&g),
+            &BTreeMap::new(),
+            limits(),
+        )
+        .unwrap();
+    let id = *g.module("app").unwrap().roots().first().unwrap();
+    let lexical = LexicalInput::new(Arc::from("same"), Default::default());
+    assert!(c
+        .prepare_lexical(
+            &h,
+            id,
+            &PreparationInput {
+                lexical: lexical.clone(),
+                candidate: vec![],
+                fallback: Default::default()
+            },
+            Default::default()
+        )
+        .is_err());
+    assert!(c
+        .convert(
+            &h,
+            id,
+            &ConversionInput {
+                value: ConversionValue::Lexical(lexical),
+                candidate: vec![],
+                fallback: Default::default()
+            },
+            Default::default()
+        )
+        .is_err());
+    assert!(c
+        .serialize_list(&h, id, &input(1), Default::default())
+        .is_err());
+    assert_eq!(
+        c.validate(&h, id, &input(1), Default::default())
+            .unwrap()
+            .accepted,
+        Some(true)
+    );
+}

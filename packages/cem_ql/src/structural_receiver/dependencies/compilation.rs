@@ -66,16 +66,17 @@ pub struct FreshDependencyDatatypeCompilation {
     context: AttributeDatatypeContextLease,
     root: DeclarationScope,
     active: AtomicBool,
-    validating: AtomicBool,
+    executing: AtomicBool,
     rules: rules::RuleOwners,
     operations: Vec<operations::Owner>,
 }
-struct ValidationEntry<'a>(&'a AtomicBool);
-impl Drop for ValidationEntry<'_> {
+struct ExecutionEntry<'a>(&'a AtomicBool);
+impl Drop for ExecutionEntry<'_> {
     fn drop(&mut self) {
         self.0.store(false, Ordering::Release);
     }
 }
+mod root_invocations;
 impl FreshDependencyDatatypeCompilation {
     fn check(&self, host: &FreshStructuralHost) -> Result<(), String> {
         host.check().map_err(|_| REFUSED)?;
@@ -109,11 +110,25 @@ impl FreshDependencyDatatypeCompilation {
         input: &ValidationInput,
         limits: ValidationLimits,
     ) -> Result<DatatypeValidation, String> {
+        self.with_root(host, root, false, |descriptor, runtime, contexts| {
+            descriptor.validate_with_rule_contexts(input, runtime, limits, contexts)
+        })
+    }
+    fn with_root<T>(
+        &self,
+        host: &FreshStructuralHost,
+        root: AstNodeId,
+        assembly_only: bool,
+        run: impl FnOnce(&ExecutableDatatype, &ValidationRuntime<'_>, &rules::Contexts<'_>) -> T,
+    ) -> Result<T, String> {
         self.check(host)?;
-        self.validating
+        if assembly_only && !matches!(self.inputs, Inputs::Assembly(_)) {
+            return Err(REFUSED.into());
+        }
+        self.executing
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .map_err(|_| REFUSED)?;
-        let _entry = ValidationEntry(&self.validating);
+        let _entry = ExecutionEntry(&self.executing);
         let root_view = self.inputs.borrow().view(None)?;
         if !root_view.exports.ok_or(REFUSED)?.contains(&root) {
             return Err(REFUSED.into());
@@ -141,10 +156,9 @@ impl FreshDependencyDatatypeCompilation {
                 .registered_validator_context(self.root, self.inputs.borrow().view(None)?.tree)
                 .ok_or(REFUSED)?,
         };
-        let result = descriptor.validate_with_rule_contexts(
-            input,
+        let result = run(
+            descriptor,
             &runtime,
-            limits,
             &rules::Contexts {
                 host,
                 owners: &self.rules,
@@ -408,7 +422,7 @@ impl FreshStructuralHost {
             context,
             root,
             active: AtomicBool::new(true),
-            validating: AtomicBool::new(false),
+            executing: AtomicBool::new(false),
             rules: owners,
             operations: operation_owners,
         };

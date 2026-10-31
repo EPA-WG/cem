@@ -263,7 +263,26 @@ impl ExecutableDatatype {
         runtime: &ValidationRuntime<'_>,
         limits: PreparationLimits,
     ) -> DatatypePreparation {
-        self.prepare_phase(input, runtime, limits, true).0
+        self.prepare_phase(
+            input,
+            runtime,
+            limits,
+            true,
+            #[cfg(not(target_arch = "wasm32"))]
+            None,
+        )
+        .0
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn prepare_with_contexts(
+        &self,
+        input: &PreparationInput,
+        runtime: &ValidationRuntime<'_>,
+        limits: PreparationLimits,
+        contexts: &dyn datatype_validation::RuleValidationContexts,
+    ) -> DatatypePreparation {
+        self.prepare_phase(input, runtime, limits, true, Some(contexts))
+            .0
     }
     pub(crate) fn prepare_without_validation(
         &self,
@@ -271,7 +290,14 @@ impl ExecutableDatatype {
         runtime: &ValidationRuntime<'_>,
         limits: PreparationLimits,
     ) -> (DatatypePreparation, usize) {
-        self.prepare_phase(input, runtime, limits, false)
+        self.prepare_phase(
+            input,
+            runtime,
+            limits,
+            false,
+            #[cfg(not(target_arch = "wasm32"))]
+            None,
+        )
     }
     fn prepare_phase(
         &self,
@@ -279,6 +305,9 @@ impl ExecutableDatatype {
         runtime: &ValidationRuntime<'_>,
         limits: PreparationLimits,
         validate: bool,
+        #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+            &dyn datatype_validation::RuleValidationContexts,
+        >,
     ) -> (DatatypePreparation, usize) {
         let shared_runtime = runtime.with_query_budget();
         let runtime = &shared_runtime;
@@ -302,6 +331,8 @@ impl ExecutableDatatype {
             &mut report,
             &mut visits,
             validate,
+            #[cfg(not(target_arch = "wasm32"))]
+            contexts,
         ) {
             report.stopped = Some(stop);
             report.accepted = None;
@@ -354,6 +385,9 @@ fn prepare(
     report: &mut DatatypePreparation,
     visits: &mut usize,
     validate: bool,
+    #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+        &dyn datatype_validation::RuleValidationContexts,
+    >,
 ) -> Result<(), PreparationStop> {
     check(runtime)?;
     if input.lexical.text.len() > limits.max_lexical_bytes {
@@ -383,6 +417,8 @@ fn prepare(
             &attribution,
             report,
             visits,
+            #[cfg(not(target_arch = "wasm32"))]
+            contexts,
         )?,
         Implementation::ListItems => {
             let item = d
@@ -461,6 +497,8 @@ fn prepare(
                     &attribution,
                     report,
                     visits,
+                    #[cfg(not(target_arch = "wasm32"))]
+                    contexts,
                 )?
                 else {
                     return Ok(());
@@ -478,19 +516,24 @@ fn prepare(
         report.value = Some(values);
         return Ok(());
     }
-    let validation = d.validate(
-        &ValidationInput {
-            value: values.clone(),
-            candidate: input.candidate.clone(),
-            fallback: attribution,
-        },
-        runtime,
-        ValidationLimits {
-            max_diagnostics: limits.validation.max_diagnostics - report.diagnostics.len(),
-            max_input_values: limits.validation.max_input_values - *visits,
-            ..limits.validation
-        },
-    );
+    let validation_input = ValidationInput {
+        value: values.clone(),
+        candidate: input.candidate.clone(),
+        fallback: attribution,
+    };
+    let validation_limits = ValidationLimits {
+        max_diagnostics: limits.validation.max_diagnostics - report.diagnostics.len(),
+        max_input_values: limits.validation.max_input_values - *visits,
+        ..limits.validation
+    };
+    #[cfg(not(target_arch = "wasm32"))]
+    let validation = if let Some(contexts) = contexts {
+        d.validate_with_rule_contexts(&validation_input, runtime, validation_limits, contexts)
+    } else {
+        d.validate(&validation_input, runtime, validation_limits)
+    };
+    #[cfg(target_arch = "wasm32")]
+    let validation = d.validate(&validation_input, runtime, validation_limits);
     report.accepted = validation.accepted;
     report.value = Some(values);
     report.validation = Some(validation);
@@ -517,6 +560,9 @@ fn scalar(
     attribution: &DiagnosticAttribution,
     report: &mut DatatypePreparation,
     visits: &mut usize,
+    #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+        &dyn datatype_validation::RuleValidationContexts,
+    >,
 ) -> Result<Option<Vec<Item>>, PreparationStop> {
     candidate(selected, input)?;
     if report.preparations.saturating_add(selected.invocations()) > limits.max_preparations {
@@ -547,6 +593,8 @@ fn scalar(
             attribution,
             report,
             visits,
+            #[cfg(not(target_arch = "wasm32"))]
+            contexts,
         )?
         else {
             return Ok(None);
@@ -578,7 +626,19 @@ fn scalar_step(
     attribution: &DiagnosticAttribution,
     report: &mut DatatypePreparation,
     visits: &mut usize,
+    #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+        &dyn datatype_validation::RuleValidationContexts,
+    >,
 ) -> Result<Option<Vec<Item>>, PreparationStop> {
+    #[cfg(not(target_arch = "wasm32"))]
+    let scoped_runtime = datatype_validation::operation_runtime(
+        runtime,
+        selected.registration.identity().source.declaration(),
+        contexts,
+    )
+    .map_err(|_| PreparationStop::Unavailable)?;
+    #[cfg(not(target_arch = "wasm32"))]
+    let runtime = &scoped_runtime;
     check(runtime)?;
     spend(report, limits)?;
     *visits = visits.saturating_add(1 + input.candidate.len());

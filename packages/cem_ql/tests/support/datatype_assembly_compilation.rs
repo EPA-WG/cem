@@ -796,3 +796,6 @@ fn assembly_compiler_checks_imported_rule_owners_while_preparing_and_validating_
     rule.retire();
     assert!(!c.is_live(&h));
 }
+
+#[path = "datatype_assembly_root_ops.rs"]
+mod root_ops;
