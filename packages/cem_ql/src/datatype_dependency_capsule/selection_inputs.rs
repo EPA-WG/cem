@@ -28,6 +28,10 @@ impl VerifiedDatatypeDependencies {
             },
         })
     }
+    pub fn dependency_datatypes(&self, id: &str) -> Option<&BTreeMap<AstNodeId, DatatypeSource>> {
+        self.datatype_module(id)
+            .map(VerifiedDatatypeSources::sources)
+    }
     pub(crate) fn datatype_module(&self, id: &str) -> Option<&VerifiedDatatypeSources> {
         match self._dependencies.get(id)? {
             VerifiedArtifact::Datatype(v) => Some(v),

@@ -79,6 +79,7 @@ struct Host {
     bounds: BTreeMap<String, ReferenceTraversalLimits>,
     policy: ReferenceUnresolvedPolicy,
     crossing: bool,
+    reject_selection: bool,
 }
 impl Host {
     fn new() -> Self {
@@ -91,6 +92,7 @@ impl Host {
             bounds: BTreeMap::new(),
             policy: ReferenceUnresolvedPolicy::schema_defaults().unwrap(),
             crossing: false,
+            reject_selection: false,
         }
     }
     fn add(&mut self, owner: &Arc<CemDocument>, scope_id: &str) -> Vec<DatatypeSource> {
@@ -194,6 +196,13 @@ impl SchemaDeclarationHost for Host {
     }
 }
 impl DatatypeDependencyHost for Host {
+    fn admit_datatype_dependency(
+        &self,
+        _: &cem_ml::schema::datatype_registry::DatatypeDependencySite,
+    ) -> bool {
+        !self.reject_selection
+    }
+
     fn lookup_literal_type(
         &mut self,
         source: &DatatypeSource,
@@ -588,4 +597,30 @@ fn imported_declaration_literal_lookup_keeps_its_declaring_scope() {
     assert!(bounded.walk.resolution.issues.iter().any(|issue| issue.kind
         == ReferenceResolutionIssueKind::DepthLimit
         && issue.occurrence.node_id == Some(attribute.node_id())));
+}
+
+#[test]
+fn explicit_native_admission_refuses_an_otherwise_complete_selected_dependency() {
+    let owner = parse("{schema | {type @name=root @base={#base}} {type @name=base @kind=scalar}}");
+    let mut host = Host::new();
+    let sources = host.add(&owner, "given");
+    host.bind(&sources[0], "base", vec![sources[1].declaration().clone()]);
+    host.reject_selection = true;
+    let denied =
+        traverse_native_datatype_dependencies(sources[0].clone(), &mut host, limits(100)).unwrap();
+    assert!(!denied.is_complete());
+    assert!(denied
+        .issues
+        .iter()
+        .any(|i| i.kind == DatatypeDependencyIssueKind::SelectionDenied));
+    assert_eq!(
+        denied.sites[0].targets[0].identity(),
+        sources[1].declaration().identity()
+    );
+    host.reject_selection = false;
+    assert!(
+        traverse_native_datatype_dependencies(sources[0].clone(), &mut host, limits(100))
+            .unwrap()
+            .is_complete()
+    );
 }

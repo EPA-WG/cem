@@ -7,6 +7,7 @@ pub(super) struct Host<'a> {
     pub inner: &'a mut CemQlSchemaDeclarationHost,
     pub catalog: &'a DatatypeNameCatalog,
     pub allowed: &'a BTreeMap<String, DatatypeSource>,
+    pub expected: &'a BTreeMap<String, String>,
     pub captures: &'a [Arc<LexicallyScopedDocument>],
     pub lease: &'a AttributeDatatypeContextLease,
     pub closed: &'a AtomicBool,
@@ -118,6 +119,18 @@ impl SchemaDeclarationHost for Host<'_> {
     }
 }
 impl DatatypeDependencyHost for Host<'_> {
+    fn admit_datatype_dependency(
+        &self,
+        site: &cem_ml::schema::datatype_registry::DatatypeDependencySite,
+    ) -> bool {
+        let [target] = site.targets.as_slice() else {
+            return false;
+        };
+        self.check().is_ok()
+            && self.ready(&self.inner.source_reference(target.clone()))
+            && self.expected.get(&site.attribute.identity()) == Some(&target.identity())
+    }
+
     fn datatype_source(&self, n: &SchemaDeclarationNode) -> Option<DatatypeSource> {
         self.allowed.get(&n.identity()).cloned()
     }

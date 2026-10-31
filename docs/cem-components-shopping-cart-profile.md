@@ -766,6 +766,11 @@ retain original lexical scopes but do not prove target selection or grant access
 The [fresh-host selection adapter](cem-native-schema-capsules.md#fresh-host-datatype-dependency-selection)
 now checks actual contexts, original names, explicit exports and directed grants.
 Its weakly guarded inspection results grant no compilation/publication permission.
+The [native primitive compiler](cem-native-schema-capsules.md#fresh-host-primitive-dependency-compilation)
+now repeats selection inside the actual checked host invocation and validates only
+exported roots through private, context-bound typed descriptors. Unbound QD1/NR1
+rules and executable preparation/tokenizer hooks refuse; explicit rule binding,
+complete code closure and portable/runtime admission remain pending.
 
 The [native linking contract](cem-native-schema-capsules.md#native-fresh-host-linking-and-node-receivers)
 defines its required source registration, explicit grants, bounds and lifetime.

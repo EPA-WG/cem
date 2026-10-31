@@ -28,6 +28,9 @@ build assertions, not checked host selections, crossing grants or executable clo
 A native fresh-host adapter now checks those selections against actual source
 scopes, original aliases, explicit exports and directed grants. Its local inspection
 result remains separate from datatype compilation and receiver publication.
+A native primitive compiler now renews selection within the actual checked
+invocation and keeps cross-source scalar/list descriptors private for root-only
+typed validation. Imported rule bindings and executable hooks remain pending.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -963,12 +966,12 @@ Failed selection attempts publish nothing and leave an unchanged prior context l
 
 **This is not a retained permission to compile or publish.** Context liveness does
 not freeze mutable native callbacks or provider data. A new selection attempt
-reevaluates selectors, and a future cross-source compiler must perform selection
-and compilation in its checked invocation rather than trust a historical result.
+reevaluates selectors. The primitive compiler below performs selection and
+compilation in its checked invocation rather than trust a historical result.
 Portable `selections_verified()` and `executable_closure_verified()` remain false.
 No datatype/validator implementation is compiled or registered by this adapter,
 and no receiver is installed. Dependency-bearing datatype modules, wider
-operation/constant closure, actual cross-source compilation and worker/fallback
+operation/constant closure, imported rule compilation and worker/fallback
 transport/checkpoint enrollment remain pending. Existing application formats,
 WASM endpoints, credential refusal, disabled automatic whole-Studio recovery,
 4 MiB checkpoints and five-second deadlines are unchanged.
@@ -978,6 +981,63 @@ cover original aliases/contexts, vendor inheritance, exact QD1/NR1 targets,
 missing/reverse grants and exports, pending inputs, wrong/empty/multiple/cyclic
 selections, source/host identity, budgets, cancellation, stale results and weak
 callback lifetime release.
+
+## Fresh-host primitive dependency compilation
+
+The native [primitive compiler](../packages/cem_ql/src/structural_receiver/dependencies/compilation.rs)
+adds `FreshStructuralHost::compile_datatype_dependencies` for typed scalar/lexical
+and list roots with original cross-source inheritance. Supply the verified CEMDP1
+capsule, actual registered root/module scopes, explicit imports, primitive metadata
+and bounded traversal limits. It reuses the selection adapter's original source
+capture, name discovery, readiness and directed-grant checks, then runs the shared
+native datatype compiler. A historical selection inspection is not an input.
+
+The shared native traversal checks an explicit host admission hook against each
+original field and asserted singleton target before executable construction.
+Selectors run again during compilation: a changed callback selecting a different,
+otherwise valid datatype refuses. Actual operation/context checks guard the whole
+invocation, including callback-time cancellation. Name discovery and compilation
+have separately bounded phases; this is not an aggregate heap/phase budget.
+
+`dependency_datatypes` exposes verified DT1 source metadata for explicit primitive
+implementation entries. Registrations must own the exact original declaration
+and scope, use scalar/lexical/list kinds and scalar/list representations, have no
+validator and use `TokenizerBinding::Absent`. Foreign source copies, node/grammar/
+reference implementations and executable tokenizer hooks refuse. Preparation,
+conversion, equality, constant interpretation and additional facet-profile
+registrations cannot be supplied through this API. Existing full/DT1 APIs retain
+those capabilities.
+
+Any CEMDP1 validation-rule site, including an exact QD1 or NR1 pin, currently
+refuses with `datatype-dependency-rule-bindings-unavailable`. Correct metadata
+selection does not bind a rule implementation or its execution context. Explicit
+original source policies, callback ownership and rule budgets are the next gate.
+Unsupported primitive metadata returns
+`datatype-dependency-primitive-metadata-required`. Compilation failures expose
+original diagnostics/reference issues and source-owned compiler issues; partial
+executable contracts never escape in the error.
+
+`FreshDependencyDatatypeCompilation` keeps executable descriptors private.
+`validate` accepts only exported capsule root IDs and reruns ordinary typed
+validation with caller limits under the actual live host operation/context. An
+internal imported datatype is not a validation entry point. Closing/dropping the
+host, changing its contexts/grants or retiring the compilation invalidates use;
+foreign hosts refuse. The result retains source snapshots and a weak context lease,
+not host callbacks. Failed compilation preserves an unchanged prior result.
+Validation neither replays selectors nor caches a verdict. Lexical preparation,
+sealed handoff and mixed receiver publication are not exposed by this adapter.
+
+The [compilation fixtures](../packages/cem_ql/tests/datatype_dependency_capsule/compilation.rs)
+cover imported inheritance/facets and diagnostics, root bounds, original ownership,
+missing/foreign metadata, executable-hook and QD1/NR1 refusals, renewed mutable
+selection, request/input budgets, cancellation, stale/foreign/retired/closed contexts
+and callback release. The shared [native traversal fixture](../packages/cem_ml/tests/datatype_dependency_traversal.rs)
+checks explicit admission refusal with the original field retained.
+
+Portable selection/executable closure flags stay false. This adds no wire format,
+WASM endpoint, receiver admission or application JavaScript. Credential refusal,
+disabled automatic whole-Studio recovery, 4 MiB checkpoints and five-second
+deadlines remain unchanged.
 
 ## Guarded datatype preparation handoff
 

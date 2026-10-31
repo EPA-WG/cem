@@ -834,8 +834,12 @@ Native fresh-host selection now resolves those fields through the actual shared
 resolver and original name catalog, requiring ready source/occurrence contexts,
 explicit exported roots and directed crossing grants. Local inspection results
 expire with host context changes and retain no callbacks; they grant no future
-compilation/publication permission. Checked cross-source compilation remains a
-separate gate; see [selection semantics](docs/cem-native-schema-capsules.md#fresh-host-datatype-dependency-selection).
+compilation/publication permission; see [selection semantics](docs/cem-native-schema-capsules.md#fresh-host-datatype-dependency-selection).
+Native cross-source primitive compilation now repeats selection within the actual
+checked invocation and keeps descriptors private for root-only typed validation.
+Executable hooks and unbound QD1/NR1 rules refuse; explicit rule source contexts,
+policies and weak ownership remain next. See the
+[primitive compiler contract](docs/cem-native-schema-capsules.md#fresh-host-primitive-dependency-compilation).
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

@@ -1,5 +1,5 @@
-//! Process-local selection inspection under the actual host. No executable
-//! compilation, implementation registration, source sharing or receiver admission.
+//! Actual-host selection inspection and private primitive datatype compilation.
+//! No portable permission, imported rule activation or receiver admission.
 use super::*;
 use crate::{
     datatype_dependency_capsule::VerifiedDatatypeDependencies,
@@ -13,7 +13,9 @@ use cem_ml::schema::{
     machine::{LexicalScopeSnapshot, LexicallyScopedDocument},
     reference_policy::ReferenceScopePolicyOverrides,
 };
+mod compilation;
 mod host;
+pub use compilation::{DatatypeDependencyCompileError, FreshDependencyDatatypeCompilation};
 const REFUSED: &str = "fresh datatype dependency selection refused";
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DatatypeDependencyImport {
@@ -199,6 +201,100 @@ impl FreshStructuralHost {
         imports: &[DatatypeDependencyImport],
         limits: ReferenceTraversalLimits,
     ) -> Result<FreshDatatypeDependencySelection, String> {
+        let Environment {
+            context,
+            catalog,
+            allowed,
+            expected,
+            captures,
+        } = self.dependency_environment(&capsule, root, scopes, imports, limits)?;
+        let mut adapter = host::Host {
+            inner: &mut self.inner,
+            catalog: &catalog,
+            allowed: &allowed,
+            expected: &expected,
+            captures: &captures,
+            lease: &context,
+            closed: &self.closed,
+            control: &self.control,
+        };
+        let mut remaining = limits;
+        let mut selected = BTreeMap::new();
+        let mut datatypes = BTreeSet::new();
+        for root in capsule.roots() {
+            adapter.check().map_err(|_| REFUSED)?;
+            let source = capsule.sources().get(root).ok_or(REFUSED)?.clone();
+            let walk = traverse_native_datatype_dependencies(source, &mut adapter, remaining)
+                .map_err(|_| REFUSED)?;
+            if !walk.is_complete() {
+                return Err(REFUSED.into());
+            }
+            for node in &walk.walk.resolution.nodes {
+                if let cem_ml::schema::datatype_registry::DatatypeTraversalNode::Value(value, _) =
+                    node
+                {
+                    if !adapter.ready(value) {
+                        return Err(REFUSED.into());
+                    }
+                }
+            }
+            remaining.max_work = remaining
+                .max_work
+                .checked_sub(walk.walk.resolution.work_used)
+                .ok_or(REFUSED)?;
+            for plan in &walk.plans {
+                datatypes.insert(plan.source.declaration().identity());
+            }
+            for site in &walk.sites {
+                let [target] = site.targets.as_slice() else {
+                    return Err(REFUSED.into());
+                };
+                let key = site.attribute.identity();
+                let target = target.identity();
+                if expected.get(&key) != Some(&target)
+                    || selected
+                        .insert(key, target.clone())
+                        .is_some_and(|previous| previous != target)
+                {
+                    return Err(REFUSED.into());
+                }
+            }
+        }
+        adapter.check().map_err(|_| REFUSED)?;
+        if capsule.sites().iter().any(|s| {
+            SchemaDeclarationNode::new(capsule.capture().document().clone(), s.field)
+                .is_none_or(|n| !selected.contains_key(&n.identity()))
+        }) {
+            return Err(REFUSED.into());
+        }
+        let result = FreshDatatypeDependencySelection {
+            capsule,
+            context,
+            active: AtomicBool::new(true),
+            sites: selected.len(),
+            datatypes: datatypes.len(),
+        };
+        result.check(self)?;
+        Ok(result)
+    }
+}
+
+struct Environment {
+    context: AttributeDatatypeContextLease,
+    catalog: DatatypeNameCatalog,
+    allowed: BTreeMap<String, DatatypeSource>,
+    expected: BTreeMap<String, String>,
+    captures: Vec<Arc<LexicallyScopedDocument>>,
+}
+impl FreshStructuralHost {
+    fn dependency_environment(
+        &mut self,
+        capsule: &VerifiedDatatypeDependencies,
+        root: DeclarationScope,
+        scopes: &BTreeMap<String, DeclarationScope>,
+        imports: &[DatatypeDependencyImport],
+        limits: ReferenceTraversalLimits,
+    ) -> Result<Environment, String> {
         self.check().map_err(|_| REFUSED)?;
         if capsule.pin().registry_hash != self.registry_hash
             || limits.max_work == 0
@@ -215,7 +311,7 @@ impl FreshStructuralHost {
         let mut registered = BTreeMap::new();
         let mut captures = vec![];
         for id in std::iter::once(None).chain(capsule.dependency_ids().map(Some)) {
-            let (tree, capture, schema) = view(&capsule, id)?;
+            let (tree, capture, schema) = view(capsule, id)?;
             let scope = match id {
                 None => root,
                 Some(id) => *scopes.get(id).ok_or(REFUSED)?,
@@ -303,72 +399,16 @@ impl FreshStructuralHost {
                 }
             }
         }
-        let mut adapter = host::Host {
-            inner: &mut self.inner,
-            catalog: &catalog,
-            allowed: &allowed,
-            captures: &captures,
-            lease: &context,
-            closed: &self.closed,
-            control: &self.control,
-        };
-        let mut remaining = limits;
-        let mut selected = BTreeMap::new();
-        let mut datatypes = BTreeSet::new();
-        for root in capsule.roots() {
-            adapter.check().map_err(|_| REFUSED)?;
-            let source = capsule.sources().get(root).ok_or(REFUSED)?.clone();
-            let walk = traverse_native_datatype_dependencies(source, &mut adapter, remaining)
-                .map_err(|_| REFUSED)?;
-            if !walk.is_complete() {
-                return Err(REFUSED.into());
-            }
-            for node in &walk.walk.resolution.nodes {
-                if let cem_ml::schema::datatype_registry::DatatypeTraversalNode::Value(value, _) =
-                    node
-                {
-                    if !adapter.ready(value) {
-                        return Err(REFUSED.into());
-                    }
-                }
-            }
-            remaining.max_work = remaining
-                .max_work
-                .checked_sub(walk.walk.resolution.work_used)
-                .ok_or(REFUSED)?;
-            for plan in &walk.plans {
-                datatypes.insert(plan.source.declaration().identity());
-            }
-            for site in &walk.sites {
-                let [target] = site.targets.as_slice() else {
-                    return Err(REFUSED.into());
-                };
-                let key = site.attribute.identity();
-                let target = target.identity();
-                if expected.get(&key) != Some(&target)
-                    || selected
-                        .insert(key, target.clone())
-                        .is_some_and(|previous| previous != target)
-                {
-                    return Err(REFUSED.into());
-                }
-            }
-        }
-        adapter.check().map_err(|_| REFUSED)?;
-        if capsule.sites().iter().any(|s| {
-            SchemaDeclarationNode::new(capsule.capture().document().clone(), s.field)
-                .is_none_or(|n| !selected.contains_key(&n.identity()))
-        }) {
+        self.check().map_err(|_| REFUSED)?;
+        if !context.matches(&self.context) {
             return Err(REFUSED.into());
         }
-        let result = FreshDatatypeDependencySelection {
-            capsule,
+        Ok(Environment {
             context,
-            active: AtomicBool::new(true),
-            sites: selected.len(),
-            datatypes: datatypes.len(),
-        };
-        result.check(self)?;
-        Ok(result)
+            catalog,
+            allowed,
+            expected,
+            captures,
+        })
     }
 }

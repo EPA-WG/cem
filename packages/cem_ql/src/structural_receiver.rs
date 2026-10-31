@@ -29,7 +29,10 @@ const INVALID: &str = "fresh structural host refused";
 pub mod application;
 mod datatypes;
 mod dependencies;
-pub use dependencies::{DatatypeDependencyImport, FreshDatatypeDependencySelection};
+pub use dependencies::{
+    DatatypeDependencyCompileError, DatatypeDependencyImport, FreshDatatypeDependencySelection,
+    FreshDependencyDatatypeCompilation,
+};
 pub use datatypes::{FreshDatatypeCompilation, FreshDatatypePreparationInvocation};
 mod native;
 mod query;

@@ -331,6 +331,11 @@ retain original lexical scopes but do not prove target selection or grant access
 The [fresh-host selection adapter](cem-native-schema-capsules.md#fresh-host-datatype-dependency-selection)
 now checks actual contexts, original names, explicit exports and directed grants.
 Its weakly guarded inspection results grant no compilation/publication permission.
+The [native primitive compiler](cem-native-schema-capsules.md#fresh-host-primitive-dependency-compilation)
+now reselects original cross-source scalar/list dependencies during actual-host
+compilation. Explicit primitive metadata yields private, context-bound root-only
+typed validation; unbound QD1/NR1 rules and executable hooks refuse. Imported rule
+binding and portable/runtime admission remain pending.
 
 Do not equate downloaded code with an active native generation. Register every
 physical endpoint and its resources with the shared ownership/recovery group.

@@ -510,3 +510,6 @@ fn complete_agreeing_source_snapshots_allow_distinct_inert_module_roots_without_
 
 #[path = "datatype_dependency_capsule/selection.rs"]
 mod selection;
+
+#[path = "datatype_dependency_capsule/compilation.rs"]
+mod compilation;

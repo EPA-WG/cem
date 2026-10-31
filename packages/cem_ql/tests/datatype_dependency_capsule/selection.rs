@@ -9,10 +9,10 @@ use cem_ql::{
     schema_references::DeclarationScope,
     structural_receiver::{DatatypeDependencyImport, FreshStructuralHost},
 };
-fn verified(text: &str) -> Arc<capsule::VerifiedDatatypeDependencies> {
+pub(super) fn verified(text: &str) -> Arc<capsule::VerifiedDatatypeDependencies> {
     verified_vendor(text, VENDOR, "base")
 }
-fn verified_vendor(
+pub(super) fn verified_vendor(
     text: &str,
     vendor: &str,
     exported: &str,
@@ -59,7 +59,10 @@ fn verified_vendor(
     Arc::new(capsule::verify(&b.bytes, &b.pin, &artifacts, &OperationControl::default()).unwrap())
 }
 
-fn context(c: &capsule::VerifiedDatatypeDependencies, name: &str) -> StandaloneExpressionContext {
+pub(super) fn context(
+    c: &capsule::VerifiedDatatypeDependencies,
+    name: &str,
+) -> StandaloneExpressionContext {
     let item = RetainedCemNode::new(c.source().clone(), declaration(c.capture(), name))
         .unwrap()
         .query_item();
@@ -68,7 +71,7 @@ fn context(c: &capsule::VerifiedDatatypeDependencies, name: &str) -> StandaloneE
         StandaloneExpressionBinding::any(ItemStream::once(item)),
     )
 }
-fn prepared(
+pub(super) fn prepared(
     c: &Arc<capsule::VerifiedDatatypeDependencies>,
     grant: u8,
     ready: bool,
@@ -87,7 +90,7 @@ fn prepared(
     )
     .0
 }
-fn configured(
+pub(super) fn configured(
     c: &Arc<capsule::VerifiedDatatypeDependencies>,
     grant: u8,
     ready: bool,
@@ -150,7 +153,7 @@ fn configured(
         lexical,
     )
 }
-fn limits() -> ReferenceTraversalLimits {
+pub(super) fn limits() -> ReferenceTraversalLimits {
     ReferenceTraversalLimits {
         max_depth: 32,
         max_work: 100_000,

@@ -22,6 +22,14 @@ pub trait DatatypeDependencyHost: SchemaDeclarationHost {
     /// the consuming declaration's aliases or the target document's ownership.
     fn datatype_source(&self, target: &SchemaDeclarationNode) -> Option<DatatypeSource>;
 
+    /// Native build consumers may constrain a completed singleton selection to
+    /// independently pinned original fields/targets. Refusal is not readiness.
+    /// No portable permission or implementation registration follows admission.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn admit_datatype_dependency(&self, _site: &DatatypeDependencySite) -> bool {
+        true
+    }
+
     /// Resolve the unchanged literal QName using the original declaring source's
     /// lexical bindings. The host owns namespace admission and implementation
     /// lookup; matching a local name never implicitly grants a built-in contract.
@@ -61,6 +69,8 @@ pub struct DatatypeDeferredDependency {
 pub enum DatatypeDependencyIssueKind {
     Cardinality,
     WrongTarget,
+    #[cfg(not(target_arch = "wasm32"))]
+    SelectionDenied,
 }
 #[derive(Debug, Clone)]
 pub struct DatatypeDependencyIssue {
@@ -315,6 +325,15 @@ pub fn traverse_native_datatype_dependencies<H: DatatypeDependencyHost>(
                     complete,
                 });
             }
+        }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    for site in &sites {
+        if site.complete && site.targets.len() == 1 && !adapter.0.admit_datatype_dependency(site) {
+            issues.push(DatatypeDependencyIssue {
+                kind: DatatypeDependencyIssueKind::SelectionDenied,
+                attribute: site.attribute.clone(),
+            });
         }
     }
     Ok(NativeDatatypeDependencyTraversal {

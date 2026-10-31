@@ -2191,6 +2191,54 @@ inventory, not the minimum set loaded by every app.
                       test native/query rule ownership, original diagnostics,
                       callback changes, cancellation, budgets and stale contexts
                       before exposing mixed receivers or a WASM entry point.
+                      - [x] Add shared native selection admission before compiler
+                        construction; test changed/mismatched targets and fresh
+                        selector execution instead of historical inspection reuse.
+                      - [x] Compile original cross-source scalar/list roots using
+                        the actual host and explicit primitive metadata. Test source
+                        scopes/grants, inherited facets, root-only validation,
+                        missing/foreign implementations, budgets and cancellation.
+                      - [x] Refuse unbound QD1/NR1 rule modules and executable
+                        tokenizer/validator metadata in the primitive compiler;
+                        test that correct source selection cannot activate code.
+                      - [ ] Bind exact QD1/NR1 rule modules explicitly, preserve
+                        original source contexts/policies/diagnostics and weak native
+                        ownership; test missing/incorrect registrations, fresh
+                        outcomes, source budgets and callback-time retirement/stops.
+                      - [x] Keep primitive compiled descriptors private and context-bound;
+                        test stale/foreign/closed owners and failed-attempt preservation,
+                        then run native/WASM/component and isolated Studio Login
+                        credential privacy acceptance without enabling admission.
+
+                      The [primitive compiler](cem-native-schema-capsules.md#fresh-host-primitive-dependency-compilation)
+                      renews original source selection inside the actual shared native
+                      compiler invocation; it never accepts the inspection result as
+                      permission. Exact source scopes/grants and explicit primitive
+                      metadata produce private typed scalar/list snapshots with
+                      root-only validation. Unbound QD1/NR1 rule sites and executable
+                      hooks refuse. Imported rule source contexts/policies/weak
+                      ownership remain open above; portable selection/code-closure
+                      flags remain false. No new WASM endpoint, wire format,
+                      receiver admission or application JavaScript is introduced.
+
+                      Verification: native tests-first checks reproduced missing
+                      compiler/admission APIs and the node-metadata admission gap.
+                      Nine new fixtures cover compiler/admission behavior (eight
+                      compiler cases and one shared traversal case). All 587
+                      distinct native cases passed: 394 integration, 179 core and
+                      14 shared dependency
+                      traversal cases. The WASM-target check, 18 component browser
+                      cases, ten audit/factory cases and both WASM drivers passed.
+                      Isolated Studio Login recovery passed in worker and fallback
+                      modes (two selected cases; six filtered), after native builds
+                      drained. The source audit, 262 local documentation targets,
+                      focused Rust formatting and diff checks passed. Existing
+                      component (11,474,094 bytes) and full (24,202,382 bytes) WASM
+                      assets were exercised, not rebuilt. Entered passwords/OTP
+                      still block recovery; automatic whole-Studio recovery stays
+                      disabled, with 4 MiB checkpoints and five-second deadlines
+                      unchanged. Generated screenshots and Vitest attachments
+                      are excluded.
                     - [ ] Extend separately versioned dependency records for
                       dependency-bearing datatype modules and additional native
                       operation/constant profiles before claiming complete executable
