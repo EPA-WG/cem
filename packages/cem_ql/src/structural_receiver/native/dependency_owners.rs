@@ -7,6 +7,18 @@ pub(super) enum OperationOwner {
     Dependency(Arc<VerifiedOperationSource>),
 }
 impl OperationOwner {
+    pub(super) fn matches_dependency(
+        &self,
+        requirement: &VerifiedOperationSource,
+        host: &FreshStructuralHost,
+        scope: DeclarationScope,
+    ) -> bool {
+        matches!(self, Self::Dependency(r) if r.pin().hash == requirement.pin().hash
+            && Arc::ptr_eq(r.source(), requirement.source())
+            && r.datatype_source().declaration().identity() == requirement.datatype_source().declaration().identity())
+            && self.entry(host, scope).is_ok()
+    }
+
     pub(super) fn requirement(&self) -> &Requirement {
         match self {
             Self::Closed(r) => &r.requirement,
@@ -59,5 +71,19 @@ impl FreshStructuralHost {
         scope: DeclarationScope,
     ) -> Result<FreshNativeTokenizer, NativeLinkError> {
         self.link_tokenizer_owner(OperationOwner::Dependency(requirement), scope)
+    }
+}
+
+impl FreshNativeTokenizer {
+    pub(in crate::structural_receiver) fn matches_dependency(
+        &self,
+        requirement: &VerifiedOperationSource,
+        host: &FreshStructuralHost,
+        scope: DeclarationScope,
+    ) -> bool {
+        self.is_live_on(host)
+            && self
+                .requirement
+                .matches_dependency(requirement, host, scope)
     }
 }

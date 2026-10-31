@@ -158,8 +158,29 @@ pub(super) fn registrations(
 pub(super) struct Contexts<'a> {
     pub host: &'a FreshStructuralHost,
     pub owners: &'a RuleOwners,
+    pub source_operations: bool,
 }
 impl RuleValidationContexts for Contexts<'_> {
+    fn operation_context(
+        &self,
+        source: &SchemaDeclarationNode,
+    ) -> Result<Option<EvaluationContext>, ()> {
+        if !self.source_operations {
+            return Ok(None);
+        }
+        self.host.check().map_err(|_| ())?;
+        let scope = self
+            .host
+            .inner
+            .scope(&self.host.inner.source_reference(source.clone()))
+            .ok_or(())?;
+        self.host
+            .inner
+            .registered_scope_validator_context(scope)
+            .map(Some)
+            .ok_or(())
+    }
+
     fn context(&self, behavior: &SchemaDeclarationNode) -> Option<EvaluationContext> {
         let owner = self.owners.get(&behavior.identity())?.upgrade()?;
         if !owner.is_live(self.host) {
@@ -174,5 +195,48 @@ impl RuleValidationContexts for Contexts<'_> {
             .get(&behavior.identity())
             .and_then(Weak::upgrade)
             .is_some_and(|b| b.is_live(self.host))
+    }
+}
+
+/// Actual source contexts borrowed for one native invocation, never retained in
+/// descriptors. The resolver itself remains the mutable original host.
+pub(super) struct CompilationContexts<'a> {
+    pub sources: Vec<(Arc<RetainedCemTree>, EvaluationContext)>,
+    pub owners: &'a RuleOwners,
+    pub lease: &'a AttributeDatatypeContextLease,
+    pub control: &'a OperationControl,
+}
+impl CompilationContexts<'_> {
+    fn source(&self, n: &SchemaDeclarationNode) -> Option<EvaluationContext> {
+        if !self.lease.is_live() || self.control.check_scope(ROOT_EXECUTION_SCOPE_ID).is_err() {
+            return None;
+        }
+        self.sources
+            .iter()
+            .find(|(tree, _)| Arc::ptr_eq(tree.ast_owner(), n.document()))
+            .map(|(_, c)| c.clone())
+    }
+}
+impl RuleValidationContexts for CompilationContexts<'_> {
+    fn context(&self, n: &SchemaDeclarationNode) -> Option<EvaluationContext> {
+        if self.is_available(n) {
+            self.source(n)
+        } else {
+            None
+        }
+    }
+    fn is_available(&self, n: &SchemaDeclarationNode) -> bool {
+        self.source(n).is_some()
+            && self
+                .owners
+                .get(&n.identity())
+                .and_then(Weak::upgrade)
+                .is_some_and(|o| o.active.load(Ordering::Acquire) && o.context.is_live())
+    }
+    fn operation_context(
+        &self,
+        n: &SchemaDeclarationNode,
+    ) -> Result<Option<EvaluationContext>, ()> {
+        self.source(n).map(Some).ok_or(())
     }
 }

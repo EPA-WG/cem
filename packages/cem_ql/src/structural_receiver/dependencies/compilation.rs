@@ -68,6 +68,7 @@ pub struct FreshDependencyDatatypeCompilation {
     active: AtomicBool,
     validating: AtomicBool,
     rules: rules::RuleOwners,
+    operations: Vec<operations::Owner>,
 }
 struct ValidationEntry<'a>(&'a AtomicBool);
 impl Drop for ValidationEntry<'_> {
@@ -85,6 +86,7 @@ impl FreshDependencyDatatypeCompilation {
                 .rules
                 .values()
                 .any(|b| b.upgrade().is_none_or(|b| !b.is_live(host)))
+            || self.operations.iter().any(|owner| !owner.is_live(host))
             || host
                 .inner
                 .registered_validator_context(self.root, self.inputs.borrow().view(None)?.tree)
@@ -146,6 +148,7 @@ impl FreshDependencyDatatypeCompilation {
             &rules::Contexts {
                 host,
                 owners: &self.rules,
+                source_operations: matches!(self.inputs, Inputs::Assembly(_)),
             },
         );
         self.check(host)?;
@@ -205,6 +208,30 @@ impl FreshStructuralHost {
         bindings: &BTreeMap<String, Arc<FreshDatatypeRuleBinding>>,
         limits: ReferenceTraversalLimits,
     ) -> Result<FreshDependencyDatatypeCompilation, DatatypeDependencyCompileError> {
+        self.compile_inputs_with_operations(
+            inputs,
+            root,
+            scopes,
+            imports,
+            implementations,
+            bindings,
+            None,
+            limits,
+        )
+    }
+    pub(super) fn compile_inputs_with_operations(
+        &mut self,
+        inputs: Inputs,
+        root: DeclarationScope,
+        scopes: &BTreeMap<String, DeclarationScope>,
+        imports: &[DatatypeDependencyImport],
+        implementations: &[DatatypeImplementation],
+        bindings: &BTreeMap<String, Arc<FreshDatatypeRuleBinding>>,
+        operation_bindings: Option<
+            &BTreeMap<DatatypeAssemblyOperationKey, DatatypeAssemblyOperationBinding>,
+        >,
+        limits: ReferenceTraversalLimits,
+    ) -> Result<FreshDependencyDatatypeCompilation, DatatypeDependencyCompileError> {
         let input = inputs.borrow();
         self.check().map_err(|_| REFUSED)?;
         if bindings.is_empty() && input.root_has_rules() {
@@ -220,6 +247,7 @@ impl FreshStructuralHost {
             captures,
             required,
             rules: required_rules,
+            reachable,
         } = self.dependency_environment(input, root, scopes, imports, limits)?;
         if bindings.is_empty() && !required_rules.is_empty() {
             return Err(DatatypeDependencyCompileError::refused(
@@ -252,10 +280,45 @@ impl FreshStructuralHost {
                     "datatype-dependency-primitive-metadata-required",
                 ));
             }
-            primitive
-                .register(implementation.clone())
-                .map_err(|_| REFUSED)?;
         }
+        let mut prepared = implementations.to_vec();
+        let operation_owners = operations::install(
+            self,
+            input,
+            root,
+            scopes,
+            &reachable,
+            operation_bindings,
+            &mut prepared,
+            &mut primitive,
+            limits.max_work,
+        )?;
+        for implementation in prepared {
+            primitive.register(implementation).map_err(|_| REFUSED)?;
+        }
+        let constant_plan = constants::plan(input, limits.max_work, &self.control)?;
+        let mut source_contexts = vec![];
+        if matches!(input, InputRef::Assembly(_)) {
+            for id in std::iter::once(None).chain(input.ids().into_iter().map(Some)) {
+                let view = input.view(id)?;
+                let scope = match id {
+                    None => root,
+                    Some(id) => *scopes.get(id).ok_or(REFUSED)?,
+                };
+                source_contexts.push((
+                    view.tree.clone(),
+                    self.inner
+                        .registered_validator_context(scope, view.tree)
+                        .ok_or(REFUSED)?,
+                ));
+            }
+        }
+        let invocation = rules::CompilationContexts {
+            sources: source_contexts,
+            owners: &owners,
+            lease: &context,
+            control: &self.control,
+        };
         let root_view = input.view(None)?;
         let runtime = ValidationRuntime {
             control: &self.control,
@@ -277,20 +340,35 @@ impl FreshStructuralHost {
             allowed: &allowed,
             expected: &expected,
             captures: &captures,
+            constants: constant_plan.as_ref(),
             lease: &context,
             closed: &self.closed,
             control: &self.control,
         };
-        let compilation = compile_datatypes_with_runtime(
-            root_view.capture.document().clone(),
-            &roots,
-            &mut adapter,
-            &primitive,
-            &validations,
-            limits,
-            &runtime,
-            Default::default(),
-        );
+        let compilation = if matches!(input, InputRef::Assembly(_)) {
+            crate::datatype_compilation::compile_datatypes_with_contexts(
+                root_view.capture.document().clone(),
+                &roots,
+                &mut adapter,
+                &primitive,
+                &validations,
+                limits,
+                &runtime,
+                Default::default(),
+                &invocation,
+            )
+        } else {
+            compile_datatypes_with_runtime(
+                root_view.capture.document().clone(),
+                &roots,
+                &mut adapter,
+                &primitive,
+                &validations,
+                limits,
+                &runtime,
+                Default::default(),
+            )
+        };
         adapter.check().map_err(|_| REFUSED)?;
         if !compilation.is_ready()
             || !compilation.reference_issues.is_empty()
@@ -323,6 +401,7 @@ impl FreshStructuralHost {
                 "datatype-dependency-selection-incomplete",
             ));
         }
+        operations::check_shapes(input, &reachable, &compilation)?;
         let result = FreshDependencyDatatypeCompilation {
             inputs,
             compilation,
@@ -331,6 +410,7 @@ impl FreshStructuralHost {
             active: AtomicBool::new(true),
             validating: AtomicBool::new(false),
             rules: owners,
+            operations: operation_owners,
         };
         result.check(self)?;
         Ok(result)

@@ -9,8 +9,8 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [explicit CEMOS1 operation owners](archive/todo-completed-cemos1-operation-owners-2026-10-31.md).
-The [actual-host assembly selection record](archive/todo-completed-assembly-source-selection-2026-10-31.md) preserves the preceding stage.
+Latest completion: [shared CEMDM2 compilation](archive/todo-completed-cemdm2-compilation-2026-10-31.md).
+The [CEMOS1 owner-linking record](archive/todo-completed-cemos1-operation-owners-2026-10-31.md) preserves the preceding stage.
 
 Prioritize Studio functionality and presentation samples before unrelated helper
 work and physical-device/browser/AT acceptance. Examples remain ordinary projects
@@ -391,9 +391,10 @@ inventory, not the minimum set loaded by every app.
                         compilation and the application dependency envelope
                         through separately versioned contracts; preserve CEMDM1,
                         original selectors, explicit owners and weak lifetimes.
-                        - [ ] Renew original datatype/constant selections during
-                          shared CEMDM2 compilation under actual contexts and owner
-                          leases; never consume a prior inspection as permission.
+                        - [ ] Add guarded root preparation, conversion and list
+                          serialization invocations for compiled assemblies; preserve
+                          original operation/rule contexts, shared budgets, owner
+                          checks and decoded span/diagnostic provenance.
                         - [ ] Version application-envelope and mixed-receiver
                           publication before worker/fallback transport and admission.
 

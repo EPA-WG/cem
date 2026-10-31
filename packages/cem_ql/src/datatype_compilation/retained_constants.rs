@@ -95,7 +95,7 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
         if walk.children[root].len() > self.preparation.max_constants {
             return Err(pending("datatype-constant-count-limit", declaration));
         }
-        let mut fields = Vec::new();
+        let mut targets = Vec::new();
         for index in &walk.children[root] {
             let target = self
                 .host
@@ -103,10 +103,16 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
                 .ok_or_else(|| {
                     invalid("datatype-constant-retained-target-required", declaration)
                 })?;
-            let value = self.constant_field(&target)?;
-            fields.push((value, target));
+            targets.push(target);
         }
-        Ok(fields)
+        #[cfg(not(target_arch = "wasm32"))]
+        if !self.host.admit_datatype_constants(&plan.source, &targets) {
+            return Err(invalid("datatype-constant-selection-refused", declaration));
+        }
+        targets
+            .into_iter()
+            .map(|target| self.constant_field(&target).map(|value| (value, target)))
+            .collect()
     }
 
     fn constant_field(

@@ -9,6 +9,7 @@ pub(super) struct Host<'a> {
     pub allowed: &'a BTreeMap<String, DatatypeSource>,
     pub expected: &'a BTreeMap<String, String>,
     pub captures: &'a [Arc<LexicallyScopedDocument>],
+    pub constants: Option<&'a constants::Plan>,
     pub lease: &'a AttributeDatatypeContextLease,
     pub closed: &'a AtomicBool,
     pub control: &'a OperationControl,
@@ -36,7 +37,11 @@ impl ReferenceResolutionHost for Host<'_> {
     type Scope = Option<DeclarationScope>;
     fn prepare_node(&mut self, node: &mut Self::Node) -> Result<(), ReferenceResolutionError> {
         self.check()?;
-        self.inner.prepare_node(node)
+        self.inner.prepare_node(node)?;
+        if self.constants.is_some() && !self.ready(node) {
+            return Err(ReferenceResolutionError::OperationStopped);
+        }
+        Ok(())
     }
     fn scope(&self, node: &Self::Node) -> Self::Scope {
         self.inner.scope(node)
@@ -75,6 +80,26 @@ impl ReferenceResolutionHost for Host<'_> {
         let result = self.inner.evaluate(node);
         if self.check().is_err() {
             return ReferenceLinkEvaluation::Pending(REFUSED.into());
+        }
+        if let Some(expected) = self.constants.and_then(|p| {
+            self.inner
+                .declaration_node(node)
+                .and_then(|n| p.references.get(&n.identity()))
+        }) {
+            let ReferenceLinkEvaluation::Resolved(targets) = &result else {
+                return result;
+            };
+            if targets.len() != expected.len()
+                || targets.iter().zip(expected).any(|(target, wanted)| {
+                    !self.ready(target)
+                        || self
+                            .inner
+                            .declaration_node(target)
+                            .is_none_or(|n| n.identity() != *wanted)
+                })
+            {
+                return ReferenceLinkEvaluation::Unresolved(REFUSED.into());
+            }
         }
         result
     }
@@ -119,6 +144,25 @@ impl SchemaDeclarationHost for Host<'_> {
     }
 }
 impl DatatypeDependencyHost for Host<'_> {
+    fn admit_datatype_constants(
+        &self,
+        source: &DatatypeSource,
+        targets: &[SchemaDeclarationNode],
+    ) -> bool {
+        self.check().is_ok()
+            && self.constants.is_none_or(|p| {
+                p.terminals
+                    .get(&source.declaration().identity())
+                    .is_some_and(|expected| {
+                        expected.len() == targets.len()
+                            && targets.iter().zip(expected).all(|(target, wanted)| {
+                                target.identity() == *wanted
+                                    && self.ready(&self.inner.source_reference(target.clone()))
+                            })
+                    })
+            })
+    }
+
     fn admit_datatype_dependency(
         &self,
         site: &cem_ml::schema::datatype_registry::DatatypeDependencySite,

@@ -102,6 +102,15 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
                     .ok_or_else(|| fail("constant-source-owner-unavailable"))?,
             )
             .ok_or_else(|| malformed("constant-source-owner"))?;
+        #[cfg(not(target_arch = "wasm32"))]
+        let scoped_runtime = datatype_validation::operation_runtime(
+            runtime,
+            interpreter.registration.identity().source.declaration(),
+            self.contexts,
+        )
+        .map_err(|_| fail("datatype-constant-context-unavailable"))?;
+        #[cfg(not(target_arch = "wasm32"))]
+        let runtime = &scoped_runtime;
         let fields = if let Some(attribute) = descriptor.source.attribute("values") {
             vec![(attribute.clone(), None)]
         } else {
@@ -292,15 +301,19 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
         self.preparation.validation.max_input_values -= 2;
         // The descriptor contains all base/local rules and inherited vocabularies,
         // but does not yet contain the vocabulary being prepared.
-        let output = descriptor.validate(
-            &ValidationInput {
-                value: value.to_vec(),
-                candidate: vec![candidate.clone()],
-                fallback: attribution.clone(),
-            },
-            self.runtime.unwrap(),
-            limits,
-        );
+        let input = ValidationInput {
+            value: value.to_vec(),
+            candidate: vec![candidate.clone()],
+            fallback: attribution.clone(),
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        let output = if let Some(contexts) = self.contexts {
+            descriptor.validate_with_rule_contexts(&input, self.runtime.unwrap(), limits, contexts)
+        } else {
+            descriptor.validate(&input, self.runtime.unwrap(), limits)
+        };
+        #[cfg(target_arch = "wasm32")]
+        let output = descriptor.validate(&input, self.runtime.unwrap(), limits);
         self.preparation.validation.max_comparisons = self
             .preparation
             .validation

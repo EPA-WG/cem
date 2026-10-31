@@ -30,6 +30,17 @@ pub trait DatatypeDependencyHost: SchemaDeclarationHost {
         true
     }
 
+    /// Native embeddings may admit an exact ordered retained constant sequence
+    /// before literal parsing or interpreter callbacks. No scalar semantics follow.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn admit_datatype_constants(
+        &self,
+        _source: &DatatypeSource,
+        _targets: &[SchemaDeclarationNode],
+    ) -> bool {
+        true
+    }
+
     /// Resolve the unchanged literal QName using the original declaring source's
     /// lexical bindings. The host owns namespace admission and implementation
     /// lookup; matching a local name never implicitly grants a built-in contract.

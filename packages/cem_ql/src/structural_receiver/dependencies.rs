@@ -19,7 +19,9 @@ mod constants;
 mod host;
 mod inputs;
 mod modules;
+mod operations;
 use inputs::{InputRef, Inputs};
+pub use operations::{DatatypeAssemblyOperationBinding, DatatypeAssemblyOperationKey};
 mod rules;
 pub use compilation::{DatatypeDependencyCompileError, FreshDependencyDatatypeCompilation};
 pub use rules::{DatatypeDependencyRuleRegistration, FreshDatatypeRuleBinding};
@@ -249,12 +251,14 @@ impl FreshStructuralHost {
             required,
             ..
         } = self.dependency_environment(input, root, scopes, imports, limits)?;
+        let constant_plan = constants::plan(input, limits.max_work, &self.control)?;
         let mut adapter = host::Host {
             inner: &mut self.inner,
             catalog: &catalog,
             allowed: &allowed,
             expected: &expected,
             captures: &captures,
+            constants: constant_plan.as_ref(),
             lease: &context,
             closed: &self.closed,
             control: &self.control,
@@ -311,14 +315,8 @@ impl FreshStructuralHost {
         if required.iter().any(|id| !selected.contains_key(id)) {
             return Err(REFUSED.into());
         }
-        let (constant_sites, constant_targets) = constants::select(
-            input,
-            &allowed,
-            &datatypes,
-            &mut adapter,
-            &mut remaining,
-            limits.max_work,
-        )?;
+        let (constant_sites, constant_targets) =
+            constants::select(&allowed, &datatypes, &mut adapter, &mut remaining)?;
         adapter.check().map_err(|_| REFUSED)?;
         let result = FreshDatatypeDependencySelection {
             inputs,
@@ -342,6 +340,7 @@ struct Environment {
     captures: Vec<Arc<LexicallyScopedDocument>>,
     required: BTreeSet<String>,
     rules: BTreeSet<String>,
+    reachable: BTreeSet<String>,
 }
 impl FreshStructuralHost {
     fn dependency_environment(
@@ -443,6 +442,7 @@ impl FreshStructuralHost {
             captures,
             required: plan.required,
             rules: plan.rules,
+            reachable: plan.reachable,
         })
     }
 }

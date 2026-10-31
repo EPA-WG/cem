@@ -30,6 +30,7 @@ pub mod application;
 mod datatypes;
 mod dependencies;
 pub use dependencies::{
+    DatatypeAssemblyOperationBinding, DatatypeAssemblyOperationKey,
     DatatypeDependencyCompileError, DatatypeDependencyImport, DatatypeDependencyRuleRegistration,
     FreshDatatypeDependencySelection, FreshDatatypeRuleBinding, FreshDependencyDatatypeCompilation,
 };

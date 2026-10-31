@@ -379,6 +379,7 @@ impl<'a> InputRef<'a> {
             expected,
             required,
             rules,
+            reachable: seen,
         })
     }
 }
@@ -418,4 +419,5 @@ pub(super) struct Plan {
     pub expected: BTreeMap<String, String>,
     pub required: BTreeSet<String>,
     pub rules: BTreeSet<String>,
+    pub reachable: BTreeSet<String>,
 }

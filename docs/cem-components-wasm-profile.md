@@ -366,9 +366,12 @@ are re-evaluated; weakly guarded inspection results cannot authorize compilation
 The [explicit CEMOS1 owner linker](cem-native-schema-capsules.md#explicit-cemos1-operation-owners)
 now shares actual-host native guards for direct/source-backed operations and
 tokenizers, retaining original declarations, checked result adapters and weak
-callback ownership. Linking does not evaluate dependencies. Renewed selections
-within shared compilation and versioned module/envelope publication remain next;
-no runtime admission is implied.
+callback ownership. Linking does not evaluate dependencies. The [shared CEMDM2 compiler](cem-native-schema-capsules.md#shared-cemdm2-compilation-with-renewed-selections)
+now renews datatype/constant selections during ordinary compilation, admits exact
+reachable operation/rule owners and uses original restricted source contexts with
+shared budgets. Its private snapshots retain weak owners and root-only typed
+validation. Guarded root preparation/conversion/list export and versioned module/
+envelope publication remain next; no portable/runtime admission is implied.
 
 
 Do not equate downloaded code with an active native generation. Register every

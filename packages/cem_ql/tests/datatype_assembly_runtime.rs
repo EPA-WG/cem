@@ -635,3 +635,6 @@ fn actual_host_assembly_links_mapped_cemos1_owners_without_authorizing_compilati
     assert!(!g.selections_verified());
     assert!(!g.executable_closure_verified());
 }
+
+#[path = "support/datatype_assembly_compilation.rs"]
+mod compilation;

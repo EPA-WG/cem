@@ -361,6 +361,7 @@ pub fn compile_datatypes<H: DatatypeDependencyHost>(
         Default::default(),
         None,
         None,
+        #[cfg(not(target_arch = "wasm32"))] None,
     )
 }
 /// Prepare token or retained constants only with an explicit lifecycle context.
@@ -385,6 +386,7 @@ pub fn compile_datatypes_with_runtime<H: DatatypeDependencyHost>(
         preparation,
         None,
         None,
+        #[cfg(not(target_arch = "wasm32"))] None,
     )
 }
 /// Continue a scalar compilation attempt after function selection/binding (or
@@ -403,6 +405,7 @@ pub fn compile_datatypes_with_budget<H: DatatypeDependencyHost>(
     compile_datatypes_inner(
         owner, roots, host, implementations, validations,
         budget.remaining_limits(), runtime, preparation, Some(budget), None,
+        #[cfg(not(target_arch = "wasm32"))] None,
     )
 }
 /// Only the override transaction can supply effective edges. It has already
@@ -415,7 +418,26 @@ pub(crate) fn compile_datatypes_with_rebindings<H: DatatypeDependencyHost>(
     rebindings: &BTreeMap<String, crate::datatype_overrides::DependencyRebinding>,
 ) -> DatatypeCompilation {
     compile_datatypes_inner(owner, roots, host, implementations, validations,
-        budget.remaining_limits(), Some(runtime), preparation, Some(budget), Some(rebindings))
+        budget.remaining_limits(), Some(runtime), preparation, Some(budget), Some(rebindings),
+        #[cfg(not(target_arch = "wasm32"))] None)
+}
+/// Original actual-host contexts are ephemeral for this one compilation.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn compile_datatypes_with_contexts<H: DatatypeDependencyHost>(
+    owner: Arc<CemDocument>,
+    roots: &[DatatypeSource],
+    host: &mut H,
+    implementations: &DatatypeImplementations,
+    validations: &DatatypeValidationRegistry,
+    limits: ReferenceTraversalLimits,
+    runtime: &ValidationRuntime<'_>,
+    preparation: ConstantPreparationLimits,
+    contexts: &dyn crate::datatype_validation::RuleValidationContexts,
+) -> DatatypeCompilation {
+    compile_datatypes_inner(
+        owner, roots, host, implementations, validations, limits, Some(runtime),
+        preparation, None, None, Some(contexts),
+    )
 }
 fn compile_datatypes_inner<H: DatatypeDependencyHost>(
     owner: Arc<CemDocument>,
@@ -428,6 +450,7 @@ fn compile_datatypes_inner<H: DatatypeDependencyHost>(
     preparation: ConstantPreparationLimits,
     budget: Option<&mut ScalarCompilationBudget>,
     rebindings: Option<&BTreeMap<String, crate::datatype_overrides::DependencyRebinding>>,
+    #[cfg(not(target_arch = "wasm32"))] contexts: Option<&dyn crate::datatype_validation::RuleValidationContexts>,
 ) -> DatatypeCompilation {
     let mut output = DatatypeCompilation::new(owner);
     let shared_runtime = runtime.map(ValidationRuntime::with_query_budget);
@@ -443,6 +466,7 @@ fn compile_datatypes_inner<H: DatatypeDependencyHost>(
         remaining: limits.max_work,
         max_depth: limits.max_depth,
         runtime,
+        #[cfg(not(target_arch = "wasm32"))] contexts,
         preparation,
         diagnostics: vec![],
         reference_issues: vec![],
@@ -627,6 +651,7 @@ fn compile_datatypes_inner<H: DatatypeDependencyHost>(
 }
 struct Compiler<'a, 'r, H> {
     runtime: Option<&'a ValidationRuntime<'r>>,
+    #[cfg(not(target_arch = "wasm32"))] contexts: Option<&'a dyn crate::datatype_validation::RuleValidationContexts>,
     preparation: ConstantPreparationLimits,
     diagnostics: Vec<cem_ml::diagnostics::Diagnostic>,
     reference_issues: Vec<DatatypeReferenceIssue>,

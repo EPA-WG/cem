@@ -407,6 +407,33 @@ fn stopped(
 pub(crate) trait RuleValidationContexts {
     fn context(&self, behavior: &SchemaDeclarationNode) -> Option<EvaluationContext>;
     fn is_available(&self, behavior: &SchemaDeclarationNode) -> bool;
+    /// None preserves the legacy enclosing runtime. An admitted source-specific
+    /// invocation must return its actual context or an explicit refusal.
+    fn operation_context(
+        &self,
+        _declaration: &SchemaDeclarationNode,
+    ) -> Result<Option<EvaluationContext>, ()> {
+        Ok(None)
+    }
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn operation_runtime<'a>(
+    runtime: &ValidationRuntime<'a>,
+    declaration: &SchemaDeclarationNode,
+    contexts: Option<&dyn RuleValidationContexts>,
+) -> Result<ValidationRuntime<'a>, ()> {
+    let mut query = match contexts {
+        Some(c) => c
+            .operation_context(declaration)?
+            .unwrap_or_else(|| runtime.query.clone()),
+        None => runtime.query.clone(),
+    };
+    query.execution_budget = runtime.query.execution_budget.clone();
+    Ok(ValidationRuntime {
+        control: runtime.control,
+        scope: runtime.scope,
+        query,
+    })
 }
 /// Validates the supplied effective restriction list without short-circuiting a
 /// rejection. The host supplies only complete inputs; unresolved selection must

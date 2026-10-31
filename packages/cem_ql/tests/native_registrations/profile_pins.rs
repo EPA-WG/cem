@@ -609,3 +609,280 @@ fn versioned_profile_pins_link_only_explicit_actual_host_operation_owners() {
     assert!(!graph.selections_verified());
     assert!(!graph.executable_closure_verified());
 }
+
+fn compiled_assembly_graph(
+    t: &str,
+    p: BTreeMap<String, v2::OperationProfile>,
+    a: Vec<sources::BuiltOperationSource>,
+) -> Arc<cem_ql::datatype_module_capsule::v2::VerifiedDatatypeModules> {
+    use cem_ql::datatype_module_capsule::{v2 as dm, ModuleSource, ModuleTarget};
+    let control = OperationControl::default();
+    let b = v2::export(&p, &a, &hash(b"registry"), &control).unwrap();
+    let c = capture(t);
+    let roots = ["sample", "names", "choice"]
+        .into_iter()
+        .map(|n| datatype(&c, n).declaration().node_id())
+        .collect();
+    let mut bindings = BTreeMap::new();
+    for name in ["names", "choice"] {
+        for dep in datatype(&c, name).plan().dependencies {
+            bindings.insert(
+                dep.attribute.node_id(),
+                ModuleTarget::LocalDatatype(datatype(&c, "sample").declaration().node_id()),
+            );
+        }
+    }
+    let mut module = dm::ModuleSource::new(ModuleSource {
+        identity: identity(t),
+        capture: c.clone(),
+        roots,
+        bindings,
+    });
+    for name in p.keys() {
+        module.profiles.insert(
+            datatype(&c, name).declaration().node_id(),
+            dm::ProfileSelection {
+                pin: b.pin.clone(),
+                id: name.clone(),
+            },
+        );
+    }
+    let profiles = vec![dm::ProfileArtifact {
+        bytes: b.bytes,
+        pin: b.pin,
+        sources: a,
+    }];
+    let b = dm::export(
+        "app",
+        &BTreeMap::from([("app".into(), module)]),
+        &[],
+        &profiles,
+        &hash(b"registry"),
+        &control,
+    )
+    .unwrap();
+    Arc::new(dm::verify(&b.bytes, &b.pin, &[], &profiles, &control).unwrap())
+}
+fn run_compiled_assembly(
+    graph: Arc<cem_ql::datatype_module_capsule::v2::VerifiedDatatypeModules>,
+    engine: Engine,
+    source_profile: Option<SourceProfile>,
+) -> Result<
+    cem_ql::structural_receiver::FreshDependencyDatatypeCompilation,
+    cem_ql::structural_receiver::DatatypeDependencyCompileError,
+> {
+    use cem_ql::structural_receiver::{
+        DatatypeAssemblyOperationBinding as Binding, DatatypeAssemblyOperationKey as Key,
+    };
+    let mut h = host();
+    let m = graph.module("app").unwrap();
+    for p in m.profiles().values() {
+        for (role, r) in p.requirements() {
+            match r.implementation().signature {
+                NativeSignature::SourceConstant(_)
+                | NativeSignature::SourceEquality(_)
+                | NativeSignature::SourceConversion(_) => {
+                    register_source(&mut h, r.implementation().clone(), engine.clone()).unwrap()
+                }
+                _ if *role == Role::Tokenizer => h
+                    .register_native_tokenizer(r.implementation().clone(), Whitespace)
+                    .unwrap(),
+                _ => {
+                    register_additional(&mut h, r.implementation().clone(), engine.clone()).unwrap()
+                }
+            }
+        }
+    }
+    let root = h
+        .register_datatype_assembly_scope(
+            &graph,
+            "app",
+            Some(Default::default()),
+            ReferenceScopePolicy::schema_defaults().unwrap(),
+        )
+        .unwrap();
+    let mut bindings = BTreeMap::new();
+    for (dtype, p) in m.profiles() {
+        for (role, r) in p.requirements() {
+            let value = if *role == Role::Tokenizer {
+                Binding::Tokenizer(Arc::new(
+                    h.link_dependency_tokenizer(r.clone(), root).unwrap(),
+                ))
+            } else {
+                let o = match r.implementation().signature {
+                    NativeSignature::SourceConstant(_)
+                    | NativeSignature::SourceEquality(_)
+                    | NativeSignature::SourceConversion(_) => h
+                        .link_dependency_source_operation(
+                            r.clone(),
+                            root,
+                            adapter_for(source_profile.unwrap()),
+                        )
+                        .unwrap(),
+                    _ => h.link_dependency_operation(r.clone(), root).unwrap(),
+                };
+                Binding::Operation(Arc::new(o))
+            };
+            bindings.insert(
+                Key {
+                    module: "app".into(),
+                    datatype: *dtype,
+                    role: *role,
+                },
+                value,
+            );
+        }
+    }
+    let primitives = m
+        .sources()
+        .values()
+        .filter_map(|s| {
+            let cem_ml::schema::datatype_registry::DatatypeKindSource::Explicit(kind) =
+                s.plan().kind
+            else {
+                return None;
+            };
+            Some(DatatypeImplementation {
+                source: s.clone(),
+                kind,
+                representation: if kind == DatatypeKind::List {
+                    ValueRepresentation::List(ScalarRepresentation::String)
+                } else {
+                    ValueRepresentation::Scalar(ScalarRepresentation::String)
+                },
+                accepted_bases: vec![],
+                bounds: Default::default(),
+                tokenizer: TokenizerBinding::Absent,
+                validator: None,
+            })
+        })
+        .collect::<Vec<_>>();
+    let result = h.compile_datatype_assembly(
+        graph.clone(),
+        root,
+        &BTreeMap::new(),
+        &[],
+        &primitives,
+        &BTreeMap::new(),
+        &bindings,
+        ReferenceTraversalLimits {
+            max_depth: 64,
+            max_work: 100_000,
+        },
+    );
+    if let Ok(c) = &result {
+        assert_eq!(
+            c.validate(
+                &h,
+                datatype(m.capture(), "choice").declaration().node_id(),
+                &ValidationInput {
+                    value: vec![string("red")],
+                    candidate: vec![],
+                    fallback: Default::default()
+                },
+                Default::default()
+            )
+            .unwrap()
+            .accepted,
+            Some(true)
+        );
+    }
+    result
+}
+#[test]
+fn versioned_profiles_compile_all_direct_roles_and_tokenizers_in_one_shared_assembly() {
+    let t = text();
+    let mut p = BTreeMap::new();
+    let mut a = vec![];
+    for (mode, name, id) in descriptors().into_iter().chain(additions()) {
+        let role = match mode {
+            OperationMode::Preparation(_) => Role::Preparation,
+            OperationMode::Conversion => Role::Conversion,
+            OperationMode::Equality => Role::Equality,
+            OperationMode::Constant => Role::Constant,
+            OperationMode::FacetProfile(_) => Role::FacetProfile,
+            OperationMode::ListItems(_) => Role::ListItems,
+            OperationMode::ListSerializer => Role::ListSerializer,
+        };
+        let r = artifact(&t, name, mode, id);
+        let entry = profile(
+            &r,
+            role,
+            if name == "names" {
+                DatatypeKind::List
+            } else {
+                DatatypeKind::Scalar
+            },
+        );
+        p.entry(name.into())
+            .or_insert_with(|| entry.clone())
+            .dependencies
+            .extend(entry.dependencies);
+        a.push(r);
+    }
+    let c = capture(&t);
+    let control = OperationControl::default();
+    let tokens = sources::export_tokenizer(
+        &c,
+        &datatype(&c, "names"),
+        TokenizerMode::Ready,
+        identity(&t),
+        tokenizer_id(),
+        &hash(b"registry"),
+        &control,
+    )
+    .unwrap();
+    p.get_mut("names")
+        .unwrap()
+        .dependencies
+        .insert(Role::Tokenizer, tokens.pin.clone());
+    a.push(tokens);
+    run_compiled_assembly(compiled_assembly_graph(&t, p, a), Engine::default(), None).unwrap();
+}
+#[test]
+fn versioned_profiles_compile_each_source_backed_result_contract_with_shared_admission() {
+    for (selected, id) in source_descriptors() {
+        let t = source_text(selected);
+        let c = capture(&t);
+        let control = OperationControl::default();
+        let r = sources::export_source_operation(
+            &c,
+            &datatype(&c, "sample"),
+            &node(&c, "behavior"),
+            selected,
+            identity(&t),
+            id,
+            &hash(b"registry"),
+            &control,
+        )
+        .unwrap();
+        let role = match selected {
+            SourceProfile::Constant => Role::Constant,
+            SourceProfile::Equality => Role::Equality,
+            SourceProfile::Conversion => Role::Conversion,
+        };
+        let mut entry = profile(&r, role, DatatypeKind::Scalar);
+        let mut a = vec![r];
+        for (mode, role, id) in [
+            (
+                OperationMode::Constant,
+                Role::Constant,
+                additions().remove(0).2,
+            ),
+            (
+                OperationMode::Equality,
+                Role::Equality,
+                descriptors().remove(2).2,
+            ),
+        ] {
+            if entry.dependencies.contains_key(&role) {
+                continue;
+            }
+            let r = artifact(&t, "sample", mode, id);
+            entry.dependencies.insert(role, r.pin.clone());
+            a.push(r);
+        }
+        let g = compiled_assembly_graph(&t, BTreeMap::from([("sample".into(), entry)]), a);
+        run_compiled_assembly(g, Engine::default(), Some(selected)).unwrap();
+    }
+}

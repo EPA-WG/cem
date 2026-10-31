@@ -106,6 +106,18 @@ pub struct FreshNativeOperation {
     source_registration: Option<source_profiles::SourceRegistration>,
 }
 impl FreshNativeOperation {
+    pub(in crate::structural_receiver) fn matches_dependency(
+        &self,
+        requirement: &crate::native_registrations::dependency_sources::VerifiedOperationSource,
+        host: &FreshStructuralHost,
+        scope: DeclarationScope,
+    ) -> bool {
+        self.is_live_on(host)
+            && self
+                .requirement
+                .matches_dependency(requirement, host, scope)
+    }
+
     pub fn is_live_on(&self, host: &FreshStructuralHost) -> bool {
         host.check().is_ok() && self.guard.context.matches(&host.context) && self.is_live()
     }

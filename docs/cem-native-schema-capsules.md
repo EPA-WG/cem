@@ -52,8 +52,10 @@ still inert source requirements, not installed module/receiver capabilities.
 Native `CEMDM2` now assembles original datatype modules, CEMOP2 profiles and
 intended constant-reference targets, with explicit module imports and bounded
 graph checks. Its explicit actual-host inspection now renews datatype/constant
-selections against original scopes and per-hop grants. Installation remains
-a separate gate; CEMDM1 is unchanged.
+selections against original scopes and per-hop grants. Native CEMDM2 compilation
+now renews those selections inside the shared compiler and installs exact,
+explicitly owned CEMOS1 profiles. Application/receiver publication remains a
+separate gate; CEMDM1 is unchanged.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -1481,9 +1483,9 @@ successful result. Retaining owners or registry entries cannot keep embedding
 callbacks alive after host disposal.
 
 This links an implementation requirement; it proves neither dependency selection
-nor executable/code closure. Renewed datatype/constant selection within shared
-CEMDM2 compilation, operation-owner binding maps and versioned application-envelope/
-receiver publication remain follow-up gates. An earlier inspection or successful
+nor executable/code closure. The explicit CEMDM2 compilation path below now
+renews datatype/constant selection and checks operation-owner binding maps.
+Versioned application-envelope/receiver publication remains a follow-up gate. An earlier inspection or successful
 owner link cannot authorize those steps. No new WASM/worker endpoint or application
 UI behavior is introduced. Credential privacy, disabled automatic whole-Studio
 recovery, 4 MiB checkpoints and five-second handoff deadlines are unchanged.
@@ -1679,9 +1681,87 @@ cover exact original targets, ordered duplicates, transitive datatype and consta
 chains, qualified-name imports, per-hop grants, raw/foreign/copied scopes, pending
 source/occurrence contexts, intermediate shortcuts, mutable selectors, late stops,
 work/depth/destination limits, unused exports and weak ownership/retirement.
-Literal admission, effective datatype restrictions and integrating CEMOS1 owners
-with shared compiler installation remain separate gates. No new WASM endpoint,
+The shared CEMDM2 compilation path below now performs literal admission and
+effective datatype checks with explicitly owned operations. No new WASM endpoint,
 application UI JavaScript or credential checkpoint path is introduced.
+
+## Shared CEMDM2 compilation with renewed selections
+
+`FreshStructuralHost::compile_datatype_assembly` consumes the verified graph,
+actual root/source scopes, explicit datatype imports, primitive metadata, reachable
+rule owners and an exact operation-owner map. It returns the existing private
+`FreshDependencyDatatypeCompilation`, using the same actual resolver and shared
+[datatype compiler](../packages/cem_ql/src/datatype_compilation.rs) as CEMDP1/CEMDM1.
+No prior selection inspection is accepted as permission, no substitute host is
+constructed and no CEMDM2 input is converted into an older wire format.
+
+The [operation map](../packages/cem_ql/src/structural_receiver/dependencies/operations.rs)
+uses `DatatypeAssemblyOperationKey { module, datatype, role }` and
+`DatatypeAssemblyOperationBinding::Operation(Arc<FreshNativeOperation>)` or
+`Tokenizer(Arc<FreshNativeTokenizer>)`. It must exactly cover the profiles on the
+root's reachable original datatype graph. Missing, extra, wrong-role, foreign-host,
+copied-source, stale or retired bindings refuse. An owner must match the original
+CEMOS1 pin, source allocation, declaration and actual source scope. Requirements
+on unused exports activate no code and require no owner.
+
+Only primitive kind/representation/bounds metadata may enter directly; caller
+validator/tokenizer hooks remain refused. Operations install in the existing
+`DatatypeImplementations` registry, with tokenizers applied only to explicit
+matching list metadata. Ready versus checked-replacement modes and source-backed
+result adapters retain the shared compiler's admission rules. The completed
+effective kind and representation must also match each reachable CEMOP2 profile.
+`link_datatype_assembly_rule` binds original query/native leaf rules through the
+existing explicit rule-owner path. Original leaf source/capture/datatype accessors
+allow preparation without reconstructing sources.
+
+Datatype dependencies are renewed during the compiler's ordinary walk. Constant
+references use that same actual host, captured occurrences, original contexts,
+destination policies, directed grants and cancellation checks. Every raw reference
+sequence must match its intended original targets, preserving order and duplicate
+occurrences. A shared native admission hook checks the completed terminal sequence
+before literal parsing or interpreter callbacks. Skipping an intermediate reference,
+selecting another source allocation or returning a wrong ordered sequence refuses.
+The existing enumeration compiler alone parses constant fields, interprets values,
+checks inherited restrictions and retains original token/candidate provenance.
+
+Datatype dependency traversal and constant traversal share the compiler's remaining work
+allowance. Metadata/name/owner planning remains separately bounded by the request;
+this does not claim one aggregate heap reservation. Existing work/depth/destination,
+constant/value/diagnostic and query-budget limits apply. All scoped callbacks share
+one invocation's query budget. Retained-vocabulary comparison limits report a stop
+with the original declaration when there is no legacy `@values` attribute.
+
+Constant interpreters and inherited equality callbacks receive their original
+operation declaration's restricted actual source context. Imported rules receive
+their original behavior context, including while compiled constants are validated.
+Compilation borrows actual registered contexts for one guarded invocation; it
+stores no runtime context in the resulting descriptors. Closed native context
+filtering remains intact: ambient input bindings, callbacks and module resolvers
+are not inherited. Validation borrows current original source contexts afresh,
+without replaying dependency selectors.
+
+Compiled snapshots retain only weak operation/tokenizer/rule owners and immutable
+source/result metadata. Keep all required owners alive. Owner retirement/drop,
+implementation removal, changed contexts, host closure/drop or cancellation disable
+use; callback availability and actual context/control are checked before and after
+work. Failed attempts that change no context preserve earlier snapshots. Mutable
+providers are evaluated on each new compilation; an earlier completed snapshot
+remains a snapshot and grants no permission for a changed selection.
+
+Validation entry points remain the graph root's exported datatype IDs. General
+root preparation/conversion/list-serialization invocation APIs, versioned envelope
+and mixed-receiver publication, and worker/fallback transport remain separate
+gates. Portable selection/code-closure flags remain false; this is a native local
+compiler installation, not a code-closure or deployment attestation. No WASM endpoint
+or application/component JavaScript is added. Credential privacy, disabled automatic
+whole-Studio recovery, 4 MiB checkpoints and five-second deadlines are unchanged.
+
+The [assembly compiler fixtures](../packages/cem_ql/tests/support/datatype_assembly_compilation.rs)
+cover ordered retained constants, inherited source contexts, exact reachable owner
+maps, copied-source and weak-owner refusal, mutable selections, pending contexts,
+grants, literal diagnostics, fixed limits, imported rules, unused exports and late
+cancellation. [Profile fixtures](../packages/cem_ql/tests/native_registrations/profile_pins.rs)
+exercise all operation roles/tokenizers and every source-backed result profile.
 
 ## Guarded datatype preparation handoff
 

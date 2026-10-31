@@ -1,77 +1,21 @@
-//! Renew ordinary constant-reference traversal on the borrowed actual resolver.
-//! Matching metadata is not permission; every edge still passes host policies.
+//! Bounded original constant assertions, shared by inspection and compilation.
 use super::*;
-use crate::schema_references::CemQlSchemaReferenceNode;
-struct Host<'a, 'b> {
-    inner: &'a mut host::Host<'b>,
-    expected: &'a BTreeMap<String, Vec<String>>,
+pub(super) struct Plan {
+    pub references: BTreeMap<String, Vec<String>>,
+    pub terminals: BTreeMap<String, Vec<String>>,
 }
-impl ReferenceResolutionHost for Host<'_, '_> {
-    type Node = CemQlSchemaReferenceNode;
-    type Scope = Option<DeclarationScope>;
-    fn prepare_node(&mut self, node: &mut Self::Node) -> Result<(), ReferenceResolutionError> {
-        self.inner.prepare_node(node)
-    }
-    fn scope(&self, node: &Self::Node) -> Self::Scope {
-        self.inner.scope(node)
-    }
-    fn scope_limits(&self, scope: &Self::Scope) -> ReferenceTraversalLimits {
-        self.inner.scope_limits(scope)
-    }
-    fn reference_occurrence(&self, node: &Self::Node) -> Option<ReferenceOccurrence> {
-        self.inner.reference_occurrence(node)
-    }
-    fn unresolved_policy(&self, node: &Self::Node) -> &ReferenceUnresolvedPolicy {
-        self.inner.unresolved_policy(node)
-    }
-    fn permits_edge(&self, from: &Self::Node, to: &Self::Node) -> bool {
-        self.inner.permits_edge(from, to)
-    }
-    fn evaluate(&mut self, node: &Self::Node) -> ReferenceLinkEvaluation<Self::Node> {
-        let Some(source) = self.inner.inner.declaration_node(node) else {
-            return ReferenceLinkEvaluation::Pending(REFUSED.into());
-        };
-        let Some(expected) = self.expected.get(&source.identity()) else {
-            return ReferenceLinkEvaluation::Pending(REFUSED.into());
-        };
-        let result = self.inner.evaluate(node);
-        match result {
-            ReferenceLinkEvaluation::Resolved(targets) => {
-                if self.inner.check().is_err()
-                    || targets.len() != expected.len()
-                    || targets.iter().zip(expected).any(|(actual, wanted)| {
-                        !self.inner.ready(actual)
-                            || self
-                                .inner
-                                .inner
-                                .declaration_node(actual)
-                                .is_none_or(|n| n.identity() != *wanted)
-                    })
-                {
-                    return ReferenceLinkEvaluation::Unresolved(REFUSED.into());
-                }
-                ReferenceLinkEvaluation::Resolved(targets)
-            }
-            other => other,
-        }
-    }
-}
-pub(super) fn select(
+pub(super) fn plan(
     input: InputRef<'_>,
-    allowed: &BTreeMap<String, DatatypeSource>,
-    reachable: &BTreeSet<String>,
-    adapter: &mut host::Host<'_>,
-    remaining: &mut ReferenceTraversalLimits,
-    metadata_work: usize,
-) -> Result<(usize, usize), String> {
+    limit: usize,
+    control: &OperationControl,
+) -> Result<Option<Plan>, String> {
     let InputRef::Assembly(graph) = input else {
-        return Ok((0, 0));
+        return Ok(None);
     };
-    let mut work = metadata_work;
+    let mut work = limit;
     let mut spend = || {
         work = work.checked_sub(1).ok_or(REFUSED)?;
-        adapter
-            .control
+        control
             .check_scope(ROOT_EXECUTION_SCOPE_ID)
             .map_err(|_| REFUSED)?;
         Ok::<(), String>(())
@@ -116,6 +60,20 @@ pub(super) fn select(
             }
         }
     }
+    Ok(Some(Plan {
+        references: expected,
+        terminals,
+    }))
+}
+pub(super) fn select(
+    allowed: &BTreeMap<String, DatatypeSource>,
+    reachable: &BTreeSet<String>,
+    adapter: &mut host::Host<'_>,
+    remaining: &mut ReferenceTraversalLimits,
+) -> Result<(usize, usize), String> {
+    if adapter.constants.is_none() {
+        return Ok((0, 0));
+    }
     let mut sites = 0usize;
     let mut targets = 0usize;
     for id in reachable {
@@ -144,27 +102,19 @@ pub(super) fn select(
         };
         let root = adapter.inner.source_reference(source.declaration().clone());
         let mut first = true;
-        let walk = resolve_owned_reference_structure(
-            root,
-            &mut Host {
-                inner: adapter,
-                expected: &expected,
-            },
-            *remaining,
-            origin,
-            |host, _| {
+        let walk =
+            resolve_owned_reference_structure(root, adapter, *remaining, origin, |host, _| {
                 if !std::mem::take(&mut first) {
                     return None;
                 }
                 Some(
                     slots
                         .iter()
-                        .map(|slot| host.inner.inner.source_reference(slot.clone()))
+                        .map(|slot| host.inner.source_reference(slot.clone()))
                         .collect(),
                 )
-            },
-        )
-        .map_err(|_| REFUSED)?;
+            })
+            .map_err(|_| REFUSED)?;
         remaining.max_work = remaining
             .max_work
             .checked_sub(walk.resolution.work_used)
@@ -191,7 +141,7 @@ pub(super) fn select(
                     .ok_or(REFUSED)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        if terminals.get(id) != Some(&selected) {
+        if adapter.constants.ok_or(REFUSED)?.terminals.get(id) != Some(&selected) {
             return Err(REFUSED.into());
         }
         sites += slots.len();

@@ -41,3 +41,37 @@ impl FreshStructuralHost {
         self.select_inputs(Inputs::Assembly(graph), root, scopes, imports, limits)
     }
 }
+
+impl FreshStructuralHost {
+    pub fn compile_datatype_assembly(
+        &mut self,
+        graph: Arc<VerifiedDatatypeModules>,
+        root: DeclarationScope,
+        scopes: &BTreeMap<String, DeclarationScope>,
+        imports: &[DatatypeDependencyImport],
+        implementations: &[crate::datatype_compilation::DatatypeImplementation],
+        rules: &BTreeMap<String, Arc<FreshDatatypeRuleBinding>>,
+        operations: &BTreeMap<DatatypeAssemblyOperationKey, DatatypeAssemblyOperationBinding>,
+        limits: ReferenceTraversalLimits,
+    ) -> Result<FreshDependencyDatatypeCompilation, DatatypeDependencyCompileError> {
+        self.compile_inputs_with_operations(
+            Inputs::Assembly(graph),
+            root,
+            scopes,
+            imports,
+            implementations,
+            rules,
+            Some(operations),
+            limits,
+        )
+    }
+    pub fn link_datatype_assembly_rule(
+        &self,
+        graph: &VerifiedDatatypeModules,
+        module: &str,
+        scope: DeclarationScope,
+        registration: DatatypeDependencyRuleRegistration,
+    ) -> Result<FreshDatatypeRuleBinding, String> {
+        self.link_input_rule(InputRef::Assembly(graph), module, scope, registration)
+    }
+}

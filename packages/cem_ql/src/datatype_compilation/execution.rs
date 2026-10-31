@@ -237,6 +237,17 @@ impl ExecutableDatatype {
                 .map(crate::datatype_results::DiagnosticAttribution::from_node)
                 .unwrap_or_else(|| input.fallback.clone());
             for restriction in &descriptor.enumerations {
+                #[cfg(not(target_arch = "wasm32"))]
+                let scoped_runtime = match datatype_validation::operation_runtime(
+                    runtime,
+                    restriction.equality().source.declaration(),
+                    contexts,
+                ) {
+                    Ok(runtime) => runtime,
+                    Err(()) => return result.stop(ValidationStopReason::Unavailable(vec![])),
+                };
+                #[cfg(not(target_arch = "wasm32"))]
+                let runtime = &scoped_runtime;
                 let outcome = restriction.validate(
                     &value[0],
                     runtime,
@@ -256,8 +267,13 @@ impl ExecutableDatatype {
                         }
                     }
                     Err(reason) => {
-                        result.enumeration_stop =
-                            Some(restriction.source().attribute("values").unwrap().clone());
+                        result.enumeration_stop = Some(
+                            restriction
+                                .source()
+                                .attribute("values")
+                                .unwrap_or_else(|| restriction.source().declaration())
+                                .clone(),
+                        );
                         return result.stop(reason);
                     }
                 }
