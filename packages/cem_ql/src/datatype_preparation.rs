@@ -299,6 +299,16 @@ impl ExecutableDatatype {
             None,
         )
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn prepare_unvalidated_with_contexts(
+        &self,
+        input: &PreparationInput,
+        runtime: &ValidationRuntime<'_>,
+        limits: PreparationLimits,
+        contexts: &dyn datatype_validation::RuleValidationContexts,
+    ) -> (DatatypePreparation, usize) {
+        self.prepare_phase(input, runtime, limits, false, Some(contexts))
+    }
     fn prepare_phase(
         &self,
         input: &PreparationInput,

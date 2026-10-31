@@ -11,6 +11,7 @@ use cem_ml::schema::attribute_datatypes::{
     AttributeDatatypeContextLease, CompiledAttributeDatatype,
 };
 mod occurrences;
+pub mod mixed;
 pub mod v3;
 const INVALID: &str = "native application assembly refused";
 

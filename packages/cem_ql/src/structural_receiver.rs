@@ -86,6 +86,49 @@ impl FreshStructuralHost {
         self.context.advance();
         Ok(self.inner.register_scope(tree, context, policy))
     }
+    /// Register the actual retained capture and preserve its original names.
+    /// This explicitly changes the host epoch; do it before linking owners.
+    pub fn register_captured_scope(
+        &mut self,
+        tree: Arc<RetainedCemTree>,
+        capture: Arc<cem_ml::schema::machine::LexicallyScopedDocument>,
+        context: Option<StandaloneExpressionContext>,
+        policy: ReferenceScopePolicy,
+    ) -> Result<DeclarationScope, String> {
+        if !Arc::ptr_eq(tree.ast_owner(), capture.document()) {
+            return Err(INVALID.into());
+        }
+        let scope = self.register_scope(tree, context, policy)?;
+        self.inner
+            .attach_captured_names(&capture)
+            .map_err(|_| INVALID)?;
+        self.inner
+            .attach_captured_namespaces(capture)
+            .map_err(|_| INVALID)?;
+        Ok(scope)
+    }
+    pub fn prepare_captured_lexical_scopes(
+        &mut self,
+        capture: &Arc<cem_ml::schema::machine::LexicallyScopedDocument>,
+        context: StandaloneExpressionContext,
+    ) -> Result<(), String> {
+        self.check().map_err(|_| INVALID)?;
+        self.inner
+            .attach_captured_lexical_scopes_with_policy_overrides(capture, |_, _, _| {
+                (Some(context.clone()), Default::default())
+            })
+            .map_err(|_| INVALID)?;
+        self.context.advance();
+        Ok(())
+    }
+    pub fn registered_source_scope(&self, source: &Arc<RetainedCemTree>) -> Option<DeclarationScope> {
+        self.check().ok()?;
+        let node = SchemaDeclarationNode::new(source.ast_owner().clone(), 0)?;
+        self.inner
+            .source_tree(&node)
+            .filter(|tree| Arc::ptr_eq(tree, source))?;
+        self.inner.scope(&self.inner.source_reference(node))
+    }
     pub fn set_context(
         &mut self,
         scope: DeclarationScope,

@@ -817,8 +817,11 @@ root invocations, with installation-wide weak-owner checks and late-result
 suppression. The separate [CEMMRC1 declaration contract](docs/cem-native-schema-capsules.md#mixed-receiver-declaration-contracts)
 now pins structural nodes, existing closed scalar facet projections and exact
 assembly-root demands, preserving original fields and dependency identities.
-It remains inert; live mixed binding, complete application publication and
-generation-bound transport remain next.
+Its verifier remains inert. The [native original-receiver binder](docs/cem-native-schema-capsules.md#native-original-mixed-receiver-binding)
+now binds exact registered source occurrences and live parent-root owners, with
+renewed receiving selectors, shared field validation/preparation and atomic group
+replacement. Complete application publication and generation-bound transport
+remain next; this field-only API grants no renderer or runtime admission.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 

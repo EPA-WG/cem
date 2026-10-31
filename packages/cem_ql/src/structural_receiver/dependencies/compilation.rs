@@ -77,6 +77,7 @@ impl Drop for ExecutionEntry<'_> {
     }
 }
 mod root_invocations;
+mod receiver;
 impl FreshDependencyDatatypeCompilation {
     fn check(&self, host: &FreshStructuralHost) -> Result<(), String> {
         host.check().map_err(|_| REFUSED)?;
@@ -147,12 +148,12 @@ impl FreshDependencyDatatypeCompilation {
             })
             .ok_or_else(|| REFUSED.into())
     }
-    fn with_root<T>(
+    pub(in crate::structural_receiver) fn with_root<T>(
         &self,
         host: &FreshStructuralHost,
         root: AstNodeId,
         assembly_only: bool,
-        run: impl FnOnce(&ExecutableDatatype, &ValidationRuntime<'_>, &rules::Contexts<'_>) -> T,
+        run: impl FnOnce(&ExecutableDatatype, &ValidationRuntime<'_>, &dyn crate::datatype_validation::RuleValidationContexts) -> T,
     ) -> Result<T, String> {
         self.check(host)?;
         if assembly_only && !matches!(self.inputs, Inputs::Assembly(_)) {

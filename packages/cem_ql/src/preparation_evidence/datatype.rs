@@ -95,6 +95,32 @@ impl DatatypePreparationInvocation {
     pub(crate) fn close(&self) {
         self.state.closed.store(true, Ordering::Release)
     }
+    pub(crate) fn matches_evidence(&self, evidence: &SealedDatatypePreparationEvidence) -> bool {
+        evidence
+            .inner
+            .invocation
+            .upgrade()
+            .is_some_and(|issuer| Arc::ptr_eq(&issuer, &self.state))
+            && self.state.check().is_ok()
+    }
+    pub(crate) fn spend_diagnostics(&self, count: usize) -> Result<(), EvidenceStop> {
+        self.state.check()?;
+        let mut budget = self.state.budget.lock().unwrap_or_else(|e| e.into_inner());
+        if budget.busy {
+            return Err(EvidenceStop::Busy);
+        }
+        let Some(remaining) = budget
+            .remaining
+            .validation
+            .max_diagnostics
+            .checked_sub(count)
+        else {
+            budget.remaining.validation.max_diagnostics = 0;
+            return Err(EvidenceStop::Limit("mixed-local-diagnostics"));
+        };
+        budget.remaining.validation.max_diagnostics = remaining;
+        Ok(())
+    }
     pub(crate) fn remaining_limits(&self) -> PreparationLimits {
         self.state
             .budget
@@ -103,6 +129,12 @@ impl DatatypePreparationInvocation {
             .remaining
     }
     pub(crate) fn prepare(&self) -> DatatypePreparationEvidenceResult {
+        self.prepare_in_contexts(None)
+    }
+    pub(crate) fn prepare_in_contexts(
+        &self,
+        contexts: Option<&dyn crate::datatype_validation::RuleValidationContexts>,
+    ) -> DatatypePreparationEvidenceResult {
         let mut result = DatatypePreparationEvidenceResult {
             evidence: None,
             report: DatatypePreparation {
@@ -130,11 +162,19 @@ impl DatatypePreparationInvocation {
                 scope: self.state.scope,
                 query: self.state.query.clone(),
             };
-            let (report, visits) = self.state.datatype.prepare_without_validation(
-                &self.state.input,
-                &runtime,
-                lease.available,
-            );
+            let (report, visits) = match contexts {
+                Some(contexts) => self.state.datatype.prepare_unvalidated_with_contexts(
+                    &self.state.input,
+                    &runtime,
+                    lease.available,
+                    contexts,
+                ),
+                None => self.state.datatype.prepare_without_validation(
+                    &self.state.input,
+                    &runtime,
+                    lease.available,
+                ),
+            };
             lease.refund = Some(preparation_refund(lease.available, &report, visits));
             result.report = report;
             self.state.check()?;
@@ -175,6 +215,13 @@ impl DatatypePreparationInvocation {
     pub(crate) fn consume(
         &self,
         evidence: Option<&SealedDatatypePreparationEvidence>,
+    ) -> Result<DatatypeValidation, EvidenceStop> {
+        self.consume_in_contexts(evidence, None)
+    }
+    pub(crate) fn consume_in_contexts(
+        &self,
+        evidence: Option<&SealedDatatypePreparationEvidence>,
+        contexts: Option<&dyn crate::datatype_validation::RuleValidationContexts>,
     ) -> Result<DatatypeValidation, EvidenceStop> {
         let evidence = evidence.ok_or(EvidenceStop::MissingEvidence)?;
         let issuer = evidence
@@ -224,14 +271,16 @@ impl DatatypePreparationInvocation {
             scope: self.state.scope,
             query: self.state.query.clone(),
         };
-        let report = datatype.validate(
-            &input,
-            &runtime,
-            crate::datatype_validation::ValidationLimits {
-                max_input_values: remaining,
-                ..lease.available.validation
-            },
-        );
+        let limits = crate::datatype_validation::ValidationLimits {
+            max_input_values: remaining,
+            ..lease.available.validation
+        };
+        let report = match contexts {
+            Some(contexts) => {
+                datatype.validate_with_rule_contexts(&input, &runtime, limits, contexts)
+            }
+            None => datatype.validate(&input, &runtime, limits),
+        };
         let mut refund = lease.available;
         refund.validation.max_input_values = remaining.saturating_sub(visits);
         refund.validation.max_rules = refund.validation.max_rules.saturating_sub(rules);

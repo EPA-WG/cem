@@ -45,6 +45,24 @@ pub fn validate_literal_receiver_source(
     Ok(())
 }
 
+/// Native mixed receiver vocabulary: the literal structural profile plus a
+/// single original reference in an attribute type slot. No reference is run.
+pub fn validate_mixed_receiver_source(
+    document: &CemDocument,
+    schema_uri: &str,
+    control: &OperationControl,
+) -> Result<(), String> {
+    if !uri(schema_uri)
+        || document.nodes.len() > MAX_RECORDS
+        || !document.typed_preludes.is_empty()
+        || !document.diagnostics.is_empty()
+    {
+        return Err(INVALID.into());
+    }
+    source::mixed_receiver_declarations(document, schema_uri, &Work::new(control))?;
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct SourceIdentity {

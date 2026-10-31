@@ -34,6 +34,45 @@ impl InstalledDatatypeRoot {
         let owner = self.compilation.upgrade().ok_or(INVALID)?;
         Ok(owner)
     }
+    pub(in crate::structural_receiver) fn matches_original_root(
+        &self,
+        host: &FreshStructuralHost,
+        parent: &Arc<crate::application_envelope::v3::VerifiedApplicationEnvelope>,
+        target: &crate::application_envelope::v3::AssemblyRoot,
+    ) -> bool {
+        self.datatype == target.datatype
+            && self.ownership.matches_parent(parent)
+            && parent
+                .assembly_owner(&target.assembly)
+                .is_some_and(|graph| {
+                    self.compilation(host)
+                        .is_ok_and(|c| c.matches_assembly_root(host, graph, self.datatype))
+                })
+    }
+    pub(in crate::structural_receiver) fn with_runtime<T>(
+        &self,
+        host: &FreshStructuralHost,
+        run: impl FnOnce(
+            &crate::datatype_compilation::ExecutableDatatype,
+            &crate::datatype_validation::ValidationRuntime<'_>,
+            &dyn crate::datatype_validation::RuleValidationContexts,
+        ) -> T,
+    ) -> Result<T, String> {
+        let owner = self.compilation(host)?;
+        let result = owner.with_root(host, self.datatype, true, run)?;
+        self.compilation(host)?;
+        Ok(result)
+    }
+    pub(in crate::structural_receiver) fn bind_receiver(
+        &self,
+        host: &mut FreshStructuralHost,
+        declaration: cem_ml::schema::declaration_references::SchemaDeclarationNode,
+    ) -> Result<crate::attribute_datatypes::BoundAttributeDatatype, String> {
+        let owner = self.compilation(host)?;
+        let result = owner.bind_original_receiver(host, self.datatype, declaration)?;
+        self.compilation(host)?;
+        Ok(result)
+    }
     pub fn is_available(&self, host: &FreshStructuralHost) -> bool {
         self.compilation(host).is_ok()
     }

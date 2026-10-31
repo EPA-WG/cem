@@ -1718,6 +1718,29 @@ pub(crate) fn validate_native_attribute_count(
     );
 }
 
+/// Validate an already prepared native sequence's local cardinality. The
+/// consumer supplies its real count; no second tokenizer or coercion runs.
+pub fn validate_prepared_attribute_count(
+    schema_uri: &str,
+    element_name: &str,
+    attribute: &AttributeModel,
+    count: usize,
+    source: &CemAstNode,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_attribute_count(
+        schema_uri,
+        &BTreeMap::new(),
+        element_name,
+        &attribute.name,
+        attribute,
+        count,
+        source,
+        None,
+        diagnostics,
+    )
+}
+
 fn validate_attribute_count(
     schema_uri: &str,
     diagnostic_behaviors: &BTreeMap<String, DiagnosticBehavior>,

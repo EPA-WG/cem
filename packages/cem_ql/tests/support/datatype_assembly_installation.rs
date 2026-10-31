@@ -761,3 +761,6 @@ fn application_retained_roots_observe_peer_ownership_across_every_assembly() {
         assert!(owners[&envelope.roots()["first"].assembly].is_live(&host));
     }
 }
+
+#[path = "mixed_receiver_binding.rs"]
+mod mixed_binding;

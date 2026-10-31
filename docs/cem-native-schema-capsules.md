@@ -62,8 +62,10 @@ native root invocations. Mixed receiver/runtime publication remains a separate
 gate; CEMDM1 is unchanged.
 The [mixed receiver declaration contract](#mixed-receiver-declaration-contracts)
 now separately pins node capsules, closed scalar facets and assembly-root demands
-in CEMMRC1. Its verifier remains inert; live mixed binding and application
-composition remain gates. WASM transport/generation enrollment and
+in CEMMRC1. Its verifier remains inert. The
+[original-receiver binder](#native-original-mixed-receiver-binding) now provides
+explicit guarded field consumption; complete application composition remains a
+gate. WASM transport/generation enrollment and
 compiled-component receiver admission remain **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
 existing wire version must not acquire executable semantics implicitly.
@@ -75,8 +77,9 @@ Implementation and fixture gates are in
 
 The separately versioned [CEMAPPD3 envelope](#versioned-assembly-aware-application-envelope)
 now adds exact module/profile/operation-source inventories and explicit application
-roots, with whole-source agreement and bounded native verification. Live root
-installation, mixed receivers and worker/fallback admission remain separate gates.
+roots, with whole-source agreement and bounded native verification. Native root
+installation and scoped mixed field binding are implemented; complete application
+publication and worker/fallback admission remain separate gates.
 
 ## Why a separate contract is required
 
@@ -980,13 +983,83 @@ cover all variants, scalar rendering parity, exact dependency/alias/occurrence
 agreement, source claims, cardinalities, limits, malformed/repinned inputs,
 cancellation, fresh owners and unchanged legacy refusal.
 
-Next gates are binding all three variants to original receiving declarations and
-live actual-host guards, then composing them into a separately versioned complete
-application publication. Mixed rendering, generation-bound worker/fallback
+The [native binder](#native-original-mixed-receiver-binding) now connects all
+three variants to original receiving declarations and live actual-host guards.
+The next gate is a separately versioned complete application publication.
+Mixed rendering, generation-bound worker/fallback
 transport and checkpoint ownership are not enabled by this format. Entered
 credentials continue to block recovery until explicitly cleared. Automatic
 whole-Studio recovery remains disabled, with 4 MiB checkpoints and five-second
 deadlines. No application/component JavaScript is introduced.
+
+## Native original mixed receiver binding
+
+[`structural_receiver::application::mixed`](../packages/cem_ql/src/structural_receiver/application/mixed.rs)
+adds native `stage`, `LinkedMixedReceivers` and `MixedReceiverSlot`. It binds a
+verified CEMMRC1 declaration to the actual borrowed `FreshStructuralHost`, an
+original registered receiving capture, exact scalar source projections and
+caller-held CEMAPPD3 installed roots keyed by exported root name. Source scopes,
+lexical contexts, directed grants and native implementation owners must already
+exist. Staging renews original receiving type selectors through the ordinary
+resolver; those expressions can execute registered query functions. It does not
+prepare values, run datatype validation callbacks, register a component or make
+the enclosing source schema ready.
+
+Every occurrence must select its original attribute declaration under the
+original schema's `attributes` collection. Names and local count text must agree
+exactly with the verified declaration. Missing/extra input keys, unregistered
+source copies, unsupported fields and changed scalar projections refuse. The bounded
+source vocabulary permits literal schema fields and one original native
+reference in an executable `type` slot; it does not fabricate a QName reference
+or import an AST through JSON. Host registration retains the original captured
+names, namespaces and lexical scopes.
+
+| Receiver | Scoped consumption |
+| --- | --- |
+| Structural node | The existing `StructuralNodeReceiver` links the original literal node field to its exact SC1 capsule. A private field-only snapshot feeds the shared native attribute-reference validator, including actual input grants, complete-selection checks, local cardinality and structural validation. Other fields' pending states are untouched, and the snapshot cannot escape as whole-input schema authority. |
+| Closed scalar or primitive | Registered original scalar attribute models must equal the pinned projection, including source maps and authored restriction order. The shared closed scalar converter intersects these models with original local facets and checks local cardinality separately. Typed scalar inspection data is revalidated; it carries no preparation authority. |
+| Executable scalar/list | The shared attribute-datatype binder resolves the original type slot through a borrowed adapter over the actual host. Only the exact exported root in the exact parent/graph installation may bind. The first profile permits local count fields; other local executable facets refuse. Typed ingress requires the compiler's explicit typed-only profile, including its dependency checks. |
+
+Scalar source URI/hash/length remain trusted native embedding assertions, coupled
+to actual registered source arenas and exact model comparisons. This API does not
+claim to reconstruct the original bytes from a model or derive registration
+authority from a hash. Structural field snapshots likewise confer no general
+schema readiness or whole-document acceptance. Node cardinalities retain the
+existing `StructuralNodeReceiver` ceiling of 64, even where wire metadata permits
+a larger bound; unsupported bindings refuse instead of weakening that policy.
+
+Executable lexical preparation uses the existing sealed datatype invocation and
+its shared remaining work budget. Native preparation and validation borrow the
+compiled roots' original rule/operation contexts. The sealed receipt is private
+to its invocation, original input arena and attribute occurrence. Consumption
+validates prepared values without replaying tokenization/preparation, intersects
+local count checks and charges local diagnostics to the same allowance. Token
+span inspection also checks the original issuer; missing, foreign, copied,
+closed or retired receipts cannot authorize use.
+
+One group guard covers every receiver and required root. Consumption and
+publication borrow the actual host exclusively and renew the original executable
+receiving selectors; results are checked again before return. Read-only
+`is_available`/`current` checks report owner/epoch liveness, not a frozen selector
+or invocation receipt. The group also rejects busy access. Missing peer roots,
+retired native operations/rules, host epoch changes, closure and cancellation
+invalidate the whole group. Weak links retain no reusable compilation or native
+callback owner. The synchronous slot replaces all mixed guards together only
+after candidate validation; failed candidates preserve the previous installation.
+Clearing, dropping or replacing a group retires its receipts and private node
+guards without retiring the reusable parent roots or compilation. Callback
+retirement or changed selections withhold late results.
+
+The [native fixtures](../packages/cem_ql/tests/support/mixed_receiver_binding.rs)
+exercise all three kinds, primitive fields, local facet/count intersections,
+explicit typed admission, native preparation spans and budgets, mutable
+selectors, exact original sources, grants, weak owners and atomic replacement.
+The inert CEMMRC1 verifier, legacy formats, renderer and worker/WASM endpoints
+remain unchanged. Complete application composition, exact registry/code closure
+and generation-bound transport/checkpoint enrollment remain subsequent gates.
+Entered credentials still block recovery until explicitly cleared; automatic
+whole-Studio recovery remains off, with 4 MiB checkpoints and five-second
+deadlines.
 
 ## Native application receiver assembly
 

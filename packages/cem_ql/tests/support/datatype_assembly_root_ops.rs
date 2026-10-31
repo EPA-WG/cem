@@ -205,6 +205,12 @@ impl NativeListSerializer for Ops {
 #[derive(Clone, Debug)]
 struct Tokens(Arc<State>);
 impl Tokenizer for Tokens {
+    fn check_available(&self) -> Result<(), TokenizationError> {
+        if self.0.mode.load(Ordering::SeqCst) == 13 {
+            ACTION.with(|a| a.borrow().as_ref().unwrap()());
+        }
+        Ok(())
+    }
     fn tokenize(&self, r: TokenizationRequest<'_>) -> Result<Vec<Range<usize>>, TokenizationError> {
         let ordinal = {
             let mut calls = self.0.calls.lock().unwrap();
@@ -315,6 +321,28 @@ fn operation_profile(
         pin: b.pin,
         sources,
     }
+}
+fn typed_profile(
+    m: &mut assembly::ModuleSource,
+    name: &str,
+    family: cem_ml::schema::document_model::attribute_facets::FacetFamily,
+) -> assembly::ProfileArtifact {
+    operation_profile(
+        m,
+        name,
+        vec![(
+            OperationRole::FacetProfile,
+            Some(OperationMode::FacetProfile(
+                cem_ql::native_registrations::FacetMode::Ready,
+            )),
+            ImplementationIdentity::facet_profile(
+                format!("typed-{name}"),
+                hash(b"code"),
+                "typed",
+                family,
+            ),
+        )],
+    )
 }
 fn preparer(id: &str) -> ImplementationIdentity {
     ImplementationIdentity::preparation(
@@ -428,6 +456,18 @@ fn fixture_custom(
     ) -> Arc<assembly::VerifiedDatatypeModules>,
     setup: impl FnOnce(&mut FreshStructuralHost),
 ) -> Fixture {
+    fixture_custom_profile(rule, false, load, setup)
+}
+fn fixture_custom_profile(
+    rule: bool,
+    typed: bool,
+    load: impl FnOnce(
+        assembly::BuiltDatatypeModules,
+        Vec<cem_ql::datatype_dependency_capsule::DependencyArtifact>,
+        Vec<assembly::ProfileArtifact>,
+    ) -> Arc<assembly::VerifiedDatatypeModules>,
+    setup: impl FnOnce(&mut FreshStructuralHost),
+) -> Fixture {
     let text="@ns s = https://cem.dev/ns/schema/1\n@default s\n{schema @namespace=urn:core | {types | {type @name=scalar @kind=scalar}}}";
     let text = if rule {
         text.replace("@kind=scalar", "@kind=scalar @rule={#check}")
@@ -463,42 +503,68 @@ fn fixture_custom(
     );
     lists.imports.insert("core".into());
     app.imports = BTreeSet::from(["core".into(), "lists".into()]);
-    let a = operation_profile(&mut core, "scalar", specs_core());
-    let b = operation_profile(&mut lists, "names", specs_list());
-    let c = operation_profile(
-        &mut app,
-        "scalar",
-        vec![(
-            OperationRole::Preparation,
-            Some(OperationMode::Preparation(
-                PreparationMode::CheckedReplacement,
-            )),
-            preparer("prepare-app"),
-        )],
-    );
-    let d = operation_profile(
-        &mut app,
-        "names",
-        vec![
-            (
-                OperationRole::ListItems,
-                Some(OperationMode::ListItems(
+    let a = if typed {
+        typed_profile(
+            &mut core,
+            "scalar",
+            cem_ml::schema::document_model::attribute_facets::FacetFamily::TypedScalar(
+                ScalarRepresentation::String,
+            ),
+        )
+    } else {
+        operation_profile(&mut core, "scalar", specs_core())
+    };
+    let b_typed = if typed {
+        Some(typed_profile(
+            &mut lists,
+            "names",
+            cem_ml::schema::document_model::attribute_facets::FacetFamily::TypedList(
+                ScalarRepresentation::String,
+            ),
+        ))
+    } else {
+        None
+    };
+    let profiles = if let Some(b) = b_typed {
+        vec![a, b]
+    } else {
+        let b = operation_profile(&mut lists, "names", specs_list());
+        let c = operation_profile(
+            &mut app,
+            "scalar",
+            vec![(
+                OperationRole::Preparation,
+                Some(OperationMode::Preparation(
                     PreparationMode::CheckedReplacement,
                 )),
-                ImplementationIdentity::list_items(
-                    "items-app",
-                    hash(b"code"),
-                    "items",
-                    ScalarRepresentation::String,
+                preparer("prepare-app"),
+            )],
+        );
+        let d = operation_profile(
+            &mut app,
+            "names",
+            vec![
+                (
+                    OperationRole::ListItems,
+                    Some(OperationMode::ListItems(
+                        PreparationMode::CheckedReplacement,
+                    )),
+                    ImplementationIdentity::list_items(
+                        "items-app",
+                        hash(b"code"),
+                        "items",
+                        ScalarRepresentation::String,
+                    ),
                 ),
-            ),
-            (
-                OperationRole::Tokenizer,
-                None,
-                ImplementationIdentity::tokenizer("tokens-app", hash(b"code"), "tokens"),
-            ),
-        ],
-    );
+                (
+                    OperationRole::Tokenizer,
+                    None,
+                    ImplementationIdentity::tokenizer("tokens-app", hash(b"code"), "tokens"),
+                ),
+            ],
+        );
+        vec![a, b, c, d]
+    };
     let artifacts = if rule {
         let (target, a) = rule_artifacts::rule_artifact(false);
         let capsule::DependencyTarget::Native(pin) = target else {
@@ -512,7 +578,6 @@ fn fixture_custom(
     } else {
         vec![]
     };
-    let profiles = [a, b, c, d];
     let control = OperationControl::default();
     let modules = BTreeMap::from([
         ("app".into(), app),
@@ -624,6 +689,9 @@ fn fixture_custom(
                         .unwrap(),
                     NativeSignature::ListItems(rep) => {
                         h.register_list_item_preparation(id, rep).unwrap()
+                    }
+                    NativeSignature::FacetProfile(family) => {
+                        h.register_native_facet_profile(id, family).unwrap()
                     }
                     NativeSignature::TokenizerSpans => h
                         .register_native_tokenizer(id, Tokens(state.clone()))

@@ -45,6 +45,14 @@ use std::{collections::BTreeMap, sync::Arc};
 /// or unevaluated native payload. Authorized value navigation is a separate role.
 #[derive(Debug)]
 struct AttributeCandidate(crate::eval::Item);
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn receiver_candidate(
+    tree: Arc<cem_ml::parser::tree::RetainedCemTree>,
+    node: cem_ml::parser::AstNodeId,
+) -> Option<crate::eval::Item> {
+    RetainedCemNode::new(tree, node)
+        .map(|n| crate::eval::Item::native(AttributeCandidate(n.query_item())))
+}
 pub(crate) fn original_attribute_candidate(value: &crate::eval::Item) -> Option<crate::eval::RetainedCemNode> {
     let candidate = value.view()?.downcast_ref::<AttributeCandidate>()?;
     crate::eval::retained_cem_node(&candidate.0)

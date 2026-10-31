@@ -18,20 +18,28 @@ pub(super) fn declarations(
     schema_uri: &str,
     control: &Work<'_>,
 ) -> Result<BTreeMap<AstNodeId, String>, String> {
-    declarations_with_node_counts(document, schema_uri, control, false)
+    declarations_with_node_counts(document, schema_uri, control, false, false)
 }
 pub(super) fn receiver_declarations(
     document: &CemDocument,
     schema_uri: &str,
     control: &Work<'_>,
 ) -> Result<BTreeMap<AstNodeId, String>, String> {
-    declarations_with_node_counts(document, schema_uri, control, true)
+    declarations_with_node_counts(document, schema_uri, control, true, false)
+}
+pub(super) fn mixed_receiver_declarations(
+    document: &CemDocument,
+    schema_uri: &str,
+    control: &Work<'_>,
+) -> Result<BTreeMap<AstNodeId, String>, String> {
+    declarations_with_node_counts(document, schema_uri, control, true, true)
 }
 fn declarations_with_node_counts(
     document: &CemDocument,
     schema_uri: &str,
     control: &Work<'_>,
     node_counts: bool,
+    native_types: bool,
 ) -> Result<BTreeMap<AstNodeId, String>, String> {
     let mut roles = BTreeMap::new();
     let mut pending = vec![(0u32, "root")];
@@ -135,7 +143,16 @@ fn declarations_with_node_counts(
                     };
                     if !expanded_name.namespace_uri.is_empty()
                         || !allowed.contains(&expanded_name.local_name.as_str())
-                        || !value_nodes.is_empty()
+                        || (!value_nodes.is_empty()
+                            && !(native_types
+                                && value.as_deref().is_none_or(str::is_empty)
+                                && role == "attribute"
+                                && expanded_name.local_name == "type"
+                                && value_nodes.len() == 1
+                                && matches!(
+                                    document.get(value_nodes[0]),
+                                    Some(CemAstNode::Reference { .. })
+                                )))
                         || fields
                             .insert(
                                 expanded_name.local_name.as_str(),

@@ -14,6 +14,7 @@ struct Binding {
 }
 pub(super) struct Installation {
     context: AttributeDatatypeContextLease,
+    parent: Weak<VerifiedApplicationEnvelope>,
     application: Weak<super::super::LinkedApplication>,
     bindings: Vec<Binding>,
     active: AtomicBool,
@@ -21,7 +22,7 @@ pub(super) struct Installation {
 impl Installation {
     pub(super) fn new(
         host: &FreshStructuralHost,
-        envelope: &VerifiedApplicationEnvelope,
+        envelope: &Arc<VerifiedApplicationEnvelope>,
         application: &Arc<super::super::LinkedApplication>,
         owners: &BTreeMap<String, Arc<FreshDependencyDatatypeCompilation>>,
     ) -> Result<Self, String> {
@@ -37,6 +38,7 @@ impl Installation {
         }
         let result = Self {
             context: host.context.lease(),
+            parent: Arc::downgrade(envelope),
             application: Arc::downgrade(application),
             bindings,
             active: AtomicBool::new(true),
@@ -57,6 +59,11 @@ impl Installation {
             }
         }
         Ok(())
+    }
+    pub(super) fn matches_parent(&self, parent: &Arc<VerifiedApplicationEnvelope>) -> bool {
+        self.parent
+            .upgrade()
+            .is_some_and(|p| Arc::ptr_eq(&p, parent))
     }
     pub(super) fn retire(&self) {
         self.active.store(false, Ordering::Release);

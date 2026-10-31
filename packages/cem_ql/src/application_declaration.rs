@@ -94,20 +94,21 @@ pub(crate) fn valid_type(value: &NamedReceiverType) -> bool {
         || !uri(&value.schema_uri)
         || !uri(&value.source_uri)
         || !valid_hash(&value.source_hash)
-        || value.value.content_type.is_some()
-        || value.value.restrictions.len() > 16
-        || value.value.accounted_bytes() > 64 * 1024
-        || value.value.model.source_map.frames.is_empty()
-        || !value
-            .value
-            .model
-            .value_type
-            .as_deref()
-            .is_some_and(primitive)
     {
         return false;
     }
-    value.value.models().all(|model| {
+    valid_scalar_value(&value.value)
+}
+pub(crate) fn valid_scalar_value(value: &AttributeValueContract) -> bool {
+    if value.content_type.is_some()
+        || value.restrictions.len() > 16
+        || value.accounted_bytes() > 64 * 1024
+        || value.model.source_map.frames.is_empty()
+        || !value.model.value_type.as_deref().is_some_and(primitive)
+    {
+        return false;
+    }
+    value.models().all(|model| {
         if model.native_type_pending || model.value_type.as_deref().is_some_and(|t| !primitive(t)) {
             return false;
         }

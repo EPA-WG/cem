@@ -384,7 +384,11 @@ reentry and late output. The [mixed declaration contract](cem-native-schema-caps
 now uses separate CEMMRC1 records for exact structural capsules, shared closed
 scalar facets and assembly-root demands. Its bounded verifier preserves original
 metadata, source assertions and receiver fields; it grants no execution or registry
-extension. Live mixed binding, complete application composition and generation-bound
+extension. The [native original-receiver binder](cem-native-schema-capsules.md#native-original-mixed-receiver-binding)
+now provides guarded field-only node/scalar/executable consumption, with exact
+registered sources, renewed receiving selectors, local facet/count intersections
+and issuer-bound preparation budgets. Atomic group replacement observes every
+required weak owner. Complete application composition and generation-bound
 transport remain next; no portable/runtime admission is implied.
 
 
