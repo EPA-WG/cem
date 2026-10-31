@@ -359,8 +359,12 @@ now use CEMOP2, sharing the profile checks and independently verifying complete
 source agreement before metadata mapping. CEMOP1 stays closed to CEMNR1; module/
 profile assembly now has a separate [CEMDM2 contract](cem-native-schema-capsules.md#versioned-module-and-profile-assembly).
 It maps original datatype/profile sources and bounded intended constant targets,
-with explicit imports and shared graph checks. Actual-host compilation and
-module/envelope installation remain next; no runtime admission is implied.
+with explicit imports and shared graph checks. The [actual-host CEMDM2 inspection](cem-native-schema-capsules.md#actual-host-assembly-selection)
+now renews datatype and constant selections using original source/occurrence
+contexts, exact ordered targets and per-hop crossing grants. Mutable providers
+are re-evaluated; weakly guarded inspection results cannot authorize compilation.
+CEMOS1 owner installation, shared compilation and versioned module/envelope
+publication remain next; no runtime admission is implied.
 
 
 Do not equate downloaded code with an active native generation. Register every

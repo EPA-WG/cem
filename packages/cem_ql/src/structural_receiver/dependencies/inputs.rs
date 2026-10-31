@@ -10,17 +10,20 @@ use crate::{
 pub(super) enum Inputs {
     Dependencies(Arc<VerifiedDatatypeDependencies>),
     Modules(Arc<VerifiedDatatypeModules>),
+    Assembly(Arc<crate::datatype_module_capsule::v2::VerifiedDatatypeModules>),
 }
 #[derive(Clone, Copy)]
 pub(super) enum InputRef<'a> {
     Dependencies(&'a VerifiedDatatypeDependencies),
     Modules(&'a VerifiedDatatypeModules),
+    Assembly(&'a crate::datatype_module_capsule::v2::VerifiedDatatypeModules),
 }
 impl Inputs {
     pub fn borrow(&self) -> InputRef<'_> {
         match self {
             Self::Dependencies(a) => InputRef::Dependencies(a),
             Self::Modules(a) => InputRef::Modules(a),
+            Self::Assembly(a) => InputRef::Assembly(a),
         }
     }
 }
@@ -41,7 +44,27 @@ impl<'a> View<'a> {
         Ok(Self {
             tree,
             capture,
-            schema: sources.values().next().ok_or(REFUSED)?.scope().clone(),
+            schema: sources
+                .values()
+                .next()
+                .map(|s| s.scope().clone())
+                .or_else(|| {
+                    capture.document().nodes.iter().find_map(|n| {
+                        let CemAstNode::Element { node_id, .. } = n else {
+                            return None;
+                        };
+                        capture
+                            .expanded_name(capture.document(), *node_id)
+                            .filter(|name| {
+                                name.namespace_uri == cem_ml::schema::registry::CEM_SCHEMA_URI
+                                    && name.local_name == "schema"
+                            })
+                            .and_then(|_| {
+                                SchemaDeclarationNode::new(capture.document().clone(), *node_id)
+                            })
+                    })
+                })
+                .ok_or(REFUSED)?,
             datatypes: Some(sources),
             exports: Some(roots),
         })
@@ -77,12 +100,18 @@ impl<'a> InputRef<'a> {
         match self {
             Self::Dependencies(a) => &a.pin().registry_hash,
             Self::Modules(a) => &a.pin().registry_hash,
+            Self::Assembly(a) => &a.pin().registry_hash,
         }
     }
     pub fn ids(self) -> Vec<&'a str> {
         match self {
             Self::Dependencies(a) => a.dependency_ids().collect(),
             Self::Modules(a) => a
+                .module_ids()
+                .filter(|id| *id != a.pin().root)
+                .chain(a.leaf_ids())
+                .collect(),
+            Self::Assembly(a) => a
                 .module_ids()
                 .filter(|id| *id != a.pin().root)
                 .chain(a.leaf_ids())
@@ -109,12 +138,52 @@ impl<'a> InputRef<'a> {
                     View::leaf(a.leaf(id).ok_or(REFUSED)?)
                 }
             }
+            Self::Assembly(a) => {
+                let id = id.unwrap_or(&a.pin().root);
+                if let Some(m) = a.module(id) {
+                    View::datatype(m.source(), m.capture(), m.sources(), m.roots())
+                } else {
+                    View::leaf(a.leaf(id).ok_or(REFUSED)?)
+                }
+            }
+        }
+    }
+    fn module_ids(self) -> Vec<&'a str> {
+        match self {
+            Self::Modules(a) => a.module_ids().collect(),
+            Self::Assembly(a) => a.module_ids().collect(),
+            _ => vec![],
+        }
+    }
+    fn leaf_ids(self) -> Vec<&'a str> {
+        match self {
+            Self::Modules(a) => a.leaf_ids().collect(),
+            Self::Assembly(a) => a.leaf_ids().collect(),
+            _ => vec![],
+        }
+    }
+    fn leaf(self, id: &str) -> Option<&'a VerifiedArtifact> {
+        match self {
+            Self::Modules(a) => a.leaf(id),
+            Self::Assembly(a) => a.leaf(id),
+            _ => None,
+        }
+    }
+    fn module_sites(
+        self,
+        id: &str,
+    ) -> Result<&'a [crate::datatype_dependency_capsule::DependencySite<ModuleTarget>], String>
+    {
+        match self {
+            Self::Modules(a) => Ok(a.module(id).ok_or(REFUSED)?.sites()),
+            Self::Assembly(a) => Ok(a.module(id).ok_or(REFUSED)?.sites()),
+            _ => Err(REFUSED.into()),
         }
     }
     pub fn query(self, id: &str) -> Option<&'a VerifiedQueryDeclaration> {
         match self {
             Self::Dependencies(a) => a.query_module(id),
-            Self::Modules(a) => match a.leaf(id)? {
+            Self::Modules(_) | Self::Assembly(_) => match self.leaf(id)? {
                 VerifiedArtifact::Query(q) => Some(q),
                 _ => None,
             },
@@ -123,7 +192,7 @@ impl<'a> InputRef<'a> {
     pub fn native(self, id: &str) -> Option<&'a VerifiedNativeRequirement> {
         match self {
             Self::Dependencies(a) => a.native_module(id),
-            Self::Modules(a) => match a.leaf(id)? {
+            Self::Modules(_) | Self::Assembly(_) => match self.leaf(id)? {
                 VerifiedArtifact::Native(n) => Some(n),
                 _ => None,
             },
@@ -141,9 +210,13 @@ impl<'a> InputRef<'a> {
     pub fn root_has_rules(self) -> bool {
         match self {
             Self::Dependencies(a) => a.sites().iter().any(|s| s.role == "validation-rule"),
-            Self::Modules(a) => a
-                .module(&a.pin().root)
-                .is_some_and(|m| m.sites().iter().any(|s| s.role == "validation-rule")),
+            Self::Modules(_) | Self::Assembly(_) => self
+                .module_sites(match self {
+                    Self::Modules(a) => &a.pin().root,
+                    Self::Assembly(a) => &a.pin().root,
+                    _ => unreachable!(),
+                })
+                .is_ok_and(|sites| sites.iter().any(|s| s.role == "validation-rule")),
         }
     }
     fn leaf_target(self, id: &str, root: AstNodeId) -> Result<SchemaDeclarationNode, String> {
@@ -204,29 +277,27 @@ impl<'a> InputRef<'a> {
                     legacy_edges(m, &mut edges, &mut spend)?;
                 }
             }
-            Self::Modules(a) => {
-                for id in a.module_ids() {
-                    let m = a.module(id).ok_or(REFUSED)?;
-                    for s in m.sites() {
+            Self::Modules(_) | Self::Assembly(_) => {
+                for id in self.module_ids() {
+                    let m = self.view(Some(id))?;
+                    for s in self.module_sites(id)? {
                         spend()?;
                         let field =
-                            SchemaDeclarationNode::new(m.capture().document().clone(), s.field)
+                            SchemaDeclarationNode::new(m.capture.document().clone(), s.field)
                                 .ok_or(REFUSED)?;
                         let (target, rule) = match &s.target {
                             ModuleTarget::LocalDatatype(id) => (
-                                m.sources().get(id).ok_or(REFUSED)?.declaration().clone(),
-                                None,
-                            ),
-                            ModuleTarget::ModuleDatatype { module, root } => (
-                                a.module(module)
+                                m.datatypes
                                     .ok_or(REFUSED)?
-                                    .sources()
-                                    .get(root)
+                                    .get(id)
                                     .ok_or(REFUSED)?
                                     .declaration()
                                     .clone(),
                                 None,
                             ),
+                            ModuleTarget::ModuleDatatype { module, root } => {
+                                (self.leaf_target(module, *root)?, None)
+                            }
                             ModuleTarget::Datatype { pin, root } => {
                                 (self.leaf_target(&pin.hash, *root)?, None)
                             }
@@ -241,7 +312,8 @@ impl<'a> InputRef<'a> {
                         };
                         edges.push(Edge {
                             node: m
-                                .sources()
+                                .datatypes
+                                .ok_or(REFUSED)?
                                 .get(&s.datatype)
                                 .ok_or(REFUSED)?
                                 .declaration()
@@ -252,8 +324,8 @@ impl<'a> InputRef<'a> {
                         });
                     }
                 }
-                for id in a.leaf_ids() {
-                    if let Some(VerifiedArtifact::Datatype(m)) = a.leaf(id) {
+                for id in self.leaf_ids() {
+                    if let Some(VerifiedArtifact::Datatype(m)) = self.leaf(id) {
                         legacy_edges(m, &mut edges, &mut spend)?;
                     }
                 }

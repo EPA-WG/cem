@@ -13,7 +13,9 @@ use cem_ml::schema::{
     machine::{LexicalScopeSnapshot, LexicallyScopedDocument},
     reference_policy::ReferenceScopePolicyOverrides,
 };
+mod assembly;
 mod compilation;
+mod constants;
 mod host;
 mod inputs;
 mod modules;
@@ -36,6 +38,8 @@ pub struct FreshDatatypeDependencySelection {
     active: AtomicBool,
     sites: usize,
     datatypes: usize,
+    constant_sites: usize,
+    constant_targets: usize,
 }
 impl FreshDatatypeDependencySelection {
     fn check(&self, host: &FreshStructuralHost) -> Result<(), String> {
@@ -61,6 +65,14 @@ impl FreshDatatypeDependencySelection {
     pub fn datatype_count(&self, host: &FreshStructuralHost) -> Result<usize, String> {
         self.check(host)?;
         Ok(self.datatypes)
+    }
+    pub fn constant_site_count(&self, host: &FreshStructuralHost) -> Result<usize, String> {
+        self.check(host)?;
+        Ok(self.constant_sites)
+    }
+    pub fn constant_target_count(&self, host: &FreshStructuralHost) -> Result<usize, String> {
+        self.check(host)?;
+        Ok(self.constant_targets)
     }
 }
 fn view<'a>(
@@ -299,12 +311,23 @@ impl FreshStructuralHost {
         if required.iter().any(|id| !selected.contains_key(id)) {
             return Err(REFUSED.into());
         }
+        let (constant_sites, constant_targets) = constants::select(
+            input,
+            &allowed,
+            &datatypes,
+            &mut adapter,
+            &mut remaining,
+            limits.max_work,
+        )?;
+        adapter.check().map_err(|_| REFUSED)?;
         let result = FreshDatatypeDependencySelection {
             inputs,
             context,
             active: AtomicBool::new(true),
             sites: selected.len(),
             datatypes: datatypes.len(),
+            constant_sites,
+            constant_targets,
         };
         result.check(self)?;
         Ok(result)

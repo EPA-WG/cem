@@ -9,8 +9,8 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [versioned module/profile assembly](archive/todo-completed-module-profile-assembly-2026-10-31.md).
-The [CEMOS1 profile-pin record](archive/todo-completed-cemos1-profile-pins-2026-10-31.md) preserves the preceding stage.
+Latest completion: [actual-host assembly scopes and renewed selections](archive/todo-completed-assembly-source-selection-2026-10-31.md).
+The [module/profile assembly record](archive/todo-completed-module-profile-assembly-2026-10-31.md) preserves the preceding stage.
 
 Prioritize Studio functionality and presentation samples before unrelated helper
 work and physical-device/browser/AT acceptance. Examples remain ordinary projects
@@ -391,13 +391,14 @@ inventory, not the minimum set loaded by every app.
                         compilation and the application dependency envelope
                         through separately versioned contracts; preserve CEMDM1,
                         original selectors, explicit owners and weak lifetimes.
-                        - [ ] Bind CEMDM2 to actual fresh-host scopes/imports and
-                          renewed ordinary datatype/constant selections, comparing
-                          exact ordered original targets without fabricating a host
-                          or treating declared imports as crossing grants.
-                        - [ ] Install CEMOS1 operation owners through shared native
-                          compiler/linker guards, then version application-envelope
-                          and mixed-receiver publication before worker transport.
+                        - [ ] Link CEMOS1 operation requirements to explicit
+                          actual-host owners through shared native linker guards;
+                          preserve original sources, contexts and weak lifetimes.
+                        - [ ] Renew original datatype/constant selections during
+                          shared CEMDM2 compilation under actual contexts and owner
+                          leases; never consume a prior inspection as permission.
+                        - [ ] Version application-envelope and mixed-receiver
+                          publication before worker/fallback transport and admission.
 
                 - [ ] Enroll portable query source/binding/invocation owners in
                   actual worker/owned-fallback generation and inventory groups;

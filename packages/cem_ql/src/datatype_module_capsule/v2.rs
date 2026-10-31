@@ -124,6 +124,7 @@ pub struct VerifiedDatatypeModules {
     module_order: Vec<String>,
     datatype_order: Vec<ModuleDatatypeId>,
     constant_order: Vec<ModuleNodeId>,
+    constant_bindings: BTreeMap<ModuleNodeId, Vec<ModuleNodeId>>,
 }
 impl VerifiedDatatypeModules {
     pub fn pin(&self) -> &DatatypeModulesPin {
@@ -137,6 +138,13 @@ impl VerifiedDatatypeModules {
     }
     pub fn leaf_ids(&self) -> impl Iterator<Item = &str> {
         self.leaves.keys().map(String::as_str)
+    }
+    pub(crate) fn leaf(&self, id: &str) -> Option<&VerifiedArtifact> {
+        self.leaves.get(id)
+    }
+    /// Exact source assertions, not completed selections or crossing grants.
+    pub fn constant_bindings(&self) -> &BTreeMap<ModuleNodeId, Vec<ModuleNodeId>> {
+        &self.constant_bindings
     }
     pub fn module_order(&self) -> &[String] {
         &self.module_order
@@ -443,5 +451,20 @@ pub fn verify(
         module_order,
         datatype_order,
         constant_order,
+        constant_bindings: c
+            .modules
+            .iter()
+            .flat_map(|(module, m)| {
+                m.constants.iter().map(move |(node, targets)| {
+                    (
+                        ModuleNodeId {
+                            module: module.clone(),
+                            node: *node,
+                        },
+                        targets.clone(),
+                    )
+                })
+            })
+            .collect(),
     })
 }

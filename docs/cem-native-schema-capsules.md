@@ -49,7 +49,9 @@ with independent whole-source agreement before occurrence mapping. These are
 still inert source requirements, not installed module/receiver capabilities.
 Native `CEMDM2` now assembles original datatype modules, CEMOP2 profiles and
 intended constant-reference targets, with explicit module imports and bounded
-graph checks. It remains separate from CEMDM1 and actual-host installation.
+graph checks. Its explicit actual-host inspection now renews datatype/constant
+selections against original scopes and per-hop grants. Installation remains
+a separate gate; CEMDM1 is unchanged.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -1556,11 +1558,66 @@ The [assembly fixtures](../packages/cem_ql/tests/datatype_module_assembly.rs)
 cover original contexts/owners, profile mapping, imports/exports, order/duplicates,
 reference chains and cycle witnesses, legacy graphs/leaves, whole-source mismatch,
 depth/expansion, malformed repinned input, aggregate/nested limits and cancellation.
-Actual-host compilation, constant selection/interpretation, executable ownership,
-application-envelope installation and receiver/worker transport remain separate
-gates. No application/component JavaScript or WASM endpoint was added. Entered
-credentials still block recovery; automatic whole-Studio recovery stays disabled,
+Actual-host selection is the explicit inspection gate below. Compilation,
+constant interpretation, executable ownership, application-envelope installation
+and receiver/worker transport remain separate gates. No application/component
+JavaScript or WASM endpoint was added. Entered credentials still block recovery; automatic whole-Studio recovery stays disabled,
 with the existing 4 MiB checkpoint budget and five-second deadlines unchanged.
+
+## Actual-host assembly selection
+
+The [CEMDM2 adapter](../packages/cem_ql/src/structural_receiver/dependencies/assembly.rs)
+adds explicit `register_datatype_assembly_scope`,
+`prepare_datatype_assembly_lexical_scopes` and `select_datatype_assembly` entry
+points on `FreshStructuralHost`. It borrows the verified assembly directly,
+sharing the existing datatype name catalog, original source capture and actual
+resolver used for CEMDP1/CEMDM1. It neither converts the assembly into an older
+wire format nor constructs a substitute host. Constant-only modules retain their
+original schema scope with an empty datatype vocabulary.
+
+The caller supplies exact source scopes, ready source/expression contexts,
+explicit datatype name imports and directed crossing grants. Preparing original
+lexical occurrences preserves their captured namespace/name metadata and policy
+overrides. A raw scope without that capture, copied/foreign source, extra scope,
+missing context or unprepared selected occurrence refuses. A declared CEMDM2
+module import records intent; it cannot create a runtime name import or crossing
+permission. Destination policy limits remain effective at every hop.
+
+Every attempt renews ordinary datatype selection. For reachable datatypes with
+constant slots, the [constant adapter](../packages/cem_ql/src/structural_receiver/dependencies/constants.rs)
+uses the shared owned-reference traversal over the original datatype container.
+It delegates expression evaluation and readiness to the actual resolver, checking
+the raw intended original target sequence at every reference occurrence and the
+flattened terminal sequence at each owning datatype. Order, duplicates and source
+arena identity must all agree. Returning the same terminal nodes while skipping
+an intended intermediate reference refuses. Each intermediate/destination needs
+its own ready context and applicable directed grant; a root-to-terminal grant
+cannot replace an intermediate crossing. Unselected constant exports do not
+require prepared expression occurrences.
+
+Datatype and constant traversal debit one remaining traversal work allowance.
+Metadata planning remains separately bounded by the caller's work limit; shared
+depth, destination-policy bounds and operation cancellation also apply. Provider
+callbacks run again on each selection; context liveness does not freeze mutable
+callback state. Stops or context changes during evaluation prevent late success.
+
+The returned `FreshDatatypeDependencySelection` is a process-local inspection,
+with guarded datatype/constant slot and target counts. It retains immutable inputs
+and a weak actual-context lease, without retaining selector callbacks. Context
+changes, closure, host shutdown or explicit result retirement invalidate its
+accessors. An unchanged context can keep an earlier inspection live while a
+changed mutable provider makes the next attempt fail: an inspection is never
+permission for compilation or publication. CEMDM2's portable selection and
+executable-closure flags remain false.
+
+The [actual-host fixtures](../packages/cem_ql/tests/datatype_assembly_runtime.rs)
+cover exact original targets, ordered duplicates, transitive datatype and constant
+chains, qualified-name imports, per-hop grants, raw/foreign/copied scopes, pending
+source/occurrence contexts, intermediate shortcuts, mutable selectors, late stops,
+work/depth/destination limits, unused exports and weak ownership/retirement.
+Literal admission, effective datatype restrictions, CEMOS1 operation owners and
+shared compiler installation remain separate gates. No new WASM endpoint,
+application UI JavaScript or credential checkpoint path is introduced.
 
 ## Guarded datatype preparation handoff
 
