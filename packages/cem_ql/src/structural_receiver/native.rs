@@ -247,6 +247,29 @@ impl FreshStructuralHost {
         }
         Ok(entry.clone())
     }
+    pub(super) fn native_validator_registration(
+        &self,
+        requirement: &VerifiedNativeRequirement,
+        scope: DeclarationScope,
+        adapter: DatatypeResultAdapter,
+        active: &Arc<AtomicBool>,
+    ) -> Result<DatatypeValidationRegistry, NativeLinkError> {
+        let entry = self.native_entry(requirement, scope)?;
+        let Requirement::Validator(contract) = &requirement.requirement else {
+            return Err(NativeLinkError::InvalidSource);
+        };
+        let proxy = ValidatorProxy(Guard {
+            entry: Arc::downgrade(&entry),
+            context: self.context.lease(),
+            active: Arc::downgrade(active),
+            control: self.control.clone(),
+        });
+        let mut registry = DatatypeValidationRegistry::default();
+        registry
+            .register_native(&entry.identity.id, contract.clone(), adapter, None, proxy)
+            .map_err(|_| NativeLinkError::InvalidSource)?;
+        Ok(registry)
+    }
     pub fn link_native_validator(
         &self,
         requirement: Arc<VerifiedNativeRequirement>,
@@ -254,7 +277,7 @@ impl FreshStructuralHost {
         datatype: AstNodeId,
         adapter: DatatypeResultAdapter,
     ) -> Result<FreshQueryBinding, NativeLinkError> {
-        let entry = self.native_entry(&requirement, scope)?;
+        self.native_entry(&requirement, scope)?;
         let Requirement::Validator(contract) = &requirement.requirement else {
             return Err(NativeLinkError::InvalidSource);
         };
@@ -269,16 +292,7 @@ impl FreshStructuralHost {
             return Err(NativeLinkError::InvalidSource);
         }
         let active = Arc::new(AtomicBool::new(true));
-        let proxy = ValidatorProxy(Guard {
-            entry: Arc::downgrade(&entry),
-            context: self.context.lease(),
-            active: Arc::downgrade(&active),
-            control: self.control.clone(),
-        });
-        let mut registry = DatatypeValidationRegistry::default();
-        registry
-            .register_native(&entry.identity.id, contract.clone(), adapter, None, proxy)
-            .map_err(|_| NativeLinkError::InvalidSource)?;
+        let registry = self.native_validator_registration(&requirement, scope, adapter, &active)?;
         let datatype = RetainedCemNode::new(requirement.source().clone(), datatype)
             .ok_or(NativeLinkError::InvalidSource)?
             .query_item();

@@ -768,9 +768,12 @@ now checks actual contexts, original names, explicit exports and directed grants
 Its weakly guarded inspection results grant no compilation/publication permission.
 The [native primitive compiler](cem-native-schema-capsules.md#fresh-host-primitive-dependency-compilation)
 now repeats selection inside the actual checked host invocation and validates only
-exported roots through private, context-bound typed descriptors. Unbound QD1/NR1
-rules and executable preparation/tokenizer hooks refuse; explicit rule binding,
-complete code closure and portable/runtime admission remain pending.
+exported roots through private, context-bound typed descriptors. The
+[explicit imported-rule path](cem-native-schema-capsules.md#explicit-imported-rule-owners)
+now binds QD1/NR1 rules with caller-held owners, actual source contexts, shared
+budgets and weak native implementation ownership. Unbound rules and executable
+preparation/tokenizer hooks still refuse; complete code closure and
+portable/runtime admission remain pending.
 
 The [native linking contract](cem-native-schema-capsules.md#native-fresh-host-linking-and-node-receivers)
 defines its required source registration, explicit grants, bounds and lifetime.

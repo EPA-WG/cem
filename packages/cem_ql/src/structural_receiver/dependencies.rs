@@ -1,5 +1,5 @@
 //! Actual-host selection inspection and private primitive datatype compilation.
-//! No portable permission, imported rule activation or receiver admission.
+//! No portable permission or receiver admission. Imported rules require explicit owners.
 use super::*;
 use crate::{
     datatype_dependency_capsule::VerifiedDatatypeDependencies,
@@ -15,7 +15,9 @@ use cem_ml::schema::{
 };
 mod compilation;
 mod host;
+mod rules;
 pub use compilation::{DatatypeDependencyCompileError, FreshDependencyDatatypeCompilation};
+pub use rules::{DatatypeDependencyRuleRegistration, FreshDatatypeRuleBinding};
 const REFUSED: &str = "fresh datatype dependency selection refused";
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DatatypeDependencyImport {

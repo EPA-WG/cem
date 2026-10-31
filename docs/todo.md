@@ -2184,7 +2184,7 @@ inventory, not the minimum set loaded by every app.
                       recovery; automatic whole-Studio recovery stays disabled,
                       with 4 MiB checkpoints and five-second deadlines unchanged.
                       Generated screenshots and Vitest attachments are excluded.
-                    - [ ] Compile cross-source datatype dependencies inside the
+                    - [x] Compile cross-source scalar/list datatype dependencies inside the
                       actual checked host invocation, with fresh original source
                       contexts, explicit implementations and renewed selection.
                       Do not accept a historical selection inspection as permission;
@@ -2201,10 +2201,27 @@ inventory, not the minimum set loaded by every app.
                       - [x] Refuse unbound QD1/NR1 rule modules and executable
                         tokenizer/validator metadata in the primitive compiler;
                         test that correct source selection cannot activate code.
-                      - [ ] Bind exact QD1/NR1 rule modules explicitly, preserve
+                      - [x] Bind exact QD1/NR1 rule modules explicitly, preserve
                         original source contexts/policies/diagnostics and weak native
                         ownership; test missing/incorrect registrations, fresh
                         outcomes, source budgets and callback-time retirement/stops.
+                        - [x] Add fresh imported scalar query/native rule fixtures
+                          for explicit registrations, original datatype/diagnostic
+                          ownership, live outcomes and missing/foreign/wrong owners.
+                        - [x] Test actual rule-source contexts/policies and shared
+                          query/rule/diagnostic budgets across inherited/item rules.
+                        - [x] Test retired/dropped owners, removed implementations,
+                          stale hosts and callback-time retirement/cancellation;
+                          prove compiled snapshots do not retain native callbacks.
+                        - [x] Refuse reentrant imported native-rule validation
+                          without replaying callbacks or resetting invocation work;
+                          prove same-host copied rule sources cannot substitute owners.
+                        - [x] Test a combined imported query/native inheritance
+                          chain with exact datatype/source ownership, intersected
+                          outcomes and shared rule/diagnostic limits.
+                        - [x] Run native/WASM/component and isolated worker/fallback
+                          Studio Login privacy acceptance; document the supported
+                          native-only boundary without enabling receiver admission.
                       - [x] Keep primitive compiled descriptors private and context-bound;
                         test stale/foreign/closed owners and failed-attempt preservation,
                         then run native/WASM/component and isolated Studio Login
@@ -2216,12 +2233,15 @@ inventory, not the minimum set loaded by every app.
                       permission. Exact source scopes/grants and explicit primitive
                       metadata produce private typed scalar/list snapshots with
                       root-only validation. Unbound QD1/NR1 rule sites and executable
-                      hooks refuse. Imported rule source contexts/policies/weak
-                      ownership remain open above; portable selection/code-closure
-                      flags remain false. No new WASM endpoint, wire format,
+                      hooks refuse in the primitive-only path. The explicit
+                      imported-rule path now binds QD1/NR1 dependencies with caller
+                      owners, actual source contexts and weak native implementations;
+                      portable selection/code-closure flags remain false. No new
+                      WASM endpoint, wire format,
                       receiver admission or application JavaScript is introduced.
 
-                      Verification: native tests-first checks reproduced missing
+                      Primitive-stage verification: native tests-first checks
+                      reproduced missing
                       compiler/admission APIs and the node-metadata admission gap.
                       Nine new fixtures cover compiler/admission behavior (eight
                       compiler cases and one shared traversal case). All 587
@@ -2239,6 +2259,40 @@ inventory, not the minimum set loaded by every app.
                       disabled, with 4 MiB checkpoints and five-second deadlines
                       unchanged. Generated screenshots and Vitest attachments
                       are excluded.
+
+                      The [imported-rule contract](cem-native-schema-capsules.md#explicit-imported-rule-owners)
+                      requires exact caller-held rule owners; compilations keep weak
+                      owners and private descriptors. Each validation obtains original
+                      source query contexts from the actual host, shares query work
+                      across inherited/item rules and preserves datatype/diagnostic
+                      source arenas. Missing or copied sources, wrong registrations,
+                      missing grants, stale/retired/dropped owners and removed native
+                      implementations refuse. Callback-time stops and retirement
+                      cannot publish success. Native tests exposed and repaired a
+                      reentry gap: the entry guard now refuses a nested call before
+                      replaying its native callback or starting another allowance.
+                      Other executable hooks and portable/runtime admission stay
+                      behind the separate gates below.
+
+                      Imported-rule verification: the binding API and native reentry
+                      boundary had failing-first fixtures. Twelve new actual-host
+                      cases now pass, including combined query/native inheritance,
+                      source arenas, wrong registrations, source policies, shared
+                      budgets, retirement/stops and weak callback release. All 599
+                      distinct native cases passed (406 integration and 193 core/
+                      shared traversal). The WASM-target check, 18 component browser
+                      cases, ten audit/factory cases and both WASM drivers passed.
+                      Isolated Studio Login recovery passed in worker and fallback
+                      modes (two selected cases, six filtered), with native builds
+                      drained beforehand. Source audit, focused Rust formatting,
+                      268 local documentation targets and diff checks passed.
+                      Existing component (11,474,094 bytes) and full (24,202,382
+                      bytes) WASM assets were exercised, not rebuilt. No application
+                      JavaScript, wire change, new WASM endpoint or receiver
+                      admission was added. Entered credentials still block recovery;
+                      automatic whole-Studio recovery stays disabled, with 4 MiB
+                      checkpoints and five-second deadlines unchanged. Generated
+                      screenshots and Vitest attachments are excluded.
                     - [ ] Extend separately versioned dependency records for
                       dependency-bearing datatype modules and additional native
                       operation/constant profiles before claiming complete executable

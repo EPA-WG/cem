@@ -38,7 +38,8 @@ pub(crate) fn compile_function_query(
 ) -> Result<CompiledQuery, ValueContractError> {
     let ValidationImplementation::Query {
         body, body_source, ..
-    } = implementation else {
+    } = implementation
+    else {
         return Err(ValueContractError::new("query-implementation-required"));
     };
     let mut query = api::compile_expression(body, context)
@@ -95,7 +96,10 @@ pub struct ValidationRuntime<'a> {
 }
 impl<'a> ValidationRuntime<'a> {
     pub(crate) fn query_failure(&self) -> Option<ItemStream> {
-        self.query.execution_budget.as_ref().and_then(|budget| budget.failure())
+        self.query
+            .execution_budget
+            .as_ref()
+            .and_then(|budget| budget.failure())
     }
     /// Preserve a supplied enclosing allowance, or establish one for this call.
     pub fn with_query_budget(&self) -> Self {
@@ -152,6 +156,22 @@ pub struct DatatypeValidationRegistry {
     entries: BTreeMap<(String, String), Arc<Registration>>,
 }
 impl DatatypeValidationRegistry {
+    /// Reuse exact already-checked registrations without exporting callbacks or
+    /// manufacturing a datatype binding. The shared compiler binds its original node.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn import_registrations(&mut self, other: &Self) -> Result<(), ValueContractError> {
+        for (key, entry) in &other.entries {
+            if self.entries.contains_key(key) {
+                return Err(error(
+                    "duplicate-validation-capability",
+                    entry.contract.behavior(),
+                ));
+            }
+        }
+        self.entries
+            .extend(other.entries.iter().map(|(k, v)| (k.clone(), v.clone())));
+        Ok(())
+    }
     /// Register verified instructions against independently supplied, checked
     /// original native declarations. This never parses/compiles query source or
     /// installs native callbacks, grants or generation ownership.
@@ -168,7 +188,12 @@ impl DatatypeValidationRegistry {
         let query = query
             .link(&contract, source, registry_hash, functions)
             .map_err(|_| error("verified-query-binding-mismatch", contract.behavior()))?;
-        self.insert(contract, adapter, None, Implementation::VerifiedQuery(query))
+        self.insert(
+            contract,
+            adapter,
+            None,
+            Implementation::VerifiedQuery(query),
+        )
     }
     pub fn signature(
         &self,
@@ -376,6 +401,13 @@ fn stopped(
         }),
     }
 }
+/// Ephemeral original source contexts supplied by the actual embedding. Nothing
+/// is stored in a descriptor, copied into a capsule or inferred from source names.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) trait RuleValidationContexts {
+    fn context(&self, behavior: &SchemaDeclarationNode) -> Option<EvaluationContext>;
+    fn is_available(&self, behavior: &SchemaDeclarationNode) -> bool;
+}
 /// Validates the supplied effective restriction list without short-circuiting a
 /// rejection. The host supplies only complete inputs; unresolved selection must
 /// stay in its lifecycle envelope and must not be represented as an empty value.
@@ -385,6 +417,22 @@ pub fn validate_rules(
     runtime: &ValidationRuntime<'_>,
     limits: ValidationLimits,
 ) -> ValidationBatch {
+    validate_rules_in_contexts(
+        rules,
+        input,
+        runtime,
+        limits,
+        #[cfg(not(target_arch = "wasm32"))]
+        None,
+    )
+}
+pub(crate) fn validate_rules_in_contexts(
+    rules: &[BoundDatatypeRule],
+    input: &ValidationInput,
+    runtime: &ValidationRuntime<'_>,
+    limits: ValidationLimits,
+    #[cfg(not(target_arch = "wasm32"))] contexts: Option<&dyn RuleValidationContexts>,
+) -> ValidationBatch {
     let shared_runtime = runtime.with_query_budget();
     let runtime = &shared_runtime;
     if let Err(e) = runtime.control.check_scope(runtime.scope) {
@@ -392,7 +440,8 @@ pub fn validate_rules(
     }
     if let Some(failure) = runtime.query_failure() {
         return stopped(
-            vec![], None,
+            vec![],
+            None,
             ValidationStopReason::Result(DatatypeResultError::Execution(failure)),
         );
     }
@@ -406,6 +455,14 @@ pub fn validate_rules(
     for rule in rules {
         if let Err(e) = runtime.control.check_scope(runtime.scope) {
             return stopped(vec![], Some(rule), ValidationStopReason::Control(e));
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if contexts.is_some_and(|c| !c.is_available(rule.behavior())) {
+            return stopped(
+                vec![],
+                Some(rule),
+                ValidationStopReason::Unavailable(vec![]),
+            );
         }
         let signature = rule.registration.contract.signature();
         if input.candidate.len() > 1 || input.candidate.iter().any(|v| !native_node(v)) {
@@ -456,6 +513,29 @@ pub fn validate_rules(
         if let Err(e) = runtime.control.check_scope(runtime.scope) {
             return stopped(completed, Some(rule), ValidationStopReason::Control(e));
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        let scoped_runtime;
+        #[cfg(not(target_arch = "wasm32"))]
+        let runtime = if let Some(contexts) = contexts {
+            let Some(mut query) = contexts.context(rule.behavior()) else {
+                return stopped(
+                    completed,
+                    Some(rule),
+                    ValidationStopReason::Unavailable(vec![]),
+                );
+            };
+            // Use the host's source-scoped validator context. Work remains shared
+            // across sources and item calls, including an enclosing failure.
+            query.execution_budget = runtime.query.execution_budget.clone();
+            scoped_runtime = ValidationRuntime {
+                control: runtime.control,
+                scope: runtime.scope,
+                query,
+            };
+            &scoped_runtime
+        } else {
+            runtime
+        };
         let call = ValidationCall {
             value: &input.value,
             datatype: &rule.datatype,
@@ -485,8 +565,17 @@ pub fn validate_rules(
         }
         if let Some(failure) = runtime.query_failure() {
             return stopped(
-                completed, Some(rule),
+                completed,
+                Some(rule),
                 ValidationStopReason::Result(DatatypeResultError::Execution(failure)),
+            );
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if contexts.is_some_and(|c| !c.is_available(rule.behavior())) {
+            return stopped(
+                completed,
+                Some(rule),
+                ValidationStopReason::Unavailable(vec![]),
             );
         }
         let stream = match execution {

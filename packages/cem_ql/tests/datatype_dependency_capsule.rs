@@ -185,6 +185,12 @@ fn omitted_or_orphan_fields_modules_and_foreign_pins_refuse() {
     }
 }
 fn rule_artifact(query: bool) -> (capsule::DependencyTarget, capsule::DependencyArtifact) {
+    rule_artifact_body(query, "{accepted: true, diagnostics: ()}")
+}
+fn rule_artifact_body(query: bool, expression: &str) -> (capsule::DependencyTarget, capsule::DependencyArtifact) {
+    rule_artifact_at(query, expression, "file:///app/rules.cem")
+}
+fn rule_artifact_at(query: bool, expression: &str, uri: &str) -> (capsule::DependencyTarget, capsule::DependencyArtifact) {
     use cem_ml::schema::{
         datatype_registry::DatatypeKind,
         datatype_validation::{
@@ -207,6 +213,7 @@ fn rule_artifact(query: bool) -> (capsule::DependencyTarget, capsule::Dependency
         ""
     };
     let text=format!("@ns schema = https://cem.dev/ns/schema/1\n@default schema\n{{schema @namespace=urn:rules | {{behaviors | {{behavior @name=check {header} @execution=datatype-validation | {{inputs | {{input-binding @name=value @type=schema:string @source=value @required=true @cardinality=one}} {{input-binding @name=datatype @type=schema:node @source=datatype @required=true @cardinality=one}} {{input-binding @name=candidate @type=schema:node @source=candidate @required=false @cardinality=zero-or-one}}}} {{result @type=schema:datatype-validation-result}} {body}}}}}}}");
+    let text = text.replace("{accepted: true, diagnostics: ()}", expression);
     let c = capture(&text);
     let node = |name: &str| {
         c.document()
@@ -246,7 +253,7 @@ fn rule_artifact(query: bool) -> (capsule::DependencyTarget, capsule::Dependency
         let b = qd::export(
             &c,
             &contract,
-            identity(&text, "file:///app/rules.cem"),
+            identity(&text, uri),
             &hash(b"registry"),
             &OperationControl::default(),
         )
@@ -259,7 +266,7 @@ fn rule_artifact(query: bool) -> (capsule::DependencyTarget, capsule::Dependency
         let b = nr::export_validator(
             &c,
             &contract,
-            identity(&text, "file:///app/rules.cem"),
+            identity(&text, uri),
             nr::ImplementationIdentity::validator(
                 "urn:test:validate",
                 hash(b"module"),
@@ -513,3 +520,6 @@ mod selection;
 
 #[path = "datatype_dependency_capsule/compilation.rs"]
 mod compilation;
+
+#[path = "datatype_dependency_capsule/rules.rs"]
+mod rules;

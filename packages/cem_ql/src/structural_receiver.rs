@@ -30,8 +30,8 @@ pub mod application;
 mod datatypes;
 mod dependencies;
 pub use dependencies::{
-    DatatypeDependencyCompileError, DatatypeDependencyImport, FreshDatatypeDependencySelection,
-    FreshDependencyDatatypeCompilation,
+    DatatypeDependencyCompileError, DatatypeDependencyImport, DatatypeDependencyRuleRegistration,
+    FreshDatatypeDependencySelection, FreshDatatypeRuleBinding, FreshDependencyDatatypeCompilation,
 };
 pub use datatypes::{FreshDatatypeCompilation, FreshDatatypePreparationInvocation};
 mod native;

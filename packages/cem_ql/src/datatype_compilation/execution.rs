@@ -55,6 +55,33 @@ impl ExecutableDatatype {
         runtime: &ValidationRuntime<'_>,
         limits: ValidationLimits,
     ) -> DatatypeValidation {
+        self.validate_in_contexts(
+            input,
+            runtime,
+            limits,
+            #[cfg(not(target_arch = "wasm32"))]
+            None,
+        )
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn validate_with_rule_contexts(
+        &self,
+        input: &ValidationInput,
+        runtime: &ValidationRuntime<'_>,
+        limits: ValidationLimits,
+        contexts: &dyn datatype_validation::RuleValidationContexts,
+    ) -> DatatypeValidation {
+        self.validate_in_contexts(input, runtime, limits, Some(contexts))
+    }
+    fn validate_in_contexts(
+        &self,
+        input: &ValidationInput,
+        runtime: &ValidationRuntime<'_>,
+        limits: ValidationLimits,
+        #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+            &dyn datatype_validation::RuleValidationContexts,
+        >,
+    ) -> DatatypeValidation {
         let shared_runtime = runtime.with_query_budget();
         let runtime = &shared_runtime;
         let mut result = DatatypeValidation {
@@ -177,7 +204,7 @@ impl ExecutableDatatype {
                 candidate: input.candidate.clone(),
                 fallback: input.fallback.clone(),
             };
-            let batch = datatype_validation::validate_rules(
+            let batch = datatype_validation::validate_rules_in_contexts(
                 &descriptor.rules,
                 &input,
                 runtime,
@@ -185,6 +212,8 @@ impl ExecutableDatatype {
                     max_diagnostics: remaining_diagnostics,
                     ..limits
                 },
+                #[cfg(not(target_arch = "wasm32"))]
+                contexts,
             );
             for completed in &batch.completed {
                 remaining_diagnostics = remaining_diagnostics

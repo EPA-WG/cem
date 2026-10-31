@@ -32,6 +32,18 @@ impl VerifiedDatatypeDependencies {
         self.datatype_module(id)
             .map(VerifiedDatatypeSources::sources)
     }
+    pub(crate) fn query_module(&self, id: &str) -> Option<&VerifiedQueryDeclaration> {
+        match self._dependencies.get(id)? {
+            VerifiedArtifact::Query(v) => Some(v),
+            _ => None,
+        }
+    }
+    pub(crate) fn native_module(&self, id: &str) -> Option<&VerifiedNativeRequirement> {
+        match self._dependencies.get(id)? {
+            VerifiedArtifact::Native(v) => Some(v),
+            _ => None,
+        }
+    }
     pub(crate) fn datatype_module(&self, id: &str) -> Option<&VerifiedDatatypeSources> {
         match self._dependencies.get(id)? {
             VerifiedArtifact::Datatype(v) => Some(v),

@@ -30,7 +30,8 @@ scopes, original aliases, explicit exports and directed grants. Its local inspec
 result remains separate from datatype compilation and receiver publication.
 A native primitive compiler now renews selection within the actual checked
 invocation and keeps cross-source scalar/list descriptors private for root-only
-typed validation. Imported rule bindings and executable hooks remain pending.
+typed validation. Imported query/native rules now bind explicit owners and use
+original source contexts; preparation/tokenizer hooks remain separate gates.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -971,7 +972,7 @@ compilation in its checked invocation rather than trust a historical result.
 Portable `selections_verified()` and `executable_closure_verified()` remain false.
 No datatype/validator implementation is compiled or registered by this adapter,
 and no receiver is installed. Dependency-bearing datatype modules, wider
-operation/constant closure, imported rule compilation and worker/fallback
+operation/constant closure, executable preparation/tokenizer hooks and worker/fallback
 transport/checkpoint enrollment remain pending. Existing application formats,
 WASM endpoints, credential refusal, disabled automatic whole-Studio recovery,
 4 MiB checkpoints and five-second deadlines are unchanged.
@@ -1008,10 +1009,10 @@ conversion, equality, constant interpretation and additional facet-profile
 registrations cannot be supplied through this API. Existing full/DT1 APIs retain
 those capabilities.
 
-Any CEMDP1 validation-rule site, including an exact QD1 or NR1 pin, currently
-refuses with `datatype-dependency-rule-bindings-unavailable`. Correct metadata
-selection does not bind a rule implementation or its execution context. Explicit
-original source policies, callback ownership and rule budgets are the next gate.
+The primitive-only `compile_datatype_dependencies` convenience path still refuses
+CEMDP1 validation-rule sites with `datatype-dependency-rule-bindings-unavailable`.
+Correct metadata selection does not bind a rule implementation or execution
+context. Use the explicit rule-owner path below to enable checked imported rules.
 Unsupported primitive metadata returns
 `datatype-dependency-primitive-metadata-required`. Compilation failures expose
 original diagnostics/reference issues and source-owned compiler issues; partial
@@ -1038,6 +1039,77 @@ Portable selection/executable closure flags stay false. This adds no wire format
 WASM endpoint, receiver admission or application JavaScript. Credential refusal,
 disabled automatic whole-Studio recovery, 4 MiB checkpoints and five-second
 deadlines remain unchanged.
+
+## Explicit imported rule owners
+
+The native [rule-owner adapter](../packages/cem_ql/src/structural_receiver/dependencies/rules.rs)
+adds `link_datatype_dependency_rule` and
+`compile_datatype_dependencies_with_rules`. This uses the original CEMDP1/QD1/NR1
+sources and shared compiler/validator; it does not introduce a new source format,
+JSON AST handoff, WASM entry point or receiver publication.
+
+Register all exact source scopes, occurrence contexts and directed grants first.
+Install any native validator callback on the actual `FreshStructuralHost` before
+creating bindings: native implementation registration advances the context epoch.
+Then explicitly link each required module with its actual registered scope and a
+`DatatypeDependencyRuleRegistration`. `Query` supplies the selected built-in
+function registry and result adapter; `NativeValidator` supplies a result adapter
+and requires the exact preinstalled NR1 implementation identity, including module
+hash, export, ABI and signature. A pin alone installs no implementation. Linking
+creates no crossing grant and invokes no validator.
+
+Keep each returned `FreshDatatypeRuleBinding` in a caller-owned `Arc` and pass a
+map from verified module ID to owner into
+`compile_datatype_dependencies_with_rules`, alongside the existing primitive
+metadata. The map must contain exactly the imported rule modules: missing,
+unused, wrong-kind, wrong-scope, copied-source and foreign-host bindings refuse.
+Equal source hashes and matching module IDs cannot replace an original arena,
+even when both source allocations are registered on the same host. Compilation
+renews ordinary source selection and crossing checks inside its invocation;
+failed attempts preserve unchanged prior bindings and compilations.
+
+The shared compiler binds each rule to the original datatype where it is
+attached. An inherited base rule retains that base datatype, while a derived
+local rule receives the derived datatype. Imported behavior declarations keep
+their separate original owners. Signature mismatches and result diagnostics
+retain original source provenance. No partial executable descriptors escape
+compilation errors.
+
+At validation time, the shared validator obtains each rule's original source
+context from the actual host, using its existing closed-validator accessor. It
+preserves that source's query scope, policy and diagnostics; ambient callbacks,
+module resolvers and unrelated data bindings are excluded by that accessor.
+The contexts are ephemeral and never stored in descriptors or binding owners.
+All rules, inherited rules and scheduled list items share one enclosing query
+budget. Ordinary rule/input/diagnostic bounds and operation controls still apply;
+an independent validation call gets a fresh allowance and reruns the rules.
+Native callbacks remain cooperative users of the supplied control/runtime.
+Reentrant or concurrent validation of the same compilation refuses before
+replaying a native callback or starting another allowance. The entry guard
+releases on completion or failure.
+
+Compilations retain weak rule owners. Retiring/dropping a binding, removing its
+native implementation, changing the actual host context, or closing/dropping the
+host disables dependent compilations. Native proxies check their weak host-owned
+implementation and binding liveness before and after callbacks. Source-context
+availability is also checked around each rule execution and the completed
+validation; callback-time retirement or cancellation cannot publish success.
+Keeping snapshots or rule bindings after dropping the host retains no native
+callback or source runtime context. Inspection remains liveness, not portable
+permission or a cached acceptance verdict.
+
+The [imported-rule fixtures](../packages/cem_ql/tests/datatype_dependency_capsule/rules.rs)
+cover fresh query/native outcomes, combined inheritance, original datatype and
+diagnostic ownership, exact registrations and same-host copied arenas, missing
+grants, source-specific policies, shared inherited/item work, rule/diagnostic
+limits, dropped/retired/stale owners, removed implementations, callback-time stops,
+weak callback release and reentry refusal.
+
+Portable selection and executable-closure flags remain false. Dependency-bearing
+datatype modules, additional operation/constant profiles, executable preparation
+hooks, mixed receivers and worker/fallback transport/recovery remain separate
+checklist gates. Entered credentials still block recovery; automatic whole-Studio
+recovery stays disabled, with 4 MiB checkpoints and five-second deadlines unchanged.
 
 ## Guarded datatype preparation handoff
 

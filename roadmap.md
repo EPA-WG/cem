@@ -837,9 +837,13 @@ expire with host context changes and retain no callbacks; they grant no future
 compilation/publication permission; see [selection semantics](docs/cem-native-schema-capsules.md#fresh-host-datatype-dependency-selection).
 Native cross-source primitive compilation now repeats selection within the actual
 checked invocation and keeps descriptors private for root-only typed validation.
-Executable hooks and unbound QD1/NR1 rules refuse; explicit rule source contexts,
-policies and weak ownership remain next. See the
-[primitive compiler contract](docs/cem-native-schema-capsules.md#fresh-host-primitive-dependency-compilation).
+The [primitive compiler contract](docs/cem-native-schema-capsules.md#fresh-host-primitive-dependency-compilation)
+now also has an [explicit imported-rule path](docs/cem-native-schema-capsules.md#explicit-imported-rule-owners):
+QD1/NR1 rules bind to caller-held owners and actual original source contexts,
+with shared work limits, weak native callback ownership and reentry refusal.
+Unbound rules and other executable hooks still refuse. Dependency-bearing datatype
+modules, wider operation/constant profiles and mixed receiver/runtime admission
+remain pending.
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

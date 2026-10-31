@@ -66,6 +66,14 @@ pub struct FreshDependencyDatatypeCompilation {
     context: AttributeDatatypeContextLease,
     root: DeclarationScope,
     active: AtomicBool,
+    validating: AtomicBool,
+    rules: rules::RuleOwners,
+}
+struct ValidationEntry<'a>(&'a AtomicBool);
+impl Drop for ValidationEntry<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
 }
 impl FreshDependencyDatatypeCompilation {
     fn check(&self, host: &FreshStructuralHost) -> Result<(), String> {
@@ -73,6 +81,10 @@ impl FreshDependencyDatatypeCompilation {
         if !self.active.load(Ordering::Acquire)
             || !self.context.matches(&host.context)
             || self.capsule.pin().registry_hash != host.registry_hash
+            || self
+                .rules
+                .values()
+                .any(|b| b.upgrade().is_none_or(|b| !b.is_live(host)))
             || host
                 .inner
                 .registered_validator_context(self.root, self.capsule.source())
@@ -96,6 +108,10 @@ impl FreshDependencyDatatypeCompilation {
         limits: ValidationLimits,
     ) -> Result<DatatypeValidation, String> {
         self.check(host)?;
+        self.validating
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map_err(|_| REFUSED)?;
+        let _entry = ValidationEntry(&self.validating);
         if !self.capsule.roots().contains(&root) {
             return Err(REFUSED.into());
         }
@@ -118,14 +134,21 @@ impl FreshDependencyDatatypeCompilation {
                 .registered_validator_context(self.root, self.capsule.source())
                 .ok_or(REFUSED)?,
         };
-        let result = descriptor.validate(input, &runtime, limits);
+        let result = descriptor.validate_with_rule_contexts(
+            input,
+            &runtime,
+            limits,
+            &rules::Contexts {
+                host,
+                owners: &self.rules,
+            },
+        );
         self.check(host)?;
         Ok(result)
     }
 }
 impl FreshStructuralHost {
-    /// Primitive metadata only. Rule modules and executable tokenizer/preparation
-    /// registrations require a separate source-context/ownership binding contract.
+    /// Primitive-only convenience path; imported rules require explicit owners.
     pub fn compile_datatype_dependencies(
         &mut self,
         capsule: Arc<VerifiedDatatypeDependencies>,
@@ -135,8 +158,30 @@ impl FreshStructuralHost {
         implementations: &[DatatypeImplementation],
         limits: ReferenceTraversalLimits,
     ) -> Result<FreshDependencyDatatypeCompilation, DatatypeDependencyCompileError> {
+        self.compile_datatype_dependencies_with_rules(
+            capsule,
+            root,
+            scopes,
+            imports,
+            implementations,
+            &BTreeMap::new(),
+            limits,
+        )
+    }
+    /// Renew source selection and bind explicitly owned imported rules. No
+    /// registration may outlive its actual host/context or caller-held owner.
+    pub fn compile_datatype_dependencies_with_rules(
+        &mut self,
+        capsule: Arc<VerifiedDatatypeDependencies>,
+        root: DeclarationScope,
+        scopes: &BTreeMap<String, DeclarationScope>,
+        imports: &[DatatypeDependencyImport],
+        implementations: &[DatatypeImplementation],
+        bindings: &BTreeMap<String, Arc<FreshDatatypeRuleBinding>>,
+        limits: ReferenceTraversalLimits,
+    ) -> Result<FreshDependencyDatatypeCompilation, DatatypeDependencyCompileError> {
         self.check().map_err(|_| REFUSED)?;
-        if capsule.sites().iter().any(|s| s.role == "validation-rule") {
+        if bindings.is_empty() && capsule.sites().iter().any(|s| s.role == "validation-rule") {
             return Err(DatatypeDependencyCompileError::refused(
                 "datatype-dependency-rule-bindings-unavailable",
             ));
@@ -148,6 +193,7 @@ impl FreshStructuralHost {
             expected,
             captures,
         } = self.dependency_environment(&capsule, root, scopes, imports, limits)?;
+        let (validations, owners) = rules::registrations(self, &capsule, scopes, bindings)?;
         let mut primitive = DatatypeImplementations::default();
         if implementations.len() > allowed.len() {
             return Err(DatatypeDependencyCompileError::refused(
@@ -204,7 +250,7 @@ impl FreshStructuralHost {
             &roots,
             &mut adapter,
             &primitive,
-            &Default::default(),
+            &validations,
             limits,
             &runtime,
             Default::default(),
@@ -247,6 +293,8 @@ impl FreshStructuralHost {
             context,
             root,
             active: AtomicBool::new(true),
+            validating: AtomicBool::new(false),
+            rules: owners,
         };
         result.check(self)?;
         Ok(result)

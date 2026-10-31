@@ -334,8 +334,11 @@ Its weakly guarded inspection results grant no compilation/publication permissio
 The [native primitive compiler](cem-native-schema-capsules.md#fresh-host-primitive-dependency-compilation)
 now reselects original cross-source scalar/list dependencies during actual-host
 compilation. Explicit primitive metadata yields private, context-bound root-only
-typed validation; unbound QD1/NR1 rules and executable hooks refuse. Imported rule
-binding and portable/runtime admission remain pending.
+typed validation. The [explicit imported-rule path](cem-native-schema-capsules.md#explicit-imported-rule-owners)
+now binds QD1/NR1 rules to caller-held owners and actual source contexts, with
+shared validation budgets and weak native ownership. Unbound rules and other
+executable hooks still refuse; complete code closure and portable/runtime
+admission remain pending.
 
 Do not equate downloaded code with an active native generation. Register every
 physical endpoint and its resources with the shared ownership/recovery group.
