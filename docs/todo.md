@@ -9,6 +9,8 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
+Latest completion: [versioned CEMOS1 profile pins](archive/todo-completed-cemos1-profile-pins-2026-10-31.md).
+
 Prioritize Studio functionality and presentation samples before unrelated helper
 work and physical-device/browser/AT acceptance. Examples remain ordinary projects
 with resources and configurations in the same workspace, without dedicated
@@ -384,12 +386,13 @@ inventory, not the minimum set loaded by every app.
                       or code closure. Preserve original source snapshots and nested
                       format limits; test cross-module cycles and source agreement.
 
-                      - [ ] Add separately versioned operation-profile pins for
-                        dependency-aware source records; preserve CEMOP1/CEMNR1
-                        admission and independently check whole-source agreement.
+                      - [ ] Add separately versioned module/profile assembly for
+                        CEMOP2/CEMOS1, with exact original datatype/source mapping,
+                        bounded constant-reference dependencies, explicit imports
+                        and cycle/source-agreement checks; preserve CEMDM1.
 
-                      - [ ] Integrate operation/constant profiles with actual-host
-                        module compilation and the application dependency envelope
+                      - [ ] Integrate checked module/profile assembly with actual-host
+                        compilation and the application dependency envelope
                         through separately versioned contracts; preserve CEMDM1,
                         original selectors, explicit owners and weak lifetimes.
 

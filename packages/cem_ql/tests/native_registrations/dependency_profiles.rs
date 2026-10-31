@@ -536,3 +536,23 @@ fn dependency_profiles_refuse_different_snapshots_even_under_identical_declared_
     artifacts[index] = a;
     assert!(profiles::export(&p, &artifacts, &hash(b"registry"), &control).is_err());
 }
+
+#[test]
+fn legacy_profile_wire_hash_is_unchanged() {
+    let (p, a) = bundle();
+    // The v1 name keeps concrete pin inference, including empty literals.
+    let empty = profiles::OperationProfile {
+        source: p["sample"].source.clone(),
+        scope: p["sample"].scope,
+        declaration: p["sample"].declaration,
+        kind: p["sample"].kind,
+        representation: p["sample"].representation,
+        dependencies: BTreeMap::new(),
+    };
+    assert!(empty.dependencies.is_empty());
+    let b = profiles::export(&p, &a, &hash(b"registry"), &OperationControl::default()).unwrap();
+    assert_eq!(
+        b.pin.hash,
+        "cem-bin/1+blake3:cc5eb8a9cac31174e6371120ec12239f65332457e1be704c5ddd60f4a6230cf3"
+    );
+}

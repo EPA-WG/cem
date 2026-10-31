@@ -1464,3 +1464,6 @@ mod dependency_profiles;
 
 #[path = "dependency_sources.rs"]
 mod dependency_sources;
+
+#[path = "profile_pins.rs"]
+mod profile_pins;

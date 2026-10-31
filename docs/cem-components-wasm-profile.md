@@ -353,8 +353,11 @@ operation installation in dependency-bearing module compilation and runtime
 transport remain explicit follow-up gates.
 The separate [dependency-aware operation sources](cem-native-schema-capsules.md#dependency-aware-operation-sources-and-constant-reference-slots)
 now retain original native dependency fields and constant-reference slots through
-the shared source snapshot and datatype planner. They remain inert source records;
-versioned profile pins and actual-host module/envelope installation come next.
+the shared source snapshot and datatype planner. They remain inert source records.
+The [versioned CEMOS1 profile pins](cem-native-schema-capsules.md#versioned-cemos1-profile-pins)
+now use CEMOP2, sharing the profile checks and independently verifying complete
+source agreement before metadata mapping. CEMOP1 stays closed to CEMNR1; module/
+profile assembly and actual-host module/envelope installation remain next.
 
 
 Do not equate downloaded code with an active native generation. Register every

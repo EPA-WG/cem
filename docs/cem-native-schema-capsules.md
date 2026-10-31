@@ -44,6 +44,9 @@ a separate gate.
 Native `CEMOS1` separately retains dependency-bearing operation sources and
 constant-reference slots. It preserves original contexts through the shared
 dependency snapshot, without widening CEMNR1/CEMOP1 or resolving selectors.
+Native `CEMOP2` now groups exact CEMOS1 pins through the shared profile validator,
+with independent whole-source agreement before occurrence mapping. These are
+still inert source requirements, not installed module/receiver capabilities.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -1422,6 +1425,68 @@ base/list/rule fields and constant-reference slots; original contexts, frames,
 lexical metadata and arena isolation; explicit whole-snapshot sharing and foreign
 input refusal; existing-reader refusal; repinned malformed/version/unknown-field,
 resolved-target/context/source-profile corruption, bounds and cancellation.
+
+## Versioned CEMOS1 profile pins
+
+[`native_registrations::profiles::v2`](../packages/cem_ql/src/native_registrations/profiles/v2.rs)
+exports and verifies `CEMOP2` / `cem.native-operation-profiles/2`. Its separately
+typed profile and leaf pins accept exact CEMOS1 source records. CEMOS1 can describe
+every supported operation on closed or dependency-bearing sources, so this format
+uses it consistently; raw CEMNR1 leaves are not accepted by relabelling their pins.
+CEMOP1 remains the closed CEMNR1 format, with its existing wire shape, ABI, default
+public types, limits and admission checks. Changing only magic or pin types cannot
+cross the version boundary.
+
+The [shared native profile validator](../packages/cem_ql/src/native_registrations/profiles/shared.rs)
+owns both versions' canonical manifest, role/shape/signature, original subject,
+exact artifact-set, compatibility, budget and cancellation checks. Public profile
+record/view types are shared through concrete aliases: the existing API keeps
+CEMNR1 pin inference, including empty literals; v2 selects CEMOS1 types. Generic
+implementation parameters add no serialized fields or runtime registration. The frozen CEMOP1 manifest-hash fixture verifies that
+factoring these checks did not change the existing format's output.
+
+Each CEMOP2 dependency carries the full CEMOS1 hash, source identity and registry
+pin, rather than a name or inferred implementation. Every leaf runs its ordinary
+CEMOS1 verification, including exact mode/signature, source-backed result
+contracts, native reference contexts and source/slot limits. Before sharing any
+occurrences, the shared original-source agreement routine independently recaptures
+and fingerprints each leaf's complete dependency snapshot. One logical URI must
+have the same complete declared source identity and snapshot across all profiles.
+Matching URI/hash/declaration labels cannot conceal changed source or lexical
+metadata, even when individual pins are internally consistent.
+
+Only after agreement does CEMOS1's explicit metadata mapping rebind requirements
+to one verified original arena per source. Field, constant-slot, reference/context
+and original behavior views keep those owners; independent profile verifications
+allocate fresh arenas. Caller artifact ordering changes neither manifest bytes
+nor source agreement. No selector or constant interpreter is invoked. Missing,
+extra, duplicate, mistyped or mismatched leaves and duplicate subjects refuse.
+Role, intended kind and representation checks reuse the existing profile rules;
+intended shapes do not prove effective inheritance or dependency selections.
+
+CEMOP2 retains the 64 KiB manifest, 64 profiles, eight roles per profile, 64 leaves
+and 4 MiB manifest-plus-leaf budget. The outer phase has 100,000 visits and a
+100,000-value / 64-depth MessagePack preflight. Independent snapshot recapture
+spends the outer allowance and polls the actual operation control; individual
+CEMOS1 decoders and occurrence mappings retain their own bounded phases. This
+does not claim a cumulative heap or nested-work budget. Unsupported versions,
+unknown fields/roles, noncanonical/trailing/oversized data, corrupt or repinned
+invalid leaves and cancellation refuse before any verified result is returned.
+
+Both selection and executable-closure flags remain false. Returned requirements
+are `VerifiedOperationSource`, with no conversion into CEMNR1 registrations or
+existing fresh-host operation links. Module/profile assembly, actual-host
+installation and application-envelope/receiver transport remain separate gates.
+No application/component JavaScript or WASM endpoint was added. Entered
+credentials still block recovery; automatic whole-Studio recovery remains
+disabled, with the same 4 MiB checkpoint budget and five-second deadlines.
+
+The [new profile fixtures](../packages/cem_ql/tests/native_registrations/profile_pins.rs)
+cover all roles, source-backed and checked-replacement modes, original sources
+and slots, ordering and fresh ownership, complete-source conflicts, old/new
+reader refusal, exact artifact sets, bounds, cancellation and correctly repinned
+malformed manifests/leaves. The [existing profile fixtures](../packages/cem_ql/tests/native_registrations/dependency_profiles.rs)
+retain direct native linking/retirement coverage and the fixed v1 wire hash.
 
 ## Guarded datatype preparation handoff
 
