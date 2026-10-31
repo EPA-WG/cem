@@ -103,20 +103,20 @@ impl DependencyTarget {
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-enum ArtifactPin {
+pub(crate) enum ArtifactPin {
     Datatype(DatatypeSourcesPin),
     Query(QueryDeclarationPin),
     Native(NativeRequirementPin),
 }
 impl ArtifactPin {
-    fn hash(&self) -> &str {
+    pub(crate) fn hash(&self) -> &str {
         match self {
             Self::Datatype(p) => &p.hash,
             Self::Query(p) => &p.hash,
             Self::Native(p) => &p.hash,
         }
     }
-    fn registry(&self) -> &str {
+    pub(crate) fn registry(&self) -> &str {
         match self {
             Self::Datatype(p) => &p.registry_hash,
             Self::Query(p) => &p.program.registry_hash,
@@ -125,8 +125,8 @@ impl ArtifactPin {
     }
 }
 pub struct DependencyArtifact {
-    bytes: Vec<u8>,
-    pin: ArtifactPin,
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) pin: ArtifactPin,
 }
 impl DependencyArtifact {
     pub fn datatype(value: BuiltDatatypeSources) -> Self {

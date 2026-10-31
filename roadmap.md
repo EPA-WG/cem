@@ -807,6 +807,11 @@ Stale/foreign/cancelled candidates preserve prior owners; retired assemblies
 invalidate retained models. Scalar/executable named receiver composition,
 physical worker/fallback generation enrollment and component/WASM
 admission/publication remain implementation gates; scalar CEMAPPD1 is unchanged.
+The separately versioned [CEMAPPD3 inventory](docs/cem-native-schema-capsules.md#versioned-assembly-aware-application-envelope)
+now packages that CEMAPPD2 application with exact CEMDM2/CEMOP2/CEMOS1 pins,
+explicit exported datatype roots, bounded inventories and shared complete-source
+and native implementation agreement. Its native verifier remains inert; atomic
+actual-host root/owner installation and mixed receiver publication are next.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 

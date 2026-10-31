@@ -26,6 +26,7 @@ use std::{
 };
 mod blob;
 mod graph;
+pub mod v3;
 use blob::Blob;
 pub const MAGIC: &[u8] = b"CEMAPPD2\n";
 const ABI: &str = "cem-application-dependencies/2";
@@ -151,7 +152,8 @@ struct Envelope {
     manifest: Manifest,
     blobs: BTreeMap<String, Blob>,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ApplicationEnvelopePin {
     pub hash: String,
     pub manifest_hash: String,

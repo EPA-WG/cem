@@ -560,3 +560,6 @@ fn declared_graph_edge_budget_accepts_boundary_and_refuses_one_more_edge() {
 
 #[path = "application_envelope/assembly.rs"]
 mod assembly;
+
+#[path = "application_envelope/versioned.rs"]
+mod versioned;

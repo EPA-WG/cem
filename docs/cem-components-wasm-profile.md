@@ -373,7 +373,12 @@ shared budgets. Its private snapshots retain weak owners. The [guarded root oper
 now expose synchronous preparation, conversion and list export through shared
 execution paths, with original callback/rule contexts, per-invocation budgets,
 decoded span/provenance preservation and one liveness/reentry guard. Versioned
-module/envelope publication remains next; no portable/runtime admission is implied.
+assembly-aware [application packaging](cem-native-schema-capsules.md#versioned-assembly-aware-application-envelope)
+now uses separate CEMAPPD3 inventories with exact CEMDM2/CEMOP2/CEMOS1 pins,
+explicit exported roots and shared complete-source/implementation agreement.
+Its inert verifier preserves the CEMAPPD2 structural application and all nested
+bounds. Atomic actual-host root/owner installation and mixed receiver publication
+remain next; no portable/runtime admission is implied.
 
 
 Do not equate downloaded code with an active native generation. Register every

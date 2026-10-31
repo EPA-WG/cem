@@ -9,8 +9,8 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [guarded assembly root operations](archive/todo-completed-assembly-root-operations-2026-10-31.md).
-The [CEMDM2 compilation record](archive/todo-completed-cemdm2-compilation-2026-10-31.md) preserves the preceding stage.
+Latest completion: [versioned assembly-aware application envelope](archive/todo-completed-assembly-application-envelope-2026-10-31.md).
+The [guarded root operations record](archive/todo-completed-assembly-root-operations-2026-10-31.md) preserves the preceding stage.
 
 Prioritize Studio functionality and presentation samples before unrelated helper
 work and physical-device/browser/AT acceptance. Examples remain ordinary projects
@@ -393,10 +393,6 @@ inventory, not the minimum set loaded by every app.
                         original selectors, explicit owners and weak lifetimes.
                         - [ ] Version application-envelope and mixed-receiver
                           publication before worker/fallback transport and admission.
-                          - [ ] Define a separately versioned assembly-aware
-                            application envelope with exact CEMDM2/CEMOP2/CEMOS1
-                            pins, bounded inventories and whole-source agreement;
-                            preserve existing CEMAPPD1/CEMAPPD2 admission semantics.
                           - [ ] Stage explicit root/owner installation and replacement
                             atomically; failed staging must preserve prior bindings
                             without creating partial receiver permissions.

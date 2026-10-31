@@ -11,7 +11,7 @@ exact registered validators, tokenizers, scalar lexical preparers, converters,
 scalar equality and list serializers to those host lifetimes. Native constant
 interpreters, facet families, shared list-item orchestration and canonical native
 source-result profiles now have explicit checked bindings too. The native-only
-`CEMAPPD2` dependency envelope now packages and inertly verifies compiled
+`CEMAPPD2` dependency envelope packages and inertly verifies compiled
 declarations and typed capsules with a bounded declared dependency graph.
 Native named-node assembly now stages exact receiver occurrences and query/native
 bindings against one fresh host, with a checked in-process replacement slot.
@@ -66,6 +66,11 @@ This extends the [component profile](cem-components-wasm-profile.md) and
 [application declaration contract](cem-components-shopping-cart-profile.md).
 Implementation and fixture gates are in
 [the profile checklist](todo.md#component-application-wasm-profile-separate-target).
+
+The separately versioned [CEMAPPD3 envelope](#versioned-assembly-aware-application-envelope)
+now adds exact module/profile/operation-source inventories and explicit application
+roots, with whole-source agreement and bounded native verification. Live root
+installation, mixed receivers and worker/fallback admission remain separate gates.
 
 ## Why a separate contract is required
 
@@ -722,6 +727,84 @@ continue using scalar `CEMAPPD1` and refuse `CEMAPPD2`; no ABI or endpoint was
 added. Entered passwords/one-time codes still block recovery, automatic
 whole-Studio recovery remains disabled, and the 4 MiB checkpoint budget and
 five-second deadlines remain unchanged.
+
+## Versioned assembly-aware application envelope
+
+[`application_envelope::v3`](../packages/cem_ql/src/application_envelope/v3.rs)
+implements native-only `CEMAPPD3` / `cem-application-dependencies/3`. It combines
+one exactly pinned CEMAPPD2 application with explicitly named application datatype
+roots and flat CEMDM2 assembly inventories. The CEMAPPD2 application keeps its
+existing compiled declarations, structural named receivers, original-source
+query/native contracts and selected registry recipe. Its original binary and
+trusted pin are checked by its unchanged verifier. No old envelope is relabelled
+or given executable receiver semantics.
+
+`EnvelopeBuilder::new` takes the built CEMAPPD2 application. `add_assembly` stages
+a built CEMDM2 graph, its exact DT1/QD1/NR1 dependency artifacts and its CEMOP2
+profile artifacts with exact CEMOS1 sources. Every insertion is transactional:
+a refused insertion preserves the prior builder inventory. `build` takes a map
+of application root names to `AssemblyRoot { assembly, datatype }` and checks the
+complete envelope before returning bytes. Each selected original datatype must
+be exported by that assembly's root module. Root names are bounded explicit
+application identifiers; they do not bind component receiver names.
+
+The separately typed trusted pin includes package, manifest and selected registry
+hashes. The canonical manifest pins exact ML/QL versions, the base application,
+all assemblies, legacy leaves, profiles, operation sources and their associations.
+Opaque binary artifacts are deduplicated by content hash across assemblies.
+The shared nested verifiers independently check the exact CEMDM2/CEMOP2/CEMOS1
+pins, original occurrences, source/profile agreement, imports, constant target
+order, graph closure and each format's existing bounds. No extra or missing
+assembly input, profile source, inventory record or blob is accepted. Every
+assembly must be selected by at least one application root.
+
+One shared original-source ledger checks complete snapshots and source identities
+across all assemblies, their leaves/profiles, and the base application's
+structural/query/native contracts. Equal URIs with different source identities or
+different complete snapshots refuse, including conflicting snapshots bearing the
+same claimed source hash. A second ledger requires a native implementation ID to
+agree on its complete ABI/module/export/signature identity across both CEMNR1
+and CEMOS1 records. Neither a matching hash nor a common URI supplies ownership.
+The ordinary native source snapshot/verification path remains the only source
+handoff; no JSON AST, source-text reparse or synthetic resolver is introduced.
+
+`verify` returns an inert `VerifiedApplicationEnvelope` exposing the verified
+base application, explicit roots, typed assembly graphs and a deterministic
+leaf/source-before-profile-before-assembly inventory order. The base application
+and each graph retain their own nested dependency orders. Profile requirements
+map into their own assembly's original source arena after complete agreement.
+Independent graphs and verification calls retain independent owners; byte
+packing and source agreement do not create cross-graph runtime aliases or grants.
+`selections_verified()`, `executable_closure_verified()` and
+`native_link_closure_verified()` remain `false`.
+
+| Bound | CEMAPPD3 limit |
+| --- | --- |
+| Encoded envelope / total unique outer blob bytes | Each at most 4 MiB, including encoded overhead; the separately checked CEMAPPD2 application and nested formats retain their own limits. |
+| Assemblies / profiles / legacy leaves / CEMOS1 sources | 8 / 32 / 64 / 64 distinct artifacts. |
+| Explicit application roots | 64; each alias has 1–64 ASCII letters, digits, hyphens or underscores. |
+| Restored assembly modules | 64 across all graphs, counting repeated graph occurrences even when source bytes agree. |
+| Expanded artifact associations | At most 256 assembly-to-leaf/profile associations and 256 profile-to-source associations. |
+| Outer binary records | At most 192 unique blobs, 32,768 MessagePack records and 64 nesting levels; canonical binary encoding, no unknown fields or trailing data. The artifact counts imply at most 169 distinct required outer blobs. |
+| Verification work | 100,000 outer checks and a separate shared 100,000-check source/implementation ledger, with the same caller cancellation control. Nested application, assembly, profile and source verifiers retain their independent existing budgets. |
+
+The byte and count limits are admission limits, not a measured peak heap bound.
+Repeated dependency use counts against the expanded inventory and nested format
+budgets even when the outer bytes are stored once. Snapshots are not pruned to fit.
+[Native integration fixtures](../packages/cem_ql/tests/application_envelope/versioned.rs)
+and [wire fixtures](../packages/cem_ql/src/application_envelope/v3/tests.rs) cover
+roundtrip/fresh owners, shared profile/operation bytes, legacy datatype leaves,
+structural/query contracts, cross-source and implementation conflict, exact pins,
+malformed or repinned records, cancellation, limits and failed staging.
+
+This is a package verification boundary. It does not compile datatypes, link
+callbacks, resolve a live reference, evaluate a source, install roots or publish
+component permissions. Atomic actual-host root/owner installation and replacement,
+mixed node/scalar/executable named receivers, physical-generation worker/fallback
+transport and checkpoint ownership remain separate gates. Existing CEMAPPD1 and
+CEMAPPD2 readers and component admission refuse CEMAPPD3. Entered credentials
+still block recovery until cleared, automatic whole-Studio recovery remains off,
+and the 4 MiB checkpoint and five-second deadline policies remain unchanged.
 
 ## Native application receiver assembly
 
