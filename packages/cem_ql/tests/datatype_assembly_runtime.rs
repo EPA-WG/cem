@@ -582,3 +582,56 @@ fn actual_host_assembly_destination_policies_retain_their_own_work_bounds() {
         .select_datatype_assembly(g.clone(), root, &scopes, &[], limits())
         .is_err());
 }
+
+#[derive(Debug)]
+struct NoConstants;
+impl cem_ql::datatype_enumeration::NativeConstantInterpreter for NoConstants {
+    fn interpret(
+        &self,
+        _: cem_ql::datatype_enumeration::ConstantCall<'_>,
+    ) -> cem_ql::datatype_enumeration::ConstantExecution {
+        panic!("linking and source selection must not interpret constants")
+    }
+}
+#[test]
+fn actual_host_assembly_links_mapped_cemos1_owners_without_authorizing_compilation() {
+    use cem_ql::{
+        datatype_compilation::DatatypeImplementations,
+        native_registrations::{profiles::OperationRole, NativeLinkError},
+    };
+    let g = verified();
+    let module = g.module("app").unwrap();
+    let profile = module.profiles().values().next().unwrap();
+    let r = profile.requirements()[&OperationRole::Constant].clone();
+    assert!(Arc::ptr_eq(r.source(), module.source()));
+    let (mut h, root, scopes) = prepared(&g, true, true);
+    h.register_native_constant_interpreter(r.implementation().clone(), NoConstants)
+        .unwrap();
+    let owner = h.link_dependency_operation(r.clone(), root).unwrap();
+    assert!(owner.is_live_on(&h));
+    let foreign = verified();
+    let foreign_profile = foreign
+        .module("app")
+        .unwrap()
+        .profiles()
+        .values()
+        .next()
+        .unwrap();
+    let foreign_r = foreign_profile.requirements()[&OperationRole::Constant].clone();
+    assert!(matches!(
+        h.link_dependency_operation(foreign_r, root),
+        Err(NativeLinkError::InvalidSource)
+    ));
+    owner
+        .install(profile.source(), &mut DatatypeImplementations::default())
+        .unwrap();
+    assert!(h
+        .select_datatype_assembly(g.clone(), root, &scopes, &[], limits())
+        .is_ok());
+    owner.retire();
+    assert!(h
+        .select_datatype_assembly(g.clone(), root, &scopes, &[], limits())
+        .is_ok());
+    assert!(!g.selections_verified());
+    assert!(!g.executable_closure_verified());
+}

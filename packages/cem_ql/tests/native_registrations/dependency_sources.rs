@@ -563,3 +563,6 @@ fn dependency_sources_preserve_checked_replacement_modes_on_original_native_fiel
         DatatypeDependencyRole::InheritedList
     );
 }
+
+#[path = "dependency_owners.rs"]
+mod owners;

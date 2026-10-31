@@ -19,7 +19,9 @@ use cem_ml::schema::{
     datatype_registry::DatatypeKind,
 };
 use std::{ops::Range, sync::Weak};
+mod dependency_owners;
 mod operations;
+use dependency_owners::OperationOwner;
 pub use operations::{FreshNativeOperation, NativeResultAdapter};
 
 pub(super) struct Entry {
@@ -115,12 +117,15 @@ impl Tokenizer for TokenizerProxy {
     }
 }
 pub struct FreshNativeTokenizer {
-    requirement: Arc<VerifiedNativeRequirement>,
+    requirement: OperationOwner,
     tokenizer: RegisteredTokenizer,
     active: Arc<AtomicBool>,
     guard: Guard,
 }
 impl FreshNativeTokenizer {
+    pub fn is_live_on(&self, host: &FreshStructuralHost) -> bool {
+        host.check().is_ok() && self.guard.context.matches(&host.context) && self.is_live()
+    }
     pub(super) fn is_live(&self) -> bool {
         self.guard.entry().is_some()
     }
@@ -132,7 +137,7 @@ impl FreshNativeTokenizer {
         implementation: &mut DatatypeImplementation,
     ) -> Result<(), NativeLinkError> {
         self.guard.entry().ok_or(NativeLinkError::Expired)?;
-        let Requirement::Tokenizer(source, mode) = &self.requirement.requirement else {
+        let Requirement::Tokenizer(source, mode) = self.requirement.requirement() else {
             return Err(NativeLinkError::InvalidSource);
         };
         if implementation.kind != DatatypeKind::List
@@ -231,18 +236,32 @@ impl FreshStructuralHost {
         requirement: &VerifiedNativeRequirement,
         scope: DeclarationScope,
     ) -> Result<Arc<Entry>, NativeLinkError> {
+        self.native_owner_entry(
+            &requirement.pin().registry_hash,
+            requirement.source(),
+            requirement.implementation(),
+            scope,
+        )
+    }
+    fn native_owner_entry(
+        &self,
+        registry: &str,
+        source: &Arc<RetainedCemTree>,
+        implementation: &ImplementationIdentity,
+        scope: DeclarationScope,
+    ) -> Result<Arc<Entry>, NativeLinkError> {
         self.check().map_err(|_| NativeLinkError::Expired)?;
-        if requirement.pin().registry_hash != self.registry_hash {
+        if registry != self.registry_hash {
             return Err(NativeLinkError::IdentityMismatch);
         }
         self.inner
-            .registered_validator_context(scope, requirement.source())
+            .registered_validator_context(scope, source)
             .ok_or(NativeLinkError::InvalidSource)?;
         let entry = self
             .native_implementations
-            .get(&requirement.implementation().id)
+            .get(&implementation.id)
             .ok_or(NativeLinkError::Unavailable)?;
-        if entry.identity != *requirement.implementation() {
+        if entry.identity != *implementation {
             return Err(NativeLinkError::IdentityMismatch);
         }
         Ok(entry.clone())
@@ -318,8 +337,15 @@ impl FreshStructuralHost {
         requirement: Arc<VerifiedNativeRequirement>,
         scope: DeclarationScope,
     ) -> Result<FreshNativeTokenizer, NativeLinkError> {
-        let entry = self.native_entry(&requirement, scope)?;
-        if !matches!(requirement.requirement, Requirement::Tokenizer(..)) {
+        self.link_tokenizer_owner(OperationOwner::Closed(requirement), scope)
+    }
+    fn link_tokenizer_owner(
+        &self,
+        requirement: OperationOwner,
+        scope: DeclarationScope,
+    ) -> Result<FreshNativeTokenizer, NativeLinkError> {
+        let entry = requirement.entry(self, scope)?;
+        if !matches!(requirement.requirement(), Requirement::Tokenizer(..)) {
             return Err(NativeLinkError::InvalidSource);
         }
         let active = Arc::new(AtomicBool::new(true));

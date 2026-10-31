@@ -363,8 +363,12 @@ with explicit imports and shared graph checks. The [actual-host CEMDM2 inspectio
 now renews datatype and constant selections using original source/occurrence
 contexts, exact ordered targets and per-hop crossing grants. Mutable providers
 are re-evaluated; weakly guarded inspection results cannot authorize compilation.
-CEMOS1 owner installation, shared compilation and versioned module/envelope
-publication remain next; no runtime admission is implied.
+The [explicit CEMOS1 owner linker](cem-native-schema-capsules.md#explicit-cemos1-operation-owners)
+now shares actual-host native guards for direct/source-backed operations and
+tokenizers, retaining original declarations, checked result adapters and weak
+callback ownership. Linking does not evaluate dependencies. Renewed selections
+within shared compilation and versioned module/envelope publication remain next;
+no runtime admission is implied.
 
 
 Do not equate downloaded code with an active native generation. Register every

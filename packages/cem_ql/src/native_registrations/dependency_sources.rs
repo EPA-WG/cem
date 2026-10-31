@@ -56,6 +56,9 @@ impl VerifiedOperationSource {
     pub fn capture(&self) -> &Arc<LexicallyScopedDocument> {
         &self.capture
     }
+    pub(crate) fn requirement(&self) -> &Requirement {
+        &self.requirement
+    }
     pub fn implementation(&self) -> &ImplementationIdentity {
         &self.implementation
     }

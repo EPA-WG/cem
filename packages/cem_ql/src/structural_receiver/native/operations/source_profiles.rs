@@ -81,8 +81,16 @@ impl FreshStructuralHost {
         scope: DeclarationScope,
         adapter: NativeResultAdapter,
     ) -> Result<FreshNativeOperation, NativeLinkError> {
-        let entry = self.native_entry(&requirement, scope)?;
-        let Requirement::SourceOperation(source, contract) = &requirement.requirement else {
+        self.link_source_operation_owner(OperationOwner::Closed(requirement), scope, adapter)
+    }
+    pub(in crate::structural_receiver::native) fn link_source_operation_owner(
+        &self,
+        requirement: OperationOwner,
+        scope: DeclarationScope,
+        adapter: NativeResultAdapter,
+    ) -> Result<FreshNativeOperation, NativeLinkError> {
+        let entry = requirement.entry(self, scope)?;
+        let Requirement::SourceOperation(source, contract) = requirement.requirement() else {
             return Err(NativeLinkError::InvalidSource);
         };
         let active = Arc::new(AtomicBool::new(true));

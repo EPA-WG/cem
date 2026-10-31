@@ -554,3 +554,58 @@ fn versioned_profile_pins_preserve_nested_source_verification_after_repinning() 
         );
     }
 }
+
+#[test]
+fn versioned_profile_pins_link_only_explicit_actual_host_operation_owners() {
+    let (p, a) = bundle();
+    let control = OperationControl::default();
+    let b = v2::export(&p, &a, &hash(b"registry"), &control).unwrap();
+    let graph = v2::verify(&b.bytes, &b.pin, &a, &control).unwrap();
+    let root = graph
+        .profile("sample")
+        .unwrap()
+        .requirements()
+        .values()
+        .next()
+        .unwrap();
+    let engine = Engine::default();
+    let mut h = host();
+    for id in graph.profile_ids() {
+        for (role, r) in graph.profile(id).unwrap().requirements() {
+            if *role == Role::Tokenizer {
+                h.register_native_tokenizer(r.implementation().clone(), Whitespace)
+                    .unwrap();
+            } else {
+                register_additional(&mut h, r.implementation().clone(), engine.clone()).unwrap();
+            }
+        }
+    }
+    let scope = h
+        .register_scope(
+            root.source().clone(),
+            Some(Default::default()),
+            ReferenceScopePolicy::schema_defaults().unwrap(),
+        )
+        .unwrap();
+    let mut owners = vec![];
+    let mut registry = DatatypeImplementations::default();
+    for id in graph.profile_ids() {
+        let profile = graph.profile(id).unwrap();
+        for (role, r) in profile.requirements() {
+            if *role == Role::Tokenizer {
+                let owner = h.link_dependency_tokenizer(r.clone(), scope).unwrap();
+                assert!(owner.is_live_on(&h));
+                // The ordinary operations below retain their own explicit owners.
+                owner.retire();
+            } else {
+                let owner = h.link_dependency_operation(r.clone(), scope).unwrap();
+                owner.install(profile.source(), &mut registry).unwrap();
+                owners.push(owner);
+            }
+        }
+    }
+    assert_eq!(owners.len(), 7);
+    assert!(engine.calls.iter().all(|n| n.load(Ordering::Acquire) == 0));
+    assert!(!graph.selections_verified());
+    assert!(!graph.executable_closure_verified());
+}

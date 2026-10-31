@@ -100,12 +100,15 @@ proxy!(
 /// Keep this owner alive for the lifetime of its installed compiler selections.
 /// Neither this binding nor the resulting registrations serialize live authority.
 pub struct FreshNativeOperation {
-    requirement: Arc<VerifiedNativeRequirement>,
+    requirement: OperationOwner,
     active: Arc<AtomicBool>,
     guard: Guard,
     source_registration: Option<source_profiles::SourceRegistration>,
 }
 impl FreshNativeOperation {
+    pub fn is_live_on(&self, host: &FreshStructuralHost) -> bool {
+        host.check().is_ok() && self.guard.context.matches(&host.context) && self.is_live()
+    }
     pub(in crate::structural_receiver) fn is_live(&self) -> bool {
         self.guard.entry().is_some()
     }
@@ -120,7 +123,7 @@ impl FreshNativeOperation {
         implementations: &mut DatatypeImplementations,
     ) -> Result<(), NativeLinkError> {
         let entry = self.guard.entry().ok_or(NativeLinkError::Expired)?;
-        let original = match &self.requirement.requirement {
+        let original = match self.requirement.requirement() {
             Requirement::Operation(original, _) | Requirement::SourceOperation(original, _) => {
                 original
             }
@@ -138,7 +141,7 @@ impl FreshNativeOperation {
         let result = if let Some(registration) = &self.source_registration {
             registration.install(source, implementations)
         } else {
-            let Requirement::Operation(_, mode) = &self.requirement.requirement else {
+            let Requirement::Operation(_, mode) = self.requirement.requirement() else {
                 return Err(NativeLinkError::InvalidSource);
             };
             match (&identity.signature, mode) {
@@ -327,8 +330,15 @@ impl FreshStructuralHost {
         requirement: Arc<VerifiedNativeRequirement>,
         scope: DeclarationScope,
     ) -> Result<FreshNativeOperation, NativeLinkError> {
-        let entry = self.native_entry(&requirement, scope)?;
-        if !matches!(requirement.requirement, Requirement::Operation(..)) {
+        self.link_operation_owner(OperationOwner::Closed(requirement), scope)
+    }
+    pub(super) fn link_operation_owner(
+        &self,
+        requirement: OperationOwner,
+        scope: DeclarationScope,
+    ) -> Result<FreshNativeOperation, NativeLinkError> {
+        let entry = requirement.entry(self, scope)?;
+        if !matches!(requirement.requirement(), Requirement::Operation(..)) {
             return Err(NativeLinkError::InvalidSource);
         }
         let active = Arc::new(AtomicBool::new(true));

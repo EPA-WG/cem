@@ -44,6 +44,8 @@ a separate gate.
 Native `CEMOS1` separately retains dependency-bearing operation sources and
 constant-reference slots. It preserves original contexts through the shared
 dependency snapshot, without widening CEMNR1/CEMOP1 or resolving selectors.
+Explicit native entry points now bind these requirements to actual-host operation
+and tokenizer owners using the existing weak native guards and result adapters.
 Native `CEMOP2` now groups exact CEMOS1 pins through the shared profile validator,
 with independent whole-source agreement before occurrence mapping. These are
 still inert source requirements, not installed module/receiver capabilities.
@@ -1415,9 +1417,10 @@ wrong pins, validator selections, unsupported modes/signatures, oversized or
 cancelled work refuse before returning a verified source record.
 
 Both portable selection and executable-closure flags remain false. There is no
-`VerifiedNativeRequirement` conversion, native-linker or CEMOP1 admission path.
-CEMNR1 still refuses reference-bearing sources, and CEMOP1 still accepts only its
-exact closed CEMNR1 dependencies. The separately versioned CEMOP2 pins and CEMDM2
+`VerifiedNativeRequirement` conversion or CEMOP1 admission path. The explicit
+actual-host owner entry points below use CEMOS1 directly. CEMNR1 still refuses
+reference-bearing sources, and CEMOP1 still accepts only its exact closed CEMNR1
+dependencies. The separately versioned CEMOP2 pins and CEMDM2
 source assembly below preserve that boundary; actual-host module/envelope
 installation remains a follow-up. Unevaluated reference expressions
 are not an evaluated dependency graph or proof against runtime selection cycles.
@@ -1431,6 +1434,67 @@ base/list/rule fields and constant-reference slots; original contexts, frames,
 lexical metadata and arena isolation; explicit whole-snapshot sharing and foreign
 input refusal; existing-reader refusal; repinned malformed/version/unknown-field,
 resolved-target/context/source-profile corruption, bounds and cancellation.
+
+## Explicit CEMOS1 operation owners
+
+The native [dependency-owner entry points](../packages/cem_ql/src/structural_receiver/native/dependency_owners.rs)
+on `FreshStructuralHost` consume a sealed `Arc<VerifiedOperationSource>`:
+
+- `link_dependency_operation` binds direct preparation, conversion, equality,
+  constant interpretation, facet and list-item preparation requirements.
+- `link_dependency_source_operation` also requires the matching explicit
+  `NativeResultAdapter` for a source-backed conversion, equality or constant
+  result contract.
+- `link_dependency_tokenizer` binds ready or checked-replacement tokenization.
+
+The embedding host must first register its exact implementation identity and
+actual callback or shared native capability, and register the original retained
+source with a ready source context. Linking checks registry identity, original
+source allocation/scope and the complete implementation identity, including ABI,
+module hash, export and signature. Missing or mismatched implementations, foreign
+or copied scopes, pending contexts, wrong operation categories/adapters and stopped
+or closed hosts refuse. Linking executes no callback, prepares no expression
+occurrence and creates no crossing grant. Dependencies and constant slots stay
+unevaluated; a ready source context does not replace their own occurrence contexts.
+
+A private borrowed requirement view shares the existing CEMNR1 entry checks,
+operation registrations, tokenizer proxy and checked result adapters. It does not
+construct a `VerifiedNativeRequirement`, serialize/reparse a source or substitute
+a host. CEMOP2 and CEMDM2 requirements link against their already mapped original
+arenas; separately verified equivalent bytes require their own actual source scope.
+Existing CEMNR1 APIs and wire admission remain unchanged.
+
+The returned `FreshNativeOperation` / `FreshNativeTokenizer` is an explicit local
+owner. Its `install` method stages a selection only for the exact original datatype
+in the existing `DatatypeImplementations` registry or `DatatypeImplementation`.
+Wrong-source and duplicate operation selections refuse without replacing prior
+entries. Ready versus checked-replacement modes are preserved. Source-backed
+registrations keep the original behavior and shared typed result admission.
+`is_live_on(host)` checks the actual host/context as well as implementation/owner
+liveness. Keep the owner alive while using its installed registrations.
+
+Owners and installed proxies retain immutable source metadata, weak host code and
+a weak context lease. Context changes, implementation removal, host closure/drop,
+operation cancellation or owner retirement/drop disable use. Shared proxies check
+availability before and after callbacks, so late cancellation cannot publish a
+successful result. Retaining owners or registry entries cannot keep embedding
+callbacks alive after host disposal.
+
+This links an implementation requirement; it proves neither dependency selection
+nor executable/code closure. Renewed datatype/constant selection within shared
+CEMDM2 compilation, operation-owner binding maps and versioned application-envelope/
+receiver publication remain follow-up gates. An earlier inspection or successful
+owner link cannot authorize those steps. No new WASM/worker endpoint or application
+UI behavior is introduced. Credential privacy, disabled automatic whole-Studio
+recovery, 4 MiB checkpoints and five-second handoff deadlines are unchanged.
+
+The [owner fixtures](../packages/cem_ql/tests/native_registrations/dependency_owners.rs)
+cover all direct/source-backed modes, checked replacements, exact identities,
+source/scope/registry mismatches, pending contexts, duplicate/wrong-source installs,
+retirement, late tokenizer cancellation and weak callback release. Additional
+[CEMOP2 fixtures](../packages/cem_ql/tests/native_registrations/profile_pins.rs) and
+[CEMDM2 fixtures](../packages/cem_ql/tests/datatype_assembly_runtime.rs) exercise
+mapped original-source linking while portable selection/closure flags remain false.
 
 ## Versioned CEMOS1 profile pins
 
@@ -1615,8 +1679,8 @@ cover exact original targets, ordered duplicates, transitive datatype and consta
 chains, qualified-name imports, per-hop grants, raw/foreign/copied scopes, pending
 source/occurrence contexts, intermediate shortcuts, mutable selectors, late stops,
 work/depth/destination limits, unused exports and weak ownership/retirement.
-Literal admission, effective datatype restrictions, CEMOS1 operation owners and
-shared compiler installation remain separate gates. No new WASM endpoint,
+Literal admission, effective datatype restrictions and integrating CEMOS1 owners
+with shared compiler installation remain separate gates. No new WASM endpoint,
 application UI JavaScript or credential checkpoint path is introduced.
 
 ## Guarded datatype preparation handoff
