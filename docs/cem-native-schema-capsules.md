@@ -37,6 +37,10 @@ module IDs, original sources, shared datatype/leaf checks and bounded acyclic
 module/declaration orders. Its immutable metadata now has explicit fresh-host
 selection/compilation entry points sharing the existing checked resolver and
 compiler. Existing CEMDP1 wire semantics remain unchanged.
+Native `CEMOP1` separately groups exact CEMNR1 operation/constant dependencies
+by original datatype, with checked roles, representations and whole-source
+agreement. Its verified records remain inert; module-compiler integration is
+a separate gate.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -1296,9 +1300,68 @@ the same original source builders.
 
 Portable selection/code-closure flags stay false. There is no new wire semantics,
 WASM entry point, receiver publication or application JavaScript. Broader operation/
-constant profiles, mixed receivers and runtime transport/recovery remain separate
+constant module integration, mixed receivers and runtime transport/recovery remain separate
 gates. Entered credentials still block recovery; automatic whole-Studio recovery
 stays disabled, with 4 MiB checkpoints and five-second deadlines unchanged.
+
+## Versioned operation and constant dependency profiles
+
+[`native_registrations::profiles`](../packages/cem_ql/src/native_registrations/profiles.rs)
+exports and verifies `CEMOP1` / `cem.native-operation-profiles/1`. This separately
+versioned native format does not extend CEMDM1, CEMDP1, CEMNR1 or component runtime
+admission. A profile names one original source/scope/datatype occurrence and an
+intended effective kind and representation. Stable profile IDs group exact
+CEMNR1 pins for tokenizer, lexical preparation, conversion, equality, constant
+interpretation, facet profile, list-item preparation and list serialization.
+These are intended dependencies, not a claim that every required capability is
+present or that inheritance has been resolved.
+
+Every selected CEMNR1 record is independently verified through the existing
+source/ABI/signature/result-contract verifier. The profile then checks role,
+original datatype occurrence, registry, kind and representation compatibility.
+Direct and source-backed conversion/equality/constant profiles retain their
+distinct exact signatures, original behavior occurrences and checked result
+contracts. No result adapter, callback, interpreted constant, context or runtime
+policy appears on the wire. Validator requirements do not satisfy operation roles.
+
+Each datatype occurs once and each dependency pin is used once. Missing, extra,
+duplicate and mismatched artifacts refuse. Complete source identities and
+canonical snapshot fingerprints must agree for each logical URI before existing
+`share_source` explicitly remaps metadata occurrences into one verified original
+arena. Equal URI, source hash or declaration names alone cannot authorize this
+mapping. Independently verifying the same profile set allocates fresh owners.
+Literal `@values` and original constant children keep their original source
+occurrences; verification never tokenizes or interprets them. Native-reference
+constant slots remain refused by CEMNR1's closed source profile. Supporting those
+edges requires the separately versioned module integration, rather than clearing
+slots or changing CEMNR1/CEMDM1 semantics.
+
+The canonical named MessagePack manifest is limited to 64 KiB, 64 profiles,
+eight operation roles per profile and 64 supplied CEMNR1 artifacts. Manifest plus
+supplied artifact bytes cannot exceed 4 MiB. Each leaf keeps its existing 64 KiB,
+source, decode and work limits. The outer phase uses a 100,000-visit allowance,
+100,000-value / 64-depth MessagePack preflight and actual operation controls;
+nested CEMNR1 verification and occurrence remapping retain their separately
+bounded phases. This does not claim one cumulative heap or nested-work budget.
+Unsupported magic/ABI/compiler versions, unknown fields/roles, noncanonical,
+trailing, oversized or cancelled input refuses before a verified result returns.
+
+`VerifiedOperationProfiles::executable_closure_verified()` remains false.
+Callers may explicitly feed original requirements to the existing fresh-host
+linkers. Actual registrations, checked source scopes, exact original arenas,
+source-result adapters and live weak ownership remain required. Retiring an
+operation invalidates its use; retaining a profile or compiled proxy retains no
+host code. This format does not integrate operations into module compilation,
+prove complete code closure, publish receivers, or add WASM/worker endpoints.
+
+The [native fixtures](../packages/cem_ql/tests/native_registrations/dependency_profiles.rs)
+reuse existing operation/source-result builders and cover all roles, constant
+provenance, source/role/representation conflicts, equal declared identities with
+different snapshots, fresh-owner isolation, live linking/retirement, weak callback
+release, malformed repinned records, limits and cancellation. No application or
+component JavaScript was added. Entered credentials still block recovery;
+automatic whole-Studio recovery remains disabled, with the 4 MiB checkpoint
+budget and five-second handoff deadlines unchanged.
 
 ## Guarded datatype preparation handoff
 

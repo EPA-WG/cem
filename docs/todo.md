@@ -2327,9 +2327,23 @@ inventory, not the minimum set loaded by every app.
                           reentry and weak callback lifetime release.
                         - [x] Run native/WASM/component and isolated Studio Login
                           privacy acceptance; document the native-only boundary.
-                      - [ ] Add separately versioned operation/constant dependency
+                      - [x] Add separately versioned operation/constant dependency
                         profiles, with exact original sources, ownership, limits and
                         compatibility checks before claiming complete code closure.
+                        - [x] Add inert CEMOP1 profiles reusing exact CEMNR1
+                          operations, original datatype/constant sources and
+                          source-backed result contracts; test role, representation,
+                          registry, whole-source agreement and owner isolation.
+                        - [x] Test repinned malformed/version/unknown/trailing/deep/
+                          oversized profiles, leaf limits and cancellation; verify
+                          explicit fresh-host linking still requires live owners.
+                      - [ ] Add a separately versioned dependency-aware operation
+                        source format for native-reference fields and constant
+                        slots; preserve CEMNR1's closed original-source contract.
+                      - [ ] Integrate operation/constant profiles with actual-host
+                        module compilation and the application dependency envelope
+                        through separately versioned contracts; preserve CEMDM1,
+                        original selectors, explicit owners and weak lifetimes.
                       - [x] Run native/WASM/component and isolated Studio Login
                         privacy acceptance; document the inert source-backed boundary.
 
@@ -2349,8 +2363,23 @@ inventory, not the minimum set loaded by every app.
                       the same actual-host resolver/compiler as CEMDP1, with original
                       source scopes, per-hop grants, imports and weak reachable rule
                       owners. Existing CEMDP1 APIs do not accept the distinct verified
-                      type implicitly. Additional operation/constant profiles remain
-                      open above.
+                      type implicitly. Dependency-aware operation sources and
+                      actual-host module/envelope integration remain open above.
+
+                      The [CEMOP1 profiles](cem-native-schema-capsules.md#versioned-operation-and-constant-dependency-profiles)
+                      independently group exact CEMNR1 operation/constant pins by
+                      original datatype. Shared native verification and explicit
+                      snapshot-checked occurrence mapping preserve original sources,
+                      constant provenance, source-result contracts and fresh owners.
+                      Roles, kinds, representations, registry/compiler compatibility,
+                      duplicate/missing/extra artifacts and phase/byte limits are
+                      checked without execution. Literal constants are preserved;
+                      native-reference constant slots retain CEMNR1's refusal.
+                      Existing fresh-host linkers still require explicit registrations
+                      and source scopes; retirement disables compiled proxies and
+                      metadata retains no callback owner. Portable closure remains
+                      false. Module/envelope installation and runtime admission are
+                      separate gates, rather than implicit wire upgrades.
 
                       The [actual-host module path](cem-native-schema-capsules.md#actual-host-datatype-module-binding)
                       uses borrowed verified inputs, not a fabricated CEMDP1 capsule
@@ -2366,24 +2395,25 @@ inventory, not the minimum set loaded by every app.
                       ownership. Portable closure flags, wire formats and runtime
                       admission remain unchanged.
 
-                      Actual-host module verification: the missing entry points and
-                      read-only leaf inputs had a failing-first native fixture.
-                      Fifteen new module runtime cases now pass. All 630 distinct
-                      native cases passed (432 integration and 198 core/shared
-                      traversal), including the legacy source/selection/compilation
-                      contracts. The WASM-target check, 18 component browser cases,
-                      ten audit/factory cases and both WASM drivers passed. Isolated
-                      Studio Login recovery passed in worker and fallback modes
-                      (two selected cases, six filtered), after native builds drained.
-                      Source audit, focused Rust formatting, 285 local documentation
-                      targets and diff checks passed. Existing component (11,474,094
-                      bytes) and full (24,202,382 bytes) WASM assets were exercised,
-                      not rebuilt. No application JavaScript, wire change, new WASM
-                      endpoint or receiver admission was added. Entered credentials
-                      still block recovery; automatic whole-Studio recovery stays
-                      disabled, with 4 MiB checkpoints and five-second deadlines
-                      unchanged. Generated screenshots and Vitest attachments
-                      are excluded.
+                      Operation/constant-profile verification: a missing-API fixture
+                      failed first; nine new integration cases now pass. All 639
+                      distinct native cases passed (441 integration and 198 core/
+                      shared traversal), including existing module/source/compiler
+                      and owner contracts. The WASM-target check, 18 component
+                      browser cases, ten audit/factory cases and both WASM drivers
+                      passed. Isolated Studio Login recovery passed through Nx in
+                      worker and fallback modes (two selected cases, six filtered),
+                      after native builds drained. Source audit, focused Rust
+                      formatting, 286 local documentation targets and diff checks
+                      passed. Existing component (11,474,094 bytes) and full
+                      (24,202,382 bytes) WASM assets were exercised, not rebuilt.
+                      This is a separate native-only format; existing wire semantics,
+                      runtime endpoints and receiver admission remain unchanged.
+                      No application/component JavaScript was added. Entered
+                      credentials still block recovery; automatic whole-Studio
+                      recovery remains disabled, with 4 MiB checkpoints and
+                      five-second deadlines unchanged. Generated screenshots and
+                      Vitest attachments are excluded.
 
                       Module-graph verification: a missing-API fixture failed first;
                       eleven new integration and five native verifier/order cases

@@ -346,6 +346,11 @@ The [explicit actual-host module path](cem-native-schema-capsules.md#actual-host
 now reuses the shared resolver/compiler with original source scopes, per-hop
 grants, explicit imports, fresh selections and weak reachable rule owners.
 Portable/runtime admission remains pending.
+The separately versioned [operation/constant profiles](cem-native-schema-capsules.md#versioned-operation-and-constant-dependency-profiles)
+now group exact CEMNR1 dependencies by original datatype, checking roles,
+representations and whole-source agreement. These native records remain inert;
+operation installation in dependency-bearing module compilation and runtime
+transport remain explicit follow-up gates.
 
 
 Do not equate downloaded code with an active native generation. Register every

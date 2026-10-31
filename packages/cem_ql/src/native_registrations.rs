@@ -30,6 +30,7 @@ const ABI: &str = "cem.native-registration/1";
 const INVALID: &str = "native implementation requirement refused";
 const MAX_BYTES: usize = 64 * 1024;
 mod source_profiles;
+pub mod profiles;
 pub(crate) use source_profiles::SourceContract;
 pub use source_profiles::{export_source_operation, SourceProfile};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -350,6 +351,16 @@ pub struct VerifiedNativeRequirement {
     pub(crate) requirement: Requirement,
 }
 impl VerifiedNativeRequirement {
+    /// Original datatype occurrence, when this is an operation requirement.
+    /// This borrowed source grants no registration or runtime admission.
+    pub fn datatype_source(&self) -> Option<&DatatypeSource> {
+        match &self.requirement {
+            Requirement::Tokenizer(source, _)
+            | Requirement::Operation(source, _)
+            | Requirement::SourceOperation(source, _) => Some(source),
+            Requirement::Validator(_) => None,
+        }
+    }
     /// Explicitly map occurrences into an independently verified identical
     /// source arena. Equal names/URIs alone never authorize an allocation swap.
     pub fn share_source(&self, source: &Self, control: &OperationControl) -> Result<Self, String> {
