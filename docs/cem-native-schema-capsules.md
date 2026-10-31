@@ -32,6 +32,10 @@ A native primitive compiler now renews selection within the actual checked
 invocation and keeps cross-source scalar/list descriptors private for root-only
 typed validation. Imported query/native rules now bind explicit owners and use
 original source contexts; preparation/tokenizer hooks remain separate gates.
+Native `CEMDM1` now carries flat dependency-bearing datatype modules with stable
+module IDs, original sources, shared datatype/leaf checks and bounded acyclic
+module/declaration orders. It is inert metadata; fresh-host module graph binding
+is the next gate and existing CEMDP1 execution semantics are unchanged.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -971,7 +975,8 @@ reevaluates selectors. The primitive compiler below performs selection and
 compilation in its checked invocation rather than trust a historical result.
 Portable `selections_verified()` and `executable_closure_verified()` remain false.
 No datatype/validator implementation is compiled or registered by this adapter,
-and no receiver is installed. Dependency-bearing datatype modules, wider
+and no receiver is installed. Fresh-host binding for dependency-bearing datatype
+modules, wider
 operation/constant closure, executable preparation/tokenizer hooks and worker/fallback
 transport/checkpoint enrollment remain pending. Existing application formats,
 WASM endpoints, credential refusal, disabled automatic whole-Studio recovery,
@@ -1105,10 +1110,103 @@ grants, source-specific policies, shared inherited/item work, rule/diagnostic
 limits, dropped/retired/stale owners, removed implementations, callback-time stops,
 weak callback release and reentry refusal.
 
-Portable selection and executable-closure flags remain false. Dependency-bearing
-datatype modules, additional operation/constant profiles, executable preparation
+Portable selection and executable-closure flags remain false. Actual-host binding
+of dependency-bearing datatype modules, additional operation/constant profiles, executable preparation
 hooks, mixed receivers and worker/fallback transport/recovery remain separate
 checklist gates. Entered credentials still block recovery; automatic whole-Studio
+recovery stays disabled, with 4 MiB checkpoints and five-second deadlines unchanged.
+
+## Dependency-bearing datatype module graphs
+
+The native-only [module exporter/verifier](../packages/cem_ql/src/datatype_module_capsule.rs)
+introduces `CEMDM1` / `cem.native-datatype-modules/1`. This is a separate flat
+source-backed format; CEMDP1 remains unchanged. Stable module IDs describe imports
+inside one pinned graph, so cycle rejection needs neither recursive capsule
+loading nor circular content hashes. This does not activate a module, resolve a
+native selector, register an implementation or admit a receiver.
+
+Build a map of module ID to `ModuleSource`, retaining its original
+`LexicallyScopedDocument`, `SourceIdentity`, exported root IDs and complete
+original dependency-field bindings. Pass a root module ID, registry hash and
+explicit DT1/QD1/NR1 leaf artifacts to `export`. Module IDs start with an ASCII
+letter or underscore, contain only ASCII letters/digits/underscore/hyphen/dot,
+and are at most 128 bytes. They are local graph keys, not URLs or global type names.
+Every source URI remains the original resolution base in its retained tree.
+
+`ModuleTarget` distinguishes local datatypes, exported datatypes from another
+module, and pinned DT1/query/native leaves. Original base/list/rule fields are
+classified by the same [datatype inspector](../packages/cem_ql/src/datatype_dependency_capsule/graph.rs)
+as CEMDP1, using the shared native source plan. Local names and qualified imported
+literal names must agree with their asserted targets. Native references and their
+complete lexical/namespace snapshots remain passive source occurrences. This is
+not a name-resolution or selection verdict: actual source contexts, original
+aliases, explicit exports and directed grants must still be checked by the future
+fresh-host consumer.
+
+The [shared leaf verifier](../packages/cem_ql/src/datatype_dependency_capsule/leaves.rs)
+checks exact DT1/QD1/NR1 pins, registry identities and existing leaf format limits.
+Missing, duplicate and unused artifacts refuse. A rule pin cannot satisfy a base
+field. No nested CEMDM1 or dependency-bearing CEMDP1 blob is accepted as a leaf.
+Across every module and leaf, repeated source URIs must agree on the complete
+source identity and original snapshot, including regions outside the exported
+roots. Identical complete sources may expose different roots under separate
+module IDs; their original arenas are not merged. A shared module ID in a diamond
+is restored once per verification. A later verification allocates fresh owners.
+
+`verify` returns `VerifiedDatatypeModules` with read-only module views, original
+source captures, exported roots and attributed dependency sites. `module_order`
+is a deterministic dependencies-first order of module IDs. `datatype_order`
+orders `(module, datatype)` identities, including local DT1 leaf dependencies
+identified by their leaf hash. Unreachable modules, missing exports, unknown
+fields/targets and incorrect field roles refuse. Every declared module export is
+checked, including exports an eventual application may not consume.
+
+Both module imports and datatype dependencies must be acyclic. Module cycles
+return `datatype-module-cycle`, a closed `cycle_modules` path and original
+attribute nodes in `related`. The [ordering implementation](../packages/cem_ql/src/datatype_module_capsule/order.rs)
+uses a bounded iterative dependencies-first walk; its witness follows actual
+remaining cycle edges rather than treating every blocked consumer as a cycle.
+Local datatype cycles are rejected by the shared source inspector, with original
+related fields. Cancelled or exhausted ordering work refuses without reporting a
+spurious cycle. Depth counts across module boundaries and through DT1 leaves;
+it does not restart for each source.
+
+| Bound | Limit |
+| --- | --- |
+| Module records | 1–32 |
+| Encoded original source record | 64 KiB per module |
+| Exported roots | 1–32 per module |
+| Datatype catalog | 64 per source, using the shared inspector |
+| Dependency fields | 128 per module; 512 across the graph |
+| Graph bytes plus supplied leaves | 4 MiB total |
+| Supplied leaf artifacts | 64, with each existing verifier's own bounds |
+| Shared outer source/graph work | 100,000 checks |
+| MessagePack preflight | 100,000 values; depth 64 |
+| Combined datatype dependency depth | 32 edges |
+
+The most restrictive bound applies. Outer work is shared across source restoration,
+classification, source agreement and graph ordering. Nested leaf verifiers retain
+their existing separate bounded allowances; this is not a single aggregate heap
+or decoder work reservation. Canonical MessagePack, exact versions, complete
+source agreement and preflight checks reject repinned malformed, unknown,
+trailing, deep and oversized records before returning verified metadata. These
+bundle byte limits are independent of the Studio recovery checkpoint budget.
+
+The [module fixtures](../packages/cem_ql/tests/datatype_module_capsule.rs) cover
+chains, diamonds, local/self/cross-module cycles, original field witnesses,
+source/alias preservation, exports, repeated source agreement, inert query/native
+pins, malformed DT1 leaves, combined depth and cancellation. The
+[wire fixtures](../packages/cem_ql/src/datatype_module_capsule/tests.rs) cover
+repinned metadata/version/bounds changes and malformed binary inputs. Legacy
+and module tests share the same checked rule-artifact builders.
+
+`selections_verified()` and `executable_closure_verified()` remain false.
+`VerifiedDatatypeModules` is a distinct type; existing fresh-host CEMDP1 APIs do
+not accept it implicitly. Actual-host selection/compilation with explicit module
+scopes, policies, imports, grants and rule owners is the next checklist gate.
+Additional operation/constant profiles, mixed receivers and WASM/worker/fallback
+transport remain pending. No application JavaScript or new WASM entry point is
+introduced. Entered credentials still block recovery; automatic whole-Studio
 recovery stays disabled, with 4 MiB checkpoints and five-second deadlines unchanged.
 
 ## Guarded datatype preparation handoff

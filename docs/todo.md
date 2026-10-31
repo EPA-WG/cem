@@ -2298,6 +2298,59 @@ inventory, not the minimum set loaded by every app.
                       operation/constant profiles before claiming complete executable
                       or code closure. Preserve original source snapshots and nested
                       format limits; test cross-module cycles and source agreement.
+                      - [x] Add a separately versioned, flat native datatype-module
+                        exporter/verifier with stable module IDs and original source
+                        snapshots; test dependency-bearing chains and shared diamonds
+                        without changing CEMDP1 or granting runtime admission.
+                      - [x] Reuse shared datatype classification/field checks and
+                        leaf verifiers; test local/imported roots, aliases, literal
+                        and native references, rule pins and whole-source agreement.
+                      - [x] Reuse query/native rule-capsule fixture builders across
+                        legacy and module graph tests; prove pins stay inert and
+                        malformed leaf capsules retain their own rejection rules.
+                      - [x] Reject self/cross-module/local cycles with bounded
+                        original-source witnesses; test missing/unreachable modules,
+                        exports, aggregate depth/work/bytes and cancellation.
+                      - [x] Add repinned malformed/version/unknown/trailing/deep/
+                        oversized capsule fixtures and preserve nested leaf limits.
+                      - [ ] Wire verified module graphs into actual fresh-host
+                        selection/compilation with explicit imports, scopes, grants
+                        and rule owners before enabling module execution.
+                      - [x] Run native/WASM/component and isolated Studio Login
+                        privacy acceptance; document the inert source-backed boundary.
+
+                      The [CEMDM1 module graph](cem-native-schema-capsules.md#dependency-bearing-datatype-module-graphs)
+                      is a separate flat source-backed format. Stable module IDs
+                      avoid recursive capsule loading and circular content hashes.
+                      Shared datatype inspection and leaf verification preserve
+                      original snapshots, exported roots and whole-source agreement.
+                      Deterministic module/declaration orders reject local, self and
+                      cross-module cycles, with original source-field witnesses for
+                      module cycles. Combined depth counts through modules and DT1
+                      leaves; outer work and total bytes stay bounded, while nested
+                      leaf decoders keep their own existing limits. This remains
+                      inert metadata: source selections/code closure are not proven,
+                      no callbacks run, and the distinct verified type does not enter
+                      existing CEMDP1 fresh-host APIs. Module runtime binding and
+                      additional operation/constant profiles remain open above.
+
+                      Module-graph verification: a missing-API fixture failed first;
+                      eleven new integration and five native verifier/order cases
+                      now pass. All 615 distinct native cases passed (417 integration,
+                      198 core/shared traversal), including the legacy CEMDP1 source,
+                      selection, compilation and ownership contracts. The WASM-target
+                      check, 18 component browser cases, ten audit/factory cases and
+                      both WASM drivers passed. Isolated Studio Login recovery passed
+                      in worker and fallback modes (two selected cases, six filtered),
+                      after native builds drained. Source audit, focused Rust
+                      formatting, 278 local documentation targets and diff checks
+                      passed. Existing component (11,474,094 bytes) and full
+                      (24,202,382 bytes) WASM assets were exercised, not rebuilt.
+                      No application JavaScript, new WASM endpoint or receiver
+                      admission was added. Entered credentials still block recovery;
+                      automatic whole-Studio recovery stays disabled, with 4 MiB
+                      checkpoints and five-second deadlines unchanged. Generated
+                      screenshots and Vitest attachments are excluded.
                     - [x] Add native datatype-root preparation invocations using
                       shared evidence immutability/metadata checks and cumulative
                       preparation/validation budgets. Add scalar/list, missing/

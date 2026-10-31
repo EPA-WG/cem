@@ -841,9 +841,15 @@ The [primitive compiler contract](docs/cem-native-schema-capsules.md#fresh-host-
 now also has an [explicit imported-rule path](docs/cem-native-schema-capsules.md#explicit-imported-rule-owners):
 QD1/NR1 rules bind to caller-held owners and actual original source contexts,
 with shared work limits, weak native callback ownership and reentry refusal.
-Unbound rules and other executable hooks still refuse. Dependency-bearing datatype
-modules, wider operation/constant profiles and mixed receiver/runtime admission
+Unbound rules and other executable hooks still refuse. Actual-host binding for
+dependency-bearing datatype modules, wider operation/constant profiles and mixed receiver/runtime admission
 remain pending.
+Native CEMDM1 now adds a separate flat source-backed module graph with stable
+module IDs, shared source/leaf verification, deterministic dependency orders and
+original-field cycle witnesses. This remains inert metadata: actual fresh-host
+module selection/compilation is the next gate, followed by broader operation/
+constant profiles and runtime integration. See the
+[module graph contract](docs/cem-native-schema-capsules.md#dependency-bearing-datatype-module-graphs).
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

@@ -18,23 +18,52 @@ fn name(s: &str) -> bool {
         && s.bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
 }
-pub(super) fn inspect(
-    capture: &Arc<LexicallyScopedDocument>,
-    roots: &BTreeSet<AstNodeId>,
-    bindings: &BTreeMap<AstNodeId, DependencyTarget>,
+pub(crate) enum ResolvedTarget {
+    Local(AstNodeId),
+    Datatype(DatatypeSource),
+    Rule,
+}
+pub(crate) fn resolve_leaf_target(
+    target: &DependencyTarget,
     artifacts: &BTreeMap<String, VerifiedArtifact>,
+) -> Result<ResolvedTarget, String> {
+    Ok(match target {
+        DependencyTarget::LocalDatatype(id) => ResolvedTarget::Local(*id),
+        DependencyTarget::Datatype { pin, root } => {
+            let Some(VerifiedArtifact::Datatype(actual)) = artifacts.get(&pin.hash) else {
+                return Err(INVALID.into());
+            };
+            if encode(pin)? != encode(actual.pin())? || !actual.roots().contains(root) {
+                return Err(INVALID.into());
+            }
+            ResolvedTarget::Datatype(actual.sources().get(root).ok_or(INVALID)?.clone())
+        }
+        DependencyTarget::Query(pin) => {
+            let Some(VerifiedArtifact::Query(actual)) = artifacts.get(&pin.hash) else {
+                return Err(INVALID.into());
+            };
+            if encode(pin)? != encode(actual.pin())? {
+                return Err(INVALID.into());
+            }
+            ResolvedTarget::Rule
+        }
+        DependencyTarget::Native(pin) => {
+            let Some(VerifiedArtifact::Native(actual)) = artifacts.get(&pin.hash) else {
+                return Err(INVALID.into());
+            };
+            if encode(pin)? != encode(actual.pin())?
+                || !matches!(&actual.requirement, native::Requirement::Validator(_))
+            {
+                return Err(INVALID.into());
+            }
+            ResolvedTarget::Rule
+        }
+    })
+}
+pub(crate) fn catalog(
+    capture: &Arc<LexicallyScopedDocument>,
     work: &Work<'_>,
-) -> Result<
-    (
-        BTreeMap<AstNodeId, DatatypeSource>,
-        Vec<DependencySite>,
-        Vec<AstNodeId>,
-    ),
-    String,
-> {
-    if roots.is_empty() || roots.len() > 32 {
-        return Err(INVALID.into());
-    }
+) -> Result<BTreeMap<AstNodeId, DatatypeSource>, String> {
     let mut schemas = vec![];
     for node in &capture.document().nodes {
         work.check()?;
@@ -80,6 +109,48 @@ pub(super) fn inspect(
     if catalog.len() > 64 {
         return Err(INVALID.into());
     }
+    Ok(catalog)
+}
+pub(super) fn inspect(
+    capture: &Arc<LexicallyScopedDocument>,
+    roots: &BTreeSet<AstNodeId>,
+    bindings: &BTreeMap<AstNodeId, DependencyTarget>,
+    artifacts: &BTreeMap<String, VerifiedArtifact>,
+    work: &Work<'_>,
+) -> Result<
+    (
+        BTreeMap<AstNodeId, DatatypeSource>,
+        Vec<DependencySite>,
+        Vec<AstNodeId>,
+    ),
+    String,
+> {
+    let catalog = catalog(capture, work)?;
+    inspect_catalog(
+        roots,
+        bindings,
+        &catalog,
+        |target| resolve_leaf_target(target, artifacts),
+        work,
+    )
+}
+pub(crate) fn inspect_catalog<T: Clone>(
+    roots: &BTreeSet<AstNodeId>,
+    bindings: &BTreeMap<AstNodeId, T>,
+    catalog: &BTreeMap<AstNodeId, DatatypeSource>,
+    mut resolve: impl FnMut(&T) -> Result<ResolvedTarget, String>,
+    work: &Work<'_>,
+) -> Result<
+    (
+        BTreeMap<AstNodeId, DatatypeSource>,
+        Vec<DependencySite<T>>,
+        Vec<AstNodeId>,
+    ),
+    String,
+> {
+    if roots.is_empty() || roots.len() > 32 {
+        return Err(INVALID.into());
+    }
     let mut pending = roots.clone();
     let mut sources = BTreeMap::new();
     let mut sites = vec![];
@@ -112,29 +183,23 @@ pub(super) fn inspect(
             if !used.insert(field) || sites.len() >= 128 {
                 return Err(INVALID.into());
             }
-            match target {
-                DependencyTarget::LocalDatatype(selected) => {
+            match resolve(target)? {
+                ResolvedTarget::Local(selected) => {
                     if dep.role == Role::ValidationRule {
                         return Err(INVALID.into());
                     }
-                    let actual = catalog.get(selected).ok_or(INVALID)?;
+                    let actual = catalog.get(&selected).ok_or(INVALID)?;
                     if let Value::Literal(n) = &dep.value {
                         if !matches!(actual.attribute("name").map(|a|a.node()),Some(CemAstNode::Attribute{value:Some(actual),..}) if actual==n)
                         {
                             return Err(INVALID.into());
                         }
                     }
-                    pending.insert(*selected);
-                    edges.entry(id).or_default().insert(*selected);
+                    pending.insert(selected);
+                    edges.entry(id).or_default().insert(selected);
                 }
-                DependencyTarget::Datatype { pin, root } => {
+                ResolvedTarget::Datatype(actual) => {
                     if dep.role == Role::ValidationRule {
-                        return Err(INVALID.into());
-                    }
-                    let Some(VerifiedArtifact::Datatype(actual)) = artifacts.get(&pin.hash) else {
-                        return Err(INVALID.into());
-                    };
-                    if encode(pin)? != encode(actual.pin())? || !actual.roots().contains(root) {
                         return Err(INVALID.into());
                     }
                     if let Value::Literal(n) = &dep.value {
@@ -143,35 +208,14 @@ pub(super) fn inspect(
                         };
                         if !name(prefix)
                             || !name(local)
-                            || actual
-                                .source_named(local)
-                                .is_none_or(|t| t.declaration().node_id() != *root)
+                            || !matches!(actual.attribute("name").map(|a|a.node()),Some(CemAstNode::Attribute{value:Some(n),..}) if n==local)
                         {
                             return Err(INVALID.into());
                         }
                     }
                 }
-                DependencyTarget::Query(pin) => {
+                ResolvedTarget::Rule => {
                     if dep.role != Role::ValidationRule {
-                        return Err(INVALID.into());
-                    }
-                    let Some(VerifiedArtifact::Query(actual)) = artifacts.get(&pin.hash) else {
-                        return Err(INVALID.into());
-                    };
-                    if encode(pin)? != encode(actual.pin())? {
-                        return Err(INVALID.into());
-                    }
-                }
-                DependencyTarget::Native(pin) => {
-                    if dep.role != Role::ValidationRule {
-                        return Err(INVALID.into());
-                    }
-                    let Some(VerifiedArtifact::Native(actual)) = artifacts.get(&pin.hash) else {
-                        return Err(INVALID.into());
-                    };
-                    if encode(pin)? != encode(actual.pin())?
-                        || !matches!(&actual.requirement, native::Requirement::Validator(_))
-                    {
                         return Err(INVALID.into());
                     }
                 }

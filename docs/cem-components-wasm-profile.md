@@ -339,6 +339,11 @@ now binds QD1/NR1 rules to caller-held owners and actual source contexts, with
 shared validation budgets and weak native ownership. Unbound rules and other
 executable hooks still refuse; complete code closure and portable/runtime
 admission remain pending.
+The [native module graph](cem-native-schema-capsules.md#dependency-bearing-datatype-module-graphs)
+now verifies flat dependency-bearing modules, original sources and bounded
+acyclic module/declaration orders through shared datatype and leaf checks.
+It remains inert: actual-host module binding and runtime admission are pending.
+
 
 Do not equate downloaded code with an active native generation. Register every
 physical endpoint and its resources with the shared ownership/recovery group.

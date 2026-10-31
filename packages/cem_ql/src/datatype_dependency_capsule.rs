@@ -27,37 +27,39 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
-mod graph;
+pub(crate) mod graph;
+mod leaves;
+pub(crate) use leaves::{remember_source, verify_leaf_artifacts, SourceAgreement};
 mod selection_inputs;
 pub const MAGIC: &[u8] = b"CEMDP1\n";
 const ABI: &str = "cem.native-datatype-dependencies/1";
 const INVALID: &str = "native datatype dependencies refused";
 const MAX_BYTES: usize = 64 * 1024;
-fn hash(bytes: &[u8]) -> String {
+pub(crate) fn hash(bytes: &[u8]) -> String {
     ContentHash::from_blake3(bytes).header_value()
 }
-fn valid_hash(s: &str) -> bool {
+pub(crate) fn valid_hash(s: &str) -> bool {
     s.strip_prefix("cem-bin/1+blake3:").is_some_and(|s| {
         s.len() == 64
             && s.bytes()
                 .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
     })
 }
-fn encode(value: &impl Serialize) -> Result<Vec<u8>, String> {
+pub(crate) fn encode(value: &impl Serialize) -> Result<Vec<u8>, String> {
     rmp_serde::to_vec_named(value).map_err(|_| INVALID.into())
 }
-struct Work<'a> {
+pub(crate) struct Work<'a> {
     control: &'a OperationControl,
     left: Cell<usize>,
 }
 impl<'a> Work<'a> {
-    fn new(control: &'a OperationControl) -> Self {
+    pub(crate) fn new(control: &'a OperationControl) -> Self {
         Self {
             control,
             left: Cell::new(100_000),
         }
     }
-    fn check(&self) -> Result<(), String> {
+    pub(crate) fn check(&self) -> Result<(), String> {
         self.left
             .set(self.left.get().checked_sub(1).ok_or(INVALID)?);
         self.control
@@ -149,20 +151,20 @@ impl DependencyArtifact {
         self.pin.hash()
     }
 }
-enum VerifiedArtifact {
+pub(crate) enum VerifiedArtifact {
     Datatype(VerifiedDatatypeSources),
     Query(VerifiedQueryDeclaration),
     Native(VerifiedNativeRequirement),
 }
 impl VerifiedArtifact {
-    fn source(&self) -> &SourceIdentity {
+    pub(crate) fn source(&self) -> &SourceIdentity {
         match self {
             Self::Datatype(a) => &a.pin().source,
             Self::Query(a) => &a.pin().program.source,
             Self::Native(a) => &a.pin().source,
         }
     }
-    fn capture(&self) -> &Arc<LexicallyScopedDocument> {
+    pub(crate) fn capture(&self) -> &Arc<LexicallyScopedDocument> {
         match self {
             Self::Datatype(a) => a.capture(),
             Self::Query(a) => a.capture(),
@@ -171,12 +173,13 @@ impl VerifiedArtifact {
     }
 }
 /// Original source occurrences, not a runtime-ready descriptor or permission.
-pub struct DependencySite {
+#[derive(Clone)]
+pub struct DependencySite<T = DependencyTarget> {
     pub datatype: AstNodeId,
     pub field: AstNodeId,
     pub reference: Option<AstNodeId>,
     pub role: String,
-    pub target: DependencyTarget,
+    pub target: T,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -298,56 +301,19 @@ pub fn verify(
         .filter_map(DependencyTarget::external)
         .map(str::to_owned)
         .collect::<BTreeSet<_>>();
-    if artifacts.len() > 64
-        || artifacts.len() != required.len()
-        || artifacts
-            .iter()
-            .map(|a| a.bytes.len())
-            .try_fold(bytes.len(), |sum, n| sum.checked_add(n))
-            .is_none_or(|n| n > 4 * 1024 * 1024)
-    {
-        return Err(INVALID.into());
-    }
-    let mut dependencies = BTreeMap::new();
     let mut snapshots = BTreeMap::from([(
         pin.source.uri.clone(),
         (pin.source.clone(), hash(&encode(&capsule.source)?)),
     )]);
-    for artifact in artifacts {
-        work.check()?;
-        let id = artifact.id();
-        if !required.contains(id)
-            || dependencies.contains_key(id)
-            || artifact.pin.registry() != pin.registry_hash
-        {
-            return Err(INVALID.into());
-        }
-        let verified = match &artifact.pin {
-            ArtifactPin::Datatype(p) => {
-                VerifiedArtifact::Datatype(datatype::verify(&artifact.bytes, p, control)?)
-            }
-            ArtifactPin::Query(p) => {
-                VerifiedArtifact::Query(query::verify(&artifact.bytes, p, control)?)
-            }
-            ArtifactPin::Native(p) => {
-                VerifiedArtifact::Native(native::verify(&artifact.bytes, p, control)?)
-            }
-        };
-        let snapshot = NativeDependencySourceSnapshot::capture(
-            verified.capture(),
-            verified.source(),
-            &mut || work.check(),
-        )?;
-        let entry = (verified.source().clone(), hash(&encode(&snapshot)?));
-        if snapshots
-            .get(&verified.source().uri)
-            .is_some_and(|previous| previous != &entry)
-        {
-            return Err(INVALID.into());
-        }
-        snapshots.insert(verified.source().uri.clone(), entry);
-        dependencies.insert(id.to_owned(), verified);
-    }
+    let dependencies = verify_leaf_artifacts(
+        artifacts,
+        &required,
+        &pin.registry_hash,
+        bytes.len(),
+        &mut snapshots,
+        &work,
+        control,
+    )?;
     let (sources, sites, order) = graph::inspect(
         &capture,
         &capsule.roots,
