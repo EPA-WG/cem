@@ -56,7 +56,10 @@ selections against original scopes and per-hop grants. Native CEMDM2 compilation
 now renews those selections inside the shared compiler and installs exact,
 explicitly owned CEMOS1 profiles. Guarded synchronous root preparation, conversion
 and list serialization now share its actual source contexts and owner guards.
-Application/receiver publication remains a separate gate; CEMDM1 is unchanged.
+The [CEMAPPD3 native installation](#native-assembly-application-installation)
+now stages exact graph/root compilation owners and atomically replaces guarded
+native root invocations. Mixed receiver/runtime publication remains a separate
+gate; CEMDM1 is unchanged.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -799,12 +802,91 @@ malformed or repinned records, cancellation, limits and failed staging.
 
 This is a package verification boundary. It does not compile datatypes, link
 callbacks, resolve a live reference, evaluate a source, install roots or publish
-component permissions. Atomic actual-host root/owner installation and replacement,
-mixed node/scalar/executable named receivers, physical-generation worker/fallback
-transport and checkpoint ownership remain separate gates. Existing CEMAPPD1 and
+component permissions. The separately invoked native installation below now binds
+explicit actual-host compilations; mixed node/scalar/executable named receivers,
+physical-generation worker/fallback transport and checkpoint ownership remain
+separate gates. Existing CEMAPPD1 and
 CEMAPPD2 readers and component admission refuse CEMAPPD3. Entered credentials
 still block recovery until cleared, automatic whole-Studio recovery remains off,
 and the 4 MiB checkpoint and five-second deadline policies remain unchanged.
+
+## Native assembly application installation
+
+[`structural_receiver::application::v3`](../packages/cem_ql/src/structural_receiver/application/v3.rs)
+adds an explicitly invoked CEMAPPD3 `stage`, `LinkedApplication`,
+`InstalledDatatypeRoot` and `ApplicationSlot`. The verified envelope now exposes
+`application_owner`, `assembly_owner` and `assembly_ids` so the embedding can
+prepare source scopes and compilations from the exact original checked arenas.
+The existing borrowed metadata accessors and wire bytes are unchanged. These
+inert owner accessors grant no execution or receiver permission.
+
+Before staging, the embedding establishes actual source/lexical scopes,
+readiness, directed crossing grants, native registrations, weak rule/operation
+owners and ordinary CEMDM2 compilations. `stage` takes the actual host, verified
+envelope, existing structural receiver source/binding requests and an exact map
+from assembly hashes to caller-held `Arc<FreshDependencyDatatypeCompilation>`
+owners. Missing/extra graph bindings refuse. Every selected root must have a ready
+compiled descriptor on the exact graph owner supplied by that envelope. A
+separately restored graph with identical pins cannot substitute for that source
+arena; matching pointers alone are insufficient without the host context,
+registry, original descriptor and live weak owners.
+
+Staging checks the existing CEMAPPD2 application through its unchanged native
+link path and creates all root guards before exposing the result. It neither
+changes a source context or host registry nor compiles, evaluates a selector,
+fetches a resource or invokes a user callback. It uses the compilation already
+prepared by the embedding; it does not freeze mutable providers or claim a new
+source-freshness proof. Changed inputs still require the ordinary renewed
+selection/compilation path.
+
+One installation-wide guard covers every named root, including roots from
+multiple assemblies. Every access and invocation checks the actual host/context,
+base application guards, exact original graph/root descriptors and all required
+compilation/rule/operation lifetimes. A missing or retired peer owner makes
+retained sibling roots unavailable too. The guard borrows compilation and graph
+owners weakly and never retains a native host or callback. The embedding must
+keep its compilation and implementation owners alive; passing a temporary last
+owner to staging cannot authorize a subsequent publication.
+
+`ApplicationSlot::publish` repeats these checks immediately before one synchronous
+native slot replacement. Failed staging/publication preserves the previous slot.
+Dropping a staged candidate, clearing/replacing a slot, or explicitly retiring
+an installed root revokes that installation's shared root guard. Cloned roots
+observe retirement, while caller-held compilations and native registrations
+remain usable by other installations. Old structural receiver models retire
+with the old base application through its existing guards. Retained CEMAPPD2
+models keep those per-receiver contracts; named datatype roots are not grafted
+into their attribute models.
+
+`InstalledDatatypeRoot::{validate,prepare_lexical,convert,serialize_list}` delegates
+to the ordinary guarded compilation entry point with the selected original root,
+input and limits. The original restricted operation/rule contexts, diagnostics,
+spans, cumulative/query budgets and missing-capability behavior remain intact.
+Each invocation borrows an owner only for the call and rechecks installation-wide
+liveness before returning. Clearing/replacing the installation during a callback
+withholds late output. Busy compilations refuse nested installed-root calls,
+staging and publication; an existing installation becomes usable again when its
+ordinary invocation finishes. No callback is replayed to establish readiness.
+
+The checked CEMAPPD3 inventory bounds remain: eight graph owners, at most 64 named
+roots and 64 restored graph modules, plus all existing base-application and nested
+format limits. Staging adds at most one root guard and one weak ownership entry
+per alias. It does not raise a heap/checkpoint limit or establish a measured
+resident-memory budget. The
+[installation fixtures](../packages/cem_ql/tests/support/datatype_assembly_installation.rs)
+reuse ordinary inherited scalar/list preparation, conversion, serialization,
+rule and source-context fixtures. They cover exact source owners, root-only
+access, callback-free staging, transactional replacement, weak ownership,
+cancellation, reentry, peer loss across assemblies, late reports and structural
+model compatibility.
+
+This slot installs native root invocations only. It is not a component registry,
+physical-generation transaction, portable receipt, mixed receiver contract or
+WASM/worker/fallback endpoint. CEMAPPD1/CEMAPPD2 admission remains unchanged and
+still refuses CEMAPPD3; the envelope's selection/executable/native-link closure
+flags remain false. Entered credentials continue to block recovery until
+explicitly cleared; automatic whole-Studio recovery stays disabled, with 4 MiB
+checkpoints and five-second deadlines.
 
 ## Native application receiver assembly
 

@@ -114,6 +114,39 @@ impl FreshDependencyDatatypeCompilation {
             descriptor.validate_with_rule_contexts(input, runtime, limits, contexts)
         })
     }
+    /// Exact in-process assembly/source ownership and root readiness. Metadata
+    /// pins alone cannot install another independently restored graph's owners.
+    pub(in crate::structural_receiver) fn matches_assembly_root(
+        &self,
+        host: &FreshStructuralHost,
+        graph: &Arc<crate::datatype_module_capsule::v2::VerifiedDatatypeModules>,
+        root: AstNodeId,
+    ) -> bool {
+        self.check(host).is_ok()
+            && !self.executing.load(Ordering::Acquire)
+            && matches!(&self.inputs, Inputs::Assembly(actual) if Arc::ptr_eq(actual, graph))
+            && self.root_descriptor(root).is_ok()
+    }
+    fn root_descriptor(&self, root: AstNodeId) -> Result<&ExecutableDatatype, String> {
+        let root_view = self.inputs.borrow().view(None)?;
+        if !root_view.exports.ok_or(REFUSED)?.contains(&root) {
+            return Err(REFUSED.into());
+        }
+        let source = root_view
+            .datatypes
+            .ok_or(REFUSED)?
+            .get(&root)
+            .ok_or(REFUSED)?;
+        self.compilation
+            .contracts
+            .iter()
+            .filter_map(|c| c.as_any().downcast_ref::<ExecutableDatatype>())
+            .find(|c| {
+                c.source().declaration().identity() == source.declaration().identity()
+                    && c.source().scope().identity() == source.scope().identity()
+            })
+            .ok_or_else(|| REFUSED.into())
+    }
     fn with_root<T>(
         &self,
         host: &FreshStructuralHost,
@@ -129,25 +162,7 @@ impl FreshDependencyDatatypeCompilation {
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .map_err(|_| REFUSED)?;
         let _entry = ExecutionEntry(&self.executing);
-        let root_view = self.inputs.borrow().view(None)?;
-        if !root_view.exports.ok_or(REFUSED)?.contains(&root) {
-            return Err(REFUSED.into());
-        }
-        let source = root_view
-            .datatypes
-            .ok_or(REFUSED)?
-            .get(&root)
-            .ok_or(REFUSED)?;
-        let descriptor = self
-            .compilation
-            .contracts
-            .iter()
-            .filter_map(|c| c.as_any().downcast_ref::<ExecutableDatatype>())
-            .find(|c| {
-                c.source().declaration().identity() == source.declaration().identity()
-                    && c.source().scope().identity() == source.scope().identity()
-            })
-            .ok_or(REFUSED)?;
+        let descriptor = self.root_descriptor(root)?;
         let runtime = ValidationRuntime {
             control: &host.control,
             scope: ROOT_EXECUTION_SCOPE_ID,

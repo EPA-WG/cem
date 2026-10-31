@@ -394,11 +394,40 @@ struct Fixture {
     rules: BTreeMap<String, Arc<FreshDatatypeRuleBinding>>,
     scalar: AstNodeId,
     list: AstNodeId,
+    scopes: BTreeMap<String, DeclarationScope>,
+    implementations: Vec<DatatypeImplementation>,
+    control: OperationControl,
 }
 fn fixture_ops() -> Fixture {
     fixture_with_rule(false)
 }
 fn fixture_with_rule(rule: bool) -> Fixture {
+    fixture_custom(
+        rule,
+        |bytes, artifacts, profiles| {
+            Arc::new(
+                assembly::verify(
+                    &bytes.bytes,
+                    &bytes.pin,
+                    &artifacts,
+                    &profiles,
+                    &OperationControl::default(),
+                )
+                .unwrap(),
+            )
+        },
+        |_| {},
+    )
+}
+fn fixture_custom(
+    rule: bool,
+    load: impl FnOnce(
+        assembly::BuiltDatatypeModules,
+        Vec<cem_ql::datatype_dependency_capsule::DependencyArtifact>,
+        Vec<assembly::ProfileArtifact>,
+    ) -> Arc<assembly::VerifiedDatatypeModules>,
+    setup: impl FnOnce(&mut FreshStructuralHost),
+) -> Fixture {
     let text="@ns s = https://cem.dev/ns/schema/1\n@default s\n{schema @namespace=urn:core | {types | {type @name=scalar @kind=scalar}}}";
     let text = if rule {
         text.replace("@kind=scalar", "@kind=scalar @rule={#check}")
@@ -499,10 +528,8 @@ fn fixture_with_rule(rule: bool) -> Fixture {
         &control,
     )
     .unwrap();
-    let g = Arc::new(
-        assembly::verify(&bytes.bytes, &bytes.pin, &artifacts, &profiles, &control).unwrap(),
-    );
-    let mut h = FreshStructuralHost::new(&hash(b"registry"), Default::default()).unwrap();
+    let g = load(bytes, artifacts, profiles.into());
+    let mut h = FreshStructuralHost::new(&hash(b"registry"), control.clone()).unwrap();
     let mut scopes = BTreeMap::new();
     for id in g.module_ids().chain(g.leaf_ids()) {
         let mut context = StandaloneExpressionContext::default();
@@ -574,6 +601,7 @@ fn fixture_with_rule(rule: bool) -> Fixture {
         .unwrap();
         h.allow_scope_crossing(scopes["core"], scopes[id]);
     }
+    setup(&mut h);
     let state = Arc::new(State::default());
     if rule {
         h.register_native_validator(rule_identity(), Gate(state.clone()))
@@ -699,6 +727,9 @@ fn fixture_with_rule(rule: bool) -> Fixture {
         rules,
         scalar,
         list,
+        scopes: others,
+        implementations: primitives,
+        control,
     }
 }
 fn list_input(words: &[&str]) -> ValidationInput {
@@ -1233,3 +1264,6 @@ fn assembly_root_operations_withhold_late_results_and_keep_callbacks_weak() {
     drop(f.c);
     drop(f.bindings);
 }
+
+#[path = "datatype_assembly_installation.rs"]
+mod installation;

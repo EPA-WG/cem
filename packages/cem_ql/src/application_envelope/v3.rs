@@ -8,7 +8,10 @@ use crate::{
 };
 use cem_ml::{operation_control::OperationControl, parser::AstNodeId};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 mod agreement;
 mod inventory;
 pub const MAGIC: &[u8] = b"CEMAPPD3\n";
@@ -225,8 +228,8 @@ pub enum DependencyKey {
 pub struct VerifiedApplicationEnvelope {
     pin: ApplicationEnvelopePin,
     roots: BTreeMap<String, AssemblyRoot>,
-    application: super::VerifiedApplicationEnvelope,
-    assemblies: BTreeMap<String, assembly::VerifiedDatatypeModules>,
+    application: Arc<super::VerifiedApplicationEnvelope>,
+    assemblies: BTreeMap<String, Arc<assembly::VerifiedDatatypeModules>>,
     order: Vec<DependencyKey>,
 }
 impl VerifiedApplicationEnvelope {
@@ -239,8 +242,19 @@ impl VerifiedApplicationEnvelope {
     pub fn application(&self) -> &super::VerifiedApplicationEnvelope {
         &self.application
     }
+    /// Inert original owner for explicit actual-host staging, not a binding.
+    pub fn application_owner(&self) -> &Arc<super::VerifiedApplicationEnvelope> {
+        &self.application
+    }
     pub fn assembly(&self, id: &str) -> Option<&assembly::VerifiedDatatypeModules> {
+        self.assemblies.get(id).map(Arc::as_ref)
+    }
+    /// Keep the checked source arenas when preparing actual-host compilations.
+    pub fn assembly_owner(&self, id: &str) -> Option<&Arc<assembly::VerifiedDatatypeModules>> {
         self.assemblies.get(id)
+    }
+    pub fn assembly_ids(&self) -> impl Iterator<Item = &str> {
+        self.assemblies.keys().map(String::as_str)
     }
     pub fn assembly_count(&self) -> usize {
         self.assemblies.len()
@@ -318,7 +332,7 @@ pub fn verify(
             return Err(INVALID.into());
         }
         agreement.assembly(&graph)?;
-        assemblies.insert(id.clone(), graph);
+        assemblies.insert(id.clone(), Arc::new(graph));
     }
     for root in m.roots.values() {
         work.check()?;
@@ -337,7 +351,7 @@ pub fn verify(
     Ok(VerifiedApplicationEnvelope {
         pin: pin.clone(),
         roots: m.roots,
-        application,
+        application: Arc::new(application),
         assemblies,
         order,
     })

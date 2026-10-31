@@ -810,8 +810,11 @@ admission/publication remain implementation gates; scalar CEMAPPD1 is unchanged.
 The separately versioned [CEMAPPD3 inventory](docs/cem-native-schema-capsules.md#versioned-assembly-aware-application-envelope)
 now packages that CEMAPPD2 application with exact CEMDM2/CEMOP2/CEMOS1 pins,
 explicit exported datatype roots, bounded inventories and shared complete-source
-and native implementation agreement. Its native verifier remains inert; atomic
-actual-host root/owner installation and mixed receiver publication are next.
+and native implementation agreement. Its native verifier remains inert. The
+[native installation slot](docs/cem-native-schema-capsules.md#native-assembly-application-installation)
+now stages exact actual-host compilation owners and atomically replaces guarded
+root invocations, with installation-wide weak-owner checks and late-result
+suppression. Mixed receiver publication and generation-bound transport remain next.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 

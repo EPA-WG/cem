@@ -377,7 +377,10 @@ assembly-aware [application packaging](cem-native-schema-capsules.md#versioned-a
 now uses separate CEMAPPD3 inventories with exact CEMDM2/CEMOP2/CEMOS1 pins,
 explicit exported roots and shared complete-source/implementation agreement.
 Its inert verifier preserves the CEMAPPD2 structural application and all nested
-bounds. Atomic actual-host root/owner installation and mixed receiver publication
+bounds. The [native installation slot](cem-native-schema-capsules.md#native-assembly-application-installation)
+now binds exact caller-held actual-host compilation owners and atomically replaces
+root guards. Shared weak ownership checks cover every retained root, peer loss,
+reentry and late output. Mixed receiver publication and generation-bound transport
 remain next; no portable/runtime admission is implied.
 
 

@@ -11,6 +11,7 @@ use cem_ml::schema::attribute_datatypes::{
     AttributeDatatypeContextLease, CompiledAttributeDatatype,
 };
 mod occurrences;
+pub mod v3;
 const INVALID: &str = "native application assembly refused";
 
 /// Supplied by the trusted fresh embedding, never reconstructed from public IDs.
