@@ -25,6 +25,9 @@ owners also invalidate retained evidence in the shared attribute path.
 Native `CEMDP1` separately pins intended datatype dependency fields and verified
 DT1/QD1/NR1 inputs, including passive original references. These are source-backed
 build assertions, not checked host selections, crossing grants or executable closure.
+A native fresh-host adapter now checks those selections against actual source
+scopes, original aliases, explicit exports and directed grants. Its local inspection
+result remains separate from datatype compilation and receiver publication.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -897,6 +900,84 @@ Mixed receiver formats, native code closure, application/WASM admission and
 worker/fallback checkpoint enrollment remain pending. Existing credential refusal,
 4 MiB checkpoints, five-second deadlines and disabled automatic whole-Studio
 recovery are unchanged.
+
+## Fresh-host datatype dependency selection
+
+The native [selection adapter](../packages/cem_ql/src/structural_receiver/dependencies.rs)
+checks CEMDP1's intended dependencies using the **actual**
+`FreshStructuralHost`. It borrows the existing resolver, source contexts, policies
+and directed grants; it neither clones the host nor installs a persistent name
+catalog. Original datatype name discovery and dependency traversal remain the
+shared implementations. No target is selected directly from the capsule's assertion.
+
+`dependency_ids`, `dependency_source`, `dependency_capture` and `roots` expose
+read-only verified source inputs. First call `register_dependency_scope` for the
+root and each supplied module, passing each actual runtime context/readiness and
+reference policy explicitly. Registration attaches immutable captured names and
+namespace metadata to the exact original arena. It creates no crossing grant.
+Generic tree registration is insufficient: preparation and selection require the
+exact verified capture to be attached already, so discovery cannot admit it
+implicitly or change an unchanged prior context's metadata.
+`prepare_dependency_lexical_scopes` then passes each saved original occurrence and
+snapshot to an explicit context/policy preparation callback. Missing contexts
+stay pending; a ready root context cannot stand in for an unprepared occurrence.
+Preparation failures that mutate nothing preserve prior selection results.
+
+`DatatypeDependencyImport` explicitly names the consuming registered scope, a
+verified DT1 module and one of its exported roots. The exported namespace/name
+come from that target's original schema/declaration fields, without consumer
+aliases, renaming or a built-in fallback. Ordinary discovery resolves the original
+namespace snapshots and `use` declarations. Unexported names, conflicting aliases,
+non-exported roots and duplicate/unknown import requests refuse. Import requests
+create no permission: an actual directed relationship grant is still required
+for both literal and native crossings. A reverse grant is insufficient.
+
+Call `select_datatype_dependencies` with the root scope, the exact module-to-scope
+map, explicit imports and bounded traversal limits. Every given scope must own
+the exact verified source tree and be the schema's actual registered source scope;
+its context must be ready. Matching URIs, source hashes, node numbers or foreign
+host indices cannot substitute another allocation. Each reached original field
+must select exactly the asserted original target. Imported local inheritance is
+looked up in the vendor's own environment. Native references run only in explicitly
+prepared original occurrence contexts; their existing selector compilation and
+evaluation use the actual host's capabilities and controls. Query/native validator
+behavior targets remain terminal metadata and their implementations do not run.
+Unknown datatype sources are not traversed as if they were verified declarations.
+
+The ordinary resolver enforces singleton targets, reference cycles, request and
+per-destination traversal bounds. Dependency walks share the remaining request
+work across capsule roots; destination policies apply to each ordinary walk.
+Name discovery is a separately bounded phase, with existing name-byte limits.
+Requests refuse zero bounds, depth over 64, work over 100,000 or more than 128
+import declarations. These bounds do not claim one aggregate phase/heap budget
+or future cross-module code closure. Cancellation or a callback-time stop cannot
+return a completed selection. Original reference target lists remain untouched.
+
+`FreshDatatypeDependencySelection` contains inspection counts and immutable capsule
+data, with a weak lease on the actual host context. `is_live`, `site_count` and
+`datatype_count` check that host/context and operation; `retire` closes the result.
+Changing a context, adding scopes/grants, successfully preparing occurrences,
+closing/dropping the host or using a foreign host invalidates use. Retaining the
+result does not retain host callbacks, and inspecting it never replays selectors.
+Failed selection attempts publish nothing and leave an unchanged prior context live.
+
+**This is not a retained permission to compile or publish.** Context liveness does
+not freeze mutable native callbacks or provider data. A new selection attempt
+reevaluates selectors, and a future cross-source compiler must perform selection
+and compilation in its checked invocation rather than trust a historical result.
+Portable `selections_verified()` and `executable_closure_verified()` remain false.
+No datatype/validator implementation is compiled or registered by this adapter,
+and no receiver is installed. Dependency-bearing datatype modules, wider
+operation/constant closure, actual cross-source compilation and worker/fallback
+transport/checkpoint enrollment remain pending. Existing application formats,
+WASM endpoints, credential refusal, disabled automatic whole-Studio recovery,
+4 MiB checkpoints and five-second deadlines are unchanged.
+
+The [native selection fixtures](../packages/cem_ql/tests/datatype_dependency_capsule/selection.rs)
+cover original aliases/contexts, vendor inheritance, exact QD1/NR1 targets,
+missing/reverse grants and exports, pending inputs, wrong/empty/multiple/cyclic
+selections, source/host identity, budgets, cancellation, stale results and weak
+callback lifetime release.
 
 ## Guarded datatype preparation handoff
 

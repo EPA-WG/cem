@@ -830,6 +830,12 @@ Verification checks supplied artifacts and complete-source agreement; intended
 selections remain trusted assertions until the actual fresh host resolves them
 under source policies and crossing grants. It enables neither compilation nor
 receiver publication. See the [dependency contract](docs/cem-native-schema-capsules.md#inert-datatype-dependency-assertions).
+Native fresh-host selection now resolves those fields through the actual shared
+resolver and original name catalog, requiring ready source/occurrence contexts,
+explicit exported roots and directed crossing grants. Local inspection results
+expire with host context changes and retain no callbacks; they grant no future
+compilation/publication permission. Checked cross-source compilation remains a
+separate gate; see [selection semantics](docs/cem-native-schema-capsules.md#fresh-host-datatype-dependency-selection).
 
 The [profile design](docs/cem-components-wasm-profile.md) defines ownership,
 capability boundaries, native handoff, package targets, lifecycle and acceptance.

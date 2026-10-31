@@ -28,6 +28,7 @@ use std::{
     sync::Arc,
 };
 mod graph;
+mod selection_inputs;
 pub const MAGIC: &[u8] = b"CEMDP1\n";
 const ABI: &str = "cem.native-datatype-dependencies/1";
 const INVALID: &str = "native datatype dependencies refused";
@@ -191,6 +192,7 @@ struct Capsule {
 }
 pub struct VerifiedDatatypeDependencies {
     pin: DatatypeDependenciesPin,
+    roots: BTreeSet<AstNodeId>,
     capture: Arc<LexicallyScopedDocument>,
     source: Arc<RetainedCemTree>,
     sources: BTreeMap<AstNodeId, DatatypeSource>,
@@ -364,6 +366,7 @@ pub fn verify(
     work.check()?;
     Ok(VerifiedDatatypeDependencies {
         pin: pin.clone(),
+        roots: capsule.roots,
         capture,
         source,
         sources,

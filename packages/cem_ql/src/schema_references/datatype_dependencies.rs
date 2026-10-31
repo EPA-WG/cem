@@ -160,3 +160,20 @@ impl DatatypeDependencyHost for CemQlSchemaDeclarationHost {
             })
     }
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+impl CemQlSchemaDeclarationHost {
+    /// Exact immutable capture admission, separate from tree registration. A
+    /// selection consumer must not change metadata as a side effect of discovery.
+    pub(crate) fn has_datatype_source_capture(
+        &self,
+        capture: &Arc<cem_ml::schema::machine::LexicallyScopedDocument>,
+    ) -> bool {
+        let owner = Arc::as_ptr(capture.document()) as usize;
+        self.captured_names.contains_key(&owner)
+            && self
+                .captured_namespaces
+                .get(&owner)
+                .is_some_and(|old| Arc::ptr_eq(old, capture))
+    }
+}

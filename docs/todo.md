@@ -2107,11 +2107,90 @@ inventory, not the minimum set loaded by every app.
                       recovery; automatic whole-Studio recovery stays disabled,
                       with 4 MiB checkpoints and five-second deadlines unchanged.
                       Generated screenshots and Vitest attachments are excluded.
-                    - [ ] Bind imported QName/type selections through actual fresh
+                    - [x] Bind imported QName/type selections through actual fresh
                       source scopes, per-source policies and directed crossing
                       grants. Add missing/stale/unavailable/import-cycle and
                       original-namespace fixtures before cross-source compilation;
                       never substitute defaults or consumer-side aliases.
+                      - [x] Add checked source registration and explicit captured
+                        lexical-context preparation; test exact owners/host scopes,
+                        pending contexts, original namespace aliases and export roots.
+                        Refuse generic tree registration without the exact verified
+                        capture already attached; do not attach metadata implicitly
+                        during selection or invalidate an unchanged prior result.
+                      - [x] Resolve intended dependency sites through the actual
+                        host's shared name catalog/traversal and directed grants.
+                        Test exact QD1/NR1 rule targets without implementation
+                        execution, missing/reverse grants, missing exports, mismatched
+                        targets, reference cycles, destination/request limits,
+                        cancellation and callback-time stops without compilation.
+                      - [x] Keep selection results local and host/context-bound;
+                        test stale/foreign/closed owners, failed-attempt preservation
+                        and callback lifetime release, then run native/WASM/component
+                        and isolated Studio Login privacy acceptance.
+
+                      Native FreshStructuralHost now registers exact verified
+                      source captures with explicitly supplied contexts and
+                      policies, and prepares saved lexical occurrences without
+                      inheriting a ready root's inputs. Selection borrows the actual
+                      resolver and uses shared original name discovery/dependency
+                      traversal. DT1 exports are explicit, restricted to exported
+                      roots and named from their own original schema/declaration.
+                      Original XML/CEM namespace snapshots and use aliases remain
+                      authoritative; consumer aliases/target assertions cannot
+                      repair mismatches. Literal/native crossings require actual
+                      directed grants. Actual selected fields/targets must match
+                      original CEMDP1/DT1 identities, including QD1/NR1 rule targets.
+                      No validator implementation is executed or registered.
+                      A red fixture exposed implicit capture admission through raw
+                      tree registration; preparation/selection now require the
+                      exact capture already attached, and a refused attempt cannot
+                      bootstrap it through discovery. No persistent catalog or
+                      host clone is installed. Pending, missing, foreign, reloaded,
+                      ambiguous, wrong/multiple/empty and cyclic selections refuse.
+                      Current native reference cycles across distinct prepared
+                      occurrence scopes are covered; future dependency-bearing
+                      module cycles remain a separate format/linking gate.
+
+                      FreshDatatypeDependencySelection retains inspection counts,
+                      immutable capsule data and a weak actual-host context lease.
+                      Context/scope/grant changes, successful occurrence preparation,
+                      close/drop, foreign hosts, explicit retirement and operation
+                      stops invalidate use. Unchanged failed selection/preparation
+                      attempts preserve prior results. Inspection does not replay
+                      selectors or retain actual host callbacks. This result is
+                      not permission to compile/publish and does not freeze mutable
+                      callback/provider data. Portable selection/code closure flags
+                      remain false; a future compiler must select in its checked
+                      invocation. Name discovery and dependency walks keep their
+                      separate existing bounds; walks share remaining request work
+                      across roots, with actual per-destination policies per walk.
+                      No aggregate peak-heap or global phase budget is claimed.
+
+                      Verification: thirteen new selection cases plus 552 prior
+                      native cases pass (565 distinct). The final regression run
+                      includes the explicit capture-admission repair. WASM
+                      compilation, both existing separate-heap WASM drivers,
+                      18 component browser cases, ten audit/factory cases and both
+                      complete live Login worker/fallback credential privacy
+                      scenarios pass. Native builds drained before Studio
+                      acceptance. Formatting, 255 local documentation file links,
+                      refreshed audit metadata and diff checks pass. All production
+                      changes are native-only; current optimized component
+                      (11,474,094 bytes) and full (24,202,382 bytes) WASM assets
+                      were exercised, not rebuilt. No production JavaScript,
+                      application wire change, new WASM endpoint or receiver
+                      admission was introduced. Entered credentials still block
+                      recovery; automatic whole-Studio recovery stays disabled,
+                      with 4 MiB checkpoints and five-second deadlines unchanged.
+                      Generated screenshots and Vitest attachments are excluded.
+                    - [ ] Compile cross-source datatype dependencies inside the
+                      actual checked host invocation, with fresh original source
+                      contexts, explicit implementations and renewed selection.
+                      Do not accept a historical selection inspection as permission;
+                      test native/query rule ownership, original diagnostics,
+                      callback changes, cancellation, budgets and stale contexts
+                      before exposing mixed receivers or a WASM entry point.
                     - [ ] Extend separately versioned dependency records for
                       dependency-bearing datatype modules and additional native
                       operation/constant profiles before claiming complete executable

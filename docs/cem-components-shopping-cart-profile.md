@@ -763,6 +763,9 @@ keeps complete behavior/imported closure and receiver/runtime admission pending.
 Native CEMDP1 now records original dependency fields and exact DT1/QD1/NR1
 inputs, including passive references. Its [inert dependency assertions](cem-native-schema-capsules.md#inert-datatype-dependency-assertions)
 retain original lexical scopes but do not prove target selection or grant access.
+The [fresh-host selection adapter](cem-native-schema-capsules.md#fresh-host-datatype-dependency-selection)
+now checks actual contexts, original names, explicit exports and directed grants.
+Its weakly guarded inspection results grant no compilation/publication permission.
 
 The [native linking contract](cem-native-schema-capsules.md#native-fresh-host-linking-and-node-receivers)
 defines its required source registration, explicit grants, bounds and lifetime.
