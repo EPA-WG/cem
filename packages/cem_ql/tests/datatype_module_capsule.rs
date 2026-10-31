@@ -487,3 +487,19 @@ fn literal_imports_keep_qualified_names_and_original_alias_snapshots() {
         );
     }
 }
+
+#[test]
+fn legacy_module_wire_hash_is_unchanged() {
+    let b = modules::export(
+        "app",
+        &chain(),
+        &[],
+        &hash(b"registry"),
+        &OperationControl::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        b.pin.hash,
+        "cem-bin/1+blake3:980101fe1fe3cdd31ac9d60743e417ce159009d6031acf4775f2e13f1a72a0d2"
+    );
+}

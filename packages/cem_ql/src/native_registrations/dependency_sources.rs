@@ -101,6 +101,37 @@ impl VerifiedOperationSource {
             &work,
         )
     }
+    /// Metadata-only occurrence mapping for a separately verified module source.
+    pub(crate) fn share_module_source(
+        &self,
+        identity: &SourceIdentity,
+        capture: &Arc<LexicallyScopedDocument>,
+        source: &Arc<RetainedCemTree>,
+        control: &OperationControl,
+    ) -> Result<Self, String> {
+        let work = Work::new(control);
+        work.check()?;
+        if self.pin.source != *identity
+            || source.source_uri() != identity.uri
+            || !Arc::ptr_eq(source.ast_owner(), capture.document())
+        {
+            return Err(INVALID.into());
+        }
+        let snapshot =
+            NativeDependencySourceSnapshot::capture(capture, identity, &mut || work.check())?;
+        if hash(&encoded(&snapshot)?) != self.snapshot_hash {
+            return Err(INVALID.into());
+        }
+        restored(
+            self.pin.clone(),
+            capture.clone(),
+            source.clone(),
+            self.implementation.clone(),
+            self.selection.clone(),
+            self.snapshot_hash.clone(),
+            &work,
+        )
+    }
 }
 fn datatype_source(requirement: &Requirement) -> Option<&DatatypeSource> {
     match requirement {

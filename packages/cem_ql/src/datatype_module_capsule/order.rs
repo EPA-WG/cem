@@ -1,11 +1,11 @@
 //! Bounded flat graph ordering, including actual source-owned cycle witnesses.
 use super::*;
-enum Failure<K> {
+pub(super) enum Failure<K> {
     Refused,
     Depth,
     Cycle(Vec<K>),
 }
-fn order<K: Ord + Clone>(
+pub(super) fn order<K: Ord + Clone>(
     edges: &BTreeMap<K, BTreeSet<K>>,
     work: &Work<'_>,
 ) -> Result<Vec<K>, Failure<K>> {
@@ -82,6 +82,15 @@ pub(super) fn inspect(
     leaves: &BTreeMap<String, VerifiedArtifact>,
     work: &Work<'_>,
 ) -> Result<(Vec<String>, Vec<ModuleDatatypeId>), ModuleVerificationError> {
+    inspect_extended(root, modules, leaves, &[], work)
+}
+pub(super) fn inspect_extended(
+    root: &str,
+    modules: &BTreeMap<String, VerifiedDatatypeModule>,
+    leaves: &BTreeMap<String, VerifiedArtifact>,
+    extra_edges: &[(String, String, SchemaDeclarationNode)],
+    work: &Work<'_>,
+) -> Result<(Vec<String>, Vec<ModuleDatatypeId>), ModuleVerificationError> {
     let mut edges = BTreeMap::new();
     let mut witnesses = BTreeMap::new();
     for (id, m) in modules {
@@ -97,6 +106,16 @@ pub(super) fn inspect(
                     });
             }
         }
+    }
+    for (from, to, source) in extra_edges {
+        work.check()?;
+        edges
+            .get_mut(from)
+            .ok_or("unknown module")?
+            .insert(to.clone());
+        witnesses
+            .entry((from.clone(), to.clone()))
+            .or_insert_with(|| source.clone());
     }
     let module_order = match order(&edges, work) {
         Ok(o) => o,

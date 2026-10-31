@@ -9,7 +9,8 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [versioned CEMOS1 profile pins](archive/todo-completed-cemos1-profile-pins-2026-10-31.md).
+Latest completion: [versioned module/profile assembly](archive/todo-completed-module-profile-assembly-2026-10-31.md).
+The [CEMOS1 profile-pin record](archive/todo-completed-cemos1-profile-pins-2026-10-31.md) preserves the preceding stage.
 
 Prioritize Studio functionality and presentation samples before unrelated helper
 work and physical-device/browser/AT acceptance. Examples remain ordinary projects
@@ -386,15 +387,17 @@ inventory, not the minimum set loaded by every app.
                       or code closure. Preserve original source snapshots and nested
                       format limits; test cross-module cycles and source agreement.
 
-                      - [ ] Add separately versioned module/profile assembly for
-                        CEMOP2/CEMOS1, with exact original datatype/source mapping,
-                        bounded constant-reference dependencies, explicit imports
-                        and cycle/source-agreement checks; preserve CEMDM1.
-
                       - [ ] Integrate checked module/profile assembly with actual-host
                         compilation and the application dependency envelope
                         through separately versioned contracts; preserve CEMDM1,
                         original selectors, explicit owners and weak lifetimes.
+                        - [ ] Bind CEMDM2 to actual fresh-host scopes/imports and
+                          renewed ordinary datatype/constant selections, comparing
+                          exact ordered original targets without fabricating a host
+                          or treating declared imports as crossing grants.
+                        - [ ] Install CEMOS1 operation owners through shared native
+                          compiler/linker guards, then version application-envelope
+                          and mixed-receiver publication before worker transport.
 
                 - [ ] Enroll portable query source/binding/invocation owners in
                   actual worker/owned-fallback generation and inventory groups;

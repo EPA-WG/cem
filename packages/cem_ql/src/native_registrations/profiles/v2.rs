@@ -74,3 +74,31 @@ pub fn verify(
         profiles,
     })
 }
+
+pub(crate) fn share_module_source(
+    profile: &VerifiedOperationProfile,
+    identity: &SourceIdentity,
+    capture: &Arc<LexicallyScopedDocument>,
+    source: &Arc<RetainedCemTree>,
+    control: &OperationControl,
+) -> Result<VerifiedOperationProfile, String> {
+    let mut requirements = BTreeMap::new();
+    for (role, original) in profile.requirements() {
+        requirements.insert(
+            *role,
+            Arc::new(original.share_module_source(identity, capture, source, control)?),
+        );
+    }
+    let datatype = requirements
+        .values()
+        .next()
+        .ok_or(INVALID)?
+        .datatype_source()
+        .clone();
+    Ok(super::VerifiedOperationProfileView {
+        source: datatype,
+        kind: profile.kind(),
+        representation: profile.representation(),
+        requirements,
+    })
+}

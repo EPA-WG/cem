@@ -47,6 +47,9 @@ dependency snapshot, without widening CEMNR1/CEMOP1 or resolving selectors.
 Native `CEMOP2` now groups exact CEMOS1 pins through the shared profile validator,
 with independent whole-source agreement before occurrence mapping. These are
 still inert source requirements, not installed module/receiver capabilities.
+Native `CEMDM2` now assembles original datatype modules, CEMOP2 profiles and
+intended constant-reference targets, with explicit module imports and bounded
+graph checks. It remains separate from CEMDM1 and actual-host installation.
 WASM transport/generation enrollment and compiled-component receiver admission remain
 **unimplemented**.
 The deployed `CEMAPPD1` format remains scalar-only. Its
@@ -1412,8 +1415,9 @@ cancelled work refuse before returning a verified source record.
 Both portable selection and executable-closure flags remain false. There is no
 `VerifiedNativeRequirement` conversion, native-linker or CEMOP1 admission path.
 CEMNR1 still refuses reference-bearing sources, and CEMOP1 still accepts only its
-exact closed CEMNR1 dependencies. Separately versioned profile pins and actual-host
-module/envelope installation remain follow-ups. Unevaluated reference expressions
+exact closed CEMNR1 dependencies. The separately versioned CEMOP2 pins and CEMDM2
+source assembly below preserve that boundary; actual-host module/envelope
+installation remains a follow-up. Unevaluated reference expressions
 are not an evaluated dependency graph or proof against runtime selection cycles.
 No application/component JavaScript, WASM endpoint or receiver publication was
 added. Entered credentials still block recovery; automatic whole-Studio recovery
@@ -1475,8 +1479,9 @@ invalid leaves and cancellation refuse before any verified result is returned.
 
 Both selection and executable-closure flags remain false. Returned requirements
 are `VerifiedOperationSource`, with no conversion into CEMNR1 registrations or
-existing fresh-host operation links. Module/profile assembly, actual-host
-installation and application-envelope/receiver transport remain separate gates.
+existing fresh-host operation links. The separate CEMDM2 assembly below maps
+these profiles to modules; actual-host installation and application-envelope/
+receiver transport remain separate gates.
 No application/component JavaScript or WASM endpoint was added. Entered
 credentials still block recovery; automatic whole-Studio recovery remains
 disabled, with the same 4 MiB checkpoint budget and five-second deadlines.
@@ -1487,6 +1492,75 @@ and slots, ordering and fresh ownership, complete-source conflicts, old/new
 reader refusal, exact artifact sets, bounds, cancellation and correctly repinned
 malformed manifests/leaves. The [existing profile fixtures](../packages/cem_ql/tests/native_registrations/dependency_profiles.rs)
 retain direct native linking/retirement coverage and the fixed v1 wire hash.
+
+## Versioned module and profile assembly
+
+[`datatype_module_capsule::v2`](../packages/cem_ql/src/datatype_module_capsule/v2.rs)
+exports and verifies `CEMDM2` / `cem.native-datatype-modules/2`. Each flat module
+retains the existing original-source/type export and dependency fields, plus
+explicit module imports, constant exports/reference bindings and selected CEMOP2
+profile pins/IDs for its reachable datatypes. Separate supplied profile artifacts
+carry exact CEMOP2 bytes and their CEMOS1 leaves; the existing DT1/QD1/NR1 leaf
+families remain available through the shared datatype dependency verifier.
+CEMDM1 keeps its wire shape and constant-slot refusal. A fixed v1 manifest-hash
+fixture protects its existing output, and neither reader accepts the other format.
+
+Shared datatype inspection still checks the reviewed scalar/lexical/list subset,
+original base/list/rule fields, exact leaf pins and exported datatype targets.
+Only the explicit v2 entry point permits original constant slots. Module imports
+must exactly match named module edges from datatype and constant-reference
+dependencies; absent or unused imports refuse. Imports record intended dependency
+relationships, never runtime scope-crossing grants. The root must export types;
+other modules may be constant-only libraries with explicit constant exports.
+
+Whole-source agreement spans module snapshots, legacy leaves and every supplied
+CEMOS1 requirement. Each profile must name a reachable original datatype and
+every supplied profile must be selected exactly once. Missing, duplicate, unused,
+foreign or mismatched profiles refuse. After agreement, a private metadata mapper
+recaptures and compares the complete dependency-snapshot fingerprint before
+rebinding each CEMOS1 requirement into its module's original arena. Matching
+logical URI/hash or coincident node IDs cannot substitute a different source.
+Independent assembly verifications retain independent owners.
+
+The [constant-reference inspector](../packages/cem_ql/src/datatype_module_capsule/v2/constants.rs)
+retains original slots and explicit intended target sequences. Cross-module
+targets must be exported original constant elements or reference nodes; local
+targets retain their original owner. Reference chains are flattened in authored
+order, preserving duplicate occurrences. Missing/unused bindings, unknown or
+wrong-category targets, self/cross-module cycles and excessive depth/expansion
+refuse, with original source witnesses for cycles. Exported reference nodes are
+also inspected, including exports not selected by the root's vocabulary.
+
+This is node-category and dependency metadata, not a second constant parser or
+an evaluated selection. Constant field syntax, literal values, mixed enumeration
+forms, effective inherited kinds/restrictions and actual selector completions
+remain checks of the existing shared compiler under live source contexts and
+policies. Neither reference expressions nor constant interpreters run here.
+Terminal constant declarations stay unvalidated source nodes until that compiler
+admits them. Both portable selection and executable-closure flags remain false.
+
+The assembly is limited to 32 modules, 64 KiB per complete module record and
+4 MiB for its bytes plus every supplied legacy/profile/source artifact. There
+are at most 512 datatype/reference binding fields and 512 raw constant targets,
+128 datatype bindings, 128 reference bindings and 128 constant exports per module,
+128 targets per reference, 512 inventoried slots,
+512 cached flattened occurrences and 512 final slot-target occurrences. Module,
+datatype and reference graphs retain the shared 32-edge depth bound. Profile
+inputs are limited to 32 bundles, 64 source leaves and 64 selected profiles in
+total; each nested decoder keeps its existing limits. The outer phase uses
+100,000 visits and 100,000-value / 64-depth MessagePack preflight. Source/profile
+verification and explicit occurrence mapping retain separately bounded phases,
+not one cumulative heap reservation.
+
+The [assembly fixtures](../packages/cem_ql/tests/datatype_module_assembly.rs)
+cover original contexts/owners, profile mapping, imports/exports, order/duplicates,
+reference chains and cycle witnesses, legacy graphs/leaves, whole-source mismatch,
+depth/expansion, malformed repinned input, aggregate/nested limits and cancellation.
+Actual-host compilation, constant selection/interpretation, executable ownership,
+application-envelope installation and receiver/worker transport remain separate
+gates. No application/component JavaScript or WASM endpoint was added. Entered
+credentials still block recovery; automatic whole-Studio recovery stays disabled,
+with the existing 4 MiB checkpoint budget and five-second deadlines unchanged.
 
 ## Guarded datatype preparation handoff
 

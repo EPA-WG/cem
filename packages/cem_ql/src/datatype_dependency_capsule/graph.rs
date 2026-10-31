@@ -138,8 +138,41 @@ pub(crate) fn inspect_catalog<T: Clone>(
     roots: &BTreeSet<AstNodeId>,
     bindings: &BTreeMap<AstNodeId, T>,
     catalog: &BTreeMap<AstNodeId, DatatypeSource>,
+    resolve: impl FnMut(&T) -> Result<ResolvedTarget, String>,
+    work: &Work<'_>,
+) -> Result<
+    (
+        BTreeMap<AstNodeId, DatatypeSource>,
+        Vec<DependencySite<T>>,
+        Vec<AstNodeId>,
+    ),
+    String,
+> {
+    inspect_catalog_inner(roots, bindings, catalog, resolve, work, false)
+}
+pub(crate) fn inspect_catalog_with_constants<T: Clone>(
+    roots: &BTreeSet<AstNodeId>,
+    bindings: &BTreeMap<AstNodeId, T>,
+    catalog: &BTreeMap<AstNodeId, DatatypeSource>,
+    resolve: impl FnMut(&T) -> Result<ResolvedTarget, String>,
+    work: &Work<'_>,
+) -> Result<
+    (
+        BTreeMap<AstNodeId, DatatypeSource>,
+        Vec<DependencySite<T>>,
+        Vec<AstNodeId>,
+    ),
+    String,
+> {
+    inspect_catalog_inner(roots, bindings, catalog, resolve, work, true)
+}
+fn inspect_catalog_inner<T: Clone>(
+    roots: &BTreeSet<AstNodeId>,
+    bindings: &BTreeMap<AstNodeId, T>,
+    catalog: &BTreeMap<AstNodeId, DatatypeSource>,
     mut resolve: impl FnMut(&T) -> Result<ResolvedTarget, String>,
     work: &Work<'_>,
+    constants: bool,
 ) -> Result<
     (
         BTreeMap<AstNodeId, DatatypeSource>,
@@ -164,7 +197,7 @@ pub(crate) fn inspect_catalog<T: Clone>(
         let source = catalog.get(&id).ok_or(INVALID)?;
         let plan = source.plan();
         if !plan.issues.is_empty()
-            || !plan.constant_slots.is_empty()
+            || (!constants && !plan.constant_slots.is_empty())
             || !matches!(
                 plan.kind,
                 DatatypeKindSource::Inherited

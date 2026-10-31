@@ -26,6 +26,7 @@ use std::{
     sync::Arc,
 };
 mod order;
+pub mod v2;
 const ABI: &str = "cem.native-datatype-modules/1";
 pub const MAGIC: &[u8] = b"CEMDM1\n";
 const MAX_BYTES: usize = 4 * 1024 * 1024;
