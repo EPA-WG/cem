@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Worker, MessageChannel, isMainThread, parentPort, workerData } from 'node:worker_threads';
-import { createQuerySourceEndpoint, createQuerySourceWorkerEndpoint, installQuerySourceWorkerTransport, createQuerySourceWasmBackend, QuerySourceResource } from '../runtime/query-source-resource.mjs';
+import { createQuerySourceEndpoint, createQuerySourceWorkerEndpoint, installQuerySourceWorkerTransport, createQuerySourceWasmBackend, createRuleSourceWasmBackend, QuerySourceResource } from '../runtime/query-source-resource.mjs';
 import { registerNativeGeneration, CemNativeGenerationGroup, CemNativeRecoveryScope, releaseNativeGenerationResourcesAsync, completeNativeRetirement, issueNativeGenerationBindingTicket, resumeNativeGenerationBindings } from '../runtime/native-generation.mjs';
 
 async function factory(directory) {
@@ -11,8 +11,8 @@ async function factory(directory) {
     const runtime = module.createCemQlWasmGeneration();
     await runtime.initialize(await readFile(resolve(directory, 'query_source_probe_bg.wasm'))); return runtime;
 }
-function backend(runtime, observe) {
-    const native = createQuerySourceWasmBackend(runtime);
+function backend(runtime, observe, rule = false) {
+    const native = rule ? createRuleSourceWasmBackend(runtime) : createQuerySourceWasmBackend(runtime);
     return { ...native, open: (bytes, pins) => { const owner = native.open(bytes, pins); observe(owner); return owner; } };
 }
 function comparableReport(text) {
@@ -27,14 +27,14 @@ function comparableReport(text) {
 }
 if (!isMainThread) {
     const runtime = await factory(workerData.directory); let last;
-    runtime.call('probeProvision', [workerData.pins]);
-    installQuerySourceWorkerTransport(workerData.port, backend(runtime, id => { last = id; }));
+    runtime.call(workerData.rule ? 'probeRuleProvision' : 'probeProvision', [workerData.pins]);
+    installQuerySourceWorkerTransport(workerData.port, backend(runtime, id => { last = id; }, workerData.rule));
     parentPort.on('message', ({ id, op, args }) => {
         try {
             let value;
             if (op === 'prepare') value = runtime.prepareRetirement(args[0]);
             else if (op === 'dispose') value = runtime.dispose();
-            else if (op === 'validate') value = runtime.call('probeValidateOwned', [last, args[0]]);
+            else if (op === 'validate') value = runtime.call(workerData.rule ? 'probeRuleValidate' : 'probeValidateOwned', [last, args[0]]);
             else value = runtime.call(op, args);
             parentPort.postMessage({ id, value });
         } catch (error) { parentPort.postMessage({ id, error: String(error) }); }
@@ -43,14 +43,15 @@ if (!isMainThread) {
 } else {
     const directory = resolve(process.argv[2]);
     const { CemCommittedCheckpointStore } = await import(pathToFileURL(resolve(directory, 'checkpoint-store.js')).href);
-    const bytes = new Uint8Array(await readFile(resolve(directory, 'source.cemq'))), pins = await readFile(resolve(directory, 'pins.json'), 'utf8');
+    let bytes, pins, rule = false, imported = false, nativeRule = false;
     let allocations = 0, scenarios = 0;
     async function physical(mode) {
+        const isRule = rule, configPins = pins;
         const id = crypto.randomUUID(); let alive = true, endpoint, participant, last, worker, port, runtime, sequence = 0;
         const requests = new Map();
         if (mode === 'worker') {
             const channel = new MessageChannel(); port = channel.port1;
-            worker = new Worker(new URL(import.meta.url), { workerData: { directory, pins, port: channel.port2 }, transferList: [channel.port2] });
+            worker = new Worker(new URL(import.meta.url), { workerData: { directory, pins: configPins, rule: isRule, port: channel.port2 }, transferList: [channel.port2] });
             await new Promise((resolve, reject) => {
                 const timer = setTimeout(() => reject(Error('worker startup timed out')), 5000);
                 worker.on('error', reject);
@@ -61,13 +62,13 @@ if (!isMainThread) {
                     reply.error ? pending.reject(Error(reply.error)) : pending.resolve(reply.value);
                 });
             });
-        } else { runtime = await factory(directory); runtime.call('probeProvision', [pins]); }
+        } else { runtime = await factory(directory); runtime.call(isRule ? 'probeRuleProvision' : 'probeProvision', [configPins]); }
         const identity = () => mode === 'worker' ? worker : runtime.memory();
         const call = (op, args = []) => {
             if (mode !== 'worker') {
                 if (op === 'prepare') return runtime.prepareRetirement(args[0]);
                 if (op === 'dispose') return runtime.dispose();
-                if (op === 'validate') return runtime.call('probeValidateOwned', [last, args[0]]);
+                if (op === 'validate') return runtime.call(isRule ? 'probeRuleValidate' : 'probeValidateOwned', [last, args[0]]);
                 return runtime.call(op, args);
             }
             return new Promise((resolve, reject) => {
@@ -83,8 +84,8 @@ if (!isMainThread) {
                     current: () => !signal.aborted && fresh.alive(), discard: () => { void fresh.discard(); } };
             }),
             endpoint: () => endpoint ??= mode === 'worker'
-                ? createQuerySourceWorkerEndpoint({ identity: identity(), participant: controller.participant(), port, current: () => alive })
-                : createQuerySourceEndpoint({ identity: identity(), participant: controller.participant(), current: () => alive, native: backend(runtime, id => { last = id; }) }),
+                ? createQuerySourceWorkerEndpoint({ identity: identity(), participant: controller.participant(), port, maxSourceBytes: isRule ? 4 * 1024 * 1024 : 69643, current: () => alive })
+                : createQuerySourceEndpoint({ identity: identity(), participant: controller.participant(), current: () => alive, native: backend(runtime, id => { last = id; }, isRule) }),
             alive: () => alive,
             async retire(handoff, current) {
                 const guard = () => alive && handoff.current() && current();
@@ -92,7 +93,7 @@ if (!isMainThread) {
                 const checkpoint = handoff.retain();
                 await releaseNativeGenerationResourcesAsync(controller.participant(), guard);
                 if (!guard()) throw Error('stale policy');
-                await call('probeUnprovision');
+                await call(isRule ? 'probeRuleUnprovision' : 'probeUnprovision');
                 await call('closeCommandNativeAdmission');
                 const inventory = JSON.parse(await call('commandNativeResourceInventory'));
                 assert.equal(inventory.schemaVersion, 2); assert.equal(inventory.profile, 'cem-ml-cem-ql-generation-v2');
@@ -110,7 +111,7 @@ if (!isMainThread) {
                 if (!alive) return; alive = false; endpoint?.dispose();
                 if (worker) { await worker.terminate(); return; }
                 await new Promise(resolve => setImmediate(resolve));
-                try { runtime.call('probeUnprovision', []); } catch { /* Already unprovisioned or fenced. */ }
+                try { runtime.call(isRule ? 'probeRuleUnprovision' : 'probeUnprovision', []); } catch { /* Already unprovisioned or fenced. */ }
                 try { runtime.dispose(); } catch { /* Remains fenced if native cleanup has not settled. */ }
             },
         };
@@ -119,7 +120,7 @@ if (!isMainThread) {
     async function checkpoint(controller, outcome = 'acknowledged') {
         const store = new CemCommittedCheckpointStore(controller.id);
         const receipt = { runtimeId: controller.id, generation: 1, commitSequence: 1, policyStamp: 'query-source-fixture',
-            owners: [{ instanceId: 'source-route', declarationIdentity: JSON.parse(pins).source.hash, dataRevision: 'original-source', acceptedEventSequence: 0 }],
+            owners: [{ instanceId: 'source-route', declarationIdentity: rule ? JSON.parse(pins).hash : JSON.parse(pins).source.hash, dataRevision: 'original-source', acceptedEventSequence: 0 }],
             operations: [{ instanceId: 'source-route', operationId: 'terminal-operation', outcome }] };
         store.acknowledge(receipt);
         // Transport-valid source-route checkpoint only. No DOM or action is
@@ -128,6 +129,10 @@ if (!isMainThread) {
         await store.capture(candidate, (candidate, receipt) => controller.call('sealCommittedCheckpoint', [candidate, receipt]));
         return store;
     }
+    for (const variant of ['legacy', 'rule-query-direct', 'rule-query-imported', 'rule-native-direct', 'rule-native-imported']) {
+        rule = variant !== 'legacy'; imported = variant.endsWith('imported'); nativeRule = variant.includes('native');
+        bytes = new Uint8Array(await readFile(resolve(directory, rule ? `${variant}.bin` : 'source.cemq')));
+        pins = await readFile(resolve(directory, rule ? `${variant}.json` : 'pins.json'), 'utf8');
     for (const mode of ['fallback', 'worker']) for (const scenario of ['resume', 'stale-checkpoint', 'entered-after-allocation', 'foreign-target']) {
         const old = await physical(mode); let privateInput = false, bound;
         const before = allocations, scope = new CemNativeRecoveryScope();
@@ -135,8 +140,9 @@ if (!isMainThread) {
             current: () => !privateInput, target: fresh => scenario === 'foreign-target' ? old.endpoint() : fresh.endpoint(), onBound: endpoint => { bound = endpoint; } });
         let admission, stores = [];
         try {
-            const original = comparableReport(await old.call('validate', ['same']));
-            assert.equal(original.accepted, true);
+            const original = imported ? undefined : comparableReport(await old.call('validate', ['same']));
+            if (imported) await assert.rejects(async () => old.call('validate', ['same']), 'imported leaf invented a consumer');
+            else assert.equal(original.accepted, true);
             const census = JSON.parse(await old.call('commandNativeResourceInventory'));
             assert.equal(census.registries.find(r => r.name === 'enrolled-compilations').live, 2);
             const unknown = await checkpoint(old, 'unknown'); stores.push(unknown);
@@ -170,18 +176,20 @@ if (!isMainThread) {
             await resumeNativeGenerationBindings(admission, [ticket]);
             const fresh = admission.generations[0].runtime;
             assert.equal(bound, fresh.endpoint());
-            assert.deepEqual(comparableReport(await fresh.call('validate', ['same'])), original);
+            if (imported) await assert.rejects(async () => fresh.call('validate', ['same']));
+            else assert.deepEqual(comparableReport(await fresh.call('validate', ['same'])), original);
             assert.equal(JSON.parse(new TextDecoder().decode(admission.generations[0].checkpoint)).receipt.operations[0].outcome, 'acknowledged');
             const freshInventory = JSON.parse(await fresh.call('commandNativeResourceInventory'));
-            assert.equal(freshInventory.registries.find(r => r.name === 'enrolled-preparations').live, 1);
+            assert.equal(freshInventory.registries.find(r => r.name === 'enrolled-preparations').live, imported ? 0 : 1);
             await assert.rejects(old.endpoint().open(bytes, pins), /retired|closed|stale/);
             await resource.dispose();
-            assert.equal(JSON.parse(await fresh.call('commandNativeResourceInventory')).blockingResources, 1, 'original deployment owner disappeared from the census');
-            await fresh.call('probeUnprovision');
+            assert.equal(JSON.parse(await fresh.call('commandNativeResourceInventory')).blockingResources, nativeRule ? 2 : 1, 'original deployment owner disappeared from the census');
+            await fresh.call(rule ? 'probeRuleUnprovision' : 'probeUnprovision');
             assert.equal(JSON.parse(await fresh.call('commandNativeResourceInventory')).blockingResources, 0);
-            console.log(`Query resource ${mode}: native-sealed journal, full v2 census, original release, physical retirement and fresh source rebinding passed.`);
+            console.log(`Query resource ${variant}/${mode}: native-sealed journal, full v2 census, original release, physical retirement and fresh source rebinding passed.`);
         } finally { scenarios++; await resource.dispose(); admission?.revoke(); scope.dispose(); await old.discard(); for (const store of stores) store.dispose(); }
     }
-    assert.equal(scenarios, 8);
-    console.log('All eight physical query handoff scenarios passed, including stale checkpoints, late credential policy and foreign targets.');
+    }
+    assert.equal(scenarios, 40);
+    console.log('All 40 physical query/rule/profile handoff scenarios passed, including stale checkpoints, late credential policy and foreign targets.');
 }

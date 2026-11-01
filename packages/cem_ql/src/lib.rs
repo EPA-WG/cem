@@ -21,12 +21,16 @@ pub mod datatype_source_capsule;
 pub mod datatype_dependency_capsule;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod datatype_module_capsule;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
 pub mod native_registrations;
 #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
 pub mod query_validator_capsule;
 #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
 pub mod query_source_endpoint;
+#[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
+pub mod rule_source_transport;
+#[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
+pub mod rule_source_endpoint;
 #[cfg(feature = "debug-control")]
 pub mod debug_control;
 pub mod diagnostics;

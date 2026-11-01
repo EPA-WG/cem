@@ -51,6 +51,119 @@ thread_local! {
     static SESSIONS: RefCell<Vec<Option<Session>>> = const { RefCell::new(Vec::new()) };
     static DRAIN: RefCell<Option<GenerationDrain>> = const { RefCell::new(None) };
     static DEPLOYMENT: cem_ml::runtime_inventory::NativeRegistry<Option<Arc<cem_ql::query_source_endpoint::QuerySourceEndpoint>>> = const { cem_ml::runtime_inventory::NativeRegistry::new(None) };
+    static RULE_DEPLOYMENT: cem_ml::runtime_inventory::NativeRegistry<Option<(Arc<cem_ql::rule_source_endpoint::RuleSourceEndpoint>, Option<Arc<cem_ql::structural_receiver::FreshNativeRuleCodeOwner>>)>> = const { cem_ml::runtime_inventory::NativeRegistry::new(None) };
+}
+#[derive(Debug)]
+struct FixtureNativeRule;
+impl cem_ql::datatype_validation::NativeDatatypeValidator for FixtureNativeRule {
+    fn validate(
+        &self,
+        call: cem_ql::datatype_validation::ValidationCall<'_>,
+    ) -> cem_ql::datatype_validation::RuleExecution {
+        cem_ql::datatype_validation::RuleExecution::Complete(cem_ql::eval::ItemStream::once(
+            Item::Record(BTreeMap::from([
+                (
+                    "accepted".into(),
+                    vec![Item::Atomic(AtomValue::Boolean(
+                        call.value[0].atom() == Some(AtomValue::String("same".into())),
+                    ))],
+                ),
+                ("diagnostics".into(), vec![]),
+            ])),
+        ))
+    }
+}
+#[wasm_bindgen(js_name = probeRuleProvision)]
+pub fn rule_provision(pins: &str) -> Result<(), JsValue> {
+    use cem_ml::schema::{
+        datatype_registry::DatatypeKind,
+        datatype_validation::{
+            CandidateRequirement, ResultRepresentation, ScalarRepresentation, ValidationSignature,
+            ValueRepresentation,
+        },
+    };
+    use cem_ql::{
+        rule_source_endpoint::{wasm, RuleSourceEndpoint},
+        rule_source_transport::{RuleSourcePin, RuleTransportPin},
+        structural_receiver::FreshNativeRuleCodeOwner,
+    };
+    if pins.len() > 16384 {
+        return Err(error("fixture limit"));
+    }
+    let pin: RuleTransportPin = serde_json::from_str(pins).map_err(error)?;
+    let g = runtime_admission::linked_generation().map_err(error)?;
+    let native = if matches!(&pin.source, RuleSourcePin::Native(_)) {
+        let identity = cem_ql::native_registrations::ImplementationIdentity::validator(
+            "urn:test:validate",
+            cem_ml::content_cache::ContentHash::from_blake3(b"native-rule-fixture").header_value(),
+            "validate",
+            ValidationSignature {
+                kind: DatatypeKind::Scalar,
+                value: ValueRepresentation::Scalar(ScalarRepresentation::String),
+                candidate: CandidateRequirement::Optional,
+                result: ResultRepresentation::Accepted(ContractName::new(
+                    CEM_SCHEMA_URI,
+                    "datatype-validation-result",
+                )),
+            },
+        );
+        Some(
+            FreshNativeRuleCodeOwner::new(&g, Default::default(), identity, FixtureNativeRule)
+                .map_err(error)?,
+        )
+    } else {
+        None
+    };
+    let endpoint = RuleSourceEndpoint::new(
+        &g,
+        Default::default(),
+        pin,
+        SelectedFunctionRegistry::new([SelectedBuiltin::StringLength]).map_err(error)?,
+        native.as_ref(),
+    )
+    .map_err(error)?;
+    wasm::install(&endpoint).map_err(error)?;
+    RULE_DEPLOYMENT.with(|s| *s.borrow_mut() = Some((endpoint, native)));
+    Ok(())
+}
+#[wasm_bindgen(js_name = probeRuleUnprovision)]
+pub fn rule_unprovision() -> Result<(), JsValue> {
+    RULE_DEPLOYMENT.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        let (endpoint, _) = slot.as_ref().ok_or_else(|| error("deployment"))?;
+        cem_ql::rule_source_endpoint::wasm::uninstall(endpoint).map_err(error)?;
+        slot.take();
+        Ok(())
+    })
+}
+#[wasm_bindgen(js_name = probeRuleFence)]
+pub fn rule_fence() -> Result<(), JsValue> {
+    RULE_DEPLOYMENT.with(|slot| {
+        let slot = slot.borrow();
+        let (e, c) = slot.as_ref().ok_or_else(|| error("deployment"))?;
+        if let Some(c) = c {
+            c.retire();
+        } else {
+            e.retire();
+        }
+        Ok(())
+    })
+}
+#[wasm_bindgen(js_name = probeRuleValidate)]
+pub fn rule_validate(owner: &JsValue, value: &str) -> Result<String, JsValue> {
+    cem_ql::rule_source_endpoint::wasm::with_session(owner, |s| {
+        let batch = s.validate(
+            &ValidationInput {
+                value: vec![Item::Atomic(AtomValue::String(value.into()))],
+                candidate: vec![],
+                fallback: Default::default(),
+            },
+            Default::default(),
+        )?;
+        let diagnostics = batch.completed.first().map(|r| &r.result.diagnostics);
+        Ok(serde_json::json!({"accepted":batch.accepted,"diagnostics":diagnostics}).to_string())
+    })
+    .map_err(error)
 }
 fn error(e: impl std::fmt::Debug) -> JsValue {
     JsValue::from_str(&format!("{e:?}"))

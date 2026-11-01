@@ -14,6 +14,8 @@ pub(super) fn capture_nodes(document: &CemDocument) -> Result<Vec<SourceNode>, S
     nodes_profile(document, true, true)
 }
 impl NativeDependencySourceSnapshot {
+    /// Passive sizing only; no tree or scope is restored by this inspection.
+    pub fn node_count(&self) -> usize { self.nodes.len() }
     pub fn capture(
         capture: &super::super::machine::LexicallyScopedDocument,
         identity: &SourceIdentity,

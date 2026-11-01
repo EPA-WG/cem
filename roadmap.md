@@ -862,8 +862,11 @@ renew original owners. Retired owners fence use while retained roots still block
 retirement. The [native-provisioned byte endpoints](docs/cem-native-schema-capsules.md#native-provisioned-query-endpoints)
 now share that implementation across worker/fallback transport. Original Rust
 bootstrap authority and opaque per-heap tokens are required; no default endpoint
-or component admission is enabled. Generated application bootstraps, imported/native rule owners, custom
-profile dependency transport and linked-code evidence remain gates before
+or component admission is enabled. The [rule/profile transport](docs/cem-native-schema-capsules.md#imported-rule-and-custom-profile-transport)
+now preserves complete custom profile graphs, original native code owners and
+imported rule leaves across fresh heaps. Native consumers bind their actual
+original fields/scopes; WASM leaf transport invents no consumer datatype.
+Generated application bootstraps, full CEMAPPD4 consumer transport and linked-code evidence remain gates before
 application admission; source fingerprints alone grant no execution authority.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).

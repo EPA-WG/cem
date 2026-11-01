@@ -14,6 +14,8 @@ use std::sync::Weak;
 /// An explicit execution selection for one verified dependency. Native callbacks
 /// must already be registered on the host under the exact NR1 identity.
 pub enum DatatypeDependencyRuleRegistration {
+    QueryProfile { functions: SelectedFunctionRegistry, profile: Arc<crate::structural_receiver::FreshQueryResultProfileOwner> },
+    NativeProfile { code: Arc<crate::structural_receiver::FreshNativeRuleCodeOwner>, profile: Arc<crate::structural_receiver::FreshQueryResultProfileOwner> },
     Query {
         functions: SelectedFunctionRegistry,
         adapter: DatatypeResultAdapter,
@@ -25,6 +27,8 @@ pub enum DatatypeDependencyRuleRegistration {
 /// Retain this explicit owner while using a compilation. Dropping/retiring it
 /// invalidates every dependent snapshot without retaining the embedding callback.
 pub struct FreshDatatypeRuleBinding {
+    profile_owner: Option<Weak<crate::structural_receiver::FreshQueryResultProfileOwner>>,
+    native_owner: Option<Weak<crate::structural_receiver::FreshNativeRuleCodeOwner>>,
     module: String,
     source: Arc<RetainedCemTree>,
     behavior: SchemaDeclarationNode,
@@ -46,6 +50,8 @@ impl FreshDatatypeRuleBinding {
         host.check().is_ok()
             && self.active.load(Ordering::Acquire)
             && self.owners_current()
+            && self.profile_owner.as_ref().is_none_or(|p| p.upgrade().is_some_and(|p| p.is_live_on(host)))
+            && self.native_owner.as_ref().is_none_or(|n| n.upgrade().is_some_and(|n| host.native_validator_owner_matches(&n)))
             && self._runtime.matches(host)
             && self.context.matches(&host.context)
             && host
@@ -86,6 +92,18 @@ impl FreshStructuralHost {
             .registered_validator_context(scope, source)
             .ok_or(REFUSED)?;
         let active = Arc::new(AtomicBool::new(true));
+        let (registration, profile_owner, native_owner) = match registration {
+            DatatypeDependencyRuleRegistration::QueryProfile { functions, profile } => {
+                if !profile.is_live_on(self) { return Err(REFUSED.into()); }
+                (DatatypeDependencyRuleRegistration::Query { functions, adapter: profile.profile.adapter.clone() }, Some(Arc::downgrade(&profile)), None)
+            },
+            DatatypeDependencyRuleRegistration::NativeProfile { code, profile } => {
+                if !profile.is_live_on(self) || !self.native_validator_owner_matches(&code)
+                    || input.native(module).is_none_or(|n| n.implementation() != code.identity()) { return Err(REFUSED.into()); }
+                (DatatypeDependencyRuleRegistration::NativeValidator { adapter: profile.profile.adapter.clone() }, Some(Arc::downgrade(&profile)), Some(Arc::downgrade(&code)))
+            },
+            registration => (registration, None, None),
+        };
         let (registry, behavior, source_owner) = match registration {
             DatatypeDependencyRuleRegistration::Query { functions, adapter } => {
                 let declaration = input.query(module).ok_or(REFUSED)?;
@@ -117,8 +135,10 @@ impl FreshStructuralHost {
                     .map_err(|_| REFUSED)?;
                 (registry, contract.behavior().clone(), None)
             }
+            _ => return Err(REFUSED.into()),
         };
         let binding = FreshDatatypeRuleBinding {
+            profile_owner, native_owner,
             module: module.into(),
             source: source.clone(),
             behavior,
@@ -133,6 +153,38 @@ impl FreshStructuralHost {
             return Err(REFUSED.into());
         }
         Ok(binding)
+    }
+    pub fn capture_datatype_dependency_rule(&self, capsule: &VerifiedDatatypeDependencies, binding: &FreshDatatypeRuleBinding) -> Result<crate::rule_source_transport::BuiltRuleTransport, String> {
+        use crate::rule_source_transport::{self as t, RuleSourceView, RuleOrigin};
+        let _entry = self.runtime_entry()?;
+        let input = InputRef::Dependencies(capsule);
+        let module = &binding.module;
+        if !binding.is_live(self) || !Arc::ptr_eq(input.view(Some(module))?.tree, &binding.source)
+            || input.rule_behavior(module).is_none_or(|b| b.identity() != binding.behavior.identity()) { return Err(REFUSED.into()); }
+        let profile = binding.profile_owner.as_ref().and_then(Weak::upgrade).ok_or(REFUSED)?;
+        let source = if let Some(q) = input.query(module) { RuleSourceView::Query(q) }
+            else { if binding.native_owner.is_none() { return Err(REFUSED.into()); } RuleSourceView::Native(input.native(module).ok_or(REFUSED)?) };
+        let packet = t::export(source, None, RuleOrigin::Imported { module: module.clone() }, &profile.profile, &self.control)?;
+        if !binding.is_live(self) { return Err(REFUSED.into()); }
+        Ok(packet)
+    }
+    pub fn link_transported_dependency_rule(&self, capsule: &VerifiedDatatypeDependencies, module: &str, scope: DeclarationScope,
+        packet: &crate::rule_source_transport::VerifiedRuleTransport, profile: Arc<crate::structural_receiver::FreshQueryResultProfileOwner>,
+        code: crate::structural_receiver::TransportRuleCode) -> Result<FreshDatatypeRuleBinding, String> {
+        use crate::{rule_source_transport::{self as t, RuleOrigin, RuleSourcePin}, structural_receiver::TransportRuleCode};
+        if packet.pin().origin != (RuleOrigin::Imported { module: module.into() }) || !Arc::ptr_eq(&profile.profile, packet.profile()) { return Err(REFUSED.into()); }
+        let input = InputRef::Dependencies(capsule);
+        let registration = match (&packet.pin().source, code) {
+            (RuleSourcePin::Query(pin), TransportRuleCode::Query(functions)) => {
+                if t::encoded(pin)? != t::encoded(input.query(module).ok_or(REFUSED)?.pin())? { return Err(REFUSED.into()); }
+                DatatypeDependencyRuleRegistration::QueryProfile { functions, profile }
+            },
+            (RuleSourcePin::Native(pin), TransportRuleCode::Native(code)) => {
+                if t::encoded(pin)? != t::encoded(input.native(module).ok_or(REFUSED)?.pin())? { return Err(REFUSED.into()); }
+                DatatypeDependencyRuleRegistration::NativeProfile { code, profile }
+            }, _ => return Err(REFUSED.into()),
+        };
+        self.link_input_rule(input, module, scope, registration)
     }
 }
 pub(super) type RuleOwners = BTreeMap<String, Weak<FreshDatatypeRuleBinding>>;

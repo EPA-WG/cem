@@ -21,6 +21,259 @@ use cem_ql::{
     },
 };
 const CONSUMER: &str = "@ns s = https://cem.dev/ns/schema/1\n@default s\n{schema @namespace=urn:consumer | {types | {type @name=root @kind=scalar @rule={#selected}}}}";
+
+#[derive(Debug)]
+struct TransportNative;
+impl NativeDatatypeValidator for TransportNative {
+    fn validate(&self, _: ValidationCall<'_>) -> RuleExecution {
+        RuleExecution::Complete(ItemStream::once(Item::Record(BTreeMap::from([
+            (
+                "accepted".into(),
+                vec![Item::Atomic(AtomValue::Boolean(true))],
+            ),
+            ("diagnostics".into(), vec![]),
+        ]))))
+    }
+}
+fn transport_profile() -> Arc<cem_ql::query_validator_capsule::profiles::VerifiedQueryResultProfile>
+{
+    use cem_ql::query_validator_capsule::profiles::{self, QueryResultProfileSource};
+    let text = cem_ml::schema::package_sources::builtin_schema_package_source("schema")
+        .unwrap()
+        .schema_source;
+    let c = capture(text);
+    let ns = cem_ml::schema::registry::CEM_SCHEMA_URI;
+    let uri = "file:///app/profile.cem";
+    let source = ValueContractSource::new(
+        node(&c, "schema"),
+        ns,
+        BTreeMap::from([("schema".into(), ns.into())]),
+    )
+    .with_captured_names(c.clone())
+    .unwrap();
+    let tree = cem_ml::parser::tree::RetainedCemTree::from_shared(
+        c.document().clone(),
+        uri,
+        text,
+        Default::default(),
+        None,
+    )
+    .unwrap();
+    profiles::build(
+        vec![QueryResultProfileSource {
+            tree,
+            capture: c,
+            contracts: source,
+            identity: SourceIdentity::new(uri, SourceId(1), text.as_bytes()),
+        }],
+        ContractName::new(ns, "datatype-validation-result"),
+        ContractName::new(ns, "datatype-diagnostic"),
+        &Default::default(),
+    )
+    .unwrap()
+}
+fn profile_owner(
+    h: &mut FreshStructuralHost,
+    p: Arc<cem_ql::query_validator_capsule::profiles::VerifiedQueryResultProfile>,
+) -> Arc<cem_ql::structural_receiver::FreshQueryResultProfileOwner> {
+    let scopes = p
+        .sources()
+        .iter()
+        .map(|s| {
+            h.register_captured_scope(
+                s.tree.clone(),
+                s.capture.clone(),
+                Some(Default::default()),
+                ReferenceScopePolicy::schema_defaults().unwrap(),
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+    h.query_result_profile_owner(p.clone(), &scopes, p.pin())
+        .unwrap()
+}
+#[test]
+fn imported_live_rule_capture_and_fresh_transport_preserve_actual_consumer_and_profile_owners() {
+    use cem_ml::runtime_admission::{generation::NativeGeneration, NativeAdmission};
+    use cem_ql::{
+        rule_source_transport as t,
+        structural_receiver::{FreshNativeRuleCodeOwner, TransportRuleCode},
+    };
+    for query in [false, true] {
+        let (c, id) = verified(query, "{accepted: true, diagnostics: ()}");
+        let g = NativeGeneration::claim(Arc::new(NativeAdmission::default())).unwrap();
+        let mut h =
+            FreshStructuralHost::new_in_generation(&hash(b"registry"), Default::default(), &g)
+                .unwrap();
+        let code = if query {
+            None
+        } else {
+            let code = FreshNativeRuleCodeOwner::new(
+                &g,
+                Default::default(),
+                native_identity(),
+                TransportNative,
+            )
+            .unwrap();
+            h.register_native_validator_owner(&code).unwrap();
+            Some(code)
+        };
+        let (root, scopes) = register_sources(&mut h, &c, &id, true);
+        let profile = profile_owner(&mut h, transport_profile());
+        let registration = if query {
+            DatatypeDependencyRuleRegistration::QueryProfile {
+                functions: functions(),
+                profile: profile.clone(),
+            }
+        } else {
+            DatatypeDependencyRuleRegistration::NativeProfile {
+                code: code.as_ref().unwrap().clone(),
+                profile: profile.clone(),
+            }
+        };
+        let owner = Arc::new(
+            h.link_datatype_dependency_rule(&c, &id, scopes[&id], registration)
+                .unwrap(),
+        );
+        let compiled = h
+            .compile_datatype_dependencies_with_rules(
+                c.clone(),
+                root,
+                &scopes,
+                &[],
+                &primitive(&c),
+                &BTreeMap::from([(id.clone(), owner.clone())]),
+                limits(),
+            )
+            .unwrap();
+        assert_eq!(
+            compiled
+                .validate(
+                    &h,
+                    declaration(c.capture(), "root"),
+                    &input("same"),
+                    Default::default()
+                )
+                .unwrap()
+                .accepted,
+            Some(true)
+        );
+        let packet = h.capture_datatype_dependency_rule(&c, &owner).unwrap();
+        let fresh = t::verify(&packet.bytes, &packet.pin, &Default::default()).unwrap();
+        let (c2, id2) = verified(query, "{accepted: true, diagnostics: ()}");
+        assert_eq!(id, id2);
+        let g2 = NativeGeneration::claim(Arc::new(NativeAdmission::default())).unwrap();
+        let mut h2 =
+            FreshStructuralHost::new_in_generation(&hash(b"registry"), Default::default(), &g2)
+                .unwrap();
+        let code2 = if query {
+            None
+        } else {
+            let code = FreshNativeRuleCodeOwner::new(
+                &g2,
+                Default::default(),
+                native_identity(),
+                TransportNative,
+            )
+            .unwrap();
+            h2.register_native_validator_owner(&code).unwrap();
+            Some(code)
+        };
+        let (root2, scopes2) = register_sources(&mut h2, &c2, &id2, true);
+        let fresh_scopes = fresh
+            .profile()
+            .sources()
+            .iter()
+            .map(|s| {
+                h2.register_captured_scope(
+                    s.tree.clone(),
+                    s.capture.clone(),
+                    Some(Default::default()),
+                    ReferenceScopePolicy::schema_defaults().unwrap(),
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let wrong = profile_owner(&mut h2, transport_profile());
+        let profile2 = h2
+            .query_result_profile_owner(
+                fresh.profile().clone(),
+                &fresh_scopes,
+                fresh.profile().pin(),
+            )
+            .unwrap();
+        let choose = || {
+            if query {
+                TransportRuleCode::Query(functions())
+            } else {
+                TransportRuleCode::Native(code2.as_ref().unwrap().clone())
+            }
+        };
+        assert!(h2
+            .link_transported_dependency_rule(&c2, &id2, scopes2[&id2], &fresh, wrong, choose())
+            .is_err());
+        let owner2 = Arc::new(
+            h2.link_transported_dependency_rule(
+                &c2,
+                &id2,
+                scopes2[&id2],
+                &fresh,
+                profile2.clone(),
+                choose(),
+            )
+            .unwrap(),
+        );
+        let compiled2 = h2
+            .compile_datatype_dependencies_with_rules(
+                c2.clone(),
+                root2,
+                &scopes2,
+                &[],
+                &primitive(&c2),
+                &BTreeMap::from([(id2.clone(), owner2.clone())]),
+                limits(),
+            )
+            .unwrap();
+        let result = compiled2
+            .validate(
+                &h2,
+                declaration(c2.capture(), "root"),
+                &input("same"),
+                Default::default(),
+            )
+            .unwrap();
+        assert_eq!(result.accepted, Some(true));
+        assert!(Arc::ptr_eq(
+            result.completed[0].datatype.document(),
+            c2.capture().document()
+        ));
+        assert_eq!(
+            h2.capture_datatype_dependency_rule(&c2, &owner2)
+                .unwrap()
+                .bytes,
+            packet.bytes
+        );
+        drop(profile2);
+        assert!(h2.capture_datatype_dependency_rule(&c2, &owner2).is_err());
+        assert!(
+            !compiled2
+                .validate(
+                    &h2,
+                    declaration(c2.capture(), "root"),
+                    &input("same"),
+                    Default::default()
+                )
+                .is_ok_and(|result| result.accepted.is_some()),
+            "lost original profile still published a consumer result"
+        );
+        drop(profile);
+        assert!(h.capture_datatype_dependency_rule(&c, &owner).is_err());
+        drop((owner, owner2, compiled, compiled2, h, h2, code, code2));
+        assert_eq!(g.inventory().unwrap().live_roots, 0);
+        assert_eq!(g2.inventory().unwrap().live_roots, 0);
+    }
+}
+
 fn verified(query: bool, expression: &str) -> (Arc<capsule::VerifiedDatatypeDependencies>, String) {
     verified_for(CONSUMER, query, expression)
 }

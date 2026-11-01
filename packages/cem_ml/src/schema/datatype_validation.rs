@@ -14,7 +14,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
-    not(target_arch = "wasm32"),
+    any(not(target_arch = "wasm32"), feature = "query-source-runtime"),
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub enum ScalarRepresentation {
@@ -27,7 +27,7 @@ pub enum ScalarRepresentation {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
-    not(target_arch = "wasm32"),
+    any(not(target_arch = "wasm32"), feature = "query-source-runtime"),
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub enum ValueRepresentation {
@@ -37,7 +37,7 @@ pub enum ValueRepresentation {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
-    not(target_arch = "wasm32"),
+    any(not(target_arch = "wasm32"), feature = "query-source-runtime"),
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub enum CandidateRequirement {
@@ -46,7 +46,7 @@ pub enum CandidateRequirement {
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(
-    not(target_arch = "wasm32"),
+    any(not(target_arch = "wasm32"), feature = "query-source-runtime"),
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub enum ResultRepresentation {
@@ -55,7 +55,7 @@ pub enum ResultRepresentation {
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(
-    not(target_arch = "wasm32"),
+    any(not(target_arch = "wasm32"), feature = "query-source-runtime"),
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub struct ValidationSignature {

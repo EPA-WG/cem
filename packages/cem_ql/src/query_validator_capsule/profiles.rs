@@ -11,6 +11,7 @@ use cem_ml::{
     },
 };
 const PROFILE_ABI: &str = "cem.query-result-profile/1";
+pub mod transport;
 pub const DEPLOYMENT_ABI: &str = "cem-query-execution/1";
 pub struct QueryResultProfileSource {
     pub tree: Arc<RetainedCemTree>,

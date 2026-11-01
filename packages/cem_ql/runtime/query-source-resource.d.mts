@@ -11,12 +11,17 @@ export interface QuerySourceEndpoint {
     dispose(): void;
 }
 export interface QuerySourceNativeBackend {
+    readonly maxSourceBytes?: number;
     open(bytes: Uint8Array, pins: string): unknown | Promise<unknown>;
     capture(owner: unknown): Uint8Array | Promise<Uint8Array>;
     release(owner: unknown): unknown | Promise<unknown>;
 }
 /** Requires prior trusted native provisioning; tokens stay in the original heap. */
 export declare function createQuerySourceWasmBackend(runtime: {
+    memory(): WebAssembly.Memory | undefined;
+    call(name: string, args: unknown[]): unknown;
+}): QuerySourceNativeBackend;
+export declare function createRuleSourceWasmBackend(runtime: {
     memory(): WebAssembly.Memory | undefined;
     call(name: string, args: unknown[]): unknown;
 }): QuerySourceNativeBackend;
@@ -28,6 +33,7 @@ export interface QuerySourceEndpointOptions {
     timeoutMs?: number;
     /** Original owner cleanup only, still available behind closed admission. */
     cleanupCurrent?(): boolean;
+    maxSourceBytes?: number;
     native: QuerySourceNativeBackend;
     close?(): void;
 }

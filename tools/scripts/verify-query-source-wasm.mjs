@@ -19,6 +19,9 @@ mkdirSync(output, { recursive: true });
 run('cargo', ['test', '--locked', '--offline', '-p', 'cem-ql', '--test', 'query_validator_capsule',
     'native_emitted_wasm_handoff_fixture_has_checked_source_and_independent_pins'],
     { ...process.env, CEM_QUERY_HANDOFF_FIXTURE_DIR: output });
+run('cargo', ['test', '--locked', '--offline', '-p', 'cem-ql', '--test', 'query_validator_capsule',
+    'emit_checked_rule_profile_fixtures_for_real_worker_fallback_transport'],
+    { ...process.env, CEM_QUERY_HANDOFF_FIXTURE_DIR: output });
 run('cargo', ['build', '--locked', '--offline', '-p', 'cem-ql', '--example', 'query_source_probe',
     '--release', '--target', 'wasm32-unknown-unknown', '--target-dir', target,
     ...(transport ? ['--features', 'query-source-runtime'] : ['--no-default-features', '--features', 'component-runtime,query-source-runtime'])]);
@@ -36,3 +39,4 @@ if (transport) {
     writeFileSync(resolve(output, 'checkpoint-store.js'), ts.transpileModule(store, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText);
 }
 run(process.execPath, [transport ? 'packages/cem_ql/tests/query-resource-wasm.mjs' : 'packages/cem_ql/tests/query-source-wasm.mjs', output]);
+if (!transport) run(process.execPath, ['packages/cem_ql/tests/rule-source-wasm.mjs', output]);

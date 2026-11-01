@@ -426,9 +426,13 @@ original trusted profile and renew owners; no evaluated credential is transporte
 The [native provisioning API](cem-native-schema-capsules.md#native-provisioned-query-endpoints)
 now supplies opt-in byte endpoints bound to independent original deployment owners
 and opaque native tokens. Unprovisioned calls, copied tokens and foreign heaps
-fail. Default builds and component admission remain unchanged. Generated
-application bootstraps, imported/native rule owners, custom profile
-dependency transport and linked-code evidence remain separate; no reduced-runtime
+fail. The [rule/profile transport](cem-native-schema-capsules.md#imported-rule-and-custom-profile-transport)
+now carries complete custom sources and imported query/native rule leaves with
+original native code owners. Fresh native consumers retain their actual scopes;
+WASM imported leaves remain guarded registries until full consumer installation.
+Packet replay bytes share the existing 4 MiB aggregate budget. Default builds and
+component admission remain unchanged. Generated application bootstraps, complete
+CEMAPPD4 consumer transport and linked-code evidence remain separate; no reduced-runtime
 admission is enabled by these shared host APIs.
 
 

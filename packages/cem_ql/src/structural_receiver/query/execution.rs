@@ -11,7 +11,7 @@ pub struct FreshQueryCodeOwner {
     active: AtomicBool,
 }
 pub struct FreshQueryResultProfileOwner {
-    profile: Arc<VerifiedQueryResultProfile>,
+    pub(crate) profile: Arc<VerifiedQueryResultProfile>,
     scopes: Vec<DeclarationScope>,
     context: AttributeDatatypeContextLease,
     runtime: RuntimeOwner,

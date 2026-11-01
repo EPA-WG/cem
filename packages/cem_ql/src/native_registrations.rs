@@ -19,7 +19,7 @@ use cem_ml::{
         machine::LexicallyScopedDocument,
         native_source::NativeSourceSnapshot,
         registry::CEM_SCHEMA_URI,
-        structural_capsule::SourceIdentity,
+        native_source::SourceIdentity,
         value_contracts::ValueContractSource,
     },
 };
@@ -30,6 +30,7 @@ const ABI: &str = "cem.native-registration/1";
 const INVALID: &str = "native implementation requirement refused";
 const MAX_BYTES: usize = 64 * 1024;
 mod source_profiles;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod profiles;
 pub mod dependency_sources;
 pub(crate) use source_profiles::SourceContract;
@@ -343,6 +344,7 @@ pub(crate) enum Requirement {
     SourceOperation(DatatypeSource, SourceContract),
 }
 pub struct VerifiedNativeRequirement {
+    wire: Arc<[u8]>,
     pin: NativeRequirementPin,
     source: Arc<RetainedCemTree>,
     capture: Arc<LexicallyScopedDocument>,
@@ -352,6 +354,7 @@ pub struct VerifiedNativeRequirement {
     pub(crate) requirement: Requirement,
 }
 impl VerifiedNativeRequirement {
+    pub(crate) fn wire_bytes(&self) -> &[u8] { &self.wire }
     /// Original datatype occurrence, when this is an operation requirement.
     /// This borrowed source grants no registration or runtime admission.
     pub fn datatype_source(&self) -> Option<&DatatypeSource> {
@@ -381,6 +384,7 @@ impl VerifiedNativeRequirement {
         )?;
         work.check()?;
         Ok(Self {
+            wire: self.wire.clone(),
             pin: self.pin.clone(),
             source: source.source.clone(),
             capture: source.capture.clone(),
@@ -916,6 +920,7 @@ pub fn verify(
     .map_err(|_| INVALID)?;
     work.check()?;
     Ok(VerifiedNativeRequirement {
+        wire: bytes.into(),
         pin: pin.clone(),
         source,
         capture,

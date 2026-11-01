@@ -21,6 +21,8 @@ use cem_ml::schema::{
 use std::{ops::Range, sync::Weak};
 mod dependency_owners;
 mod operations;
+mod rule_owner;
+pub use rule_owner::FreshNativeRuleCodeOwner;
 use dependency_owners::OperationOwner;
 pub use operations::{FreshNativeOperation, NativeResultAdapter};
 
@@ -30,6 +32,7 @@ pub(super) struct Entry {
 }
 enum Actual {
     Validator(Arc<dyn NativeDatatypeValidator>),
+    OwnedValidator(Weak<FreshNativeRuleCodeOwner>),
     Tokenizer(Arc<dyn Tokenizer>),
     Preparation(Arc<dyn crate::datatype_preparation::NativeLexicalPreparer>),
     Conversion(Arc<dyn crate::datatype_conversion::NativeDatatypeConverter>),
@@ -65,7 +68,9 @@ impl Guard {
         {
             return None;
         }
-        self.entry.upgrade()
+        let entry = self.entry.upgrade()?;
+        if matches!(&entry.actual, Actual::OwnedValidator(owner) if !owner.upgrade().is_some_and(|o| o.is_live())) { return None; }
+        Some(entry)
     }
 }
 #[derive(Debug)]
@@ -75,10 +80,11 @@ impl NativeDatatypeValidator for ValidatorProxy {
         let Some(entry) = self.0.entry() else {
             return RuleExecution::Unavailable(vec![]);
         };
-        let Actual::Validator(callback) = &entry.actual else {
-            return RuleExecution::Unavailable(vec![]);
+        let result = match &entry.actual {
+            Actual::Validator(callback) => callback.validate(call),
+            Actual::OwnedValidator(owner) => match owner.upgrade() { Some(owner) => owner.validate(call), None => return RuleExecution::Unavailable(vec![]) },
+            _ => return RuleExecution::Unavailable(vec![]),
         };
-        let result = callback.validate(call);
         if self.0.entry().is_none() {
             RuleExecution::Unavailable(vec![])
         } else {

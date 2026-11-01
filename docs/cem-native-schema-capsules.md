@@ -595,9 +595,11 @@ record-shaped source, parallel evaluator or synthetic scope. The ML feature
 shares passive original source snapshots and bounded binary preflight.
 `native_source::SourceIdentity` is re-exported at the previous
 `structural_capsule::SourceIdentity` native path; source/pin serialization is
-unchanged. Original structural receiver installation, imported datatype/rule
-assembly, native implementation registration and CEMAPPD4 publication remain
-native-only. The WASM query core keeps the actual context epochs, weak source
+unchanged. Original structural receiver installation, imported datatype assembly
+and CEMAPPD4 publication remain native-only. The opt-in core now also admits
+explicit original native-validator code owners through the
+[rule/profile transport](#imported-rule-and-custom-profile-transport), without JS
+callback installation or default runtime admission. The WASM query core keeps the actual context epochs, weak source
 authority, native entry/root accounting, post-call checks and cumulative request
 budget; it does not restart an exhausted request.
 
@@ -707,8 +709,9 @@ The module and types are shipped with the shared runtime assets, with an interna
 `cem-elements` re-export. No Studio/component UI behavior is added. The
 [native-provisioned endpoints](#native-provisioned-query-endpoints) supply the
 original native backend when explicitly installed. The [source-backed execution owners](#source-backed-query-execution-owners)
-now guard direct pure-query bindings in these probes. Imported/native rule owners,
-custom result-profile dependency transport and application bootstrap generation remain
+now guard direct pure-query bindings in these probes. The separate
+[rule/profile transport](#imported-rule-and-custom-profile-transport) covers
+imported/native rule leaves and custom profiles. Application bootstrap generation remains
 admission gates in the [active TODO](todo.md#component-application-wasm-profile-separate-target).
 Automatic Studio recovery stays off. Entered passwords/OTPs still block recovery
 until explicitly cleared, with unchanged 4 MiB/five-second recovery policies.
@@ -783,8 +786,8 @@ also cover foreign original sources, cancellation, atomic replacement and
 context/generation fencing.
 
 The [native provisioning API](#native-provisioned-query-endpoints) now supplies
-direct-query byte endpoints. Imported/native rule owners, custom/multi-source
-profile dependency transport, generated application bootstraps, linked-code
+direct-query byte endpoints. The [rule/profile transport](#imported-rule-and-custom-profile-transport)
+now adds imported/native rule leaves and custom/multi-source profiles. Generated application bootstraps, linked-code
 evidence and CEMAPPD4 transport remain open. No component admission or automatic Studio recovery is enabled. Entered
 passwords/OTPs must be explicitly cleared before recovery; the 4 MiB checkpoint
 ceiling, five-second deadline and external-operation reconciliation remain intact.
@@ -853,15 +856,118 @@ profile and code table; it is not a library or default application provisioning
 export. Its schema parse remains a fixture dependency, not a minimum-runtime
 measurement. Default full/component builds receive none of the new opt-in byte
 exports, and no Studio/reduced-component admission is enabled. Application-specific
-bootstrap generation, imported/native rule owners, custom profile transport and
-linked-code evidence remain in the active TODO. Credential refusal, sealed
+bootstrap generation, full consumer/application transport and linked-code
+evidence remain in the active TODO. The rule/profile transport below adds separate
+opt-in endpoints. Credential refusal, sealed
 external journals, 4 MiB checkpoints and five-second recovery deadlines remain
 required; automatic Studio recovery stays off.
+
+## Imported rule and custom profile transport
+
+Two separate binary formats extend source transport without changing CEMQD1,
+CEMNR1, CEMQH1 or `cem-query-execution/1`:
+
+| Format | Passive payload and independent pin |
+| --- | --- |
+| `CEMRP1` / `cem.query-result-profile-sources/1` | Complete original result-profile source snapshots, identities, schema selectors, namespace bindings and selected result/diagnostic contracts; a packet hash plus the existing profile fingerprint. |
+| `CEMRH1` / `cem.rule-source/1` | An intact original CEMQD1 query or CEMNR1 native-validator leaf, its CEMRP1 profile, exact optional local datatype selector and direct/imported origin; a packet hash plus independent leaf/profile pins. |
+
+[`profiles::transport`](../packages/cem_ql/src/query_validator_capsule/profiles/transport.rs)
+restores complete original CEM graphs and lexical metadata, then recompiles
+through native `ValueContracts` and `DatatypeResultAdapter`. It invokes no source
+parser, schema catalog, callback or query evaluator. Repeated source claims must
+agree on their whole snapshot and identity; restored selectors from the same
+source share one fresh arena. Changed same-name profiles, missing contracts and
+incompatible result shapes fail. Profile compilation keeps its ordinary recursive
+value-contract checks and bounds; no new dependency resolver or scope is invented.
+
+Profile packets accept at most 16 sources, 16,384 aggregate source nodes, 4 MiB
+of encoded bytes, depth 64 and one million bounded verification checks. Aggregate
+nodes are checked before any source restoration. Original source graph, lexical,
+range and reference limits remain in force. Canonical encoding, independent
+packet/profile hashes, ML/QL versions, source identity and cancellation are
+checked. Trailing/noncanonical, truncated and oversized data refuse admission.
+
+[`rule_source_transport`](../packages/cem_ql/src/rule_source_transport.rs) frames
+bounded canonical metadata and unchanged leaf/profile byte images. Metadata is
+at most 4 KiB; original leaf limits remain 64 KiB, with a 4 MiB whole-packet
+ceiling. Sources sharing a URI across leaf/profile must agree completely.
+Imported origin names the exact original artifact hash and carries no datatype
+selector. No runtime handle, consumer expression result, context, grant, callback,
+input value or request budget is serialized.
+
+`FreshNativeRuleCodeOwner` retains actual Rust callback code with the complete
+implementation ID/ABI/module/export/signature and its actual generation/control.
+It contributes a Registry root. `register_native_validator_owner` installs only
+a weak original-owner reference; an equal identity registered with a different
+callback cannot substitute it. Missing, foreign, dropped, retired or cancelled
+code owners fence work, including a callback that retires itself before returning
+success. Identity agreement is not a linked-binary/code-omission attestation.
+
+Imported native APIs add `QueryProfile` and `NativeProfile` registrations with an
+original `FreshQueryResultProfileOwner`; native registrations additionally require
+the original code owner actually installed on that host. The rule binding borrows
+these authorities weakly. Legacy registrations still work but cannot fabricate
+a transport profile from matching contract names. `capture_datatype_dependency_rule`
+checks the live original binding, exact module/source/behavior, current profile
+and native owner before and after export.
+
+`link_transported_dependency_rule` checks the exact imported origin and leaf pin
+against the freshly verified CEMDP1 input. It uses that input's actual original
+source arena and scope, plus the packet's actual registered fresh profile. The
+existing compiler still resolves and verifies the consumer's original rule field,
+directed crossing, kind and dependency closure. Foreign profile allocations,
+unavailable code and failed binding publish no replacement. Native fixtures
+validate the new consumer node and behavior identities, then prove original
+profile loss fences subsequent capture.
+
+[`RuleSourceEndpoint`](../packages/cem_ql/src/rule_source_endpoint.rs) supplies the
+separate opt-in runtime path. Its original Rust deployment owner retains trusted
+packet pins and query functions, borrowing native code authority weakly. Opening
+reimports the complete profile and leaf, registers original captures and creates
+a guarded `FreshTransportRuleBinding`. It loads no implicit schema catalog.
+`ruleSourceOpenV1`, `ruleSourceCaptureV1` and `ruleSourceReleaseV1` use original
+opaque object tokens, with Rust-only installation into the actual linked runtime.
+The shared worker/local adapters retain their original participants and Memory.
+
+A direct leaf with an actual local datatype supports native validation with the
+existing cumulative invocation budget. An imported behavior may have no local
+datatype. It remains a guarded, recapturable rule registry; standalone validation
+refuses instead of manufacturing a consumer. Complete imported consumer/receiver
+graph installation in WASM belongs to CEMAPPD4 transport. This distinction keeps
+the already working native imported compiler separate from later app admission.
+
+The deployment contributes a Registry root; native code adds its own Registry
+root. Hosts, sources, profiles, registries and optional invocations retain their
+actual ledger roles. Endpoints admit at most 32 live sessions under the unchanged
+256-root ceiling. Retired owners remain counted until actual drop. Session release
+and original deployment uninstall remain possible behind closed admission; code
+and deployment owners must both drop before the complete census can seal.
+
+`createRuleSourceWasmBackend` selects this explicit ABI. Trusted endpoints may
+declare `maxSourceBytes` up to 4 MiB; legacy query endpoints retain their 69,643-byte
+default. The worker server validates its own native backend's limit. JS only
+copies bounded bytes and control pins; it performs no AST conversion or validation.
+Packet and UTF-8 pin bytes still join all checkpoints in the same aggregate 4 MiB
+recovery budget, so a maximum-sized packet cannot bypass checkpoint overhead.
+Original epoch/privacy witnesses, five-second deadlines, terminal journals and
+atomic fresh binding publication remain required.
+
+The component probe checks custom two-source profiles and direct/imported
+query/native leaves in independent heaps and a real worker. The full probe covers
+40 physical handoff scenarios: the legacy query and four new variants, each on
+worker/fallback with successful replay, stale checkpoint, late credential policy
+and foreign-target cases. Imported leaf fixtures restore rule registrations, not
+consumer DOM or UI. Entered passwords/OTPs still block recovery until explicitly
+cleared. Default builds and automatic Studio recovery remain unchanged. Generated
+application bootstraps, complete CEMAPPD4 consumer transport, live reduced-control
+integration and linked-code evidence remain in the active TODO.
 
 ## Exact native validator and tokenizer requirements
 
 [`cem_ql::native_registrations`](../packages/cem_ql/src/native_registrations.rs)
-exports and verifies native-only `CEMNR1` requirements. Each record carries an
+exports and verifies `CEMNR1` requirements natively and under the opt-in
+`query-source-runtime` Rust WASM feature. Each record carries an
 implementation ID, kind-specific ABI, module BLAKE3 hash, export name, passive
 signature, original declaration occurrences and a native source snapshot. The
 whole binary, source identity and registry hash must match independently supplied

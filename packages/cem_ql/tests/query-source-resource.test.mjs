@@ -2,12 +2,23 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { MessageChannel } from 'node:worker_threads';
 import { readFile } from 'node:fs/promises';
-import { createQuerySourceEndpoint, createQuerySourceWorkerEndpoint, installQuerySourceWorkerTransport, createQuerySourceWasmBackend, QuerySourceResource } from '../runtime/query-source-resource.mjs';
+import { createQuerySourceEndpoint, createQuerySourceWorkerEndpoint, installQuerySourceWorkerTransport, createQuerySourceWasmBackend, createRuleSourceWasmBackend, QuerySourceResource } from '../runtime/query-source-resource.mjs';
 import { CemNativeGenerationGroup, registerNativeGeneration, registerNativeGenerationResource, releaseNativeGenerationResourcesAsync, completeNativeRetirement } from '../runtime/native-generation.mjs';
 
 // Protocol unit doubles only. Native execution/census/retirement acceptance is
 // in query-resource-wasm.mjs against the actual full WASM and a worker.
 const bytes = new TextEncoder().encode('CEMQH1\nunit-source');
+test('rule backend uses only the explicit rule ABI and bounded profile packets', async () => {
+    const identity=new WebAssembly.Memory({initial:1}), calls=[];
+    const owner=Object.freeze({});const large=new Uint8Array(100000);
+    const native=createRuleSourceWasmBackend({memory:()=>identity,call:(name,args)=>{calls.push(name);return name==='ruleSourceOpenV1'?owner:name==='ruleSourceCaptureV1'?large:undefined;}});
+    const participant=registerNativeGeneration(identity,'rule-protocol-unit',async()=>{throw Error('unit');});
+    const endpoint=createQuerySourceEndpoint({identity,participant,current:()=>true,native});
+    const retained=await endpoint.open(large,'{}');assert.deepEqual(await endpoint.capture(retained),large);
+    await endpoint.release(retained);endpoint.dispose();
+    assert.deepEqual(calls,['ruleSourceOpenV1','ruleSourceCaptureV1','ruleSourceReleaseV1']);
+    for (const maxSourceBytes of [NaN,0,4*1024*1024+1]) assert.throws(()=>createQuerySourceEndpoint({identity,participant,current:()=>true,native,maxSourceBytes}),/limit/);
+});
 test('WASM query backend retains the original runtime memory and native opaque owners', () => {
     let memory = new WebAssembly.Memory({ initial: 1 });
     const first = memory, owner = Object.freeze({}); let released;

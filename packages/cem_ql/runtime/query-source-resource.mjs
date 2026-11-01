@@ -4,8 +4,8 @@ import { assertNativeGenerationResourceTarget, assertNativeGenerationResourceBud
 const shared = globalThis[Symbol.for('cem.query-source.endpoints.v1')] ??= { endpoints: new WeakMap() };
 const fail = code => { throw Error(`cem.query.resource.${code}`); };
 const MAX_BYTES = 69643, MAX_PINS = 16384;
-function source(bytes, pins) {
-    if (!(bytes instanceof Uint8Array) || !(bytes.buffer instanceof ArrayBuffer) || !bytes.length || bytes.length > MAX_BYTES
+function source(bytes, pins, limit = MAX_BYTES) {
+    if (!(bytes instanceof Uint8Array) || !(bytes.buffer instanceof ArrayBuffer) || !bytes.length || bytes.length > limit
         || typeof pins !== 'string' || pins.length > MAX_PINS || new TextEncoder().encode(pins).length > MAX_PINS) fail('limit');
     return bytes.slice();
 }
@@ -17,7 +17,9 @@ function endpointRecord(endpoint) {
 /** Native endpoints must first be provisioned by their trusted Rust embedding.
  * Keep the actual Memory weakly; an equal factory/foreign heap cannot substitute
  * it, and native tokens never become numeric runtime or worker wire handles. */
-export function createQuerySourceWasmBackend(runtime) {
+export function createQuerySourceWasmBackend(runtime) { return wasmBackend(runtime, 'querySource', MAX_BYTES); }
+export function createRuleSourceWasmBackend(runtime) { return wasmBackend(runtime, 'ruleSource', 4 * 1024 * 1024); }
+function wasmBackend(runtime, prefix, maxSourceBytes) {
     const identity = runtime?.memory?.();
     if (!(identity instanceof WebAssembly.Memory) || typeof runtime?.call !== 'function') fail('endpoint');
     const physical = new WeakRef(identity);
@@ -26,10 +28,10 @@ export function createQuerySourceWasmBackend(runtime) {
         if (!original || runtime.memory() !== original) fail('stale');
         return runtime.call(name, args);
     };
-    return Object.freeze({
-        open: (bytes, pins) => call('querySourceOpenV1', [bytes, pins]),
-        capture: owner => call('querySourceCaptureV1', [owner]),
-        release: owner => call('querySourceReleaseV1', [owner]),
+    return Object.freeze({ maxSourceBytes,
+        open: (bytes, pins) => call(`${prefix}OpenV1`, [bytes, pins]),
+        capture: owner => call(`${prefix}CaptureV1`, [owner]),
+        release: owner => call(`${prefix}ReleaseV1`, [owner]),
     });
 }
 /** Original binding functions must be supplied by the shared physical owner.
@@ -39,6 +41,8 @@ export function createQuerySourceEndpoint(options) {
     assertNativeGenerationResourceTarget(participant, undefined, identity);
     if (typeof current !== 'function' || !native || ['open', 'capture', 'release'].some(k => typeof native[k] !== 'function')
         || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) fail('endpoint');
+    const maxSourceBytes = options.maxSourceBytes ?? native.maxSourceBytes ?? MAX_BYTES;
+    if (!Number.isSafeInteger(maxSourceBytes) || maxSourceBytes < 1 || maxSourceBytes > 4 * 1024 * 1024) fail('limit');
     const physical = new WeakRef(identity), owners = new Map();
     let closed = false, failed = false, pending = 0;
     const live = () => !closed && !failed && current() === true;
@@ -72,7 +76,7 @@ export function createQuerySourceEndpoint(options) {
         identity: () => physical.deref(), current: () => live() && pending === 0,
         async open(bytes, pins, signal) {
             if (owners.size >= 64) fail('limit');
-            const copy = source(bytes, pins);
+            const copy = source(bytes, pins, maxSourceBytes);
             const value = await bounded(() => native.open(copy, pins), signal, value => native.release(value));
             if (!live()) { await native.release(value); fail('stale'); }
             if (owners.size >= 64) { await native.release(value); fail('limit'); }
@@ -82,7 +86,7 @@ export function createQuerySourceEndpoint(options) {
         async capture(owner, signal) {
             const entry = original(owner);
             const bytes = await bounded(() => native.capture(entry.value), signal);
-            return source(bytes, '');
+            return source(bytes, '', maxSourceBytes);
         },
         async release(owner, signal) {
             const entry = original(owner); entry.releasing = true;
@@ -97,7 +101,7 @@ export function createQuerySourceEndpoint(options) {
             owners.clear(); options.close?.();
         },
     });
-    shared.endpoints.set(endpoint, { participant, physical, current: endpoint.current });
+    shared.endpoints.set(endpoint, { participant, physical, maxSourceBytes, current: endpoint.current });
     return endpoint;
 }
 /** A private MessagePort created/transferred by the trusted Worker owner. The
@@ -136,6 +140,8 @@ export function createQuerySourceWorkerEndpoint(options) {
 /** Worker-side trusted binding adapter. IDs select only this original private
  * port's retained owners; no source/AST is reconstructed in JavaScript. */
 export function installQuerySourceWorkerTransport(port, native) {
+    const limit = native.maxSourceBytes ?? MAX_BYTES;
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 4 * 1024 * 1024) fail('limit');
     const owners = new Map(); let sequence = 0, latest = 0, closed = false, tail = Promise.resolve();
     const receive = event => {
         const request = event.data;
@@ -148,14 +154,14 @@ export function installQuerySourceWorkerTransport(port, native) {
                 let result;
                 if (op === 'open') {
                     if (owners.size >= 64) fail('limit');
-                    const bytes = source(value?.bytes, value?.pins);
+                    const bytes = source(value?.bytes, value?.pins, limit);
                     const owner = await native.open(bytes, value.pins);
                     if (closed) { await native.release(owner); return; }
                     owners.set(++sequence, owner); result = sequence;
                 } else {
                     if (!owners.has(value)) fail('owner');
                     const owner = owners.get(value);
-                    if (op === 'capture') result = source(await native.capture(owner), '');
+                    if (op === 'capture') result = source(await native.capture(owner), '', limit);
                     else if (op === 'release') { await native.release(owner); owners.delete(value); result = true; }
                     else fail('transport');
                 }
@@ -173,8 +179,8 @@ export function installQuerySourceWorkerTransport(port, native) {
 export class QuerySourceResource {
     #endpoint; #owner; #bytes; #pins; #options; #registration; #snapshot; #closed = false; #staged;
     static async open(options, signal) {
-        const bytes = source(options.bytes, options.pins);
-        endpointRecord(options.endpoint);
+        const record = endpointRecord(options.endpoint);
+        const bytes = source(options.bytes, options.pins, record.maxSourceBytes);
         if (typeof options.current !== 'function' || typeof options.target !== 'function') fail('policy');
         const owner = await options.endpoint.open(bytes, options.pins, signal);
         const resource = new QuerySourceResource();

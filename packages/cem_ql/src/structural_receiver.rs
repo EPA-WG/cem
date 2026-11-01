@@ -32,7 +32,6 @@ use cem_ml::{
         structural_receiver::StructuralNodeReceiver,
     },
 };
-#[cfg(not(target_arch = "wasm32"))]
 use std::collections::BTreeMap;
 const INVALID: &str = "fresh structural host refused";
 #[cfg(not(target_arch = "wasm32"))]
@@ -49,11 +48,11 @@ pub use dependencies::{
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub use datatypes::{FreshDatatypeCompilation, FreshDatatypePreparationInvocation};
-#[cfg(not(target_arch = "wasm32"))]
 mod native;
 mod query;
-#[cfg(not(target_arch = "wasm32"))]
-pub use native::{FreshNativeOperation, FreshNativeTokenizer, NativeResultAdapter};
+mod portable_rule;
+pub use portable_rule::{FreshTransportRuleBinding, TransportRuleCode};
+pub use native::{FreshNativeOperation, FreshNativeTokenizer, FreshNativeRuleCodeOwner, NativeResultAdapter};
 pub use query::{FreshQueryBinding, FreshQueryInvocation, FreshQuerySource,
     FreshQueryCodeOwner, FreshQueryRegistryOwner, FreshQueryResultProfileOwner};
 /// Never cloned/serialized. Contexts belong to this actual host allocation.
@@ -64,7 +63,6 @@ pub struct FreshStructuralHost {
     control: OperationControl,
     grants: BTreeSet<(DeclarationScope, DeclarationScope)>,
     closed: AtomicBool,
-    #[cfg(not(target_arch = "wasm32"))]
     native_implementations: BTreeMap<String, Arc<native::Entry>>,
     runtime: Option<std::sync::Weak<cem_ml::runtime_admission::generation::NativeGeneration>>,
     _runtime_resource: Option<cem_ml::runtime_admission::NativeResourceLease>,
@@ -93,7 +91,6 @@ impl FreshStructuralHost {
             control,
             grants: BTreeSet::new(),
             closed: AtomicBool::new(false),
-            #[cfg(not(target_arch = "wasm32"))]
             native_implementations: BTreeMap::new(),
             runtime: None,
             _runtime_resource: None,

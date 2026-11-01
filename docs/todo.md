@@ -9,7 +9,9 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [native-provisioned query endpoints and TODO cleanup](archive/todo-completed-query-endpoints-2026-11-01.md).
+Latest completion: [imported/native-rule and custom-profile transport](archive/todo-completed-rule-profile-transport-2026-11-01.md).
+The [native-provisioned query endpoints and TODO cleanup](archive/todo-completed-query-endpoints-2026-11-01.md)
+remain the preceding stage.
 The [source-backed query execution owners](archive/todo-completed-query-execution-owners-2026-11-01.md)
 remain the preceding stage.
 The [shared query transport/checkpoint handoff](archive/todo-completed-query-resource-handoff-2026-11-01.md)
@@ -76,12 +78,13 @@ independent pins, opaque per-heap tokens, native census and fresh worker/fallbac
 handoff. Default builds remain unchanged; application-specific bootstrap generation
 and component admission remain gated.
 
-Next execution gates, in order:
+The [rule/profile transport](archive/todo-completed-rule-profile-transport-2026-11-01.md)
+now preserves complete custom sources, original code/profile owners and imported
+rule leaves. Native CEMDP1 consumers bind their actual source fields/scopes. WASM
+imported leaves remain guarded registrations until complete consumer installation;
+they do not manufacture a datatype or infer a code grant from metadata.
 
-- [ ] Carry imported/native rule owners and custom/multi-source result-profile
-  dependencies through explicit source/code transport. Verify unavailable
-  implementations, changed pins and original scopes before admission; preserve
-  original source snapshots, selectors, cycle checks and nested-format limits.
+Next execution gates, in order:
 
 - [ ] Add versioned CEMAPPD4 source/code/registry-owner transport and original
   source reimport/recompilation on fresh worker/owned-fallback hosts. Preserve

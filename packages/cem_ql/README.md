@@ -1839,8 +1839,9 @@ handoff. Source provenance is independent of the constructed document URI.
 The internal `query-source-runtime` Cargo feature makes the existing CEMQV1/
 CEMQD1/CEMQH1 verifier and original query host/source/binding/request owners
 available to Rust WASM embeddings. It is disabled by default. Its native-provisioned
-byte exports grant no default endpoint authority or component admission. Structural/native
-installation and imported-rule assembly remain native-only.
+byte exports grant no default endpoint authority or component admission. Structural
+receiver installation and imported consumer assembly remain native-only. Original
+native-validator code owners are available to the opt-in Rust bootstrap.
 
 Run `NX_DAEMON=false yarn nx run cem_ql:test:query-source-wasm --skipNxCache`
 to author a native source fixture, build the isolated test-only WASM example
@@ -1871,8 +1872,8 @@ alongside the original source. `link_query_owned` borrows authority weakly;
 dropping/retiring owners or changing context/generation fences execution/capture.
 Failed `replace_query_owned` leaves the previous binding usable. All seven roots
 remain counted until actual drop. These source fingerprints do not prove linked
-code closure. Imported/native rule owners, custom profile dependency transport
-and generated application bootstraps remain open. See the
+code closure. The separate rule/profile transport below now carries imported/native
+rule leaves and custom profiles; generated application bootstraps remain open. See the
 [execution-owner contract](../../docs/cem-native-schema-capsules.md#source-backed-query-execution-owners).
 
 `query_source_endpoint::QuerySourceEndpoint` now supplies shared direct-query
@@ -1886,3 +1887,20 @@ behind closed admission, and retained deployment/session owners block retirement
 `createQuerySourceWasmBackend` binds the shared local/worker transport to that
 original Memory. No default full/component export or application admission is
 enabled. See the [endpoint contract](../../docs/cem-native-schema-capsules.md#native-provisioned-query-endpoints).
+
+`profiles::transport` adds complete `CEMRP1` profile sources with independent
+packet/profile pins. `rule_source_transport` adds `CEMRH1` framing around intact
+CEMQD1/CEMNR1 leaves and their profiles. Native capture checks actual imported
+rule/profile/code owners, and fresh CEMDP1 linking still resolves the original
+consumer field and scope. `FreshNativeRuleCodeOwner` retains real Rust code;
+matching metadata cannot supply a callback or substitute its original owner.
+
+`RuleSourceEndpoint` reimports custom profiles on fresh heaps. The opt-in
+`ruleSourceOpenV1/CaptureV1/ReleaseV1` ABI uses original opaque tokens and Rust-only
+provisioning; `createRuleSourceWasmBackend` connects shared local/worker byte
+transport. Direct local datatype bindings execute through native validation.
+Imported leaves without a consumer remain recapturable registries and refuse
+standalone evaluation. Full WASM consumer installation awaits CEMAPPD4 transport.
+Profile/rule packets are bounded to 4 MiB; their actual bytes and pins share the
+unchanged aggregate checkpoint budget. Default builds and credential refusal
+remain unchanged. See the [transport contract](../../docs/cem-native-schema-capsules.md#imported-rule-and-custom-profile-transport).

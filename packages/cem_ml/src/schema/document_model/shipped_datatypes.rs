@@ -9,7 +9,7 @@ use crate::schema::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
-    not(target_arch = "wasm32"),
+    any(not(target_arch = "wasm32"), feature = "query-source-runtime"),
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub enum ShippedDatatype {

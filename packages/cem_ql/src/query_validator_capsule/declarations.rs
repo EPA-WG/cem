@@ -34,6 +34,7 @@ pub struct VerifiedQueryDeclaration {
     pub(super) wire: Arc<[u8]>,
 }
 impl VerifiedQueryDeclaration {
+    pub(crate) fn wire_bytes(&self) -> &[u8] { &self.wire }
     pub fn pin(&self) -> &QueryDeclarationPin {
         &self.pin
     }
