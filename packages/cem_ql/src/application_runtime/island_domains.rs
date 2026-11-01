@@ -188,16 +188,7 @@ fn slice(item: &Item, depth: usize, control: &OperationControl) -> Result<(Strin
     Ok((name, native(item, value)?))
 }
 fn dataset_key(name: &str) -> String {
-    let mut chars = name.chars().peekable();
-    let mut result = String::new();
-    while let Some(c) = chars.next() {
-        if c == '-' && chars.peek().is_some_and(char::is_ascii_lowercase) {
-            result.push(chars.next().unwrap().to_ascii_uppercase());
-        } else {
-            result.push(c);
-        }
-    }
-    result
+    super::super::inputs::dataset_key(name)
 }
 fn attribute_name(name: &str) -> bool {
     name.len() <= 256

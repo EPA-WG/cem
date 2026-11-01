@@ -64,9 +64,24 @@ pub fn retire() {
     });
 }
 #[wasm_bindgen(js_name=probeApplicationReentrant)]
-pub fn reentrant(owner:&JsValue)->Result<bool,JsValue> {
-    wasm::with_session(owner,|_|Ok(wasm::capture(owner).is_err()&&wasm::release(owner).is_err()))
-        .map_err(|e|JsValue::from_str(&e))
+pub fn reentrant(owner: &JsValue) -> Result<bool, JsValue> {
+    wasm::with_session(owner, |_| {
+        Ok(wasm::capture(owner).is_err() && wasm::release(owner).is_err())
+    })
+    .map_err(|e| JsValue::from_str(&e))
+}
+
+// Native projection assertion only: never expose the retained graph as JS AST.
+#[wasm_bindgen(js_name=probeApplicationProjectionValid)]
+pub fn projection_valid(bytes: &[u8]) -> bool {
+    cem_ml::value::artifact::CemValueGraph::decode(bytes, &Default::default()).is_ok_and(|graph| {
+        graph.records.iter().any(|n| {
+            n.name == "strong"
+                && n.namespace == "http://www.w3.org/1999/xhtml"
+                && n.provenance.as_ref().and_then(|p| p.source_uri.as_deref())
+                    == Some("app://runtime/island.xhtml")
+        })
+    })
 }
 
 #[wasm_bindgen(js_name = probeApplicationSources)]

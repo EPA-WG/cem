@@ -442,7 +442,13 @@ native contracts to WASM; the passive reader proves fresh source restoration,
 and the [native installation endpoint](cem-native-schema-capsules.md#native-provisioned-application-installation)
 now binds original Rust bootstrap authority, exact fresh contexts and actual
 code/registry/compilation owners. Installed worker/fallback checkpoint handoff
-and generated application bootstraps remain pending.
+now uses the shared source resource transport and native-sealed journal.
+[Source-publication-bound reduced frames](cem-native-schema-capsules.md#source-publication-bound-reduced-frames)
+admit original scalar schema contracts, native attribute/dataset/slice inputs and
+qualified island projection through the actual live registry. Native/WASM
+acceptance covers malformed sources/domains and fresh physical rebinding.
+Unavailable node/executable ingress adapters, declaration/CSS/provider ownership,
+generated application bootstraps and production component admission remain gated.
 
 
 Do not equate downloaded code with an active native generation. Register every

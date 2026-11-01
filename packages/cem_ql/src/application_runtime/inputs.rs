@@ -9,8 +9,8 @@ use cem_ml::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(super) const MAX_BINDING_BYTES: usize = 16 * 1024;
-pub(super) const LIMITS: CemValueArtifactLimits = CemValueArtifactLimits {
+pub(crate) const MAX_BINDING_BYTES: usize = 16 * 1024;
+pub(crate) const LIMITS: CemValueArtifactLimits = CemValueArtifactLimits {
     max_bytes: super::MAX_INPUT_BYTES,
     max_values: 16_384,
     max_depth: 64,
@@ -22,6 +22,19 @@ const INVALID: &str = "compiled declaration native inputs refused";
 enum Target {
     Attribute,
     Slice,
+    Dataset,
+}
+pub(crate) fn dataset_key(name: &str) -> String {
+    let mut chars = name.chars().peekable();
+    let mut out = String::new();
+    while let Some(c) = chars.next() {
+        if c == '-' && chars.peek().is_some_and(char::is_ascii_lowercase) {
+            out.push(chars.next().unwrap().to_ascii_uppercase())
+        } else {
+            out.push(c)
+        }
+    }
+    out
 }
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -32,7 +45,7 @@ struct Binding {
     attribute: Option<String>,
 }
 
-pub(super) fn name_allowed(name: &str) -> bool {
+pub(crate) fn name_allowed(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 256
         && name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
@@ -44,6 +57,8 @@ pub(super) fn name_allowed(name: &str) -> bool {
             "datadom"
                 | "attributes"
                 | "slices"
+                | "dataset"
+                | "slots"
                 | "island"
                 | "instanceID"
                 | "suggestions"
@@ -52,10 +67,25 @@ pub(super) fn name_allowed(name: &str) -> bool {
         )
 }
 
-pub(super) fn bind(
+pub(crate) fn bind(
     bytes: &[u8],
     routing: &str,
     control: &OperationControl,
+) -> Result<TemplateData, String> {
+    bind_internal(bytes, routing, control, false)
+}
+pub(crate) fn bind_original(
+    bytes: &[u8],
+    routing: &str,
+    control: &OperationControl,
+) -> Result<TemplateData, String> {
+    bind_internal(bytes, routing, control, true)
+}
+fn bind_internal(
+    bytes: &[u8],
+    routing: &str,
+    control: &OperationControl,
+    original: bool,
 ) -> Result<TemplateData, String> {
     if bytes.len() > LIMITS.max_bytes || routing.len() > MAX_BINDING_BYTES {
         return Err(INVALID.into());
@@ -71,6 +101,11 @@ pub(super) fn bind(
         if !name_allowed(&binding.name)
             || !names.insert(&binding.name)
             || matches!(binding.target, Target::Attribute) && binding.attribute.is_some()
+            || matches!(binding.target, Target::Dataset)
+                && !binding.attribute.as_ref().is_some_and(|a| {
+                    a.strip_prefix("data-")
+                        .is_some_and(|suffix| dataset_key(suffix) == binding.name)
+                })
             || binding
                 .attribute
                 .as_ref()
@@ -81,6 +116,9 @@ pub(super) fn bind(
     }
     let values = decode_values_with_control(bytes, &LIMITS, control, ROOT_EXECUTION_SCOPE_ID)
         .map_err(|_| INVALID)?;
+    if original && values.items.iter().any(|v| !super::island::has_source(v)) {
+        return Err(INVALID.into());
+    }
     // These are native control envelopes, not reconstructed CEM document nodes.
     // Explicit fields keep slice aliases out of synthesized host attributes.
     let mut data = TemplateData::default().with_binding(
@@ -88,11 +126,43 @@ pub(super) fn bind(
         ItemStream::once(Item::Record(BTreeMap::from([
             ("attributes".into(), vec![Item::Record(BTreeMap::new())]),
             ("slices".into(), vec![Item::Record(BTreeMap::new())]),
+            ("dataset".into(), vec![Item::Record(BTreeMap::new())]),
+            ("slots".into(), vec![Item::Record(BTreeMap::new())]),
         ]))),
     );
     for binding in bindings {
         let value = values.items.get(binding.index).cloned().ok_or(INVALID)?;
+        if (!matches!(binding.target, Target::Slice) || binding.attribute.is_some())
+            && value
+                .view()
+                .and_then(|v| v.field("namespace"))
+                .and_then(|v| v.first().and_then(Item::atom))
+                .is_some_and(|v| v != crate::eval::AtomValue::String(String::new()))
+        {
+            return Err(INVALID.into());
+        }
         match binding.target {
+            Target::Dataset => {
+                let attribute = binding.attribute.ok_or(INVALID)?;
+                let values = crate::api::native_values::attribute_values(&value, &attribute)
+                    .map_err(|_| INVALID)?;
+                let [Item::Record(fields)] = data
+                    .bindings
+                    .get_mut("datadom")
+                    .ok_or(INVALID)?
+                    .items
+                    .as_mut_slice()
+                else {
+                    return Err(INVALID.into());
+                };
+                let Some(dataset) = fields.get_mut("dataset") else {
+                    return Err(INVALID.into());
+                };
+                let [Item::Record(fields)] = dataset.as_mut_slice() else {
+                    return Err(INVALID.into());
+                };
+                fields.insert(binding.name, values.items);
+            }
             Target::Attribute => {
                 crate::api::native_values::attribute_values(&value, &binding.name)
                     .map_err(|_| INVALID)?;
@@ -251,6 +321,8 @@ mod tests {
             "datadom",
             "attributes",
             "slices",
+            "dataset",
+            "slots",
             "island",
             "instanceID",
             "suggestions",

@@ -179,6 +179,7 @@ fn cyclic_dangling_deep_and_exponentially_expanded_graphs_refuse_before_binding(
 }
 
 #[test]
+#[cfg(feature = "component-runtime")]
 fn native_render_and_export_keep_reference_targets_without_clones() {
     use crate::{
         application_runtime::owners::CompiledDeclarationOwner,

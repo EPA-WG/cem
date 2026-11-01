@@ -44,7 +44,7 @@ pub(crate) fn apply_pipeline(
 ) -> ItemStream {
     let mut stream = source;
     for (index, step) in steps.iter().enumerate() {
-        #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
+        #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime", feature = "application-source-runtime"))]
         if ctx.selected_registry.is_some() && matches!(step,IrStep::Method{..}) {
             return ctx.unsupported(step_source(step),"receiver methods need a selected execution contract");
         }
@@ -77,7 +77,7 @@ fn step_source(step: &IrStep) -> IrId {
 }
 
 fn apply_step(input: ItemStream, step: &IrStep, ctx: &mut EvalCtx<'_>) -> ItemStream {
-    #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime", feature = "application-source-runtime"))]
     let input=if ctx.selected_registry.is_some() {
         match super::selected::pipeline_step(input,step,ctx) {Ok(result)=>return result,Err(input)=>input}
     }else{input};

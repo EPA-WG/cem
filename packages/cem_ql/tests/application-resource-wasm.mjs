@@ -16,16 +16,41 @@ function backend(runtime, observe) {
     return { ...native, open: (bytes, pins) => { const owner = native.open(bytes, pins); observe(owner); return owner; } };
 }
 const comparableReport = text => text;
+async function frame(runtime, owner, directory) {
+    const [island, badCount, badNamespace, inputs, routing] = await Promise.all([
+        ...['frame.island', 'frame.bad-count', 'frame.bad-namespace', 'frame.inputs'].map(name =>
+            readFile(resolve(directory, name)).then(bytes => new Uint8Array(bytes))),
+        readFile(resolve(directory, 'frame.route.json'), 'utf8'),
+    ]);
+    const render = (bytes, instance = 'island-one', tag = 'cem-count') =>
+        runtime.call('applicationSourceRenderIslandV1', [owner, tag, bytes, instance]);
+    const html = render(island);
+    assert.match(html, /3\/banana\/ Tea &amp; cake \/island-one/);
+    const projection = runtime.call('applicationSourceProjectIslandV1', [owner, 'cem-count', island, 'island-one']);
+    assert.equal(runtime.call('probeApplicationProjectionValid', [projection]), true);
+    for (const bytes of [badCount, badNamespace, new Uint8Array([0])]) assert.throws(() => render(bytes));
+    assert.throws(() => render(island, 'foreign-instance'));
+    assert.throws(() => render(island, 'island-one', 'cem-value'));
+    assert.throws(() => runtime.call('applicationSourceProjectIslandV1', [owner, 'cem-count', badNamespace, 'island-one']));
+    const direct = runtime.call('applicationSourceRenderInputsV1', [owner, 'cem-count', inputs, routing, 'direct-one']);
+    assert.match(direct, /3\/banana\/Tea\/direct-one/);
+    for (const badRouting of [routing.replace('fruitName', 'wrong'), routing.replace('"index":0', '"index":99'), routing.replace('cart', 'count')]) {
+        assert.throws(() => runtime.call('applicationSourceRenderInputsV1', [owner, 'cem-count', inputs, badRouting, 'direct-one']));
+    }
+    assert.equal(render(island), html, 'a rejected frame corrupted the publication');
+    return [html, direct];
+}
 if (!isMainThread) {
     const runtime = await factory(workerData.directory); let last;
     runtime.call('probeApplicationProvision', [workerData.pins, new Uint8Array(await readFile(resolve(workerData.directory, 'installed.inputs')))]);
     installQuerySourceWorkerTransport(workerData.port, backend(runtime, id => { last = id; }));
-    parentPort.on('message', ({ id, op, args }) => {
+    parentPort.on('message', async ({ id, op, args }) => {
         try {
             let value;
             if (op === 'prepare') value = runtime.prepareRetirement(args[0]);
             else if (op === 'dispose') value = runtime.dispose();
             else if (op === 'validate') value = runtime.call('probeApplicationValidate', [last]);
+            else if (op === 'frame') value = await frame(runtime, last, workerData.directory);
             else if(op==='tokens') {assert.throws(()=>runtime.call('applicationSourceCaptureV1',[Object.freeze({...last})]));assert.throws(()=>runtime.call('applicationSourceReleaseV1',[{}]));value=runtime.call('probeApplicationReentrant',[last]);}
             else value = runtime.call(op, args);
             parentPort.postMessage({ id, value });
@@ -61,6 +86,7 @@ if (!isMainThread) {
                 if (op === 'prepare') return runtime.prepareRetirement(args[0]);
                 if (op === 'dispose') return runtime.dispose();
                 if (op === 'validate') return runtime.call('probeApplicationValidate', [last]);
+                if (op === 'frame') return frame(runtime, last, directory);
                 if(op==='tokens') {assert.throws(()=>runtime.call('applicationSourceCaptureV1',[Object.freeze({...last})]));assert.throws(()=>runtime.call('applicationSourceReleaseV1',[{}]));return runtime.call('probeApplicationReentrant',[last]);}
                 return runtime.call(op, args);
             }
@@ -134,9 +160,10 @@ if (!isMainThread) {
         let admission, stores = [];
         try {
             const original = comparableReport(await old.call('validate', ['same']));
+            const originalFrame = await old.call('frame');
             assert.equal(original, 'true:true:true');
             assert.equal(await old.call('tokens'),true);
-            if(scenario==='expired-owner'){await old.call('probeApplicationRetire');await assert.rejects(async()=>old.call('validate'));await assert.rejects(resource.prepareRecovery());continue;}
+            if(scenario==='expired-owner'){await old.call('probeApplicationRetire');await assert.rejects(async()=>old.call('validate'));await assert.rejects(async()=>old.call('frame'));await assert.rejects(resource.prepareRecovery());continue;}
             const census = JSON.parse(await old.call('commandNativeResourceInventory'));
             assert.equal(census.registries.find(r => r.name === 'enrolled-compilations').live, 1);
             const unknown = await checkpoint(old, 'unknown'); stores.push(unknown);
@@ -172,6 +199,7 @@ if (!isMainThread) {
             const fresh = admission.generations[0].runtime;
             assert.equal(bound, fresh.endpoint());
             assert.deepEqual(comparableReport(await fresh.call('validate', ['same'])), original);
+            assert.deepEqual(await fresh.call('frame'), originalFrame);
             assert.equal(JSON.parse(new TextDecoder().decode(admission.generations[0].checkpoint)).receipt.operations[0].outcome, 'acknowledged');
             const freshInventory = JSON.parse(await fresh.call('commandNativeResourceInventory'));
             assert.equal(freshInventory.registries.find(r => r.name === 'enrolled-preparations').live, 0);

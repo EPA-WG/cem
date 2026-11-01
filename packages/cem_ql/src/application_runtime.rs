@@ -11,14 +11,16 @@ use cem_ml::{
     operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID},
     scheduler::{AbortSignal, ScopePolicy},
 };
+#[cfg(feature = "component-runtime")]
 use std::sync::Arc;
 
-mod inputs;
+pub(crate) mod inputs;
 pub mod island;
 pub mod owners;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "component-runtime"))]
 mod tests;
+#[cfg(feature = "component-runtime")]
 mod generated {
     // CLI-generated Rust uses the public crate path, also when included here.
     #[allow(unused_imports)]
@@ -101,12 +103,19 @@ fn render_control() -> Result<OperationControl, String> {
     .map_err(|error| error.to_string())
 }
 
-fn render_plan_data(
+#[allow(unused_mut)]
+pub(crate) fn render_plan_data(
     artifact: &crate::render::TemplateArtifact,
     mut data: TemplateData,
     control: &OperationControl,
 ) -> Result<crate::render::RenderPlan, String> {
-    data.selected_registry = Some(Arc::new(generated::selected_registry()));
+    #[cfg(feature = "component-runtime")]
+    if data.selected_registry.is_none() {
+        data.selected_registry = Some(Arc::new(generated::selected_registry()));
+    }
+    if data.selected_registry.is_none() {
+        return Err("compiled application needs its original registry owner".into());
+    }
     let plan =
         render_compiled_template_with_control(artifact, &data, control, ROOT_EXECUTION_SCOPE_ID);
     if plan
@@ -118,7 +127,7 @@ fn render_plan_data(
     }
     Ok(plan)
 }
-fn render_data(
+pub(crate) fn render_data(
     artifact: &crate::render::TemplateArtifact,
     data: TemplateData,
     control: &OperationControl,
@@ -131,7 +140,7 @@ fn render_data(
     }
     Ok(output.rendered)
 }
-fn project_data(
+pub(crate) fn project_data(
     artifact: &crate::render::TemplateArtifact,
     data: TemplateData,
     control: &OperationControl,
@@ -147,7 +156,7 @@ fn project_data(
     .map_err(|_| "compiled declaration native projection refused".into())
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "component-runtime"))]
 #[wasm_bindgen::prelude::wasm_bindgen(js_name = "renderCompiledApplication")]
 pub fn render_wasm(
     bytes: &[u8],

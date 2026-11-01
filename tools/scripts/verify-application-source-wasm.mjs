@@ -16,7 +16,7 @@ mkdirSync(output, { recursive: true });
 run('cargo', ['test', '--locked', '--offline', '-p', 'cem-ql', '--test', 'datatype_assembly_runtime',
     'source_handoff_reimports_original_mixed_consumers_with_fresh_explicit_owners'],
     { ...process.env, CEM_APPLICATION_HANDOFF_FIXTURE_DIR: output });
-run('cargo', ['test', '--locked', '--offline', '-p', 'cem-ql', '--test', 'application_handoff'],
+run('cargo', ['test', '--locked', '--offline', '-p', 'cem-ql', '--features', 'application-source-runtime', '--test', 'application_handoff'],
     { ...process.env, CEM_APPLICATION_HANDOFF_FIXTURE_DIR: output });
 run('cargo', ['build', '--locked', '--offline', '-p', 'cem-ql', '--example', 'application_source_probe',
     '--release', '--target', 'wasm32-unknown-unknown', '--target-dir', target,

@@ -9,7 +9,9 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [worker/fallback application checkpoint handoff](archive/todo-completed-application-handoff-2026-11-01.md).
+Latest completion: [reduced native input and island frames](archive/todo-completed-application-frames-2026-11-01.md).
+The [worker/fallback application checkpoint handoff](archive/todo-completed-application-handoff-2026-11-01.md)
+remains the preceding stage.
 The [native-provisioned application installation](archive/todo-completed-application-endpoints-2026-11-01.md)
 remains the preceding stage.
 The [original application source handoff and opt-in WASM contracts](archive/todo-completed-application-source-handoff-2026-11-01.md)
@@ -92,13 +94,12 @@ they do not manufacture a datatype or infer a code grant from metadata.
 
 Next execution gates, in order:
 
-- [ ] Integrate original schema/type receivers, native attribute/dataset/slice
-  domains and qualified island/projection ownership with the reduced processing
-  ABI. Refuse unsupported topology, namespaces, sources and unavailable input
-  contracts before live controls; add native/WASM parity and malformed-input cases.
-  - [ ] Add source-publication-bound reduced input/island frame fixtures for
-    original schema contracts, attributes/dataset/slices, qualified projections,
-    provenance, wrong domains/namespaces and unavailable receiver kinds.
+- [ ] Add explicit original node/executable receiver input adapters and remaining
+  instance-topology contracts to reduced frames. Keep the existing native
+  validation/root-invocation APIs and scalar frames; do not infer an input grant
+  from a type label or publish pending schemas as ready. Add native/WASM fixtures
+  for original input source/scope ownership, qualification, required fields and
+  refusal without an available adapter.
 
 - [ ] Bind compiled declarations, retained CSS and shared behavior/provider/source
   ownership to that ABI. Prove worker/fallback edits, credential refusal and

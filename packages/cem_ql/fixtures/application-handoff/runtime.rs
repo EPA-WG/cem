@@ -310,6 +310,12 @@ pub fn imported(text: &str, uri: &str) -> SourceInput {
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn build() -> (transport::BuiltApplicationSources, Vec<u8>) {
+    // Explicit island-record and native imported-tree paths. CEMV preserves the
+    // JSON import's CEM nodes; it does not turn that tree into a JS-like record.
+    build_count("{attribute @name=count @type=cart-count}{p | {$count}/{$datadom.dataset.fruitName}/{$datadom.slices.cart.title}{$datadom.slices.cart.children.children.children.children.value}/{$instanceID}}{section | {$datadom.slots.heading}}")
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub fn build_count(body: &str) -> (transport::BuiltApplicationSources, Vec<u8>) {
     let control = OperationControl::default();
     let view = imported(VIEW, "file:///runtime/view.cem");
     let cart = imported(CART, "file:///runtime/cart-data.cem");
@@ -408,7 +414,16 @@ pub fn build() -> (transport::BuiltApplicationSources, Vec<u8>) {
         },
     };
     let mixed=mixed::build(declaration("cem-value","{attribute @name=items @type=cart-lines @maxItems=2}{attribute @name=count @type=cart-count}{attribute @name=choice @type=app-value}{cem-app}{p | Mixed}"),owner.clone(),BTreeMap::from([("cart-lines".into(),mixed::ReceiverContract::Node(node_pin)),("cart-count".into(),mixed::ReceiverContract::Scalar(scalar_contract.clone())),("app-value".into(),mixed::ReceiverContract::Executable{root:"value".into(),target:owner.roots()["value"].clone()})]),&control).unwrap();
-    let count=mixed::build(declaration("cem-count","{attribute @name=count @type=cart-count}{cem-app}{p | {$count}/{$datadom.dataset.fruitName}/{$datadom.slices.cart.title}/{$instanceID}}"),owner,BTreeMap::from([("cart-count".into(),mixed::ReceiverContract::Scalar(scalar_contract))]),&control).unwrap();
+    let count = mixed::build(
+        declaration("cem-count", body),
+        owner,
+        BTreeMap::from([(
+            "cart-count".into(),
+            mixed::ReceiverContract::Scalar(scalar_contract),
+        )]),
+        &control,
+    )
+    .unwrap();
     let b = v4::build(
         parent,
         vec![mixed, count],

@@ -1,5 +1,49 @@
 #[path = "../fixtures/application-handoff/runtime.rs"]
 mod fixture;
+
+fn direct_inputs() -> (Vec<u8>, &'static str) {
+    use cem_ql::{api::native_values, eval::portable};
+    let input = native_values::import_document(
+        b"<view count='003' data-fruit-name='banana'/>",
+        "application/xml",
+        "app://runtime/input.xml",
+        &Default::default(),
+    )
+    .unwrap();
+    let mut graph =
+        cem_ml::value::artifact::CemValueGraph::decode(&input, &Default::default()).unwrap();
+    graph.roots = ["count", "data-fruit-name"]
+        .into_iter()
+        .map(|name| {
+            graph
+                .records
+                .iter()
+                .position(|r| r.kind == "attribute" && r.name == name)
+                .unwrap() as u32
+        })
+        .collect();
+    let mut values = portable::decode_values(
+        &graph.encode(&Default::default()).unwrap(),
+        &Default::default(),
+    )
+    .unwrap();
+    let json = native_values::import_document(
+        br#"{"title":"Tea"}"#,
+        "application/json",
+        "app://runtime/cart.json",
+        &Default::default(),
+    )
+    .unwrap();
+    values.items.extend(
+        portable::decode_values(&json, &Default::default())
+            .unwrap()
+            .items,
+    );
+    (
+        portable::encode_values(&values, &Default::default()).unwrap(),
+        r#"[{"name":"count","index":0,"target":"attribute"},{"name":"fruitName","index":1,"target":"dataset","attribute":"data-fruit-name"},{"name":"cart","index":2,"target":"slice"}]"#,
+    )
+}
 #[test]
 fn native_application_worker_fixture_has_original_sources_and_real_consumers() {
     use cem_ql::{
@@ -45,5 +89,209 @@ fn native_application_worker_fixture_has_original_sources_and_real_consumers() {
             serde_json::to_vec(&bytes.pin).unwrap(),
         )
         .unwrap();
+        let xml = include_str!("../fixtures/component-application/island-domains.xhtml")
+            .replace("quantity", "count");
+        for (name, text) in [
+            ("frame.island", xml.clone()),
+            (
+                "frame.bad-count",
+                xml.replace(
+                    "name=\"count\" value=\"003\"",
+                    "name=\"count\" value=\"002\"",
+                ),
+            ),
+            (
+                "frame.bad-namespace",
+                xml.replace("https://cem.dev/ns/runtime/instance-slices", "urn:wrong"),
+            ),
+        ] {
+            let native = cem_ql::api::native_values::import_document(
+                text.as_bytes(),
+                "application/xml",
+                "app://runtime/island.xhtml",
+                &Default::default(),
+            )
+            .unwrap();
+            std::fs::write(dir.join(name), native).unwrap();
+        }
+        let (inputs, route) = direct_inputs();
+        std::fs::write(dir.join("frame.inputs"), inputs).unwrap();
+        std::fs::write(dir.join("frame.route.json"), route).unwrap();
     }
+}
+
+#[cfg(feature = "application-source-runtime")]
+#[test]
+fn original_scalar_schema_admits_qualified_islands_and_rejects_source_contract_mismatches() {
+    use cem_ql::{
+        api::native_values,
+        application_source_endpoint::{ApplicationBootstrapOwner, ApplicationSourceEndpoint},
+    };
+    use std::sync::Arc;
+    let (source, input) = fixture::build();
+    let control = Default::default();
+    let inputs = fixture::Inputs::restore(&input, &control).unwrap();
+    let g = cem_ml::runtime_admission::generation::NativeGeneration::claim(Arc::new(
+        Default::default(),
+    ))
+    .unwrap();
+    let code = ApplicationBootstrapOwner::new(
+        &g,
+        control,
+        source.pin.clone(),
+        fixture::Bootstrap { inputs },
+    )
+    .unwrap();
+    let endpoint = ApplicationSourceEndpoint::new(&code).unwrap();
+    let mut session = endpoint
+        .open(&source.bytes, &serde_json::to_string(&source.pin).unwrap())
+        .unwrap();
+    let xml = include_str!("../fixtures/component-application/island-domains.xhtml")
+        .replace("quantity", "count");
+    let bytes = |s: &str| {
+        native_values::import_document(
+            s.as_bytes(),
+            "application/xml",
+            "app://runtime/island.xhtml",
+            &Default::default(),
+        )
+        .unwrap()
+    };
+    let island = bytes(&xml);
+    let output = session
+        .render_island_native("cem-count", &island, "island-one")
+        .unwrap();
+    assert!(
+        output.contains("3/banana/ Tea &amp; cake /island-one"),
+        "{output}"
+    );
+    let projected = session
+        .project_island_native("cem-count", &island, "island-one")
+        .unwrap();
+    let graph =
+        cem_ml::value::artifact::CemValueGraph::decode(&projected, &Default::default()).unwrap();
+    assert!(graph.records.iter().any(|n| n.name == "strong"
+        && n.namespace == "http://www.w3.org/1999/xhtml"
+        && n.provenance.as_ref().and_then(|p| p.source_uri.as_deref())
+            == Some("app://runtime/island.xhtml")));
+    let original =
+        cem_ml::value::artifact::CemValueGraph::decode(&island, &Default::default()).unwrap();
+    let strong = original
+        .records
+        .iter()
+        .find(|n| n.name == "strong")
+        .unwrap();
+    let retained = graph.records.iter().find(|n| n.name == "strong").unwrap();
+    assert_eq!(retained.source, strong.source);
+    let retained = retained.provenance.as_ref().unwrap();
+    let original = strong.provenance.as_ref().unwrap();
+    assert_eq!(retained.source_key, original.source_key);
+    assert_eq!(retained.source_uri, original.source_uri);
+    assert_eq!(retained.line_number, original.line_number);
+    for invalid in [
+        xml.replace(
+            "name=\"count\" value=\"003\"",
+            "name=\"count\" value=\"002\"",
+        ),
+        xml.replace("https://cem.dev/ns/runtime/instance-slices", "urn:wrong"),
+        xml.replace("value=\"banana\"", "value=\"mismatch\"")
+            .replacen("mismatch", "banana", 1),
+    ] {
+        assert!(session
+            .render_island_native("cem-count", &bytes(&invalid), "island-one")
+            .is_err());
+    }
+    assert!(session
+        .render_island_native("cem-count", &island, "foreign-instance")
+        .is_err());
+    assert!(session
+        .render_island_native("cem-value", &island, "island-one")
+        .is_err());
+    assert_eq!(
+        session
+            .render_island_native("cem-count", &island, "island-one")
+            .unwrap(),
+        output
+    );
+    let (inputs, route) = direct_inputs();
+    let html = session
+        .render_inputs_native("cem-count", &inputs, route, "direct-one")
+        .unwrap();
+    assert!(html.contains("3/banana/Tea/direct-one"), "{html}");
+    let mut graph =
+        cem_ml::value::artifact::CemValueGraph::decode(&inputs, &Default::default()).unwrap();
+    for missing in ["provenance", "source", "namespace", "base"] {
+        let mut invalid = graph.clone();
+        let root = &mut invalid.records[invalid.roots[0] as usize];
+        match missing {
+            "provenance" => root.provenance = None,
+            "source" => root.source.frames.clear(),
+            "namespace" => root.namespace = "urn:wrong".into(),
+            "base" => root.provenance.as_mut().unwrap().source_uri = Some("data:invalid".into()),
+            _ => unreachable!(),
+        }
+        assert!(
+            session
+                .render_inputs_native(
+                    "cem-count",
+                    &invalid.encode(&Default::default()).unwrap(),
+                    route,
+                    "direct-one"
+                )
+                .is_err(),
+            "{missing}"
+        );
+    }
+    // Even a slice routed from an attribute retains its qualified source domain.
+    graph.records[graph.roots[1] as usize].namespace = "urn:wrong".into();
+    let routed_slice = route.replace("\"target\":\"dataset\"", "\"target\":\"slice\"");
+    assert!(session
+        .render_inputs_native(
+            "cem-count",
+            &graph.encode(&Default::default()).unwrap(),
+            &routed_slice,
+            "direct-one"
+        )
+        .is_err());
+    for invalid in [
+        route.replace("fruitName", "wrong"),
+        route.replace("\"index\":0", "\"index\":99"),
+        route.replace("cart", "count"),
+    ] {
+        assert!(session
+            .render_inputs_native("cem-count", &inputs, &invalid, "direct-one")
+            .is_err());
+    }
+    code.retire();
+    assert!(session
+        .render_island_native("cem-count", &island, "island-one")
+        .is_err());
+    assert!(session
+        .project_island_native("cem-count", &island, "island-one")
+        .is_err());
+    assert!(session
+        .render_inputs_native("cem-count", &inputs, route, "direct-one")
+        .is_err());
+
+    // This is a separate original native-authored application, not a mutation of
+    // verified IR or a metadata claim granting a nested component owner.
+    let (nested, input) =
+        fixture::build_count("{attribute @name=count @type=cart-count}{cem-app}{p | {$count}}");
+    let control = Default::default();
+    let inputs = fixture::Inputs::restore(&input, &control).unwrap();
+    let code = ApplicationBootstrapOwner::new(
+        &g,
+        control,
+        nested.pin.clone(),
+        fixture::Bootstrap { inputs },
+    )
+    .unwrap();
+    let endpoint = ApplicationSourceEndpoint::new(&code).unwrap();
+    let mut nested = endpoint
+        .open(&nested.bytes, &serde_json::to_string(&nested.pin).unwrap())
+        .unwrap();
+    assert!(nested
+        .render_island_native("cem-count", &island, "island-one")
+        .unwrap_err()
+        .contains("additional ownership"));
 }

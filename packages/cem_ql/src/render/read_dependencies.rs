@@ -188,7 +188,7 @@ fn default_policy() -> ScopePolicy {
     ScopePolicy::host_root().with_queue_size(128)
 }
 fn ordinary_scope(data: &TemplateData) -> bool {
-    #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime", feature = "application-source-runtime"))]
     if data.selected_registry.is_some() {
         return false;
     }

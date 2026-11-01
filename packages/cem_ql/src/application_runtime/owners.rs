@@ -23,13 +23,16 @@ use std::{
     },
 };
 
-#[cfg(test)]
+#[cfg(all(test, feature = "component-runtime"))]
 #[path = "owners_tests.rs"]
 mod tests;
 static OWNERS: AtomicUsize = AtomicUsize::new(0);
 static LEASES: AtomicUsize = AtomicUsize::new(0);
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
+#[cfg_attr(
+    all(target_arch = "wasm32", feature = "component-runtime"),
+    wasm_bindgen::prelude::wasm_bindgen
+)]
 pub struct CompiledDeclarationOwner {
     metadata: DeclarationArtifactMetadata,
     identity: String,
@@ -365,13 +368,13 @@ impl Drop for CompiledDeclarationOwner {
 pub fn inventory_native() -> String {
     serde_json::json!({"contract":"cem-component-owner-inventory/1","revision":cem_ml::runtime_inventory::inventory_revision(),"liveDeclarationOwners":OWNERS.load(Ordering::SeqCst),"stylesheetConsumerLeases":LEASES.load(Ordering::SeqCst)}).to_string()
 }
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "component-runtime"))]
 #[wasm_bindgen::prelude::wasm_bindgen(js_name = "compiledDeclarationInventory")]
 pub fn inventory_wasm() -> String {
     inventory_native()
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "component-runtime"))]
 #[wasm_bindgen::prelude::wasm_bindgen]
 impl CompiledDeclarationOwner {
     #[wasm_bindgen(constructor)]

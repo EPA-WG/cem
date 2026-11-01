@@ -27,6 +27,8 @@ use std::{
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
+#[cfg(any(feature="component-runtime",feature="application-source-runtime"))]
+mod frames;
 const INVALID: &str = "cem.application.endpoint.refused";
 pub const MAX_PINS_BYTES: usize = 16 * 1024;
 // Complete applications retain more code/compilation roots than query leaves.

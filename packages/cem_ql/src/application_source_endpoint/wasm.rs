@@ -104,3 +104,41 @@ pub fn release(owner: &JsValue) -> Result<(), JsValue> {
         Ok(())
     })
 }
+#[wasm_bindgen(js_name=applicationSourceRenderIslandV1)]
+pub fn render_island(
+    owner: &JsValue,
+    tag: &str,
+    bytes: &[u8],
+    instance: &str,
+) -> Result<String, JsValue> {
+    let _entry = runtime_admission::admit(false).map_err(error)?;
+    let _memory = cem_ml::runtime_memory::admit_input(bytes.len()).map_err(error)?;
+    with_session(owner, |s| s.render_island_native(tag, bytes, instance)).map_err(error)
+}
+#[wasm_bindgen(js_name=applicationSourceProjectIslandV1)]
+pub fn project_island(
+    owner: &JsValue,
+    tag: &str,
+    bytes: &[u8],
+    instance: &str,
+) -> Result<Vec<u8>, JsValue> {
+    let _entry = runtime_admission::admit(false).map_err(error)?;
+    let _memory = cem_ml::runtime_memory::admit_input(bytes.len()).map_err(error)?;
+    with_session(owner, |s| s.project_island_native(tag, bytes, instance)).map_err(error)
+}
+#[wasm_bindgen(js_name=applicationSourceRenderInputsV1)]
+pub fn render_inputs(
+    owner: &JsValue,
+    tag: &str,
+    bytes: &[u8],
+    routing: &str,
+    instance: &str,
+) -> Result<String, JsValue> {
+    let _entry = runtime_admission::admit(false).map_err(error)?;
+    let _memory = cem_ml::runtime_memory::admit_input(bytes.len().saturating_add(routing.len()))
+        .map_err(error)?;
+    with_session(owner, |s| {
+        s.render_inputs_native(tag, bytes, routing, instance)
+    })
+    .map_err(error)
+}

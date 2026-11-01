@@ -1782,7 +1782,7 @@ Native census revisions include mutations of opaque session tables. Reentrant
 table access uses shared `NativeRegistry::try_borrow_mut` to refuse without
 unwinding and invalidate old census observations.
 
-The default-off `application-source-runtime` WASM ABI exposes only
+The default-off `application-source-runtime` WASM lifecycle ABI exposes
 `applicationSourceOpenV1`, `applicationSourceCaptureV1` and
 `applicationSourceReleaseV1`. An original Rust embedding installs/uninstalls the
 endpoint against the linked generation; there is no JavaScript provisioning API.
@@ -1804,9 +1804,63 @@ retirement, fresh source binding, original tokens, reentrance, expired owners,
 stale/foreign targets, late credential refusal and combined byte budgets.
 Run `NX_DAEMON=false yarn nx run cem_ql:test:application-resource-wasm --skipNxCache`.
 The fixture restores original native input snapshots as immutable bootstrap data;
-mutable application inputs and qualified rendering remain the reduced-ABI gate.
+the reduced frame API below admits separately supplied native application input.
 Credential refusal, manual Studio recovery, aggregate checkpoint/replay budget
 and deadlines remain unchanged.
+
+## Source-publication-bound reduced frames
+
+`ApplicationSourceSession::render_island_native`, `project_island_native` and
+`render_inputs_native` consume the actual installed CEMAPPD4 publication. The
+default-off WASM counterparts are `applicationSourceRenderIslandV1`,
+`applicationSourceProjectIslandV1` and `applicationSourceRenderInputsV1`. They
+require the same original opaque session token as source capture; the frame
+call cannot create code owners, schemas, contexts or execution grants.
+
+Each frame enters the original application owner, renews mixed receivers and
+registry selections, and uses the publication's original compiled artifact and
+selected registry. Closed scalar receiver contracts include both their original
+type definition and declaration-local restrictions. For example, a type allowing
+2–5 cannot override an original receiver restriction of 3–4. The source schema
+is reviewed directly from the original retained tree; required attributes,
+children, field contracts and unsupported instance topology need their explicit
+input adapter. Node/executable receiver ingress without such an adapter refuses;
+the existing original native validation/root-invocation APIs remain available.
+
+Direct frames decode bounded CEMV input with the shared native codec. Separate
+JSON routing metadata names attributes, dataset aliases and slices by native
+root index; it never carries an AST or reconstructs data values. Dataset aliases
+derive from their actual `data-*` attribute. Attribute routes retain the empty
+namespace requirement, including attribute-to-slice routes. Original root source
+keys, hierarchical source URIs and source-map frames are required. Invalid
+indices, collisions, reserved names, wrong domains or missing sources refuse
+atomically. The existing generic prototype input path retains its prior source
+policy.
+Imported JSON slices retain their native CEM tree structure and use native tree
+navigation; routing does not turn them into object-style records. Explicit
+island record values continue to use the shared island-domain view.
+
+Islands use the existing qualified v0.2.0 native adapter, including dataset/source
+agreement, instance identity, payload review, and explicit state-domain limits.
+Projection returns native CEMV output; original HTML slot nodes retain their
+XHTML namespace, source URI and source maps. This is a frame operation and does
+not store mutable input in the source packet or authorize automatic input replay.
+
+Frames have the existing 1 MiB input/output limits, 16 KiB routing bound, 64 routes,
+bounded native value graph and five-second scope tied to the original abort
+signal. Capability-bearing declarations, retained styles, nested components,
+unresolved requirements and resource imports await their real ownership adapters
+and refuse before output. Expired bootstrap/endpoint owners fence render and
+projection as well as source capture. Rejected frames leave the publication
+usable. The opt-in ports preserve default exports and production admission.
+
+The native fixture covers original scalar restrictions, qualified projected
+sources, direct attribute/dataset/slice data, malformed routing, source/namespace
+refusals, nested component ownership and owner retirement. The real worker and
+fallback handoff acceptance invokes the same ABI before/after fresh rebinding,
+compares HTML and checks projected source identity inside native code. It never
+exports an AST to JavaScript. Shared declaration/CSS/provider/live-control wiring
+and node/executable frame adapters remain separate execution gates.
 
 ## Native publication generation enrollment
 

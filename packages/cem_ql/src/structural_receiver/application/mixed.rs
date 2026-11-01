@@ -151,6 +151,54 @@ impl Group {
         }
     }
 }
+
+impl LinkedMixedReceivers {
+    /// Closed scalar ingress only. Executable/node values need their explicit
+    /// native receiver input adapters; a type label cannot grant that authority.
+    pub(crate) fn runtime_scalar_contracts(
+        &self,
+        host: &mut FreshStructuralHost,
+    ) -> Result<
+        (
+            BTreeMap<String, AttributeValueContract>,
+            BTreeMap<String, AttributeValueContract>,
+        ),
+        String,
+    > {
+        let _entry = self.group.enter(host)?;
+        self.group.refresh(host)?;
+        let model = cem_ml::schema::document_model::compile_schema_document_model_from_retained(
+            &self.group.schema_uri,
+            &self.group.source,
+        );
+        if model.elements.len() > 1
+            || model.elements.values().any(|e| {
+                !e.required_attributes.is_empty()
+                    || !e.child_elements.is_empty()
+                    || e.allow_any_child
+                    || !e.field_contracts.is_empty()
+            })
+        {
+            return Err(
+                "compiled application instance topology needs an original input adapter".into(),
+            );
+        }
+        let mut fields = BTreeMap::new();
+        let mut types = BTreeMap::new();
+        for (name, receiver) in &self.group.receivers {
+            let Binding::Scalar { contract } = &receiver.binding else {
+                return Err("compiled application receiver ingress unavailable".into());
+            };
+            fields.insert(name.clone(), contract.clone());
+            let alias = &self.group.contract.occurrences()[name].fields["type"];
+            if let Some(ReceiverContract::Scalar(source)) = self.group.contract.receiver(alias) {
+                types.insert(alias.clone(), source.value.clone());
+            }
+        }
+        self.group.refresh(host)?;
+        Ok((fields, types))
+    }
+}
 struct Entry<'a> {
     busy: &'a AtomicBool,
     _publication: Option<super::publication::Entry>,

@@ -53,7 +53,7 @@ pub mod application_source_endpoint;
 pub mod selected_registry;
 #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime", feature = "application-source-runtime"))]
 pub mod application_declaration;
-#[cfg(feature = "component-runtime")]
+#[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
 pub mod application_runtime;
 pub mod datatype_compilation;
 pub mod datatype_availability;

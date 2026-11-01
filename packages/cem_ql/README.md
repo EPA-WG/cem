@@ -1926,8 +1926,8 @@ receivers and preparation handles when the original bootstrap/endpoint expires.
 The default-off `applicationSourceOpenV1/CaptureV1/ReleaseV1` ABI requires explicit
 Rust provisioning and original opaque tokens; the test-only probe exercises
 unprovisioned/unknown-token refusal. At most eight application sessions share the
-existing generation resource ceiling. Installed worker/fallback checkpoint
-handoff and generated bootstraps remain next gates; component admission, default
+existing generation resource ceiling. Generated application bootstraps remain a
+next gate; component admission, default
 targets and credential refusal stay unchanged. See the
 [source handoff](../../docs/cem-native-schema-capsules.md#original-application-source-handoff)
 and [native endpoint contract](../../docs/cem-native-schema-capsules.md#native-provisioned-application-installation).
@@ -1936,5 +1936,22 @@ and [native endpoint contract](../../docs/cem-native-schema-capsules.md#native-p
 to the shared source resource/checkpoint transport. Run
 `NX_DAEMON=false yarn nx run cem_ql:test:application-resource-wasm --skipNxCache`
 for native-authored source/input snapshots, original owned factory, sealed journal
-and 12 actual worker/fallback handoff scenarios. Qualified mutable-input rendering
-remains the following reduced-ABI gate; default admission stays unchanged.
+and 12 actual worker/fallback handoff scenarios, including reduced native-input
+and island rendering before and after source rebinding. Default admission stays
+unchanged.
+
+The opt-in `applicationSourceRenderIslandV1`,
+`applicationSourceProjectIslandV1` and `applicationSourceRenderInputsV1` use the
+same original session token and live publication. Original scalar receiver
+contracts retain their declaration-local restrictions; attributes, dataset and
+slices carry bounded native CEM values. Routing JSON contains names and indices
+only. Qualified v0.2.0 islands use the existing native namespace, source, state
+and payload checks. Projected HTML nodes retain their original namespace and
+source URI without becoming a JavaScript AST.
+
+Frames renew the actual original registry and receiver owners. Unsupported
+instance topology, nested component dependencies, capability/CSS/resource
+ownership, missing source provenance and unavailable node/executable input
+adapters refuse before producing output. Native node and executable-root
+validation remains available through its explicit existing contracts; it grants
+no raw frame ingress. See the [reduced frame contract](../../docs/cem-native-schema-capsules.md#source-publication-bound-reduced-frames).

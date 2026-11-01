@@ -43,7 +43,7 @@ if (isMainThread) {
         worker.once('error', reject);
         worker.once('exit', code => code === 0 ? resolve() : reject(Error(`reader worker exited ${code}`)));
     });
-    console.log(`Application source reader: 36 checks across two fresh heaps and a real worker; ${source.length} source bytes. Native provisioning is required; worker/fallback installation acceptance remains gated.`);
+    console.log(`Application source reader: 36 checks across two fresh heaps and a real worker; ${source.length} source bytes. Native provisioning is required; installed-session acceptance runs in the separate resource target.`);
 } else {
     await verify('worker');
     parentPort.close();

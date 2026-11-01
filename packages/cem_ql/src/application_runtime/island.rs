@@ -31,7 +31,7 @@ pub const PARTS: &[(&str, &str)] = &[
 ];
 const INVALID: &str = "compiled declaration native island refused";
 
-fn has_source(item: &Item) -> bool {
+pub(super) fn has_source(item: &Item) -> bool {
     item.view()
         .and_then(|view| view.provenance())
         .is_some_and(|source| {
@@ -114,7 +114,7 @@ fn is_element(item: &Item, name: &str, namespace: &str) -> bool {
         && field(item, "namespace").as_deref() == Some(namespace)
 }
 
-pub(super) fn bind(
+pub(crate) fn bind(
     bytes: &[u8],
     instance_id: &str,
     control: &OperationControl,
