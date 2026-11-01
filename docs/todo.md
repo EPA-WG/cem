@@ -115,7 +115,19 @@ native/release follow-ups.
   `verify:login-navigation` passed all selected Login/Supplier offline workflows.
   See the [acceptance record](declarative-amsterdam-2026/login-walkthrough.md#deployed-navigation-and-persistence-acceptance).
 
-- [ ] Prepare the reproducible presenter/participant route for that Login
+- [x] Package and verify a portable local Login participant kit: copy the complete
+  Studio deployment plus frozen references, inventory original bytes and provide
+  a Node-only static launcher. Add production-hosting and changed/missing-file
+  refusal fixtures, then extract outside the workspace and run the Login offline
+  acceptance through the actual launcher. Record tested host/tool versions and
+  keep public release/host availability separate.
+  Verified 2026-11-01: 386-file kit extracted outside the workspace, Node
+  24.16.0/Linux x64/Chromium 148.0.7778.96; five launcher tests, lint and all
+  23 selected offline Login/Supplier configurations passed.
+  [Handout](declarative-amsterdam-2026/participant-setup.md) and
+  [dated verification](declarative-amsterdam-2026/participant-kit-verification.md).
+
+- [x] Prepare the reproducible presenter/participant route for that Login
   project: verify Studio sample selection, independent editable copies,
   project/resource/configuration URL selection, source/template save and
   validation, build artifact and live previews, reload/offline reopening and
@@ -126,6 +138,9 @@ native/release follow-ups.
   OTP recovery refusal; exercise explicit clearing only with disposable demo
   credentials. This is acceptance for the selected presentation revision, not
   a reopening of completed workspace implementation.
+  Selected delivery is the verified local-transfer kit, with the frozen native
+  outputs as fallback. Public hosting/registry installation and untested OSes
+  are not advertised; verify them separately if selected for participant delivery.
 
 - [ ] After the core Login route is ready, select and verify only the companion
   projects actually shown: Supplier pipeline XML/CSV matching and HTML/JSON/YAML

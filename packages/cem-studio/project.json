@@ -1444,6 +1444,74 @@
                 }
             ],
             "outputs": []
+        },
+        "test:participant-kit": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node --test scripts/participant-kit.test.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/participant-kit*.mjs",
+                "{projectRoot}/scripts/serve-preview.mjs"
+            ],
+            "outputs": []
+        },
+        "package:participant-kit": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:output",
+                "verify:login-presenter",
+                "test:participant-kit"
+            ],
+            "options": {
+                "command": "node scripts/package-participant-kit.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/package-participant-kit.mjs",
+                "{projectRoot}/scripts/participant-kit-launcher.mjs",
+                "{projectRoot}/scripts/serve-preview.mjs",
+                "{projectRoot}/dist/static/**/*",
+                "{workspaceRoot}/docs/declarative-amsterdam-2026/participant-setup.md",
+                "{workspaceRoot}/docs/declarative-amsterdam-2026/login-walkthrough.md",
+                "{workspaceRoot}/docs/declarative-amsterdam-2026/login-presenter/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/packages/cem-studio-login-kit",
+                "{workspaceRoot}/dist/packages/cem-studio-login-kit.tgz"
+            ]
+        },
+        "verify:participant-kit": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "package:participant-kit"
+            ],
+            "options": {
+                "command": "node scripts/verify-participant-kit.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-participant-kit.mjs",
+                "{projectRoot}/scripts/verify-static-worker.mjs",
+                "{projectRoot}/scripts/participant-kit-launcher.mjs",
+                "{projectRoot}/scripts/catalog-acceptance.mjs",
+                "{workspaceRoot}/dist/packages/cem-studio-login-kit.tgz",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/participant-kit.json"
+            ]
         }
     },
     "tags": [

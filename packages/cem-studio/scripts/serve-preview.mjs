@@ -8,7 +8,7 @@ const projectRoot = resolve(import.meta.dirname, '..');
 const prefix = '/__cem_preview__/';
 
 /** Keep browser data on its original origin; only deployment asset URLs change. */
-export function createCemStudioPreviewHandler({ root = resolve(projectRoot, 'dist/static'), buildReport = resolve(projectRoot, '../../dist/reports/cem-studio/build.json') } = {}) {
+export function createCemStudioPreviewHandler({ root = resolve(projectRoot, 'dist/static'), buildReport = resolve(projectRoot, '../../dist/reports/cem-studio/build.json'), versionedAssets = true } = {}) {
     return async (request, response) => {
         try {
             const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
@@ -20,7 +20,7 @@ export function createCemStudioPreviewHandler({ root = resolve(projectRoot, 'dis
             const filename = metadata.isDirectory() ? resolve(candidate, 'index.html') : candidate;
             let bytes = await readFile(filename);
             const security = JSON.parse(await readFile(resolve(root, 'security-headers.json'), 'utf8'));
-            if (filename === resolve(root, 'index.html')) {
+            if (versionedAssets && filename === resolve(root, 'index.html')) {
                 const report = JSON.parse(await readFile(buildReport, 'utf8'));
                 const manifest = findModuleAssetManifest(report);
                 if (!manifest?.hash) throw new Error('Build report is missing the module asset fingerprint');

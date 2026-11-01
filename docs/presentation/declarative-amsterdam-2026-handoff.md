@@ -14,6 +14,14 @@ diagnostics. Deployed navigation/live preview and offline draft acceptance passe
 at that baseline. Participant access/install verification, delivery materials and
 timed rehearsal remain open; this freeze does not assert public availability.
 
+Local delivery update (2026-11-01): the [participant kit](../declarative-amsterdam-2026/participant-setup.md)
+and [verification record](../declarative-amsterdam-2026/participant-kit-verification.md)
+now establish the selected local-transfer route on Node 24.16.0/Linux x64 with
+Chromium 148.0.7778.96. All 23 selected offline Login/Supplier configurations,
+independent copies and draft restoration passed from an extracted kit. Public
+hosting/registry installation remains unverified. Next select/freeze the shown
+companion checkpoints, finish materials and rehearse the timed route.
+
 Started 2026-10-10 before clearing chat context; updated 2026-10-11 after agenda
 alignment. The user requested a temporary switch from implementation to preparing
 the CEM presentation for Declarative Amsterdam 2026. The user changed priority

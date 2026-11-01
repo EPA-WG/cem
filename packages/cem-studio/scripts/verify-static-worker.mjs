@@ -16,7 +16,14 @@ const shellOnly = process.argv.includes('--shell-only');
 const presentationOnly = process.argv.includes('--presentation-only');
 const supplierOnly = process.argv.includes('--supplier-only');
 const reportPath = resolve(workspaceRoot, `dist/reports/cem-studio/${supplierOnly ? 'supplier-project' : presentationOnly ? 'presentation-samples' : lifecycleOnly ? 'workspace-delivery' : shellOnly ? 'shell-delivery' : 'static-worker'}.json`);
-const server = await startStaticServer(outputRoot);
+const externalUrl = process.env.CEM_STUDIO_ACCEPTANCE_URL;
+if (externalUrl) {
+    const target = new URL(externalUrl);
+    assert.equal(target.protocol, 'http:');
+    assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(target.hostname), 'External acceptance must use a local test server');
+    assert.equal(target.username, ''); assert.equal(target.password, '');
+}
+const server = externalUrl ? { url: externalUrl, close: async () => undefined } : await startStaticServer(outputRoot);
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
 const context = await browser.newContext({ serviceWorkers: 'allow' });
 const page = await context.newPage();

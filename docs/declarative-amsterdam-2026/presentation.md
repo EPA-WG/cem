@@ -355,7 +355,7 @@ not a new build, release, or end-to-end test report.
 | Native CLI | [cem_ml_cli README](../../packages/cem_ml_cli/README.md) | The command host uses common engine services. Public distribution and clean installation need separate evidence. |
 | Node/browser hosts | [Universal CLI README](../../packages/cem-ml-cli-npm/README.md) | Both use a generated command grammar and the shared WASM runtime. Verify the specific commands against runtime capabilities. |
 | CEM-QL and components | [CEM-QL](../../packages/cem_ql/README.md), [cem-elements](../../packages/cem-elements/README.md), [UI principle](../declarative-ui-principle.md) | Explain query/template ownership and declarative light-DOM composition. Demonstrate only selected verified behavior. |
-| Studio | [Studio README](../../packages/cem-studio/README.md); Sasha's October 11 update | Workbench implementation exists, but Studio is not ready for participant use. Present its role as work in progress; add access links to discussion #24 when ready. |
+| Studio | [Studio README](../../packages/cem-studio/README.md); [local participant setup](participant-setup.md) | Login navigation, independent copies, live preview and offline drafts have deployed acceptance. The local kit has its own extracted-distribution check; public hosting and published installation routes remain unverified. |
 | Theme, Components, Site | [Preparation handoff](../presentation/declarative-amsterdam-2026-handoff.md), [active tasks](../todo.md) | Use as wider platform context. Component and application UI migration is still open; avoid presenting the entire platform as finished. |
 
 The older [CLI feature summary](../cem-ml-cli-contract.md) explicitly contains
@@ -374,10 +374,13 @@ resource destination in slides, QR codes, handouts, and the presentation website
 Keep links to examples, CLI releases, installation notes, recordings, and Studio
 there as each becomes available. Slide copy: **“Resources and updates.”**
 
-Studio is not ready and is not required to draft the slides. Keep it in the
-platform overview as work in progress. Prepare the walkthrough through a
-verified CLI/browser path with a presenter-led fallback; participant CLI access
-still requires a pinned release and tested Node.js/Linux instructions.
+The ordinary Login project has a frozen presenter baseline and deployed Studio
+acceptance. The [local participant kit](participant-setup.md) supplies the static
+application and references without installing application dependencies; its
+extracted-distribution verifier records the tested host and offline workflow.
+Public Studio hosting remains unverified. Keep the saved presenter fallback;
+participant CLI installation still requires a pinned release and tested
+Node.js/Linux instructions.
 
 | Route | Evidence required before advertising it |
 | --- | --- |

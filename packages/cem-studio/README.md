@@ -190,6 +190,24 @@ document head so their styles have a live runtime owner.
 
 ## Build and verification
 
+For the local Amsterdam Login participant kit:
+
+```sh
+yarn nx run @epa-wg/cem-studio:package:participant-kit
+yarn nx run @epa-wg/cem-studio:verify:participant-kit
+```
+
+The kit is emitted as `dist/packages/cem-studio-login-kit.tgz`. Extract it outside
+the workspace and run `node start.mjs` from its directory. It serves the original
+production index and service-worker scope using only Node built-ins, checks its
+file inventory before startup, and includes the frozen Login references. The
+[participant handout](../../docs/declarative-amsterdam-2026/participant-setup.md)
+explains the exact route, offline warmup, independent copies and credential policy.
+The verifier launches the extracted kit and runs the selected Login/Supplier
+offline acceptance, recording the archive hash and actual host/browser versions
+in `dist/reports/cem-studio/participant-kit.json`. This local transfer route does
+not establish public npm/release availability or a hosted participant URL.
+
 For a local Studio preview, run:
 
 ```sh
