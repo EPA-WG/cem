@@ -1860,7 +1860,72 @@ refusals, nested component ownership and owner retirement. The real worker and
 fallback handoff acceptance invokes the same ABI before/after fresh rebinding,
 compares HTML and checks projected source identity inside native code. It never
 exports an AST to JavaScript. Shared declaration/CSS/provider/live-control wiring
-and node/executable frame adapters remain separate execution gates.
+remains a separate execution gate. Original node and lexically prepared executable
+inputs now have the native-owned adapter below.
+
+## Native-owned receiver frames
+
+`ApplicationSourceSession::register_receiver_input` accepts an original
+`RetainedCemNode` from a source already registered on the actual host. It returns
+an opaque native `ApplicationReceiverInput` bound to that exact application
+publication. Copies restored into another arena, equal-byte sources, foreign
+sessions and inputs retained across publication replacement cannot substitute
+for it. Each owner holds a real generation resource lease; at most 64 input
+owners share a session and the existing 256-resource generation ceiling.
+
+The initial topology profile is one original empty-namespace instance element
+with exact named required/optional attributes. Native consuming-name metadata
+determines namespace admission. Wrong or unfinished names, duplicate/unknown
+attributes, missing required fields, child content and field-contract topology
+refuse before rendering. The original model retains its pending datatype slots;
+this review does not publish the whole schema as ready.
+Receiver names reuse the shared native input policy: runtime roots such as
+`datadom`, `instanceID` and `island` cannot be shadowed by original input fields.
+
+Every `render_receiver_native` / `project_receiver_native` call consumes the
+original fields again. Node fields use the existing structural receiver and
+original lexical reference resolution, directed grants, count limits and target
+validation. Selected values remain original retained nodes. Closed scalars use
+their original source restrictions. Executable fields create their original
+lexical preparation invocation, prepare once, and consume its sealed evidence
+through the existing original-root validation and local counts. Missing preparers,
+pending/rejected preparation, unsupported lexical slots and expired code refuse.
+An unavailable preparer never implies a typed-only input grant; the existing
+explicit typed-only producer policy remains separate.
+
+A borrowed native receiver frame supplies the resulting values to the shared
+renderer only for its exact original compiled artifact. It has no public
+constructor, wire representation or reusable acceptance receipt. Renderer-side
+string coercion does not replace the native receiver validation. Native node
+owners and scalar/prepared source attribution remain attached to bound values.
+The selected registry is still the actual renewed application registry. Calls
+retain native admission through output serialization and recheck the source owner
+afterward. Native callbacks retain their original operation control; the frame's
+five-second scope is checked at receiver boundaries and during rendering. A
+16,384-node input arena, 64 fields, 16,384 total bound values, 1 MiB scalar-value
+allowance and existing output/graph limits bound the initial adapter.
+
+The opt-in WASM ABI adds `applicationSourceRenderReceiverV1`,
+`applicationSourceProjectReceiverV1` and
+`applicationSourceReleaseReceiverInputV1`. Only original Rust embedding code can
+call `wasm::register_receiver_input` to mint an original frozen input token.
+Neither a JavaScript constructor nor a numeric node/scope handle is exposed.
+Tokens remain in their exact session and heap; copied tokens refuse. Input
+cleanup remains available behind closed admission or expired code, and releasing
+the session drops every remaining input owner. Native census revisions and real
+resource leases cover these owners without another untracked registry.
+
+**Input checkpoint capture remains gated.** Source capture returns
+`cem.application.receiver_checkpoint.unavailable` while any native input owner
+is live, including a stale owner retained after replacement. A code/source packet
+cannot silently omit application input. Portable input/context capture and
+typed-only producer handoff need their own adapters before production adoption.
+The physical acceptance fixture explicitly releases its immutable deployment
+input before source capture and enrolls a fresh original input after rebinding;
+it does not claim mutable input recovery. Both workers and owned fallback heaps
+exercise render/projection, token refusal, live-input checkpoint refusal,
+retirement cleanup and fresh input enrollment. Credential refusal and the
+aggregate checkpoint budget remain unchanged; component admission is still gated.
 
 ## Native publication generation enrollment
 

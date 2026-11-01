@@ -103,11 +103,19 @@ fn render_control() -> Result<OperationControl, String> {
     .map_err(|error| error.to_string())
 }
 
-#[allow(unused_mut)]
 pub(crate) fn render_plan_data(
+    artifact: &crate::render::TemplateArtifact,
+    data: TemplateData,
+    control: &OperationControl,
+) -> Result<crate::render::RenderPlan, String> {
+    render_plan_original_data(artifact, data, control, None)
+}
+#[allow(unused_mut)]
+pub(crate) fn render_plan_original_data(
     artifact: &crate::render::TemplateArtifact,
     mut data: TemplateData,
     control: &OperationControl,
+    original: Option<&dyn crate::render::OriginalReceiverFrame>,
 ) -> Result<crate::render::RenderPlan, String> {
     #[cfg(feature = "component-runtime")]
     if data.selected_registry.is_none() {
@@ -116,8 +124,18 @@ pub(crate) fn render_plan_data(
     if data.selected_registry.is_none() {
         return Err("compiled application needs its original registry owner".into());
     }
-    let plan =
-        render_compiled_template_with_control(artifact, &data, control, ROOT_EXECUTION_SCOPE_ID);
+    let plan = match original {
+        Some(original) => crate::render::render_compiled_template_with_original_inputs(
+            artifact,
+            &data,
+            control,
+            ROOT_EXECUTION_SCOPE_ID,
+            original,
+        ),
+        None => {
+            render_compiled_template_with_control(artifact, &data, control, ROOT_EXECUTION_SCOPE_ID)
+        }
+    };
     if plan
         .diagnostics
         .iter()

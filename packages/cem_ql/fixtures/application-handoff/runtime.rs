@@ -30,6 +30,7 @@ pub const RECEIVER:&str="{schema @name=receivers @namespace=https://runtime.test
 pub const SCALARS:&str="{schema @name=scalars @namespace=https://runtime.test/scalars/1 | {attributes | {attribute @name=cart-count @type=integer @minInclusive=2 @maxInclusive=5}}}";
 pub const VIEW: &str = "{view @items={#data} @count=3 @choice=ok}";
 pub const CART: &str = "{cart @title=Tea | {item @quantity=3}}";
+const COUNT_BODY:&str="{attribute @name=count @type=cart-count}{p | {$count}/{$datadom.dataset.fruitName}/{$datadom.slices.cart.title}{$datadom.slices.cart.children.children.children.children.value}/{$instanceID}}{section | {$datadom.slots.heading}}";
 pub fn hash(b: &[u8]) -> String {
     cem_ml::content_cache::ContentHash::from_blake3(b).header_value()
 }
@@ -82,6 +83,20 @@ pub struct Inputs {
     pub cart: SourceInput,
 }
 impl Inputs {
+    pub fn root(&self) -> RetainedCemNode {
+        let id = self
+            .view
+            .tree
+            .ast()
+            .nodes
+            .iter()
+            .find_map(|n| match n {
+                CemAstNode::Element { node_id, .. } => Some(*node_id),
+                _ => None,
+            })
+            .unwrap();
+        RetainedCemNode::new(self.view.tree.clone(), id).unwrap()
+    }
     pub fn restore(bytes: &[u8], control: &OperationControl) -> Result<Arc<Self>, String> {
         if bytes.len() > 65536 {
             return Err("fixture input limit".into());
@@ -127,6 +142,119 @@ impl Inputs {
 pub struct Bootstrap {
     pub inputs: Arc<Inputs>,
 }
+#[derive(Debug)]
+struct Preparer;
+impl cem_ql::datatype_preparation::NativeLexicalPreparer for Preparer {
+    fn prepare(
+        &self,
+        call: cem_ql::datatype_preparation::PreparationCall<'_>,
+    ) -> cem_ql::datatype_preparation::PreparationExecution {
+        use cem_ql::{
+            datatype_preparation::PreparationExecution,
+            eval::{AtomValue, Item},
+        };
+        if call.lexical.text.len() > 1024 {
+            return PreparationExecution::Rejected(vec![]);
+        }
+        PreparationExecution::Prepared {
+            value: vec![Item::Atomic(AtomValue::String(
+                call.lexical.text.to_string(),
+            ))],
+            diagnostics: vec![],
+        }
+    }
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn preparation_profile(
+    module: &mut cem_ql::datatype_module_capsule::v2::ModuleSource,
+    root: u32,
+) -> cem_ql::datatype_module_capsule::v2::ProfileArtifact {
+    use cem_ml::schema::{
+        datatype_registry::{DatatypeKind, DatatypeRegistry},
+        datatype_validation::{CandidateRequirement, ScalarRepresentation, ValueRepresentation},
+        declaration_references::SchemaDeclarationNode,
+    };
+    use cem_ql::{
+        datatype_module_capsule::v2 as assembly,
+        datatype_preparation::PreparationSignature,
+        native_registrations::{
+            dependency_sources, profiles::v2 as profiles, profiles::OperationRole,
+            ImplementationIdentity, OperationMode, PreparationMode,
+        },
+    };
+    let capture = &module.types.capture;
+    let schema = capture
+        .document()
+        .nodes
+        .iter()
+        .find_map(|n| match n {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "schema" => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let schema = SchemaDeclarationNode::new(capture.document().clone(), schema).unwrap();
+    let mut registry = DatatypeRegistry::default();
+    registry
+        .insert(
+            schema.clone(),
+            SchemaDeclarationNode::new(capture.document().clone(), root).unwrap(),
+        )
+        .unwrap();
+    let source = registry.source(&schema, "value").unwrap();
+    let representation = ValueRepresentation::Scalar(ScalarRepresentation::String);
+    let implementation = ImplementationIdentity::preparation(
+        "fixture-original-string",
+        hash(b"fixture-preparer-code/1"),
+        "fixture-original-string",
+        PreparationSignature {
+            kind: DatatypeKind::Scalar,
+            output: representation,
+            candidate: CandidateRequirement::Optional,
+        },
+    );
+    let dependency = dependency_sources::export_operation(
+        capture,
+        &source,
+        OperationMode::Preparation(PreparationMode::Ready),
+        module.types.identity.clone(),
+        implementation,
+        &hash(b"registry"),
+        &Default::default(),
+    )
+    .unwrap();
+    let profile = profiles::OperationProfile {
+        source: module.types.identity.clone(),
+        scope: source.scope().node_id(),
+        declaration: root,
+        kind: DatatypeKind::Scalar,
+        representation,
+        dependencies: BTreeMap::from([(OperationRole::Preparation, dependency.pin.clone())]),
+    };
+    let sources = vec![dependency];
+    let built = profiles::export(
+        &BTreeMap::from([("prepare".into(), profile)]),
+        &sources,
+        &hash(b"registry"),
+        &Default::default(),
+    )
+    .unwrap();
+    module.profiles.insert(
+        root,
+        assembly::ProfileSelection {
+            pin: built.pin.clone(),
+            id: "prepare".into(),
+        },
+    );
+    assembly::ProfileArtifact {
+        bytes: built.bytes,
+        pin: built.pin,
+        sources,
+    }
+}
 pub fn configured(
     app: &Arc<v4::VerifiedApplicationEnvelope>,
     receiver: &application::publication::MixedSource,
@@ -139,6 +267,7 @@ pub fn configured(
         FreshStructuralHost,
         Arc<publication::RegistryOwner>,
         BTreeMap<String, Arc<cem_ql::structural_receiver::FreshDependencyDatatypeCompilation>>,
+        Vec<application::RetainedApplicationOwner>,
     ),
     String,
 > {
@@ -236,6 +365,32 @@ pub fn configured(
         tokenizer: cem_ql::datatype_compilation::TokenizerBinding::Absent,
         validator: None,
     };
+    let mut operations = BTreeMap::new();
+    let mut owners = vec![];
+    for (datatype, profile) in module.profiles() {
+        for (role, requirement) in profile.requirements() {
+            if *role != cem_ql::native_registrations::profiles::OperationRole::Preparation {
+                return Err("fixture operation role".into());
+            }
+            host.register_native_preparer(requirement.implementation().clone(), Preparer)
+                .map_err(|e| format!("{e:?}"))?;
+            let owner = Arc::new(
+                host.link_dependency_operation(requirement.clone(), scope)
+                    .map_err(|e| format!("{e:?}"))?,
+            );
+            operations.insert(
+                cem_ql::structural_receiver::DatatypeAssemblyOperationKey {
+                    module: "app".into(),
+                    datatype: *datatype,
+                    role: *role,
+                },
+                cem_ql::structural_receiver::DatatypeAssemblyOperationBinding::Operation(
+                    owner.clone(),
+                ),
+            );
+            owners.push(application::RetainedApplicationOwner::Operation(owner));
+        }
+    }
     let compiled = Arc::new(
         host.compile_datatype_assembly(
             graph,
@@ -244,7 +399,7 @@ pub fn configured(
             &[],
             &[primitive],
             &BTreeMap::new(),
-            &BTreeMap::new(),
+            &operations,
             cem_ml::schema::reference_traversal::ReferenceTraversalLimits {
                 max_depth: 64,
                 max_work: 100000,
@@ -261,6 +416,7 @@ pub fn configured(
         host,
         registry,
         BTreeMap::from([(root.assembly.clone(), compiled)]),
+        owners,
     ))
 }
 impl ApplicationBootstrap for Bootstrap {
@@ -272,7 +428,7 @@ impl ApplicationBootstrap for Bootstrap {
     ) -> Result<PreparedApplication, String> {
         let (_, receivers) = sources.receivers()?;
         let receiver = receivers.get("cem-value").ok_or("receiver")?;
-        let (host, registry, compilations) = configured(
+        let (host, registry, compilations, owners) = configured(
             sources.application(),
             receiver,
             sources
@@ -288,7 +444,7 @@ impl ApplicationBootstrap for Bootstrap {
             registry,
             BTreeMap::new(),
             compilations,
-            vec![],
+            owners,
         )
     }
 }
@@ -310,15 +466,66 @@ pub fn imported(text: &str, uri: &str) -> SourceInput {
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn build() -> (transport::BuiltApplicationSources, Vec<u8>) {
-    // Explicit island-record and native imported-tree paths. CEMV preserves the
-    // JSON import's CEM nodes; it does not turn that tree into a JS-like record.
-    build_count("{attribute @name=count @type=cart-count}{p | {$count}/{$datadom.dataset.fruitName}/{$datadom.slices.cart.title}{$datadom.slices.cart.children.children.children.children.value}/{$instanceID}}{section | {$datadom.slots.heading}}")
+    build_count(COUNT_BODY)
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn build_count(body: &str) -> (transport::BuiltApplicationSources, Vec<u8>) {
+    build_options(body, false)
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub fn build_prepared() -> (transport::BuiltApplicationSources, Vec<u8>) {
+    build_options(COUNT_BODY, true)
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn build_options(body: &str, prepared: bool) -> (transport::BuiltApplicationSources, Vec<u8>) {
+    build_sources(body, prepared, VIEW, RECEIVER, CART)
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub fn prepared_sources(
+    view: &str,
+    receiver: &str,
+    cart: &str,
+) -> (transport::BuiltApplicationSources, Vec<u8>) {
+    build_sources(COUNT_BODY, true, view, receiver, cart)
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn build_sources(
+    body: &str,
+    prepared: bool,
+    view: &str,
+    receiver: &str,
+    cart: &str,
+) -> (transport::BuiltApplicationSources, Vec<u8>) {
+    build_sources_named(body, prepared, view, receiver, cart, false)
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub fn build_reserved() -> (transport::BuiltApplicationSources, Vec<u8>) {
+    build_sources_named(COUNT_BODY, true, VIEW, RECEIVER, CART, true)
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn build_sources_named(
+    body: &str,
+    prepared: bool,
+    view: &str,
+    receiver: &str,
+    cart: &str,
+    reserved: bool,
+) -> (transport::BuiltApplicationSources, Vec<u8>) {
+    let view = if reserved {
+        view.replace("@items=", "@datadom=")
+    } else {
+        view.into()
+    };
+    let receiver = if reserved {
+        receiver
+            .replace("@name=items", "@name=datadom")
+            .replace("items count choice", "datadom count choice")
+    } else {
+        receiver.into()
+    };
     let control = OperationControl::default();
-    let view = imported(VIEW, "file:///runtime/view.cem");
-    let cart = imported(CART, "file:///runtime/cart-data.cem");
+    let view = imported(&view, "file:///runtime/view.cem");
+    let cart = imported(cart, "file:///runtime/cart-data.cem");
     let inputs = Inputs { view, cart };
     let mut records = vec![];
     for s in [&inputs.view, &inputs.cart] {
@@ -331,7 +538,7 @@ pub fn build_count(body: &str) -> (transport::BuiltApplicationSources, Vec<u8>) 
         });
     }
     let input_bytes = rmp_serde::to_vec_named(&records).unwrap();
-    let receiver = imported(RECEIVER, "file:///runtime/receiver.cem");
+    let receiver = imported(&receiver, "file:///runtime/receiver.cem");
     let scalar = imported(SCALARS, "file:///runtime/scalars.cem");
     let schema = imported(
         include_str!("../../../cem_ml/fixtures/structural-cart.cem"),
@@ -347,6 +554,12 @@ pub fn build_count(body: &str) -> (transport::BuiltApplicationSources, Vec<u8>) 
     .unwrap();
     let node_pin = contract.pin.clone();
     let declaration = |tag: &str, body: &str| {
+        let body = if reserved {
+            body.replace("@name=items", "@name=datadom")
+                .replace("{$items", "{$datadom")
+        } else {
+            body.into()
+        };
         cem_ql::declaration_artifact::build_declaration_artifact(&format!("<cem-element tag=\"{tag}\"><template id=\"{tag}\" type=\"text/cem-ml\">{body}</template></cem-element>"),&format!("file:///runtime/{tag}.xhtml"),cem_ql::template_artifact::TemplateArtifactSourceMapMode::Prod,None).unwrap()
     };
     let mut base = app::EnvelopeBuilder::new(&hash(b"registry")).unwrap();
@@ -365,27 +578,30 @@ pub fn build_count(body: &str) -> (transport::BuiltApplicationSources, Vec<u8>) 
     let text="@ns s = https://cem.dev/ns/schema/1\n@default s\n{schema @namespace=urn:runtime:module | {types | {type @name=value @kind=scalar}}}";
     let module = imported(text, "file:///runtime/types.cem");
     let root = elements(&module.tree, "type")["value"];
+    let mut module = cem_ql::datatype_module_capsule::v2::ModuleSource::new(
+        cem_ql::datatype_module_capsule::ModuleSource {
+            identity: module.identity,
+            capture: module.capture,
+            roots: BTreeSet::from([root]),
+            bindings: BTreeMap::new(),
+        },
+    );
+    let profiles = if prepared {
+        vec![preparation_profile(&mut module, root)]
+    } else {
+        vec![]
+    };
     let graph = cem_ql::datatype_module_capsule::v2::export(
         "app",
-        &BTreeMap::from([(
-            "app".into(),
-            cem_ql::datatype_module_capsule::v2::ModuleSource::new(
-                cem_ql::datatype_module_capsule::ModuleSource {
-                    identity: module.identity,
-                    capture: module.capture,
-                    roots: BTreeSet::from([root]),
-                    bindings: BTreeMap::new(),
-                },
-            ),
-        )]),
+        &BTreeMap::from([("app".into(), module)]),
         &[],
-        &[],
+        &profiles,
         &hash(b"registry"),
         &control,
     )
     .unwrap();
     let mut parent = v3::EnvelopeBuilder::new(base).unwrap();
-    let id = parent.add_assembly(graph, vec![], vec![]).unwrap();
+    let id = parent.add_assembly(graph, vec![], profiles).unwrap();
     let parent = parent
         .build(
             BTreeMap::from([(
@@ -413,21 +629,26 @@ pub fn build_count(body: &str) -> (transport::BuiltApplicationSources, Vec<u8>) 
             ..Default::default()
         },
     };
-    let mixed=mixed::build(declaration("cem-value","{attribute @name=items @type=cart-lines @maxItems=2}{attribute @name=count @type=cart-count}{attribute @name=choice @type=app-value}{cem-app}{p | Mixed}"),owner.clone(),BTreeMap::from([("cart-lines".into(),mixed::ReceiverContract::Node(node_pin)),("cart-count".into(),mixed::ReceiverContract::Scalar(scalar_contract.clone())),("app-value".into(),mixed::ReceiverContract::Executable{root:"value".into(),target:owner.roots()["value"].clone()})]),&control).unwrap();
+    let mixed=mixed::build(declaration("cem-value","{attribute @name=items @type=cart-lines @maxItems=2}{attribute @name=count @type=cart-count}{attribute @name=choice @type=app-value}{cem-app}{p | Mixed}"),owner.clone(),BTreeMap::from([("cart-lines".into(),mixed::ReceiverContract::Node(node_pin.clone())),("cart-count".into(),mixed::ReceiverContract::Scalar(scalar_contract.clone())),("app-value".into(),mixed::ReceiverContract::Executable{root:"value".into(),target:owner.roots()["value"].clone()})]),&control).unwrap();
     let count = mixed::build(
         declaration("cem-count", body),
-        owner,
+        owner.clone(),
         BTreeMap::from([(
             "cart-count".into(),
-            mixed::ReceiverContract::Scalar(scalar_contract),
+            mixed::ReceiverContract::Scalar(scalar_contract.clone()),
         )]),
         &control,
     )
     .unwrap();
+    let frame=mixed::build(declaration("cem-receiver-frame","{attribute @name=items @type=cart-lines @maxItems=2}{attribute @name=count @type=cart-count}{attribute @name=choice @type=app-value}{p | {$items.attributes.value}/{$count}/{$choice}/{$instanceID}}"),owner.clone(),BTreeMap::from([("cart-lines".into(),mixed::ReceiverContract::Node(node_pin.clone())),("cart-count".into(),mixed::ReceiverContract::Scalar(scalar_contract)),("app-value".into(),mixed::ReceiverContract::Executable{root:"value".into(),target:owner.roots()["value"].clone()})]),&control).unwrap();
     let b = v4::build(
         parent,
-        vec![mixed, count],
-        BTreeSet::from(["cem-value".into(), "cem-count".into()]),
+        vec![mixed, count, frame],
+        BTreeSet::from([
+            "cem-value".into(),
+            "cem-count".into(),
+            "cem-receiver-frame".into(),
+        ]),
         &control,
     )
     .unwrap();
@@ -447,6 +668,7 @@ pub fn build_count(body: &str) -> (transport::BuiltApplicationSources, Vec<u8>) 
         scalars: BTreeMap::from([("cart-count".into(), scalar_source())]),
     };
     let mixed = source(elements(&receiver.tree, "attribute"));
+    let frame = source(elements(&receiver.tree, "attribute"));
     let count = source(BTreeMap::from([(
         "count".into(),
         elements(&receiver.tree, "attribute")["count"],
@@ -455,7 +677,7 @@ pub fn build_count(body: &str) -> (transport::BuiltApplicationSources, Vec<u8>) 
         cem_ml::runtime_admission::NativeAdmission::default(),
     ))
     .unwrap();
-    let (mut host, registry, compilations) =
+    let (mut host, registry, compilations, _owners) =
         configured(&app, &mixed, &scalar, &inputs, &g, control.clone()).unwrap();
     let linked = publication::stage(
         &mut host,
@@ -463,7 +685,11 @@ pub fn build_count(body: &str) -> (transport::BuiltApplicationSources, Vec<u8>) 
         &registry,
         BTreeMap::new(),
         BTreeMap::new(),
-        BTreeMap::from([("cem-value".into(), mixed), ("cem-count".into(), count)]),
+        BTreeMap::from([
+            ("cem-value".into(), mixed),
+            ("cem-count".into(), count),
+            ("cem-receiver-frame".into(), frame),
+        ]),
         &compilations,
     )
     .unwrap();

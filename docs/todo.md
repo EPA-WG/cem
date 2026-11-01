@@ -9,7 +9,9 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [reduced native input and island frames](archive/todo-completed-application-frames-2026-11-01.md).
+Latest completion: [native-owned node/executable receiver frames](archive/todo-completed-native-receiver-frames-2026-11-01.md).
+The [reduced native input and island frames](archive/todo-completed-application-frames-2026-11-01.md)
+remain the preceding stage.
 The [worker/fallback application checkpoint handoff](archive/todo-completed-application-handoff-2026-11-01.md)
 remains the preceding stage.
 The [native-provisioned application installation](archive/todo-completed-application-endpoints-2026-11-01.md)
@@ -94,12 +96,18 @@ they do not manufacture a datatype or infer a code grant from metadata.
 
 Next execution gates, in order:
 
-- [ ] Add explicit original node/executable receiver input adapters and remaining
-  instance-topology contracts to reduced frames. Keep the existing native
-  validation/root-invocation APIs and scalar frames; do not infer an input grant
-  from a type label or publish pending schemas as ready. Add native/WASM fixtures
-  for original input source/scope ownership, qualification, required fields and
-  refusal without an available adapter.
+- [ ] Add portable native receiver input/context checkpoint handoff before active
+  input recovery. Capture original sources, scopes and input-owner contracts with
+  privacy/budget guards; require fresh original input owners and consumed-write
+  suppression on resume. Keep source-only capture blocked while input owners
+  remain live. Add mutable-input, stale-scope and foreign-input worker/fallback
+  checkpoint fixtures; immutable deployment fixture draining is not this proof.
+
+- [ ] Extend native-owned frames with explicit typed-only producers and remaining
+  child/field instance contracts. Reuse original admission/profile authorities,
+  native schemas and source references; do not infer grants from type labels or
+  publish pending schemas as ready. Add native/WASM fixtures for input producer
+  expiry, original source/scope ownership, richer topology and unavailable cases.
 
 - [ ] Bind compiled declarations, retained CSS and shared behavior/provider/source
   ownership to that ABI. Prove worker/fallback edits, credential refusal and

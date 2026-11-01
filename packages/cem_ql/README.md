@@ -1955,3 +1955,20 @@ ownership, missing source provenance and unavailable node/executable input
 adapters refuse before producing output. Native node and executable-root
 validation remains available through its explicit existing contracts; it grants
 no raw frame ingress. See the [reduced frame contract](../../docs/cem-native-schema-capsules.md#source-publication-bound-reduced-frames).
+
+Original native input owners now add `register_receiver_input`,
+`render_receiver_native` and `project_receiver_native`. The flat-instance adapter
+validates original node references, scalar fields and lexically prepared
+executable fields before rendering. It consumes sealed preparation evidence and
+keeps original source/scope ownership. The opt-in
+`applicationSourceRenderReceiverV1`, `applicationSourceProjectReceiverV1` and
+`applicationSourceReleaseReceiverInputV1` APIs use a second original opaque input
+token, minted by Rust embedding code. Each session has at most 64 counted input
+owners. Replacement, owner expiry, foreign arenas/sessions and copied tokens
+refuse; cleanup works behind closed admission.
+
+Source checkpoint capture refuses while an input owner is live. The handoff
+fixture explicitly releases immutable test input and registers fresh input after
+source rebinding. Mutable input/context portability, typed-only producers and
+richer instance topology remain gated; source capture never silently drops
+application input. See the [native-owned receiver frame contract](../../docs/cem-native-schema-capsules.md#native-owned-receiver-frames).

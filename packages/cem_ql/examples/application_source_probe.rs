@@ -71,6 +71,16 @@ pub fn reentrant(owner: &JsValue) -> Result<bool, JsValue> {
     .map_err(|e| JsValue::from_str(&e))
 }
 
+// Fixture embedding alone selects an original, already registered native root.
+#[wasm_bindgen(js_name=probeApplicationReceiverInput)]
+pub fn receiver_input(owner: &JsValue) -> Result<JsValue, JsValue> {
+    let root = DEPLOYMENT
+        .with(|s| s.borrow().as_ref().map(|s| s.2.root()))
+        .ok_or_else(|| JsValue::from_str("missing fixture"))?;
+    wasm::register_receiver_input(owner, "cem-receiver-frame", root)
+        .map_err(|e| JsValue::from_str(&e))
+}
+
 // Native projection assertion only: never expose the retained graph as JS AST.
 #[wasm_bindgen(js_name=probeApplicationProjectionValid)]
 pub fn projection_valid(bytes: &[u8]) -> bool {

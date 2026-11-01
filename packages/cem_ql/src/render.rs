@@ -1172,8 +1172,19 @@ fn static_stylesheet_text(children: &[TemplateNode]) -> Option<String> {
     Some(css)
 }
 
+/// Borrowed native receiver consumption, never serialized or issued from metadata.
+pub(crate) trait OriginalReceiverFrame {
+    fn bindings(&self, artifact: &TemplateArtifact) -> Result<&BTreeMap<String, ItemStream>, ()>;
+}
+pub(crate) fn render_compiled_template_with_original_inputs(
+    artifact: &TemplateArtifact, data: &TemplateData, control: &OperationControl,
+    scope: ExecutionScopeId, inputs: &dyn OriginalReceiverFrame,
+) -> RenderPlan {
+    render_compiled_template_internal(artifact,data,Some((control,scope)),None,false,None,Some(inputs)).plan
+}
+
 pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData) -> RenderPlan {
-    render_compiled_template_internal(artifact, data, None, None, false, None).plan
+    render_compiled_template_internal(artifact, data, None, None, false, None, None).plan
 }
 
 pub fn render_compiled_template_with_control(
@@ -1182,7 +1193,7 @@ pub fn render_compiled_template_with_control(
     control: &OperationControl,
     scope: ExecutionScopeId,
 ) -> RenderPlan {
-    render_compiled_template_internal(artifact, data, Some((control, scope)), None, false, None).plan
+    render_compiled_template_internal(artifact, data, Some((control, scope)), None, false, None, None).plan
 }
 
 /// A native adapter can resolve module calls inside the active rendering scope,
@@ -1217,7 +1228,7 @@ pub fn render_compiled_template_with_calls(
     calls: &dyn TemplateCallHandler,
     protected: bool,
 ) -> TemplateCallResult {
-    render_compiled_template_internal(artifact, data, control, Some(calls), protected, None)
+    render_compiled_template_internal(artifact, data, control, Some(calls), protected, None, None)
 }
 
 fn render_compiled_template_internal(
@@ -1227,6 +1238,7 @@ fn render_compiled_template_internal(
     calls: Option<&dyn TemplateCallHandler>,
     protected: bool,
     read_dependencies: Option<&mut read_dependencies::RenderReadTracker>,
+    original_inputs: Option<&dyn OriginalReceiverFrame>,
 ) -> TemplateCallResult {
     let owned_control = OperationControl::with_root_policy(Default::default(), ScopePolicy::host_root().with_queue_size(128)).expect("valid renderer default policy");
     let control = Some(control.unwrap_or((&owned_control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)));
@@ -1294,7 +1306,11 @@ fn render_compiled_template_internal(
     profile.next("render/body");
     let mut nodes = ResultBuffer::default();
     renderer.apply_attribute_declaration_selects(&artifact.nodes, &mut host_attribute_updates);
-    renderer.validate_receiver_inputs(&artifact.nodes, &data.input_attribute_contracts);
+    let original = original_inputs.and_then(|frame| match frame.bindings(artifact) {
+        Ok(values) => Some(values),
+        Err(()) => { renderer.attribute_contract_failure("Original receiver frame expired", &SourceMapStack::default()); None }
+    });
+    renderer.validate_receiver_inputs(&artifact.nodes, &data.input_attribute_contracts, original);
     let boundary_source = artifact
         .nodes
         .first()

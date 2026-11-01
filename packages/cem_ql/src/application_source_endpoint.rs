@@ -25,10 +25,12 @@ use std::{
     },
 };
 
+#[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
+mod frames;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
-#[cfg(any(feature="component-runtime",feature="application-source-runtime"))]
-mod frames;
+#[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
+pub use frames::ApplicationReceiverInput;
 const INVALID: &str = "cem.application.endpoint.refused";
 pub const MAX_PINS_BYTES: usize = 16 * 1024;
 // Complete applications retain more code/compilation roots than query leaves.
@@ -283,6 +285,7 @@ impl ApplicationSourceEndpoint {
             endpoint: Arc::downgrade(self),
             prepared,
             _slot: slot,
+            receiver_inputs: Arc::new(AtomicUsize::new(0)),
         })
     }
 }
@@ -297,6 +300,7 @@ pub struct ApplicationSourceSession {
     endpoint: Weak<ApplicationSourceEndpoint>,
     prepared: PreparedApplication,
     _slot: SessionSlot,
+    receiver_inputs: Arc<AtomicUsize>,
 }
 impl ApplicationSourceSession {
     fn enter(&self) -> Result<cem_ml::runtime_admission::OwnedNativeEntry, String> {
@@ -315,6 +319,9 @@ impl ApplicationSourceSession {
     }
     pub fn capture(&self) -> Result<Vec<u8>, String> {
         let _entry = self.enter()?;
+        if self.receiver_inputs.load(Ordering::Acquire) != 0 {
+            return Err("cem.application.receiver_checkpoint.unavailable".into());
+        }
         let inputs = self
             .prepared
             .sources

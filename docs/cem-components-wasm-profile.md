@@ -447,8 +447,13 @@ now uses the shared source resource transport and native-sealed journal.
 admit original scalar schema contracts, native attribute/dataset/slice inputs and
 qualified island projection through the actual live registry. Native/WASM
 acceptance covers malformed sources/domains and fresh physical rebinding.
-Unavailable node/executable ingress adapters, declaration/CSS/provider ownership,
-generated application bootstraps and production component admission remain gated.
+[Native-owned receiver frames](cem-native-schema-capsules.md#native-owned-receiver-frames)
+now admit original node references and sealed lexical executable preparation for
+flat original instances. Rust-only input enrollment issues per-session opaque
+tokens, with native census and cleanup. Source checkpoints refuse while these
+input owners remain live, pending portable input/context handoff. Typed-only
+producers, richer topology, declaration/CSS/provider ownership, generated
+application bootstraps and production component admission remain gated.
 
 
 Do not equate downloaded code with an active native generation. Register every

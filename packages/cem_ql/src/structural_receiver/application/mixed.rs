@@ -17,6 +17,8 @@ use std::sync::{atomic::AtomicBool, OnceLock, Weak};
 mod preparation;
 mod sources;
 mod values;
+#[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
+mod frames;
 pub use preparation::{
     MixedPreparationEvidence, MixedPreparationInvocation, MixedPreparationResult,
 };

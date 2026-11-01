@@ -1,6 +1,328 @@
 #[path = "../fixtures/application-handoff/runtime.rs"]
 mod fixture;
 
+#[cfg(feature = "application-source-runtime")]
+#[test]
+fn native_receiver_frame_requires_original_input_and_available_preparation() {
+    use cem_ql::{
+        application_source_endpoint::{ApplicationBootstrapOwner, ApplicationSourceEndpoint},
+        eval::RetainedCemNode,
+    };
+    use std::sync::Arc;
+    let (source, data) = fixture::build();
+    let control = Default::default();
+    let inputs = fixture::Inputs::restore(&data, &control).unwrap();
+    let generation = cem_ml::runtime_admission::generation::NativeGeneration::claim(Arc::new(
+        Default::default(),
+    ))
+    .unwrap();
+    let code = ApplicationBootstrapOwner::new(
+        &generation,
+        control,
+        source.pin.clone(),
+        fixture::Bootstrap {
+            inputs: inputs.clone(),
+        },
+    )
+    .unwrap();
+    let endpoint = ApplicationSourceEndpoint::new(&code).unwrap();
+    let mut session = endpoint
+        .open(&source.bytes, &serde_json::to_string(&source.pin).unwrap())
+        .unwrap();
+    let element = inputs
+        .view
+        .tree
+        .ast()
+        .nodes
+        .iter()
+        .find_map(|n| match n {
+            cem_ml::parser::CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "view" => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let root = RetainedCemNode::new(inputs.view.tree.clone(), element).unwrap();
+    let input = session
+        .register_receiver_input("cem-receiver-frame", root)
+        .unwrap();
+    // A registered source alone cannot invent a preparer or a typed-only grant.
+    assert!(session
+        .render_receiver_native(&input, "native-one")
+        .is_err());
+    let foreign = fixture::Inputs::restore(&data, &Default::default()).unwrap();
+    assert!(session
+        .register_receiver_input(
+            "cem-receiver-frame",
+            RetainedCemNode::new(foreign.view.tree.clone(), element).unwrap()
+        )
+        .is_err());
+    code.retire();
+    assert!(session
+        .render_receiver_native(&input, "native-one")
+        .is_err());
+    let (source, data) = fixture::build_prepared();
+    let control = Default::default();
+    let inputs = fixture::Inputs::restore(&data, &control).unwrap();
+    let code = ApplicationBootstrapOwner::new(
+        &generation,
+        control,
+        source.pin.clone(),
+        fixture::Bootstrap {
+            inputs: inputs.clone(),
+        },
+    )
+    .unwrap();
+    let endpoint = ApplicationSourceEndpoint::new(&code).unwrap();
+    let mut session = endpoint
+        .open(&source.bytes, &serde_json::to_string(&source.pin).unwrap())
+        .unwrap();
+    let input = session
+        .register_receiver_input(
+            "cem-receiver-frame",
+            RetainedCemNode::new(inputs.view.tree.clone(), element).unwrap(),
+        )
+        .unwrap();
+    assert!(session
+        .capture()
+        .unwrap_err()
+        .contains("receiver_checkpoint"));
+    let html = session
+        .render_receiver_native(&input, "native-one")
+        .unwrap();
+    assert_eq!(html, "<p>Tea/3/ok/native-one</p>");
+    assert!(!session
+        .project_receiver_native(&input, "native-one")
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        session
+            .render_receiver_native(&input, "native-one")
+            .unwrap(),
+        html
+    );
+    let mut extra = vec![];
+    for _ in 0..63 {
+        extra.push(
+            session
+                .register_receiver_input("cem-receiver-frame", inputs.root())
+                .unwrap(),
+        );
+    }
+    assert!(session
+        .register_receiver_input("cem-receiver-frame", inputs.root())
+        .is_err());
+    drop(extra);
+    let mut sibling = endpoint
+        .open(&source.bytes, &serde_json::to_string(&source.pin).unwrap())
+        .unwrap();
+    assert!(sibling
+        .render_receiver_native(&input, "native-one")
+        .is_err());
+    session
+        .replace(&source.bytes, &serde_json::to_string(&source.pin).unwrap())
+        .unwrap();
+    assert!(session
+        .render_receiver_native(&input, "native-one")
+        .is_err());
+    let renewed = session
+        .register_receiver_input("cem-receiver-frame", inputs.root())
+        .unwrap();
+    assert_eq!(
+        session
+            .render_receiver_native(&renewed, "native-one")
+            .unwrap(),
+        html
+    );
+    assert!(session.capture().is_err());
+    drop(input);
+    drop(renewed);
+    assert_eq!(session.capture().unwrap(), source.bytes);
+}
+
+#[cfg(feature = "application-source-runtime")]
+#[test]
+fn receiver_frames_refuse_qualified_missing_and_unvalidated_original_inputs() {
+    use cem_ql::application_source_endpoint::{
+        ApplicationBootstrapOwner, ApplicationSourceEndpoint,
+    };
+    use std::sync::Arc;
+    let required = fixture::RECEIVER.replace(
+        "@optional-attributes=\"items count choice\"",
+        "@required-attributes=count @optional-attributes=\"items choice\"",
+    );
+    let cases: [(String, String, String, bool, bool); 11] = [
+        (
+            "{other @items={#data} @count=3 @choice=ok}".into(),
+            fixture::RECEIVER.into(),
+            fixture::CART.into(),
+            false,
+            false,
+        ),
+        (
+            "{view @items={#data} @choice=ok}".into(),
+            required.clone(),
+            fixture::CART.into(),
+            false,
+            false,
+        ),
+        (
+            "{view @items={#data} @count=3 @choice=ok @unknown=yes}".into(),
+            fixture::RECEIVER.into(),
+            fixture::CART.into(),
+            false,
+            false,
+        ),
+        (
+            "{view @items={#data} @count=3 @choice=ok | {child}}".into(),
+            fixture::RECEIVER.into(),
+            fixture::CART.into(),
+            false,
+            false,
+        ),
+        (
+            "@ns x = urn:foreign\n{x:view @items={#data} @count=3 @choice=ok}".into(),
+            fixture::RECEIVER.into(),
+            fixture::CART.into(),
+            false,
+            false,
+        ),
+        (
+            "@ns x = urn:foreign\n{view @items={#data} @x:count=3 @choice=ok}".into(),
+            fixture::RECEIVER.into(),
+            fixture::CART.into(),
+            false,
+            false,
+        ),
+        (
+            fixture::VIEW.into(),
+            fixture::RECEIVER.into(),
+            "{cart @title=Tea | {item @quantity=bad}}".into(),
+            true,
+            false,
+        ),
+        (
+            "{view @items={#data} @count=2 @choice=ok}".into(),
+            fixture::RECEIVER.into(),
+            fixture::CART.into(),
+            true,
+            false,
+        ),
+        (
+            "{view @items={#data} @count=3 @choice={#data}}".into(),
+            fixture::RECEIVER.into(),
+            fixture::CART.into(),
+            true,
+            false,
+        ),
+        (
+            format!(
+                "{{view @items={{#data}} @count=3 @choice={}}}",
+                "x".repeat(1025)
+            ),
+            fixture::RECEIVER.into(),
+            fixture::CART.into(),
+            true,
+            false,
+        ),
+        (
+            fixture::VIEW.into(),
+            required,
+            fixture::CART.into(),
+            true,
+            true,
+        ),
+    ];
+    for (view, schema, cart, registration, accepted) in cases {
+        let (source, data) = fixture::prepared_sources(fixture::VIEW, &schema, &cart);
+        let control = Default::default();
+        let restored = fixture::Inputs::restore(&data, &control).unwrap();
+        let inputs = Arc::new(fixture::Inputs {
+            view: fixture::imported(&view, "file:///runtime/case-view.cem"),
+            cart: cem_ql::application_source_transport::SourceInput {
+                identity: restored.cart.identity.clone(),
+                tree: restored.cart.tree.clone(),
+                capture: restored.cart.capture.clone(),
+            },
+        });
+        let generation = cem_ml::runtime_admission::generation::NativeGeneration::claim(Arc::new(
+            Default::default(),
+        ))
+        .unwrap();
+        let code = ApplicationBootstrapOwner::new(
+            &generation,
+            control,
+            source.pin.clone(),
+            fixture::Bootstrap {
+                inputs: inputs.clone(),
+            },
+        )
+        .unwrap();
+        let endpoint = ApplicationSourceEndpoint::new(&code).unwrap();
+        let mut session = endpoint
+            .open(&source.bytes, &serde_json::to_string(&source.pin).unwrap())
+            .unwrap();
+        let input = session.register_receiver_input("cem-receiver-frame", inputs.root());
+        if registration {
+            let input = input.unwrap();
+            if accepted {
+                assert_eq!(
+                    session
+                        .render_receiver_native(&input, "native-one")
+                        .unwrap(),
+                    "<p>Tea/3/ok/native-one</p>"
+                );
+            } else {
+                assert!(
+                    session
+                        .render_receiver_native(&input, "native-one")
+                        .is_err(),
+                    "original input case / {cart}"
+                );
+                assert!(session
+                    .project_receiver_native(&input, "native-one")
+                    .is_err());
+            }
+        } else {
+            assert!(input.is_err(), "original input registration")
+        }
+    }
+}
+
+#[cfg(feature = "application-source-runtime")]
+#[test]
+fn native_receiver_fields_cannot_shadow_runtime_roots() {
+    use cem_ql::application_source_endpoint::{
+        ApplicationBootstrapOwner, ApplicationSourceEndpoint,
+    };
+    use std::sync::Arc;
+    let (source, data) = fixture::build_reserved();
+    let control = Default::default();
+    let inputs = fixture::Inputs::restore(&data, &control).unwrap();
+    let generation = cem_ml::runtime_admission::generation::NativeGeneration::claim(Arc::new(
+        Default::default(),
+    ))
+    .unwrap();
+    let code = ApplicationBootstrapOwner::new(
+        &generation,
+        control,
+        source.pin.clone(),
+        fixture::Bootstrap {
+            inputs: inputs.clone(),
+        },
+    )
+    .unwrap();
+    let endpoint = ApplicationSourceEndpoint::new(&code).unwrap();
+    let mut session = endpoint
+        .open(&source.bytes, &serde_json::to_string(&source.pin).unwrap())
+        .unwrap();
+    assert!(session
+        .register_receiver_input("cem-receiver-frame", inputs.root())
+        .is_err());
+}
+
 fn direct_inputs() -> (Vec<u8>, &'static str) {
     use cem_ql::{api::native_values, eval::portable};
     let input = native_values::import_document(
@@ -51,7 +373,7 @@ fn native_application_worker_fixture_has_original_sources_and_real_consumers() {
         application_source_transport,
     };
     use std::sync::Arc;
-    let (bytes, input) = fixture::build();
+    let (bytes, input) = fixture::build_prepared();
     let control = Default::default();
     let inputs = fixture::Inputs::restore(&input, &control).unwrap();
     let g = cem_ml::runtime_admission::generation::NativeGeneration::claim(Arc::new(

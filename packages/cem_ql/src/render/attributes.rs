@@ -23,7 +23,13 @@ impl PlanRenderer<'_> {
         &mut self,
         nodes: &[TemplateNode],
         host: &BTreeMap<String, AttributeValueContract>,
+        original: Option<&BTreeMap<String, ItemStream>>,
     ) {
+        if let Some(values) = original {
+            for (name, values) in values {
+                bind_attribute_values(&mut self.evaluation_context.policy_bindings, name, values.items.clone());
+            }
+        }
         let mut declarations = Vec::new();
         fn collect<'a>(nodes: &'a [TemplateNode], out: &mut Vec<&'a TemplateNode>) {
             for node in nodes {
@@ -58,6 +64,7 @@ impl PlanRenderer<'_> {
             let Some(name) = declaration_name(attributes) else {
                 continue;
             };
+            if original.is_some_and(|values| values.contains_key(&name)) { continue; }
             let type_name = literal_template_attribute(attributes, "type");
             let mut contract = type_name
                 .map(|name| self.value_contract(&name))
@@ -74,6 +81,7 @@ impl PlanRenderer<'_> {
             contracts.push((name, contract, required, source_map.clone()));
         }
         for (name, contract) in host {
+            if original.is_some_and(|values| values.contains_key(name)) { continue; }
             contracts.push((
                 name.clone(),
                 contract.clone(),
@@ -257,7 +265,7 @@ impl PlanRenderer<'_> {
         }
     }
 
-    fn attribute_contract_failure(&mut self, message: &str, source: &SourceMapStack) {
+    pub(super) fn attribute_contract_failure(&mut self, message: &str, source: &SourceMapStack) {
         self.recovery_depth += 1;
         self.template_failure(render_diagnostic(
             "cem.value.contract",

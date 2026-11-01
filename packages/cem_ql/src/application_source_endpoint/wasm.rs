@@ -3,12 +3,109 @@
 use super::*;
 use cem_ml::{runtime_admission, runtime_inventory::NativeRegistry};
 use wasm_bindgen::prelude::*;
+struct Session {
+    token: JsValue,
+    session: ApplicationSourceSession,
+    inputs: Vec<(JsValue, ApplicationReceiverInput)>,
+}
 thread_local! {
     static ENDPOINT: NativeRegistry<Option<Weak<ApplicationSourceEndpoint>>> = const { NativeRegistry::new(None) };
-    static SESSIONS: NativeRegistry<Vec<(JsValue, ApplicationSourceSession)>> = const { NativeRegistry::new(Vec::new()) };
+    static SESSIONS: NativeRegistry<Vec<Session>> = const { NativeRegistry::new(Vec::new()) };
 }
 fn error(_: impl std::fmt::Display) -> JsValue {
     JsValue::from_str(INVALID)
+}
+/// Original registered native source only. There is no JS token constructor.
+pub fn register_receiver_input(
+    owner: &JsValue,
+    tag: &str,
+    root: crate::eval::RetainedCemNode,
+) -> Result<JsValue, String> {
+    let _entry = runtime_admission::admit(false).map_err(|_| INVALID)?;
+    SESSIONS.with(|sessions| {
+        let mut sessions = sessions.try_borrow_mut().map_err(|_| INVALID)?;
+        let entry = sessions
+            .iter_mut()
+            .find(|entry| &entry.token == owner)
+            .ok_or(INVALID)?;
+        if entry.inputs.len() >= 64 {
+            return Err(INVALID.into());
+        }
+        let input = entry.session.register_receiver_input(tag, root)?;
+        let token: JsValue = js_sys::Object::freeze(&js_sys::Object::new()).into();
+        entry.inputs.push((token.clone(), input));
+        Ok(token)
+    })
+}
+#[wasm_bindgen(js_name=applicationSourceRenderReceiverV1)]
+pub fn render_receiver(
+    owner: &JsValue,
+    input: &JsValue,
+    instance: &str,
+) -> Result<String, JsValue> {
+    let _entry = runtime_admission::admit(false).map_err(error)?;
+    let _memory = cem_ml::runtime_memory::admit_input(instance.len()).map_err(error)?;
+    SESSIONS.with(|sessions| {
+        let mut sessions = sessions.try_borrow_mut().map_err(error)?;
+        let entry = sessions
+            .iter_mut()
+            .find(|entry| &entry.token == owner)
+            .ok_or_else(|| error(INVALID))?;
+        let input = &entry
+            .inputs
+            .iter()
+            .find(|(key, _)| key == input)
+            .ok_or_else(|| error(INVALID))?
+            .1;
+        entry
+            .session
+            .render_receiver_native(input, instance)
+            .map_err(error)
+    })
+}
+#[wasm_bindgen(js_name=applicationSourceProjectReceiverV1)]
+pub fn project_receiver(
+    owner: &JsValue,
+    input: &JsValue,
+    instance: &str,
+) -> Result<Vec<u8>, JsValue> {
+    let _entry = runtime_admission::admit(false).map_err(error)?;
+    let _memory = cem_ml::runtime_memory::admit_input(instance.len()).map_err(error)?;
+    SESSIONS.with(|sessions| {
+        let mut sessions = sessions.try_borrow_mut().map_err(error)?;
+        let entry = sessions
+            .iter_mut()
+            .find(|entry| &entry.token == owner)
+            .ok_or_else(|| error(INVALID))?;
+        let input = &entry
+            .inputs
+            .iter()
+            .find(|(key, _)| key == input)
+            .ok_or_else(|| error(INVALID))?
+            .1;
+        entry
+            .session
+            .project_receiver_native(input, instance)
+            .map_err(error)
+    })
+}
+#[wasm_bindgen(js_name=applicationSourceReleaseReceiverInputV1)]
+pub fn release_receiver(owner: &JsValue, input: &JsValue) -> Result<(), JsValue> {
+    let _entry = runtime_admission::admit(true).map_err(error)?;
+    SESSIONS.with(|sessions| {
+        let mut sessions = sessions.try_borrow_mut().map_err(error)?;
+        let entry = sessions
+            .iter_mut()
+            .find(|entry| &entry.token == owner)
+            .ok_or_else(|| error(INVALID))?;
+        let index = entry
+            .inputs
+            .iter()
+            .position(|(key, _)| key == input)
+            .ok_or_else(|| error(INVALID))?;
+        entry.inputs.swap_remove(index);
+        Ok(())
+    })
 }
 /// Trusted Rust bootstrap only. Bytes and JS metadata cannot install an owner.
 pub fn install(endpoint: &Arc<ApplicationSourceEndpoint>) -> Result<(), String> {
@@ -56,11 +153,11 @@ pub fn with_session<T>(
         let mut sessions = sessions.try_borrow_mut().map_err(|_| INVALID)?;
         let session = sessions
             .iter_mut()
-            .find(|(key, _)| key == owner)
+            .find(|entry| &entry.token == owner)
             .ok_or(INVALID)?;
-        session.1.check()?;
-        let result = use_session(&mut session.1);
-        session.1.check()?;
+        session.session.check()?;
+        let result = use_session(&mut session.session);
+        session.session.check()?;
         result
     })
 }
@@ -82,7 +179,11 @@ pub fn open(bytes: &[u8], pins: &str) -> Result<JsValue, JsValue> {
         }
         let session = endpoint.open(bytes, pins).map_err(error)?;
         let owner: JsValue = js_sys::Object::freeze(&js_sys::Object::new()).into();
-        sessions.push((owner.clone(), session));
+        sessions.push(Session {
+            token: owner.clone(),
+            session,
+            inputs: vec![],
+        });
         Ok(owner)
     })
 }
@@ -98,7 +199,7 @@ pub fn release(owner: &JsValue) -> Result<(), JsValue> {
         let mut sessions = s.try_borrow_mut().map_err(error)?;
         let index = sessions
             .iter()
-            .position(|(key, _)| key == owner)
+            .position(|entry| &entry.token == owner)
             .ok_or_else(|| error(INVALID))?;
         sessions.swap_remove(index);
         Ok(())

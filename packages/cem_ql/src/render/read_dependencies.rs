@@ -177,6 +177,7 @@ fn render_with_dependencies(
         calls,
         protected,
         Some(&mut tracker),
+        None,
     );
     let dependencies = tracker.finish(&output);
     TemplateDependencyRender {

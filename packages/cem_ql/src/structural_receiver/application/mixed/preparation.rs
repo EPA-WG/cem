@@ -74,6 +74,23 @@ impl LinkedMixedReceivers {
     }
 }
 impl MixedPreparationInvocation {
+    pub(super) fn consume_frame(
+        &self,
+        host: &mut FreshStructuralHost,
+        input: &values::ReceiverInput,
+        evidence: &MixedPreparationEvidence,
+    ) -> Result<crate::eval::ItemStream, String> {
+        if self
+            .validate_prepared(host, input, Some(evidence))?
+            .accepted
+            != Some(true)
+        {
+            return Err(REFUSED.into());
+        }
+        Ok(crate::eval::ItemStream::from_items(
+            evidence.inner.values().to_vec(),
+        ))
+    }
     pub fn close(&self) {
         self.invocation.close();
     }

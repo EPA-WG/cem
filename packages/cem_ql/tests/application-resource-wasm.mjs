@@ -13,10 +13,34 @@ async function factory(directory) {
 }
 function backend(runtime, observe) {
     const native = createApplicationSourceWasmBackend(runtime);
-    return { ...native, open: (bytes, pins) => { const owner = native.open(bytes, pins); observe(owner); return owner; } };
+    let input;
+    return { ...native,
+        open: (bytes, pins) => {
+            const owner = native.open(bytes, pins);
+            input = runtime.call('probeApplicationReceiverInput', [owner]);
+            observe(owner, input); return owner;
+        },
+        capture: owner => {
+            // Fixture-only immutable deployment data is explicitly released.
+            // The library refuses to omit live native input from a checkpoint.
+            if (input) {
+                assert.throws(() => native.capture(owner));
+                runtime.call('applicationSourceReleaseReceiverInputV1', [owner, input]);
+                input = undefined;
+            }
+            return native.capture(owner);
+        },
+    };
 }
 const comparableReport = text => text;
-async function frame(runtime, owner, directory) {
+async function frame(runtime, owner, inputOwner, directory) {
+    assert.throws(() => runtime.call('applicationSourceCaptureV1', [owner]));
+    assert.throws(() => runtime.call('applicationSourceRenderReceiverV1', [owner, Object.freeze({ ...inputOwner }), 'native-one']));
+    const native = runtime.call('applicationSourceRenderReceiverV1', [owner, inputOwner, 'native-one']);
+    assert.equal(native, '<p>Tea/3/ok/native-one</p>');
+    const nativeProjection = runtime.call('applicationSourceProjectReceiverV1', [owner, inputOwner, 'native-one']);
+    assert.ok(nativeProjection.byteLength > 0);
+    assert.throws(() => runtime.call('applicationSourceRenderReceiverV1', [owner, inputOwner, 'bad identity']));
     const [island, badCount, badNamespace, inputs, routing] = await Promise.all([
         ...['frame.island', 'frame.bad-count', 'frame.bad-namespace', 'frame.inputs'].map(name =>
             readFile(resolve(directory, name)).then(bytes => new Uint8Array(bytes))),
@@ -38,19 +62,19 @@ async function frame(runtime, owner, directory) {
         assert.throws(() => runtime.call('applicationSourceRenderInputsV1', [owner, 'cem-count', inputs, badRouting, 'direct-one']));
     }
     assert.equal(render(island), html, 'a rejected frame corrupted the publication');
-    return [html, direct];
+    return [html, direct, native];
 }
 if (!isMainThread) {
-    const runtime = await factory(workerData.directory); let last;
+    const runtime = await factory(workerData.directory); let last, lastInput;
     runtime.call('probeApplicationProvision', [workerData.pins, new Uint8Array(await readFile(resolve(workerData.directory, 'installed.inputs')))]);
-    installQuerySourceWorkerTransport(workerData.port, backend(runtime, id => { last = id; }));
+    installQuerySourceWorkerTransport(workerData.port, backend(runtime, (id, input) => { last = id; lastInput = input; }));
     parentPort.on('message', async ({ id, op, args }) => {
         try {
             let value;
             if (op === 'prepare') value = runtime.prepareRetirement(args[0]);
             else if (op === 'dispose') value = runtime.dispose();
             else if (op === 'validate') value = runtime.call('probeApplicationValidate', [last]);
-            else if (op === 'frame') value = await frame(runtime, last, workerData.directory);
+            else if (op === 'frame') value = await frame(runtime, last, lastInput, workerData.directory);
             else if(op==='tokens') {assert.throws(()=>runtime.call('applicationSourceCaptureV1',[Object.freeze({...last})]));assert.throws(()=>runtime.call('applicationSourceReleaseV1',[{}]));value=runtime.call('probeApplicationReentrant',[last]);}
             else value = runtime.call(op, args);
             parentPort.postMessage({ id, value });
@@ -64,7 +88,7 @@ if (!isMainThread) {
     let allocations = 0, scenarios = 0;
     async function physical(mode) {
         const configPins = pins;
-        const id = crypto.randomUUID(); let alive = true, endpoint, participant, last, worker, port, runtime, sequence = 0;
+        const id = crypto.randomUUID(); let alive = true, endpoint, participant, last, lastInput, worker, port, runtime, sequence = 0;
         const requests = new Map();
         if (mode === 'worker') {
             const channel = new MessageChannel(); port = channel.port1;
@@ -86,7 +110,7 @@ if (!isMainThread) {
                 if (op === 'prepare') return runtime.prepareRetirement(args[0]);
                 if (op === 'dispose') return runtime.dispose();
                 if (op === 'validate') return runtime.call('probeApplicationValidate', [last]);
-                if (op === 'frame') return frame(runtime, last, directory);
+                if (op === 'frame') return frame(runtime, last, lastInput, directory);
                 if(op==='tokens') {assert.throws(()=>runtime.call('applicationSourceCaptureV1',[Object.freeze({...last})]));assert.throws(()=>runtime.call('applicationSourceReleaseV1',[{}]));return runtime.call('probeApplicationReentrant',[last]);}
                 return runtime.call(op, args);
             }
@@ -104,7 +128,7 @@ if (!isMainThread) {
             }),
             endpoint: () => endpoint ??= mode === 'worker'
                 ? createQuerySourceWorkerEndpoint({ identity: identity(), participant: controller.participant(), port, maxSourceBytes: 4 * 1024 * 1024, current: () => alive })
-                : createQuerySourceEndpoint({ identity: identity(), participant: controller.participant(), current: () => alive, native: backend(runtime, id => { last = id; }) }),
+                : createQuerySourceEndpoint({ identity: identity(), participant: controller.participant(), current: () => alive, native: backend(runtime, (id, input) => { last = id; lastInput = input; }) }),
             alive: () => alive,
             async retire(handoff, current) {
                 const guard = () => alive && handoff.current() && current();
