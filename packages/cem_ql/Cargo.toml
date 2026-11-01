@@ -36,4 +36,4 @@ url_unpatched = { package = "url", version = "=2.5.8" }
 [[example]]
 name = "query_source_probe"
 crate-type = ["cdylib"]
-required-features = ["query-source-runtime", "component-runtime"]
+required-features = ["query-source-runtime"]

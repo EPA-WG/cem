@@ -634,6 +634,83 @@ evaluated credentials into source packets. Entered passwords/OTPs still block
 recovery until explicitly cleared; 4 MiB checkpoints and five-second recovery
 deadlines remain unchanged. These integration gates stay in the active TODO.
 
+## Shared query resource transport and checkpoint handoff
+
+[`query-source-resource`](../packages/cem_ql/runtime/query-source-resource.mjs)
+provides internal shared host controls for original owned WASM and worker
+sources. A local endpoint retains the original native backend supplied by its
+physical owner; a worker endpoint uses a private MessagePort created/transferred
+by that trusted owner. Registration checks the actual original Memory/Worker
+participant. Owner tokens are private map keys, never native IDs recovered from
+metadata. Copied tokens and foreign endpoints fail before native work.
+The producer's `current` witness must include its original ownership/epoch and
+invalidation policy; arbitrary native aliases are outside this managed contract.
+
+The worker protocol has only source open, capture and original-owner release.
+It copies bounded binary packets and independent deployment pins; JavaScript
+never decodes a CEM AST, verifies a schema or evaluates query instructions.
+Packet and UTF-8 pin limits are 69,643 and 16,384 bytes. Pending endpoint work is
+bounded to 16 operations and ownership to 64 handles. Original sequence/action
+matches, cancellation and at-most-five-second deadlines fence results. Unknown,
+cancelled or late replies never reopen a failed endpoint or supply retirement
+authority. Explicit cleanup remains separate: `cleanupCurrent` can allow release
+of an existing original owner behind closed ordinary admission, without permitting
+new imports or capture. A failed transport remains fenced even if cleanup later
+settles. The complete native census must still prove that native owners dropped.
+
+`QuerySourceResource.open` owns a stable source route. Its recovery policy callback
+is separate from ordinary native work, so entered credentials can block recovery
+while the application remains usable. `prepareRecovery` checks that policy before
+and after original native capture, compares exact source bytes and prepares a
+read-only witness. Group capture requires this witness; policy changes, source
+changes, disposal or missing peers fence release and allocation. Source packets
+exclude evaluated inputs, candidates, results and request budgets.
+
+The resource joins the existing `registerNativeGenerationResource` transaction.
+Its packet and UTF-8 pin bytes are charged through `retainedBytes` alongside all
+committed checkpoint bytes, within the existing aggregate 4 MiB ceiling. Counts
+must be safe nonnegative integers; capture and allocation both check limits.
+An exact private group attestation rejects older mixed-vendor constructors that
+cannot account for those bytes, before any cleanup. This does not enlarge the
+budget or infer ownership from a serialized size. Existing resource adapters
+without declared replay bytes retain their previous accounting; independent
+package/cache budgets are unchanged.
+
+Resource release waits for the original native/worker acknowledgment within the
+existing checkpoint deadline. The physical owner still closes/drains admission,
+collects the complete v2 native census and holds its original native retirement
+permit through disposal. A native-sealed `CemCommittedCheckpointStore.handoff()`
+must remain current, including its terminal external-operation journal. Unknown
+outcomes require reconciliation before retirement. No operation is replayed by
+source reimport. A copied checkpoint/receipt is not an original capability.
+
+Fresh preparation resolves the target through its original endpoint registry and
+checks its participant, actual physical identity and allocation runtime ID. It
+reimports the source through the fresh native backend, stages its original owner
+and publishes the stable route only inside the shared binding transaction.
+Policy changes after allocation, foreign targets, stale checkpoints or failed
+preparation revoke the entire fresh group. Old native aliases stay retired.
+
+Run `NX_DAEMON=false yarn nx run cem_ql:test:query-resource-wasm --skipNxCache`.
+The [acceptance fixture](../packages/cem_ql/tests/query-resource-wasm.mjs) builds
+the test-only full-runtime query probe and uses the production owned factory,
+actual WASM query owners, private worker byte transport, complete 36-registry
+census, native-sealed checkpoints and the exact shared checkpoint store. Both
+fallback and worker modes cover a successful handoff, stale checkpoint refusal
+before allocation, credentials entered after allocation and foreign-target
+refusal. Native diagnostics are compared across fresh reimport. Source-route
+checkpoint islands in this fixture are inert transport data; no DOM owner or
+UI state is restored from them. Protocol unit doubles test additional timeout,
+cancellation, copied-owner and budget cases without claiming native evidence.
+
+The module and types are shipped with the shared runtime assets, with an internal
+`cem-elements` re-export. No Studio/component UI behavior or production native
+source endpoint is added. Exact source-backed code/registry profile owners,
+imported/native rule transport and production endpoint wiring remain admission
+gates in the [active TODO](todo.md#component-application-wasm-profile-separate-target).
+Automatic Studio recovery stays off. Entered passwords/OTPs still block recovery
+until explicitly cleared, with unchanged 4 MiB/five-second recovery policies.
+
 ## Exact native validator and tokenizer requirements
 
 [`cem_ql::native_registrations`](../packages/cem_ql/src/native_registrations.rs)

@@ -415,6 +415,14 @@ budgets. A test-only harness exercises native-emitted source bytes in independen
 WASM heaps and a worker. No production endpoint or profile is enabled; complete
 physical resource/checkpoint handoff, source-backed code/registry owners and
 credential acceptance still precede admission.
+The [shared query resource transport](cem-native-schema-capsules.md#shared-query-resource-transport-and-checkpoint-handoff)
+now supplies original local/worker owner capabilities, bounded byte messages and
+checkpoint resource handoff. Native source replay bytes join the 4 MiB aggregate
+budget, and fresh targets require their original physical participants. A private
+full-runtime fixture proves native-sealed journal handoff, complete v2 census and
+fresh reimport in worker/fallback modes. Source-backed code/registry profiles and
+production endpoint enrollment remain separate; no reduced-runtime admission is
+enabled by these shared host APIs.
 
 
 Do not equate downloaded code with an active native generation. Register every

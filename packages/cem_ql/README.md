@@ -1851,3 +1851,13 @@ lifetimes, while production physical checkpoint/ownership handoff and credential
 refusal remain admission gates.
 
 See the [adapter contract](../../docs/cem-native-schema-capsules.md#opt-in-query-source-wasm-adapters).
+
+The internal `runtime/query-source-resource.mjs` helper adds original local/worker
+owner capabilities, bounded private byte transport and generation resource
+handoff. It relies on the native backend for all source verification and relinking.
+Run `NX_DAEMON=false yarn nx run cem_ql:test:query-resource-wasm --skipNxCache`
+for full-census owned WASM/worker retirement and native-sealed checkpoint/journal
+acceptance. This private full-runtime probe is not a published minimal profile.
+Production endpoints and source-backed code/registry profile ownership remain
+gated; entered credentials still block recovery. See the
+[shared transport contract](../../docs/cem-native-schema-capsules.md#shared-query-resource-transport-and-checkpoint-handoff).

@@ -53,8 +53,8 @@ try {
     rmSync(generatedRoot, { recursive: true, force: true });
 }
 chmodSync(resolve(projectRoot, 'dist/bin.js'), 0o755);
-for (const file of ['native-generation.js', 'native-generation.d.ts', 'schema-asset-protocol.js', 'schema-asset-protocol.d.ts']) {
-    copyFileSync(resolve(workspaceRoot, 'packages/cem_ql/runtime', file.replace('.d.ts', '.d.mts').replace('.js', '.mjs')), resolve(projectRoot, 'dist', file));
+for (const file of ['native-generation.js', 'native-generation.d.ts', 'schema-asset-protocol.js', 'schema-asset-protocol.d.ts', 'query-source-resource.js', 'query-source-resource.d.ts']) {
+    writeFileSync(resolve(projectRoot, 'dist', file), readFileSync(resolve(workspaceRoot, 'packages/cem_ql/runtime', file.replace('.d.ts', '.d.mts').replace('.js', '.mjs')), 'utf8').replaceAll('./native-generation.mjs', './native-generation.js'));
 }
 for (const file of ['generation-lifecycle.js', 'generation-lifecycle.d.ts', 'protocol.js', 'protocol.d.ts']) {
     const path = resolve(projectRoot, 'dist', file);

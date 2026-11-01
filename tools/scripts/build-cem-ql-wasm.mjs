@@ -77,8 +77,8 @@ if (componentRuntime) {
     writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.js'), cemQlWasmFactory(readFileSync(resolve(repoRoot, outDir, 'cem_ql.js'), 'utf8')));
     writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.d.ts'), cemQlWasmFactoryTypes);
 
-    for (const file of ['native-generation.js', 'native-generation.d.ts', 'schema-asset-protocol.js', 'schema-asset-protocol.d.ts']) {
-        copyFileSync(resolve(repoRoot, 'packages/cem_ql/runtime', file.replace('.d.ts', '.d.mts').replace('.js', '.mjs')), resolve(repoRoot, outDir, file));
+    for (const file of ['native-generation.js', 'native-generation.d.ts', 'schema-asset-protocol.js', 'schema-asset-protocol.d.ts', 'query-source-resource.js', 'query-source-resource.d.ts']) {
+        writeFileSync(resolve(repoRoot, outDir, file), readFileSync(resolve(repoRoot, 'packages/cem_ql/runtime', file.replace('.d.ts', '.d.mts').replace('.js', '.mjs')), 'utf8').replaceAll('./native-generation.mjs', './native-generation.js'));
     }
 }
 

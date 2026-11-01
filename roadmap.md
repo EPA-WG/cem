@@ -850,6 +850,12 @@ The internal [query-source WASM feature](docs/cem-native-schema-capsules.md#opt-
 now shares the original Rust host, source verifier and request/binding guards.
 Its isolated probe consumes native-emitted binary sources in separate WASM heaps
 and a worker; production physical resource/checkpoint integration remains next.
+The [shared query transport and handoff](docs/cem-native-schema-capsules.md#shared-query-resource-transport-and-checkpoint-handoff)
+now joins original worker/fallback source owners to complete native retirement,
+native-sealed checkpoint journals and fresh binding transactions. It accounts for
+retained source bytes and fences stale checkpoints, late credential policy and
+foreign targets. Source-backed code/registry profile ownership and production
+endpoint wiring remain the next gates before application admission.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 

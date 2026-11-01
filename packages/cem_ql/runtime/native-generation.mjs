@@ -62,6 +62,12 @@ export function assertNativeGenerationResourceTarget(participant, runtimeId, ide
     if (!record || record.consumed || runtimeId !== undefined && record.runtimeId !== runtimeId
         || !object(identity) || state.physicalParticipants.get(identity) !== record) fail('resource-target');
 }
+/** A source requiring byte accounting must be captured by the exact original
+ * budget-aware group, including when older vendored modules share this realm. */
+export function assertNativeGenerationResourceBudget(participant) {
+    const record = state.participants.get(participant);
+    if (!record?.group || record.budgetGroup !== record.group) fail('resource-budget');
+}
 function resourcesCurrent(record) {
     const snapshot = record.resourceSnapshot;
     return !record.resourceReleaseFailed && (!record.resources?.size && !snapshot || !!snapshot && snapshot.revision === record.resourceRevision
@@ -196,23 +202,26 @@ export class CemNativeGenerationGroup {
         const participantsSnapshot = slots(participants), records = participantsSnapshot.map(value => state.participants.get(value));
         if (records.some(record => !record || record.group || record.consumed) || new Set(records).size !== records.length) fail('coverage');
         this.#records = records;
-        for (const record of records) record.group = this;
+        for (const record of records) { record.group = this; record.budgetGroup = this; }
         try {
             for (const record of records) if (record.resources?.size) {
                 const revision = record.resourceRevision;
                 const entries = [...record.resources].map(resource => {
                     const snapshot = resource.capture();
                     if (!snapshot || typeof snapshot.current !== 'function' || typeof snapshot.release !== 'function' || typeof snapshot.prepare !== 'function') fail('resource');
+                    const retainedBytes = snapshot.retainedBytes ?? 0;
+                    if (!Number.isSafeInteger(retainedBytes) || retainedBytes < 0 || retainedBytes > 4 * 1024 * 1024) fail('limit');
                     if (snapshot.peers !== undefined && slots(snapshot.peers).some(peer => !participantsSnapshot.includes(peer))) fail('coverage');
-                    return { current: snapshot.current, release: snapshot.release, prepare: snapshot.prepare, released: false };
+                    return { current: snapshot.current, release: snapshot.release, prepare: snapshot.prepare, released: false, retainedBytes };
                 });
-                record.resourceSnapshot = { revision, entries };
+                record.resourceSnapshot = { revision, entries, retainedBytes: entries.reduce((sum, entry) => sum + entry.retainedBytes, 0) };
                 if (!resourcesCurrent(record)) fail('resource');
             }
+            if (records.reduce((sum, record) => sum + (record.resourceSnapshot?.retainedBytes ?? 0), 0) > 4 * 1024 * 1024) fail('limit');
         } catch (error) {
             // Capture has no native cleanup authority. A transient busy resource
             // must allow a new complete preparation after work settles.
-            for (const record of records) { if (record.group === this) record.group = undefined; record.resourceSnapshot = undefined; }
+            for (const record of records) { if (record.group === this) record.group = undefined; if (record.budgetGroup === this) record.budgetGroup = undefined; record.resourceSnapshot = undefined; }
             throw error;
         }
     }
@@ -229,7 +238,7 @@ export class CemNativeGenerationGroup {
         if (entries.length !== this.#records.length) fail('coverage');
         if (receipts.some(receipt => !receipt || receipt.record.group !== this || receipt.record.consumed)
             || new Set(receipts.map(receipt => receipt.record)).size !== receipts.length) fail('receipt');
-        if (receipts.reduce((size, receipt) => size + receipt.checkpoint.byteLength, 0) > 4 * 1024 * 1024) fail('limit');
+        if (receipts.reduce((size, receipt) => size + receipt.checkpoint.byteLength + (receipt.record.resourceSnapshot?.retainedBytes ?? 0), 0) > 4 * 1024 * 1024) fail('limit');
         this.#state = 'allocating';
         const cancellation = new AbortController();
         const gate = { admitted: false, revoked: false }, candidates = [], identities = new Set(), revokeListeners = [];

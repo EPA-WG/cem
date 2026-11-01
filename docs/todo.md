@@ -427,13 +427,15 @@ inventory, not the minimum set loaded by every app.
                     adapters with source/code owners, drain/retirement and privacy
                     checks; packets alone grant no checkpoint or recovery authority.
 
-                    - [ ] Connect the opt-in query core to original shared
-                      worker/owned-fallback resource adapters and byte transport,
-                      with original participants, source/code/registry owners,
-                      complete native census and checkpoint/journal handoff.
-                      Test stale/foreign transport handles, drain/cancellation,
-                      late acknowledgments and entered-credential refusal before
-                      exposing production endpoints or enabling admission.
+                    - [ ] Bind source-backed code and registry/profile owners to
+                      the shared transport and wire production worker/fallback
+                      native endpoints. Cover imported/native rule owners and
+                      custom result-profile dependencies before admission.
+                      The [shared byte transport and checkpoint handoff](archive/todo-completed-query-resource-handoff-2026-11-01.md)
+                      now passes original-participant, native full-census,
+                      checkpoint/journal, cancellation, byte-budget and privacy
+                      fixtures with the private opt-in query runtime. Production
+                      source endpoints and reduced-runtime admission remain off.
 
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's
