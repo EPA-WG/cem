@@ -423,7 +423,11 @@ now require original query/code/profile/registry authority and independently
 emitted profile pins, with seven accounted roots per managed session. Changed
 same-name schemas and missing/retired owners fail. Fresh heaps rebuild the
 original trusted profile and renew owners; no evaluated credential is transported.
-Production endpoint enrollment, imported/native rule owners, custom profile
+The [native provisioning API](cem-native-schema-capsules.md#native-provisioned-query-endpoints)
+now supplies opt-in byte endpoints bound to independent original deployment owners
+and opaque native tokens. Unprovisioned calls, copied tokens and foreign heaps
+fail. Default builds and component admission remain unchanged. Generated
+application bootstraps, imported/native rule owners, custom profile
 dependency transport and linked-code evidence remain separate; no reduced-runtime
 admission is enabled by these shared host APIs.
 

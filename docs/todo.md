@@ -9,8 +9,13 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [native query owner adapters](archive/todo-completed-native-query-owner-adapters-2026-10-31.md).
-The [physical generation retirement join](archive/todo-completed-physical-generation-retirement-join-2026-10-31.md) preserves the preceding stage.
+Latest completion: [native-provisioned query endpoints and TODO cleanup](archive/todo-completed-query-endpoints-2026-11-01.md).
+The [source-backed query execution owners](archive/todo-completed-query-execution-owners-2026-11-01.md)
+remain the preceding stage.
+The [shared query transport/checkpoint handoff](archive/todo-completed-query-resource-handoff-2026-11-01.md)
+and [native query owner adapters](archive/todo-completed-native-query-owner-adapters-2026-10-31.md)
+are also complete. The [pre-cleanup snapshot](archive/todo-snapshot-2026-11-01.md)
+preserves the previous nested checklist; its completed foundations are not new work.
 
 Prioritize Studio functionality and presentation samples before unrelated helper
 work and physical-device/browser/AT acceptance. Examples remain ordinary projects
@@ -26,13 +31,166 @@ Entered passwords or one-time codes continue to block recovery until explicitly
 cleared by the user; automatic whole-Studio recovery remains disabled. Follow the
 [credential privacy policy](committed-checkpoints.md#credential-privacy-policy-for-live-login-recovery).
 
-## Project builds and artifact previews
+Completed category indexes: [project builds and artifact previews](archive/todo-snapshot-2026-10-31.md#project-builds-and-artifact-previews),
+[content-type/schema samples](archive/todo-snapshot-2026-10-31.md#studio-samples-supported-content-types-and-schemas)
+and [Studio delivery](archive/todo-snapshot-2026-10-31.md#cem-studio-delivery-planning).
 
-[Completed work and verification](archive/todo-snapshot-2026-10-31.md#project-builds-and-artifact-previews).
+Preserve the [bounded project lifecycle](cem-studio.md#next-delivery-milestone-user-owned-project-workspace):
+100 graph nodes / 1 MiB source and 20 history snapshots / 8 MiB. Authored ID
+changes, aliases and expression-valued attributes remain source-only. Keep
+credential recovery refusal, the aggregate 4 MiB checkpoint budget and separate
+physical-device/spoken AT acceptance.
 
-## Studio samples: supported content types and schemas
+Current execution priority is the separate component application WASM workstream
+below. Native/release diagnostics and device acceptance remain separate follow-ups.
 
-[Completed work and verification](archive/todo-snapshot-2026-10-31.md#studio-samples-supported-content-types-and-schemas).
+## Component application WASM profile (separate target)
+
+Implement the
+[profile design](cem-components-wasm-profile.md) and
+[roadmap workstream](../roadmap.md#313-minimal-component-runtime-wasm-profile) as
+an explicit bundle for `cem-elements` plus `cem-components`, leaving existing
+full-runtime/CLI/Studio targets and defaults intact. Preserve every component
+capability, shared UI ownership and the credential policy above. Establish fixed
+size budgets from measurements before extraction is accepted. This remains a
+separate component-library target.
+
+Prioritize the app build/compiled-load boundary below over
+broader benchmark and optional-authoring-module work. Start with shared compiled
+UI + JSON for the shopping-cart app; the catalog remains the complete capability
+inventory, not the minimum set loaded by every app.
+
+Completed foundations: capability/size audit, compiled-template/JSON and CSS
+prototypes, original island/input contracts, structural/type/dependency capsules,
+versioned module/profile assembly, native CEMAPPD4 publication and mixed receivers,
+actual generation census/retirement, and direct-query source/code/profile owners.
+See the [native contracts](cem-native-schema-capsules.md),
+[profile design](cem-components-wasm-profile.md) and
+[completion history](archive/todo-snapshot-2026-11-01.md#component-application-wasm-profile-separate-target).
+These establish native boundaries and bounded prototypes, not complete runtime
+admission, production transport or linked-code omission.
+
+The [native-provisioned byte endpoints](archive/todo-completed-query-endpoints-2026-11-01.md)
+are complete for direct pure queries, including original native deployment owners,
+independent pins, opaque per-heap tokens, native census and fresh worker/fallback
+handoff. Default builds remain unchanged; application-specific bootstrap generation
+and component admission remain gated.
+
+Next execution gates, in order:
+
+- [ ] Carry imported/native rule owners and custom/multi-source result-profile
+  dependencies through explicit source/code transport. Verify unavailable
+  implementations, changed pins and original scopes before admission; preserve
+  original source snapshots, selectors, cycle checks and nested-format limits.
+
+- [ ] Add versioned CEMAPPD4 source/code/registry-owner transport and original
+  source reimport/recompilation on fresh worker/owned-fallback hosts. Preserve
+  CEMDM1 and existing formats; cover mixed node/scalar/executable receivers,
+  original base/item/behavior/operation/constant dependencies, missing/stale owners,
+  atomic replacement, cancellation, disposal and credential refusal. Native
+  publication enrollment is complete; its installation endpoint remains pending.
+
+- [ ] Integrate original schema/type receivers, native attribute/dataset/slice
+  domains and qualified island/projection ownership with the reduced processing
+  ABI. Refuse unsupported topology, namespaces, sources and unavailable input
+  contracts before live controls; add native/WASM parity and malformed-input cases.
+
+- [ ] Bind compiled declarations, retained CSS and shared behavior/provider/source
+  ownership to that ABI. Prove worker/fallback edits, credential refusal and
+  generation handoff without substituting the full tooling bootstrap.
+
+- [ ] Generate app-build dependencies and GraphQL schema/operation contracts,
+  including variable/response validation and compact runtime input checks. Map
+  compiled function/module requirements to transitive native implementations and
+  the selected registry; keep dynamic dispatch/provider/source gaps explicit.
+  Deployment manifests describe requirements, not grants. Retain native JSON
+  decoding and validation for API/user input arriving after deployment.
+
+- [ ] Bind generated registry/artifact/input contracts to the selected application
+  build and specialize remaining execution/type/source roots. Audit linked symbols
+  and optional-module handoff before claiming unused language/schema/function
+  implementations are absent; source inventories and fingerprints are not proof.
+
+- [ ] Assemble and measure the compiled-UI + JSON shopping-cart profile first.
+  Add declarative shared GraphQL transport only if existing resource capabilities
+  cannot express it; alert the user before implementing new shared JavaScript.
+  Register the usable app as an ordinary Studio example project when complete,
+  with real quantity/remove actions and build/preview/offline fixtures. No local
+  UI JavaScript, fake action buttons or credential-policy bypass counts as done.
+
+- [ ] Extend the baseline with repeated cold/first-use latency, active-worker and
+  aggregate host/native memory, all-capabilities/offline totals and clean npm
+  consumer loading. Keep unavailable counters explicit. Diagnose duplicate full
+  WASM acquisition observed in local no-store worker runs (two transfers of one
+  unique binary; fallback one). Retain matched hashes/toolchains and fixed budget
+  selection after the native boundary/prototype report, not an invented minimum.
+
+- [ ] Prove native call reachability and dynamic mode/provider/template closure
+  alongside module extraction. Keep the conservative source matrix separate
+  from linked-code omission evidence; map required source packs and compiled
+  modules for each requested capability before moving its implementation.
+
+- [ ] Define and prototype the versioned core/module ABI and capability catalog
+  with native fixtures for one isolated optional operation and one importer
+  feeding a retained component. Prove typed CEM-tree/source-owner handoff or
+  original native reimport/recompile without cross-heap handles, JSON AST
+  conversion or JavaScript parsing; retain types, namespaces/base URIs, ranges,
+  diagnostics, cancellation and lease disposal. Keep a required parser in core
+  until this boundary passes, and record the selected module-loading mechanism.
+  Use editor paint/highlighting as the isolated-operation candidate and CSV
+  feeding `cem-data-view` as the typed retained-data candidate from the audit.
+
+- [ ] Split native dependency/registry/export roots behind a separate component
+  profile; add proposed `cem_ql:build:wasm-components`. Keep existing full builds
+  and rendering/admission/recovery guards unchanged. Add native fixtures and
+  binary/import-graph evidence that optional compiled code and debug/tooling
+  initialization are absent, rather than merely hiding their JavaScript exports.
+
+- [ ] Add the reusable `cem-elements` module loader and proposed
+  `cem-elements:build:components-runtime` target. Alert the user before new shared
+  JavaScript capability implementation. Cover pinned ABI/version/hash/features,
+  dependency closure, bounded deduplicated acquisition, worker/owned-fallback
+  activation, exact-owner disposal and late/aborted/revoked publication. No
+  Studio/component-local JavaScript loader workaround is allowed.
+
+- [ ] Connect generated native requirements and existing declarative resource
+  demand to module readiness/preload. Add fixtures for external/dynamic template
+  languages, mode/resource changes, pending/failing demand, retry, concurrent
+  consumers and source-editor selection/IME/focus preservation. Preserve current
+  committed UI and exactly-once side effects; document explicit async readiness
+  for this new entry point without silently changing existing synchronous APIs.
+
+- [ ] Extract optional language/conversion/tooling modules one group at a time,
+  with native and browser parity fixtures for each mapped component mode and
+  original diagnostics/provenance. Reuse owned source packs for declarative
+  schemas/formatters/colorizers; do not emit a separate WASM per source template
+  or pull a monolithic full engine into every optional module.
+
+- [ ] Add proposed `@epa-wg/cem-components:build:components-runtime` assembly and
+  explicit package export/import-map wiring for declarations, matching shared
+  core/loader/modules and theme dependencies. Add clean npm-consumer/bundler,
+  standalone/subpath and full -> component -> full output/cache-isolation
+  fixtures; assert one canonical core asset and no eager full-runtime dependency.
+
+- [ ] Add offline/preload/update fixtures proving core-only installation fetches
+  no optional modules or packs, explicit feature sets remain usable offline, and
+  uncached offline demand fails without losing state or contacting an undeclared
+  service. Preserve integrity, cache scope, native source authority and saved
+  projects/drafts; never put credentials in public deployment caches.
+
+- [ ] Enroll every optional endpoint, active work and retained owner in existing
+  recovery groups. Add worker/fallback capture, drain, fresh-generation reimport,
+  re-demand and lease/late-acknowledgment fixtures. Re-run entered-password/OTP
+  refusal, require explicit clearing, keep automatic whole-Studio recovery off,
+  and preserve the 4 MiB budget and all current deadlines.
+
+- [ ] Run the complete catalog/mode, accessibility, theme/forced-color and shared
+  component suites on full and component profiles without skipping capabilities
+  or weakening assertions. Publish reproducible core/first-use/all-modules
+  byte/latency/memory and duplication reports; enforce agreed fixed budgets,
+  retained default builds and profile-specific optimizer/import/export checks.
+  Document installation, demand, preload/offline choices and measured limits
+  before advertising a minimum or considering a separate default-adoption step.
 
 ## Native and release follow-ups
 
@@ -299,246 +457,6 @@ audience-facing message. This file remains the sole execution checklist.
       and verification in the handoff, and archive completed presentation actions.
       Then continue with **CEM Studio** below. An outline alone does not complete
       this set.
-
-## CEM Studio delivery planning
-
-[Completed work and verification](archive/todo-snapshot-2026-10-31.md#cem-studio-delivery-planning).
-
-Preserve the [bounded project lifecycle](cem-studio.md#next-delivery-milestone-user-owned-project-workspace):
-100 graph nodes / 1 MiB source and 20 history snapshots / 8 MiB. Authored ID
-changes, aliases and expression-valued attributes remain source-only. Keep
-credential recovery refusal, the aggregate 4 MiB checkpoint budget and separate
-physical-device/spoken AT acceptance.
-
-## Component application WASM profile (separate target)
-
-Planned 2026-10-28 at the user's request. Implement the
-[profile design](cem-components-wasm-profile.md) and
-[roadmap workstream](../roadmap.md#313-minimal-component-runtime-wasm-profile) as
-an explicit bundle for `cem-elements` plus `cem-components`, leaving existing
-full-runtime/CLI/Studio targets and defaults intact. No profile target is created
-by this planning update. Start with the audit and native boundary proof; establish
-size budgets from measurements before extraction is accepted. Preserve every
-component capability, shared UI ownership and the credential policy above. Keep
-the current Studio execution order; run this as a separate component-library
-workstream when selected.
-
-Clarified 2026-10-29: prioritize the app build/compiled-load boundary below over
-broader benchmark and optional-authoring-module work. Start with shared compiled
-UI + JSON for the shopping-cart app; the catalog remains the complete capability
-inventory, not the minimum set loaded by every app.
-
-- [ ] Add app-build dependency generation and GraphQL schema/operation validation,
-  including variable/response contracts and compact runtime input checks. Treat
-  application manifests as requirements, not native grants or permissions; retain
-  JSON decoding and validation for API/user data arriving after deployment.
-  Generate the selected runtime function/behavior/module closure from native
-  compiled metadata rather than assembling the complete general registry.
-
-  - [ ] Map the collected function/module requirements to transitive native
-    implementation dependencies and build a selected registry. Keep unresolved
-    dispatch/provider/source requirements explicit; inventory is not linked-code
-    omission evidence or runtime authority.
-
-    - [ ] Complete the separate application WASM target beyond the bounded
-      compiled-template/JSON prototype. Close required shared behavior/provider/
-      source and native input/type contracts before treating a component app as
-      complete; measure remaining linked roots without claiming per-language
-      omission from whole-file size alone.
-
-      - [ ] Add canonical native island/projection contracts before enrolling
-        the reduced ABI in shared processing. Reuse qualified lifecycle topology,
-        native payload/slot/value identities and projection ownership; refuse
-        unsupported island/schema input. Add native/WASM parity and malformed
-        topology/namespace/source fixtures before admitting live shared controls.
-
-        - [ ] Extend beyond passive islands with native attribute/dataset and
-          slice domain adapters, including type/source preservation, payload
-          references and schema-dependent input contracts, before live controls.
-
-          - [ ] Bind app-specific named receiver schema/type contracts to pinned
-            build artifacts; verify unavailable/changed contracts fail before
-            publication without loading the general schema catalog.
-
-            - [ ] Add an explicit fresh-host linker and receiver adapter for
-              verified node contracts, then pure query/exact native exports.
-              Keep unavailable callbacks/tokenizers pending or refused; never
-              infer a registration from an export name or source identity.
-
-              - [ ] Carry node contract requirements into a new application
-                envelope and reduced WASM/worker receiver transport with fresh
-                generation ownership, recapture and privacy acceptance.
-
-                - [ ] Extend the portable application receiver contracts and
-                  assembly to scalar/executable named types with exact original
-                  base/item/behavior dependencies and explicit compiler
-                  installations. Add mixed node/scalar/executable, missing/stale
-                  implementation, closure and atomic replacement fixtures before
-                  enabling component admission; keep native code closure unproven
-                  until linked implementation evidence exists.
-
-                  - [ ] Complete behavior/query/imported type dependencies and
-                    guarded lexical/typed preparation handoff before defining the
-                    new mixed receiver format and enabling receiver installation.
-
-                    - [ ] Extend separately versioned dependency records for
-                      dependency-bearing datatype modules and additional native
-                      operation/constant profiles before claiming complete executable
-                      or code closure. Preserve original source snapshots and nested
-                      format limits; test cross-module cycles and source agreement.
-
-                      - [ ] Integrate checked module/profile assembly with actual-host
-                        compilation and the application dependency envelope
-                        through separately versioned contracts; preserve CEMDM1,
-                        original selectors, explicit owners and weak lifetimes.
-                        - [ ] Bind versioned application-envelope and mixed-receiver
-                          publication to actual worker/owned-fallback generations
-                          before transport endpoints or component admission.
-                          Native publication enrollment and the [physical linked-runtime
-                          census/retirement/checkpoint join](archive/todo-completed-physical-generation-retirement-join-2026-10-31.md)
-                          are complete. CEMAPPD4 and its structural receiver remain
-                          native-only; no installation endpoint or admission is enabled.
-
-                          - [ ] Add versioned CEMAPPD4 source/code/registry-owner
-                            transport and original source reimport/recompilation on
-                            fresh WASM/worker/owned-fallback hosts. Finish the portable
-                            query-owner transport/handoff below first; test original selectors,
-                            stale/foreign handles, disposal, cancellation, incomplete
-                            code closure and credential refusal before admission.
-
-                - [ ] Enroll portable query source/binding/invocation owners in
-                  actual worker/owned-fallback generation and inventory groups;
-                  add fresh-heap transport, shutdown/replacement, stale receipt,
-                  drain/cancellation and entered-credential recovery fixtures
-                  before exposing a new endpoint or enabling admission.
-                  Native source/binding/invocation and imported-rule lifecycle
-                  adapters and their original-owner fixtures are [complete](archive/todo-completed-native-query-owner-adapters-2026-10-31.md).
-                  The query core is now available through the [opt-in WASM
-                  adapter](archive/todo-completed-query-source-wasm-core-2026-10-31.md);
-                  it enables no production endpoint or admission.
-
-                  - [ ] Add physical query-owner transport/source adapters and
-                    complete worker/owned-fallback fresh-heap/credential acceptance
-                    before an endpoint or reduced-runtime admission is enabled.
-                    The [bounded native source-only handoff](archive/todo-completed-native-query-source-handoff-2026-10-31.md)
-                    now captures original pure-query bindings and passively
-                    reimports pinned declarations for explicit fresh-host linking.
-                    Wire this into original physical worker/fallback resource
-                    adapters with source/code owners, drain/retirement and privacy
-                    checks; packets alone grant no checkpoint or recovery authority.
-
-                    - [ ] Bind source-backed code and registry/profile owners to
-                      the shared transport and wire production worker/fallback
-                      native endpoints. Cover imported/native rule owners and
-                      custom result-profile dependencies before admission.
-                      The [shared byte transport and checkpoint handoff](archive/todo-completed-query-resource-handoff-2026-11-01.md)
-                      now passes original-participant, native full-census,
-                      checkpoint/journal, cancellation, byte-budget and privacy
-                      fixtures with the private opt-in query runtime. Production
-                      source endpoints and reduced-runtime admission remain off.
-                      Direct pure-query [source-backed execution owners and
-                      independent profile pins](archive/todo-completed-query-execution-owners-2026-11-01.md)
-                      are complete, including fresh worker/fallback handoff.
-                      - [ ] Provision production native worker/fallback endpoints
-                        with the original source/code/profile/registry owners;
-                        preserve original participants, bounded transport,
-                        native census, sealed journals and credential refusal.
-                      - [ ] Carry imported/native rule owners and custom/multi-source
-                        result-profile dependencies through explicit source/code
-                        transport. Verify unavailable implementations, changed
-                        pins and original scopes before enabling admission; keep
-                        linked-code closure unproven without build evidence.
-
-      - [ ] Bind compiled declarations, retained CSS installation and shared
-        behavior/provider ownership to the reduced ABI. Prove the compiled form's
-        worker/fallback edits, credential refusal and generation handoff without
-        substituting the full tooling bootstrap.
-
-      - [ ] Bind generated registry/artifact/input contracts to the selected
-        application build and specialize remaining execution/type/source roots.
-        Audit linked symbols and optional-module handoff before claiming unused
-        language/schema/function implementations are absent.
-
-- [ ] Assemble and measure the compiled-UI + JSON shopping-cart profile first.
-  Add declarative shared GraphQL transport only if existing resource capabilities
-  cannot express it; alert the user before implementing new shared JavaScript.
-  Register the usable app as an ordinary Studio example project when complete,
-  with real quantity/remove actions and build/preview/offline fixtures. No local
-  UI JavaScript, fake action buttons or credential-policy bypass counts as done.
-
-- [ ] Extend the baseline with repeated cold/first-use latency, active-worker and
-  aggregate host/native memory, all-capabilities/offline totals and clean npm
-  consumer loading. Keep unavailable counters explicit. Diagnose duplicate full
-  WASM acquisition observed in local no-store worker runs (two transfers of one
-  unique binary; fallback one). Retain matched hashes/toolchains and fixed budget
-  selection after the native boundary/prototype report, not an invented minimum.
-
-- [ ] Prove native call reachability and dynamic mode/provider/template closure
-  alongside module extraction. Keep the conservative source matrix separate
-  from linked-code omission evidence; map required source packs and compiled
-  modules for each requested capability before moving its implementation.
-
-- [ ] Define and prototype the versioned core/module ABI and capability catalog
-  with native fixtures for one isolated optional operation and one importer
-  feeding a retained component. Prove typed CEM-tree/source-owner handoff or
-  original native reimport/recompile without cross-heap handles, JSON AST
-  conversion or JavaScript parsing; retain types, namespaces/base URIs, ranges,
-  diagnostics, cancellation and lease disposal. Keep a required parser in core
-  until this boundary passes, and record the selected module-loading mechanism.
-  Use editor paint/highlighting as the isolated-operation candidate and CSV
-  feeding `cem-data-view` as the typed retained-data candidate from the audit.
-
-- [ ] Split native dependency/registry/export roots behind a separate component
-  profile; add proposed `cem_ql:build:wasm-components`. Keep existing full builds
-  and rendering/admission/recovery guards unchanged. Add native fixtures and
-  binary/import-graph evidence that optional compiled code and debug/tooling
-  initialization are absent, rather than merely hiding their JavaScript exports.
-
-- [ ] Add the reusable `cem-elements` module loader and proposed
-  `cem-elements:build:components-runtime` target. Alert the user before new shared
-  JavaScript capability implementation. Cover pinned ABI/version/hash/features,
-  dependency closure, bounded deduplicated acquisition, worker/owned-fallback
-  activation, exact-owner disposal and late/aborted/revoked publication. No
-  Studio/component-local JavaScript loader workaround is allowed.
-
-- [ ] Connect generated native requirements and existing declarative resource
-  demand to module readiness/preload. Add fixtures for external/dynamic template
-  languages, mode/resource changes, pending/failing demand, retry, concurrent
-  consumers and source-editor selection/IME/focus preservation. Preserve current
-  committed UI and exactly-once side effects; document explicit async readiness
-  for this new entry point without silently changing existing synchronous APIs.
-
-- [ ] Extract optional language/conversion/tooling modules one group at a time,
-  with native and browser parity fixtures for each mapped component mode and
-  original diagnostics/provenance. Reuse owned source packs for declarative
-  schemas/formatters/colorizers; do not emit a separate WASM per source template
-  or pull a monolithic full engine into every optional module.
-
-- [ ] Add proposed `@epa-wg/cem-components:build:components-runtime` assembly and
-  explicit package export/import-map wiring for declarations, matching shared
-  core/loader/modules and theme dependencies. Add clean npm-consumer/bundler,
-  standalone/subpath and full -> component -> full output/cache-isolation
-  fixtures; assert one canonical core asset and no eager full-runtime dependency.
-
-- [ ] Add offline/preload/update fixtures proving core-only installation fetches
-  no optional modules or packs, explicit feature sets remain usable offline, and
-  uncached offline demand fails without losing state or contacting an undeclared
-  service. Preserve integrity, cache scope, native source authority and saved
-  projects/drafts; never put credentials in public deployment caches.
-
-- [ ] Enroll every optional endpoint, active work and retained owner in existing
-  recovery groups. Add worker/fallback capture, drain, fresh-generation reimport,
-  re-demand and lease/late-acknowledgment fixtures. Re-run entered-password/OTP
-  refusal, require explicit clearing, keep automatic whole-Studio recovery off,
-  and preserve the 4 MiB budget and all current deadlines.
-
-- [ ] Run the complete catalog/mode, accessibility, theme/forced-color and shared
-  component suites on full and component profiles without skipping capabilities
-  or weakening assertions. Publish reproducible core/first-use/all-modules
-  byte/latency/memory and duplication reports; enforce agreed fixed budgets,
-  retained default builds and profile-specific optimizer/import/export checks.
-  Document installation, demand, preload/offline choices and measured limits
-  before advertising a minimum or considering a separate default-adoption step.
 
 ## Component gallery source-link maintenance (after Studio presentation work)
 

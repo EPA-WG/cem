@@ -1838,8 +1838,8 @@ handoff. Source provenance is independent of the constructed document URI.
 
 The internal `query-source-runtime` Cargo feature makes the existing CEMQV1/
 CEMQD1/CEMQH1 verifier and original query host/source/binding/request owners
-available to Rust WASM embeddings. It is disabled by default and adds no
-production JavaScript endpoint or component admission. Structural/native
+available to Rust WASM embeddings. It is disabled by default. Its native-provisioned
+byte exports grant no default endpoint authority or component admission. Structural/native
 installation and imported-rule assembly remain native-only.
 
 Run `NX_DAEMON=false yarn nx run cem_ql:test:query-source-wasm --skipNxCache`
@@ -1858,7 +1858,7 @@ handoff. It relies on the native backend for all source verification and relinki
 Run `NX_DAEMON=false yarn nx run cem_ql:test:query-resource-wasm --skipNxCache`
 for full-census owned WASM/worker retirement and native-sealed checkpoint/journal
 acceptance. This private full-runtime probe is not a published minimal profile.
-Production endpoints remain gated; entered credentials still block recovery. See the
+Native endpoints require explicit original Rust provisioning; entered credentials still block recovery. See the
 [shared transport contract](../../docs/cem-native-schema-capsules.md#shared-query-resource-transport-and-checkpoint-handoff).
 
 The native `query_validator_capsule::profiles` builder now compiles original
@@ -1872,5 +1872,17 @@ dropping/retiring owners or changing context/generation fences execution/capture
 Failed `replace_query_owned` leaves the previous binding usable. All seven roots
 remain counted until actual drop. These source fingerprints do not prove linked
 code closure. Imported/native rule owners, custom profile dependency transport
-and production provisioning remain open. See the
+and generated application bootstraps remain open. See the
 [execution-owner contract](../../docs/cem-native-schema-capsules.md#source-backed-query-execution-owners).
+
+`query_source_endpoint::QuerySourceEndpoint` now supplies shared direct-query
+source sessions from original native deployment pins, selected functions,
+result-profile sources and the actual generation. The opt-in WASM adapter exports
+`querySourceOpenV1`, `querySourceCaptureV1` and `querySourceReleaseV1`, with frozen
+original object tokens and a Rust-only provisioning API. Copies/foreign tokens,
+unprovisioned calls and changed deployments fail. The deployment adds one Registry
+root; at most 32 sessions retain seven roots each. Original cleanup remains possible
+behind closed admission, and retained deployment/session owners block retirement.
+`createQuerySourceWasmBackend` binds the shared local/worker transport to that
+original Memory. No default full/component export or application admission is
+enabled. See the [endpoint contract](../../docs/cem-native-schema-capsules.md#native-provisioned-query-endpoints).

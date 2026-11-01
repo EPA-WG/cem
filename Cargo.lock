@@ -336,6 +336,7 @@ dependencies = [
  "cem-ml",
  "cem-url",
  "form_urlencoded",
+ "js-sys",
  "rmp-serde",
  "serde",
  "serde_json",

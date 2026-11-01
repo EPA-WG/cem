@@ -50,6 +50,7 @@ struct Session {
 thread_local! {
     static SESSIONS: RefCell<Vec<Option<Session>>> = const { RefCell::new(Vec::new()) };
     static DRAIN: RefCell<Option<GenerationDrain>> = const { RefCell::new(None) };
+    static DEPLOYMENT: cem_ml::runtime_inventory::NativeRegistry<Option<Arc<cem_ql::query_source_endpoint::QuerySourceEndpoint>>> = const { cem_ml::runtime_inventory::NativeRegistry::new(None) };
 }
 fn error(e: impl std::fmt::Debug) -> JsValue {
     JsValue::from_str(&format!("{e:?}"))
@@ -113,6 +114,87 @@ fn profile(control: &OperationControl) -> Result<Arc<VerifiedQueryResultProfile>
         ContractName::new(CEM_SCHEMA_URI, "datatype-diagnostic"),
         control,
     )
+    .map_err(error)
+}
+// Only this test embedding accepts fixture pins through JS. The shared endpoint
+// exposes no JS provisioning API; application bootstraps supply original native
+// deployment pins, reviewed code and source profiles through the Rust API.
+#[wasm_bindgen(js_name = probeProvision)]
+pub fn provision(pins: &str) -> Result<(), JsValue> {
+    use cem_ql::query_source_endpoint::{wasm, QuerySourceEndpoint};
+    let control = OperationControl::default();
+    if pins.len() > 16 * 1024 {
+        return Err(error("fixture input limit"));
+    }
+    let pins: QueryExecutionPins = serde_json::from_str(pins).map_err(error)?;
+    let g = runtime_admission::linked_generation().map_err(error)?;
+    let e = QuerySourceEndpoint::new(
+        &g,
+        control.clone(),
+        pins,
+        SelectedFunctionRegistry::new([
+            SelectedBuiltin::StringLength,
+            SelectedBuiltin::SequenceCount,
+        ])
+        .map_err(error)?,
+        profile(&control)?,
+    )
+    .map_err(error)?;
+    wasm::install(&e).map_err(error)?;
+    DEPLOYMENT.with(|slot| *slot.borrow_mut() = Some(e));
+    Ok(())
+}
+#[wasm_bindgen(js_name = probeUnprovision)]
+pub fn unprovision() -> Result<(), JsValue> {
+    DEPLOYMENT.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        let e = slot.as_ref().ok_or_else(|| error("missing deployment"))?;
+        cem_ql::query_source_endpoint::wasm::uninstall(e).map_err(error)?;
+        slot.take();
+        Ok(())
+    })
+}
+#[wasm_bindgen(js_name = probeOwnedRetire)]
+pub fn owned_retire() -> Result<(), JsValue> {
+    DEPLOYMENT.with(|slot| {
+        slot.borrow()
+            .as_ref()
+            .ok_or_else(|| error("missing deployment"))
+            .map(|e| e.retire())
+    })
+}
+#[wasm_bindgen(js_name = probeForeignProvisionRefused)]
+pub fn foreign_provision_refused(pins: &str) -> Result<bool, JsValue> {
+    use cem_ql::query_source_endpoint::{wasm, QuerySourceEndpoint};
+    let g = cem_ml::runtime_admission::generation::NativeGeneration::claim(Arc::new(
+        cem_ml::runtime_admission::NativeAdmission::default(),
+    ))
+    .map_err(error)?;
+    let control = OperationControl::default();
+    let e = QuerySourceEndpoint::new(
+        &g,
+        control.clone(),
+        serde_json::from_str(pins).map_err(error)?,
+        SelectedFunctionRegistry::new([SelectedBuiltin::StringLength]).map_err(error)?,
+        profile(&control)?,
+    )
+    .map_err(error)?;
+    Ok(wasm::install(&e).is_err())
+}
+#[wasm_bindgen(js_name = probeValidateOwned)]
+pub fn validate_owned(owner: &JsValue, value: &str) -> Result<String, JsValue> {
+    cem_ql::query_source_endpoint::wasm::with_session(owner, |s| {
+        let batch = s.validate(
+            &ValidationInput {
+                value: vec![Item::Atomic(AtomValue::String(value.into()))],
+                candidate: vec![],
+                fallback: Default::default(),
+            },
+            Default::default(),
+        )?;
+        let diagnostics = batch.completed.first().map(|r| &r.result.diagnostics);
+        Ok(serde_json::json!({"accepted":batch.accepted,"diagnostics":diagnostics}).to_string())
+    })
     .map_err(error)
 }
 #[wasm_bindgen(js_name = probeOpen)]

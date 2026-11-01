@@ -25,6 +25,8 @@ pub mod datatype_module_capsule;
 pub mod native_registrations;
 #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
 pub mod query_validator_capsule;
+#[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
+pub mod query_source_endpoint;
 #[cfg(feature = "debug-control")]
 pub mod debug_control;
 pub mod diagnostics;

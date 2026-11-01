@@ -15,6 +15,11 @@ export interface QuerySourceNativeBackend {
     capture(owner: unknown): Uint8Array | Promise<Uint8Array>;
     release(owner: unknown): unknown | Promise<unknown>;
 }
+/** Requires prior trusted native provisioning; tokens stay in the original heap. */
+export declare function createQuerySourceWasmBackend(runtime: {
+    memory(): WebAssembly.Memory | undefined;
+    call(name: string, args: unknown[]): unknown;
+}): QuerySourceNativeBackend;
 export interface QuerySourceEndpointOptions {
     participant: CemNativeGenerationParticipant;
     /** Actual owned Memory/Worker, already registered by its shared adapter. */

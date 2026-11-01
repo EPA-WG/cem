@@ -443,10 +443,12 @@ available and exposes a deterministic, validated download/upload archive.
 ## Next delivery milestone: user-owned project workspace
 
 Defined 2026-10-12 after completion of the Studio/Site declarative UI migration.
-This is the next bounded delivery slice of the accepted product contract;
-implementation and fixture status belong to
-[the active checklist](todo.md#cem-studio-delivery-planning). It is planned,
-not an implemented capability or completion of the broader Phase 6.5 contract.
+This defines the bounded workspace slice of the accepted product contract.
+Implemented work and fixture evidence are in the
+[delivery record](archive/todo-snapshot-2026-10-31.md#cem-studio-delivery-planning);
+remaining execution belongs to [the active checklist](todo.md). The gap table
+below preserves the original planning baseline; it is not current completion
+status or a claim that the broader Phase 6.5 contract is complete.
 
 ### Current implementation and the delivery gap
 

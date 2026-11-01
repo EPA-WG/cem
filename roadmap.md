@@ -859,7 +859,10 @@ now bind direct query execution to the original query, reviewed code table and
 registered result-schema sources. Independently emitted profile pins detect
 changed same-name schemas; fresh worker/fallback fixtures rebuild profiles and
 renew original owners. Retired owners fence use while retained roots still block
-retirement. Production endpoint wiring, imported/native rule owners, custom
+retirement. The [native-provisioned byte endpoints](docs/cem-native-schema-capsules.md#native-provisioned-query-endpoints)
+now share that implementation across worker/fallback transport. Original Rust
+bootstrap authority and opaque per-heap tokens are required; no default endpoint
+or component admission is enabled. Generated application bootstraps, imported/native rule owners, custom
 profile dependency transport and linked-code evidence remain gates before
 application admission; source fingerprints alone grant no execution authority.
 See the
@@ -1443,12 +1446,13 @@ offline. The File System Access provider retains file/directory handles only in
 host-owned bindings, uses explicit permission actions, detects external changes
 before write-back, and falls back to IndexedDB plus a deterministic validated
 import/export archive. Following the completed Studio/Site declarative migration,
-the next delivery milestone is the
+the bounded delivery milestone is the
 [user-owned project workspace](docs/cem-studio.md#next-delivery-milestone-user-owned-project-workspace):
 shared CEM navigation/host-command evidence first, then general project selection,
 create/import, guarded editing and save/reopen/export recovery. The
-[active checklist](docs/todo.md#cem-studio-delivery-planning) owns implementation
-and verification; broader browser/device/AT acceptance remains independently open.
+[delivery record](docs/archive/todo-snapshot-2026-10-31.md#cem-studio-delivery-planning)
+preserves implemented work and verification; the [active checklist](docs/todo.md)
+owns remaining execution. Broader browser/device/AT acceptance remains independently open.
 
 Exit criteria:
 

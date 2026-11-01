@@ -2,12 +2,32 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { MessageChannel } from 'node:worker_threads';
 import { readFile } from 'node:fs/promises';
-import { createQuerySourceEndpoint, createQuerySourceWorkerEndpoint, installQuerySourceWorkerTransport, QuerySourceResource } from '../runtime/query-source-resource.mjs';
+import { createQuerySourceEndpoint, createQuerySourceWorkerEndpoint, installQuerySourceWorkerTransport, createQuerySourceWasmBackend, QuerySourceResource } from '../runtime/query-source-resource.mjs';
 import { CemNativeGenerationGroup, registerNativeGeneration, registerNativeGenerationResource, releaseNativeGenerationResourcesAsync, completeNativeRetirement } from '../runtime/native-generation.mjs';
 
 // Protocol unit doubles only. Native execution/census/retirement acceptance is
 // in query-resource-wasm.mjs against the actual full WASM and a worker.
 const bytes = new TextEncoder().encode('CEMQH1\nunit-source');
+test('WASM query backend retains the original runtime memory and native opaque owners', () => {
+    let memory = new WebAssembly.Memory({ initial: 1 });
+    const first = memory, owner = Object.freeze({}); let released;
+    const runtime = { memory: () => memory, call: (name, args) => {
+        if (name === 'querySourceOpenV1') return owner;
+        assert.equal(args[0], owner);
+        if (name === 'querySourceCaptureV1') return bytes;
+        if (name === 'querySourceReleaseV1') released = owner;
+    } };
+    const backend = createQuerySourceWasmBackend(runtime);
+    const original = backend.open(bytes, '{}');
+    assert.equal(original, owner);
+    assert.deepEqual(backend.capture(original), bytes);
+    backend.release(original); assert.equal(released, owner);
+    memory = new WebAssembly.Memory({ initial: 1 });
+    assert.throws(() => backend.open(bytes, '{}'), /stale/);
+    assert.throws(() => backend.release(owner), /stale/);
+    memory = undefined; assert.throws(() => backend.capture(owner), /stale/);
+    assert.ok(first); // Keep the old Memory live to prove identity, not GC behavior.
+});
 function fixture(native, identity = new WebAssembly.Memory({ initial: 1 })) {
     const participant = registerNativeGeneration(identity, crypto.randomUUID(), async () => { throw Error('unit does not allocate'); });
     const values = new Map(); let sequence = 0;

@@ -1,7 +1,7 @@
 # Studio content types and schema inventory
 
 Audited 2026-10-28. This is the implementation map for the **Content types and
-schemas** sample collection in [the active checklist](todo.md#studio-samples-supported-content-types-and-schemas).
+schemas** sample collection in [the completion record](archive/todo-snapshot-2026-10-31.md#studio-samples-supported-content-types-and-schemas).
 The collection is available under **Examples → Content types and schemas**, with
 Data, Documents and UI, Queries and transformations, and Schema authoring folders.
 Examples remain ordinary cloneable projects with resources and configurations.

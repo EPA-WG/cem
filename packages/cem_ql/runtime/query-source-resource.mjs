@@ -14,6 +14,24 @@ function endpointRecord(endpoint) {
     if (!record) fail('endpoint');
     return record;
 }
+/** Native endpoints must first be provisioned by their trusted Rust embedding.
+ * Keep the actual Memory weakly; an equal factory/foreign heap cannot substitute
+ * it, and native tokens never become numeric runtime or worker wire handles. */
+export function createQuerySourceWasmBackend(runtime) {
+    const identity = runtime?.memory?.();
+    if (!(identity instanceof WebAssembly.Memory) || typeof runtime?.call !== 'function') fail('endpoint');
+    const physical = new WeakRef(identity);
+    const call = (name, args) => {
+        const original = physical.deref();
+        if (!original || runtime.memory() !== original) fail('stale');
+        return runtime.call(name, args);
+    };
+    return Object.freeze({
+        open: (bytes, pins) => call('querySourceOpenV1', [bytes, pins]),
+        capture: owner => call('querySourceCaptureV1', [owner]),
+        release: owner => call('querySourceReleaseV1', [owner]),
+    });
+}
 /** Original binding functions must be supplied by the shared physical owner.
  * No native handle is exposed by the returned endpoint or its owner tokens. */
 export function createQuerySourceEndpoint(options) {

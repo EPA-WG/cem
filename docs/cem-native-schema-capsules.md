@@ -585,8 +585,9 @@ No transport endpoint or component admission is enabled by CEMQH1.
 The `query-source-runtime` Cargo feature exposes the existing source verifier,
 `FreshStructuralHost` query core, source/binding/request owners, selected evaluator
 and conservative validator work budget to Rust WASM embeddings. It is disabled
-by default and does not add a production JavaScript endpoint, renderer admission
-or a new application profile. It can compile alongside the full runtime or the
+by default. Its [provisioned byte endpoints](#native-provisioned-query-endpoints)
+require original native bootstrap authority; the feature grants no renderer
+admission or new application profile. It can compile alongside the full runtime or the
 separate `component-runtime` prototype.
 
 This shares the original host and typed CEM/IR paths. It does not substitute a
@@ -703,10 +704,11 @@ UI state is restored from them. Protocol unit doubles test additional timeout,
 cancellation, copied-owner and budget cases without claiming native evidence.
 
 The module and types are shipped with the shared runtime assets, with an internal
-`cem-elements` re-export. No Studio/component UI behavior or production native
-source endpoint is added. The [source-backed execution owners](#source-backed-query-execution-owners)
+`cem-elements` re-export. No Studio/component UI behavior is added. The
+[native-provisioned endpoints](#native-provisioned-query-endpoints) supply the
+original native backend when explicitly installed. The [source-backed execution owners](#source-backed-query-execution-owners)
 now guard direct pure-query bindings in these probes. Imported/native rule owners,
-custom result-profile dependency transport and production endpoint wiring remain
+custom result-profile dependency transport and application bootstrap generation remain
 admission gates in the [active TODO](todo.md#component-application-wasm-profile-separate-target).
 Automatic Studio recovery stays off. Entered passwords/OTPs still block recovery
 until explicitly cleared, with unchanged 4 MiB/five-second recovery policies.
@@ -780,11 +782,81 @@ refusal. [Native cases](../packages/cem_ql/tests/query_validator_capsule/executi
 also cover foreign original sources, cancellation, atomic replacement and
 context/generation fencing.
 
-Production endpoint provisioning, imported/native rule owners, custom/multi-source
-profile dependency transport, linked-code evidence and CEMAPPD4 transport remain
-open. No component admission or automatic Studio recovery is enabled. Entered
+The [native provisioning API](#native-provisioned-query-endpoints) now supplies
+direct-query byte endpoints. Imported/native rule owners, custom/multi-source
+profile dependency transport, generated application bootstraps, linked-code
+evidence and CEMAPPD4 transport remain open. No component admission or automatic Studio recovery is enabled. Entered
 passwords/OTPs must be explicitly cleared before recovery; the 4 MiB checkpoint
 ceiling, five-second deadline and external-operation reconciliation remain intact.
+
+## Native-provisioned query endpoints
+
+[`query_source_endpoint`](../packages/cem_ql/src/query_source_endpoint.rs) is the
+shared native implementation for direct pure-query source transport. A trusted
+Rust embedding creates the original `QuerySourceEndpoint` with its independent
+`QueryExecutionPins`, reviewed selected functions, verified original result-profile
+sources, operation control and actual `NativeGeneration`. It loads no implicit
+general schema catalog or function registry. Supplied packet/pin metadata must
+match that retained deployment; even a valid differently pinned packet cannot
+authorize itself. Both result and diagnostic selections must match the profile.
+
+Each open creates an actual fresh host, registers original query/profile captures
+and retains new source/code/profile/registry/binding/request owners. The session
+borrows its original deployment weakly. Retirement, loss of that owner, cancellation
+or a closed generation fences capture and typed native validation. A newly created
+equivalent deployment cannot renew an old session. Failed setup releases partial
+owners and its capacity reservation. Request budgets remain cumulative; values
+and budgets never enter source replay bytes.
+
+The deployment contributes one Registry root, in addition to seven roots for each
+session. Its explicit ceiling is 32 live sessions (225 roots including deployment),
+within the existing shared 256-root generation ceiling; other native work may
+exhaust that shared ceiling earlier. This limit does not enlarge native budgets.
+Retirement blocks use while all retained owners stay counted until actual drop.
+
+With `query-source-runtime`, the [WASM adapter](../packages/cem_ql/src/query_source_endpoint/wasm.rs)
+exports only `querySourceOpenV1`, `querySourceCaptureV1` and `querySourceReleaseV1`.
+No JS provisioning or constructor API is supplied. The trusted Rust bootstrap
+installs a weak reference to its original endpoint, and must retain the owner.
+Installation verifies the actual linked generation and refuses a second owner or
+replacement while old sessions remain. Native registries invalidate inventory
+revisions on mutation. Their real deployment/session leases appear in the existing
+36-registry v2 census; no new counter-only retirement shortcut is introduced.
+
+Open returns a frozen opaque original JS object retained by the native adapter.
+Capture/release require that same object in that same heap. Object copies,
+structured clones, foreign-heap tokens and released tokens fail; no numeric owner
+ID, native pointer or serialized handle crosses the ABI. Private worker wire IDs
+continue to select only the worker transport's own retained originals.
+
+`createQuerySourceWasmBackend` in the shared transport calls these native exports
+and checks the original Memory through a weak reference. It cannot switch to an
+equal or foreign heap and does not keep disposed memory alive. Local endpoints
+and private worker ports retain their existing physical participant, timeout,
+opaque owner, byte-budget and recovery-policy checks. The helper performs no
+AST parsing, schema validation or query evaluation.
+The embedding's original `current` witness must cover deployment/source epochs
+and policy invalidation, as required by the shared transport contract; Memory
+identity alone is not a recovery-currentness proof. Original cleanup may use
+`cleanupCurrent` without reopening ordinary work.
+
+Release and native uninstall permit original cleanup behind closed ordinary
+admission. The embedding must remove/drop its original deployment as well as
+release sessions before the complete census can be empty and retirement sealed.
+Fresh allocation requires a newly provisioned original native endpoint before
+shared source reimport and atomic binding publication. Source pins and checkpoint
+bytes cannot provide that provisioning authority.
+
+The native and WASM acceptance targets exercise this implementation. Only the
+test embedding has `probeProvision`, which supplies the original trusted fixture
+profile and code table; it is not a library or default application provisioning
+export. Its schema parse remains a fixture dependency, not a minimum-runtime
+measurement. Default full/component builds receive none of the new opt-in byte
+exports, and no Studio/reduced-component admission is enabled. Application-specific
+bootstrap generation, imported/native rule owners, custom profile transport and
+linked-code evidence remain in the active TODO. Credential refusal, sealed
+external journals, 4 MiB checkpoints and five-second recovery deadlines remain
+required; automatic Studio recovery stays off.
 
 ## Exact native validator and tokenizer requirements
 

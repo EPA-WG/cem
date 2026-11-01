@@ -86,11 +86,57 @@ function exercise(runtime, source, pins) {
     assert.equal(inventory().activeEntries, 0);
     assert.equal(runtime.probeSeal(), true);
     assert.throws(() => alias(active, 'same'));
-    return report;
+    // Native node addresses identify the original allocation only inside one
+    // heap. Keep the exact source node selector, URI, ranges and frame stack;
+    // allocation addresses cannot be compared or reused across fresh heaps.
+    return { ...report, diagnostics: report.diagnostics.map(d => {
+        assert.match(d.node, /^cem:0x[0-9a-f]+:Some\(14\)$/);
+        return { ...d, node: d.node.replace(/^cem:0x[0-9a-f]+:/, 'cem:<heap>:') };
+    }) };
+}
+function provisioned(runtime, foreign, bytes, pins) {
+    const inventory = () => JSON.parse(runtime.probeInventory());
+    assert.throws(() => runtime.querySourceOpenV1(bytes, pins), 'unprovisioned metadata granted native authority');
+    assert.equal(inventory().liveRoots, 0);
+    assert.equal(runtime.probeForeignProvisionRefused(pins), true);
+    assert.equal(inventory().liveRoots, 0);
+    runtime.probeProvision(pins);
+    assert.equal(inventory().liveRoots, 1);
+    assert.throws(() => runtime.probeProvision(pins));
+    const changed = JSON.parse(pins); changed.result_profile.hash = 'b'.repeat(64);
+    assert.throws(() => runtime.querySourceOpenV1(bytes, JSON.stringify(changed)));
+    assert.equal(inventory().liveRoots, 1);
+    const owner = runtime.querySourceOpenV1(bytes, pins);
+    assert.equal(typeof owner, 'object'); assert.ok(Object.isFrozen(owner));
+    assert.equal(inventory().liveRoots, 8);
+    assert.throws(() => runtime.querySourceCaptureV1({ ...owner }));
+    assert.throws(() => runtime.querySourceReleaseV1(structuredClone(owner)));
+    foreign.probeProvision(pins);
+    const foreignOwner = foreign.querySourceOpenV1(bytes, pins);
+    assert.throws(() => foreign.querySourceCaptureV1(owner));
+    assert.throws(() => runtime.querySourceReleaseV1(foreignOwner));
+    foreign.querySourceReleaseV1(foreignOwner); foreign.probeUnprovision();
+    assert.deepEqual(runtime.querySourceCaptureV1(owner), bytes);
+    assert.equal(JSON.parse(runtime.probeValidateOwned(owner, 'same')).accepted, true);
+    runtime.probeOwnedRetire();
+    assert.throws(() => runtime.querySourceCaptureV1(owner));
+    assert.throws(() => runtime.probeValidateOwned(owner, 'same'));
+    assert.equal(inventory().liveRoots, 8);
+    runtime.probeUnprovision();
+    assert.equal(inventory().liveRoots, 7);
+    assert.throws(() => runtime.querySourceOpenV1(bytes, pins));
+    runtime.probeClose();
+    assert.equal(runtime.probeSeal(), false);
+    runtime.querySourceReleaseV1(owner);
+    assert.throws(() => runtime.querySourceReleaseV1(owner));
+    assert.equal(inventory().liveRoots, 0);
+    assert.equal(runtime.probeSeal(), true);
 }
 if (!isMainThread) {
     try {
         const runtime = await load(workerData.directory, 'worker');
+        const provision = await load(workerData.directory, 'worker-provision');
+        provisioned(provision, runtime, workerData.source, workerData.pins);
         parentPort.postMessage({ report: exercise(runtime, workerData.source, workerData.pins) });
     } catch (error) { parentPort.postMessage({ error: error?.stack ?? String(error) }); }
 } else {
@@ -99,6 +145,8 @@ if (!isMainThread) {
     const source = new Uint8Array(await readFile(resolve(directory, 'source.cemq')));
     const pins = await readFile(resolve(directory, 'pins.json'), 'utf8');
     const first = await load(directory, 'one'), second = await load(directory, 'two');
+    const provision = await load(directory, 'provision');
+    provisioned(provision, first, source, pins);
     assert.ok(first.probeMemory() instanceof WebAssembly.Memory);
     assert.notEqual(first.probeMemory(), second.probeMemory());
     const expected = exercise(first, source, pins);
