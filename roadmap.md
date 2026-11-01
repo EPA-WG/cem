@@ -1718,6 +1718,28 @@ then extend the same cache contract to other supported languages and formats.
   cross-window/session and cross-site checksum-matching fixtures when the browser
   cache design is promoted to implementation work.
 
+### Build-optimized content and parser cache lookup
+
+- [ ] Have the build produce optimized content together with its content type and
+  an algorithm-qualified checksum of the exact optimized bytes. Compute the
+  checksum after optimization so it identifies the content actually served.
+  Define the metadata syntax and checksum algorithm during implementation.
+- [ ] When the shared importer/parser encounters this metadata, look up the
+  checksum plus normalized content type in the compatible parsed-content cache.
+  On a match, reuse the retained typed CEM tree and skip tokenizing/parsing the
+  same content again. Keep the parser/schema/options/context compatibility and
+  ownership rules in this section; each consumer retains its own runtime state
+  and source provenance.
+- [ ] On a cache miss or incompatible entry, use the normal import/parse path
+  and admit the result under the shared cache's bounds and eviction policy.
+  Apply this mechanism in the shared native/WASM parser layer for all consumers.
+- [ ] **Event handling: TBD.** Define how parser/lifecycle events are handled
+  when reuse replaces parsing, including ordering, source locations, cancellation
+  and disposal. The event dispatch/replay mechanism remains undecided.
+- [ ] Verify optimized-output parity, first-load parsing and subsequent reuse
+  without invoking the parser. Cover changed optimized bytes, changed content
+  types, incompatible cache entries and the eventual event-handling contract.
+
 ### URI and checksum units for SSR and reusable element definitions
 
 - [ ] Define a shared immutable resource unit identified by resolved absolute URI
