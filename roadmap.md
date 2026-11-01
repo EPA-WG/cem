@@ -854,8 +854,14 @@ The [shared query transport and handoff](docs/cem-native-schema-capsules.md#shar
 now joins original worker/fallback source owners to complete native retirement,
 native-sealed checkpoint journals and fresh binding transactions. It accounts for
 retained source bytes and fences stale checkpoints, late credential policy and
-foreign targets. Source-backed code/registry profile ownership and production
-endpoint wiring remain the next gates before application admission.
+foreign targets. The [source-backed execution owners](docs/cem-native-schema-capsules.md#source-backed-query-execution-owners)
+now bind direct query execution to the original query, reviewed code table and
+registered result-schema sources. Independently emitted profile pins detect
+changed same-name schemas; fresh worker/fallback fixtures rebuild profiles and
+renew original owners. Retired owners fence use while retained roots still block
+retirement. Production endpoint wiring, imported/native rule owners, custom
+profile dependency transport and linked-code evidence remain gates before
+application admission; source fingerprints alone grant no execution authority.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 

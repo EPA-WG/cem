@@ -54,7 +54,8 @@ mod native;
 mod query;
 #[cfg(not(target_arch = "wasm32"))]
 pub use native::{FreshNativeOperation, FreshNativeTokenizer, NativeResultAdapter};
-pub use query::{FreshQueryBinding, FreshQueryInvocation, FreshQuerySource};
+pub use query::{FreshQueryBinding, FreshQueryInvocation, FreshQuerySource,
+    FreshQueryCodeOwner, FreshQueryRegistryOwner, FreshQueryResultProfileOwner};
 /// Never cloned/serialized. Contexts belong to this actual host allocation.
 pub struct FreshStructuralHost {
     inner: CemQlSchemaDeclarationHost,

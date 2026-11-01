@@ -1858,6 +1858,19 @@ handoff. It relies on the native backend for all source verification and relinki
 Run `NX_DAEMON=false yarn nx run cem_ql:test:query-resource-wasm --skipNxCache`
 for full-census owned WASM/worker retirement and native-sealed checkpoint/journal
 acceptance. This private full-runtime probe is not a published minimal profile.
-Production endpoints and source-backed code/registry profile ownership remain
-gated; entered credentials still block recovery. See the
+Production endpoints remain gated; entered credentials still block recovery. See the
 [shared transport contract](../../docs/cem-native-schema-capsules.md#shared-query-resource-transport-and-checkpoint-handoff).
+
+The native `query_validator_capsule::profiles` builder now compiles original
+result-schema captures and fingerprints the complete sources, namespace bindings,
+selected result/diagnostic contracts and runtime versions. The opt-in WASM probes
+require independent `cem-query-execution/1` deployment pins. Their fresh hosts
+rebuild the trusted profile, register its original scopes and retain explicit
+`FreshQueryCodeOwner`, `FreshQueryResultProfileOwner` and `FreshQueryRegistryOwner`
+alongside the original source. `link_query_owned` borrows authority weakly;
+dropping/retiring owners or changing context/generation fences execution/capture.
+Failed `replace_query_owned` leaves the previous binding usable. All seven roots
+remain counted until actual drop. These source fingerprints do not prove linked
+code closure. Imported/native rule owners, custom profile dependency transport
+and production provisioning remain open. See the
+[execution-owner contract](../../docs/cem-native-schema-capsules.md#source-backed-query-execution-owners).

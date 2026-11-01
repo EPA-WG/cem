@@ -412,17 +412,20 @@ checkpoint or recovery authority. The internal
 [`query-source-runtime` WASM feature](cem-native-schema-capsules.md#opt-in-query-source-wasm-adapters)
 now shares those original Rust query adapters, selected execution and request
 budgets. A test-only harness exercises native-emitted source bytes in independent
-WASM heaps and a worker. No production endpoint or profile is enabled; complete
-physical resource/checkpoint handoff, source-backed code/registry owners and
-credential acceptance still precede admission.
+WASM heaps and a worker. No production endpoint or profile is enabled.
 The [shared query resource transport](cem-native-schema-capsules.md#shared-query-resource-transport-and-checkpoint-handoff)
 now supplies original local/worker owner capabilities, bounded byte messages and
 checkpoint resource handoff. Native source replay bytes join the 4 MiB aggregate
 budget, and fresh targets require their original physical participants. A private
 full-runtime fixture proves native-sealed journal handoff, complete v2 census and
-fresh reimport in worker/fallback modes. Source-backed code/registry profiles and
-production endpoint enrollment remain separate; no reduced-runtime admission is
-enabled by these shared host APIs.
+fresh reimport in worker/fallback modes. The [source-backed execution owners](cem-native-schema-capsules.md#source-backed-query-execution-owners)
+now require original query/code/profile/registry authority and independently
+emitted profile pins, with seven accounted roots per managed session. Changed
+same-name schemas and missing/retired owners fail. Fresh heaps rebuild the
+original trusted profile and renew owners; no evaluated credential is transported.
+Production endpoint enrollment, imported/native rule owners, custom profile
+dependency transport and linked-code evidence remain separate; no reduced-runtime
+admission is enabled by these shared host APIs.
 
 
 Do not equate downloaded code with an active native generation. Register every

@@ -14,6 +14,8 @@ use cem_ml::runtime_admission::NativeRootKind;
 use cem_ml::schema::attribute_datatypes::AttributeDatatypeContextLease;
 mod owners;
 mod handoff;
+mod execution;
+pub use execution::{FreshQueryCodeOwner, FreshQueryRegistryOwner, FreshQueryResultProfileOwner};
 pub use owners::FreshQuerySource;
 #[cfg(not(target_arch = "wasm32"))]
 pub(in crate::structural_receiver) use owners::QuerySourceLease;
@@ -28,6 +30,7 @@ pub struct FreshQueryBinding {
     pub(super) source_owner: Option<std::sync::Weak<FreshQuerySource>>,
     pub(super) _owned_source: Option<Arc<FreshQuerySource>>,
     pub(super) _runtime: RuntimeOwner,
+    pub(super) execution: Option<std::sync::Weak<FreshQueryRegistryOwner>>,
 }
 pub(super) enum BindingOwner {
     Query(Arc<VerifiedQueryDeclaration>),
@@ -50,6 +53,7 @@ impl FreshQueryBinding {
     pub(super) fn live(&self, host: &FreshStructuralHost) -> bool {
         self.active.load(Ordering::Acquire)
             && self._runtime.matches(host)
+            && self.execution.as_ref().is_none_or(|e| e.upgrade().is_some_and(|e| e.is_live_on(host)))
             && self
                 .source_owner
                 .as_ref()
@@ -201,6 +205,7 @@ impl FreshStructuralHost {
             source_owner: Some(Arc::downgrade(source)),
             _owned_source: own_source.then(|| source.clone()),
             _runtime: RuntimeOwner::new(self, NativeRootKind::Registry)?,
+            execution: None,
         };
         self.check().map_err(|_| INVALID)?;
         if !binding.live(self) {

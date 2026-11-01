@@ -106,7 +106,7 @@ if (!isMainThread) {
     async function checkpoint(controller, outcome = 'acknowledged') {
         const store = new CemCommittedCheckpointStore(controller.id);
         const receipt = { runtimeId: controller.id, generation: 1, commitSequence: 1, policyStamp: 'query-source-fixture',
-            owners: [{ instanceId: 'source-route', declarationIdentity: JSON.parse(pins).hash, dataRevision: 'original-source', acceptedEventSequence: 0 }],
+            owners: [{ instanceId: 'source-route', declarationIdentity: JSON.parse(pins).source.hash, dataRevision: 'original-source', acceptedEventSequence: 0 }],
             operations: [{ instanceId: 'source-route', operationId: 'terminal-operation', outcome }] };
         store.acknowledge(receipt);
         // Transport-valid source-route checkpoint only. No DOM or action is
@@ -125,7 +125,7 @@ if (!isMainThread) {
             const original = JSON.parse(await old.call('validate', ['same']));
             assert.equal(original.accepted, true);
             const census = JSON.parse(await old.call('commandNativeResourceInventory'));
-            assert.equal(census.registries.find(r => r.name === 'enrolled-compilations').live, 1);
+            assert.equal(census.registries.find(r => r.name === 'enrolled-compilations').live, 2);
             const unknown = await checkpoint(old, 'unknown'); stores.push(unknown);
             assert.throws(() => unknown.handoff(), /operations.unknown/);
             privateInput = true;

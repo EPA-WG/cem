@@ -626,11 +626,10 @@ is not the full native retirement census or permission to replace a physical
 generation. The probe uses test-only exports from the example; production full
 and component entry points receive none of these exports.
 
-Shared worker/owned-fallback resource adapters must still retain the actual
-physical participants and source/code/registry owners, join complete checkpoint/
-journal handoff, and prove shutdown/replacement and credential refusal. The probe
-does not issue checkpoint receipts, activate automatic Studio recovery or copy
-evaluated credentials into source packets. Entered passwords/OTPs still block
+The separate [shared resource acceptance](#shared-query-resource-transport-and-checkpoint-handoff)
+joins actual physical participants to complete checkpoint/journal handoff. The
+source-only probe does not issue checkpoint receipts, activate automatic Studio
+recovery or copy evaluated credentials into source packets. Entered passwords/OTPs still block
 recovery until explicitly cleared; 4 MiB checkpoints and five-second recovery
 deadlines remain unchanged. These integration gates stay in the active TODO.
 
@@ -705,11 +704,87 @@ cancellation, copied-owner and budget cases without claiming native evidence.
 
 The module and types are shipped with the shared runtime assets, with an internal
 `cem-elements` re-export. No Studio/component UI behavior or production native
-source endpoint is added. Exact source-backed code/registry profile owners,
-imported/native rule transport and production endpoint wiring remain admission
-gates in the [active TODO](todo.md#component-application-wasm-profile-separate-target).
+source endpoint is added. The [source-backed execution owners](#source-backed-query-execution-owners)
+now guard direct pure-query bindings in these probes. Imported/native rule owners,
+custom result-profile dependency transport and production endpoint wiring remain
+admission gates in the [active TODO](todo.md#component-application-wasm-profile-separate-target).
 Automatic Studio recovery stays off. Entered passwords/OTPs still block recovery
 until explicitly cleared, with unchanged 4 MiB/five-second recovery policies.
+
+## Source-backed query execution owners
+
+[`query_validator_capsule::profiles`](../packages/cem_ql/src/query_validator_capsule/profiles.rs)
+builds a result adapter from original retained CEM sources and lexical captures.
+The tree, capture and schema selector must share the actual original document.
+Source identities, passive references and lexical metadata are checked through
+the existing native source snapshot contract. No trimmed schema, synthetic scope
+or JSON AST handoff is introduced.
+
+The profile fingerprint covers the profile ABI, ML/QL versions, selected result
+and diagnostic names, ordered original source identities, schema selectors,
+namespace bindings and complete source snapshots. Changed same-name schemas
+produce different pins. Conflicting claims for one source URI are refused.
+Builds accept 1–16 sources, at most 16,384 aggregate AST nodes and 4 MiB of encoded
+source/fingerprint data, with cancellation and a one-million-check work ceiling.
+The compiled contracts use the shared native `ValueContracts` and
+`DatatypeResultAdapter`; verification creates no host, context or registration.
+This fingerprint establishes source agreement. It does not attest linked native
+implementations, authorize callbacks or prove unused code was removed.
+
+[`structural_receiver::query::execution`](../packages/cem_ql/src/structural_receiver/query/execution.rs)
+adds three explicit caller-held owners:
+
+| Owner | Original authority and inventory role |
+| --- | --- |
+| `FreshQueryCodeOwner` | Borrows the exact original query source and retains the actual reviewed function table narrowed to the verified program's requirements. Missing functions fail. Counts as Registry. |
+| `FreshQueryResultProfileOwner` | Retains the verified profile and actual registered source scopes. An independently supplied profile pin must match. Equal source bytes cannot substitute a different original tree. Counts as Compilation. |
+| `FreshQueryRegistryOwner` | Borrows that exact source, code owner and profile owner, checking the declared result contract and original host context/generation. Counts as Registry. |
+
+`link_query_owned` retains inert binding data but borrows this registry authority
+weakly. Dropping or retiring any required owner, changing its context or closing
+its generation fences execution and source capture. Authority is checked before
+and after evaluation. `replace_query_owned` stages and checks the replacement
+before retiring the predecessor; failure leaves the previous binding usable.
+An equal declaration with a newly created source owner cannot borrow another
+source owner's code authority. Existing unowned native APIs remain available
+for legacy callers; they do not supply the new owned-path evidence.
+
+One managed host/source/code/profile/registry/binding/request session contributes
+seven roots: Host 1, Compilation 2, Registry 3 and Preparation 1. Retiring an
+owner blocks use without hiding retained memory. Only actual drop releases its
+root; a drain cannot seal while those original roots remain. Passive verified
+profiles may be retained independently, but confer no execution permission.
+
+The opt-in WASM fixture now requires the explicit deployment sidecar
+`cem-query-execution/1` (`QueryExecutionPins`): original CEMQH1 source pins plus an
+independently emitted result-profile fingerprint and result/diagnostic names.
+CEMQV1, CEMQD1 and CEMQH1 framing is unchanged. The shared JS transport treats
+the sidecar as opaque bounded control metadata. It never parses an AST or
+derives execution rights from the fingerprint.
+
+Each fresh fixture runtime reconstructs its profile from the original trusted
+shipped schema, checks the deployment pin, registers the original captures and
+creates new source/code/profile/registry owners before linking. Neither live
+owners nor evaluated values cross the worker boundary. This fixture proves
+fresh source agreement and original-owner enforcement, not portable custom
+schema dependencies or a schema-free minimum binary. Its reviewed function
+table is actual native code, but the fixture's build identity is not linked-code
+closure evidence.
+
+Both `cem_ql:test:query-source-wasm` and `cem_ql:test:query-resource-wasm` use these
+owners. The first checks independent heaps/worker, changed pins, missing code,
+retired code/profile/registry, original provenance, budgets and retained roots.
+The second joins the renewed owners to complete native census, physical
+worker/fallback disposal, sealed checkpoint/journal handoff and credential
+refusal. [Native cases](../packages/cem_ql/tests/query_validator_capsule/execution.rs)
+also cover foreign original sources, cancellation, atomic replacement and
+context/generation fencing.
+
+Production endpoint provisioning, imported/native rule owners, custom/multi-source
+profile dependency transport, linked-code evidence and CEMAPPD4 transport remain
+open. No component admission or automatic Studio recovery is enabled. Entered
+passwords/OTPs must be explicitly cleared before recovery; the 4 MiB checkpoint
+ceiling, five-second deadline and external-operation reconciliation remain intact.
 
 ## Exact native validator and tokenizer requirements
 

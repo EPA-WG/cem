@@ -16,16 +16,23 @@ function exercise(runtime, source, pins) {
     assert.equal(inventory().liveRoots, 0);
     assert.throws(() => runtime.probeOpen(source, pins, false));
     assert.equal(inventory().liveRoots, 0, 'failed code selection leaked owners');
+    for (const mutation of ['version', 'profile']) {
+        const changed = JSON.parse(pins);
+        if (mutation === 'version') changed.version += '/other';
+        else changed.result_profile.hash = changed.result_profile.hash.slice(0, -1) + (changed.result_profile.hash.endsWith('a') ? 'b' : 'a');
+        assert.throws(() => runtime.probeOpen(source, JSON.stringify(changed), true));
+        assert.equal(inventory().liveRoots, 0, 'failed profile expectation leaked owners');
+    }
     const corrupt = source.slice(); corrupt[corrupt.length - 1] ^= 1;
     assert.throws(() => runtime.probeOpen(corrupt, pins, true));
     assert.equal(inventory().liveRoots, 0);
     const first = runtime.probeOpen(source, pins, true);
     const peer = runtime.probeOpen(source, pins, true);
     assert.equal(runtime.probeCrossRefused(first, peer), true);
-    assert.equal(inventory().liveRoots, 8);
+    assert.equal(inventory().liveRoots, 14);
     // The scoped ledger lists present roles; the complete census has its own
     // fixed registry manifest. Do not manufacture absent roles in this probe.
-    assert.deepEqual(inventory().roots, { host: 2, compilation: 2, registry: 2, preparation: 2 });
+    assert.deepEqual(inventory().roots, { host: 2, compilation: 4, registry: 6, preparation: 2 });
     const report = JSON.parse(runtime.probeValidate(first, 'same'));
     assert.equal(report.accepted, true);
     assert.equal(report.diagnostics[0].code, 'query.note');
@@ -46,6 +53,14 @@ function exercise(runtime, source, pins) {
     assert.ok(completed && exhausted, 'WASM request did not share its conservative native work budget');
     assert.equal(JSON.parse(runtime.probeValidate(budget, 'same')).accepted, null, 'an exhausted request reset its budget');
     runtime.probeDrop(budget);
+    for (const mode of ['code', 'profile', 'registry']) {
+        const roots = inventory().liveRoots, owner = runtime.probeOpen(source, pins, true);
+        runtime.probeFence(owner, mode);
+        assert.throws(() => runtime.probeCapture(owner));
+        assert.throws(() => runtime.probeValidate(owner, 'same'));
+        assert.equal(inventory().liveRoots, roots + 7, `${mode} retirement hid retained owners`);
+        runtime.probeDrop(owner); assert.equal(inventory().liveRoots, roots);
+    }
     // Source-only capture excludes input data. Enclosing Studio credential
     // refusal still applies; this probe does not authorize a recovery.
     runtime.probeFence(peer, 'context');
@@ -57,7 +72,7 @@ function exercise(runtime, source, pins) {
     assert.throws(() => runtime.probeCapture(cancelled));
     assert.equal(JSON.parse(runtime.probeValidate(first, 'same')).accepted, true);
     runtime.probeFence(first, 'retire');
-    assert.equal(inventory().liveRoots, 12, 'retirement hid retained owners');
+    assert.equal(inventory().liveRoots, 21, 'retirement hid retained owners');
     assert.throws(() => runtime.probeValidate(first, 'same'));
     const active = runtime.probeOpen(captured, pins, true);
     const alias = runtime.probeValidate;
@@ -65,7 +80,7 @@ function exercise(runtime, source, pins) {
     assert.equal(runtime.probeSeal(), false, 'scoped drain sealed while query roots lived');
     assert.throws(() => alias(active, 'same'));
     assert.throws(() => runtime.probeOpen(source, pins, true));
-    assert.equal(inventory().liveRoots, 16);
+    assert.equal(inventory().liveRoots, 28);
     for (const id of [first, peer, cancelled, active]) runtime.probeDrop(id);
     assert.equal(inventory().liveRoots, 0);
     assert.equal(inventory().activeEntries, 0);

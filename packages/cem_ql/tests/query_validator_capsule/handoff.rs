@@ -40,7 +40,11 @@ fn native_emitted_wasm_handoff_fixture_has_checked_source_and_independent_pins()
         // Explicit control/deployment metadata; the source AST stays binary.
         std::fs::write(
             path.join("pins.json"),
-            serde_json::to_vec(&packet.pin).unwrap(),
+            serde_json::to_vec(&cem_ql::query_validator_capsule::profiles::QueryExecutionPins {
+                version: cem_ql::query_validator_capsule::profiles::DEPLOYMENT_ABI.into(),
+                source: packet.pin,
+                result_profile: super::execution::profile(super::execution::profile_text()).pin().clone(),
+            }).unwrap(),
         )
         .unwrap();
     }

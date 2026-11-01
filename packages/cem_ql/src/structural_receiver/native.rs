@@ -327,6 +327,7 @@ impl FreshStructuralHost {
             .map_err(|_| NativeLinkError::InvalidSource)?;
         self.check().map_err(|_| NativeLinkError::Expired)?;
         let binding = FreshQueryBinding {
+            execution: None,
             declaration: BindingOwner::Native(requirement),
             scope,
             context: self.context.lease(),

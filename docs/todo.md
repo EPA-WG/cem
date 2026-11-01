@@ -436,6 +436,18 @@ inventory, not the minimum set loaded by every app.
                       checkpoint/journal, cancellation, byte-budget and privacy
                       fixtures with the private opt-in query runtime. Production
                       source endpoints and reduced-runtime admission remain off.
+                      Direct pure-query [source-backed execution owners and
+                      independent profile pins](archive/todo-completed-query-execution-owners-2026-11-01.md)
+                      are complete, including fresh worker/fallback handoff.
+                      - [ ] Provision production native worker/fallback endpoints
+                        with the original source/code/profile/registry owners;
+                        preserve original participants, bounded transport,
+                        native census, sealed journals and credential refusal.
+                      - [ ] Carry imported/native rule owners and custom/multi-source
+                        result-profile dependencies through explicit source/code
+                        transport. Verify unavailable implementations, changed
+                        pins and original scopes before enabling admission; keep
+                        linked-code closure unproven without build evidence.
 
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's

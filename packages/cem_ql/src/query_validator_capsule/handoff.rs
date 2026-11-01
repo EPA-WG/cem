@@ -29,6 +29,7 @@ impl VerifiedQueryHandoff {
     pub fn declaration(&self) -> &Arc<VerifiedQueryDeclaration> {
         &self.declaration
     }
+    pub fn datatype(&self) -> AstNodeId { self.selection.datatype }
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

@@ -4,27 +4,35 @@
 use cem_ml::{
     events::cem::CemEventNormalizer,
     operation_control::OperationControl,
-    parser::CemAstNode,
+    parser::{tree::RetainedCemTree, CemAstNode},
     runtime_admission::{self, generation::GenerationDrain},
     schema::{
         declaration_references::SchemaDeclarationNode,
         machine::CemSchemaMachine,
+        native_source::SourceIdentity,
         reference_policy::ReferenceScopePolicy,
         registry::CEM_SCHEMA_URI,
-        value_contracts::{ContractName, ValueContractSource, ValueContracts},
+        value_contracts::{ContractName, ValueContractSource},
         vocab::CompiledSchema,
     },
     source::{BytesSource, SourceId},
     tokenizer::cem::CemTokenizer,
 };
 use cem_ql::{
-    datatype_results::DatatypeResultAdapter,
     datatype_validation::ValidationInput,
     eval::{AtomValue, Item},
-    query_validator_capsule::handoff::{self, QueryHandoffPin},
+    query_validator_capsule::{
+        handoff,
+        profiles::{
+            self, QueryExecutionPins, QueryResultProfileSource, VerifiedQueryResultProfile,
+        },
+    },
     schema_references::DeclarationScope,
     selected_registry::{SelectedBuiltin, SelectedFunctionRegistry},
-    structural_receiver::{FreshQueryBinding, FreshQueryInvocation, FreshStructuralHost},
+    structural_receiver::{
+        FreshQueryBinding, FreshQueryCodeOwner, FreshQueryInvocation, FreshQueryRegistryOwner,
+        FreshQueryResultProfileOwner, FreshQuerySource, FreshStructuralHost,
+    },
 };
 use std::{cell::RefCell, collections::BTreeMap, sync::Arc, time::Duration};
 use wasm_bindgen::prelude::*;
@@ -34,6 +42,10 @@ struct Session {
     request: FreshQueryInvocation,
     control: OperationControl,
     scope: DeclarationScope,
+    _source: Arc<FreshQuerySource>,
+    code: Arc<FreshQueryCodeOwner>,
+    profile: Arc<FreshQueryResultProfileOwner>,
+    registry: Arc<FreshQueryRegistryOwner>,
 }
 thread_local! {
     static SESSIONS: RefCell<Vec<Option<Session>>> = const { RefCell::new(Vec::new()) };
@@ -42,7 +54,7 @@ thread_local! {
 fn error(e: impl std::fmt::Debug) -> JsValue {
     JsValue::from_str(&format!("{e:?}"))
 }
-fn adapter() -> Result<DatatypeResultAdapter, JsValue> {
+fn profile(control: &OperationControl) -> Result<Arc<VerifiedQueryResultProfile>, JsValue> {
     // Trusted fixture registration, built from the original shipped schema. It
     // is not a packet-supplied implementation or a minimal-runtime size proof.
     let text = cem_ml::schema::package_sources::builtin_schema_package_source("schema")
@@ -76,13 +88,30 @@ fn adapter() -> Result<DatatypeResultAdapter, JsValue> {
         CEM_SCHEMA_URI,
         BTreeMap::from([("schema".into(), CEM_SCHEMA_URI.into())]),
     )
-    .with_captured_names(capture)
+    .with_captured_names(capture.clone())
     .map_err(error)?;
-    let contracts = ValueContracts::compile(&[source], Default::default()).map_err(error)?;
-    DatatypeResultAdapter::new(
-        Arc::new(contracts),
+    let tree = RetainedCemTree::from_shared(
+        capture.document().clone(),
+        "https://example.test/result-profile.cem",
+        text,
+        Default::default(),
+        None,
+    )
+    .map_err(error)?;
+    profiles::build(
+        vec![QueryResultProfileSource {
+            tree,
+            capture,
+            contracts: source,
+            identity: SourceIdentity::new(
+                "https://example.test/result-profile.cem",
+                SourceId(1),
+                text.as_bytes(),
+            ),
+        }],
         ContractName::new(CEM_SCHEMA_URI, "datatype-validation-result"),
         ContractName::new(CEM_SCHEMA_URI, "datatype-diagnostic"),
+        control,
     )
     .map_err(error)
 }
@@ -108,8 +137,10 @@ fn open_with_queue(
         return Err(error("fixture input limit"));
     }
     let control = OperationControl::default();
-    let pin: QueryHandoffPin = serde_json::from_str(pins).map_err(error)?;
-    let source = handoff::verify(bytes, &pin, &control).map_err(error)?;
+    let pins: QueryExecutionPins = serde_json::from_str(pins).map_err(error)?;
+    pins.check().map_err(error)?;
+    let source = handoff::verify(bytes, &pins.source, &control).map_err(error)?;
+    let profile = profile(&control)?;
     let generation = runtime_admission::linked_generation().map_err(error)?;
     let mut host = FreshStructuralHost::new_in_generation(
         &format!("cem-bin/1+blake3:{}", "a".repeat(64)),
@@ -130,6 +161,19 @@ fn open_with_queue(
             ReferenceScopePolicy::schema_defaults().map_err(error)?,
         )
         .map_err(error)?;
+    let profile_scopes = profile
+        .sources()
+        .iter()
+        .map(|s| {
+            host.register_captured_scope(
+                s.tree.clone(),
+                s.capture.clone(),
+                Some(Default::default()),
+                ReferenceScopePolicy::schema_defaults().unwrap(),
+            )
+            .map_err(error)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let selected = SelectedFunctionRegistry::new(if functions {
         vec![
             SelectedBuiltin::StringLength,
@@ -139,8 +183,18 @@ fn open_with_queue(
         vec![]
     })
     .map_err(error)?;
+    let source_owner = host.query_source(d.clone(), scope).map_err(error)?;
+    let code = host
+        .query_code_owner(&source_owner, &selected)
+        .map_err(error)?;
+    let profile = host
+        .query_result_profile_owner(profile, &profile_scopes, &pins.result_profile)
+        .map_err(error)?;
+    let registry = host
+        .query_registry_owner(&source_owner, &code, &profile)
+        .map_err(error)?;
     let binding = host
-        .link_query_handoff(&source, scope, &selected, adapter()?)
+        .link_query_owned(&source_owner, source.datatype(), &registry)
         .map_err(error)?;
     let request = host.query_invocation(scope).map_err(error)?;
     SESSIONS.with(|s| {
@@ -151,6 +205,10 @@ fn open_with_queue(
             request,
             control,
             scope,
+            _source: source_owner,
+            code,
+            profile,
+            registry,
         }));
         (s.len() - 1).try_into().map_err(error)
     })
@@ -229,6 +287,15 @@ pub fn fence(id: u32, mode: &str) -> Result<(), JsValue> {
             .and_then(Option::as_mut)
             .ok_or_else(|| error("session"))?;
         match mode {
+            "code" => {
+                s.code.retire();
+            }
+            "profile" => {
+                s.profile.retire();
+            }
+            "registry" => {
+                s.registry.retire();
+            }
             "cancel" => {
                 s.control.cancel_root(None, None).map_err(error)?;
             }
