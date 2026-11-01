@@ -559,3 +559,6 @@ fn retained_invocations_release_unavailable_host_native_capabilities() {
     );
     drop(invocation);
 }
+
+#[path = "generation.rs"]
+mod generation;

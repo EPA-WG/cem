@@ -10,7 +10,11 @@ use crate::{
     query_validator_capsule::declarations::{self, VerifiedQueryDeclaration},
     selected_registry::SelectedFunctionRegistry,
 };
+use cem_ml::runtime_admission::NativeRootKind;
 use cem_ml::schema::attribute_datatypes::AttributeDatatypeContextLease;
+mod owners;
+pub use owners::FreshQuerySource;
+pub(in crate::structural_receiver) use owners::{QuerySourceLease, RuntimeOwner};
 
 pub struct FreshQueryBinding {
     pub(super) declaration: BindingOwner,
@@ -18,6 +22,9 @@ pub struct FreshQueryBinding {
     pub(super) context: AttributeDatatypeContextLease,
     pub(super) rule: BoundDatatypeRule,
     pub(super) active: Arc<AtomicBool>,
+    pub(super) source_owner: Option<std::sync::Weak<FreshQuerySource>>,
+    pub(super) _owned_source: Option<Arc<FreshQuerySource>>,
+    pub(super) _runtime: RuntimeOwner,
 }
 pub(super) enum BindingOwner {
     Query(Arc<VerifiedQueryDeclaration>),
@@ -37,6 +44,11 @@ impl FreshQueryBinding {
     }
     pub(super) fn live(&self, host: &FreshStructuralHost) -> bool {
         self.active.load(Ordering::Acquire)
+            && self._runtime.matches(host)
+            && self
+                .source_owner
+                .as_ref()
+                .is_none_or(|s| s.upgrade().is_some_and(|s| s.live(host)))
             && self.context.matches(&host.context)
             && host
                 .inner
@@ -50,6 +62,20 @@ pub struct FreshQueryInvocation {
     scope: DeclarationScope,
     context: AttributeDatatypeContextLease,
     query: crate::api::EvaluationContext,
+    active: AtomicBool,
+    busy: AtomicBool,
+    _runtime: RuntimeOwner,
+}
+impl FreshQueryInvocation {
+    pub fn retire(&self) {
+        self.active.store(false, Ordering::Release);
+    }
+}
+struct QueryEntry<'a>(&'a AtomicBool);
+impl Drop for QueryEntry<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
 }
 impl FreshStructuralHost {
     pub fn replace_query(
@@ -61,16 +87,42 @@ impl FreshStructuralHost {
         functions: &SelectedFunctionRegistry,
         adapter: DatatypeResultAdapter,
     ) -> Result<FreshQueryBinding, String> {
+        let source = self.query_source(declaration, scope)?;
+        self.replace_query_source_inner(previous, &source, datatype, functions, adapter, true)
+    }
+    pub fn replace_query_source(
+        &self,
+        previous: &FreshQueryBinding,
+        source: &Arc<FreshQuerySource>,
+        datatype: AstNodeId,
+        functions: &SelectedFunctionRegistry,
+        adapter: DatatypeResultAdapter,
+    ) -> Result<FreshQueryBinding, String> {
+        self.replace_query_source_inner(previous, source, datatype, functions, adapter, false)
+    }
+    fn replace_query_source_inner(
+        &self,
+        previous: &FreshQueryBinding,
+        source: &Arc<FreshQuerySource>,
+        datatype: AstNodeId,
+        functions: &SelectedFunctionRegistry,
+        adapter: DatatypeResultAdapter,
+        own_source: bool,
+    ) -> Result<FreshQueryBinding, String> {
+        let _runtime = self.runtime_entry()?;
         self.check().map_err(|_| INVALID)?;
-        if !previous.live(self) || previous.scope != scope {
+        if !previous.live(self) || previous.scope != source.owner.scope {
             return Err(INVALID.into());
         }
-        let staged = self.link_query(declaration, scope, datatype, functions, adapter)?;
+        let staged =
+            self.link_query_source_inner(source, datatype, functions, adapter, own_source)?;
         self.check().map_err(|_| INVALID)?;
-        if previous
-            .active
-            .compare_exchange(true, false, Ordering::AcqRel, Ordering::Acquire)
-            .is_err()
+        if !previous.live(self)
+            || !staged.live(self)
+            || previous
+                .active
+                .compare_exchange(true, false, Ordering::AcqRel, Ordering::Acquire)
+                .is_err()
         {
             return Err(INVALID.into());
         }
@@ -84,7 +136,33 @@ impl FreshStructuralHost {
         functions: &SelectedFunctionRegistry,
         adapter: DatatypeResultAdapter,
     ) -> Result<FreshQueryBinding, String> {
+        let source = self.query_source(declaration, scope)?;
+        self.link_query_source_inner(&source, datatype, functions, adapter, true)
+    }
+    pub fn link_query_source(
+        &self,
+        source: &Arc<FreshQuerySource>,
+        datatype: AstNodeId,
+        functions: &SelectedFunctionRegistry,
+        adapter: DatatypeResultAdapter,
+    ) -> Result<FreshQueryBinding, String> {
+        self.link_query_source_inner(source, datatype, functions, adapter, false)
+    }
+    fn link_query_source_inner(
+        &self,
+        source: &Arc<FreshQuerySource>,
+        datatype: AstNodeId,
+        functions: &SelectedFunctionRegistry,
+        adapter: DatatypeResultAdapter,
+        own_source: bool,
+    ) -> Result<FreshQueryBinding, String> {
+        let _runtime = self.runtime_entry()?;
         self.check().map_err(|_| INVALID)?;
+        if !source.live(self) {
+            return Err(INVALID.into());
+        }
+        let scope = source.owner.scope;
+        let declaration = source.declaration().clone();
         self.inner
             .registered_validator_context(scope, declaration.source())
             .ok_or(INVALID)?;
@@ -109,18 +187,27 @@ impl FreshStructuralHost {
             )
             .map_err(|_| INVALID)?;
         self.check().map_err(|_| INVALID)?;
-        Ok(FreshQueryBinding {
+        let binding = FreshQueryBinding {
             declaration: BindingOwner::Query(declaration),
             scope,
             context: self.context.lease(),
             rule,
             active: Arc::new(AtomicBool::new(true)),
-        })
+            source_owner: Some(Arc::downgrade(source)),
+            _owned_source: own_source.then(|| source.clone()),
+            _runtime: RuntimeOwner::new(self, NativeRootKind::Registry)?,
+        };
+        self.check().map_err(|_| INVALID)?;
+        if !binding.live(self) {
+            return Err(INVALID.into());
+        }
+        Ok(binding)
     }
     pub fn query_invocation(
         &self,
         scope: DeclarationScope,
     ) -> Result<FreshQueryInvocation, String> {
+        let _runtime = self.runtime_entry()?;
         self.check().map_err(|_| INVALID)?;
         // The actual scope handle must belong to this host; obtain its tree
         // through a private concrete-host accessor, never an identity lookup.
@@ -130,11 +217,19 @@ impl FreshStructuralHost {
             .ok_or(INVALID)?;
         query.execution_budget = Some(Default::default());
         self.check().map_err(|_| INVALID)?;
-        Ok(FreshQueryInvocation {
+        let invocation = FreshQueryInvocation {
             scope,
             context: self.context.lease(),
             query,
-        })
+            active: AtomicBool::new(true),
+            busy: AtomicBool::new(false),
+            _runtime: RuntimeOwner::new(self, NativeRootKind::Preparation)?,
+        };
+        self.check().map_err(|_| INVALID)?;
+        if !invocation._runtime.matches(self) {
+            return Err(INVALID.into());
+        }
+        Ok(invocation)
     }
     pub fn validate_query(
         &self,
@@ -146,7 +241,9 @@ impl FreshStructuralHost {
         let _runtime = self.runtime_entry()?;
         let check = || {
             self.check().map_err(|_| INVALID)?;
-            if !invocation.context.matches(&self.context)
+            if !invocation.active.load(Ordering::Acquire)
+                || !invocation._runtime.matches(self)
+                || !invocation.context.matches(&self.context)
                 || !binding.live(self)
                 || invocation.scope != binding.scope
             {
@@ -154,6 +251,12 @@ impl FreshStructuralHost {
             }
             Ok(())
         };
+        check()?;
+        invocation
+            .busy
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map_err(|_| INVALID)?;
+        let _request = QueryEntry(&invocation.busy);
         check()?;
         let runtime = ValidationRuntime {
             control: &self.control,

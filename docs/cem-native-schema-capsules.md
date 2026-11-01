@@ -449,6 +449,74 @@ credential/privacy acceptance for a new transport remain deployment gates.
 Existing Login recovery still refuses entered passwords/OTP and keeps the
 4 MiB checkpoint budget and five-second handoff deadlines.
 
+## Portable query lifecycle owners
+
+[`FreshQuerySource`](../packages/cem_ql/src/structural_receiver/query/owners.rs)
+adds an explicit original source owner to the native query adapter. After all
+source scopes/contexts/grants are established, `host.query_source(declaration,
+scope)` checks the actual registered tree, registry pin and original host epoch.
+It retains the declaration's original source, lexical capture and verified
+program; declarations stored by value inside dependency/module/assembly owners
+share those same original components. No declaration, AST, program or host is
+reconstructed to acquire ownership. CEMQV1/CEMQD1 verification remains passive,
+with its existing format, limits and provenance checks.
+
+`link_query_source(&source, datatype, functions, adapter)` retains a weak link to
+that explicit source owner, the ordinary bound rule and its actual selected
+registry snapshot. Dropping the last caller-held source owner or retiring it
+fences dependent bindings. The binding still accounts for its retained inert
+source/program data until it actually drops. Equal pins or fresh verification
+of equal bytes cannot replace the original registered source or a foreign host/
+generation. `replace_query_source` stages and checks before retiring the previous
+binding; missing functions, exhausted owner limits or stale sources preserve the
+previous usable binding. Existing `link_query`/`replace_query` remain convenience
+APIs and retain an implicit source owner for the binding's original lifetime.
+
+`query_invocation` retains the actual scope, context and enclosing shared work
+budget. `retire` fences the request without erasing its retained state. One
+original request cannot reenter validation while already executing; a refused
+nested call does not poison the outer call. The original native entry remains
+active across execution/callbacks. Binding/source/request retirement, context or
+generation changes and cancellation are checked after callbacks before output
+escapes. Existing budget exhaustion and pending failures are not reset.
+
+For `new_in_generation` hosts, all three owner roles use the original linked
+generation ledger and its existing v2 census categories:
+
+| Category | Query ownership included |
+| --- | --- |
+| Compilation | Original verified query source, passive lexical capture and compiled program. |
+| Registry | Query/native validator bindings and imported datatype rule registry snapshots. |
+| Preparation | Original query request context and shared invocation budget. |
+
+These are role categories, not counts of individual concrete Rust types. The
+six-kind manifest and all wire formats remain unchanged. Roots remain counted
+after retirement or host loss until actual destruction; the existing 256-root/
+256-entry limits and native drain/freeze guards still apply. Unmanaged legacy
+hosts retain their prior behavior. Raw inert inspection aliases are outside
+managed execution authority, not proof of an empty process heap.
+
+Imported query-rule bindings use the same source owners and registry guards;
+native validator bindings use the same registry/request accounting. Datatype
+compilation context availability checks those original owners, including during
+preparation and result validation. No bound rule or copied source hash silently
+revives a retired owner.
+
+The [query fixtures](../packages/cem_ql/tests/query_validator_capsule/generation.rs)
+cover retained roots, source loss, host epochs, generation closure/loss, atomic
+replacement, owner limits and fresh native source reimport. The
+[callback fixtures](../packages/cem_ql/tests/native_registrations/query_owners.rs)
+cover real registered validator execution, draining, cancellation, request reentry
+and late-result refusal; imported-rule coverage borrows the original native
+assembly and source components.
+
+These adapters remain native-only. Physical query-owner endpoints, opaque source/
+binding transport, fresh-WASM reimport/relinking and query-specific worker/
+owned-fallback checkpoint handoff remain gates before admission. There is no new
+WASM export, application/component JavaScript, credential transfer or effect
+replay. Automatic Studio recovery remains off; entered passwords/OTP block
+recovery until explicitly cleared, with unchanged checkpoint/deadline budgets.
+
 ## Exact native validator and tokenizer requirements
 
 [`cem_ql::native_registrations`](../packages/cem_ql/src/native_registrations.rs)
@@ -1207,10 +1275,10 @@ only counters, closed/frozen state and a per-admission revision:
 | Root kind | Actual retained native ownership |
 | --- | --- |
 | Host | The enrolled host, including its original registered source scopes and native implementation map. |
-| Compilation | The checked original datatype assembly compilation and its guarded code/source dependencies. |
-| Registry | The exact caller-held CEMAPPD4 registry selection. |
+| Compilation | Original datatype assembly compilations and query source/program owners with their guarded dependencies. |
+| Registry | Exact CEMAPPD4 registry selections and query/native/imported-rule binding snapshots. |
 | Publication | The common parent/mixed/peer publication guard. |
-| Preparation | The original native preparation invocation, descriptor, input and remaining budget. |
+| Preparation | Original native preparation/query invocations, their contexts/inputs and remaining budgets. |
 | Evidence | The private issuer-bound preparation receipt and its retained original values/input. |
 
 There are at most 256 enrolled roots and 256 simultaneous native entries. Resource

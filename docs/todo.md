@@ -9,8 +9,8 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [physical generation retirement join](archive/todo-completed-physical-generation-retirement-join-2026-10-31.md).
-The [native publication generation enrollment](archive/todo-completed-native-publication-generation-enrollment-2026-10-31.md) preserves the preceding stage.
+Latest completion: [native query owner adapters](archive/todo-completed-native-query-owner-adapters-2026-10-31.md).
+The [physical generation retirement join](archive/todo-completed-physical-generation-retirement-join-2026-10-31.md) preserves the preceding stage.
 
 Prioritize Studio functionality and presentation samples before unrelated helper
 work and physical-device/browser/AT acceptance. Examples remain ordinary projects
@@ -402,7 +402,7 @@ inventory, not the minimum set loaded by every app.
                           - [ ] Add versioned CEMAPPD4 source/code/registry-owner
                             transport and original source reimport/recompilation on
                             fresh WASM/worker/owned-fallback hosts. Finish the portable
-                            query-owner adapters below first; test original selectors,
+                            query-owner transport/handoff below first; test original selectors,
                             stale/foreign handles, disposal, cancellation, incomplete
                             code closure and credential refusal before admission.
 
@@ -411,6 +411,13 @@ inventory, not the minimum set loaded by every app.
                   add fresh-heap transport, shutdown/replacement, stale receipt,
                   drain/cancellation and entered-credential recovery fixtures
                   before exposing a new endpoint or enabling admission.
+                  Native source/binding/invocation and imported-rule lifecycle
+                  adapters and their original-owner fixtures are [complete](archive/todo-completed-native-query-owner-adapters-2026-10-31.md).
+                  They remain native-only and enable no endpoint or admission.
+
+                  - [ ] Add physical query-owner transport/source adapters and
+                    complete worker/owned-fallback fresh-heap/credential acceptance
+                    before an endpoint or reduced-runtime admission is enabled.
 
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's

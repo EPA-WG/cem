@@ -400,6 +400,10 @@ now binds the linked owner to existing worker/owned-fallback retirement through
 the complete v2 census, original native freeze and checkpoint/journal handoff.
 CEMAPPD4/query-owner source transport and fresh WASM reimport remain separate;
 no portable/runtime admission is implied.
+The [portable query lifecycle adapters](cem-native-schema-capsules.md#portable-query-lifecycle-owners)
+now enroll original native source/program owners, weak source-bound registries,
+imported rules and shared-budget invocations in that same ledger. Their physical
+query transport and fresh-WASM handoff remain explicit gates.
 
 
 Do not equate downloaded code with an active native generation. Register every

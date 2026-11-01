@@ -38,7 +38,7 @@ pub use datatypes::{FreshDatatypeCompilation, FreshDatatypePreparationInvocation
 mod native;
 mod query;
 pub use native::{FreshNativeOperation, FreshNativeTokenizer, NativeResultAdapter};
-pub use query::{FreshQueryBinding, FreshQueryInvocation};
+pub use query::{FreshQueryBinding, FreshQueryInvocation, FreshQuerySource};
 /// Never cloned/serialized. Contexts belong to this actual host allocation.
 pub struct FreshStructuralHost {
     inner: CemQlSchemaDeclarationHost,

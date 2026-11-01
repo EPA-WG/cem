@@ -974,3 +974,6 @@ fn compiler_preserves_checked_tokenizer_replacement_admission_and_spans() {
 
 #[path = "native_registrations/operations.rs"]
 mod operations;
+
+#[path = "native_registrations/query_owners.rs"]
+mod query_owners;

@@ -1,5 +1,5 @@
 //! Host-owned implementations and weak, generation-bound proxy registrations.
-use super::query::{BindingOwner, FreshQueryBinding};
+use super::query::{BindingOwner, FreshQueryBinding, RuntimeOwner};
 use super::*;
 use crate::{
     datatype_compilation::{DatatypeImplementation, TokenizerBinding},
@@ -169,6 +169,7 @@ impl FreshStructuralHost {
         datatype: AstNodeId,
         adapter: DatatypeResultAdapter,
     ) -> Result<FreshQueryBinding, NativeLinkError> {
+        let _runtime = self.runtime_entry().map_err(|_| NativeLinkError::Expired)?;
         if !previous.live(self)
             || previous.scope != scope
             || !matches!(previous.declaration, BindingOwner::Native(_))
@@ -296,6 +297,7 @@ impl FreshStructuralHost {
         datatype: AstNodeId,
         adapter: DatatypeResultAdapter,
     ) -> Result<FreshQueryBinding, NativeLinkError> {
+        let _runtime = self.runtime_entry().map_err(|_| NativeLinkError::Expired)?;
         self.native_entry(&requirement, scope)?;
         let Requirement::Validator(contract) = &requirement.requirement else {
             return Err(NativeLinkError::InvalidSource);
@@ -324,13 +326,25 @@ impl FreshStructuralHost {
             )
             .map_err(|_| NativeLinkError::InvalidSource)?;
         self.check().map_err(|_| NativeLinkError::Expired)?;
-        Ok(FreshQueryBinding {
+        let binding = FreshQueryBinding {
             declaration: BindingOwner::Native(requirement),
             scope,
             context: self.context.lease(),
             rule,
             active,
-        })
+            source_owner: None,
+            _owned_source: None,
+            _runtime: RuntimeOwner::new(
+                self,
+                cem_ml::runtime_admission::NativeRootKind::Registry,
+            )
+            .map_err(|_| NativeLinkError::Expired)?,
+        };
+        self.check().map_err(|_| NativeLinkError::Expired)?;
+        if !binding.live(self) {
+            return Err(NativeLinkError::Expired);
+        }
+        Ok(binding)
     }
     pub fn link_native_tokenizer(
         &self,

@@ -127,7 +127,25 @@ fn prepared_with_context(
     DeclarationScope,
     BTreeMap<String, DeclarationScope>,
 ) {
-    let mut h = FreshStructuralHost::new(&hash(b"registry"), Default::default()).unwrap();
+    prepared_with_host(
+        g,
+        grant,
+        ready,
+        ctx,
+        FreshStructuralHost::new(&hash(b"registry"), Default::default()).unwrap(),
+    )
+}
+fn prepared_with_host(
+    g: &assembly::VerifiedDatatypeModules,
+    grant: bool,
+    ready: bool,
+    ctx: StandaloneExpressionContext,
+    mut h: FreshStructuralHost,
+) -> (
+    FreshStructuralHost,
+    DeclarationScope,
+    BTreeMap<String, DeclarationScope>,
+) {
     let (root, scopes) = register(&mut h, g);
     h.prepare_datatype_assembly_lexical_scopes(g, "app", |source, _, _| {
         let pending = matches!(source.node(), CemAstNode::Reference { expression, .. }

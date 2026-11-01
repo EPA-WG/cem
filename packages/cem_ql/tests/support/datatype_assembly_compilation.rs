@@ -675,6 +675,17 @@ fn identity(text: &str, uri: &str) -> SourceIdentity {
 mod rule_artifacts;
 #[test]
 fn assembly_compiler_checks_imported_rule_owners_while_preparing_and_validating_constants() {
+    imported_rule_owner_lifecycle(None);
+}
+#[test]
+fn imported_query_rule_generation_owners_keep_original_sources_and_registry_alive_until_drop() {
+    use cem_ml::runtime_admission::{generation::NativeGeneration, NativeAdmission};
+    let runtime = NativeGeneration::claim(Arc::new(NativeAdmission::default())).unwrap();
+    imported_rule_owner_lifecycle(Some(&runtime));
+}
+fn imported_rule_owner_lifecycle(
+    runtime: Option<&Arc<cem_ml::runtime_admission::generation::NativeGeneration>>,
+) {
     use cem_ml::schema::declaration_references::SchemaDeclarationNode;
     use cem_ml::schema::value_contracts::{ContractName, ValueContractSource, ValueContracts};
     use cem_ql::{
@@ -714,7 +725,16 @@ fn assembly_compiler_checks_imported_rule_owners_while_preparing_and_validating_
     let g = Arc::new(
         assembly::verify(&bytes.bytes, &bytes.pin, &artifacts, &profiles, &control).unwrap(),
     );
-    let (mut h, root, scopes) = prepared(&g, true, true);
+    let h = match runtime {
+        Some(generation) => FreshStructuralHost::new_in_generation(
+            &hash(b"registry"),
+            Default::default(),
+            generation,
+        )
+        .unwrap(),
+        None => FreshStructuralHost::new(&hash(b"registry"), Default::default()).unwrap(),
+    };
+    let (mut h, root, scopes) = prepared_with_host(&g, true, true, context(&g), h);
     let leaf = g.leaf_capture(&id).unwrap();
     let behavior = node(leaf, "behavior", 0);
     let ctx = StandaloneExpressionContext::default().with_binding(
@@ -793,8 +813,33 @@ fn assembly_compiler_checks_imported_rule_owners_while_preparing_and_validating_
         .accepted,
         Some(true)
     );
+    if let Some(runtime) = runtime {
+        use cem_ml::runtime_admission::NativeRootKind;
+        assert_eq!(
+            runtime.inventory().unwrap().roots[&NativeRootKind::Compilation],
+            2
+        );
+        assert_eq!(
+            runtime.inventory().unwrap().roots[&NativeRootKind::Registry],
+            1
+        );
+    }
     rule.retire();
     assert!(!c.is_live(&h));
+    if let Some(runtime) = runtime {
+        use cem_ml::runtime_admission::NativeRootKind;
+        use std::time::Duration;
+        let drain = runtime
+            .begin_drain(Duration::from_secs(5), Default::default())
+            .unwrap();
+        assert!(drain.seal().is_err());
+        drop(h);
+        drop(c);
+        assert_eq!(drain.poll().unwrap().live_roots, 2);
+        drop(rule);
+        drop(rules);
+        assert!(drain.seal().unwrap().is_current(runtime));
+    }
 }
 
 #[path = "datatype_assembly_root_ops.rs"]

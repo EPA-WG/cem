@@ -835,6 +835,11 @@ now binds the actual linked worker/owned-fallback lifecycle to the complete v2
 census, original drain/freeze and checkpoint/journal handoff. Fresh WASM
 CEMAPPD4/query-owner source and code/registry transport still precedes component
 admission; no application-installation endpoint is added by this lifecycle join.
+The [native query owner adapters](docs/cem-native-schema-capsules.md#portable-query-lifecycle-owners)
+now account for original source/program, binding/registry and invocation/budget
+lifetimes, including imported rules and callback/reentry guards. Physical query
+transport, fresh-WASM source reimport and query-specific checkpoint handoff remain
+next; verification still grants no execution or recovery admission.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 

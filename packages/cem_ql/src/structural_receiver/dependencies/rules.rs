@@ -1,6 +1,7 @@
 //! Explicit imported rule owners. Compilations retain weak owners and source
 //! snapshots; invocation contexts are borrowed afresh from the actual host.
 use super::*;
+use crate::structural_receiver::query::{QuerySourceLease, RuntimeOwner};
 use crate::{
     api::EvaluationContext,
     datatype_results::DatatypeResultAdapter,
@@ -31,14 +32,21 @@ pub struct FreshDatatypeRuleBinding {
     context: AttributeDatatypeContextLease,
     active: Arc<AtomicBool>,
     registry: DatatypeValidationRegistry,
+    source_owner: Option<QuerySourceLease>,
+    _runtime: RuntimeOwner,
 }
 impl FreshDatatypeRuleBinding {
     pub fn retire(&self) {
         self.active.store(false, Ordering::Release);
     }
+    fn owners_current(&self) -> bool {
+        self._runtime.current() && self.source_owner.as_ref().is_none_or(|s| s.current())
+    }
     pub fn is_live(&self, host: &FreshStructuralHost) -> bool {
         host.check().is_ok()
             && self.active.load(Ordering::Acquire)
+            && self.owners_current()
+            && self._runtime.matches(host)
             && self.context.matches(&host.context)
             && host
                 .inner
@@ -68,6 +76,7 @@ impl FreshStructuralHost {
         scope: DeclarationScope,
         registration: DatatypeDependencyRuleRegistration,
     ) -> Result<FreshDatatypeRuleBinding, String> {
+        let _runtime = self.runtime_entry()?;
         self.check().map_err(|_| REFUSED)?;
         if input.registry() != self.registry_hash {
             return Err(REFUSED.into());
@@ -77,9 +86,10 @@ impl FreshStructuralHost {
             .registered_validator_context(scope, source)
             .ok_or(REFUSED)?;
         let active = Arc::new(AtomicBool::new(true));
-        let (registry, behavior) = match registration {
+        let (registry, behavior, source_owner) = match registration {
             DatatypeDependencyRuleRegistration::Query { functions, adapter } => {
                 let declaration = input.query(module).ok_or(REFUSED)?;
+                let source_owner = self.query_source_lease(declaration, scope)?;
                 let mut registry = DatatypeValidationRegistry::default();
                 registry
                     .register_verified_query(
@@ -91,7 +101,11 @@ impl FreshStructuralHost {
                         adapter,
                     )
                     .map_err(|_| REFUSED)?;
-                (registry, declaration.contract.behavior().clone())
+                (
+                    registry,
+                    declaration.contract.behavior().clone(),
+                    Some(source_owner),
+                )
             }
             DatatypeDependencyRuleRegistration::NativeValidator { adapter } => {
                 let requirement = input.native(module).ok_or(REFUSED)?;
@@ -101,7 +115,7 @@ impl FreshStructuralHost {
                 let registry = self
                     .native_validator_registration(requirement, scope, adapter, &active)
                     .map_err(|_| REFUSED)?;
-                (registry, contract.behavior().clone())
+                (registry, contract.behavior().clone(), None)
             }
         };
         let binding = FreshDatatypeRuleBinding {
@@ -112,6 +126,8 @@ impl FreshStructuralHost {
             context: self.context.lease(),
             active,
             registry,
+            source_owner,
+            _runtime: RuntimeOwner::new(self, cem_ml::runtime_admission::NativeRootKind::Registry)?,
         };
         if !binding.is_live(self) {
             return Err(REFUSED.into());
@@ -231,7 +247,9 @@ impl RuleValidationContexts for CompilationContexts<'_> {
                 .owners
                 .get(&n.identity())
                 .and_then(Weak::upgrade)
-                .is_some_and(|o| o.active.load(Ordering::Acquire) && o.context.is_live())
+                .is_some_and(|o| {
+                    o.active.load(Ordering::Acquire) && o.context.is_live() && o.owners_current()
+                })
     }
     fn operation_context(
         &self,
