@@ -909,6 +909,10 @@
         "@epa-wg/cem-elements/cli-schema-asset-protocol": {
             "path": "./assets/@epa-wg/cem-ml-cli/dist/schema-asset-protocol.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/compiled-declaration-assets.js": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/compiled-declaration-assets.js",
+            "contentType": "text/javascript"
         }
     }
 }

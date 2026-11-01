@@ -288,7 +288,7 @@
         "content-types-schema-authoring"
       ],
       "archive": "./examples/login.cem-studio.json",
-      "sha256": "0dd972a7e1b467ed274e316613d0cc9671069dfecd19cf484a1ec2061bfaa707"
+      "sha256": "abc7d53da3c2197c2c2a5a8bdecfb7eaea86e013c6ee973d1be322b4a85505bf"
     },
     {
       "id": "markdown-site",

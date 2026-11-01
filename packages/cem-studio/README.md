@@ -379,6 +379,13 @@ use their existing public services where the former controls were removed.
 The complete Login validation/repair, native output, provenance, live interaction,
 independent-copy and offline save/reload assertions remain in the lifecycle gate.
 
+`yarn nx run @epa-wg/cem-studio:verify:login-navigation` runs the selected
+Login and Supplier presentation workflow against the built static site, including
+original diagnostic selection, independent copies, URL/Structure selection and
+offline unsaved-draft reload. It uses disposable browser storage. The ordered
+[Login walkthrough](../../docs/declarative-amsterdam-2026/login-walkthrough.md)
+records the resource IDs, expected results and remaining presentation acceptance.
+
 With project navigation active, **Results → Operation output** uses the shared
 `cem-media-preview` to show text, sandboxed documents and live CEM output. The
 project preview keeps its independent build/artifact selection. Standalone

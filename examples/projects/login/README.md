@@ -29,7 +29,8 @@ Display paths do not substitute for a resource's schema identity.
 
 | Saved resources | Content type | Schema identity |
 | --- | --- | --- |
-| `data/login.cem`, `views/login.cem` | `application/cem` | `https://cem.dev/ns/cem-ml/1` |
+| `data/login.cem` | `application/cem` | `https://cem.dev/ns/cem-ml/1` |
+| `views/login.cem` | `application/vnd.cem.element-template+cem` | `https://cem.dev/ns/template/cem-element/1` |
 | `data/login.html`, `expected/view.html` | `text/html` | `https://cem.dev/ns/data/html/1` |
 | `data/login-invalid.cem` | `application/cem` | `urn:demo:login` |
 | `schemas/login-schema.cem` | `application/cem` | `https://cem.dev/ns/schema/1` |
@@ -43,8 +44,8 @@ Display paths do not substitute for a resource's schema identity.
 
 The invalid Login resource exercises the project-owned instance schema. The
 generic CEM-ML source contract and that instance rule are separate checks. The
-live view's current generic identity has the source-operation limit described
-below; these identities do not promise every operation for every resource.
+live view uses its registered element-template contract, described below;
+these identities do not promise every operation for every resource.
 
 ## Configuration index
 

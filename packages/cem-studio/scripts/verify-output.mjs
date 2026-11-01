@@ -43,7 +43,7 @@ const declaredAssets = [
     })),
 ];
 const assetsByIdentity = new Map(declaredAssets.map((asset) => [asset.identity, asset]));
-for (const name of ['checkpoint-provider-handoff', 'checkpoint-form-resume', 'checkpoint-reference-resume']) {
+for (const name of ['checkpoint-provider-handoff', 'checkpoint-form-resume', 'checkpoint-reference-resume', 'compiled-declaration-assets']) {
     const helper = assetsByIdentity.get(`@epa-wg/cem-elements/dist/lib/${name}.js`);
     const facade = assetsByIdentity.get('@epa-wg/cem-elements/cem-elements');
     assert.ok(helper && facade && helper.contentType === 'text/javascript', `Studio must ship ${name}`);

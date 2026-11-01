@@ -69,7 +69,9 @@ page.on('response', (response) => {
 try {
     const initialResponse = await page.goto(`${server.url}/index.html`, { waitUntil: 'load' });
     assert.ok(initialResponse);
-    await page.waitForFunction(() => Boolean(globalThis.__cemStudioApplication));
+    await page.waitForFunction(() => Boolean(globalThis.__cemStudioApplication)).catch(error => {
+        throw new Error(`${error.message}\n${JSON.stringify({ browserErrors, httpFailures })}`, { cause: error });
+    });
     assert.equal(await page.evaluate(async () => (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation: 'list-projects', parameters: {} })).value.length), 0);
     assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projectId), undefined);
     await waitForApplication(page, browserErrors, httpFailures);
@@ -1559,9 +1561,58 @@ async function exerciseExampleProjects(page, context) {
         assert.equal((await snapshot()).draft, originalExpression);
         assert.equal((await snapshot()).projection.text, expressionLayouts[index]);
     }
+    await exerciseSupplierProject(page, context);
+    // The active file URL and the structure tree must agree, including after an
+    // offline reload with an unsaved draft. Repository bytes remain unchanged.
+    const openLoginFile = async project => {
+        await page.evaluate(project => globalThis.__cemStudioApplication.workbench.openEntity(
+            new URLSearchParams({ project, file: 'login-cem', build: 'render-graph' }).toString()), project);
+        await settle();
+    };
+    const assertLoginRoute = async project => {
+        const current = await page.evaluate(() => {
+            const state = globalThis.__cemStudioApplication.workbench.snapshot();
+            return { selected: state.navigation.selection, structure: state.navigation.trees.structure.selected,
+                title: state.navigation.title, build: state.projectPreview.configurationId };
+        });
+        for (const [key, value] of Object.entries({ project, file: 'login-cem' })) {
+            assert.equal(new URL(page.url()).searchParams.get(key), value);
+            assert.equal(current.selected[key], value);
+            assert.equal(new URLSearchParams(current.structure).get(key), value);
+        }
+        assert.equal(current.build, 'render-graph');
+        assert.equal(await page.title(), current.title);
+    };
+    const sourceCopies = () => page.evaluate(async ids => Promise.all(ids.map(async projectId => {
+        const bundle = (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1,
+            repository: 'studio-projects', operation: 'export-project', requestRevision: 1,
+            parameters: { projectId } })).value;
+        return { root: bundle.project.rootUri, source: new TextDecoder().decode(bundle.contents['login-cem']) };
+    })), [firstId, secondId]);
+    await openLoginFile(firstId); await assertLoginRoute(firstId);
+    const copiesBefore = await sourceCopies();
+    assert.notEqual(copiesBefore[0].root, copiesBefore[1].root);
+    const unsaved = `${(await snapshot()).draft}\n// Unsaved Amsterdam navigation note 🍒\n`;
+    const sourceEditor = page.getByRole('textbox', { name: 'CEM source', exact: true });
+    await sourceEditor.fill(unsaved); await settle();
+    assert.equal((await snapshot()).dirty, true);
+    await page.reload({ waitUntil: 'load' });
+    await waitForApplication(page, browserErrors, httpFailures); await settle();
+    await assertLoginRoute(firstId);
+    assert.equal(await sourceEditor.evaluate(element => element.value), unsaved);
+    assert.equal((await snapshot()).dirty, true);
+    assert.deepEqual(await sourceCopies(), copiesBefore);
+    const projectFiles = page.getByRole('tree', { name: 'Project files', exact: true });
+    await projectFiles.getByRole('treeitem', { name: 'data', exact: true }).click(); await settle();
+    assert.ok(await page.getByRole('dialog', { name: 'Resolve drafts before navigation' }).isVisible());
+    await click('Cancel navigation');
+    await assertLoginRoute(firstId);
+    assert.equal(await sourceEditor.evaluate(element => element.value), unsaved);
+    assert.deepEqual(await sourceCopies(), copiesBefore);
     assert.equal(await page.evaluate(() => localStorage.getItem('cem-studio-theme')), themeBefore);
     assert.equal(await page.evaluate(() => navigator.onLine), false);
-    await exerciseSupplierProject(page, context);
+    console.log('[cem-studio:examples] Login URL/tree selection, offline draft reload and unchanged independent sources passed');
+
 }
 
 async function exerciseSupplierProject(page, _context) {

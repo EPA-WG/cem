@@ -77,6 +77,10 @@ A historical diagnostic becomes presentation work only after reproduction on
 this selected path. The relevant diagnostic records are preserved under later
 native/release follow-ups.
 
+- [x] Record the ordered [Login walkthrough](declarative-amsterdam-2026/login-walkthrough.md)
+  with resource/configuration IDs, baseline, expected results and boundaries;
+  correct the README live-view source contract to match the project manifest.
+
 - [ ] Verify and freeze the required Login journey against the current Studio
   project and full runtime: open the README/source, edit a label or heading,
   introduce the syntax-valid schema violation, follow the original diagnostic,
@@ -87,6 +91,15 @@ native/release follow-ups.
   warnings and comparison limits. Implement concrete gaps exposed by this path
   first, in shared libraries; add an explicit fixture action before new tests.
   Use the required tutorial checkpoints rather than adding another feature tour.
+
+- [x] Extend deployed Login acceptance with URL/tree selection and offline unsaved
+  draft restoration fixtures; verify persisted bytes, independent clone roots,
+  original sample isolation and diagnostic editor selection without clearing user data.
+  Include the shared compiled-declaration transport helper in both deployment
+  module maps and require its presence in output verification.
+  Verified 2026-11-01: Studio build, output (219 assets/334 files), lint and
+  `verify:login-navigation` passed all selected Login/Supplier offline workflows.
+  See the [acceptance record](declarative-amsterdam-2026/login-walkthrough.md#deployed-navigation-and-persistence-acceptance).
 
 - [ ] Prepare the reproducible presenter/participant route for that Login
   project: verify Studio sample selection, independent editable copies,

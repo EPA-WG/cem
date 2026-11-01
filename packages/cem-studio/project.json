@@ -1363,6 +1363,29 @@
                 "{workspaceRoot}/dist/reports/cem-studio/static-worker.json",
                 "{workspaceRoot}/dist/reports/cem-studio/presentation-samples.json"
             ]
+        },
+        "verify:login-navigation": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:determinism"
+            ],
+            "options": {
+                "command": "node scripts/verify-static-worker.mjs --presentation-only",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-static-worker.mjs",
+                "{projectRoot}/scripts/catalog-acceptance.mjs",
+                "{projectRoot}/dist/static/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/presentation-samples.json"
+            ]
         }
     },
     "tags": [
