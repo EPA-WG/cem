@@ -21,6 +21,10 @@ export declare function createQuerySourceWasmBackend(runtime: {
     memory(): WebAssembly.Memory | undefined;
     call(name: string, args: unknown[]): unknown;
 }): QuerySourceNativeBackend;
+export declare function createApplicationSourceWasmBackend(runtime: {
+    memory(): WebAssembly.Memory | undefined;
+    call(name: string, args: unknown[]): unknown;
+}): QuerySourceNativeBackend;
 export declare function createRuleSourceWasmBackend(runtime: {
     memory(): WebAssembly.Memory | undefined;
     call(name: string, args: unknown[]): unknown;

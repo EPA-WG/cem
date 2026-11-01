@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { MessageChannel } from 'node:worker_threads';
 import { readFile } from 'node:fs/promises';
-import { createQuerySourceEndpoint, createQuerySourceWorkerEndpoint, installQuerySourceWorkerTransport, createQuerySourceWasmBackend, createRuleSourceWasmBackend, QuerySourceResource } from '../runtime/query-source-resource.mjs';
+import { createQuerySourceEndpoint, createQuerySourceWorkerEndpoint, installQuerySourceWorkerTransport, createQuerySourceWasmBackend, createRuleSourceWasmBackend, createApplicationSourceWasmBackend, QuerySourceResource } from '../runtime/query-source-resource.mjs';
 import { CemNativeGenerationGroup, registerNativeGeneration, registerNativeGenerationResource, releaseNativeGenerationResourcesAsync, completeNativeRetirement } from '../runtime/native-generation.mjs';
 
 // Protocol unit doubles only. Native execution/census/retirement acceptance is
@@ -18,6 +18,14 @@ test('rule backend uses only the explicit rule ABI and bounded profile packets',
     await endpoint.release(retained);endpoint.dispose();
     assert.deepEqual(calls,['ruleSourceOpenV1','ruleSourceCaptureV1','ruleSourceReleaseV1']);
     for (const maxSourceBytes of [NaN,0,4*1024*1024+1]) assert.throws(()=>createQuerySourceEndpoint({identity,participant,current:()=>true,native,maxSourceBytes}),/limit/);
+});
+test('application backend binds its explicit ABI and preserves physical identity',()=>{
+    let memory=new WebAssembly.Memory({initial:1});const calls=[],owner=Object.freeze({});
+    const backend=createApplicationSourceWasmBackend({memory:()=>memory,call:(name,args)=>{calls.push(name);if(name.endsWith('OpenV1'))return owner;assert.equal(args[0],owner);if(name.endsWith('CaptureV1'))return bytes;}});
+    assert.equal(backend.maxSourceBytes,4*1024*1024);
+    assert.equal(backend.open(bytes,'{}'),owner);assert.deepEqual(backend.capture(owner),bytes);backend.release(owner);
+    assert.deepEqual(calls,['applicationSourceOpenV1','applicationSourceCaptureV1','applicationSourceReleaseV1']);
+    memory=new WebAssembly.Memory({initial:1});assert.throws(()=>backend.capture(owner),/stale/);
 });
 test('WASM query backend retains the original runtime memory and native opaque owners', () => {
     let memory = new WebAssembly.Memory({ initial: 1 });

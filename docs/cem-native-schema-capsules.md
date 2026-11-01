@@ -1796,8 +1796,15 @@ foreign sources/control, missing code owners, failed replacement, bootstrap and
 operation callback retirement, escaped preparation handles, cancellation,
 shared session bounds and drain cleanup. The WASM probe covers the passive
 reader and refusal without provisioning in separate heaps and a real worker.
-**Installed fresh worker/fallback sessions and their sealed checkpoint/journal
-handoff remain the next gate**; this stage does not claim that acceptance.
+The [application handoff acceptance](../packages/cem_ql/tests/application-resource-wasm.mjs)
+now installs fresh real owners in workers and owned fallback heaps through the
+shared `createApplicationSourceWasmBackend` and existing source resource protocol.
+Twelve physical scenarios cover native-sealed journals, complete census, release,
+retirement, fresh source binding, original tokens, reentrance, expired owners,
+stale/foreign targets, late credential refusal and combined byte budgets.
+Run `NX_DAEMON=false yarn nx run cem_ql:test:application-resource-wasm --skipNxCache`.
+The fixture restores original native input snapshots as immutable bootstrap data;
+mutable application inputs and qualified rendering remain the reduced-ABI gate.
 Credential refusal, manual Studio recovery, aggregate checkpoint/replay budget
 and deadlines remain unchanged.
 

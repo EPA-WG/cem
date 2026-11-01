@@ -23,6 +23,12 @@
         ]
     },
     "targets": {
+        "test:application-resource-wasm": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": { "command": "node tools/scripts/verify-application-source-wasm.mjs --resource-transport", "cwd": "{workspaceRoot}" },
+            "outputs": ["{workspaceRoot}/dist/fixtures/application-source-wasm"]
+        },
         "test:application-source-wasm": {
             "cache": false,
             "executor": "nx:run-commands",

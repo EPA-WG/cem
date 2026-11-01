@@ -1931,3 +1931,10 @@ handoff and generated bootstraps remain next gates; component admission, default
 targets and credential refusal stay unchanged. See the
 [source handoff](../../docs/cem-native-schema-capsules.md#original-application-source-handoff)
 and [native endpoint contract](../../docs/cem-native-schema-capsules.md#native-provisioned-application-installation).
+
+`createApplicationSourceWasmBackend` now connects installed application sessions
+to the shared source resource/checkpoint transport. Run
+`NX_DAEMON=false yarn nx run cem_ql:test:application-resource-wasm --skipNxCache`
+for native-authored source/input snapshots, original owned factory, sealed journal
+and 12 actual worker/fallback handoff scenarios. Qualified mutable-input rendering
+remains the following reduced-ABI gate; default admission stays unchanged.

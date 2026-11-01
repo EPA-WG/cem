@@ -18,6 +18,7 @@ function endpointRecord(endpoint) {
  * Keep the actual Memory weakly; an equal factory/foreign heap cannot substitute
  * it, and native tokens never become numeric runtime or worker wire handles. */
 export function createQuerySourceWasmBackend(runtime) { return wasmBackend(runtime, 'querySource', MAX_BYTES); }
+export function createApplicationSourceWasmBackend(runtime) { return wasmBackend(runtime, 'applicationSource', 4 * 1024 * 1024); }
 export function createRuleSourceWasmBackend(runtime) { return wasmBackend(runtime, 'ruleSource', 4 * 1024 * 1024); }
 function wasmBackend(runtime, prefix, maxSourceBytes) {
     const identity = runtime?.memory?.();
