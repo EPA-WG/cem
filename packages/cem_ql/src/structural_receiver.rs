@@ -68,6 +68,15 @@ pub struct FreshStructuralHost {
     _runtime_resource: Option<cem_ml::runtime_admission::NativeResourceLease>,
 }
 impl FreshStructuralHost {
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
+    pub(crate) fn belongs_to_application_runtime(
+        &self,
+        generation: &Arc<cem_ml::runtime_admission::generation::NativeGeneration>,
+        control: &OperationControl,
+    ) -> bool {
+        self.check().is_ok() && self.control.same_operation(control)
+            && self.runtime.as_ref().is_some_and(|g| std::sync::Weak::ptr_eq(g, &Arc::downgrade(generation)))
+    }
     pub fn new(registry_hash: &str, control: OperationControl) -> Result<Self, String> {
         if !registry_hash
             .strip_prefix("cem-bin/1+blake3:")

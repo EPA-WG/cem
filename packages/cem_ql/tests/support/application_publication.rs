@@ -44,6 +44,14 @@ fn fixture_sources(
     generation: Option<&Arc<cem_ml::runtime_admission::generation::NativeGeneration>>,
     restored: Option<&cem_ql::application_source_transport::VerifiedApplicationSources>,
 ) -> PublicationFixture {
+    fixture_sources_control(rule,generation,restored,None)
+}
+fn fixture_sources_control(
+    rule: bool,
+    generation: Option<&Arc<cem_ml::runtime_admission::generation::NativeGeneration>>,
+    restored: Option<&cem_ql::application_source_transport::VerifiedApplicationSources>,
+    runtime_control: Option<OperationControl>,
+) -> PublicationFixture {
     let mut package = None;
     let mut raw = None;
     let peer_choice = Arc::new(AtomicUsize::new(0));
@@ -147,6 +155,7 @@ fn fixture_sources(
         true,
         generation,
         restored,
+        runtime_control,
     );
     let package = package.unwrap();
     let registry = Arc::new(
@@ -578,3 +587,6 @@ mod generation;
 
 #[path = "application_source_handoff.rs"]
 mod source_handoff;
+
+#[path = "application_endpoint.rs"]
+mod endpoint;

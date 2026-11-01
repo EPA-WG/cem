@@ -5,6 +5,19 @@ use cem_ml::runtime_inventory::{
 
 static MUTATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+#[test]
+fn reentrant_native_registry_mutation_refuses_without_panicking_and_invalidates_census() {
+    let _lock=MUTATIONS.lock().unwrap();
+    let registry=NativeRegistry::new(7);
+    let borrow=registry.borrow_mut();
+    let before=inventory_revision();
+    assert!(registry.try_borrow_mut().is_err());
+    assert!(inventory_revision()>before);
+    drop(borrow);
+    *registry.try_borrow_mut().unwrap()=8;
+    assert_eq!(*registry.borrow(),8);
+}
+
 fn empty() -> Vec<RegistryInventory> {
     COMMAND_REGISTRIES
         .iter()

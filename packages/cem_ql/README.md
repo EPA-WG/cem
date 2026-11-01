@@ -1918,7 +1918,16 @@ compilation owners and crossing permissions still belong to the embedding.
 
 Run `NX_DAEMON=false yarn nx run cem_ql:test:application-source-wasm --skipNxCache`
 for native-emitted source restoration in independent WASM heaps and a real worker.
-The entire packet stays within 4 MiB. The test-only reader supplies no installation
-endpoint, generated bootstrap or component admission. Live worker/fallback
-checkpoint handoff remains the next gate; default targets and credential refusal
-stay unchanged. See the [source handoff contract](../../docs/cem-native-schema-capsules.md#original-application-source-handoff).
+The entire packet stays within 4 MiB. `application_source_endpoint` adds original
+Rust bootstrap owners, exact fresh host/control checks, typed retained native
+owners and atomic session replacement. Shared publication guards fence escaped
+receivers and preparation handles when the original bootstrap/endpoint expires.
+
+The default-off `applicationSourceOpenV1/CaptureV1/ReleaseV1` ABI requires explicit
+Rust provisioning and original opaque tokens; the test-only probe exercises
+unprovisioned/unknown-token refusal. At most eight application sessions share the
+existing generation resource ceiling. Installed worker/fallback checkpoint
+handoff and generated bootstraps remain next gates; component admission, default
+targets and credential refusal stay unchanged. See the
+[source handoff](../../docs/cem-native-schema-capsules.md#original-application-source-handoff)
+and [native endpoint contract](../../docs/cem-native-schema-capsules.md#native-provisioned-application-installation).

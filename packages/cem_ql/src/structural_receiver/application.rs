@@ -13,6 +13,8 @@ use cem_ml::schema::attribute_datatypes::{
 mod occurrences;
 pub mod mixed;
 pub mod publication;
+mod source_owners;
+pub use source_owners::RetainedApplicationOwner;
 pub mod v3;
 const INVALID: &str = "native application assembly refused";
 

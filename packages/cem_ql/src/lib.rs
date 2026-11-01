@@ -43,6 +43,8 @@ pub mod application_requirements;
 pub mod application_envelope;
 #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub mod application_source_transport;
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
+pub mod application_source_endpoint;
 #[cfg(any(
     not(target_arch = "wasm32"),
     feature = "component-runtime",

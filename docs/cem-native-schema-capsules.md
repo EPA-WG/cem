@@ -1729,11 +1729,77 @@ compiled-component targets. The test-only `application_source_probe` reads a
 native-emitted packet in independent heaps and a real worker; it creates no
 installation authority. Run
 `NX_DAEMON=false yarn nx run cem_ql:test:application-source-wasm --skipNxCache`.
-This stage does **not** supply the live application endpoint, original native
-bootstrap/code-owner provisioning, worker/fallback session/checkpoint handoff,
-component admission or linked-code omission. Those remain explicit next gates.
+The [native-provisioned application endpoint](#native-provisioned-application-installation)
+now supplies original bootstrap/code-owner installation separately. Complete
+installed worker/fallback session/checkpoint handoff, generated bootstraps,
+component admission and linked-code omission remain explicit next gates.
 Entered credentials still block recovery; automatic whole-Studio recovery stays
 off, with the existing aggregate 4 MiB budget and five-second deadlines.
+
+## Native-provisioned application installation
+
+`application_source_endpoint` adds original native `ApplicationBootstrapOwner`,
+`PreparedApplication`, `ApplicationSourceEndpoint` and session owners. The caller
+provides actual Rust `ApplicationBootstrap` code and an independent CEMAH1 pin,
+actual generation and original operation control. The endpoint borrows that exact
+code owner weakly. Matching names or pins cannot replace a dropped, retired or
+cancelled original owner. Bootstrap invocation keeps its native admission entry
+and code callback alive while releasing the temporary authority lease before
+calling embedding code, so callback-time loss of the caller's owner is observed.
+Concurrent/reentrant use of that bootstrap refuses while it is busy.
+
+The bootstrap constructs a fresh host over restored original packet trees,
+explicit contexts, input sources, code registrations, lexical preparation and
+directed crossing grants. It must be a construction operation; source reimport
+is not permission to replay external writes or acknowledged actions. The shared
+`PreparedApplication::stage` then uses the existing native publication linker,
+exact original registry and compilation owners. Typed `RetainedApplicationOwner`
+variants retain required rule, operation/tokenizer, query/source/profile/registry
+and native-rule code owners; arbitrary JavaScript objects or opaque owner bags
+are not accepted. Every supplied owner must be live on the actual host. The
+endpoint additionally requires the **same verified source object**, actual
+physical native generation and original operation control supplied to bootstrap.
+Equal-byte source substitutions and foreign host/control owners refuse.
+
+Publication guards enroll the original endpoint weakly once. The dependency is
+checked by root, receiver, registry and preparation/evidence operations before
+and after native callbacks. Escaped handles therefore cannot outlive bootstrap
+or endpoint retirement. `with_application` renews actual mutable selections
+before and after the native operation, under native admission. `capture` checks
+the live publication and recaptures original sources. `replace` fully prepares
+and publishes a candidate before replacing the prior session; a failed candidate
+leaves the prior publication in place under its existing owner checks. Dropping
+the session retires its slot,
+closes its host and releases real owners. Cleanup remains possible after native
+admission closes, while retained handles/owners remain counted until they drop.
+
+The endpoint permits at most **eight sessions**, with the existing shared
+256-resource generation ceiling able to refuse larger applications earlier.
+Source packets retain their 4 MiB bound and pin metadata its 16 KiB bound. Actual
+bootstrap and endpoint owners each hold a counted Registry lease; existing host,
+compilation, publication and retained-owner leases cover session resources.
+Native census revisions include mutations of opaque session tables. Reentrant
+table access uses shared `NativeRegistry::try_borrow_mut` to refuse without
+unwinding and invalidate old census observations.
+
+The default-off `application-source-runtime` WASM ABI exposes only
+`applicationSourceOpenV1`, `applicationSourceCaptureV1` and
+`applicationSourceReleaseV1`. An original Rust embedding installs/uninstalls the
+endpoint against the linked generation; there is no JavaScript provisioning API.
+Tokens are original frozen objects in that heap. Native embeddings can use typed
+sessions without exporting data objects, raw pointers or numeric owner handles.
+Unprovisioned calls and unknown tokens refuse. Default full/component exports
+and component admission remain unchanged.
+
+Native tests cover complete mixed consumers and source recapture, invalid and
+foreign sources/control, missing code owners, failed replacement, bootstrap and
+operation callback retirement, escaped preparation handles, cancellation,
+shared session bounds and drain cleanup. The WASM probe covers the passive
+reader and refusal without provisioning in separate heaps and a real worker.
+**Installed fresh worker/fallback sessions and their sealed checkpoint/journal
+handoff remain the next gate**; this stage does not claim that acceptance.
+Credential refusal, manual Studio recovery, aggregate checkpoint/replay budget
+and deadlines remain unchanged.
 
 ## Native publication generation enrollment
 

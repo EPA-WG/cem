@@ -9,7 +9,9 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [original application source handoff and opt-in WASM contracts](archive/todo-completed-application-source-handoff-2026-11-01.md).
+Latest completion: [native-provisioned application installation](archive/todo-completed-application-endpoints-2026-11-01.md).
+The [original application source handoff and opt-in WASM contracts](archive/todo-completed-application-source-handoff-2026-11-01.md)
+remain the preceding stage.
 The [imported/native-rule and custom-profile transport](archive/todo-completed-rule-profile-transport-2026-11-01.md)
 remains the preceding stage.
 The [native-provisioned query endpoints and TODO cleanup](archive/todo-completed-query-endpoints-2026-11-01.md)
@@ -88,21 +90,21 @@ they do not manufacture a datatype or infer a code grant from metadata.
 
 Next execution gates, in order:
 
-- [ ] Finish CEMAPPD4 source/code/registry-owner transport and original source
-  reimport/recompilation on fresh worker/owned-fallback hosts. The
-  [passive CEMAH1 handoff and opt-in native WASM contracts](cem-native-schema-capsules.md#original-application-source-handoff)
-  are complete; live installation remains gated. Preserve CEMDM1 and existing
-  formats, original base/item/behavior/operation/constant dependencies and the
-  credential privacy policy.
-  - [ ] Add an original native bootstrap/code owner and live installation
-    endpoint over the actual source packet, fresh host, registry, compilations
-    and complete mixed node/scalar/executable receivers. Test missing, foreign,
-    dropped, stale and callback-retired owners, atomic replacement, cancellation,
-    disposal and cleanup behind closed admission.
-  - [ ] Connect complete application sessions to shared worker/fallback resource
-    transport, native census and sealed checkpoint/journal handoff. Prove original
-    tokens, source reimport/recompilation, actual owners, aggregate 4 MiB byte
-    charging, deadlines and credential refusal in physical fresh runtimes.
+- [ ] Finish installed CEMAPPD4 worker/owned-fallback source transport and
+  checkpoint handoff. The [passive source handoff](cem-native-schema-capsules.md#original-application-source-handoff)
+  and [native-provisioned application installation](cem-native-schema-capsules.md#native-provisioned-application-installation)
+  are complete. Preserve CEMDM1 and existing formats, original
+  base/item/behavior/operation/constant dependencies and credential privacy.
+  - [ ] Exercise complete installed mixed consumers in actual fresh worker and
+    owned-fallback heaps with explicit original Rust bootstraps, native code,
+    registry/compilation owners and original opaque tokens. Cover copied/foreign
+    tokens, reentrance, expired owners, atomic replacement and closed cleanup;
+    absence-of-provisioning ABI checks do not complete this installed acceptance.
+  - [ ] Connect complete application sessions to shared resource transport,
+    native census and sealed checkpoint/journal handoff. Prove original source
+    reimport/recompilation, actual owners, aggregate 4 MiB byte charging,
+    deadlines, consumed-write suppression and credential refusal in physical
+    fresh runtimes.
 
 - [ ] Integrate original schema/type receivers, native attribute/dataset/slice
   domains and qualified island/projection ownership with the reduced processing

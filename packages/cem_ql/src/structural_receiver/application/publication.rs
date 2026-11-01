@@ -84,6 +84,19 @@ pub struct LinkedApplication {
     guard: Arc<Guard>,
 }
 impl LinkedApplication {
+    pub(crate) fn renew_source_owners(&self,host:&mut FreshStructuralHost)->Result<(),String> {
+        let _entry=self.guard.enter(host)?;
+        self.guard.refresh(host)
+    }
+    pub(crate) fn enroll_source_endpoint(
+        &self, endpoint:&Arc<crate::application_source_endpoint::ApplicationSourceEndpoint>,
+        host:&FreshStructuralHost,
+    )->Result<(),String> {
+        self.guard.check_idle(host)?;
+        if !endpoint.is_live_on(host) {return Err(INVALID.into())}
+        self.guard.source_endpoint.set(Arc::downgrade(endpoint)).map_err(|_|INVALID.to_string())?;
+        self.guard.check_idle(host)
+    }
     pub fn envelope(&self) -> &Arc<VerifiedApplicationEnvelope> {
         &self.envelope
     }

@@ -7,6 +7,7 @@ pub(in crate::structural_receiver::application) struct Guard {
     groups: Vec<Weak<mixed::Group>>,
     active: AtomicBool,
     busy: AtomicBool,
+    pub(super) source_endpoint: std::sync::OnceLock<Weak<crate::application_source_endpoint::ApplicationSourceEndpoint>>,
     _runtime_resource: Option<cem_ml::runtime_admission::NativeResourceLease>,
 }
 impl Guard {
@@ -25,6 +26,7 @@ impl Guard {
             groups: groups.iter().map(Arc::downgrade).collect(),
             active: AtomicBool::new(true),
             busy: AtomicBool::new(false),
+            source_endpoint: Default::default(),
             _runtime_resource: host
                 .runtime_resource(cem_ml::runtime_admission::NativeRootKind::Publication)?,
         });
@@ -37,6 +39,9 @@ impl Guard {
     ) -> Result<(), String> {
         host.check().map_err(|_| INVALID)?;
         if !self.active.load(Ordering::Acquire) || !self.context.matches(&host.context) {
+            return Err(INVALID.into());
+        }
+        if self.source_endpoint.get().is_some_and(|e| !e.upgrade().is_some_and(|e|e.is_live_on(host))) {
             return Err(INVALID.into());
         }
         let envelope = self.envelope.upgrade().ok_or(INVALID)?;

@@ -235,7 +235,7 @@ fn configured_application_in_runtime(
     base_receiver: bool,
     generation: Option<&Arc<cem_ml::runtime_admission::generation::NativeGeneration>>,
 ) -> Setup {
-    configured_application_with_sources(input_text, receiver_text, receiver_grant, input_grant, rule, typed, load, extra, base_receiver, generation, None)
+    configured_application_with_sources(input_text, receiver_text, receiver_grant, input_grant, rule, typed, load, extra, base_receiver, generation, None, None)
 }
 fn configured_application_with_sources(
     input_text: &str,
@@ -253,6 +253,7 @@ fn configured_application_with_sources(
     base_receiver: bool,
     generation: Option<&Arc<cem_ml::runtime_admission::generation::NativeGeneration>>,
     restored: Option<&cem_ql::application_source_transport::VerifiedApplicationSources>,
+    runtime_control: Option<OperationControl>,
 ) -> Setup {
     let original = |text: &str, uri: &str| {
         match restored {
@@ -348,7 +349,7 @@ fn configured_application_with_sources(
         .unwrap();
     let metadata = std::cell::RefCell::new(None);
     let mut parent = None;
-    let f = fixture_custom_host(
+    let f = fixture_custom_host_with_control(
         rule,
         typed,
         |bytes, leaves, profiles| {
@@ -483,6 +484,7 @@ fn configured_application_with_sources(
             Some(g) => FreshStructuralHost::new_in_generation(registry, control, g).unwrap(),
             None => FreshStructuralHost::new(registry, control).unwrap(),
         },
+        runtime_control,
     );
     let parent = parent.unwrap();
     let owner = Arc::new(f.c);

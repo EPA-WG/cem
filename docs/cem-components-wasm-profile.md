@@ -439,8 +439,10 @@ now carries unchanged CEMAPPD4 bytes and complete external receiver/scalar graph
 Fresh native hosts recompile against explicit original owners and grants. Its
 separate default-off `application-source-runtime` feature ports those existing
 native contracts to WASM; the passive reader proves fresh source restoration,
-while live endpoint/bootstrap and worker/fallback checkpoint installation remain
-pending.
+and the [native installation endpoint](cem-native-schema-capsules.md#native-provisioned-application-installation)
+now binds original Rust bootstrap authority, exact fresh contexts and actual
+code/registry/compilation owners. Installed worker/fallback checkpoint handoff
+and generated application bootstraps remain pending.
 
 
 Do not equate downloaded code with an active native generation. Register every

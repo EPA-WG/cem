@@ -26,6 +26,11 @@ async function verify(heap) {
     changed.hash = 'foreign';
     assert.throws(() => read(source, JSON.stringify(changed)));
     assert.equal(read(), '3:5:1:2', 'refusal must release temporary sources and leave reader usable');
+    assert.equal(typeof reader.applicationSourceOpenV1, 'function');
+    assert.throws(() => reader.applicationSourceOpenV1(source, pins), /application.endpoint.refused/);
+    assert.throws(() => reader.applicationSourceCaptureV1(Object.freeze({})), /application.endpoint.refused/);
+    assert.throws(() => reader.applicationSourceReleaseV1(Object.freeze({})), /application.endpoint.refused/);
+
     return wasm.memory;
 }
 
@@ -38,7 +43,7 @@ if (isMainThread) {
         worker.once('error', reject);
         worker.once('exit', code => code === 0 ? resolve() : reject(Error(`reader worker exited ${code}`)));
     });
-    console.log(`Application source reader: 24 checks across two fresh heaps and a real worker; ${source.length} source bytes. Live installation remains gated.`);
+    console.log(`Application source reader: 36 checks across two fresh heaps and a real worker; ${source.length} source bytes. Native provisioning is required; worker/fallback installation acceptance remains gated.`);
 } else {
     await verify('worker');
     parentPort.close();

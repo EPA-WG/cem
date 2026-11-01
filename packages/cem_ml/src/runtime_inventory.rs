@@ -69,6 +69,12 @@ impl<T> NativeRegistry<T> {
         note_mutation();
         self.0.borrow_mut()
     }
+    /// Reentrant native callbacks must refuse a busy registry without unwinding
+    /// the runtime. An attempted mutable access still invalidates old census.
+    pub fn try_borrow_mut(&self) -> Result<RefMut<'_, T>, std::cell::BorrowMutError> {
+        note_mutation();
+        self.0.try_borrow_mut()
+    }
 }
 impl<T: Default> Default for NativeRegistry<T> {
     fn default() -> Self {

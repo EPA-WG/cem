@@ -483,6 +483,20 @@ fn fixture_custom_host(
     setup: impl FnOnce(&mut FreshStructuralHost),
     create: impl FnOnce(&str, OperationControl) -> FreshStructuralHost,
 ) -> Fixture {
+    fixture_custom_host_with_control(rule,typed,load,setup,create,None)
+}
+fn fixture_custom_host_with_control(
+    rule: bool,
+    typed: bool,
+    load: impl FnOnce(
+        assembly::BuiltDatatypeModules,
+        Vec<cem_ql::datatype_dependency_capsule::DependencyArtifact>,
+        Vec<assembly::ProfileArtifact>,
+    ) -> Arc<assembly::VerifiedDatatypeModules>,
+    setup: impl FnOnce(&mut FreshStructuralHost),
+    create: impl FnOnce(&str, OperationControl) -> FreshStructuralHost,
+    supplied_control: Option<OperationControl>,
+) -> Fixture {
     let text="@ns s = https://cem.dev/ns/schema/1\n@default s\n{schema @namespace=urn:core | {types | {type @name=scalar @kind=scalar}}}";
     let text = if rule {
         text.replace("@kind=scalar", "@kind=scalar @rule={#check}")
@@ -593,7 +607,7 @@ fn fixture_custom_host(
     } else {
         vec![]
     };
-    let control = OperationControl::default();
+    let control = supplied_control.unwrap_or_default();
     let modules = BTreeMap::from([
         ("app".into(), app),
         ("core".into(), core),

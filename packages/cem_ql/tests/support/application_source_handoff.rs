@@ -1,7 +1,7 @@
 use super::*;
 use cem_ql::application_source_transport::{self as transport, SourceInput};
 
-fn inputs(p: &PublicationFixture) -> Vec<SourceInput> {
+pub(super) fn inputs(p: &PublicationFixture) -> Vec<SourceInput> {
     p.f.source_inputs
         .iter()
         .chain(&p.source_inputs)
