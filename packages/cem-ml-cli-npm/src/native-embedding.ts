@@ -1,7 +1,7 @@
 /** Explicit control metadata; never a native AST, handle or replacement permit. */
 export interface CommandNativeInventory {
-    readonly schemaVersion: 1;
-    readonly profile: 'cem-ml-cem-ql-command-v1';
+    readonly schemaVersion: 1 | 2;
+    readonly profile: 'cem-ml-cem-ql-command-v1' | 'cem-ml-cem-ql-generation-v2';
     readonly revision: number;
     readonly complete: true;
     readonly blockingResources: number;
@@ -45,8 +45,9 @@ export function parseCommandNativeInventory(value: unknown): CommandNativeInvent
         if (value.length > 16384) throw new CommandNativeEmbeddingError('cem.command.inventory.limit');
         value = JSON.parse(value) as unknown;
     }
-    if (!record(value) || Object.keys(value).length !== 7 || value.schemaVersion !== 1 ||
-        value.profile !== 'cem-ml-cem-ql-command-v1' || value.complete !== true || value.replacementAllowed !== false ||
+    const generation = record(value) && value.schemaVersion === 2 && value.profile === 'cem-ml-cem-ql-generation-v2';
+    if (!record(value) || Object.keys(value).length !== 7 ||
+        !(generation || value.schemaVersion === 1 && value.profile === 'cem-ml-cem-ql-command-v1') || value.complete !== true || value.replacementAllowed !== false ||
         !counter(value.revision) || !counter(value.blockingResources) || !Array.isArray(value.registries) ||
         value.registries.length < 1 || value.registries.length > 64) throw new CommandNativeEmbeddingError('cem.command.inventory.invalid');
     const names = new Set<string>();
@@ -59,10 +60,30 @@ export function parseCommandNativeInventory(value: unknown): CommandNativeInvent
         names.add(entry.name); live += entry.live;
         return Object.freeze({ name: entry.name, live: entry.live, discardable: entry.discardable });
     });
+    if (generation && (names.size !== generationRegistries.length || generationRegistries.some(name => !names.has(name))
+        || registries.some(entry => entry.discardable !== 0 && !discardableRegistries.has(entry.name))))
+        throw new CommandNativeEmbeddingError('cem.command.inventory.invalid');
     if (!counter(live) || live !== value.blockingResources) throw new CommandNativeEmbeddingError('cem.command.inventory.invalid');
-    return Object.freeze({ schemaVersion: 1, profile: 'cem-ml-cem-ql-command-v1', revision: value.revision,
+    return Object.freeze({ schemaVersion: generation ? 2 : 1, profile: generation ? 'cem-ml-cem-ql-generation-v2' : 'cem-ml-cem-ql-command-v1', revision: value.revision,
         complete: true, blockingResources: live, registries: Object.freeze(registries), replacementAllowed: false });
 }
+// Versioned control manifest shared with the native linked-runtime collector.
+// Legacy v1 DTOs retain their existing parser contract; they cannot satisfy v2.
+const generationRegistries = [
+    'capability-sessions', 'cem-documents', 'cemt-call-cache',
+    'cemt-object-cache', 'command-artifact-journal', 'command-artifacts',
+    'command-bridges', 'command-operations', 'memory-operations',
+    'native-entries', 'native-values', 'parse-observers',
+    'reference-executions', 'reference-snapshots', 'reference-sources',
+    'reference-validations', 'render-cache', 'render-output',
+    'resolver-read-hooks', 'resolver-write-hooks', 'resumable-hosts',
+    'schema-package-owners', 'template-cache', 'templates',
+    'transform-observers', 'validate-observers', 'xpath-companions',
+    'xpath-programs', 'xslt-bundles', 'xslt-components',
+    'enrolled-hosts', 'enrolled-compilations', 'enrolled-registries',
+    'enrolled-publications', 'enrolled-preparations', 'enrolled-evidence',
+];
+const discardableRegistries = new Set(['template-cache', 'render-cache', 'command-artifact-journal', 'cemt-call-cache', 'cemt-object-cache']);
 
 /** Bound the caller-controlled list before allocating an asynchronous snapshot. */
 export function copyCommandNativeEmbeddingOwnership(leases: readonly CommandNativeEmbeddingOwnership[]): readonly CommandNativeEmbeddingOwnership[] {

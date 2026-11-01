@@ -286,8 +286,11 @@ modules remain outside managed admission. No witness authorizes replacement,
 replay, disposal of another owner's resources or rollback of newer drafts.
 
 The linked runtime now exports `commandNativeResourceInventory()`: a bounded,
-versioned counter-only census of all 29 retained resource/cache/operation roots
-in the command/reference profile. Rust checks the exact manifest, including
+versioned counter-only census of the retained resource/cache/operation roots
+in the command/reference profile. The current linked-runtime v2 census contains
+all 30 base registries plus six original enrolled owner kinds, as described in
+[physical generation enrollment](cem-native-schema-capsules.md#physical-generation-census-and-checkpoint-handoff).
+The v1 collector remains a separate legacy format. Rust checks the exact manifest, including
 empty registries; missing, duplicate, unknown or unsafe counters refuse the
 report. Live documents, templates, reference sources/values/validation/execution/
 snapshots, capability sessions, XPath/XSLT handles, callbacks, resumable hosts,
@@ -331,8 +334,8 @@ legacy `checkpointNative` calls remain inventory-only. The coordinator closes th
 native gate before waiting for managed work, alongside monotonic host admission.
 Every ordinary generated WASM export checks a native RAII entry permit before
 parsing, callbacks or registry access. Permits enroll synchronously, including
-unpolled commands, and survive async callbacks. The twenty-ninth inventory root
-counts these native entries. Raw aliases cannot start new work after closure.
+unpolled commands, and survive async callbacks. The `native-entries` inventory
+root counts these entries. Raw aliases cannot start new work after closure.
 Existing work can settle, and explicit disposal/cancellation/resource settlement,
 cache release and bounded recovery control calls remain available. Cleanup advances
 native revisions even when it leaves resource counts unchanged. Closure never
@@ -994,17 +997,23 @@ resources and callbacks. The client retains an independent opaque byte copy,
 bounded to 1 MiB, before native preparation. Adapter callbacks are trusted host
 lifecycle code, not authored expressions, serialized receipts or checkpoint IDs.
 
-Native preparation validates a fresh complete census at the exact original
-confirmed revision and freezes every mutating entrypoint, including cleanup.
+Native preparation validates a fresh complete v2 census at the exact original
+confirmed revision, joins the original linked generation's sealed drain/local
+revision under the admission lock, and freezes every mutating entrypoint,
+including cleanup. Legacy preparation cannot bypass an enrolled generation.
 Stale cleanup before preparation cancels retirement. The worker privately retains
 an original non-cloneable Rust RAII permit; its bounded scalar confirmation is
-not a release or replacement permit. Raw cleanup during preparation refuses
+not a release or replacement permit. The joined permit retains its original
+drain and rejects expired/cancelled native confirmation. Raw cleanup during preparation refuses
 without changing the confirmed frozen revision. Only disposal of that original
 permit aborts the barrier and reopens cleanup under permanently closed ordinary
 admission. No serialized revision can reopen it.
 
 After acknowledgement, final host handoff and original-owner checks and the
-termination request share one synchronous host turn. Native mutation stays
+termination request share one synchronous host turn. Final callbacks cannot
+overrun the host deadline and then authorize termination; owned fallback also
+rechecks its original native confirmation after the ownership callback.
+Native mutation stays
 frozen until the exact worker is gone. Successful retirement revokes old client
 ownership and returns retained checkpoint/journal bytes. Changed publications,
 owner joins/leaves, copied/foreign evidence, native changes, malformed replies,
@@ -1017,8 +1026,10 @@ Native artifact disposal tombstones disappear with that heap only after this
 handoff. They are old-handle idempotence history, not portable external-effect
 outcomes; old handles never transfer to a new generation. The existing host
 journal travels inside the checkpoint. No command or external action is retried.
-The returned metadata still says `replacementAllowed: false`. Shared rendering-worker retirement is described below. Physical retirement of
-shared fallback memories, automatic replacement and semantic resume remain future work. Raw initialization/direct memory writes, unregistered
+The returned metadata still says `replacementAllowed: false`. Shared rendering-worker
+and owned-fallback retirement and controlled resume are described below; legacy
+global fallback cannot claim owned-memory release. Automatic Studio recovery
+remains disabled. Raw initialization/direct memory writes, unregistered
 embeddings and direct transport-control injection remain unsupported boundaries.
 Studio and component UI stay declarative; this opt-in capability lives entirely
 in shared runtime support and is not automatically enabled for Studio.

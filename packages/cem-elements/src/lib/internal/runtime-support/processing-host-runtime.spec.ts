@@ -873,7 +873,7 @@ it('retires every pooled root without fallback, repeated cleanup or stale native
             if (request.action === 'prepare') this.preparations++;
             queueMicrotask(() => this.emit('message', { protocol: CEM_RENDERING_RETIREMENT_PROTOCOL,
                 direction: 'response', id: request.id, action: request.action, ok: true,
-                ...(request.action === 'prepare' ? { confirmation: { schemaVersion: 1, frozen: true, inventoryRevision: 3,
+                ...(request.action === 'prepare' ? { confirmation: { schemaVersion: 1, profile: 'cem-ml-cem-ql-generation-v2', frozen: true, inventoryRevision: 3,
                     frozenRevision: 4, replacementAllowed: false } } : {}) }));
         }
     }
@@ -932,7 +932,7 @@ it.each(['revoke', 'worker-loss'])('fences generation-bound fresh roots without 
             queueMicrotask(() => this.emit('message', { protocol: CEM_RENDERING_RETIREMENT_PROTOCOL,
                 direction: 'response', id: request.id, action: request.action, ok: true,
                 ...(request.action === 'inspect' ? { confirmation: { softPressure: false, hardPressure: false } } : {}),
-                ...(request.action === 'prepare' ? { confirmation: { schemaVersion: 1, frozen: true, inventoryRevision: 3,
+                ...(request.action === 'prepare' ? { confirmation: { schemaVersion: 1, profile: 'cem-ml-cem-ql-generation-v2', frozen: true, inventoryRevision: 3,
                     frozenRevision: 4, replacementAllowed: false } } : {}) }));
         }
     }

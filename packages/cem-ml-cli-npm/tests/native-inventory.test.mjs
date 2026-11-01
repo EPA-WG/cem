@@ -55,7 +55,10 @@ test('ownership changes during asynchronous acknowledgement fence the original r
 
 test('census DTO validation remains bounded, immutable and separate from replacement authority', () => {
     const snapshot = inventory();
-    assert.equal(snapshot.registries.length, 30);
+    assert.equal(snapshot.schemaVersion, 2);
+    assert.equal(snapshot.profile, 'cem-ml-cem-ql-generation-v2');
+    assert.equal(snapshot.registries.length, 36);
+    assert.equal(snapshot.registries.filter(entry => entry.name.startsWith('enrolled-')).length, 6);
     assert.deepEqual(snapshot.registries.find(entry => entry.name === 'schema-package-owners'),
         { name: 'schema-package-owners', live: 0, discardable: 0 });
     assert.equal(Object.isFrozen(snapshot.registries[0]), true);
@@ -65,6 +68,11 @@ test('census DTO validation remains bounded, immutable and separate from replace
         { ...snapshot, registries: [snapshot.registries[0], snapshot.registries[0]] }, 'x'.repeat(16385)]) {
         assert.throws(() => parseCommandNativeInventory(invalid));
     }
+    for (const invalid of [{ ...snapshot, schemaVersion: 1 }, { ...snapshot, profile: 'cem-ml-cem-ql-command-v1' },
+        { ...snapshot, registries: snapshot.registries.slice(1) },
+        { ...snapshot, registries: snapshot.registries.map((entry, index) => index ? entry : { ...entry, name: 'unknown' }) },
+        { ...snapshot, registries: snapshot.registries.map(entry => entry.name === 'enrolled-hosts' ? { ...entry, discardable: 1 } : entry) }])
+        assert.throws(() => parseCommandNativeInventory(invalid));
 });
 
 test('command-worker inventory acknowledgements require all original embedding leases', async () => {

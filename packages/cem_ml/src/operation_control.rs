@@ -1449,6 +1449,13 @@ impl OperationControl {
         Ok(())
     }
 
+    /// Bounded lifecycle observation/retirement is cleanup, not ordinary work
+    /// admission. Keep cancellation, prior failures and deadlines intact while
+    /// leaving hard-pressure recovery available. This admits no input or work.
+    pub(crate) fn check_lifecycle_scope(&self, scope: ExecutionScopeId) -> Result<(), ControlError> {
+        self.check_scope_at(scope, Instant::now())
+    }
+
     /// Reuse normal memory failure delivery/unwinding, preserving an earlier
     /// cancellation or failure. The host never fabricates allocator telemetry.
     pub fn check_runtime_memory(&self, scope: ExecutionScopeId,

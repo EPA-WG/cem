@@ -266,9 +266,25 @@ describe('physical checkpoint domains', () => {
 
 
 describe('shared rendering retirement', () => {
+    it('refuses termination when the final synchronous handoff check consumes its deadline', async () => {
+        const domain = new CemNativeCheckpointDomain('worker'), client = domain.client();
+        const terminate = vi.fn(), abort = vi.fn(async () => undefined);
+        let prepared = false;
+        domain.retirementEndpoint({ close: async () => undefined, prepare: async () => {
+            prepared = true;
+            return { schemaVersion: 1, profile: 'cem-ml-cem-ql-generation-v2', frozen: true, inventoryRevision: 7, frozenRevision: 8, replacementAllowed: false };
+        }, abort, terminate });
+        const proof = await closeNativeRenderingGeneration(client);
+        await expect(retireNativeRenderingGeneration(new Map([[client, ['source']]]), [], proof,
+            { retain: () => new Uint8Array([1]), current: () => {
+                if (prepared) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 40);
+                return true;
+            } }, 10)).rejects.toThrow('timeout');
+        expect(terminate).not.toHaveBeenCalled(); expect(abort).toHaveBeenCalledOnce();
+    });
     it('requires every original client and source before physical preparation', async () => {
         const domain = new CemNativeCheckpointDomain('worker'), a = domain.client(), b = domain.client();
-        const prepare = vi.fn(async () => ({ schemaVersion: 1, frozen: true, inventoryRevision: 7, frozenRevision: 8, replacementAllowed: false })), terminate = vi.fn();
+        const prepare = vi.fn(async () => ({ schemaVersion: 1, profile: 'cem-ml-cem-ql-generation-v2', frozen: true, inventoryRevision: 7, frozenRevision: 8, replacementAllowed: false })), terminate = vi.fn();
         domain.retirementEndpoint({ close: async () => undefined, prepare, abort: async () => undefined, terminate });
         const proof = await closeNativeRenderingGeneration(a);
         const handoff = { current: () => true, retain: () => new Uint8Array([1, 2]) };
@@ -284,7 +300,7 @@ describe('shared rendering retirement', () => {
     it('retains independent bytes and terminates only after a native freeze and final currentness check', async () => {
         const domain = new CemNativeCheckpointDomain('worker'), a = domain.client();
         const terminate = vi.fn(), bytes = new Uint8Array([3, 4]);
-        domain.retirementEndpoint({ close: async () => undefined, prepare: async () => ({ schemaVersion: 1, frozen: true,
+        domain.retirementEndpoint({ close: async () => undefined, prepare: async () => ({ schemaVersion: 1, profile: 'cem-ml-cem-ql-generation-v2', frozen: true,
             inventoryRevision: 7, frozenRevision: 8, replacementAllowed: false }), abort: async () => undefined, terminate });
         const proof = await closeNativeRenderingGeneration(a);
         const retired = await retireNativeRenderingGeneration(new Map([[a, ['a']]]), [], proof, { current: () => true, retain: () => bytes });
@@ -293,13 +309,13 @@ describe('shared rendering retirement', () => {
         expect(() => nativeCheckpointAdmission(a)).toThrow('retired');
     });
     it('cancels physical retirement on changed handoff or ownership and fences the disposed generation', async () => {
-        for (const change of ['handoff', 'owner', 'malformed']) {
+        for (const change of ['handoff', 'owner', 'malformed', 'legacy']) {
             const domain = new CemNativeCheckpointDomain('worker'), a = domain.client(); let current = true;
             const abort = vi.fn(async () => undefined), terminate = vi.fn();
             domain.retirementEndpoint({ close: async () => undefined, prepare: async () => {
                 if (change === 'handoff') current = false;
                 if (change === 'owner') domain.changed();
-                return { schemaVersion: 1, frozen: change !== 'malformed', inventoryRevision: 7, frozenRevision: 8, replacementAllowed: false };
+                return { schemaVersion: 1, ...(change === 'legacy' ? {} : { profile: 'cem-ml-cem-ql-generation-v2' }), frozen: change !== 'malformed', inventoryRevision: 7, frozenRevision: 8, replacementAllowed: false };
             }, abort, terminate });
             const proof = await closeNativeRenderingGeneration(a);
             await expect(retireNativeRenderingGeneration(new Map([[a, ['a']]]), [], proof, { current: () => current, retain: () => new Uint8Array([1]) })).rejects.toThrow();

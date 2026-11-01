@@ -823,15 +823,18 @@ renewed receiving selectors, shared field validation/preparation and atomic grou
 replacement. The [CEMAPPD4 publication](docs/cem-native-schema-capsules.md#versioned-complete-application-publication)
 now composes the parent and mixed declarations with recomputed template/query
 registry demand, source-claim agreement and one live native registry/code/peer
-guard. Generation-bound transport and checkpoint enrollment remain next; this
+guard. Fresh-host application transport remains next; this
 native publication grants no renderer or runtime admission and claims no linked
 binary omission or arbitrary provider closure.
 The [native generation enrollment](docs/cem-native-schema-capsules.md#native-publication-generation-enrollment)
 now uses the original admission object, owned entry permits, retained authority
 root counters and scoped drain witnesses for CEMAPPD4 lifetimes. It refuses stale
 or foreign proofs and requires fresh sources/compilation on a new native domain.
-Joining actual worker/fallback participants and the complete native retirement
-census remains the next gate before exposing transport or component admission.
+The [physical generation join](docs/cem-native-schema-capsules.md#physical-generation-census-and-checkpoint-handoff)
+now binds the actual linked worker/owned-fallback lifecycle to the complete v2
+census, original drain/freeze and checkpoint/journal handoff. Fresh WASM
+CEMAPPD4/query-owner source and code/registry transport still precedes component
+admission; no application-installation endpoint is added by this lifecycle join.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 

@@ -202,6 +202,8 @@ export class CommandNativeClientCheckpoint {
     ): Promise<CommandNativeRetiredGeneration> {
         if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) throw new RangeError('Invalid retirement timeout');
         this.requireCoordinated(proof);
+        if (proof.nativeInventory?.schemaVersion !== 2 || proof.nativeInventory.profile !== 'cem-ml-cem-ql-generation-v2')
+            throw new CommandNativeAdmissionError('cem.command.retirement.inventory-profile');
         if (this.#retiring) throw new CommandNativeAdmissionError('cem.command.retirement.pending');
         const ack = this.#owners.acknowledge(copyCommandNativeEmbeddingOwnership(ownership));
         const current = () => this.current(proof) && this.#owners.current(ack);
@@ -210,6 +212,7 @@ export class CommandNativeClientCheckpoint {
         let terminating = false;
         let abortTimer: ReturnType<typeof setTimeout> | undefined;
         let preparing = false;
+        const deadline = performance.now() + timeoutMs;
         try {
             if (handoff.current() !== true || !current()) throw new CommandNativeAdmissionError('cem.command.retirement.stale');
             const bytes = handoff.retain();
@@ -219,13 +222,16 @@ export class CommandNativeClientCheckpoint {
             const checkpoint = new Uint8Array(bytes);
             if (handoff.current() !== true || !current()) throw new CommandNativeAdmissionError('cem.command.retirement.stale');
             preparing = true;
+            const remaining = deadline - performance.now();
+            if (remaining <= 0) throw new CommandNativeAdmissionError('cem.command.retirement.timeout');
             const confirmation = await Promise.race([prepare(), new Promise<never>((_resolve, reject) => {
-                timer = setTimeout(() => { this.invalidate(); reject(new CommandNativeAdmissionError('cem.command.retirement.timeout')); }, timeoutMs);
+                timer = setTimeout(() => { this.invalidate(); reject(new CommandNativeAdmissionError('cem.command.retirement.timeout')); }, remaining);
             })]);
             parseCommandNativeRetirement(confirmation, proof.nativeClosure?.inventoryRevision ?? -1);
             // Trusted adapter callbacks run before the final original-owner check;
             // a reentrant input/owner mutation cancels retirement as well.
             if (handoff.current() !== true || !current()) throw new CommandNativeAdmissionError('cem.command.retirement.stale');
+            if (performance.now() >= deadline) throw new CommandNativeAdmissionError('cem.command.retirement.timeout');
             terminating = true;
             const completion = terminate();
             this.invalidate();

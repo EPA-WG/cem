@@ -9,8 +9,8 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [native publication generation enrollment](archive/todo-completed-native-publication-generation-enrollment-2026-10-31.md).
-The [complete native application publication](archive/todo-completed-complete-application-publication-2026-10-31.md) preserves the preceding stage.
+Latest completion: [physical generation retirement join](archive/todo-completed-physical-generation-retirement-join-2026-10-31.md).
+The [native publication generation enrollment](archive/todo-completed-native-publication-generation-enrollment-2026-10-31.md) preserves the preceding stage.
 
 Prioritize Studio functionality and presentation samples before unrelated helper
 work and physical-device/browser/AT acceptance. Examples remain ordinary projects
@@ -394,22 +394,17 @@ inventory, not the minimum set loaded by every app.
                         - [ ] Bind versioned application-envelope and mixed-receiver
                           publication to actual worker/owned-fallback generations
                           before transport endpoints or component admission.
-                          - [ ] Enroll CEMAPPD4 publication, exact registry selection,
-                            original receiving sources and all code/peer owners in
-                            generation inventories and retirement. Add native fixtures
-                            for draining, timeouts, cancellation, stale receipts and
-                            fresh source reimport/recompilation before new endpoints.
+                          Native publication enrollment and the [physical linked-runtime
+                          census/retirement/checkpoint join](archive/todo-completed-physical-generation-retirement-join-2026-10-31.md)
+                          are complete. CEMAPPD4 and its structural receiver remain
+                          native-only; no installation endpoint or admission is enabled.
 
-                            Original native admission/resource enrollment and its
-                            drain/reimport fixtures are [complete](archive/todo-completed-native-publication-generation-enrollment-2026-10-31.md).
-                            They do not yet identify physical JavaScript runtimes.
-
-                            - [ ] Join the native enrollment to actual shared worker/
-                              owned-fallback participants and complete native census
-                              retirement, ownership confirmation and checkpoint/journal
-                              handoff. Add physical-generation, callback-drain, deadline,
-                              cancellation, stale-proof and fresh-source fixtures before
-                              endpoints; keep transport/admission gated until joined.
+                          - [ ] Add versioned CEMAPPD4 source/code/registry-owner
+                            transport and original source reimport/recompilation on
+                            fresh WASM/worker/owned-fallback hosts. Finish the portable
+                            query-owner adapters below first; test original selectors,
+                            stale/foreign handles, disposal, cancellation, incomplete
+                            code closure and credential refusal before admission.
 
                 - [ ] Enroll portable query source/binding/invocation owners in
                   actual worker/owned-fallback generation and inventory groups;

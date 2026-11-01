@@ -732,9 +732,10 @@ pub fn resource_inventory_entries() -> Vec<cem_ml::runtime_inventory::RegistryIn
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen(js_name = "commandNativeResourceInventory")]
 pub fn command_native_resource_inventory() -> Result<String, wasm_bindgen::JsValue> {
+    let generation = cem_ml::runtime_admission::linked_generation().map_err(JsValue::from_str)?;
     let mut entries = cem_ml::api::wasm::resource_inventory_entries();
     entries.extend(resource_inventory_entries());
-    let inventory = cem_ml::runtime_inventory::RuntimeResourceInventory::collect(entries)
+    let inventory = generation.complete_inventory(entries)
         .map_err(wasm_bindgen::JsValue::from_str)?;
     serde_json::to_string(&inventory).map_err(|_| wasm_bindgen::JsValue::from_str("cem.runtime.inventory.serialization"))
 }
@@ -765,7 +766,8 @@ pub fn validate_command_native_closure(expected_revision: f64) -> Result<String,
     cem_ml::runtime_admission::ensure_idle_closed().map_err(JsValue::from_str)?;
     let mut entries = cem_ml::api::wasm::resource_inventory_entries();
     entries.extend(resource_inventory_entries());
-    let inventory = cem_ml::runtime_inventory::RuntimeResourceInventory::collect(entries).map_err(JsValue::from_str)?;
+    let generation = cem_ml::runtime_admission::linked_generation().map_err(JsValue::from_str)?;
+    let inventory = generation.complete_inventory(entries).map_err(JsValue::from_str)?;
     let proof = cem_ml::runtime_admission::validate(&inventory, expected_revision as u64).map_err(JsValue::from_str)?;
     serde_json::to_string(&proof).map_err(|_| JsValue::from_str("cem.runtime.admission.serialization"))
 }
@@ -775,17 +777,18 @@ pub fn validate_command_native_closure(expected_revision: f64) -> Result<String,
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub struct CommandNativeRetirement {
-    permit: cem_ml::runtime_admission::NativeRetirementPermit<'static>,
+    permit: cem_ml::runtime_admission::generation::GenerationRetirementPermit,
 }
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 impl CommandNativeRetirement {
     #[wasm_bindgen::prelude::wasm_bindgen(js_name = "confirmation")]
-    pub fn confirmation(&self) -> String {
-        serde_json::json!({ "schemaVersion": 1, "frozen": true,
+    pub fn confirmation(&self) -> Result<String, JsValue> {
+        if !self.permit.is_current() { return Err(JsValue::from_str("cem.runtime.retirement.stale")); }
+        Ok(serde_json::json!({ "schemaVersion": 1, "frozen": true,
             "inventoryRevision": self.permit.inventory_revision(),
             "frozenRevision": self.permit.frozen_revision(),
-            "replacementAllowed": false }).to_string()
+            "replacementAllowed": false }).to_string())
     }
 }
 
@@ -798,7 +801,8 @@ pub fn prepare_command_native_retirement(expected_revision: f64) -> Result<Comma
     cem_ml::runtime_admission::ensure_idle_closed().map_err(JsValue::from_str)?;
     let mut entries = cem_ml::api::wasm::resource_inventory_entries();
     entries.extend(resource_inventory_entries());
-    let inventory = cem_ml::runtime_inventory::RuntimeResourceInventory::collect(entries).map_err(JsValue::from_str)?;
+    let generation = cem_ml::runtime_admission::linked_generation().map_err(JsValue::from_str)?;
+    let inventory = generation.complete_inventory(entries).map_err(JsValue::from_str)?;
     let permit = cem_ml::runtime_admission::prepare_retirement(&inventory, expected_revision as u64).map_err(JsValue::from_str)?;
     Ok(CommandNativeRetirement { permit })
 }

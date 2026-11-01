@@ -93,6 +93,7 @@ impl NativeAdmission {
         let mut state = self.state.lock().map_err(|_| UNCERTAIN)?;
         if !state.closed
             || state.frozen
+            || state.generation_claimed
             || state.active != 0
             || !state.resources.is_empty()
             || state.uncertain
@@ -127,6 +128,9 @@ impl NativeAdmission {
             || state.active != 0
             || !state.resources.is_empty()
             || state.uncertain
+            || (state.generation_claimed
+                && (inventory.schema_version != 2
+                    || inventory.profile != "cem-ml-cem-ql-generation-v2"))
             || !inventory.complete
             || inventory.blocking_resources != 0
             || inventory.replacement_allowed
@@ -196,10 +200,19 @@ pub fn current_gate() -> Arc<NativeAdmission> {
     GATE.clone()
 }
 pub fn admit(cleanup: bool) -> Result<NativeEntry<'static>, &'static str> {
+    linked_generation()?;
     GATE.admit(cleanup)
 }
 pub fn close() -> Result<(), &'static str> {
+    linked_generation()?;
     GATE.close()
+}
+/// One original native owner per actual linked instance, shared by every bridge.
+/// It is not keyed by a host label and cannot move to another Memory/Worker.
+pub fn linked_generation() -> Result<&'static Arc<generation::NativeGeneration>, &'static str> {
+    static GENERATION: LazyLock<Result<Arc<generation::NativeGeneration>, &'static str>> =
+        LazyLock::new(generation::NativeGeneration::claim_current);
+    GENERATION.as_ref().map_err(|e| *e)
 }
 pub fn active_entries() -> usize {
     GATE.active_entries()
@@ -224,6 +237,9 @@ pub fn ensure_idle_closed() -> Result<(), &'static str> {
 pub fn prepare_retirement(
     inventory: &RuntimeResourceInventory,
     expected: u64,
-) -> Result<NativeRetirementPermit<'static>, &'static str> {
-    GATE.prepare_retirement(inventory, expected)
+) -> Result<generation::GenerationRetirementPermit, &'static str> {
+    let generation = linked_generation()?;
+    let drain = generation.begin_drain(std::time::Duration::from_secs(5), Default::default())?;
+    let witness = drain.seal()?;
+    drain.prepare_retirement(&witness, inventory, expected)
 }

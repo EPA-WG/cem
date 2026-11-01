@@ -63,7 +63,7 @@ ${source}
     const abandonPermit = CommandNativeRetirement.prototype.__destroy_into_raw;
     const freePermit = CommandNativeRetirement.prototype.free;
     const calls = Object.freeze({ ${functions.join(', ')} });
-    let initialization, retirement, initialized = false, dead = false;
+    let initialization, retirement, initialized = false, dead = false, disposing = false;
     const alive = () => { if (dead) throw new Error('cem.runtime.generation.retired'); };
     const ready = () => { alive(); if (!initialized) throw new Error('cem.runtime.generation.unavailable'); };
     const release = () => {
@@ -91,11 +91,12 @@ ${source}
         },
         prepareRetirement(expectedRevision) {
             ready();
-            if (retirement) throw new Error('cem.runtime.generation.retirement-pending');
+            if (retirement || disposing) throw new Error('cem.runtime.generation.retirement-pending');
             closeCommandNativeAdmission();
             const text = commandNativeResourceInventory();
             if (text.length > 16384) throw new Error('cem.runtime.generation.inventory');
             const inventory = JSON.parse(text);
+            if (inventory.schemaVersion !== 2 || inventory.profile !== 'cem-ml-cem-ql-generation-v2') throw new Error('cem.runtime.generation.inventory-profile');
             if (inventory.revision !== expectedRevision) throw new Error('cem.runtime.generation.inventory-stale');
             const permit = prepareCommandNativeRetirement(expectedRevision);
             try {
@@ -106,12 +107,15 @@ ${source}
         },
         abortRetirement() {
             ready();
+            if (disposing) throw new Error('cem.runtime.generation.retirement-pending');
             if (!retirement) return;
             const permit = retirement.permit; retirement = undefined;
             Reflect.apply(freePermit, permit, []);
         },
         dispose(current = () => true) {
             ready();
+            if (disposing) throw new Error('cem.runtime.generation.retirement-pending');
+            disposing = true;
             let permit;
             try {
                 if (retirement) permit = retirement.permit;
@@ -119,10 +123,15 @@ ${source}
                     closeCommandNativeAdmission();
                     const text = commandNativeResourceInventory();
                     if (text.length > 16384) throw new Error('cem.runtime.generation.inventory');
-                    permit = prepareCommandNativeRetirement(JSON.parse(text).revision);
+                    const inventory = JSON.parse(text);
+                    if (inventory.schemaVersion !== 2 || inventory.profile !== 'cem-ml-cem-ql-generation-v2') throw new Error('cem.runtime.generation.inventory-profile');
+                    permit = prepareCommandNativeRetirement(inventory.revision);
                 }
                 const confirmation = JSON.parse(Reflect.apply(confirmationOf, permit, []));
                 if (current() !== true) throw new Error('cem.runtime.generation.ownership-stale');
+                // A trusted synchronous owner callback may consume the deadline
+                // or mutate another native authority. Recheck the original permit.
+                Reflect.apply(confirmationOf, permit, []);
                 // Keep native mutation frozen while dropping its sole JS owner.
                 Reflect.apply(abandonPermit, permit, []);
                 retirement = undefined; release();
@@ -131,7 +140,7 @@ ${source}
                 retirement = undefined;
                 if (!dead && permit) Reflect.apply(freePermit, permit, []);
                 throw error;
-            }
+            } finally { disposing = false; }
         },
     });
 }

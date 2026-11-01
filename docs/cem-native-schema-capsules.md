@@ -1181,12 +1181,12 @@ authority. One admission object can be claimed once, and ordinary closure is
 monotonic. A new wrapper around the old closed object cannot create a fresh
 generation. Dropping the original generation owner closes its admission gate.
 
-This is a native prerequisite for worker/owned-fallback enrollment. It does not
-claim that a caller-provided native admission object identifies a JavaScript
-Worker or Memory. The future shared physical adapter must use the actual linked
-instance and original participant, and join its complete native census,
-ownership confirmation and checkpoint/journal handoff before retirement or
-transport. No CEMAPPD4 worker/fallback endpoint is introduced here.
+`runtime_admission::linked_generation()` retains one original generation per
+actual linked runtime instance. Every shared native entry and closure uses this
+same owner. Native embeddings use that accessor when enrolling hosts in the
+linked runtime; claiming an unrelated caller-created admission object does not
+identify a JavaScript Worker or Memory. The [physical join](#physical-generation-census-and-checkpoint-handoff)
+below connects that linked owner to existing worker/owned-fallback retirement.
 
 `FreshStructuralHost::new_in_generation` binds an empty actual host before source
 scope, lexical context, native implementation or compilation registration.
@@ -1232,14 +1232,13 @@ current proofs. A native cleanup entry or resource mutation invalidates a prior
 witness even when counts return to zero. Failed attempts leave ordinary admission
 closed; cleanup can finish and a new original drain can be prepared.
 
-This witness is scoped enrollment evidence, **not** the existing full
-`NativeRetirementPermit` and not replacement authority. The original complete
-command census format and registry list are unchanged. Its admission validator
-and retirement freeze additionally reject any live enrolled roots under the same
-lock, so a forged or otherwise incomplete zero-root DTO cannot bypass these
-objects. The physical adapter still needs to join the original enrolled proof
-with the complete census/ownership and private retirement permit at the final
-boundary; a scoped inventory cannot replace those checks.
+This witness is scoped enrollment evidence and grants no replacement authority.
+The legacy complete command census remains unchanged; physical linked runtimes
+use the separately versioned complete census and original joined permit below.
+An enrolled gate refuses the legacy freeze path. Live enrolled roots also block
+closure validation under the native lock, so an incomplete zero-root DTO cannot
+bypass those owners. A scoped inventory cannot replace the complete census or
+original embedding/checkpoint checks.
 
 The [core fixtures](../packages/cem_ml/tests/runtime_generation.rs) cover owned
 work, exact retained roots, limits, duplicate claims/drains, count-preserving
@@ -1252,12 +1251,73 @@ do not impersonate physical JavaScript runtimes using labels. Same pinned bytes
 on a fresh host do not admit the old compilation or receipt.
 
 No metadata reconstructs live handles, no original source is fabricated and no
-native tree passes through JSON. Physical worker/fallback participant joining,
-fresh-heap source/registry-owner transport, portable query-owner adapters and
-component admission remain gates. Link-closure/admission flags stay false.
+native tree passes through JSON. Fresh-heap source/registry-owner transport,
+portable query-owner adapters and component admission remain gates.
+Link-closure/admission flags stay false.
 Entered credentials still block recovery until explicitly cleared; automatic
 whole-Studio recovery stays off, with 4 MiB checkpoints and five-second deadlines.
-No production JavaScript or component/theme implementation changed.
+Component/theme implementations and declarative UI ownership are unchanged.
+
+## Physical generation census and checkpoint handoff
+
+Each full linked WASM instance now retains its original native generation before
+admitting its first shared entry. Workers use their own linked instance; owned
+fallback factories close over one instance and Memory each. Fresh allocation
+initializes a new native owner. The shared original-participant registry still
+uses actual Worker/Memory identity, never a runtime label or serialized receipt.
+
+`commandNativeResourceInventory` emits schema version 2 and profile
+`cem-ml-cem-ql-generation-v2`: the complete 30-registry base manifest plus
+`enrolled-hosts`, `enrolled-compilations`, `enrolled-registries`,
+`enrolled-publications`, `enrolled-preparations` and `enrolled-evidence`.
+These additional counts come from the original admission object's live ledger.
+Missing/unknown/duplicate entries, unapproved discardable roots, overflow and
+incomplete base manifests refuse collection. V1 readers refuse this distinct
+profile; legacy native collectors and v1 DTO parsing retain their prior contract.
+The managed parser checks the exact v2 manifest. Counters remain control metadata,
+never an AST, source export or portable authority.
+
+At final native preparation, the owning transport collects the complete native
+census again, starts an original bounded drain, seals its exact local revision
+and joins both revisions under the admission lock. The private
+`GenerationRetirementPermit` freezes ordinary entries and cleanup only while all
+actual enrolled roots, active work and complete-census blockers are zero. Foreign
+or stale witnesses, native changes, cancellation and deadlines refuse. The permit
+retains its original drain; dropping a temporary preparation object does not
+discard that proof. Cancellation/expiry never reopen cleanup automatically;
+only dropping the original permit does so, while ordinary admission stays closed.
+
+Bounded lifecycle checks retain cancellation, deadlines and previously recorded
+failures without attempting ordinary work-memory admission. This keeps drain/
+retirement available under hard memory pressure using recovery headroom. It
+admits no source parsing, rendering or new work; live roots still block the
+complete census. Prior failures are never cleared to obtain a permit.
+
+The original joined permit retains the five-field native scalar confirmation.
+Rendering workers additionally attest the v2 profile read from their fresh
+native census; host adapters refuse older worker acknowledgments. Managed command
+retirement also requires an original coordinated v2 census. Legacy v1 snapshots
+remain readable for inspection and cannot authorize this physical retirement.
+The adapters' host paths still require complete original embedding/publication/source coverage,
+retained sealed checkpoint/journal bytes and final currentness checks before
+physical termination or dropping owned references. Native confirmation is
+rechecked after fallback ownership callbacks. Reentrant disposal/abort is fenced;
+synchronous callbacks cannot consume the remaining host deadline and then retire.
+Failed or late preparation preserves host bytes, grants no replacement receipt
+and follows existing bounded abort/fencing rules. No command or external effect
+is replayed. Legacy fallback globals still cannot claim owned disposal.
+
+This joins physical lifecycle infrastructure; CEMAPPD4 and its structural receiver
+remain native-only. New envelope/query-owner transport, original source/code/
+registry reimport on fresh WASM hosts and reduced component admission are still
+separate gates. No application-installation endpoint is added. Credential policy,
+4 MiB whole-workspace checkpoints, five-second deadlines and disabled automatic
+Studio recovery remain unchanged.
+
+See [native join fixtures](../packages/cem_ml/tests/generation_retirement.rs),
+[real independent-memory checks](../packages/cem_ql/tests/owned-generation-wasm.mjs),
+[command worker/handoff checks](../packages/cem-ml-cli-npm/tests/native-retirement.test.mjs)
+and [shared host deadline checks](../packages/cem-elements/src/lib/internal/runtime-support/checkpoint-domain.spec.ts).
 
 ## Native application receiver assembly
 

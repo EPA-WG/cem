@@ -398,7 +398,7 @@ describe('publication-backed rendering retirement', () => {
         const domain = new CemNativeCheckpointDomain('worker'), client = domain.client();
         let preparations = 0, terminations = 0;
         domain.retirementEndpoint({ close: async () => undefined, prepare: async () => {
-            preparations++; return { schemaVersion: 1, frozen: true, inventoryRevision: 10, frozenRevision: 11, replacementAllowed: false };
+            preparations++; return { schemaVersion: 1, profile: 'cem-ml-cem-ql-generation-v2', frozen: true, inventoryRevision: 10, frozenRevision: 11, replacementAllowed: false };
         }, abort: async () => undefined, terminate: () => { terminations++; } });
         const c = new CemCheckpointPublicationCoordinator(options());
         const a = c.register('a', () => '<template>unsaved</template>', () => true, 0, () => [],

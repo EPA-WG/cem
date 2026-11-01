@@ -127,14 +127,48 @@ pub struct RuntimeResourceInventory {
     pub replacement_allowed: bool,
 }
 impl RuntimeResourceInventory {
-    pub fn collect(mut entries: Vec<RegistryInventory>) -> Result<Self, &'static str> {
-        if EXHAUSTED.load(Ordering::SeqCst) || entries.len() != COMMAND_REGISTRIES.len() {
+    pub fn collect(entries: Vec<RegistryInventory>) -> Result<Self, &'static str> {
+        Self::collect_profile(
+            entries,
+            COMMAND_REGISTRIES.to_vec(),
+            1,
+            "cem-ml-cem-ql-command-v1",
+        )
+    }
+    pub(crate) fn collect_generation(
+        mut entries: Vec<RegistryInventory>,
+        roots: &crate::runtime_admission::EnrolledInventory,
+    ) -> Result<Self, &'static str> {
+        // Require the complete base manifest before adding actual enrollment.
+        if entries.len() != COMMAND_REGISTRIES.len() {
+            return Err("cem.runtime.inventory.incomplete");
+        }
+        Self::collect(entries.clone())?;
+        let mut expected = COMMAND_REGISTRIES.to_vec();
+        for kind in crate::runtime_admission::NativeRootKind::ALL {
+            expected.push(kind.registry_name());
+            entries.push(RegistryInventory::new(
+                kind.registry_name(),
+                roots.roots.get(&kind).copied().unwrap_or(0) as u64,
+                0,
+            ));
+        }
+        expected.sort_unstable();
+        Self::collect_profile(entries, expected, 2, "cem-ml-cem-ql-generation-v2")
+    }
+    fn collect_profile(
+        mut entries: Vec<RegistryInventory>,
+        expected: Vec<&str>,
+        schema_version: u8,
+        profile: &'static str,
+    ) -> Result<Self, &'static str> {
+        if EXHAUSTED.load(Ordering::SeqCst) || entries.len() != expected.len() {
             return Err("cem.runtime.inventory.incomplete");
         }
         entries.sort_by(|a, b| a.name.cmp(&b.name));
         let mut blocking = 0u64;
-        for (entry, expected) in entries.iter().zip(COMMAND_REGISTRIES) {
-            if entry.name != *expected
+        for (entry, expected) in entries.iter().zip(expected) {
+            if entry.name != expected
                 || entry.live > MAX_SAFE
                 || entry.discardable > MAX_SAFE
                 || (entry.discardable != 0
@@ -155,8 +189,8 @@ impl RuntimeResourceInventory {
                 .ok_or("cem.runtime.inventory.limit")?;
         }
         Ok(Self {
-            schema_version: 1,
-            profile: "cem-ml-cem-ql-command-v1",
+            schema_version,
+            profile,
             revision: inventory_revision(),
             complete: true,
             blocking_resources: blocking,

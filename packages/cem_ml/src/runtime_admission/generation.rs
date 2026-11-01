@@ -48,6 +48,12 @@ impl NativeGeneration {
     pub fn inventory(&self) -> Result<EnrolledInventory, &'static str> {
         self.gate.enrolled_inventory()
     }
+    pub fn complete_inventory(
+        &self,
+        entries: Vec<crate::runtime_inventory::RegistryInventory>,
+    ) -> Result<RuntimeResourceInventory, &'static str> {
+        RuntimeResourceInventory::collect_generation(entries, &self.inventory()?)
+    }
     pub fn begin_drain(
         self: &Arc<Self>,
         timeout: Duration,
@@ -57,7 +63,7 @@ impl NativeGeneration {
             return Err("cem.runtime.generation.deadline");
         }
         control
-            .check_scope(ROOT_EXECUTION_SCOPE_ID)
+            .check_lifecycle_scope(ROOT_EXECUTION_SCOPE_ID)
             .map_err(|_| INVALID)?;
         let mut current = self.drain.lock().map_err(|_| UNCERTAIN)?;
         if current.upgrade().is_some() {
@@ -86,7 +92,7 @@ struct DrainState {
 impl DrainState {
     fn current(&self) -> Result<Arc<NativeGeneration>, &'static str> {
         self.control
-            .check_scope(ROOT_EXECUTION_SCOPE_ID)
+            .check_lifecycle_scope(ROOT_EXECUTION_SCOPE_ID)
             .map_err(|_| INVALID)?;
         if Instant::now() >= self.deadline {
             return Err("cem.runtime.generation.timeout");
@@ -125,6 +131,91 @@ impl GenerationDrain {
             drain: Arc::downgrade(&self.state),
             revision: inventory.revision,
         })
+    }
+    /// Join the original scoped witness and complete linked census under the
+    /// same lock that excludes both ordinary work and cleanup. No DTO is a permit.
+    pub fn prepare_retirement(
+        &self,
+        witness: &GenerationDrainWitness,
+        inventory: &RuntimeResourceInventory,
+        expected: u64,
+    ) -> Result<GenerationRetirementPermit, &'static str> {
+        if !witness
+            .drain
+            .upgrade()
+            .is_some_and(|d| Arc::ptr_eq(&d, &self.state))
+        {
+            return Err(INVALID);
+        }
+        let generation = self.state.current()?;
+        let mut state = generation.gate.state.lock().map_err(|_| UNCERTAIN)?;
+        if !state.closed
+            || state.frozen
+            || state.uncertain
+            || state.active != 0
+            || !state.generation_claimed
+            || !state.resources.is_empty()
+            || state.revision != witness.revision
+            || inventory.schema_version != 2
+            || inventory.profile != "cem-ml-cem-ql-generation-v2"
+            || !inventory.complete
+            || inventory.blocking_resources != 0
+            || inventory.replacement_allowed
+            || inventory.revision != expected
+            || inventory_revision() != expected
+        {
+            return Err("cem.runtime.retirement.stale");
+        }
+        // Recheck cancellation/deadline at the atomic native freeze boundary.
+        self.state
+            .control
+            .check_lifecycle_scope(ROOT_EXECUTION_SCOPE_ID)
+            .map_err(|_| INVALID)?;
+        if Instant::now() >= self.state.deadline {
+            return Err("cem.runtime.generation.timeout");
+        }
+        state.frozen = true;
+        mutation(&mut state);
+        Ok(GenerationRetirementPermit {
+            gate: generation.gate.clone(),
+            drain: self.state.clone(),
+            inventory_revision: expected,
+            frozen_revision: inventory_revision(),
+        })
+    }
+}
+/// Original nonportable barrier retained by the physical runtime transport.
+pub struct GenerationRetirementPermit {
+    gate: Arc<NativeAdmission>,
+    drain: Arc<DrainState>,
+    inventory_revision: u64,
+    frozen_revision: u64,
+}
+impl GenerationRetirementPermit {
+    pub fn inventory_revision(&self) -> u64 {
+        self.inventory_revision
+    }
+    pub fn frozen_revision(&self) -> u64 {
+        self.frozen_revision
+    }
+    pub fn is_current(&self) -> bool {
+        self.drain.current().is_ok()
+            && self.gate.state.lock().is_ok_and(|s| {
+                s.closed
+                    && s.frozen
+                    && !s.uncertain
+                    && s.active == 0
+                    && s.resources.is_empty()
+                    && inventory_revision() == self.frozen_revision
+            })
+    }
+}
+impl Drop for GenerationRetirementPermit {
+    fn drop(&mut self) {
+        if let Ok(mut state) = self.gate.state.lock() {
+            state.frozen = false;
+            mutation(&mut state);
+        }
     }
 }
 /// Private original issuer + revision; a serialized inventory is not this proof.

@@ -536,11 +536,13 @@ export async function retireNativeRenderingGeneration(
         const confirmation = await retirementDeadline(() => endpoint.prepare(), Math.max(1, Math.floor(remaining)));
         if (!confirmation || typeof confirmation !== 'object') throw new Error('cem.runtime.retirement.confirmation');
         const record = confirmation as Record<string, unknown>;
-        if (Object.keys(record).length !== 5 || record.schemaVersion !== 1 || record.frozen !== true || record.replacementAllowed !== false
+        if (Object.keys(record).length !== 6 || record.profile !== 'cem-ml-cem-ql-generation-v2'
+            || record.schemaVersion !== 1 || record.frozen !== true || record.replacementAllowed !== false
             || !Number.isSafeInteger(record.inventoryRevision) || (record.inventoryRevision as number) < 1
             || !Number.isSafeInteger(record.frozenRevision) || (record.frozenRevision as number) <= (record.inventoryRevision as number))
             throw new Error('cem.runtime.retirement.confirmation');
         if (handoff.current() !== true || !current()) throw new Error('cem.runtime.retirement.stale');
+        if (performance.now() - started >= timeoutMs) throw new Error('cem.runtime.retirement.timeout');
         endpoint.terminate(); domain.revoke();
         return completedRenderingRetirement(domain, checkpoint);
     } catch (error) {

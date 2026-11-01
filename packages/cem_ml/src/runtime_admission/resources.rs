@@ -10,6 +10,26 @@ pub enum NativeRootKind {
     Preparation,
     Evidence,
 }
+impl NativeRootKind {
+    pub const ALL: [Self; 6] = [
+        Self::Host,
+        Self::Compilation,
+        Self::Registry,
+        Self::Publication,
+        Self::Preparation,
+        Self::Evidence,
+    ];
+    pub fn registry_name(self) -> &'static str {
+        match self {
+            Self::Host => "enrolled-hosts",
+            Self::Compilation => "enrolled-compilations",
+            Self::Registry => "enrolled-registries",
+            Self::Publication => "enrolled-publications",
+            Self::Preparation => "enrolled-preparations",
+            Self::Evidence => "enrolled-evidence",
+        }
+    }
+}
 const MAX_RESOURCES: usize = 256;
 pub struct OwnedNativeEntry {
     gate: Arc<NativeAdmission>,

@@ -5,8 +5,7 @@ import { CommandNativeClientCheckpoint } from '../dist/native-admission.js';
 import { parseCommandNativeRetirement } from '../dist/native-embedding.js';
 import { CemNativeGenerationGroup, createNodeCommandServiceClient } from '../dist/node.js';
 
-const inventory = { schemaVersion: 1, profile: 'cem-ml-cem-ql-command-v1', revision: 3, complete: true,
-    blockingResources: 0, registries: [{ name: 'native-entries', live: 0, discardable: 0 }], replacementAllowed: false };
+const inventory = { ...JSON.parse(native.commandNativeResourceInventory()), revision: 3 };
 const response = { revision: 1, scope: 'managed-cli-only', replacementAllowed: false, nativeInventory: inventory,
     nativeClosure: { schemaVersion: 1, closed: true, inventoryRevision: 3, replacementAllowed: false } };
 const confirmation = { schemaVersion: 1, frozen: true, inventoryRevision: 3, frozenRevision: 4, replacementAllowed: false };
@@ -19,6 +18,18 @@ async function state() {
 const host = { currentRevision: ({ project }) => ({ project, resourceVersions: {} }),
     readResource: () => { throw Error('unexpected read'); }, prepareWrite: () => { throw Error('unexpected write'); },
     commitWrite: () => { throw Error('unexpected commit'); }, rollbackWrite: () => undefined };
+
+test('a legacy coordinated census remains inspectable but cannot authorize joined physical retirement', async () => {
+    const s = new CommandNativeClientCheckpoint(() => true), owner = s.claimEmbedding();
+    const legacy = { ...inventory, schemaVersion: 1, profile: 'cem-ml-cem-ql-command-v1',
+        registries: inventory.registries.filter(entry => !entry.name.startsWith('enrolled-')) };
+    const proof = await s.capture(async () => ({ ...response, nativeInventory: legacy }), 1000, [owner], 'close');
+    assert.equal(s.current(proof), true);
+    let preparations = 0;
+    await assert.rejects(s.retire(proof, [owner], handoff(), async () => { preparations++; return confirmation; },
+        async () => undefined, async () => { throw Error('unexpected termination'); }), { code: 'cem.command.retirement.inventory-profile' });
+    assert.equal(preparations, 0);
+});
 
 test('retirement confirmations are bounded evidence, never release or replacement permits', () => {
     parseCommandNativeRetirement(confirmation, 3);
@@ -173,4 +184,16 @@ test('cancelled fresh startup terminates immediately and never accepts late init
     const pending = initializeFreshGeneration(active.signal, () => new Promise(done => { resolve = done; }), () => terminated++);
     active.abort(); await assert.rejects(pending, /cancelled/); resolve('late');
     assert.equal(terminated, 2);
+});
+
+test('synchronous handoff callbacks cannot consume the final retirement deadline', async () => {
+    const f = await state(); let checks = 0, terminated = 0, aborted = 0;
+    const source = handoff();
+    source.current = () => {
+        if (++checks === 3) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 40);
+        return true;
+    };
+    await assert.rejects(f.state.retire(f.proof, [f.owner], source, async () => confirmation,
+        async () => { aborted++; }, async () => { terminated++; }, 10), { code: 'cem.command.retirement.timeout' });
+    assert.equal(terminated, 0); assert.equal(aborted, 1);
 });

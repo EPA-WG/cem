@@ -201,11 +201,13 @@ async function retirementControl(request: CemRenderingRetirementControl): Promis
             // even after every managed render resource has been released.
             const inventory = renderingNativeResourceInventory();
             if (inventory.length > 65536) throw new Error('cem.runtime.retirement.inventory');
-            const revision = JSON.parse(inventory).revision;
-            permit = prepareRenderingNativeRetirement(revision);
+            const census = JSON.parse(inventory);
+            if (census.schemaVersion !== 2 || census.profile !== 'cem-ml-cem-ql-generation-v2')
+                throw new Error('cem.runtime.retirement.inventory-profile');
+            permit = prepareRenderingNativeRetirement(census.revision);
             const text = permit.confirmation();
             if (text.length > 512) throw new Error('cem.runtime.retirement.confirmation');
-            confirmation = JSON.parse(text);
+            confirmation = { ...JSON.parse(text), profile: census.profile };
         } else {
             permit?.free(); permit = undefined;
         }

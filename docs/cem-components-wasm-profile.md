@@ -391,13 +391,15 @@ and issuer-bound preparation budgets. Atomic group replacement observes every
 required weak owner. The [CEMAPPD4 publication](cem-native-schema-capsules.md#versioned-complete-application-publication)
 now composes the parent and mixed declarations, recomputes template/query registry
 demand and atomically installs one live native guard over registry, code and peer
-owners. Generation-bound transport/checkpoint enrollment and linked-code
-attestation remain gates. [Native generation enrollment](cem-native-schema-capsules.md#native-publication-generation-enrollment)
+owners. Fresh-host envelope transport and linked-code attestation remain gates.
+[Native generation enrollment](cem-native-schema-capsules.md#native-publication-generation-enrollment)
 now binds original hosts, code/registry/publication owners and preparation
 lifetimes to the actual native admission object, with owned activity, retained
-root counters and original deadline-bound drain witnesses. The physical
-worker/fallback participant and full-census join still precede transport; no
-portable/runtime admission is implied.
+root counters and original deadline-bound drain witnesses. The [physical join](cem-native-schema-capsules.md#physical-generation-census-and-checkpoint-handoff)
+now binds the linked owner to existing worker/owned-fallback retirement through
+the complete v2 census, original native freeze and checkpoint/journal handoff.
+CEMAPPD4/query-owner source transport and fresh WASM reimport remain separate;
+no portable/runtime admission is implied.
 
 
 Do not equate downloaded code with an active native generation. Register every

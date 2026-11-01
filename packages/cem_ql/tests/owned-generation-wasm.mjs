@@ -12,10 +12,26 @@ assert.notEqual(first.memory(), second.memory());
 assert.notEqual(first.memory(), legacy.commandNativeMemoryIdentity());
 const compile = runtime => JSON.parse(runtime.call('compileTemplate', ['{p | Owned source}', '[]'])).artifactId;
 const a = compile(first), b = compile(second), raw = JSON.parse(legacy.compileTemplate('{p | Legacy source}', '[]')).artifactId;
+const source = first.call('parseReferenceSource', [new TextEncoder().encode('<original/>'), 'application/xml', 'memory:original-source', '{"maxBytes":262144,"maxNodes":4096}']);
+const census = runtime => JSON.parse(runtime.call('commandNativeResourceInventory', []));
+const originalCensus = census(first);
+assert.equal(originalCensus.schemaVersion, 2);
+assert.equal(originalCensus.profile, 'cem-ml-cem-ql-generation-v2');
+assert.equal(originalCensus.registries.length, 36);
+assert.equal(originalCensus.registries.filter(entry => entry.name.startsWith('enrolled-')).length, 6);
 assert.ok(a && b && raw);
 assert.throws(() => first.dispose(), /resources|inventory|retirement/);
 // A refused disposal leaves cleanup available under permanently closed admission.
 assert.equal(first.call('disposeTemplate', [a]), true);
+assert.equal(census(first).registries.find(entry => entry.name === 'reference-sources').live, 1);
+assert.throws(() => first.prepareRetirement(census(first).revision), /resources|drained|retirement/);
+assert.equal(first.call('disposeReferenceSource', [source]), true);
+const staleCensus = census(first);
+first.call('disposeTemplate', [0]); // Count-preserving native cleanup invalidates the old census.
+assert.throws(() => first.prepareRetirement(staleCensus.revision), /inventory-stale/);
+first.prepareRetirement(census(first).revision);
+assert.throws(() => first.dispose(() => { first.abortRetirement(); return true; }), /retirement-pending/);
+assert.ok(first.memory(), 'reentrant abort must preserve the original physical memory');
 const savedAlias = (...args) => first.call('runtimeMemoryStatus', args);
 assert.throws(() => first.dispose(() => false), /ownership-stale/);
 assert.ok(first.memory());
@@ -74,3 +90,15 @@ try {
     const retry = retryFactory.createCemQlWasmGeneration(); await retry.initialize();
     assert.equal(attempts, 2); retry.dispose();
 } finally { globalThis.fetch = fetchOriginal; }
+
+const pressured = createCemQlWasmGeneration(); await pressured.initialize(bytes);
+const pressureRoot = compile(pressured);
+pressured.call('configureRuntimeMemoryBudget', [JSON.stringify({ softLimitBytes: 1, hardLimitBytes: 65536,
+    recoveryHeadroomBytes: 32768, maxConcurrentOperations: 1 })]);
+assert.equal(JSON.parse(pressured.call('runtimeMemoryStatus', [])).hardPressure, true);
+assert.ok(JSON.parse(pressured.call('compileTemplate', ['{p | refused}', '[]'])).diagnostics.some(entry => entry.code === 'cem.runtime.memory.admission'));
+assert.throws(() => pressured.dispose(), /resources|drained|retirement|generation/);
+assert.equal(pressured.call('disposeTemplate', [pressureRoot]), true);
+assert.equal(pressured.dispose().replacementAllowed, false);
+assert.equal(pressured.memory(), undefined);
+console.log('Joined v2 census, native source roots, stale cleanup/reentrant refusal and hard-pressure retirement passed.');
