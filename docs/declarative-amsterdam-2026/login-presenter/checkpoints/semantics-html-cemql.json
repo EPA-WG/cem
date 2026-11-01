@@ -1,0 +1,114 @@
+{
+  "language": "cem-ql",
+  "result": {
+    "diagnostics": [],
+    "error": null,
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "screen=login"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "title-id=login-title"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "title=Sign in"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "labelled-by=login-title"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "form=sign-in"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "method=post"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "action=#session"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "email-id=email"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "email-type=email"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "email-autocomplete=email"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "email-required=true"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "email-label=Email"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "password-id=password"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "password-type=password"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "password-autocomplete=current-password"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "password-required=true"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "password-label=Password"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "submit-type=submit"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "submit-action=primary"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "submit-text=Sign in"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "inputs=2"
+      }
+    ]
+  }
+}

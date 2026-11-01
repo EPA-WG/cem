@@ -6,6 +6,14 @@ Follow the [active sample checklist](../todo.md#amsterdam-presentation-samples-a
 and [delivery checklist](../todo.md#amsterdam-presentation-setup-and-rehearsal).
 The dated notes below retain their historical implementation evidence.
 
+Presenter freeze (2026-11-01): the ordinary Login 2.8.1 project at `c5e5b892`
+now has a [portable input archive and saved checkpoint outputs](../declarative-amsterdam-2026/login-presenter/README.md).
+Run `yarn nx run @epa-wg/cem-studio:verify:login-presenter` to check input
+identity and replay all 21 native results, including failure/repair and original
+diagnostics. Deployed navigation/live preview and offline draft acceptance passed
+at that baseline. Participant access/install verification, delivery materials and
+timed rehearsal remain open; this freeze does not assert public availability.
+
 Started 2026-10-10 before clearing chat context; updated 2026-10-11 after agenda
 alignment. The user requested a temporary switch from implementation to preparing
 the CEM presentation for Declarative Amsterdam 2026. The user changed priority

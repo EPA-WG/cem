@@ -1,0 +1,1603 @@
+[
+  {
+    "uri": "data/login.html",
+    "line": 8,
+    "column": 35,
+    "byteOffset": 170,
+    "code": "cem.ast.unresolved_reference",
+    "severity": "warning",
+    "message": "reference `login-title` did not match any element id",
+    "details": {
+      "behavior": "cem-ml-ast-report-fact",
+      "contract": "ast-unresolved-reference",
+      "coordinates": {
+        "byteOffset": 170,
+        "column": 35,
+        "columnEncoding": "utf-16",
+        "line": 8,
+        "utf16Column": 35,
+        "utf16Offset": 170
+      },
+      "factKind": "ast-unresolved-reference",
+      "policy": "AST reference slots remain neutral facts until schema policy decides their diagnostic disposition",
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 703,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 703,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 22,
+                  "utf16Column": 1,
+                  "utf16Offset": 703
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 140,
+                "end": {
+                  "byteOffset": 145,
+                  "column": 10,
+                  "columnEncoding": "utf-16",
+                  "line": 8,
+                  "utf16Column": 10,
+                  "utf16Offset": 145
+                },
+                "start": {
+                  "byteOffset": 140,
+                  "column": 5,
+                  "columnEncoding": "utf-16",
+                  "line": 8,
+                  "utf16Column": 5,
+                  "utf16Offset": 140
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 15,
+                "byteStart": 170,
+                "end": {
+                  "byteOffset": 185,
+                  "column": 50,
+                  "columnEncoding": "utf-16",
+                  "line": 8,
+                  "utf16Column": 50,
+                  "utf16Offset": 185
+                },
+                "start": {
+                  "byteOffset": 170,
+                  "column": 35,
+                  "columnEncoding": "utf-16",
+                  "line": 8,
+                  "utf16Column": 35,
+                  "utf16Offset": 170
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 15,
+                "byteStart": 170,
+                "end": {
+                  "byteOffset": 185,
+                  "column": 50,
+                  "columnEncoding": "utf-16",
+                  "line": 8,
+                  "utf16Column": 50,
+                  "utf16Offset": 185
+                },
+                "start": {
+                  "byteOffset": 170,
+                  "column": 35,
+                  "columnEncoding": "utf-16",
+                  "line": 8,
+                  "utf16Column": 35,
+                  "utf16Offset": 170
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      },
+      "sourceRange": {
+        "byteOffset": 170
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 703
+            }
+          },
+          "transform": {
+            "kind": "HtmlTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 140,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 170,
+              "len": 15
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 170,
+              "len": 15
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login.html",
+    "line": 11,
+    "column": 16,
+    "byteOffset": 325,
+    "code": "cem.ast.unresolved_reference",
+    "severity": "warning",
+    "message": "reference `email` did not match any element id",
+    "details": {
+      "behavior": "cem-ml-ast-report-fact",
+      "contract": "ast-unresolved-reference",
+      "coordinates": {
+        "byteOffset": 325,
+        "column": 16,
+        "columnEncoding": "utf-16",
+        "line": 11,
+        "utf16Column": 16,
+        "utf16Offset": 325
+      },
+      "factKind": "ast-unresolved-reference",
+      "policy": "AST reference slots remain neutral facts until schema policy decides their diagnostic disposition",
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 703,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 703,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 22,
+                  "utf16Column": 1,
+                  "utf16Offset": 703
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 6,
+                "byteStart": 318,
+                "end": {
+                  "byteOffset": 324,
+                  "column": 15,
+                  "columnEncoding": "utf-16",
+                  "line": 11,
+                  "utf16Column": 15,
+                  "utf16Offset": 324
+                },
+                "start": {
+                  "byteOffset": 318,
+                  "column": 9,
+                  "columnEncoding": "utf-16",
+                  "line": 11,
+                  "utf16Column": 9,
+                  "utf16Offset": 318
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 325,
+                "end": {
+                  "byteOffset": 328,
+                  "column": 19,
+                  "columnEncoding": "utf-16",
+                  "line": 11,
+                  "utf16Column": 19,
+                  "utf16Offset": 328
+                },
+                "start": {
+                  "byteOffset": 325,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 11,
+                  "utf16Column": 16,
+                  "utf16Offset": 325
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 325,
+                "end": {
+                  "byteOffset": 328,
+                  "column": 19,
+                  "columnEncoding": "utf-16",
+                  "line": 11,
+                  "utf16Column": 19,
+                  "utf16Offset": 328
+                },
+                "start": {
+                  "byteOffset": 325,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 11,
+                  "utf16Column": 16,
+                  "utf16Offset": 325
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      },
+      "sourceRange": {
+        "byteOffset": 325
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 703
+            }
+          },
+          "transform": {
+            "kind": "HtmlTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 318,
+              "len": 6
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 325,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 325,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login.html",
+    "line": 14,
+    "column": 16,
+    "byteOffset": 450,
+    "code": "cem.ast.unresolved_reference",
+    "severity": "warning",
+    "message": "reference `password` did not match any element id",
+    "details": {
+      "behavior": "cem-ml-ast-report-fact",
+      "contract": "ast-unresolved-reference",
+      "coordinates": {
+        "byteOffset": 450,
+        "column": 16,
+        "columnEncoding": "utf-16",
+        "line": 14,
+        "utf16Column": 16,
+        "utf16Offset": 450
+      },
+      "factKind": "ast-unresolved-reference",
+      "policy": "AST reference slots remain neutral facts until schema policy decides their diagnostic disposition",
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 703,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 703,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 22,
+                  "utf16Column": 1,
+                  "utf16Offset": 703
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 6,
+                "byteStart": 443,
+                "end": {
+                  "byteOffset": 449,
+                  "column": 15,
+                  "columnEncoding": "utf-16",
+                  "line": 14,
+                  "utf16Column": 15,
+                  "utf16Offset": 449
+                },
+                "start": {
+                  "byteOffset": 443,
+                  "column": 9,
+                  "columnEncoding": "utf-16",
+                  "line": 14,
+                  "utf16Column": 9,
+                  "utf16Offset": 443
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 450,
+                "end": {
+                  "byteOffset": 453,
+                  "column": 19,
+                  "columnEncoding": "utf-16",
+                  "line": 14,
+                  "utf16Column": 19,
+                  "utf16Offset": 453
+                },
+                "start": {
+                  "byteOffset": 450,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 14,
+                  "utf16Column": 16,
+                  "utf16Offset": 450
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 450,
+                "end": {
+                  "byteOffset": 453,
+                  "column": 19,
+                  "columnEncoding": "utf-16",
+                  "line": 14,
+                  "utf16Column": 19,
+                  "utf16Offset": 453
+                },
+                "start": {
+                  "byteOffset": 450,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 14,
+                  "utf16Column": 16,
+                  "utf16Offset": 450
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      },
+      "sourceRange": {
+        "byteOffset": 450
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 703
+            }
+          },
+          "transform": {
+            "kind": "HtmlTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 443,
+              "len": 6
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 450,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 450,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login.html",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.lint.relaxed_content_boundary",
+    "severity": "warning",
+    "message": "element `html` uses the relaxed content boundary; insert `|` (or `▷`) before the content for canonical CEM-ML",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 703,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 703,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 22,
+                  "utf16Column": 1,
+                  "utf16Offset": 703
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 16,
+                "end": {
+                  "byteOffset": 21,
+                  "column": 6,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 6,
+                  "utf16Offset": 21
+                },
+                "start": {
+                  "byteOffset": 16,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 1,
+                  "utf16Offset": 16
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 703
+            }
+          },
+          "transform": {
+            "kind": "HtmlTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 16,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login.html",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.lint.relaxed_content_boundary",
+    "severity": "warning",
+    "message": "element `head` uses the relaxed content boundary; insert `|` (or `▷`) before the content for canonical CEM-ML",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 703,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 703,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 22,
+                  "utf16Column": 1,
+                  "utf16Offset": 703
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 35,
+                "end": {
+                  "byteOffset": 40,
+                  "column": 8,
+                  "columnEncoding": "utf-16",
+                  "line": 3,
+                  "utf16Column": 8,
+                  "utf16Offset": 40
+                },
+                "start": {
+                  "byteOffset": 35,
+                  "column": 3,
+                  "columnEncoding": "utf-16",
+                  "line": 3,
+                  "utf16Column": 3,
+                  "utf16Offset": 35
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 703
+            }
+          },
+          "transform": {
+            "kind": "HtmlTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 35,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login.html",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.lint.relaxed_content_boundary",
+    "severity": "warning",
+    "message": "element `title` uses the relaxed content boundary; insert `|` (or `▷`) before the content for canonical CEM-ML",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 703,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 703,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 22,
+                  "utf16Column": 1,
+                  "utf16Offset": 703
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 6,
+                "byteStart": 73,
+                "end": {
+                  "byteOffset": 79,
+                  "column": 11,
+                  "columnEncoding": "utf-16",
+                  "line": 5,
+                  "utf16Column": 11,
+                  "utf16Offset": 79
+                },
+                "start": {
+                  "byteOffset": 73,
+                  "column": 5,
+                  "columnEncoding": "utf-16",
+                  "line": 5,
+                  "utf16Column": 5,
+                  "utf16Offset": 73
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 703
+            }
+          },
+          "transform": {
+            "kind": "HtmlTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 73,
+              "len": 6
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login.html",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.lint.relaxed_content_boundary",
+    "severity": "warning",
+    "message": "element `body` uses the relaxed content boundary; insert `|` (or `▷`) before the content for canonical CEM-ML",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 703,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 703,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 22,
+                  "utf16Column": 1,
+                  "utf16Offset": 703
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 129,
+                "end": {
+                  "byteOffset": 134,
+                  "column": 8,
+                  "columnEncoding": "utf-16",
+                  "line": 7,
+                  "utf16Column": 8,
+                  "utf16Offset": 134
+                },
+                "start": {
+                  "byteOffset": 129,
+                  "column": 3,
+                  "columnEncoding": "utf-16",
+                  "line": 7,
+                  "utf16Column": 3,
+                  "utf16Offset": 129
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 703
+            }
+          },
+          "transform": {
+            "kind": "HtmlTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 129,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login.html",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.lint.relaxed_content_boundary",
+    "severity": "warning",
+    "message": "element `main` uses the relaxed content boundary; insert `|` (or `▷`) before the content for canonical CEM-ML",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 703,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 703,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 22,
+                  "utf16Column": 1,
+                  "utf16Offset": 703
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 140,
+                "end": {
+                  "byteOffset": 145,
+                  "column": 10,
+                  "columnEncoding": "utf-16",
+                  "line": 8,
+                  "utf16Column": 10,
+                  "utf16Offset": 145
+                },
+                "start": {
+                  "byteOffset": 140,
+                  "column": 5,
+                  "columnEncoding": "utf-16",
+                  "line": 8,
+                  "utf16Column": 5,
+                  "utf16Offset": 140
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 703
+            }
+          },
+          "transform": {
+            "kind": "HtmlTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 140,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login.html",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.lint.relaxed_content_boundary",
+    "severity": "warning",
+    "message": "element `h1` uses the relaxed content boundary; insert `|` (or `▷`) before the content for canonical CEM-ML",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 703,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 703,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 22,
+                  "utf16Column": 1,
+                  "utf16Offset": 703
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 207,
+                "end": {
+                  "byteOffset": 210,
+                  "column": 10,
+                  "columnEncoding": "utf-16",
+                  "line": 9,
+                  "utf16Column": 10,
+                  "utf16Offset": 210
+                },
+                "start": {
+                  "byteOffset": 207,
+                  "column": 7,
+                  "columnEncoding": "utf-16",
+                  "line": 9,
+                  "utf16Column": 7,
+                  "utf16Offset": 207
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 703
+            }
+          },
+          "transform": {
+            "kind": "HtmlTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 207,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login.html",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.lint.relaxed_content_boundary",
+    "severity": "warning",
+    "message": "element `form` uses the relaxed content boundary; insert `|` (or `▷`) before the content for canonical CEM-ML",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 703,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 703,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 22,
+                  "utf16Column": 1,
+                  "utf16Offset": 703
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 247,
+                "end": {
+                  "byteOffset": 252,
+                  "column": 12,
+                  "columnEncoding": "utf-16",
+                  "line": 10,
+                  "utf16Column": 12,
+                  "utf16Offset": 252
+                },
+                "start": {
+                  "byteOffset": 247,
+                  "column": 7,
+                  "columnEncoding": "utf-16",
+                  "line": 10,
+                  "utf16Column": 7,
+                  "utf16Offset": 247
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 703
+            }
+          },
+          "transform": {
+            "kind": "HtmlTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 247,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login.html",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.lint.relaxed_content_boundary",
+    "severity": "warning",
+    "message": "element `label` uses the relaxed content boundary; insert `|` (or `▷`) before the content for canonical CEM-ML",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 703,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 703,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 22,
+                  "utf16Column": 1,
+                  "utf16Offset": 703
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 6,
+                "byteStart": 318,
+                "end": {
+                  "byteOffset": 324,
+                  "column": 15,
+                  "columnEncoding": "utf-16",
+                  "line": 11,
+                  "utf16Column": 15,
+                  "utf16Offset": 324
+                },
+                "start": {
+                  "byteOffset": 318,
+                  "column": 9,
+                  "columnEncoding": "utf-16",
+                  "line": 11,
+                  "utf16Column": 9,
+                  "utf16Offset": 318
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 703
+            }
+          },
+          "transform": {
+            "kind": "HtmlTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 318,
+              "len": 6
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login.html",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.lint.relaxed_content_boundary",
+    "severity": "warning",
+    "message": "element `label` uses the relaxed content boundary; insert `|` (or `▷`) before the content for canonical CEM-ML",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 703,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 703,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 22,
+                  "utf16Column": 1,
+                  "utf16Offset": 703
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 6,
+                "byteStart": 443,
+                "end": {
+                  "byteOffset": 449,
+                  "column": 15,
+                  "columnEncoding": "utf-16",
+                  "line": 14,
+                  "utf16Column": 15,
+                  "utf16Offset": 449
+                },
+                "start": {
+                  "byteOffset": 443,
+                  "column": 9,
+                  "columnEncoding": "utf-16",
+                  "line": 14,
+                  "utf16Column": 9,
+                  "utf16Offset": 443
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 703
+            }
+          },
+          "transform": {
+            "kind": "HtmlTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 443,
+              "len": 6
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login.html",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.lint.relaxed_content_boundary",
+    "severity": "warning",
+    "message": "element `button` uses the relaxed content boundary; insert `|` (or `▷`) before the content for canonical CEM-ML",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 703,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 703,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 22,
+                  "utf16Column": 1,
+                  "utf16Offset": 703
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 7,
+                "byteStart": 594,
+                "end": {
+                  "byteOffset": 601,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 17,
+                  "utf16Column": 16,
+                  "utf16Offset": 601
+                },
+                "start": {
+                  "byteOffset": 594,
+                  "column": 9,
+                  "columnEncoding": "utf-16",
+                  "line": 17,
+                  "utf16Column": 9,
+                  "utf16Offset": 594
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 703
+            }
+          },
+          "transform": {
+            "kind": "HtmlTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 594,
+              "len": 7
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  }
+]

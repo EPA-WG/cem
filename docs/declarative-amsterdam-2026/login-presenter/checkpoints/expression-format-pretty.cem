@@ -1,0 +1,14 @@
+// Login résumé: read saved source; no authentication or form submission.
+{
+    let html = "http://www.w3.org/1999/xhtml";
+    let elements = seq:where(dom:descendants(input), fn(node) =>
+        node.kind == "element" && node.namespace == html);
+    let heading = seq:first(seq:where(elements, fn(node) => node.name == "h1"));
+    let required = seq:where(elements, fn(node) =>
+        node.name == "input" && seq:count(seq:where(node.attributes, fn(attribute) =>
+            attribute.name == "required" && (attribute.namespace == "" || attribute.namespace == html))) > 0);
+    (
+        str:concat(("title=", str:normalize_space(dom:text(heading), "xml"))),
+        str:concat(("required=", seq:count(required)))
+    )
+}

@@ -1,0 +1,2702 @@
+[
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `slice` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 13,
+                "byteStart": 69,
+                "end": {
+                  "byteOffset": 82,
+                  "column": 14,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 14,
+                  "utf16Offset": 82
+                },
+                "start": {
+                  "byteOffset": 69,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 1,
+                  "utf16Offset": 69
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 84,
+                "end": {
+                  "byteOffset": 89,
+                  "column": 21,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 21,
+                  "utf16Offset": 89
+                },
+                "start": {
+                  "byteOffset": 84,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 16,
+                  "utf16Offset": 84
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 84,
+                "end": {
+                  "byteOffset": 89,
+                  "column": 21,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 21,
+                  "utf16Offset": 89
+                },
+                "start": {
+                  "byteOffset": 84,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 16,
+                  "utf16Offset": 84
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 69,
+              "len": 13
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 84,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 84,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `url` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 13,
+                "byteStart": 69,
+                "end": {
+                  "byteOffset": 82,
+                  "column": 14,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 14,
+                  "utf16Offset": 82
+                },
+                "start": {
+                  "byteOffset": 69,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 1,
+                  "utf16Offset": 69
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 97,
+                "end": {
+                  "byteOffset": 100,
+                  "column": 32,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 32,
+                  "utf16Offset": 100
+                },
+                "start": {
+                  "byteOffset": 97,
+                  "column": 29,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 29,
+                  "utf16Offset": 97
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 97,
+                "end": {
+                  "byteOffset": 100,
+                  "column": 32,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 32,
+                  "utf16Offset": 100
+                },
+                "start": {
+                  "byteOffset": 97,
+                  "column": 29,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 29,
+                  "utf16Offset": 97
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 69,
+              "len": 13
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 97,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 97,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `content-type` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 13,
+                "byteStart": 69,
+                "end": {
+                  "byteOffset": 82,
+                  "column": 14,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 14,
+                  "utf16Offset": 82
+                },
+                "start": {
+                  "byteOffset": 69,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 1,
+                  "utf16Offset": 69
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 12,
+                "byteStart": 135,
+                "end": {
+                  "byteOffset": 147,
+                  "column": 79,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 79,
+                  "utf16Offset": 147
+                },
+                "start": {
+                  "byteOffset": 135,
+                  "column": 67,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 67,
+                  "utf16Offset": 135
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 12,
+                "byteStart": 135,
+                "end": {
+                  "byteOffset": 147,
+                  "column": 79,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 79,
+                  "utf16Offset": 147
+                },
+                "start": {
+                  "byteOffset": 135,
+                  "column": 67,
+                  "columnEncoding": "utf-16",
+                  "line": 2,
+                  "utf16Column": 67,
+                  "utf16Offset": 135
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 69,
+              "len": 13
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 135,
+              "len": 12
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 135,
+              "len": 12
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `select` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 13,
+                "byteStart": 159,
+                "end": {
+                  "byteOffset": 172,
+                  "column": 14,
+                  "columnEncoding": "utf-16",
+                  "line": 3,
+                  "utf16Column": 14,
+                  "utf16Offset": 172
+                },
+                "start": {
+                  "byteOffset": 159,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 3,
+                  "utf16Column": 1,
+                  "utf16Offset": 159
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 6,
+                "byteStart": 189,
+                "end": {
+                  "byteOffset": 195,
+                  "column": 9,
+                  "columnEncoding": "utf-16",
+                  "line": 4,
+                  "utf16Column": 9,
+                  "utf16Offset": 195
+                },
+                "start": {
+                  "byteOffset": 189,
+                  "column": 3,
+                  "columnEncoding": "utf-16",
+                  "line": 4,
+                  "utf16Column": 3,
+                  "utf16Offset": 189
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 6,
+                "byteStart": 189,
+                "end": {
+                  "byteOffset": 195,
+                  "column": 9,
+                  "columnEncoding": "utf-16",
+                  "line": 4,
+                  "utf16Column": 9,
+                  "utf16Offset": 195
+                },
+                "start": {
+                  "byteOffset": 189,
+                  "column": 3,
+                  "columnEncoding": "utf-16",
+                  "line": 4,
+                  "utf16Column": 3,
+                  "utf16Offset": 189
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 159,
+              "len": 13
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 189,
+              "len": 6
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 189,
+              "len": 6
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `label` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 15,
+                "byteStart": 783,
+                "end": {
+                  "byteOffset": 798,
+                  "column": 17,
+                  "columnEncoding": "utf-16",
+                  "line": 11,
+                  "utf16Column": 17,
+                  "utf16Offset": 798
+                },
+                "start": {
+                  "byteOffset": 783,
+                  "column": 2,
+                  "columnEncoding": "utf-16",
+                  "line": 11,
+                  "utf16Column": 2,
+                  "utf16Offset": 783
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 800,
+                "end": {
+                  "byteOffset": 805,
+                  "column": 24,
+                  "columnEncoding": "utf-16",
+                  "line": 11,
+                  "utf16Column": 24,
+                  "utf16Offset": 805
+                },
+                "start": {
+                  "byteOffset": 800,
+                  "column": 19,
+                  "columnEncoding": "utf-16",
+                  "line": 11,
+                  "utf16Column": 19,
+                  "utf16Offset": 800
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 800,
+                "end": {
+                  "byteOffset": 805,
+                  "column": 24,
+                  "columnEncoding": "utf-16",
+                  "line": 11,
+                  "utf16Column": 24,
+                  "utf16Offset": 805
+                },
+                "start": {
+                  "byteOffset": 800,
+                  "column": 19,
+                  "columnEncoding": "utf-16",
+                  "line": 11,
+                  "utf16Column": 19,
+                  "utf16Offset": 800
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 783,
+              "len": 15
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 800,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 800,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `label` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 15,
+                "byteStart": 868,
+                "end": {
+                  "byteOffset": 883,
+                  "column": 17,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 17,
+                  "utf16Offset": 883
+                },
+                "start": {
+                  "byteOffset": 868,
+                  "column": 2,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 2,
+                  "utf16Offset": 868
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 885,
+                "end": {
+                  "byteOffset": 890,
+                  "column": 24,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 24,
+                  "utf16Offset": 890
+                },
+                "start": {
+                  "byteOffset": 885,
+                  "column": 19,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 19,
+                  "utf16Offset": 885
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 885,
+                "end": {
+                  "byteOffset": 890,
+                  "column": 24,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 24,
+                  "utf16Offset": 890
+                },
+                "start": {
+                  "byteOffset": 885,
+                  "column": 19,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 19,
+                  "utf16Offset": 885
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 868,
+              "len": 15
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 885,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 885,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `label` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 11,
+                "byteStart": 973,
+                "end": {
+                  "byteOffset": 984,
+                  "column": 13,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 13,
+                  "utf16Offset": 984
+                },
+                "start": {
+                  "byteOffset": 973,
+                  "column": 2,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 2,
+                  "utf16Offset": 973
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 986,
+                "end": {
+                  "byteOffset": 991,
+                  "column": 20,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 20,
+                  "utf16Offset": 991
+                },
+                "start": {
+                  "byteOffset": 986,
+                  "column": 15,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 15,
+                  "utf16Offset": 986
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 986,
+                "end": {
+                  "byteOffset": 991,
+                  "column": 20,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 20,
+                  "utf16Offset": 991
+                },
+                "start": {
+                  "byteOffset": 986,
+                  "column": 15,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 15,
+                  "utf16Offset": 986
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 973,
+              "len": 11
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 986,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 986,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `slice` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 11,
+                "byteStart": 973,
+                "end": {
+                  "byteOffset": 984,
+                  "column": 13,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 13,
+                  "utf16Offset": 984
+                },
+                "start": {
+                  "byteOffset": 973,
+                  "column": 2,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 2,
+                  "utf16Offset": 973
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 1011,
+                "end": {
+                  "byteOffset": 1016,
+                  "column": 45,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 45,
+                  "utf16Offset": 1016
+                },
+                "start": {
+                  "byteOffset": 1011,
+                  "column": 40,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 40,
+                  "utf16Offset": 1011
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 1011,
+                "end": {
+                  "byteOffset": 1016,
+                  "column": 45,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 45,
+                  "utf16Offset": 1016
+                },
+                "start": {
+                  "byteOffset": 1011,
+                  "column": 40,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 40,
+                  "utf16Offset": 1011
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 973,
+              "len": 11
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1011,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1011,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `slice-event` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 11,
+                "byteStart": 973,
+                "end": {
+                  "byteOffset": 984,
+                  "column": 13,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 13,
+                  "utf16Offset": 984
+                },
+                "start": {
+                  "byteOffset": 973,
+                  "column": 2,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 2,
+                  "utf16Offset": 973
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 11,
+                "byteStart": 1025,
+                "end": {
+                  "byteOffset": 1036,
+                  "column": 65,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 65,
+                  "utf16Offset": 1036
+                },
+                "start": {
+                  "byteOffset": 1025,
+                  "column": 54,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 54,
+                  "utf16Offset": 1025
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 11,
+                "byteStart": 1025,
+                "end": {
+                  "byteOffset": 1036,
+                  "column": 65,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 65,
+                  "utf16Offset": 1036
+                },
+                "start": {
+                  "byteOffset": 1025,
+                  "column": 54,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 54,
+                  "utf16Offset": 1025
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 973,
+              "len": 11
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1025,
+              "len": 11
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1025,
+              "len": 11
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `slice-value` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 11,
+                "byteStart": 973,
+                "end": {
+                  "byteOffset": 984,
+                  "column": 13,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 13,
+                  "utf16Offset": 984
+                },
+                "start": {
+                  "byteOffset": 973,
+                  "column": 2,
+                  "columnEncoding": "utf-16",
+                  "line": 13,
+                  "utf16Column": 2,
+                  "utf16Offset": 973
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 11,
+                "byteStart": 1046,
+                "end": {
+                  "byteOffset": 1057,
+                  "column": 15,
+                  "columnEncoding": "utf-16",
+                  "line": 14,
+                  "utf16Column": 15,
+                  "utf16Offset": 1057
+                },
+                "start": {
+                  "byteOffset": 1046,
+                  "column": 4,
+                  "columnEncoding": "utf-16",
+                  "line": 14,
+                  "utf16Column": 4,
+                  "utf16Offset": 1046
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 11,
+                "byteStart": 1046,
+                "end": {
+                  "byteOffset": 1057,
+                  "column": 15,
+                  "columnEncoding": "utf-16",
+                  "line": 14,
+                  "utf16Column": 15,
+                  "utf16Offset": 1057
+                },
+                "start": {
+                  "byteOffset": 1046,
+                  "column": 4,
+                  "columnEncoding": "utf-16",
+                  "line": 14,
+                  "utf16Column": 4,
+                  "utf16Offset": 1046
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 973,
+              "len": 11
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1046,
+              "len": 11
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1046,
+              "len": 11
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `tone` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 10,
+                "byteStart": 1118,
+                "end": {
+                  "byteOffset": 1128,
+                  "column": 12,
+                  "columnEncoding": "utf-16",
+                  "line": 15,
+                  "utf16Column": 12,
+                  "utf16Offset": 1128
+                },
+                "start": {
+                  "byteOffset": 1118,
+                  "column": 2,
+                  "columnEncoding": "utf-16",
+                  "line": 15,
+                  "utf16Column": 2,
+                  "utf16Offset": 1118
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 4,
+                "byteStart": 1130,
+                "end": {
+                  "byteOffset": 1134,
+                  "column": 18,
+                  "columnEncoding": "utf-16",
+                  "line": 15,
+                  "utf16Column": 18,
+                  "utf16Offset": 1134
+                },
+                "start": {
+                  "byteOffset": 1130,
+                  "column": 14,
+                  "columnEncoding": "utf-16",
+                  "line": 15,
+                  "utf16Column": 14,
+                  "utf16Offset": 1130
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 4,
+                "byteStart": 1130,
+                "end": {
+                  "byteOffset": 1134,
+                  "column": 18,
+                  "columnEncoding": "utf-16",
+                  "line": 15,
+                  "utf16Column": 18,
+                  "utf16Offset": 1134
+                },
+                "start": {
+                  "byteOffset": 1130,
+                  "column": 14,
+                  "columnEncoding": "utf-16",
+                  "line": 15,
+                  "utf16Column": 14,
+                  "utf16Offset": 1130
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1118,
+              "len": 10
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1130,
+              "len": 4
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1130,
+              "len": 4
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `label` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 10,
+                "byteStart": 1118,
+                "end": {
+                  "byteOffset": 1128,
+                  "column": 12,
+                  "columnEncoding": "utf-16",
+                  "line": 15,
+                  "utf16Column": 12,
+                  "utf16Offset": 1128
+                },
+                "start": {
+                  "byteOffset": 1118,
+                  "column": 2,
+                  "columnEncoding": "utf-16",
+                  "line": 15,
+                  "utf16Column": 2,
+                  "utf16Offset": 1118
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 1141,
+                "end": {
+                  "byteOffset": 1146,
+                  "column": 30,
+                  "columnEncoding": "utf-16",
+                  "line": 15,
+                  "utf16Column": 30,
+                  "utf16Offset": 1146
+                },
+                "start": {
+                  "byteOffset": 1141,
+                  "column": 25,
+                  "columnEncoding": "utf-16",
+                  "line": 15,
+                  "utf16Column": 25,
+                  "utf16Offset": 1141
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 1141,
+                "end": {
+                  "byteOffset": 1146,
+                  "column": 30,
+                  "columnEncoding": "utf-16",
+                  "line": 15,
+                  "utf16Column": 30,
+                  "utf16Offset": 1146
+                },
+                "start": {
+                  "byteOffset": 1141,
+                  "column": 25,
+                  "columnEncoding": "utf-16",
+                  "line": 15,
+                  "utf16Column": 25,
+                  "utf16Offset": 1141
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1118,
+              "len": 10
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1141,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1141,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `test` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 7,
+                "byteStart": 1173,
+                "end": {
+                  "byteOffset": 1180,
+                  "column": 9,
+                  "columnEncoding": "utf-16",
+                  "line": 16,
+                  "utf16Column": 9,
+                  "utf16Offset": 1180
+                },
+                "start": {
+                  "byteOffset": 1173,
+                  "column": 2,
+                  "columnEncoding": "utf-16",
+                  "line": 16,
+                  "utf16Column": 2,
+                  "utf16Offset": 1173
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 4,
+                "byteStart": 1182,
+                "end": {
+                  "byteOffset": 1186,
+                  "column": 15,
+                  "columnEncoding": "utf-16",
+                  "line": 16,
+                  "utf16Column": 15,
+                  "utf16Offset": 1186
+                },
+                "start": {
+                  "byteOffset": 1182,
+                  "column": 11,
+                  "columnEncoding": "utf-16",
+                  "line": 16,
+                  "utf16Column": 11,
+                  "utf16Offset": 1182
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 4,
+                "byteStart": 1182,
+                "end": {
+                  "byteOffset": 1186,
+                  "column": 15,
+                  "columnEncoding": "utf-16",
+                  "line": 16,
+                  "utf16Column": 15,
+                  "utf16Offset": 1186
+                },
+                "start": {
+                  "byteOffset": 1182,
+                  "column": 11,
+                  "columnEncoding": "utf-16",
+                  "line": 16,
+                  "utf16Column": 11,
+                  "utf16Offset": 1182
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1173,
+              "len": 7
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1182,
+              "len": 4
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1182,
+              "len": 4
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `tone` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 10,
+                "byteStart": 1240,
+                "end": {
+                  "byteOffset": 1250,
+                  "column": 13,
+                  "columnEncoding": "utf-16",
+                  "line": 17,
+                  "utf16Column": 13,
+                  "utf16Offset": 1250
+                },
+                "start": {
+                  "byteOffset": 1240,
+                  "column": 3,
+                  "columnEncoding": "utf-16",
+                  "line": 17,
+                  "utf16Column": 3,
+                  "utf16Offset": 1240
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 4,
+                "byteStart": 1252,
+                "end": {
+                  "byteOffset": 1256,
+                  "column": 19,
+                  "columnEncoding": "utf-16",
+                  "line": 17,
+                  "utf16Column": 19,
+                  "utf16Offset": 1256
+                },
+                "start": {
+                  "byteOffset": 1252,
+                  "column": 15,
+                  "columnEncoding": "utf-16",
+                  "line": 17,
+                  "utf16Column": 15,
+                  "utf16Offset": 1252
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 4,
+                "byteStart": 1252,
+                "end": {
+                  "byteOffset": 1256,
+                  "column": 19,
+                  "columnEncoding": "utf-16",
+                  "line": 17,
+                  "utf16Column": 19,
+                  "utf16Offset": 1256
+                },
+                "start": {
+                  "byteOffset": 1252,
+                  "column": 15,
+                  "columnEncoding": "utf-16",
+                  "line": 17,
+                  "utf16Column": 15,
+                  "utf16Offset": 1252
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1240,
+              "len": 10
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1252,
+              "len": 4
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1252,
+              "len": 4
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "views/login.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "cem.schema.unknown_html_attribute",
+    "severity": "warning",
+    "message": "attribute `label` is not declared by the Tier A HTML/SVG open-content policy",
+    "details": {
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 1329,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 1329,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 20,
+                  "utf16Column": 1,
+                  "utf16Offset": 1329
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 10,
+                "byteStart": 1240,
+                "end": {
+                  "byteOffset": 1250,
+                  "column": 13,
+                  "columnEncoding": "utf-16",
+                  "line": 17,
+                  "utf16Column": 13,
+                  "utf16Offset": 1250
+                },
+                "start": {
+                  "byteOffset": 1240,
+                  "column": 3,
+                  "columnEncoding": "utf-16",
+                  "line": 17,
+                  "utf16Column": 3,
+                  "utf16Offset": 1240
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 1265,
+                "end": {
+                  "byteOffset": 1270,
+                  "column": 33,
+                  "columnEncoding": "utf-16",
+                  "line": 17,
+                  "utf16Column": 33,
+                  "utf16Offset": 1270
+                },
+                "start": {
+                  "byteOffset": 1265,
+                  "column": 28,
+                  "columnEncoding": "utf-16",
+                  "line": 17,
+                  "utf16Column": 28,
+                  "utf16Offset": 1265
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 1265,
+                "end": {
+                  "byteOffset": 1270,
+                  "column": 33,
+                  "columnEncoding": "utf-16",
+                  "line": 17,
+                  "utf16Column": 33,
+                  "utf16Offset": 1270
+                },
+                "start": {
+                  "byteOffset": 1265,
+                  "column": 28,
+                  "columnEncoding": "utf-16",
+                  "line": 17,
+                  "utf16Column": 28,
+                  "utf16Offset": 1265
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 1329
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1240,
+              "len": 10
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1265,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 1265,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  }
+]

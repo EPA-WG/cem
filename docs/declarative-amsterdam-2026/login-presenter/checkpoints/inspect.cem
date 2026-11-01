@@ -1,0 +1,123 @@
+@doc cem-ml 1
+@ns cemast = "https://cem.dev/ns/projection/ast/1"
+@default cemast
+{ast @schema=https://cem.dev/ns/cem-ml/1 @content-type=application/cem @hash-scheme=blake3
+    @source-id=data/login.cem |
+    {node @id=node-0 @kind=document @order=0 @source-id=data/login.cem}
+    {node @id=node-1 @kind=element @order=0 @source-id=data/login.cem @parent-id=node-0 @name="@doc"
+        @byte-offset=0 @byte-length=13 @namespace=""}
+    {node @id=node-2 @kind=text @order=0 @source-id=data/login.cem @parent-id=node-1
+        @value="cem-ml 1" @byte-offset=0 @byte-length=13}
+    {node @id=node-3 @kind=whitespace @order=1 @source-id=data/login.cem @parent-id=node-0 @value=""
+        @byte-offset=13 @byte-length=1}
+    {node @id=node-4 @kind=element @order=2 @source-id=data/login.cem @parent-id=node-0 @name="@ns"
+        @byte-offset=14 @byte-length=37 @namespace=""}
+    {node @id=node-5 @kind=text @order=0 @source-id=data/login.cem @parent-id=node-4
+        @value='cem = "https://cem.dev/ns/core/1"' @byte-offset=14 @byte-length=37}
+    {node @id=node-6 @kind=whitespace @order=3 @source-id=data/login.cem @parent-id=node-0 @value=""
+        @byte-offset=51 @byte-length=1}
+    {node @id=node-7 @kind=element @order=4 @source-id=data/login.cem @parent-id=node-0 @name="@ns"
+        @byte-offset=52 @byte-length=41 @namespace=""}
+    {node @id=node-8 @kind=text @order=0 @source-id=data/login.cem @parent-id=node-7
+        @value='html = "http://www.w3.org/1999/xhtml"' @byte-offset=52 @byte-length=41}
+    {node @id=node-9 @kind=whitespace @order=5 @source-id=data/login.cem @parent-id=node-0 @value=""
+        @byte-offset=93 @byte-length=1}
+    {node @id=node-10 @kind=element @order=6 @source-id=data/login.cem @parent-id=node-0
+        @name="@default" @byte-offset=94 @byte-length=13 @namespace=""}
+    {node @id=node-11 @kind=text @order=0 @source-id=data/login.cem @parent-id=node-10 @value=html
+        @byte-offset=94 @byte-length=13}
+    {node @id=node-12 @kind=whitespace @order=7 @source-id=data/login.cem @parent-id=node-0
+        @value="" @byte-offset=107 @byte-length=2}
+    {node @id=node-13 @kind=element @order=8 @source-id=data/login.cem @parent-id=node-0 @name=main
+        @byte-offset=109 @byte-length=5 @namespace=""}
+    {node @id=node-14 @kind=attribute @order=0 @source-id=data/login.cem @parent-id=node-13
+        @name=screen @value=login @byte-offset=116 @byte-length=10 @namespace=cem}
+    {node @id=node-15 @kind=attribute @order=1 @source-id=data/login.cem @parent-id=node-13
+        @name=aria-labelledby @value=login-title @byte-offset=136 @byte-length=15 @namespace=""}
+    {node @id=node-16 @kind=whitespace @order=2 @source-id=data/login.cem @parent-id=node-13
+        @value="" @byte-offset=167 @byte-length=3}
+    {node @id=node-17 @kind=element @order=3 @source-id=data/login.cem @parent-id=node-13 @name=h1
+        @byte-offset=170 @byte-length=3 @namespace=""}
+    {node @id=node-18 @kind=attribute @order=0 @source-id=data/login.cem @parent-id=node-17 @name=id
+        @value=login-title @byte-offset=175 @byte-length=2 @namespace=""}
+    {node @id=node-19 @kind=whitespace @order=1 @source-id=data/login.cem @parent-id=node-17
+        @value="" @byte-offset=193 @byte-length=1}
+    {node @id=node-20 @kind=text @order=2 @source-id=data/login.cem @parent-id=node-17
+        @value="Sign in" @byte-offset=194 @byte-length=7}
+    {node @id=node-21 @kind=whitespace @order=4 @source-id=data/login.cem @parent-id=node-13
+        @value="" @byte-offset=202 @byte-length=3}
+    {node @id=node-22 @kind=element @order=5 @source-id=data/login.cem @parent-id=node-13 @name=form
+        @byte-offset=205 @byte-length=5 @namespace=""}
+    {node @id=node-23 @kind=attribute @order=0 @source-id=data/login.cem @parent-id=node-22
+        @name=form @value=sign-in @byte-offset=212 @byte-length=8 @namespace=cem}
+    {node @id=node-24 @kind=attribute @order=1 @source-id=data/login.cem @parent-id=node-22
+        @name=method @value=post @byte-offset=232 @byte-length=6 @namespace=""}
+    {node @id=node-25 @kind=attribute @order=2 @source-id=data/login.cem @parent-id=node-22
+        @name=action @value="#session" @byte-offset=245 @byte-length=6 @namespace=""}
+    {node @id=node-26 @kind=whitespace @order=3 @source-id=data/login.cem @parent-id=node-22
+        @value="" @byte-offset=264 @byte-length=5}
+    {node @id=node-27 @kind=element @order=4 @source-id=data/login.cem @parent-id=node-22
+        @name=label @byte-offset=269 @byte-length=6 @namespace=""}
+    {node @id=node-28 @kind=attribute @order=0 @source-id=data/login.cem @parent-id=node-27
+        @name=for @value=email @byte-offset=277 @byte-length=3 @namespace=""}
+    {node @id=node-29 @kind=whitespace @order=1 @source-id=data/login.cem @parent-id=node-27
+        @value="" @byte-offset=288 @byte-length=1}
+    {node @id=node-30 @kind=text @order=2 @source-id=data/login.cem @parent-id=node-27 @value=Email
+        @byte-offset=289 @byte-length=5}
+    {node @id=node-31 @kind=whitespace @order=5 @source-id=data/login.cem @parent-id=node-22
+        @value="" @byte-offset=295 @byte-length=5}
+    {node @id=node-32 @kind=element @order=6 @source-id=data/login.cem @parent-id=node-22
+        @name=input @byte-offset=300 @byte-length=6 @namespace=""}
+    {node @id=node-33 @kind=attribute @order=0 @source-id=data/login.cem @parent-id=node-32 @name=id
+        @value=email @byte-offset=308 @byte-length=2 @namespace=""}
+    {node @id=node-34 @kind=attribute @order=1 @source-id=data/login.cem @parent-id=node-32
+        @name=name @value=email @byte-offset=318 @byte-length=4 @namespace=""}
+    {node @id=node-35 @kind=attribute @order=2 @source-id=data/login.cem @parent-id=node-32
+        @name=type @value=email @byte-offset=330 @byte-length=4 @namespace=""}
+    {node @id=node-36 @kind=attribute @order=3 @source-id=data/login.cem @parent-id=node-32
+        @name=autocomplete @value=email @byte-offset=342 @byte-length=12 @namespace=""}
+    {node @id=node-37 @kind=attribute @order=4 @source-id=data/login.cem @parent-id=node-32
+        @name=required @byte-offset=362 @byte-length=8 @namespace=""}
+    {node @id=node-38 @kind=whitespace @order=7 @source-id=data/login.cem @parent-id=node-22
+        @value="" @byte-offset=371 @byte-length=6}
+    {node @id=node-39 @kind=element @order=8 @source-id=data/login.cem @parent-id=node-22
+        @name=label @byte-offset=377 @byte-length=6 @namespace=""}
+    {node @id=node-40 @kind=attribute @order=0 @source-id=data/login.cem @parent-id=node-39
+        @name=for @value=password @byte-offset=385 @byte-length=3 @namespace=""}
+    {node @id=node-41 @kind=whitespace @order=1 @source-id=data/login.cem @parent-id=node-39
+        @value="" @byte-offset=399 @byte-length=1}
+    {node @id=node-42 @kind=text @order=2 @source-id=data/login.cem @parent-id=node-39
+        @value=Password @byte-offset=400 @byte-length=8}
+    {node @id=node-43 @kind=whitespace @order=9 @source-id=data/login.cem @parent-id=node-22
+        @value="" @byte-offset=409 @byte-length=5}
+    {node @id=node-44 @kind=element @order=10 @source-id=data/login.cem @parent-id=node-22
+        @name=input @byte-offset=414 @byte-length=6 @namespace=""}
+    {node @id=node-45 @kind=attribute @order=0 @source-id=data/login.cem @parent-id=node-44 @name=id
+        @value=password @byte-offset=422 @byte-length=2 @namespace=""}
+    {node @id=node-46 @kind=attribute @order=1 @source-id=data/login.cem @parent-id=node-44
+        @name=name @value=password @byte-offset=435 @byte-length=4 @namespace=""}
+    {node @id=node-47 @kind=attribute @order=2 @source-id=data/login.cem @parent-id=node-44
+        @name=type @value=password @byte-offset=450 @byte-length=4 @namespace=""}
+    {node @id=node-48 @kind=attribute @order=3 @source-id=data/login.cem @parent-id=node-44
+        @name=autocomplete @value=current-password @byte-offset=465 @byte-length=12 @namespace=""}
+    {node @id=node-49 @kind=attribute @order=4 @source-id=data/login.cem @parent-id=node-44
+        @name=required @byte-offset=496 @byte-length=8 @namespace=""}
+    {node @id=node-50 @kind=whitespace @order=11 @source-id=data/login.cem @parent-id=node-22
+        @value="" @byte-offset=505 @byte-length=6}
+    {node @id=node-51 @kind=element @order=12 @source-id=data/login.cem @parent-id=node-22
+        @name=button @byte-offset=511 @byte-length=7 @namespace=""}
+    {node @id=node-52 @kind=attribute @order=0 @source-id=data/login.cem @parent-id=node-51
+        @name=type @value=submit @byte-offset=520 @byte-length=4 @namespace=""}
+    {node @id=node-53 @kind=attribute @order=1 @source-id=data/login.cem @parent-id=node-51
+        @name=action @value=primary @byte-offset=533 @byte-length=10 @namespace=cem}
+    {node @id=node-54 @kind=whitespace @order=2 @source-id=data/login.cem @parent-id=node-51
+        @value="" @byte-offset=553 @byte-length=1}
+    {node @id=node-55 @kind=text @order=3 @source-id=data/login.cem @parent-id=node-51
+        @value="Sign in" @byte-offset=554 @byte-length=7}
+    {node @id=node-56 @kind=whitespace @order=13 @source-id=data/login.cem @parent-id=node-22
+        @value="" @byte-offset=562 @byte-length=3}
+    {node @id=node-57 @kind=whitespace @order=6 @source-id=data/login.cem @parent-id=node-13
+        @value="" @byte-offset=566 @byte-length=1}
+    {node @id=node-58 @kind=whitespace @order=9 @source-id=data/login.cem @parent-id=node-0
+        @value="" @byte-offset=568 @byte-length=1}
+}

@@ -1,0 +1,724 @@
+{
+  "id": "login",
+  "name": "Login",
+  "version": "2.8.1",
+  "description": "Login sources, module and standalone queries, formatting, validation, native templates, a transformation graph with source provenance and an interactive light-DOM view.",
+  "sources": [
+    {
+      "id": "login-cem",
+      "source": "examples/cem-ml/login.cem",
+      "path": "data/login.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cem-ml/1"
+    },
+    {
+      "id": "login-html",
+      "source": "examples/semantic/login.html",
+      "path": "data/login.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1"
+    },
+    {
+      "id": "login-invalid",
+      "source": "examples/projects/login/login-invalid.cem",
+      "path": "data/login-invalid.cem",
+      "contentType": "application/cem",
+      "schema": "urn:demo:login",
+      "role": "data"
+    },
+    {
+      "id": "login-schema-package",
+      "source": "examples/projects/login/login-schema-package.cem",
+      "path": "schemas/login-schema-package.cem",
+      "contentType": "application/vnd.cem.schema-package+cem",
+      "schema": "https://cem.dev/ns/schema-package/1",
+      "role": "schema"
+    },
+    {
+      "id": "login-schema",
+      "source": "examples/projects/login/login-schema.cem",
+      "path": "schemas/login-schema.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/schema/1",
+      "role": "schema"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/login/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    },
+    {
+      "id": "login-semantics-query",
+      "source": "examples/projects/login/queries/semantics.xpath",
+      "path": "queries/semantics.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "role": "query"
+    },
+    {
+      "id": "login-semantic-contract",
+      "source": "examples/projects/login/expected/semantics.json",
+      "path": "expected/semantics.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "login-semantics-cemql",
+      "source": "examples/projects/login/queries/semantics.cemql",
+      "path": "queries/semantics.cemql",
+      "contentType": "application/vnd.cem.query+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1",
+      "role": "query"
+    },
+    {
+      "id": "login-view-template",
+      "source": "examples/projects/login/templates/view.cemt",
+      "path": "templates/view.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "login-view-expected",
+      "source": "examples/projects/login/expected/view.html",
+      "path": "expected/view.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "login-view-graph",
+      "source": "examples/projects/login/graphs/view.cem",
+      "path": "graphs/view.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "login-live-view",
+      "source": "examples/projects/login/views/login.cem",
+      "path": "views/login.cem",
+      "contentType": "application/vnd.cem.element-template+cem",
+      "schema": "https://cem.dev/ns/template/cem-element/1",
+      "role": "template"
+    },
+    {
+      "id": "login-expression",
+      "source": "examples/projects/login/queries/summary.cem-ql",
+      "path": "queries/summary.cem-ql",
+      "contentType": "application/vnd.cem.query-expression+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1#expression",
+      "role": "query"
+    },
+    {
+      "id": "login-expression-expected",
+      "source": "examples/projects/login/expected/expression.json",
+      "path": "expected/expression.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    }
+  ],
+  "collections": [
+    "amsterdam-2026",
+    "content-types-documents-ui",
+    "content-types-queries-transformations",
+    "content-types-schema-authoring"
+  ],
+  "configurations": [
+    {
+      "id": "read-edit",
+      "name": "Parse login",
+      "kind": "inspection",
+      "source": "login-cem",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "https://cem.dev/ns/projection/ast/1",
+        "@name=input",
+        "@value=\"Sign in\"",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "validate",
+      "name": "Validate login",
+      "kind": "validation",
+      "source": "login-cem",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 3,
+        "warningCode": "cem.ast.unresolved_reference"
+      }
+    },
+    {
+      "id": "inspect",
+      "name": "Inspect login",
+      "kind": "inspection",
+      "source": "login-cem",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "https://cem.dev/ns/projection/ast/1",
+        "@name=input",
+        "@value=\"Sign in\"",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "format-pretty",
+      "name": "Format Login (pretty)",
+      "kind": "conversion",
+      "source": "login-cem",
+      "description": "Format saved data/login.cem with the native pretty profile. Plain output is available for copy/download; formatting does not overwrite the source.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--cemt-formatter-profile",
+        "pretty",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "@name=email",
+        "@name=password",
+        "@method=post",
+        "@required",
+        "Sign in"
+      ]
+    },
+    {
+      "id": "format-tabular",
+      "name": "Format Login (tabular)",
+      "kind": "conversion",
+      "source": "login-cem",
+      "description": "Format saved data/login.cem with the native tabular profile. Plain output is available for copy/download; formatting does not overwrite the source.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "@name=email",
+        "@name=password",
+        "@method=post",
+        "@required",
+        "Sign in"
+      ]
+    },
+    {
+      "id": "source-colors",
+      "name": "Export Login source colors (HTML)",
+      "kind": "conversion",
+      "source": "login-cem",
+      "description": "Export the saved Login source as escaped, colored HTML. Copy/download preserves the native source colors; the sandboxed Studio preview blocks styles.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "html-css-vars"
+      ],
+      "expectedText": [
+        "<pre class=\"cem-output cem-output-cem\"",
+        "data-role=\"syntax.",
+        "--cem-color-",
+        "Sign in"
+      ]
+    },
+    {
+      "id": "html-conversion",
+      "name": "Convert HTML to CEM-ML",
+      "kind": "conversion",
+      "source": "login-html",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "@name=email",
+        "@name=password",
+        "@method=post",
+        "@required",
+        "Sign in"
+      ]
+    },
+    {
+      "id": "validation-repair",
+      "name": "Validate form method",
+      "kind": "validation",
+      "source": "login-invalid",
+      "dependencies": [
+        "login-schema-package",
+        "login-schema"
+      ],
+      "description": "Validate the form method using the project-owned teaching schema.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "urn:demo:login",
+        "--schema-package",
+        "$login-schema-package",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 3,
+        "warningCode": "cem.ast.unresolved_reference",
+        "errorCode": "demo.login.method_required"
+      },
+      "repair": {
+        "find": "@cem:form=\"sign-in\"",
+        "replace": "@cem:form=\"sign-in\" @method=post"
+      }
+    },
+    {
+      "id": "semantics-html",
+      "name": "Login semantics from HTML",
+      "kind": "query",
+      "source": "login-html",
+      "dependencies": [
+        "login-semantics-query",
+        "login-semantic-contract"
+      ],
+      "description": "Run the shared 21-field Login contract and compare with expected/semantics.json. Source wrappers and HTML mirrors are mapped explicitly by the query.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--query-file",
+        "$login-semantics-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "login-semantic-contract"
+    },
+    {
+      "id": "semantics-cem",
+      "name": "Login semantics from CEM-ML",
+      "kind": "query",
+      "source": "login-cem",
+      "dependencies": [
+        "login-semantics-query",
+        "login-semantic-contract"
+      ],
+      "description": "Run the shared 21-field Login contract and compare with expected/semantics.json. Source wrappers and HTML mirrors are mapped explicitly by the query.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--query-file",
+        "$login-semantics-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "login-semantic-contract"
+    },
+    {
+      "id": "semantics-html-cemql",
+      "name": "Login semantics from HTML (CEM-QL)",
+      "kind": "query",
+      "source": "login-html",
+      "dependencies": [
+        "login-semantics-cemql",
+        "login-semantic-contract"
+      ],
+      "description": "Run the equivalent CEM-QL module against the same 21-field contract. Consume ready namespace names explicitly with a bounded navigation budget; source declarations remain inert.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--query-file",
+        "$login-semantics-cemql",
+        "--query-content-type",
+        "application/vnd.cem.query+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "login-semantic-contract"
+    },
+    {
+      "id": "semantics-cem-cemql",
+      "name": "Login semantics from CEM-ML (CEM-QL)",
+      "kind": "query",
+      "source": "login-cem",
+      "dependencies": [
+        "login-semantics-cemql",
+        "login-semantic-contract"
+      ],
+      "description": "Run the equivalent CEM-QL module against the same 21-field contract. Consume ready namespace names explicitly with a bounded navigation budget; source declarations remain inert.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--query-file",
+        "$login-semantics-cemql",
+        "--query-content-type",
+        "application/vnd.cem.query+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "login-semantic-contract"
+    },
+    {
+      "id": "render-html",
+      "name": "Render Login from HTML",
+      "kind": "transformation",
+      "source": "login-html",
+      "dependencies": [
+        "login-view-template",
+        "login-view-expected"
+      ],
+      "description": "Generate an HTML Login form from the saved source. Edit the template instruction or a source field, save, and rerun.",
+      "argv": [
+        "transform",
+        "$source",
+        "--data-content-type",
+        "text/html",
+        "--data-schema",
+        "https://cem.dev/ns/data/html/1",
+        "--template",
+        "$login-view-template",
+        "--template-content-type",
+        "application/vnd.cem.template+cem",
+        "--template-schema",
+        "https://cem.dev/ns/template/cem-native/1",
+        "--template-entrypoint",
+        "main",
+        "--to-content-type",
+        "text/html",
+        "--to-schema",
+        "https://cem.dev/ns/data/html/1",
+        "--output-color-type",
+        "none",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedOutput": "login-view-expected"
+    },
+    {
+      "id": "render-cem",
+      "name": "Render Login from CEM-ML",
+      "kind": "transformation",
+      "source": "login-cem",
+      "dependencies": [
+        "login-view-template",
+        "login-view-expected"
+      ],
+      "description": "Generate an HTML Login form from the saved source. Edit the template instruction or a source field, save, and rerun.",
+      "argv": [
+        "transform",
+        "$source",
+        "--data-content-type",
+        "application/cem",
+        "--data-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--template",
+        "$login-view-template",
+        "--template-content-type",
+        "application/vnd.cem.template+cem",
+        "--template-schema",
+        "https://cem.dev/ns/template/cem-native/1",
+        "--template-entrypoint",
+        "main",
+        "--to-content-type",
+        "text/html",
+        "--to-schema",
+        "https://cem.dev/ns/data/html/1",
+        "--output-color-type",
+        "none",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedOutput": "login-view-expected"
+    },
+    {
+      "id": "render-graph",
+      "name": "Render Login graph",
+      "kind": "transformation-graph",
+      "source": "login-view-graph",
+      "dependencies": [
+        "login-cem",
+        "login-view-template",
+        "login-view-expected"
+      ],
+      "description": "Run the saved import → view template → HTML export graph. Edit a graph attribute, save, rerun and follow generated-output provenance to its template.",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedOutput": "login-view-expected",
+      "expectedGraphOutput": "generated/login.html"
+    },
+    {
+      "id": "live-view",
+      "name": "Login live view",
+      "kind": "inspection",
+      "source": "login-live-view",
+      "dependencies": [
+        "login-html"
+      ],
+      "tags": [
+        "live-preview",
+        "preview-component:cem-text-field",
+        "preview-component:cem-action",
+        "preview-component:cem-alert"
+      ],
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.element-template+cem",
+        "--schema",
+        "https://cem.dev/ns/template/cem-element/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@name=cem-text-field",
+        "@name=cem-action"
+      ],
+      "description": "Parse the saved element-template source with its registered runtime bindings, then preview it through shared light-DOM components. Open-content attribute warnings remain advisory.",
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 15,
+        "warningCode": "cem.schema.unknown_html_attribute"
+      }
+    },
+    {
+      "id": "expression-html",
+      "name": "Evaluate Login expression (HTML)",
+      "kind": "query",
+      "source": "login-html",
+      "dependencies": [
+        "login-expression",
+        "login-expression-expected"
+      ],
+      "description": "Evaluate saved queries/summary.cem-ql against this saved Login source. Compare title and required-field count with expected/expression.json; edit the expression through Resources.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--query-file",
+        "$login-expression",
+        "--query-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "login-expression-expected"
+    },
+    {
+      "id": "expression-cem",
+      "name": "Evaluate Login expression (CEM-ML)",
+      "kind": "query",
+      "source": "login-cem",
+      "dependencies": [
+        "login-expression",
+        "login-expression-expected"
+      ],
+      "description": "Evaluate saved queries/summary.cem-ql against this saved Login source. Compare title and required-field count with expected/expression.json; edit the expression through Resources.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--query-file",
+        "$login-expression",
+        "--query-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "login-expression-expected"
+    },
+    {
+      "id": "expression-format-pretty",
+      "name": "Format Login expression (pretty)",
+      "kind": "conversion",
+      "source": "login-expression",
+      "description": "Format saved queries/summary.cem-ql without evaluating it or adding a module. Plain output is available for copy/download and never overwrites the source.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--to-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--to-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--cemt-formatter-profile",
+        "pretty",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "// Login résumé",
+        "title=",
+        "required=",
+        "dom:descendants(input)"
+      ]
+    },
+    {
+      "id": "expression-format-tabular",
+      "name": "Format Login expression (tabular)",
+      "kind": "conversion",
+      "source": "login-expression",
+      "description": "Format saved queries/summary.cem-ql without evaluating it or adding a module. Plain output is available for copy/download and never overwrites the source.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--to-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--to-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "// Login résumé",
+        "title=",
+        "required=",
+        "dom:descendants(input)"
+      ]
+    }
+  ]
+}

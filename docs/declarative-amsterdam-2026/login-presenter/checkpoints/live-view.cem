@@ -1,0 +1,152 @@
+@doc cem-ml 1
+@ns cemast = "https://cem.dev/ns/projection/ast/1"
+@default cemast
+{ast @schema=https://cem.dev/ns/cem-ml/1 @content-type=application/cem @hash-scheme=blake3
+    @source-id=views/login.cem |
+    {node @id=node-0 @kind=document @order=0 @source-id=views/login.cem}
+    {node @id=node-1 @kind=element @order=0 @source-id=views/login.cem @parent-id=node-0 @name=slice
+        @byte-offset=0 @byte-length=6 @namespace=""}
+    {node @id=node-2 @kind=attribute @order=0 @source-id=views/login.cem @parent-id=node-1
+        @name=name @value=notice @byte-offset=8 @byte-length=4 @namespace=""}
+    {node @id=node-3 @kind=whitespace @order=1 @source-id=views/login.cem @parent-id=node-1
+        @value="" @byte-offset=21 @byte-length=1}
+    {node @id=node-4 @kind=text @order=2 @source-id=views/login.cem @parent-id=node-1
+        @value="This local example does not send credentials." @byte-offset=22 @byte-length=45}
+    {node @id=node-5 @kind=whitespace @order=1 @source-id=views/login.cem @parent-id=node-0
+        @value="" @byte-offset=68 @byte-length=1}
+    {node @id=node-6 @kind=element @order=2 @source-id=views/login.cem @parent-id=node-0
+        @name=http-request @byte-offset=69 @byte-length=13 @namespace=""}
+    {node @id=node-7 @kind=attribute @order=0 @source-id=views/login.cem @parent-id=node-6
+        @name=slice @value=login @byte-offset=84 @byte-length=5 @namespace=""}
+    {node @id=node-8 @kind=attribute @order=1 @source-id=views/login.cem @parent-id=node-6 @name=url
+        @value=../data/login.html @byte-offset=97 @byte-length=3 @namespace=""}
+    {node @id=node-9 @kind=attribute @order=2 @source-id=views/login.cem @parent-id=node-6
+        @name=method @value=GET @byte-offset=123 @byte-length=6 @namespace=""}
+    {node @id=node-10 @kind=attribute @order=3 @source-id=views/login.cem @parent-id=node-6
+        @name=content-type @value=text/html @byte-offset=135 @byte-length=12 @namespace=""}
+    {node @id=node-11 @kind=whitespace @order=3 @source-id=views/login.cem @parent-id=node-0
+        @value="" @byte-offset=158 @byte-length=1}
+    {node @id=node-12 @kind=element @order=4 @source-id=views/login.cem @parent-id=node-0
+        @name=variable @byte-offset=159 @byte-length=13 @namespace=cem}
+    {node @id=node-13 @kind=attribute @order=0 @source-id=views/login.cem @parent-id=node-12
+        @name=name @value=heading @byte-offset=174 @byte-length=4 @namespace=""}
+    {node @id=node-14 @kind=attribute @order=1 @source-id=views/login.cem @parent-id=node-12
+        @name=select
+        @value='if (datadom.slices.login.state ?? "") == "loaded" { seq:first(seq:where(datadom.slices.login.data.descendants, fn(node) => node.kind == "element" && node.name == "h1")) } else { () }'
+        @byte-offset=189 @byte-length=6 @namespace=""}
+    {node @id=node-15 @kind=whitespace @order=5 @source-id=views/login.cem @parent-id=node-0
+        @value="" @byte-offset=381 @byte-length=1}
+    {node @id=node-16 @kind=element @order=6 @source-id=views/login.cem @parent-id=node-0
+        @name=style @byte-offset=382 @byte-length=6 @namespace=""}
+    {node @id=node-17 @kind=attribute @order=0 @source-id=views/login.cem @parent-id=node-16
+        @name=type @value=text/css @byte-offset=390 @byte-length=4 @namespace=""}
+    {node @id=node-18 @kind=whitespace @order=1 @source-id=views/login.cem @parent-id=node-16
+        @value="" @byte-offset=405 @byte-length=1}
+    {node @id=node-19 @kind=text @order=2 @source-id=views/login.cem @parent-id=node-16
+        @value="
+section { display: grid; gap: var(--cem-gap-group); padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); }
+"
+        @byte-offset=406 @byte-length=178}
+    {node @id=node-20 @kind=whitespace @order=7 @source-id=views/login.cem @parent-id=node-0
+        @value="" @byte-offset=585 @byte-length=1}
+    {node @id=node-21 @kind=element @order=8 @source-id=views/login.cem @parent-id=node-0
+        @name=section @byte-offset=586 @byte-length=8 @namespace=""}
+    {node @id=node-22 @kind=attribute @order=0 @source-id=views/login.cem @parent-id=node-21
+        @name=class @value=cem-theme-light @byte-offset=596 @byte-length=5 @namespace=""}
+    {node @id=node-23 @kind=attribute @order=1 @source-id=views/login.cem @parent-id=node-21
+        @name=aria-label @value="Login example" @byte-offset=619 @byte-length=10 @namespace=""}
+    {node @id=node-24 @kind=whitespace @order=2 @source-id=views/login.cem @parent-id=node-21
+        @value="" @byte-offset=647 @byte-length=2}
+    {node @id=node-25 @kind=element @order=3 @source-id=views/login.cem @parent-id=node-21 @name=h1
+        @byte-offset=649 @byte-length=3 @namespace=""}
+    {node @id=node-26 @kind=whitespace @order=0 @source-id=views/login.cem @parent-id=node-25
+        @value="" @byte-offset=654 @byte-length=1}
+    {node @id=node-27 @kind=element @order=1 @source-id=views/login.cem @parent-id=node-25 @name="$"
+        @byte-offset=655 @byte-length=2 @namespace=""}
+    {node @id=node-28 @kind=text @order=0 @source-id=views/login.cem @parent-id=node-27
+        @value="str:normalize_space(dom:text(heading))" @byte-offset=657 @byte-length=38}
+    {node @id=node-29 @kind=whitespace @order=4 @source-id=views/login.cem @parent-id=node-21
+        @value="" @byte-offset=697 @byte-length=2}
+    {node @id=node-30 @kind=element @order=5 @source-id=views/login.cem @parent-id=node-21 @name=p
+        @byte-offset=699 @byte-length=2 @namespace=""}
+    {node @id=node-31 @kind=whitespace @order=0 @source-id=views/login.cem @parent-id=node-30
+        @value="" @byte-offset=703 @byte-length=1}
+    {node @id=node-32 @kind=text @order=1 @source-id=views/login.cem @parent-id=node-30
+        @value="Edit and save this view or its Login data, then run the configuration again."
+        @byte-offset=704 @byte-length=76}
+    {node @id=node-33 @kind=whitespace @order=6 @source-id=views/login.cem @parent-id=node-21
+        @value="" @byte-offset=781 @byte-length=2}
+    {node @id=node-34 @kind=element @order=7 @source-id=views/login.cem @parent-id=node-21
+        @name=cem-text-field @byte-offset=783 @byte-length=15 @namespace=""}
+    {node @id=node-35 @kind=attribute @order=0 @source-id=views/login.cem @parent-id=node-34
+        @name=label @value=Email @byte-offset=800 @byte-length=5 @namespace=""}
+    {node @id=node-36 @kind=attribute @order=1 @source-id=views/login.cem @parent-id=node-34
+        @name=name @value=email @byte-offset=813 @byte-length=4 @namespace=""}
+    {node @id=node-37 @kind=attribute @order=2 @source-id=views/login.cem @parent-id=node-34
+        @name=type @value=email @byte-offset=825 @byte-length=4 @namespace=""}
+    {node @id=node-38 @kind=attribute @order=3 @source-id=views/login.cem @parent-id=node-34
+        @name=autocomplete @value=email @byte-offset=837 @byte-length=12 @namespace=""}
+    {node @id=node-39 @kind=attribute @order=4 @source-id=views/login.cem @parent-id=node-34
+        @name=required @byte-offset=857 @byte-length=8 @namespace=""}
+    {node @id=node-40 @kind=whitespace @order=8 @source-id=views/login.cem @parent-id=node-21
+        @value="" @byte-offset=866 @byte-length=2}
+    {node @id=node-41 @kind=element @order=9 @source-id=views/login.cem @parent-id=node-21
+        @name=cem-text-field @byte-offset=868 @byte-length=15 @namespace=""}
+    {node @id=node-42 @kind=attribute @order=0 @source-id=views/login.cem @parent-id=node-41
+        @name=label @value=Password @byte-offset=885 @byte-length=5 @namespace=""}
+    {node @id=node-43 @kind=attribute @order=1 @source-id=views/login.cem @parent-id=node-41
+        @name=name @value=password @byte-offset=901 @byte-length=4 @namespace=""}
+    {node @id=node-44 @kind=attribute @order=2 @source-id=views/login.cem @parent-id=node-41
+        @name=type @value=password @byte-offset=916 @byte-length=4 @namespace=""}
+    {node @id=node-45 @kind=attribute @order=3 @source-id=views/login.cem @parent-id=node-41
+        @name=autocomplete @value=current-password @byte-offset=931 @byte-length=12 @namespace=""}
+    {node @id=node-46 @kind=attribute @order=4 @source-id=views/login.cem @parent-id=node-41
+        @name=required @byte-offset=962 @byte-length=8 @namespace=""}
+    {node @id=node-47 @kind=whitespace @order=10 @source-id=views/login.cem @parent-id=node-21
+        @value="" @byte-offset=971 @byte-length=2}
+    {node @id=node-48 @kind=element @order=11 @source-id=views/login.cem @parent-id=node-21
+        @name=cem-action @byte-offset=973 @byte-length=11 @namespace=""}
+    {node @id=node-49 @kind=attribute @order=0 @source-id=views/login.cem @parent-id=node-48
+        @name=label @value="Sign in locally" @byte-offset=986 @byte-length=5 @namespace=""}
+    {node @id=node-50 @kind=attribute @order=1 @source-id=views/login.cem @parent-id=node-48
+        @name=slice @value=notice @byte-offset=1011 @byte-length=5 @namespace=""}
+    {node @id=node-51 @kind=attribute @order=2 @source-id=views/login.cem @parent-id=node-48
+        @name=slice-event @value=click @byte-offset=1025 @byte-length=11 @namespace=""}
+    {node @id=node-52 @kind=attribute @order=3 @source-id=views/login.cem @parent-id=node-48
+        @name=slice-value @value="'Local interaction received. No credentials were sent.'"
+        @byte-offset=1046 @byte-length=11 @namespace=""}
+    {node @id=node-53 @kind=whitespace @order=12 @source-id=views/login.cem @parent-id=node-21
+        @value="" @byte-offset=1116 @byte-length=2}
+    {node @id=node-54 @kind=element @order=13 @source-id=views/login.cem @parent-id=node-21
+        @name=cem-alert @byte-offset=1118 @byte-length=10 @namespace=""}
+    {node @id=node-55 @kind=attribute @order=0 @source-id=views/login.cem @parent-id=node-54
+        @name=tone @value=info @byte-offset=1130 @byte-length=4 @namespace=""}
+    {node @id=node-56 @kind=attribute @order=1 @source-id=views/login.cem @parent-id=node-54
+        @name=label @byte-offset=1141 @byte-length=5 @namespace="" @value-node-ids=57}
+    {node @id=node-57 @kind=element @order=0 @source-id=views/login.cem @parent-id=node-56 @name="$"
+        @byte-offset=1148 @byte-length=21 @namespace=""}
+    {node @id=node-58 @kind=text @order=0 @source-id=views/login.cem @parent-id=node-57
+        @value=datadom.slices.notice @byte-offset=1148 @byte-length=21}
+    {node @id=node-59 @kind=whitespace @order=14 @source-id=views/login.cem @parent-id=node-21
+        @value="" @byte-offset=1171 @byte-length=2}
+    {node @id=node-60 @kind=element @order=15 @source-id=views/login.cem @parent-id=node-21 @name=if
+        @byte-offset=1173 @byte-length=7 @namespace=cem}
+    {node @id=node-61 @kind=attribute @order=0 @source-id=views/login.cem @parent-id=node-60
+        @name=test @value='(datadom.slices.login.state ?? "") == "failed"' @byte-offset=1182
+        @byte-length=4 @namespace=""}
+    {node @id=node-62 @kind=whitespace @order=1 @source-id=views/login.cem @parent-id=node-60
+        @value="" @byte-offset=1237 @byte-length=3}
+    {node @id=node-63 @kind=element @order=2 @source-id=views/login.cem @parent-id=node-60
+        @name=cem-alert @byte-offset=1240 @byte-length=10 @namespace=""}
+    {node @id=node-64 @kind=attribute @order=0 @source-id=views/login.cem @parent-id=node-63
+        @name=tone @value=danger @byte-offset=1252 @byte-length=4 @namespace=""}
+    {node @id=node-65 @kind=attribute @order=1 @source-id=views/login.cem @parent-id=node-63
+        @name=label @value="Login data could not be loaded from this project." @byte-offset=1265
+        @byte-length=5 @namespace=""}
+    {node @id=node-66 @kind=whitespace @order=3 @source-id=views/login.cem @parent-id=node-60
+        @value="" @byte-offset=1323 @byte-length=2}
+    {node @id=node-67 @kind=whitespace @order=16 @source-id=views/login.cem @parent-id=node-21
+        @value="" @byte-offset=1326 @byte-length=1}
+    {node @id=node-68 @kind=whitespace @order=9 @source-id=views/login.cem @parent-id=node-0
+        @value="" @byte-offset=1328 @byte-length=1}
+}

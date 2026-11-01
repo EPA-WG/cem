@@ -1,0 +1,882 @@
+{
+  "schemaVersion": 1,
+  "projectVersion": "2.8.1",
+  "sourceRevision": "c5e5b89274175997387a4d0e160a7e6f6262147f",
+  "privacy": {
+    "enteredCredentials": "block-until-explicitly-cleared",
+    "automaticRecovery": false,
+    "aggregateCheckpointBytes": 4194304,
+    "handoffTimeoutMs": 5000,
+    "inputs": "checked-in-project-only",
+    "browserStorage": "never-read"
+  },
+  "archive": {
+    "file": "login.cem-studio.json",
+    "sha256": "abc7d53da3c2197c2c2a5a8bdecfb7eaea86e013c6ee973d1be322b4a85505bf"
+  },
+  "definition": {
+    "file": "example.json",
+    "sha256": "ec2634bcd8c6d98a9a4403b704a00bacfadfe4120cb485ee4121d755dc2a0b8d"
+  },
+  "resources": [
+    {
+      "id": "login-cem",
+      "path": "data/login.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cem-ml/1",
+      "sha256": "68f0487d911ed0a072366fbb19f9b52c3afce80cb0b404b3d6c345d07e71dbea"
+    },
+    {
+      "id": "login-html",
+      "path": "data/login.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "sha256": "03a91bd7a0b8af6e919a2217e87ddbdd0ef6c03d055a80685b8b1097540d3a95"
+    },
+    {
+      "id": "login-invalid",
+      "path": "data/login-invalid.cem",
+      "contentType": "application/cem",
+      "schema": "urn:demo:login",
+      "sha256": "6a1cb00fa856d3c0b3fadddee4401eab5000243f7f28948e8152735cdaafe42a"
+    },
+    {
+      "id": "login-schema-package",
+      "path": "schemas/login-schema-package.cem",
+      "contentType": "application/vnd.cem.schema-package+cem",
+      "schema": "https://cem.dev/ns/schema-package/1",
+      "sha256": "fb764209f9eb7df68975e966c3fe45ecf504410b2c2b224f5e7555897218b1fc"
+    },
+    {
+      "id": "login-schema",
+      "path": "schemas/login-schema.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/schema/1",
+      "sha256": "56b4cffed6151f28e0e812ce0794848a7c857550c9500d4a34895d02fe68dd88"
+    },
+    {
+      "id": "readme",
+      "path": "README.md",
+      "contentType": "text/markdown",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "sha256": "45eeef56e219cdd57767b6264b9f625da1a441f852daed30688ea061b598c536"
+    },
+    {
+      "id": "login-semantics-query",
+      "path": "queries/semantics.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "sha256": "d134bc918767f341d98d6a859993fda1fae82a5b877e0eb78beeb0cb8d37a94b"
+    },
+    {
+      "id": "login-semantic-contract",
+      "path": "expected/semantics.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "sha256": "dcc21fc2253041a214df3409ede3487447aa18f151dbf6522af021e344b4b76a"
+    },
+    {
+      "id": "login-semantics-cemql",
+      "path": "queries/semantics.cemql",
+      "contentType": "application/vnd.cem.query+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1",
+      "sha256": "b151eaa33b727be16461623715fd604f0fa22bf959cc50e6050f02f28c97f464"
+    },
+    {
+      "id": "login-view-template",
+      "path": "templates/view.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "sha256": "34147a254b269a65d4c33584dedc3560ce65e2275280d9898b2ce9df375db9f6"
+    },
+    {
+      "id": "login-view-expected",
+      "path": "expected/view.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "sha256": "32e704c00639aeda082c18343680faa2c252f0c1e8165c13af340cfe13f389b7"
+    },
+    {
+      "id": "login-view-graph",
+      "path": "graphs/view.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "sha256": "28176ccc4520969d0324cb14981c39da0e32fc7e41d7318095f6a9e2a22aa621"
+    },
+    {
+      "id": "login-live-view",
+      "path": "views/login.cem",
+      "contentType": "application/vnd.cem.element-template+cem",
+      "schema": "https://cem.dev/ns/template/cem-element/1",
+      "sha256": "da4673b6d0cc23c49129afb8a8e61f9b826e230e0cb3e9bc8cb2c247a70ec3f5"
+    },
+    {
+      "id": "login-expression",
+      "path": "queries/summary.cem-ql",
+      "contentType": "application/vnd.cem.query-expression+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1#expression",
+      "sha256": "14d309b9272da2ef3cf35fb4f5b9c82635ee865f399eb141e6f00f50ffc50319"
+    },
+    {
+      "id": "login-expression-expected",
+      "path": "expected/expression.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "sha256": "2ae1e024f6153894eb484b09f23a2fd1be6a1446835d0f5609fd8805d00e29f8"
+    },
+    {
+      "id": "command-read-edit",
+      "path": "config/read-edit.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "1ab0ec873713b5df6c0579f30750e47fd53852de747c69053fcbae6963947314"
+    },
+    {
+      "id": "command-validate",
+      "path": "config/validate.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "sha256": "5fa8ff565ba557576b82422e8709138e6232baf00dbe47f70984212b3da8a136"
+    },
+    {
+      "id": "command-inspect",
+      "path": "config/inspect.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "5bdeca66b7cc5709d5cce7409f6c5c54883bc117872ef7858fb7db194db6ca96"
+    },
+    {
+      "id": "command-format-pretty",
+      "path": "config/format-pretty.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "978d8b548dc242b428ad0eae5e3d8686a0d47dcafae7faf48c6b287b7958125b"
+    },
+    {
+      "id": "command-format-tabular",
+      "path": "config/format-tabular.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "6cf1ea1f2eef8e769716b34dbd569749ec9776d24b66de5c20a935db49d6f79c"
+    },
+    {
+      "id": "command-source-colors",
+      "path": "config/source-colors.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "2e8753c0842fa5f36c39deb0299f7f08acf2b905499145825521294688fc38bc"
+    },
+    {
+      "id": "command-html-conversion",
+      "path": "config/html-conversion.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "fc7b0a47338978c016a8a18d72bbc6b0332dafacbe3a36e265652ebe9ccf9ede"
+    },
+    {
+      "id": "command-validation-repair",
+      "path": "config/validation-repair.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/cli/run-config/1",
+      "sha256": "d32913d15f5c47c7783be2af322479deab839807cd5b1d9596ff78bc74c25425"
+    },
+    {
+      "id": "command-semantics-html",
+      "path": "config/semantics-html.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "91c5a0874360b711b2f0696f1e528c8adbbcc887d7dce9571f10efe85b3a5a9d"
+    },
+    {
+      "id": "command-semantics-cem",
+      "path": "config/semantics-cem.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "7f57baf12bd990e3ecc5e11727e8d5a10573b1e8bb107bf777db3a2d95b2ac18"
+    },
+    {
+      "id": "command-semantics-html-cemql",
+      "path": "config/semantics-html-cemql.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "d4f9fd636f5b7a343d47fe1f262350c77848cdf03d9b17568e658cc58e5487cd"
+    },
+    {
+      "id": "command-semantics-cem-cemql",
+      "path": "config/semantics-cem-cemql.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "0d6e30171bc65d89284e134dc80a047a97b8fdd2ab85332d3f2293f1e865e3f8"
+    },
+    {
+      "id": "command-render-html",
+      "path": "config/render-html.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "7b9054b9451d9c535ed9278ccbf8034934d05b07cb47757f3e60e32102f3d298"
+    },
+    {
+      "id": "command-render-cem",
+      "path": "config/render-cem.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "20f076d0026f91dd1168631f2b864835a5a5bdabfa4fe9080d935a6bc45f4820"
+    },
+    {
+      "id": "command-render-graph",
+      "path": "config/render-graph.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "7dd1e9a99c3e973f6b96907e5b0574420519e9dba72fa7af4ba6dbaa179218b1"
+    },
+    {
+      "id": "command-live-view",
+      "path": "config/live-view.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "af1a1c66eac45e2d1cac956de206e45e8990ed3a8c571b5b5258f914ba205efe"
+    },
+    {
+      "id": "command-expression-html",
+      "path": "config/expression-html.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "7a04c6fe864fcce601423f5d3e4d6ef1339eda50631ab206d81e9c2629ad2e4b"
+    },
+    {
+      "id": "command-expression-cem",
+      "path": "config/expression-cem.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "5b9a4a8e76d88893ffb7657c474823223cbe394d3deed59400a9f82c7c995a9e"
+    },
+    {
+      "id": "command-expression-format-pretty",
+      "path": "config/expression-format-pretty.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "83a5fd90a10322fad182bb7b5960033f4e0cc347917f3d437f657259a62c4ef7"
+    },
+    {
+      "id": "command-expression-format-tabular",
+      "path": "config/expression-format-tabular.json",
+      "contentType": "application/vnd.cem.cli-command+json",
+      "schema": "https://cem.dev/ns/cli/command/1",
+      "sha256": "8ce76cfd6bce74c1a3309fb61b34d258ecfa83a990e7503b20f409600240a44e"
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "read-edit",
+      "configuration": "read-edit",
+      "source": "login-cem",
+      "argv": [
+        "parse",
+        "data/login.cem",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/read-edit.cem",
+        "sha256": "2934bfd4082834957bb1c35d8370f1f05b6c4c09fb11e6e5569a508ee7c996d2"
+      },
+      "diagnostics": {
+        "file": "checkpoints/read-edit.diagnostics.json",
+        "sha256": "ee9d1b1be3123a731ccbdcb0cccf567714399ab51cd0b9c98310640b8dec0e67"
+      }
+    },
+    {
+      "id": "validate",
+      "configuration": "validate",
+      "source": "login-cem",
+      "argv": [
+        "validate",
+        "--config",
+        "config/validate.json",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/validate.json",
+        "sha256": "c0e60cb6df47d44d50bf6e41ab74e103d35bdb2218f0c2521da05ea973008305"
+      },
+      "diagnostics": {
+        "file": "checkpoints/validate.diagnostics.json",
+        "sha256": "ee9d1b1be3123a731ccbdcb0cccf567714399ab51cd0b9c98310640b8dec0e67"
+      }
+    },
+    {
+      "id": "inspect",
+      "configuration": "inspect",
+      "source": "login-cem",
+      "argv": [
+        "inspect",
+        "data/login.cem",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/inspect.cem",
+        "sha256": "2934bfd4082834957bb1c35d8370f1f05b6c4c09fb11e6e5569a508ee7c996d2"
+      },
+      "diagnostics": {
+        "file": "checkpoints/inspect.diagnostics.json",
+        "sha256": "ee9d1b1be3123a731ccbdcb0cccf567714399ab51cd0b9c98310640b8dec0e67"
+      }
+    },
+    {
+      "id": "format-pretty",
+      "configuration": "format-pretty",
+      "source": "login-cem",
+      "argv": [
+        "convert",
+        "data/login.cem",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--cemt-formatter-profile",
+        "pretty",
+        "--output-color-type",
+        "none"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/format-pretty.cem",
+        "sha256": "2b2fb1c288a4b1e7418e55a7546df406f098ce8941ba84e548fa0769a99693d1"
+      },
+      "diagnostics": {
+        "file": "checkpoints/format-pretty.diagnostics.json",
+        "sha256": "ee9d1b1be3123a731ccbdcb0cccf567714399ab51cd0b9c98310640b8dec0e67"
+      }
+    },
+    {
+      "id": "format-tabular",
+      "configuration": "format-tabular",
+      "source": "login-cem",
+      "argv": [
+        "convert",
+        "data/login.cem",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/format-tabular.cem",
+        "sha256": "84ada9eefa15b909e6108b3b564c43b63dd26e5fd072696c73f90a2d7781139c"
+      },
+      "diagnostics": {
+        "file": "checkpoints/format-tabular.diagnostics.json",
+        "sha256": "ee9d1b1be3123a731ccbdcb0cccf567714399ab51cd0b9c98310640b8dec0e67"
+      }
+    },
+    {
+      "id": "source-colors",
+      "configuration": "source-colors",
+      "source": "login-cem",
+      "argv": [
+        "convert",
+        "data/login.cem",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "html-css-vars"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/source-colors.html",
+        "sha256": "fd090e4b8d27015b5d9f100a15140a3b11a31a2bd89a4d3e73a3c49f2bc7d645"
+      },
+      "diagnostics": {
+        "file": "checkpoints/source-colors.diagnostics.json",
+        "sha256": "ee9d1b1be3123a731ccbdcb0cccf567714399ab51cd0b9c98310640b8dec0e67"
+      }
+    },
+    {
+      "id": "html-conversion",
+      "configuration": "html-conversion",
+      "source": "login-html",
+      "argv": [
+        "convert",
+        "data/login.html",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--output-color-type",
+        "none"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/html-conversion.cem",
+        "sha256": "37702d45006e25ca9c91399ddec034aef5dda053e33c1b28d81868218cfbb036"
+      },
+      "diagnostics": {
+        "file": "checkpoints/html-conversion.diagnostics.json",
+        "sha256": "006cfe8f6d9c10214efdc8c5ac4c4fa22f443c2a546a6b1831f200eff6aac760"
+      }
+    },
+    {
+      "id": "validation-repair",
+      "configuration": "validation-repair",
+      "source": "login-invalid",
+      "argv": [
+        "validate",
+        "--config",
+        "config/validation-repair.json",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "exitCode": 1,
+      "output": {
+        "file": "checkpoints/validation-repair.json",
+        "sha256": "2265854d53d6d31a8f57e853c5ff7a82183cacdc9c5481cc4fe3f7485ec9c591"
+      },
+      "diagnostics": {
+        "file": "checkpoints/validation-repair.diagnostics.json",
+        "sha256": "c2a1e28cb534ed13eb1c7266d6a78a72e9a878e4c7799f14a403d8a86f115e81"
+      }
+    },
+    {
+      "id": "validation-repair-repaired",
+      "configuration": "validation-repair",
+      "source": "login-invalid",
+      "argv": [
+        "validate",
+        "--config",
+        "config/validation-repair.json",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/validation-repair-repaired.json",
+        "sha256": "bbccd7a30942dbc00f78e8c9da2fb42779f11795794c4ca46831f04198aa07e1"
+      },
+      "diagnostics": {
+        "file": "checkpoints/validation-repair-repaired.diagnostics.json",
+        "sha256": "cccb3808166a545d081bd0d1cba89ba8deb87b70900235db545cf7c3b2d07bc2"
+      }
+    },
+    {
+      "id": "semantics-html",
+      "configuration": "semantics-html",
+      "source": "login-html",
+      "argv": [
+        "query",
+        "data/login.html",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--query-file",
+        "queries/semantics.xpath",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--output",
+        "json"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/semantics-html.json",
+        "sha256": "ed4069d3791f58c65f41cfeaf25757fd304ea6c68e772c80750c72cae7642284"
+      },
+      "diagnostics": {
+        "file": "checkpoints/semantics-html.diagnostics.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      }
+    },
+    {
+      "id": "semantics-cem",
+      "configuration": "semantics-cem",
+      "source": "login-cem",
+      "argv": [
+        "query",
+        "data/login.cem",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--query-file",
+        "queries/semantics.xpath",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--output",
+        "json"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/semantics-cem.json",
+        "sha256": "ed4069d3791f58c65f41cfeaf25757fd304ea6c68e772c80750c72cae7642284"
+      },
+      "diagnostics": {
+        "file": "checkpoints/semantics-cem.diagnostics.json",
+        "sha256": "63955266424a06541034711bd67d644e05c4b09a03de404444c40f7457d94625"
+      }
+    },
+    {
+      "id": "semantics-html-cemql",
+      "configuration": "semantics-html-cemql",
+      "source": "login-html",
+      "argv": [
+        "query",
+        "data/login.html",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--query-file",
+        "queries/semantics.cemql",
+        "--query-content-type",
+        "application/vnd.cem.query+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/semantics-html-cemql.json",
+        "sha256": "8879ce09f57ffc2477b441cabeda18eac3a370122f3e2f7a7b8ad982199cfd03"
+      },
+      "diagnostics": {
+        "file": "checkpoints/semantics-html-cemql.diagnostics.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      }
+    },
+    {
+      "id": "semantics-cem-cemql",
+      "configuration": "semantics-cem-cemql",
+      "source": "login-cem",
+      "argv": [
+        "query",
+        "data/login.cem",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--query-file",
+        "queries/semantics.cemql",
+        "--query-content-type",
+        "application/vnd.cem.query+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/semantics-cem-cemql.json",
+        "sha256": "8879ce09f57ffc2477b441cabeda18eac3a370122f3e2f7a7b8ad982199cfd03"
+      },
+      "diagnostics": {
+        "file": "checkpoints/semantics-cem-cemql.diagnostics.json",
+        "sha256": "63955266424a06541034711bd67d644e05c4b09a03de404444c40f7457d94625"
+      }
+    },
+    {
+      "id": "render-html",
+      "configuration": "render-html",
+      "source": "login-html",
+      "argv": [
+        "transform",
+        "data/login.html",
+        "--data-content-type",
+        "text/html",
+        "--data-schema",
+        "https://cem.dev/ns/data/html/1",
+        "--template",
+        "templates/view.cemt",
+        "--template-content-type",
+        "application/vnd.cem.template+cem",
+        "--template-schema",
+        "https://cem.dev/ns/template/cem-native/1",
+        "--template-entrypoint",
+        "main",
+        "--to-content-type",
+        "text/html",
+        "--to-schema",
+        "https://cem.dev/ns/data/html/1",
+        "--output-color-type",
+        "none",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/render-html.html",
+        "sha256": "32e704c00639aeda082c18343680faa2c252f0c1e8165c13af340cfe13f389b7"
+      },
+      "diagnostics": {
+        "file": "checkpoints/render-html.diagnostics.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      }
+    },
+    {
+      "id": "render-cem",
+      "configuration": "render-cem",
+      "source": "login-cem",
+      "argv": [
+        "transform",
+        "data/login.cem",
+        "--data-content-type",
+        "application/cem",
+        "--data-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--template",
+        "templates/view.cemt",
+        "--template-content-type",
+        "application/vnd.cem.template+cem",
+        "--template-schema",
+        "https://cem.dev/ns/template/cem-native/1",
+        "--template-entrypoint",
+        "main",
+        "--to-content-type",
+        "text/html",
+        "--to-schema",
+        "https://cem.dev/ns/data/html/1",
+        "--output-color-type",
+        "none",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/render-cem.html",
+        "sha256": "32e704c00639aeda082c18343680faa2c252f0c1e8165c13af340cfe13f389b7"
+      },
+      "diagnostics": {
+        "file": "checkpoints/render-cem.diagnostics.json",
+        "sha256": "ee9d1b1be3123a731ccbdcb0cccf567714399ab51cd0b9c98310640b8dec0e67"
+      }
+    },
+    {
+      "id": "render-graph",
+      "configuration": "render-graph",
+      "source": "login-view-graph",
+      "argv": [
+        "transform",
+        "--config",
+        "graphs/view.cem",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/render-graph.html",
+        "sha256": "32e704c00639aeda082c18343680faa2c252f0c1e8165c13af340cfe13f389b7"
+      },
+      "diagnostics": {
+        "file": "checkpoints/render-graph.diagnostics.json",
+        "sha256": "9f47d756847ce7f481f44cb109a69b13435d879d5db3b48419949de53e5eece2"
+      }
+    },
+    {
+      "id": "live-view",
+      "configuration": "live-view",
+      "source": "login-live-view",
+      "argv": [
+        "parse",
+        "views/login.cem",
+        "--content-type",
+        "application/vnd.cem.element-template+cem",
+        "--schema",
+        "https://cem.dev/ns/template/cem-element/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/live-view.cem",
+        "sha256": "a27a4795a527ec7754683debba63416bddbce998a43e40200cbfd4e3d926d179"
+      },
+      "diagnostics": {
+        "file": "checkpoints/live-view.diagnostics.json",
+        "sha256": "3a505d18d24c26b1a9fbd148a119a514e9dd00c5280f54987c2c3bb03e61007a"
+      }
+    },
+    {
+      "id": "expression-html",
+      "configuration": "expression-html",
+      "source": "login-html",
+      "argv": [
+        "query",
+        "data/login.html",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--query-file",
+        "queries/summary.cem-ql",
+        "--query-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/expression-html.json",
+        "sha256": "0575749388a2415884c758dbc72a2b88b56e9d04a9627c49ef301097cd8ab8cf"
+      },
+      "diagnostics": {
+        "file": "checkpoints/expression-html.diagnostics.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      }
+    },
+    {
+      "id": "expression-cem",
+      "configuration": "expression-cem",
+      "source": "login-cem",
+      "argv": [
+        "query",
+        "data/login.cem",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--query-file",
+        "queries/summary.cem-ql",
+        "--query-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/expression-cem.json",
+        "sha256": "0575749388a2415884c758dbc72a2b88b56e9d04a9627c49ef301097cd8ab8cf"
+      },
+      "diagnostics": {
+        "file": "checkpoints/expression-cem.diagnostics.json",
+        "sha256": "63955266424a06541034711bd67d644e05c4b09a03de404444c40f7457d94625"
+      }
+    },
+    {
+      "id": "expression-format-pretty",
+      "configuration": "expression-format-pretty",
+      "source": "login-expression",
+      "argv": [
+        "convert",
+        "queries/summary.cem-ql",
+        "--content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--to-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--to-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--cemt-formatter-profile",
+        "pretty",
+        "--output-color-type",
+        "none"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/expression-format-pretty.cem",
+        "sha256": "14d309b9272da2ef3cf35fb4f5b9c82635ee865f399eb141e6f00f50ffc50319"
+      },
+      "diagnostics": {
+        "file": "checkpoints/expression-format-pretty.diagnostics.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      }
+    },
+    {
+      "id": "expression-format-tabular",
+      "configuration": "expression-format-tabular",
+      "source": "login-expression",
+      "argv": [
+        "convert",
+        "queries/summary.cem-ql",
+        "--content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--to-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--to-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/expression-format-tabular.cem",
+        "sha256": "14d309b9272da2ef3cf35fb4f5b9c82635ee865f399eb141e6f00f50ffc50319"
+      },
+      "diagnostics": {
+        "file": "checkpoints/expression-format-tabular.diagnostics.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      }
+    }
+  ]
+}

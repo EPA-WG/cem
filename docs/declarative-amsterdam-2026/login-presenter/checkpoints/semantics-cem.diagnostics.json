@@ -1,0 +1,563 @@
+[
+  {
+    "uri": null,
+    "line": 6,
+    "column": 28,
+    "byteOffset": 136,
+    "code": "cem.ast.unresolved_reference",
+    "severity": "warning",
+    "message": "reference `login-title` did not match any element id",
+    "details": {
+      "behavior": "cem-ml-ast-report-fact",
+      "contract": "ast-unresolved-reference",
+      "coordinates": {
+        "byteOffset": 136,
+        "column": 28,
+        "columnEncoding": "utf-16",
+        "line": 6,
+        "utf16Column": 28,
+        "utf16Offset": 136
+      },
+      "factKind": "ast-unresolved-reference",
+      "policy": "AST reference slots remain neutral facts until schema policy decides their diagnostic disposition",
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 569,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 569,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 18,
+                  "utf16Column": 1,
+                  "utf16Offset": 569
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 109,
+                "end": {
+                  "byteOffset": 114,
+                  "column": 6,
+                  "columnEncoding": "utf-16",
+                  "line": 6,
+                  "utf16Column": 6,
+                  "utf16Offset": 114
+                },
+                "start": {
+                  "byteOffset": 109,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 6,
+                  "utf16Column": 1,
+                  "utf16Offset": 109
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 15,
+                "byteStart": 136,
+                "end": {
+                  "byteOffset": 151,
+                  "column": 43,
+                  "columnEncoding": "utf-16",
+                  "line": 6,
+                  "utf16Column": 43,
+                  "utf16Offset": 151
+                },
+                "start": {
+                  "byteOffset": 136,
+                  "column": 28,
+                  "columnEncoding": "utf-16",
+                  "line": 6,
+                  "utf16Column": 28,
+                  "utf16Offset": 136
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 15,
+                "byteStart": 136,
+                "end": {
+                  "byteOffset": 151,
+                  "column": 43,
+                  "columnEncoding": "utf-16",
+                  "line": 6,
+                  "utf16Column": 43,
+                  "utf16Offset": 151
+                },
+                "start": {
+                  "byteOffset": 136,
+                  "column": 28,
+                  "columnEncoding": "utf-16",
+                  "line": 6,
+                  "utf16Column": 28,
+                  "utf16Offset": 136
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      },
+      "sourceRange": {
+        "byteOffset": 136
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 569
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 109,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 136,
+              "len": 15
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 136,
+              "len": 15
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": null,
+    "line": 9,
+    "column": 13,
+    "byteOffset": 277,
+    "code": "cem.ast.unresolved_reference",
+    "severity": "warning",
+    "message": "reference `email` did not match any element id",
+    "details": {
+      "behavior": "cem-ml-ast-report-fact",
+      "contract": "ast-unresolved-reference",
+      "coordinates": {
+        "byteOffset": 277,
+        "column": 13,
+        "columnEncoding": "utf-16",
+        "line": 9,
+        "utf16Column": 13,
+        "utf16Offset": 277
+      },
+      "factKind": "ast-unresolved-reference",
+      "policy": "AST reference slots remain neutral facts until schema policy decides their diagnostic disposition",
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 569,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 569,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 18,
+                  "utf16Column": 1,
+                  "utf16Offset": 569
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 6,
+                "byteStart": 269,
+                "end": {
+                  "byteOffset": 275,
+                  "column": 11,
+                  "columnEncoding": "utf-16",
+                  "line": 9,
+                  "utf16Column": 11,
+                  "utf16Offset": 275
+                },
+                "start": {
+                  "byteOffset": 269,
+                  "column": 5,
+                  "columnEncoding": "utf-16",
+                  "line": 9,
+                  "utf16Column": 5,
+                  "utf16Offset": 269
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 277,
+                "end": {
+                  "byteOffset": 280,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 9,
+                  "utf16Column": 16,
+                  "utf16Offset": 280
+                },
+                "start": {
+                  "byteOffset": 277,
+                  "column": 13,
+                  "columnEncoding": "utf-16",
+                  "line": 9,
+                  "utf16Column": 13,
+                  "utf16Offset": 277
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 277,
+                "end": {
+                  "byteOffset": 280,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 9,
+                  "utf16Column": 16,
+                  "utf16Offset": 280
+                },
+                "start": {
+                  "byteOffset": 277,
+                  "column": 13,
+                  "columnEncoding": "utf-16",
+                  "line": 9,
+                  "utf16Column": 13,
+                  "utf16Offset": 277
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      },
+      "sourceRange": {
+        "byteOffset": 277
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 569
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 269,
+              "len": 6
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 277,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 277,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": null,
+    "line": 12,
+    "column": 13,
+    "byteOffset": 385,
+    "code": "cem.ast.unresolved_reference",
+    "severity": "warning",
+    "message": "reference `password` did not match any element id",
+    "details": {
+      "behavior": "cem-ml-ast-report-fact",
+      "contract": "ast-unresolved-reference",
+      "coordinates": {
+        "byteOffset": 385,
+        "column": 13,
+        "columnEncoding": "utf-16",
+        "line": 12,
+        "utf16Column": 13,
+        "utf16Offset": 385
+      },
+      "factKind": "ast-unresolved-reference",
+      "policy": "AST reference slots remain neutral facts until schema policy decides their diagnostic disposition",
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 569,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 569,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 18,
+                  "utf16Column": 1,
+                  "utf16Offset": 569
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 6,
+                "byteStart": 377,
+                "end": {
+                  "byteOffset": 383,
+                  "column": 11,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 11,
+                  "utf16Offset": 383
+                },
+                "start": {
+                  "byteOffset": 377,
+                  "column": 5,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 5,
+                  "utf16Offset": 377
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 385,
+                "end": {
+                  "byteOffset": 388,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 16,
+                  "utf16Offset": 388
+                },
+                "start": {
+                  "byteOffset": 385,
+                  "column": 13,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 13,
+                  "utf16Offset": 385
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 385,
+                "end": {
+                  "byteOffset": 388,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 16,
+                  "utf16Offset": 388
+                },
+                "start": {
+                  "byteOffset": 385,
+                  "column": 13,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 13,
+                  "utf16Offset": 385
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      },
+      "sourceRange": {
+        "byteOffset": 385
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 569
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 377,
+              "len": 6
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 385,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 385,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  }
+]

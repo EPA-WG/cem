@@ -1386,6 +1386,64 @@
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/presentation-samples.json"
             ]
+        },
+        "test:login-presenter": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node --test scripts/login-presenter.test.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/login-presenter*.mjs",
+                "{projectRoot}/scripts/native-catalog-execution.mjs",
+                "{projectRoot}/scripts/fixtures/catalog-native-diagnostics.json",
+                "{projectRoot}/src/file-system-provider.js",
+                "{projectRoot}/generated/feature-tour/examples/login.cem-studio.json",
+                "{workspaceRoot}/examples/projects/login/**/*",
+                "{workspaceRoot}/examples/cem-ml/login.cem",
+                "{workspaceRoot}/examples/semantic/login.html",
+                "{workspaceRoot}/docs/declarative-amsterdam-2026/login-presenter/**/*",
+                "{workspaceRoot}/dist/target/cem_ml_cli/debug/cem-ml"
+            ],
+            "outputs": [],
+            "dependsOn": [
+                "generate:feature-tour",
+                {
+                    "projects": [
+                        "cem_ml_cli"
+                    ],
+                    "target": "build"
+                }
+            ]
+        },
+        "verify:login-presenter": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "test:login-presenter"
+            ],
+            "options": {
+                "command": "node scripts/login-presenter.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/login-presenter*.mjs",
+                "{projectRoot}/scripts/native-catalog-execution.mjs",
+                "{projectRoot}/scripts/fixtures/catalog-native-diagnostics.json",
+                "{projectRoot}/src/file-system-provider.js",
+                "{projectRoot}/generated/feature-tour/examples/login.cem-studio.json",
+                "{workspaceRoot}/examples/projects/login/**/*",
+                "{workspaceRoot}/examples/cem-ml/login.cem",
+                "{workspaceRoot}/examples/semantic/login.html",
+                "{workspaceRoot}/docs/declarative-amsterdam-2026/login-presenter/**/*",
+                "{workspaceRoot}/dist/target/cem_ml_cli/debug/cem-ml",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
         }
     },
     "tags": [

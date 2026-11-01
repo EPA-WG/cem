@@ -1,0 +1,820 @@
+[
+  {
+    "uri": "data/login-invalid.cem",
+    "line": 6,
+    "column": 28,
+    "byteOffset": 136,
+    "code": "cem.ast.unresolved_reference",
+    "severity": "warning",
+    "message": "reference `login-title` did not match any element id",
+    "details": {
+      "behavior": "cem-ml-ast-report-fact",
+      "contract": "ast-unresolved-reference",
+      "coordinates": {
+        "byteOffset": 136,
+        "column": 28,
+        "columnEncoding": "utf-16",
+        "line": 6,
+        "utf16Column": 28,
+        "utf16Offset": 136
+      },
+      "factKind": "ast-unresolved-reference",
+      "policy": "AST reference slots remain neutral facts until schema policy decides their diagnostic disposition",
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 556,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 556,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 18,
+                  "utf16Column": 1,
+                  "utf16Offset": 556
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 109,
+                "end": {
+                  "byteOffset": 114,
+                  "column": 6,
+                  "columnEncoding": "utf-16",
+                  "line": 6,
+                  "utf16Column": 6,
+                  "utf16Offset": 114
+                },
+                "start": {
+                  "byteOffset": 109,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 6,
+                  "utf16Column": 1,
+                  "utf16Offset": 109
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 15,
+                "byteStart": 136,
+                "end": {
+                  "byteOffset": 151,
+                  "column": 43,
+                  "columnEncoding": "utf-16",
+                  "line": 6,
+                  "utf16Column": 43,
+                  "utf16Offset": 151
+                },
+                "start": {
+                  "byteOffset": 136,
+                  "column": 28,
+                  "columnEncoding": "utf-16",
+                  "line": 6,
+                  "utf16Column": 28,
+                  "utf16Offset": 136
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 15,
+                "byteStart": 136,
+                "end": {
+                  "byteOffset": 151,
+                  "column": 43,
+                  "columnEncoding": "utf-16",
+                  "line": 6,
+                  "utf16Column": 43,
+                  "utf16Offset": 151
+                },
+                "start": {
+                  "byteOffset": 136,
+                  "column": 28,
+                  "columnEncoding": "utf-16",
+                  "line": 6,
+                  "utf16Column": 28,
+                  "utf16Offset": 136
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      },
+      "sourceRange": {
+        "byteOffset": 136
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 556
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 109,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 136,
+              "len": 15
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 136,
+              "len": 15
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login-invalid.cem",
+    "line": 9,
+    "column": 13,
+    "byteOffset": 264,
+    "code": "cem.ast.unresolved_reference",
+    "severity": "warning",
+    "message": "reference `email` did not match any element id",
+    "details": {
+      "behavior": "cem-ml-ast-report-fact",
+      "contract": "ast-unresolved-reference",
+      "coordinates": {
+        "byteOffset": 264,
+        "column": 13,
+        "columnEncoding": "utf-16",
+        "line": 9,
+        "utf16Column": 13,
+        "utf16Offset": 264
+      },
+      "factKind": "ast-unresolved-reference",
+      "policy": "AST reference slots remain neutral facts until schema policy decides their diagnostic disposition",
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 556,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 556,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 18,
+                  "utf16Column": 1,
+                  "utf16Offset": 556
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 6,
+                "byteStart": 256,
+                "end": {
+                  "byteOffset": 262,
+                  "column": 11,
+                  "columnEncoding": "utf-16",
+                  "line": 9,
+                  "utf16Column": 11,
+                  "utf16Offset": 262
+                },
+                "start": {
+                  "byteOffset": 256,
+                  "column": 5,
+                  "columnEncoding": "utf-16",
+                  "line": 9,
+                  "utf16Column": 5,
+                  "utf16Offset": 256
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 264,
+                "end": {
+                  "byteOffset": 267,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 9,
+                  "utf16Column": 16,
+                  "utf16Offset": 267
+                },
+                "start": {
+                  "byteOffset": 264,
+                  "column": 13,
+                  "columnEncoding": "utf-16",
+                  "line": 9,
+                  "utf16Column": 13,
+                  "utf16Offset": 264
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 264,
+                "end": {
+                  "byteOffset": 267,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 9,
+                  "utf16Column": 16,
+                  "utf16Offset": 267
+                },
+                "start": {
+                  "byteOffset": 264,
+                  "column": 13,
+                  "columnEncoding": "utf-16",
+                  "line": 9,
+                  "utf16Column": 13,
+                  "utf16Offset": 264
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      },
+      "sourceRange": {
+        "byteOffset": 264
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 556
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 256,
+              "len": 6
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 264,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 264,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login-invalid.cem",
+    "line": 12,
+    "column": 13,
+    "byteOffset": 372,
+    "code": "cem.ast.unresolved_reference",
+    "severity": "warning",
+    "message": "reference `password` did not match any element id",
+    "details": {
+      "behavior": "cem-ml-ast-report-fact",
+      "contract": "ast-unresolved-reference",
+      "coordinates": {
+        "byteOffset": 372,
+        "column": 13,
+        "columnEncoding": "utf-16",
+        "line": 12,
+        "utf16Column": 13,
+        "utf16Offset": 372
+      },
+      "factKind": "ast-unresolved-reference",
+      "policy": "AST reference slots remain neutral facts until schema policy decides their diagnostic disposition",
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 556,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 556,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 18,
+                  "utf16Column": 1,
+                  "utf16Offset": 556
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 6,
+                "byteStart": 364,
+                "end": {
+                  "byteOffset": 370,
+                  "column": 11,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 11,
+                  "utf16Offset": 370
+                },
+                "start": {
+                  "byteOffset": 364,
+                  "column": 5,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 5,
+                  "utf16Offset": 364
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 372,
+                "end": {
+                  "byteOffset": 375,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 16,
+                  "utf16Offset": 375
+                },
+                "start": {
+                  "byteOffset": 372,
+                  "column": 13,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 13,
+                  "utf16Offset": 372
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 3,
+                "byteStart": 372,
+                "end": {
+                  "byteOffset": 375,
+                  "column": 16,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 16,
+                  "utf16Offset": 375
+                },
+                "start": {
+                  "byteOffset": 372,
+                  "column": 13,
+                  "columnEncoding": "utf-16",
+                  "line": 12,
+                  "utf16Column": 13,
+                  "utf16Offset": 372
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      },
+      "sourceRange": {
+        "byteOffset": 372
+      }
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 556
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 364,
+              "len": 6
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 372,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 372,
+              "len": 3
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "uri": "data/login-invalid.cem",
+    "line": 1,
+    "column": 1,
+    "byteOffset": 0,
+    "code": "demo.login.method_required",
+    "severity": "error",
+    "message": "Login form must declare its method: element `form` failed field contract `form-method` (required-fields) with missing fields: method",
+    "details": {
+      "acceptedChildren": [],
+      "actualChildSequence": [
+        "label",
+        "input",
+        "label",
+        "input",
+        "button"
+      ],
+      "actualFirstChild": "label",
+      "actualLastChild": "button",
+      "actualValues": {
+        "action": "#session",
+        "form": "sign-in"
+      },
+      "behavior": "schema:required-fields",
+      "checkKind": "required-fields",
+      "childCounts": {
+        "button": 1,
+        "input": 2,
+        "label": 2
+      },
+      "choiceCases": [],
+      "condition": {
+        "absentAttributes": [],
+        "absentChildren": [],
+        "attribute": null,
+        "presentAttributes": [],
+        "presentChildren": [],
+        "values": []
+      },
+      "conflictingChoiceCases": {},
+      "conflictingChoiceChildren": [],
+      "conflictingChoiceFields": [],
+      "contract": "form-method",
+      "coordinates": {
+        "byteOffset": 0,
+        "column": 1,
+        "columnEncoding": "utf-16",
+        "line": 1,
+        "utf16Column": 1,
+        "utf16Offset": 0
+      },
+      "diagnostic": "demo.login.method_required",
+      "distinctChildCount": 3,
+      "duplicateChildren": [],
+      "element": "form",
+      "exactChildSequence": [],
+      "exactChildren": {},
+      "exactDistinctChildren": null,
+      "exactSelectedChildren": null,
+      "exactSelectedDistinctChildren": null,
+      "exactTotalChildren": null,
+      "firstChild": null,
+      "forbiddenAttributeValues": {},
+      "forbiddenChildSequence": [],
+      "forbiddenChildren": [],
+      "forbiddenFields": [],
+      "forbiddenFirstChild": null,
+      "forbiddenLastChild": null,
+      "forbiddenOrderedChildren": [],
+      "forbiddenPrefixChildSequence": [],
+      "forbiddenSuffixChildSequence": [],
+      "invalidChildOrder": false,
+      "invalidChildSequence": false,
+      "invalidChildren": [],
+      "invalidExactChildSequence": false,
+      "invalidExactChildren": [],
+      "invalidExactDistinctChildren": false,
+      "invalidExactSelectedChildren": false,
+      "invalidExactSelectedDistinctChildren": false,
+      "invalidExactTotalChildren": false,
+      "invalidFields": [],
+      "invalidFirstChild": false,
+      "invalidForbiddenChildOrder": false,
+      "invalidForbiddenChildSequence": false,
+      "invalidForbiddenFirstChild": false,
+      "invalidForbiddenLastChild": false,
+      "invalidForbiddenPrefixChildSequence": false,
+      "invalidForbiddenSuffixChildSequence": false,
+      "invalidLastChild": false,
+      "invalidPrefixChildSequence": false,
+      "invalidSuffixChildSequence": false,
+      "invalidValues": {},
+      "lastChild": null,
+      "matchedChildSequence": [],
+      "matchedForbiddenChildSequence": [],
+      "matchedForbiddenOrderedChildren": [],
+      "maxChildren": {},
+      "maxDistinctChildren": null,
+      "maxOneChild": [],
+      "maxOneChildren": [],
+      "maxOneFields": [],
+      "maxSelectedChildren": null,
+      "maxSelectedDistinctChildren": null,
+      "maxTotalChildren": null,
+      "minChildren": {},
+      "minDistinctChildren": null,
+      "minSelectedChildren": null,
+      "minSelectedDistinctChildren": null,
+      "minTotalChildren": null,
+      "missingChildren": [],
+      "missingChoiceCases": [],
+      "missingChoiceChildren": [],
+      "missingChoiceFields": [],
+      "missingFields": [
+        "method"
+      ],
+      "optionalFields": [],
+      "orderedChildSequence": [],
+      "orderedChildren": [],
+      "overMaxChildren": [],
+      "overMaxDistinctChildren": false,
+      "overMaxSelectedChildren": false,
+      "overMaxSelectedDistinctChildren": false,
+      "overMaxTotalChildren": false,
+      "pathLayout": {
+        "attributes": [],
+        "basenames": [],
+        "cleanSegments": true,
+        "directoryNames": [],
+        "extension": null,
+        "forbiddenBasenames": [],
+        "forbiddenDirectoryNames": [],
+        "prefix": null,
+        "relative": true
+      },
+      "prefixChildSequence": [],
+      "presentChoiceCases": {},
+      "presentMaxOneChild": [],
+      "presentMaxOneFields": [],
+      "presentRequiredOneChild": [],
+      "presentRequiredOneFields": [],
+      "requiredChildSequence": [],
+      "requiredChildren": [],
+      "requiredFields": [
+        "method"
+      ],
+      "requiredOneChild": [],
+      "requiredOneFields": [],
+      "schemaUri": "urn:demo:login",
+      "selectedChildCount": 0,
+      "selectedChildren": [],
+      "selectedDistinctChildCount": 0,
+      "sourceMapCoordinates": {
+        "columnEncoding": "utf-16",
+        "frames": [
+          {
+            "ranges": [
+              {
+                "byteLen": 556,
+                "byteStart": 0,
+                "end": {
+                  "byteOffset": 556,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 18,
+                  "utf16Column": 1,
+                  "utf16Offset": 556
+                },
+                "start": {
+                  "byteOffset": 0,
+                  "column": 1,
+                  "columnEncoding": "utf-16",
+                  "line": 1,
+                  "utf16Column": 1,
+                  "utf16Offset": 0
+                }
+              }
+            ],
+            "sourceId": 1
+          },
+          {
+            "ranges": [
+              {
+                "byteLen": 5,
+                "byteStart": 205,
+                "end": {
+                  "byteOffset": 210,
+                  "column": 8,
+                  "columnEncoding": "utf-16",
+                  "line": 8,
+                  "utf16Column": 8,
+                  "utf16Offset": 210
+                },
+                "start": {
+                  "byteOffset": 205,
+                  "column": 3,
+                  "columnEncoding": "utf-16",
+                  "line": 8,
+                  "utf16Column": 3,
+                  "utf16Offset": 205
+                }
+              }
+            ],
+            "sourceId": 1
+          }
+        ]
+      },
+      "sourceRange": {
+        "sourceId": 1,
+        "span": {
+          "end": 210,
+          "kind": "single",
+          "len": 5,
+          "start": 205
+        }
+      },
+      "suffixChildSequence": [],
+      "target": "form",
+      "totalChildCount": 5,
+      "underMinChildren": [],
+      "underMinDistinctChildren": false,
+      "underMinSelectedChildren": false,
+      "underMinSelectedDistinctChildren": false,
+      "underMinTotalChildren": false,
+      "unorderedChildren": []
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 0,
+              "len": 556
+            }
+          },
+          "transform": {
+            "kind": "CemTokenizer"
+          }
+        },
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "start": 205,
+              "len": 5
+            }
+          },
+          "transform": {
+            "kind": "CemAstBuilder"
+          }
+        }
+      ]
+    }
+  }
+]

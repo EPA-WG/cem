@@ -1,0 +1,19 @@
+{
+  "language": "cem-ql",
+  "result": {
+    "diagnostics": [],
+    "error": null,
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "title=Sign in"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "required=2"
+      }
+    ]
+  }
+}

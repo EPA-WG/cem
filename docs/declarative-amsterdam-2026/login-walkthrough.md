@@ -5,6 +5,8 @@ Studio's Amsterdam collection. The checklist below pins resource and configurati
 IDs from [example.json](../../examples/projects/login/example.json).
 Start with a new independent copy; preserve existing saved projects and drafts.
 Use the current full runtime. This route does not depend on the minimal WASM profile.
+The [frozen presenter project](login-presenter/README.md) contains the portable
+inputs and exact expected checkpoint outputs, with a native replay/drift check.
 
 ## Ordered checkpoints
 
@@ -54,8 +56,10 @@ shared 4 MiB aggregate budget and five-second handoff deadline.
 
 ## Acceptance record
 
-Source baseline: `1a7cd833ab4d2e85157afceb9cce930e9d24220a` plus the README
-identity correction and this walkthrough. Browser command (from repository root):
+Frozen input/runtime baseline: `c5e5b89274175997387a4d0e160a7e6f6262147f`.
+The original focused browser run used `1a7cd833` plus the README correction;
+the deployed acceptance below passed after the runtime-asset fix in `c5e5b892`.
+Browser command (from repository root):
 
 ```sh
 NX_DAEMON=false yarn nx run @epa-wg/cem-studio:test-ci--src/feature-tour.browser.spec.js --excludeTaskDependencies --skipNxCache --args='--project=browser --testNamePattern="Login|teaching schema"'

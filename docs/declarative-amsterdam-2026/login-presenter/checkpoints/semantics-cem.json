@@ -1,0 +1,586 @@
+{
+  "language": "xpath",
+  "result": {
+    "contentType": "application/vnd.cem.xpath-result+json",
+    "evaluator": {
+      "evaluatorId": "cem.xpath.native",
+      "evaluatorVersion": "0.1.0"
+    },
+    "expressionUri": "queries/semantics.xpath",
+    "grammarVersion": "xpath-3.1/cem-ast-1",
+    "invocationHost": "query",
+    "resolverPolicyStamp": "resolver-policy/1;substitutions=;denials=",
+    "safetyPolicyStamp": "cem-ml-query/1;result-items=unbounded;work-units=unbounded;xpath-text-bytes=1048576;xpath-work-units=16777216",
+    "schemaUri": "https://cem.dev/ns/query/xpath/1",
+    "sequence": {
+      "items": [
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 91,
+                    "start": 418
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "screen=login",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 105,
+                    "start": 515
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "title-id=login-title",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 68,
+                    "start": 626
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "title=Sign in",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 100,
+                    "start": 700
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "labelled-by=login-title",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 85,
+                    "start": 806
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "form=sign-in",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 77,
+                    "start": 897
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "method=post",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 77,
+                    "start": 980
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "action=#session",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 72,
+                    "start": 1063
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "email-id=email",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 78,
+                    "start": 1141
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "email-type=email",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 102,
+                    "start": 1225
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "email-autocomplete=email",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 90,
+                    "start": 1333
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "email-required=true",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 237,
+                    "start": 1429
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "email-label=Email",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 78,
+                    "start": 1672
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "password-id=password",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 84,
+                    "start": 1756
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "password-type=password",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 108,
+                    "start": 1846
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "password-autocomplete=current-password",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 96,
+                    "start": 1960
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "password-required=true",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 243,
+                    "start": 2062
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "password-label=Password",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 80,
+                    "start": 2311
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "submit-type=submit",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 102,
+                    "start": 2397
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "submit-action=primary",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 42,
+                    "start": 2505
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "submit-text=Sign in",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 62,
+                    "start": 2553
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "inputs=2",
+            "typeName": "xs:string"
+          }
+        }
+      ],
+      "sequenceType": "xs:string+"
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "len": 2617,
+              "start": 0
+            }
+          },
+          "transform": {
+            "content_type": "application/vnd.cem.xpath",
+            "kind": "ContentTypeTransform"
+          }
+        }
+      ]
+    },
+    "staticContext": {
+      "decimalFormats": {},
+      "defaultElementNamespace": null,
+      "defaultFunctionNamespace": null,
+      "functionBindings": {},
+      "namespaces": {},
+      "unnamedDecimalFormat": {
+        "decimalSeparator": ".",
+        "digit": "#",
+        "exponentSeparator": "e",
+        "groupingSeparator": ",",
+        "infinity": "Infinity",
+        "minusSign": "-",
+        "nan": "NaN",
+        "patternSeparator": ";",
+        "perMille": "‰",
+        "percent": "%",
+        "zeroDigit": "0"
+      },
+      "variableBindings": {}
+    },
+    "xpathVersion": "3.1"
+  }
+}

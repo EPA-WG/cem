@@ -81,7 +81,15 @@ native/release follow-ups.
   with resource/configuration IDs, baseline, expected results and boundaries;
   correct the README live-view source contract to match the project manifest.
 
-- [ ] Verify and freeze the required Login journey against the current Studio
+- [x] Freeze the ordinary Login project archive, authored manifest, native checkpoint
+  outputs and failure/repair diagnostics; add replay and drift-refusal fixtures
+  for altered inputs, commands, outputs and privacy policy. Keep explicit source
+  revision, shared runtime ownership and disposable-credential boundaries.
+  Verified 2026-11-01: 21 exact native replays, 12 freeze/drift/privacy tests
+  and Studio lint passed. References are checked-in native outputs; capture and
+  replay never read a browser session or export entered credentials.
+
+- [x] Verify and freeze the required Login journey against the current Studio
   project and full runtime: open the README/source, edit a label or heading,
   introduce the syntax-valid schema violation, follow the original diagnostic,
   save the repair, inspect/format/report, compare the agreed HTML/CEM-ML fields,
@@ -91,6 +99,12 @@ native/release follow-ups.
   warnings and comparison limits. Implement concrete gaps exposed by this path
   first, in shared libraries; add an explicit fixture action before new tests.
   Use the required tutorial checkpoints rather than adding another feature tour.
+  Frozen presenter baseline: `c5e5b892`, Login 2.8.1, 35 resources and 21 native
+  checkpoint results (20 configurations plus saved repair). The
+  [archive and replay instructions](declarative-amsterdam-2026/login-presenter/README.md)
+  preserve exact outputs, original diagnostics and all known warning limits.
+  Deployed interaction/navigation acceptance passed at that revision; native
+  replay and drift/privacy refusal tests verify the frozen inputs and results.
 
 - [x] Extend deployed Login acceptance with URL/tree selection and offline unsaved
   draft restoration fixtures; verify persisted bytes, independent clone roots,

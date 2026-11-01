@@ -385,6 +385,10 @@ original diagnostic selection, independent copies, URL/Structure selection and
 offline unsaved-draft reload. It uses disposable browser storage. The ordered
 [Login walkthrough](../../docs/declarative-amsterdam-2026/login-walkthrough.md)
 records the resource IDs, expected results and remaining presentation acceptance.
+The [frozen presenter project](../../docs/declarative-amsterdam-2026/login-presenter/README.md)
+contains the portable Login inputs and all 21 saved native checkpoint outputs.
+`yarn nx run @epa-wg/cem-studio:verify:login-presenter` verifies source/configuration
+identity and replays the exact outputs and original diagnostics without browser storage.
 
 With project navigation active, **Results → Operation output** uses the shared
 `cem-media-preview` to show text, sandboxed documents and live CEM output. The

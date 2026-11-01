@@ -1,0 +1,2 @@
+{DOCTYPE}
+{html @lang=en | {head | {meta @charset=utf-8}{title | CEM Semantic Fixture - Login}}{body | {main @aria-labelledby=login-title @data-cem-screen=login | {h1 @id=login-title | Sign in}{form @action="#session" @data-cem-form=sign-in @method=post | {label @for=email | Email}{input @autocomplete=email @id=email @name=email @required @type=email}{label @for=password | Password}{input @autocomplete=current-password @id=password @name=password @required @type=password}{button @data-cem-action=primary @type=submit | Sign in}}}}}
