@@ -418,6 +418,12 @@ inventory, not the minimum set loaded by every app.
                   - [ ] Add physical query-owner transport/source adapters and
                     complete worker/owned-fallback fresh-heap/credential acceptance
                     before an endpoint or reduced-runtime admission is enabled.
+                    The [bounded native source-only handoff](archive/todo-completed-native-query-source-handoff-2026-10-31.md)
+                    now captures original pure-query bindings and passively
+                    reimports pinned declarations for explicit fresh-host linking.
+                    Wire this into original physical worker/fallback resource
+                    adapters with source/code owners, drain/retirement and privacy
+                    checks; packets alone grant no checkpoint or recovery authority.
 
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's

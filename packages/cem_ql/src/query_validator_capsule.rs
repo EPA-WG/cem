@@ -26,6 +26,7 @@ use serde::{Deserialize, Serialize};
 use std::{cell::Cell, collections::BTreeMap, sync::Arc};
 mod instructions;
 pub mod declarations;
+pub mod handoff;
 use instructions::{inspect, FunctionRequirement};
 
 pub const MAGIC: &[u8] = b"CEMQV1\n";

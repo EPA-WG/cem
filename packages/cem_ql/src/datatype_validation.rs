@@ -347,6 +347,14 @@ pub struct BoundDatatypeRule {
     declaration: SchemaDeclarationNode,
 }
 impl BoundDatatypeRule {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn source_declaration(&self) -> &SchemaDeclarationNode {
+        &self.declaration
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn result_adapter(&self) -> &DatatypeResultAdapter {
+        &self.registration.adapter
+    }
     pub fn signature(&self) -> &cem_ml::schema::datatype_validation::ValidationSignature {
         self.registration.contract.signature()
     }

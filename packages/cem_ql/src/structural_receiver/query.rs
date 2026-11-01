@@ -13,6 +13,7 @@ use crate::{
 use cem_ml::runtime_admission::NativeRootKind;
 use cem_ml::schema::attribute_datatypes::AttributeDatatypeContextLease;
 mod owners;
+mod handoff;
 pub use owners::FreshQuerySource;
 pub(in crate::structural_receiver) use owners::{QuerySourceLease, RuntimeOwner};
 

@@ -490,7 +490,7 @@ generation ledger and its existing v2 census categories:
 | Preparation | Original query request context and shared invocation budget. |
 
 These are role categories, not counts of individual concrete Rust types. The
-six-kind manifest and all wire formats remain unchanged. Roots remain counted
+six-kind manifest and existing wire formats remain unchanged. Roots remain counted
 after retirement or host loss until actual destruction; the existing 256-root/
 256-entry limits and native drain/freeze guards still apply. Unmanaged legacy
 hosts retain their prior behavior. Raw inert inspection aliases are outside
@@ -510,12 +510,74 @@ cover real registered validator execution, draining, cancellation, request reent
 and late-result refusal; imported-rule coverage borrows the original native
 assembly and source components.
 
-These adapters remain native-only. Physical query-owner endpoints, opaque source/
-binding transport, fresh-WASM reimport/relinking and query-specific worker/
+These adapters remain native-only. The source-only handoff below supplies a
+bounded passive transport record. Physical query-owner endpoints, live binding
+transport, fresh-WASM reimport/relinking and query-specific worker/
 owned-fallback checkpoint handoff remain gates before admission. There is no new
 WASM export, application/component JavaScript, credential transfer or effect
 replay. Automatic Studio recovery remains off; entered passwords/OTP block
 recovery until explicitly cleared, with unchanged checkpoint/deadline budgets.
+
+## Query source handoff
+
+[`CEMQH1`](../packages/cem_ql/src/query_validator_capsule/handoff.rs) is a separate
+native, source-only transport contract. `host.capture_query_handoff(binding)`
+requires the actual live pure-query binding, original registered source and
+current host context/generation. It reads the bound datatype occurrence and
+result/diagnostic adapter names from that binding, and preserves its verified
+CEMQD1 byte image. A foreign, retired or unavailable source/binding is refused;
+native callback bindings are refused even when their result signatures agree.
+Capture holds native admission across serialization and rechecks the original
+owner before returning bytes.
+
+The packet consists of the seven-byte `CEMQH1\n` magic, a four-byte little-endian
+metadata length, canonical MessagePack metadata and the unchanged CEMQD1 bytes.
+Metadata carries the ABI, exact ML/QL versions, datatype occurrence and adapter
+contract names. Its limit is 4 KiB with bounded collection-length preflight and
+eight nesting levels; the original declaration keeps its 64 KiB limit. The whole packet is
+bounded to 69,643 bytes. Verification shares the declaration/program's 100,000
+work-check budget, cancellation and source/provenance validation; it checks
+framing and collection lengths before typed decoding, requires canonical
+metadata and refuses trailing data. Original CEMQV1/CEMQD1 formats are unchanged.
+Each verified declaration retains one immutable, at-most-64-KiB wire image;
+owners share it rather than keeping a chain of previous generations.
+
+`handoff::verify(bytes, expected_pin, control)` checks an independently supplied
+outer packet hash and original declaration/program/source pins. It restores
+fresh passive native CEM arenas and typed instructions. The selected occurrence
+must still be an eligible original datatype with the declared result contract.
+No query source recompilation, host creation, native registration, context,
+grant or invocation occurs during verification.
+
+For relinking, the embedding explicitly registers that exact restored
+declaration's source and lexical capture with a fresh host, chooses its scope
+policy and context, then calls `link_query_handoff` with fresh reviewed functions
+and a checked result adapter. Adapter names must agree with the capture; ordinary
+registration checks their validation shape. These names are requirements, not
+portable schema implementations or proof of source-backed result-profile code
+closure. Missing functions, mismatched adapters, an equal-but-different source
+allocation, a foreign host or unavailable context fail without publishing a
+binding. Failed owner allocation drops staged leases. A successful binding
+owns a new source/registry lifetime; the caller must explicitly create a fresh
+invocation. Old requests, budgets and bindings never become valid on the new
+host, and native root/drain accounting remains in force.
+
+Evaluated values/candidates, retained results, callbacks, runtime context/grants
+and invocation budgets never enter this record. A packet is a source dependency,
+not an ownership receipt, credential policy decision or recovery authorization.
+The enclosing checkpoint transaction must still refuse entered passwords/OTPs,
+drain requests, prove complete physical ownership, account for all packet bytes
+within 4 MiB and finish within five seconds. Copying or repinning a packet cannot
+prove any of those conditions. Automatic Studio recovery remains off.
+
+The [native fixtures](../packages/cem_ql/tests/query_validator_capsule/handoff.rs)
+exercise independent source reimport, original diagnostic provenance, old-handle
+refusal, malformed/oversized packets, payload exclusion, stale owners,
+cancellation and failed allocation. This source adapter is native-only and for
+direct pure-query bindings. Imported-rule/code-owner transport, actual WASM
+worker/fallback wiring, physical shutdown/replacement and credential acceptance
+remain in the [active TODO](todo.md#component-application-wasm-profile-separate-target).
+No transport endpoint or component admission is enabled by CEMQH1.
 
 ## Exact native validator and tokenizer requirements
 

@@ -54,6 +54,20 @@ fn input() -> ValidationInput {
     }
 }
 #[test]
+fn native_callbacks_cannot_be_exported_as_passive_pure_query_handoffs() {
+    let g = generation();
+    let (h, b, call) = fixture(&g, Default::default());
+    assert!(h.capture_query_handoff(&b).is_err());
+    assert_eq!(g.inventory().unwrap().live_roots, 3);
+    assert_eq!(g.inventory().unwrap().active_entries, 0);
+    assert_eq!(
+        h.validate_query(&call, &b, &input(), Default::default())
+            .unwrap()
+            .accepted,
+        Some(true)
+    );
+}
+#[test]
 fn callback_closure_waits_for_real_query_work_and_retained_request_owners() {
     let g = generation();
     let (h, b, call) = fixture(&g, Default::default());

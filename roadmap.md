@@ -839,7 +839,13 @@ The [native query owner adapters](docs/cem-native-schema-capsules.md#portable-qu
 now account for original source/program, binding/registry and invocation/budget
 lifetimes, including imported rules and callback/reentry guards. Physical query
 transport, fresh-WASM source reimport and query-specific checkpoint handoff remain
-next; verification still grants no execution or recovery admission.
+next; verification still grants no execution or recovery admission. The separate
+[native query-source handoff](docs/cem-native-schema-capsules.md#query-source-handoff)
+now captures a live binding's original pinned CEMQD1 bytes and selectors, checks
+bounded framing and passively reimports original sources for explicit relinking
+on a fresh native host. It carries no invocation data, context or recovery proof.
+Actual WASM transport and physical worker/fallback/credential acceptance remain
+the next gate; the source adapter enables no endpoint or reduced-runtime admission.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 

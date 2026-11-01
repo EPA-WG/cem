@@ -29,6 +29,9 @@ pub struct VerifiedQueryDeclaration {
     capture: Arc<LexicallyScopedDocument>,
     pub(crate) contract: DatatypeBehaviorContract,
     pub(crate) program: Arc<VerifiedValidatorQuery>,
+    // One bounded immutable wire image per verified declaration. Source handoff
+    // shares these original bytes instead of recompiling or recapturing owners.
+    pub(super) wire: Arc<[u8]>,
 }
 impl VerifiedQueryDeclaration {
     pub fn pin(&self) -> &QueryDeclarationPin {
@@ -198,6 +201,13 @@ pub fn verify(
     control: &OperationControl,
 ) -> Result<VerifiedQueryDeclaration, String> {
     let work = Work::new(control);
+    verify_with_work(bytes, expected, &work)
+}
+pub(super) fn verify_with_work(
+    bytes: &[u8],
+    expected: &QueryDeclarationPin,
+    work: &Work<'_>,
+) -> Result<VerifiedQueryDeclaration, String> {
     work.check()?;
     if bytes.len() > MAX_BYTES
         || !bytes.starts_with(MAGIC)
@@ -221,12 +231,12 @@ pub fn verify(
     let program = Arc::new(super::verify_with_work(
         &capsule.program,
         &expected.program,
-        &work,
+        work,
     )?);
     let capture = capsule
         .source
         .restore(&expected.program.source, &mut || work.check())?;
-    let contract = checked_source(&capture, &program, &work)?;
+    let contract = checked_source(&capture, &program, work)?;
     let source = RetainedCemTree::from_shared(
         capture.document().clone(),
         &expected.program.source.uri,
@@ -242,6 +252,7 @@ pub fn verify(
         capture,
         contract,
         program,
+        wire: Arc::from(bytes),
     })
 }
 

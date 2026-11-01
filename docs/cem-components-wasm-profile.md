@@ -403,7 +403,14 @@ no portable/runtime admission is implied.
 The [portable query lifecycle adapters](cem-native-schema-capsules.md#portable-query-lifecycle-owners)
 now enroll original native source/program owners, weak source-bound registries,
 imported rules and shared-budget invocations in that same ledger. Their physical
-query transport and fresh-WASM handoff remain explicit gates.
+query transport and fresh-WASM handoff remain explicit gates. The separate
+[CEMQH1 source handoff](cem-native-schema-capsules.md#query-source-handoff) now
+captures the original live pure-query binding's pinned declaration and exact
+selectors, with bounded passive reimport and explicit fresh native relinking.
+It carries no invocation payload, budget, callbacks or grants and grants no
+checkpoint or recovery authority. It remains native-only: physical worker/
+fallback transport, source-backed code/registry owners and credential acceptance
+still precede endpoints or admission.
 
 
 Do not equate downloaded code with an active native generation. Register every
