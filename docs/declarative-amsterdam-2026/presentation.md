@@ -44,9 +44,11 @@ The [slide story](slide-story.md) expands the speaking notes. The opening
 The added DCE security diagram connects deployment routes to guarded resources
 for each vendor's contribution. The closing resource slide is now slide 30.
 
-The [deferred presentation checklist](../todo.md#deferred-work-declarative-amsterdam-2026-cem-presentation)
-preserves remaining work while component implementation has priority. Deck production and agenda coverage do not
-establish that runnable demonstrations, participant releases or rehearsal are ready.
+The [presentation delivery checklist](../todo.md#amsterdam-presentation-setup-and-rehearsal)
+now leads execution under the 2026-11-01 priority update: required Login/Studio
+demonstration work precedes unrelated component-runtime extraction and packaging.
+Deck production and agenda coverage do not establish that runnable demonstrations,
+participant releases or rehearsal are ready.
 
 ## Conference facts and correspondence status
 

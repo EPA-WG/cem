@@ -1,5 +1,11 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+Current priority (2026-11-01): complete the required Login/Studio demonstration,
+delivery route, materials and rehearsal before unrelated runtime/profile work.
+Follow the [active sample checklist](../todo.md#amsterdam-presentation-samples-active-studio-priority)
+and [delivery checklist](../todo.md#amsterdam-presentation-setup-and-rehearsal).
+The dated notes below retain their historical implementation evidence.
+
 Started 2026-10-10 before clearing chat context; updated 2026-10-11 after agenda
 alignment. The user requested a temporary switch from implementation to preparing
 the CEM presentation for Declarative Amsterdam 2026. The user changed priority
@@ -185,9 +191,10 @@ remain separate work; passing this gate is not a claim that every OOM is impossi
 ## Resume after clearing context
 
 Read the repository's [CLAUDE.md](../../CLAUDE.md), then [docs/todo.md](../todo.md).
-That file remains the sole execution checklist. Its Studio presentation-sample
-queue is active under the October 17 priority update. The
-[deferred presentation actions](../todo.md#deferred-work-declarative-amsterdam-2026-cem-presentation)
+That file remains the sole execution checklist. The November 1 priority update
+puts the required Login/Studio presentation path and delivery first, with unrelated
+runtime and packaging work deferred to the end. The
+[presentation delivery actions](../todo.md#amsterdam-presentation-setup-and-rehearsal)
 retain the remaining deck, tutorial, release and rehearsal work.
 
 The user requested an adoption-focused platform pitch on October 10 and
@@ -321,7 +328,7 @@ below is historical; use the active TODO order and preserve unfinished work.
 
 When the presentation, supporting demo/setup files and rehearsal evidence are
 ready, record their paths and status here, close/archive that presentation set
-in the TODO, and continue with [CEM Studio](../todo.md#deferred-priority-cem-studio).
+in the TODO, and continue with the next [active delivery item](../todo.md#amsterdam-presentation-samples-active-studio-priority).
 Preserve any implementation changes actually made during preparation and update
 their evidence individually. The earlier queue's 16 actions remain open until
 their own acceptance requirements are met.
