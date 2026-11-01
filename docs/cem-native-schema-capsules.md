@@ -1685,6 +1685,56 @@ cover original owners, query demand, source conflicts, malformed/repinned inputs
 limits, exact registry selection, peer invalidation, stale receipts, weak
 lifetimes, reentry, callback retirement and atomic replacement.
 
+## Original application source handoff
+
+`application_source_transport` adds the separately versioned passive `CEMAH1`
+(`cem.application-source/1`) packet. It frames the **unchanged original CEMAPPD4
+bytes** and complete original receiver/scalar source snapshots. Each source role
+identifies its actual base or mixed component, scalar alias, source/schema URI
+and original attribute-node selectors. There is no JSON AST or source-text
+reparse. Shared external source claims restore one native arena; original
+namespaces, ranges, parent/owning edges and lexical capture metadata survive.
+
+Capture holds the live publication's native admission and busy guard. It checks
+exact original tree/capture pointers, scalar identities, host context, registry,
+compilation and publication owners before and after copying. Equal bytes or pins
+from a foreign capture cannot stand in for an original owner. Source identity
+hashes remain trusted build input supplied with those original captures. Native
+source agreement spans the existing package's contracts, assemblies, operation
+profiles and leaves, plus declaration/scalar hash claims; contradictory shared
+URIs refuse. Capture does not evaluate a selector or call runtime code.
+
+The independent packet hash and CEMAPPD4 pin must both match. Verification checks
+canonical framing, native versions, complete component/scalar roles and selectors,
+source agreement, existing nested package limits and cancellation. Limits are
+4 MiB for the **entire** packet, 2,112 external sources/roles, 16,384 aggregate
+external nodes checked before restoration, 64 selectors per role, MessagePack
+depth 64 and one million preflight visits. These are bounds on this passive
+packet, not a new checkpoint allowance or a peak-memory measurement.
+
+`VerifiedApplicationSources::receivers()` returns descriptors over restored
+original trees and captures. `matches_publication()` requires those exact arenas
+and the actual verified application object in a live native publication. The
+embedding still supplies fresh contexts, native callbacks, code/registry and
+compilation owners, original input data and directed crossing permissions before
+staging/publishing. None of those, runtime expression results, credentials or
+live native handles is serialized. Missing or retired owners still refuse.
+Native acceptance rebuilds node, scalar, executable and list receivers, recaptures
+identical bytes and proves disposal and generation-drain refusal.
+
+The separate **default-off** `application-source-runtime` Cargo feature makes the
+existing application/module verifiers, compiler, preparation, receiver contracts
+and publication guards available on WASM. It preserves the full/default and
+compiled-component targets. The test-only `application_source_probe` reads a
+native-emitted packet in independent heaps and a real worker; it creates no
+installation authority. Run
+`NX_DAEMON=false yarn nx run cem_ql:test:application-source-wasm --skipNxCache`.
+This stage does **not** supply the live application endpoint, original native
+bootstrap/code-owner provisioning, worker/fallback session/checkpoint handoff,
+component admission or linked-code omission. Those remain explicit next gates.
+Entered credentials still block recovery; automatic whole-Studio recovery stays
+off, with the existing aggregate 4 MiB budget and five-second deadlines.
+
 ## Native publication generation enrollment
 
 [`cem_ml::runtime_admission::generation`](../packages/cem_ml/src/runtime_admission/generation.rs)

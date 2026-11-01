@@ -9,7 +9,9 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [imported/native-rule and custom-profile transport](archive/todo-completed-rule-profile-transport-2026-11-01.md).
+Latest completion: [original application source handoff and opt-in WASM contracts](archive/todo-completed-application-source-handoff-2026-11-01.md).
+The [imported/native-rule and custom-profile transport](archive/todo-completed-rule-profile-transport-2026-11-01.md)
+remains the preceding stage.
 The [native-provisioned query endpoints and TODO cleanup](archive/todo-completed-query-endpoints-2026-11-01.md)
 remain the preceding stage.
 The [source-backed query execution owners](archive/todo-completed-query-execution-owners-2026-11-01.md)
@@ -86,12 +88,21 @@ they do not manufacture a datatype or infer a code grant from metadata.
 
 Next execution gates, in order:
 
-- [ ] Add versioned CEMAPPD4 source/code/registry-owner transport and original
-  source reimport/recompilation on fresh worker/owned-fallback hosts. Preserve
-  CEMDM1 and existing formats; cover mixed node/scalar/executable receivers,
-  original base/item/behavior/operation/constant dependencies, missing/stale owners,
-  atomic replacement, cancellation, disposal and credential refusal. Native
-  publication enrollment is complete; its installation endpoint remains pending.
+- [ ] Finish CEMAPPD4 source/code/registry-owner transport and original source
+  reimport/recompilation on fresh worker/owned-fallback hosts. The
+  [passive CEMAH1 handoff and opt-in native WASM contracts](cem-native-schema-capsules.md#original-application-source-handoff)
+  are complete; live installation remains gated. Preserve CEMDM1 and existing
+  formats, original base/item/behavior/operation/constant dependencies and the
+  credential privacy policy.
+  - [ ] Add an original native bootstrap/code owner and live installation
+    endpoint over the actual source packet, fresh host, registry, compilations
+    and complete mixed node/scalar/executable receivers. Test missing, foreign,
+    dropped, stale and callback-retired owners, atomic replacement, cancellation,
+    disposal and cleanup behind closed admission.
+  - [ ] Connect complete application sessions to shared worker/fallback resource
+    transport, native census and sealed checkpoint/journal handoff. Prove original
+    tokens, source reimport/recompilation, actual owners, aggregate 4 MiB byte
+    charging, deadlines and credential refusal in physical fresh runtimes.
 
 - [ ] Integrate original schema/type receivers, native attribute/dataset/slice
   domains and qualified island/projection ownership with the reduced processing

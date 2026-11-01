@@ -50,6 +50,7 @@ pub struct BuiltApplicationEnvelope {
     pub pin: ApplicationEnvelopePin,
 }
 pub struct VerifiedApplicationEnvelope {
+    wire: Arc<[u8]>,
     pin: ApplicationEnvelopePin,
     parent: Arc<v3::VerifiedApplicationEnvelope>,
     mixed: BTreeMap<String, Arc<mixed::VerifiedMixedReceiverDeclaration>>,
@@ -58,6 +59,7 @@ pub struct VerifiedApplicationEnvelope {
     order: Vec<String>,
 }
 impl VerifiedApplicationEnvelope {
+    pub(crate) fn wire_bytes(&self) -> &[u8] { &self.wire }
     pub fn pin(&self) -> &ApplicationEnvelopePin {
         &self.pin
     }
@@ -231,6 +233,7 @@ pub fn verify(
     }
     work.check()?;
     Ok(VerifiedApplicationEnvelope {
+        wire: bytes.into(),
         pin: pin.clone(),
         parent,
         mixed,

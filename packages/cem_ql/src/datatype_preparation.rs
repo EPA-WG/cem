@@ -268,12 +268,12 @@ impl ExecutableDatatype {
             runtime,
             limits,
             true,
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             None,
         )
         .0
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     pub(crate) fn prepare_with_contexts(
         &self,
         input: &PreparationInput,
@@ -295,11 +295,11 @@ impl ExecutableDatatype {
             runtime,
             limits,
             false,
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             None,
         )
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     pub(crate) fn prepare_unvalidated_with_contexts(
         &self,
         input: &PreparationInput,
@@ -315,7 +315,7 @@ impl ExecutableDatatype {
         runtime: &ValidationRuntime<'_>,
         limits: PreparationLimits,
         validate: bool,
-        #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+        #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))] contexts: Option<
             &dyn datatype_validation::RuleValidationContexts,
         >,
     ) -> (DatatypePreparation, usize) {
@@ -341,7 +341,7 @@ impl ExecutableDatatype {
             &mut report,
             &mut visits,
             validate,
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             contexts,
         ) {
             report.stopped = Some(stop);
@@ -395,7 +395,7 @@ fn prepare(
     report: &mut DatatypePreparation,
     visits: &mut usize,
     validate: bool,
-    #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))] contexts: Option<
         &dyn datatype_validation::RuleValidationContexts,
     >,
 ) -> Result<(), PreparationStop> {
@@ -427,7 +427,7 @@ fn prepare(
             &attribution,
             report,
             visits,
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             contexts,
         )?,
         Implementation::ListItems => {
@@ -507,7 +507,7 @@ fn prepare(
                     &attribution,
                     report,
                     visits,
-                    #[cfg(not(target_arch = "wasm32"))]
+                    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
                     contexts,
                 )?
                 else {
@@ -536,13 +536,13 @@ fn prepare(
         max_input_values: limits.validation.max_input_values - *visits,
         ..limits.validation
     };
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     let validation = if let Some(contexts) = contexts {
         d.validate_with_rule_contexts(&validation_input, runtime, validation_limits, contexts)
     } else {
         d.validate(&validation_input, runtime, validation_limits)
     };
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", not(feature = "application-source-runtime")))]
     let validation = d.validate(&validation_input, runtime, validation_limits);
     report.accepted = validation.accepted;
     report.value = Some(values);
@@ -570,7 +570,7 @@ fn scalar(
     attribution: &DiagnosticAttribution,
     report: &mut DatatypePreparation,
     visits: &mut usize,
-    #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))] contexts: Option<
         &dyn datatype_validation::RuleValidationContexts,
     >,
 ) -> Result<Option<Vec<Item>>, PreparationStop> {
@@ -603,7 +603,7 @@ fn scalar(
             attribution,
             report,
             visits,
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             contexts,
         )?
         else {
@@ -636,18 +636,18 @@ fn scalar_step(
     attribution: &DiagnosticAttribution,
     report: &mut DatatypePreparation,
     visits: &mut usize,
-    #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))] contexts: Option<
         &dyn datatype_validation::RuleValidationContexts,
     >,
 ) -> Result<Option<Vec<Item>>, PreparationStop> {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     let scoped_runtime = datatype_validation::operation_runtime(
         runtime,
         selected.registration.identity().source.declaration(),
         contexts,
     )
     .map_err(|_| PreparationStop::Unavailable)?;
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     let runtime = &scoped_runtime;
     check(runtime)?;
     spend(report, limits)?;

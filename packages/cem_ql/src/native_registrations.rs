@@ -30,7 +30,7 @@ const ABI: &str = "cem.native-registration/1";
 const INVALID: &str = "native implementation requirement refused";
 const MAX_BYTES: usize = 64 * 1024;
 mod source_profiles;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub mod profiles;
 pub mod dependency_sources;
 pub(crate) use source_profiles::SourceContract;

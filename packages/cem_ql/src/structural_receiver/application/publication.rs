@@ -77,6 +77,7 @@ pub struct MixedSource {
     pub scalars: BTreeMap<String, mixed::ScalarReceiverSource>,
 }
 pub struct LinkedApplication {
+    pub(crate) source_claims: Vec<crate::application_source_transport::OriginalClaim>,
     envelope: Arc<VerifiedApplicationEnvelope>,
     parent: Arc<v3::LinkedApplication>,
     mixed: BTreeMap<String, mixed::LinkedMixedReceivers>,
@@ -88,6 +89,18 @@ impl LinkedApplication {
     }
     pub fn is_available(&self, host: &FreshStructuralHost) -> bool {
         self.guard.check_idle(host).is_ok()
+    }
+    /// Hold the original native admission and publication guards while copying
+    /// passive sources. No selector, callback or runtime context is evaluated.
+    pub(crate) fn capture_sources<T>(
+        &self,
+        host: &FreshStructuralHost,
+        capture: impl FnOnce() -> Result<T, String>,
+    ) -> Result<T, String> {
+        let _entry = self.guard.enter(host)?;
+        let value = capture()?;
+        self.guard.check(host)?;
+        Ok(value)
     }
     pub fn receivers(
         &self,
@@ -153,6 +166,7 @@ pub fn stage(
 ) -> Result<LinkedApplication, String> {
     let _runtime = host.runtime_entry()?;
     registry.check(host, &envelope)?;
+    let source_claims = crate::application_source_transport::original_claims(&envelope, &base_sources, &mixed_sources)?;
     if mixed_sources
         .keys()
         .map(String::as_str)
@@ -197,6 +211,7 @@ pub fn stage(
         receiver.group.enroll(&guard)?;
     }
     let staged = LinkedApplication {
+        source_claims,
         envelope,
         parent,
         mixed,

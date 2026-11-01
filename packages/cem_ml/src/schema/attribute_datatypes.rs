@@ -141,7 +141,7 @@ pub struct AttributeDatatypeValidation {
 pub trait CompiledAttributeDatatype: Debug + Send + Sync {
     /// Native fresh-host adapters bind the exact consuming snapshot. Existing
     /// engine contracts keep their own lifecycle checks; no wire field grants it.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     fn receiver_snapshot_matches(
         &self,
         _model: &super::document_model::SchemaDocumentModel,

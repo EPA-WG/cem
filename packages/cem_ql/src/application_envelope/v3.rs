@@ -13,6 +13,7 @@ use std::{
     sync::Arc,
 };
 mod agreement;
+pub(crate) use agreement::external_sources as check_external_sources;
 mod inventory;
 pub const MAGIC: &[u8] = b"CEMAPPD3\n";
 const ABI: &str = "cem-application-dependencies/3";

@@ -82,3 +82,19 @@ impl<'a> Agreement<'a> {
         Ok(())
     }
 }
+
+pub(crate) fn external_sources<'a>(
+    app: &super::VerifiedApplicationEnvelope,
+    sources: impl Iterator<Item = (&'a LexicallyScopedDocument, &'a SourceIdentity)>,
+    control: &OperationControl,
+) -> Result<(), String> {
+    let mut ledger = Agreement::new(control);
+    ledger.application(app.application())?;
+    for id in app.assembly_ids() {
+        ledger.assembly(app.assembly(id).ok_or(INVALID)?)?;
+    }
+    for (capture, identity) in sources {
+        ledger.source(capture, identity)?;
+    }
+    Ok(())
+}

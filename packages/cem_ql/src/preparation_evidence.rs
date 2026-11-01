@@ -30,7 +30,7 @@ use std::{
 
 /// Bound additional source/diagnostic metadata retained by an evidence handle.
 pub const MAX_EVIDENCE_METADATA_BYTES: usize = 1_048_576;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub mod datatype;
 
 pub(crate) fn check_attribute_source_metadata(

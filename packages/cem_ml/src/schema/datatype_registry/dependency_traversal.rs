@@ -25,14 +25,14 @@ pub trait DatatypeDependencyHost: SchemaDeclarationHost {
     /// Native build consumers may constrain a completed singleton selection to
     /// independently pinned original fields/targets. Refusal is not readiness.
     /// No portable permission or implementation registration follows admission.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     fn admit_datatype_dependency(&self, _site: &DatatypeDependencySite) -> bool {
         true
     }
 
     /// Native embeddings may admit an exact ordered retained constant sequence
     /// before literal parsing or interpreter callbacks. No scalar semantics follow.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     fn admit_datatype_constants(
         &self,
         _source: &DatatypeSource,
@@ -80,7 +80,7 @@ pub struct DatatypeDeferredDependency {
 pub enum DatatypeDependencyIssueKind {
     Cardinality,
     WrongTarget,
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     SelectionDenied,
 }
 #[derive(Debug, Clone)]
@@ -338,7 +338,7 @@ pub fn traverse_native_datatype_dependencies<H: DatatypeDependencyHost>(
             }
         }
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     for site in &sites {
         if site.complete && site.targets.len() == 1 && !adapter.0.admit_datatype_dependency(site) {
             issues.push(DatatypeDependencyIssue {

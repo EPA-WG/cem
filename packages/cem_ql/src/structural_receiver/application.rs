@@ -16,6 +16,15 @@ pub mod publication;
 pub mod v3;
 const INVALID: &str = "native application assembly refused";
 
+/// Passive original-template demands, shared by source handoff verification.
+pub(crate) fn receiver_fields(
+    envelope: &VerifiedApplicationEnvelope,
+    tag: &str,
+    control: &OperationControl,
+) -> Result<BTreeSet<String>, String> {
+    Ok(occurrences::expected(envelope, tag, control)?.into_keys().collect())
+}
+
 /// Supplied by the trusted fresh embedding, never reconstructed from public IDs.
 pub struct ComponentReceiverSource {
     pub schema_uri: String,

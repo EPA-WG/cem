@@ -158,7 +158,7 @@ pub struct DatatypeValidationRegistry {
 impl DatatypeValidationRegistry {
     /// Reuse exact already-checked registrations without exporting callbacks or
     /// manufacturing a datatype binding. The shared compiler binds its original node.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     pub(crate) fn import_registrations(&mut self, other: &Self) -> Result<(), ValueContractError> {
         for (key, entry) in &other.entries {
             if self.entries.contains_key(key) {
@@ -411,7 +411,7 @@ fn stopped(
 }
 /// Ephemeral original source contexts supplied by the actual embedding. Nothing
 /// is stored in a descriptor, copied into a capsule or inferred from source names.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub(crate) trait RuleValidationContexts {
     fn context(&self, behavior: &SchemaDeclarationNode) -> Option<EvaluationContext>;
     fn is_available(&self, behavior: &SchemaDeclarationNode) -> bool;
@@ -424,7 +424,7 @@ pub(crate) trait RuleValidationContexts {
         Ok(None)
     }
 }
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub(crate) fn operation_runtime<'a>(
     runtime: &ValidationRuntime<'a>,
     declaration: &SchemaDeclarationNode,
@@ -457,7 +457,7 @@ pub fn validate_rules(
         input,
         runtime,
         limits,
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
         None,
     )
 }
@@ -466,7 +466,7 @@ pub(crate) fn validate_rules_in_contexts(
     input: &ValidationInput,
     runtime: &ValidationRuntime<'_>,
     limits: ValidationLimits,
-    #[cfg(not(target_arch = "wasm32"))] contexts: Option<&dyn RuleValidationContexts>,
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))] contexts: Option<&dyn RuleValidationContexts>,
 ) -> ValidationBatch {
     let shared_runtime = runtime.with_query_budget();
     let runtime = &shared_runtime;
@@ -491,7 +491,7 @@ pub(crate) fn validate_rules_in_contexts(
         if let Err(e) = runtime.control.check_scope(runtime.scope) {
             return stopped(vec![], Some(rule), ValidationStopReason::Control(e));
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
         if contexts.is_some_and(|c| !c.is_available(rule.behavior())) {
             return stopped(
                 vec![],
@@ -548,9 +548,9 @@ pub(crate) fn validate_rules_in_contexts(
         if let Err(e) = runtime.control.check_scope(runtime.scope) {
             return stopped(completed, Some(rule), ValidationStopReason::Control(e));
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
         let scoped_runtime;
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
         let runtime = if let Some(contexts) = contexts {
             let Some(mut query) = contexts.context(rule.behavior()) else {
                 return stopped(
@@ -605,7 +605,7 @@ pub(crate) fn validate_rules_in_contexts(
                 ValidationStopReason::Result(DatatypeResultError::Execution(failure)),
             );
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
         if contexts.is_some_and(|c| !c.is_available(rule.behavior())) {
             return stopped(
                 completed,

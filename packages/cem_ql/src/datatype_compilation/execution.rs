@@ -59,11 +59,11 @@ impl ExecutableDatatype {
             input,
             runtime,
             limits,
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             None,
         )
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     pub(crate) fn validate_with_rule_contexts(
         &self,
         input: &ValidationInput,
@@ -78,7 +78,7 @@ impl ExecutableDatatype {
         input: &ValidationInput,
         runtime: &ValidationRuntime<'_>,
         limits: ValidationLimits,
-        #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+        #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))] contexts: Option<
             &dyn datatype_validation::RuleValidationContexts,
         >,
     ) -> DatatypeValidation {
@@ -212,7 +212,7 @@ impl ExecutableDatatype {
                     max_diagnostics: remaining_diagnostics,
                     ..limits
                 },
-                #[cfg(not(target_arch = "wasm32"))]
+                #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
                 contexts,
             );
             for completed in &batch.completed {
@@ -237,7 +237,7 @@ impl ExecutableDatatype {
                 .map(crate::datatype_results::DiagnosticAttribution::from_node)
                 .unwrap_or_else(|| input.fallback.clone());
             for restriction in &descriptor.enumerations {
-                #[cfg(not(target_arch = "wasm32"))]
+                #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
                 let scoped_runtime = match datatype_validation::operation_runtime(
                     runtime,
                     restriction.equality().source.declaration(),
@@ -246,7 +246,7 @@ impl ExecutableDatatype {
                     Ok(runtime) => runtime,
                     Err(()) => return result.stop(ValidationStopReason::Unavailable(vec![])),
                 };
-                #[cfg(not(target_arch = "wasm32"))]
+                #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
                 let runtime = &scoped_runtime;
                 let outcome = restriction.validate(
                     &value[0],

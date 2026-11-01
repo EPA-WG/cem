@@ -17,6 +17,7 @@ debug-control = []
 component-runtime = []
 # Passive original source snapshots for the opt-in query owner adapter.
 query-source-runtime = []
+application-source-runtime = ["query-source-runtime"]
 fake-engine = []
 typescript-projections = ["dep:ts-rs"]
 schema-asset-packs = []

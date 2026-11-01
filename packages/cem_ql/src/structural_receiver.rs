@@ -22,7 +22,7 @@ use std::{
         Arc,
     },
 };
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 use cem_ml::{
     parser::{CemAstNode, ExpandedName},
     schema::{
@@ -34,19 +34,19 @@ use cem_ml::{
 };
 use std::collections::BTreeMap;
 const INVALID: &str = "fresh structural host refused";
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub mod application;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 mod datatypes;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 mod dependencies;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub use dependencies::{
     DatatypeAssemblyOperationBinding, DatatypeAssemblyOperationKey,
     DatatypeDependencyCompileError, DatatypeDependencyImport, DatatypeDependencyRuleRegistration,
     FreshDatatypeDependencySelection, FreshDatatypeRuleBinding, FreshDependencyDatatypeCompilation,
 };
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub use datatypes::{FreshDatatypeCompilation, FreshDatatypePreparationInvocation};
 mod native;
 mod query;
@@ -229,7 +229,7 @@ impl FreshStructuralHost {
     }
     /// All data scopes/grants must be established first. Failure publishes no
     /// mutation; callers explicitly choose when to replace a receiving model.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     pub fn link_receiver(
         &self,
         capsule: Arc<VerifiedStructuralCapsule>,
@@ -240,7 +240,7 @@ impl FreshStructuralHost {
         self.link_receiver_with_guard(capsule, schema_uri, source, attribute)
             .map(|(model, _)| model)
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     fn link_receiver_with_guard(
         &self,
         capsule: Arc<VerifiedStructuralCapsule>,
@@ -312,7 +312,7 @@ impl FreshStructuralHost {
         model.attribute_datatypes.insert(name, contract.clone());
         Ok((model, contract))
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     pub fn validate_input(
         &mut self,
         source: Arc<RetainedCemTree>,
@@ -369,7 +369,7 @@ impl ReferenceResolutionHost for FreshStructuralHost {
         self.inner.evaluate(node)
     }
 }
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 impl InputReferenceHost for FreshStructuralHost {
     fn attribute_receiver_context(&self) -> Option<&AttributeDatatypeContext> {
         Some(&self.context)

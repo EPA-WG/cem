@@ -1,6 +1,6 @@
 //! Pinned native scalar receiver contracts for the opt-in component ABI.
 //! Control metadata and native binary records; no schema AST/host callbacks.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 use crate::declaration_artifact::BuiltDeclarationArtifact;
 use crate::{declaration_artifact::DeclarationArtifactMetadata, render::TemplateArtifact};
 use cem_ml::schema::document_model::AttributeValueContract;
@@ -237,7 +237,7 @@ pub(crate) fn load_template(
 }
 /// A trusted build supplies already compiled native scalar facet contracts and
 /// original schema/source identities. This does not serialize executable types.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub fn build(
     built: BuiltDeclarationArtifact,
     types: Vec<NamedReceiverType>,

@@ -193,7 +193,7 @@ pub(crate) fn has_unconsumed_constraints(attribute: &document_model::AttributeMo
 /// Private edges prevent query adapters from manufacturing wider authority.
 #[derive(Debug, Clone)]
 pub struct NativeAttributeTargetAccess {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     pub(crate) invocation: Option<AttributeAccessInvocation>,
     pub(crate) nodes: Vec<SchemaDeclarationNode>,
     pub(crate) input_views: Vec<Option<super::input_references::InputNodeView>>,
@@ -202,7 +202,7 @@ pub struct NativeAttributeTargetAccess {
     pub(crate) children: Vec<Vec<usize>>,
     pub(crate) complete: bool,
 }
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 #[derive(Debug, Clone)]
 pub(crate) struct AttributeAccessInvocation {
     pub context: super::attribute_datatypes::AttributeDatatypeContextLease,
@@ -215,7 +215,7 @@ pub(crate) struct AttributeAccessInvocation {
     )>,
 }
 impl NativeAttributeTargetAccess {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     pub fn matches_receiver(
         &self,
         declaration: &SchemaDeclarationNode,
@@ -232,7 +232,7 @@ impl NativeAttributeTargetAccess {
                     && metadata == model
             })
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     pub fn matches_invocation(
         &self,
         context: &super::attribute_datatypes::AttributeDatatypeContext,

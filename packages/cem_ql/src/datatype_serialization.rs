@@ -1,6 +1,6 @@
 //! Explicit lexical export of validated typed lists. Conversion and authored
 //! lexical input are separate; this boundary never serializes native AST nodes.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 use crate::datatype_validation;
 use crate::{
     datatype_compilation::{DatatypeValidation, ExecutableDatatype},
@@ -190,11 +190,11 @@ impl ExecutableDatatype {
             input,
             runtime,
             limits,
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             None,
         )
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     pub(crate) fn serialize_with_contexts(
         &self,
         input: &ValidationInput,
@@ -209,7 +209,7 @@ impl ExecutableDatatype {
         input: &ValidationInput,
         runtime: &ValidationRuntime<'_>,
         limits: SerializationLimits,
-        #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+        #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))] contexts: Option<
             &dyn datatype_validation::RuleValidationContexts,
         >,
     ) -> DatatypeSerialization {
@@ -217,7 +217,7 @@ impl ExecutableDatatype {
             input,
             runtime,
             limits,
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             contexts,
         );
         if self
@@ -237,7 +237,7 @@ impl ExecutableDatatype {
         input: &ValidationInput,
         runtime: &ValidationRuntime<'_>,
         limits: SerializationLimits,
-        #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+        #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))] contexts: Option<
             &dyn datatype_validation::RuleValidationContexts,
         >,
     ) -> DatatypeSerialization {
@@ -272,13 +272,13 @@ impl ExecutableDatatype {
         }
         // Validation preflights representation/candidate access and checks all
         // effective typed list and item restrictions without executing conversion.
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
         let validation = if let Some(contexts) = contexts {
             self.validate_with_rule_contexts(input, runtime, limits.validation, contexts)
         } else {
             self.validate(input, runtime, limits.validation)
         };
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(all(target_arch = "wasm32", not(feature = "application-source-runtime")))]
         let validation = self.validate(input, runtime, limits.validation);
         let accepted = validation.accepted;
         let mut remaining = limits.validation.max_diagnostics;
@@ -310,7 +310,7 @@ impl ExecutableDatatype {
             .map(DiagnosticAttribution::from_node)
             .unwrap_or_else(|| input.fallback.clone());
         let execution = {
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             let scoped_runtime = match datatype_validation::operation_runtime(
                 runtime,
                 selected.identity().source.declaration(),
@@ -319,7 +319,7 @@ impl ExecutableDatatype {
                 Ok(runtime) => runtime,
                 Err(()) => return result.stop(SerializationStop::Unavailable),
             };
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             let runtime = &scoped_runtime;
             selected
                 .registration

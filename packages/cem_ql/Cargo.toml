@@ -18,6 +18,8 @@ component-runtime = ["cem-ml/component-runtime"]
 debug-control = ["cem-ml/debug-control"]
 # Opt-in source/owner adapters and native-provisioned byte endpoints. No default admission.
 query-source-runtime = ["cem-ml/query-source-runtime"]
+# Native application verifiers/compiler/receiver adapters, independently opt-in.
+application-source-runtime = ["query-source-runtime", "cem-ml/application-source-runtime"]
 
 [dependencies]
 cem-ml = { version = "=0.1.0", path = "../cem_ml", default-features = false }
@@ -38,3 +40,8 @@ url_unpatched = { package = "url", version = "=2.5.8" }
 name = "query_source_probe"
 crate-type = ["cdylib"]
 required-features = ["query-source-runtime"]
+
+[[example]]
+name = "application_source_probe"
+crate-type = ["cdylib"]
+required-features = ["application-source-runtime"]

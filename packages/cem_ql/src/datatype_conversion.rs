@@ -229,11 +229,11 @@ impl ExecutableDatatype {
             input,
             runtime,
             limits,
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             None,
         )
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     pub(crate) fn convert_with_contexts(
         &self,
         input: &ConversionInput,
@@ -248,7 +248,7 @@ impl ExecutableDatatype {
         input: &ConversionInput,
         runtime: &ValidationRuntime<'_>,
         limits: ConversionLimits,
-        #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+        #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))] contexts: Option<
             &dyn datatype_validation::RuleValidationContexts,
         >,
     ) -> DatatypeConversion {
@@ -256,7 +256,7 @@ impl ExecutableDatatype {
             input,
             runtime,
             limits,
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             contexts,
         );
         if self
@@ -276,7 +276,7 @@ impl ExecutableDatatype {
         input: &ConversionInput,
         runtime: &ValidationRuntime<'_>,
         limits: ConversionLimits,
-        #[cfg(not(target_arch = "wasm32"))] contexts: Option<
+        #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))] contexts: Option<
             &dyn datatype_validation::RuleValidationContexts,
         >,
     ) -> DatatypeConversion {
@@ -351,7 +351,7 @@ impl ExecutableDatatype {
             }
         }
         let execution = {
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             let scoped_runtime = match datatype_validation::operation_runtime(
                 runtime,
                 selected.identity().source.declaration(),
@@ -360,7 +360,7 @@ impl ExecutableDatatype {
                 Ok(runtime) => runtime,
                 Err(()) => return result.stop(ConversionStop::Unavailable),
             };
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             let runtime = &scoped_runtime;
             selected
                 .registration
@@ -463,7 +463,7 @@ impl ExecutableDatatype {
             max_diagnostics: limits.validation.max_diagnostics - result.diagnostics.len(),
             ..limits.validation
         };
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
         let validation = if let Some(contexts) = contexts {
             self.validate_with_rule_contexts(
                 &validation_input,
@@ -474,7 +474,7 @@ impl ExecutableDatatype {
         } else {
             self.validate(&validation_input, runtime, validation_limits)
         };
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(all(target_arch = "wasm32", not(feature = "application-source-runtime")))]
         let validation = self.validate(&validation_input, runtime, validation_limits);
         result.accepted = validation.accepted;
         result.value = Some(value);

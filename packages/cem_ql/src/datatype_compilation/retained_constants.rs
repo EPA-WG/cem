@@ -105,7 +105,7 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
                 })?;
             targets.push(target);
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
         if !self.host.admit_datatype_constants(&plan.source, &targets) {
             return Err(invalid("datatype-constant-selection-refused", declaration));
         }

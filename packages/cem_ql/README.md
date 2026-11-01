@@ -1904,3 +1904,21 @@ standalone evaluation. Full WASM consumer installation awaits CEMAPPD4 transport
 Profile/rule packets are bounded to 4 MiB; their actual bytes and pins share the
 unchanged aggregate checkpoint budget. Default builds and credential refusal
 remain unchanged. See the [transport contract](../../docs/cem-native-schema-capsules.md#imported-rule-and-custom-profile-transport).
+
+
+## Application source WASM adapters
+
+The internal, default-off `application-source-runtime` feature exposes existing
+native application/module verification, compilation, preparation, receiver and
+publication contracts on WASM. `application_source_transport` preserves unchanged
+CEMAPPD4 bytes and complete original external receiver/scalar graphs as CEMAH1.
+Capture requires the actual live publication and original source pointers.
+Verification restores passive native trees; fresh contexts, code, registry,
+compilation owners and crossing permissions still belong to the embedding.
+
+Run `NX_DAEMON=false yarn nx run cem_ql:test:application-source-wasm --skipNxCache`
+for native-emitted source restoration in independent WASM heaps and a real worker.
+The entire packet stays within 4 MiB. The test-only reader supplies no installation
+endpoint, generated bootstrap or component admission. Live worker/fallback
+checkpoint handoff remains the next gate; default targets and credential refusal
+stay unchanged. See the [source handoff contract](../../docs/cem-native-schema-capsules.md#original-application-source-handoff).

@@ -161,7 +161,7 @@ impl DatatypeDependencyHost for CemQlSchemaDeclarationHost {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 impl CemQlSchemaDeclarationHost {
     /// Exact immutable capture admission, separate from tree registration. A
     /// selection consumer must not change metadata as a side effect of discovery.

@@ -18,6 +18,7 @@ impl cem_ql::native::NativeQueryFunction for SelectorHook {
     }
 }
 struct PublicationFixture {
+    source_inputs: Vec<cem_ql::application_source_transport::SourceInput>,
     f: Setup,
     package: Arc<package::VerifiedApplicationEnvelope>,
     registry: Arc<install_publication::RegistryOwner>,
@@ -36,25 +37,31 @@ fn fixture_runtime(
     rule: bool,
     generation: Option<&Arc<cem_ml::runtime_admission::generation::NativeGeneration>>,
 ) -> PublicationFixture {
+    fixture_sources(rule, generation, None)
+}
+fn fixture_sources(
+    rule: bool,
+    generation: Option<&Arc<cem_ml::runtime_admission::generation::NativeGeneration>>,
+    restored: Option<&cem_ql::application_source_transport::VerifiedApplicationSources>,
+) -> PublicationFixture {
     let mut package = None;
     let mut raw = None;
     let peer_choice = Arc::new(AtomicUsize::new(0));
     let marker = Arc::new(());
     let peer_marker = Arc::downgrade(&marker);
-    let (peer_tree, peer_capture) = imported(
-        &RECEIVER_TEXT.replace(
-            "@type={#scalar}",
-            "@type={#native:call(\"fixture.pick\", scalar, list)}",
-        ),
-        "file:///app/peer.cem",
-    );
+    let peer_text=RECEIVER_TEXT.replace("@type={#scalar}","@type={#native:call(\"fixture.pick\", scalar, list)}");
+    let (peer_tree,peer_capture)=match restored {
+        Some(s)=>{let s=s.source("file:///app/peer.cem").unwrap();(s.tree.clone(),s.capture.clone())},
+        None=>imported(&peer_text,"file:///app/peer.cem"),
+    };
+    let source_inputs=vec![cem_ql::application_source_transport::SourceInput{identity:SourceIdentity::new("file:///app/peer.cem",SourceId(1),peer_text.as_bytes()),tree:peer_tree.clone(),capture:peer_capture.clone()}];
     let peer = mixed::MixedReceiverSource {
         schema_uri: RECEIVER_URI.into(),
         source: peer_tree.clone(),
         capture: peer_capture.clone(),
         attributes: attributes(&peer_tree),
     };
-    let f = configured_application_in_runtime(
+    let f = configured_application_with_sources(
         INPUT,
         RECEIVER_TEXT,
         true,
@@ -86,7 +93,7 @@ fn fixture_runtime(
                 control,
             )
             .unwrap();
-            let p = Arc::new(package::verify(&b.bytes, &b.pin, control).unwrap());
+            let p = restored.map(|s|s.application().clone()).unwrap_or_else(|| Arc::new(package::verify(&b.bytes, &b.pin, control).unwrap()));
             let parent = p.parent().clone();
             package = Some(p);
             raw = Some(b);
@@ -139,6 +146,7 @@ fn fixture_runtime(
         },
         true,
         generation,
+        restored,
     );
     let package = package.unwrap();
     let registry = Arc::new(
@@ -146,6 +154,7 @@ fn fixture_runtime(
             .unwrap(),
     );
     PublicationFixture {
+        source_inputs,
         f,
         package,
         registry,
@@ -566,3 +575,6 @@ fn complete_publication_validates_parent_structural_input_under_the_common_guard
 
 #[path = "application_generation.rs"]
 mod generation;
+
+#[path = "application_source_handoff.rs"]
+mod source_handoff;

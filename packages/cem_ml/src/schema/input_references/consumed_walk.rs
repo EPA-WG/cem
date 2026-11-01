@@ -434,7 +434,7 @@ where
     for (site_id, (site, indices)) in sites.into_iter().zip(site_indices).enumerate() {
         let model = models.model(site.model);
         let mut access = NativeAttributeTargetAccess {
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
             invocation: tagged_host
                 .inner
                 .attribute_receiver_context()
@@ -556,7 +556,7 @@ where
                 use crate::schema::attribute_datatypes::{
                     AttributeDatatypeInput, AttributeDatatypeValue,
                 };
-                #[cfg(not(target_arch = "wasm32"))]
+                #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
                 if !contract.receiver_snapshot_matches(model, name) {
                     complete = false;
                     diagnostics.push(crate::diagnostics::Diagnostic {
@@ -579,11 +579,11 @@ where
                         attribute_values: &Default::default(),
                         control: &crate::operation_control::OperationControl::default(),
                         context: {
-                            #[cfg(not(target_arch = "wasm32"))]
+                            #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
                             {
                                 tagged_host.inner.attribute_receiver_context()
                             }
-                            #[cfg(target_arch = "wasm32")]
+                            #[cfg(all(target_arch = "wasm32", not(feature = "application-source-runtime")))]
                             {
                                 None
                             }
@@ -719,7 +719,7 @@ fn value_role<H: InputReferenceHost>(host: &H, node: &H::Node, site: usize) -> R
         Role::Value(site)
     }
 }
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub(crate) fn receiver_owning_edges(node: &CemAstNode) -> Vec<crate::parser::AstNodeId> {
     owning_edges(node)
 }

@@ -433,7 +433,14 @@ WASM imported leaves remain guarded registries until full consumer installation.
 Packet replay bytes share the existing 4 MiB aggregate budget. Default builds and
 component admission remain unchanged. Generated application bootstraps, complete
 CEMAPPD4 consumer transport and linked-code evidence remain separate; no reduced-runtime
-admission is enabled by these shared host APIs.
+admission is enabled by these shared host APIs. The
+[original application source handoff](cem-native-schema-capsules.md#original-application-source-handoff)
+now carries unchanged CEMAPPD4 bytes and complete external receiver/scalar graphs.
+Fresh native hosts recompile against explicit original owners and grants. Its
+separate default-off `application-source-runtime` feature ports those existing
+native contracts to WASM; the passive reader proves fresh source restoration,
+while live endpoint/bootstrap and worker/fallback checkpoint installation remain
+pending.
 
 
 Do not equate downloaded code with an active native generation. Register every

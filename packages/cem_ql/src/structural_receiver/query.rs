@@ -17,7 +17,7 @@ mod handoff;
 mod execution;
 pub use execution::{FreshQueryCodeOwner, FreshQueryRegistryOwner, FreshQueryResultProfileOwner};
 pub use owners::FreshQuerySource;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub(in crate::structural_receiver) use owners::QuerySourceLease;
 pub(in crate::structural_receiver) use owners::RuntimeOwner;
 

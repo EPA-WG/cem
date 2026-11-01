@@ -45,7 +45,7 @@ use std::{collections::BTreeMap, sync::Arc};
 /// or unevaluated native payload. Authorized value navigation is a separate role.
 #[derive(Debug)]
 struct AttributeCandidate(crate::eval::Item);
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub(crate) fn receiver_candidate(
     tree: Arc<cem_ml::parser::tree::RetainedCemTree>,
     node: cem_ml::parser::AstNodeId,

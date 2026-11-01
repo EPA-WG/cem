@@ -16,9 +16,9 @@ pub(crate) mod diagnostics;
 pub mod disposition;
 pub mod document_model;
 // Native build/verification experiment; no runtime receiver or WASM ABI yet.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub mod structural_capsule;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub mod structural_receiver;
 #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
 pub mod native_source;

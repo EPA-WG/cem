@@ -4,6 +4,7 @@ use cem_ml::{
     schema::{document_model::AttributeValueContract, machine::LexicallyScopedDocument},
 };
 use cem_ql::{application_envelope::mixed as records, structural_receiver::application::mixed};
+const BASE_RECEIVER_TEXT: &str = "{schema @name=base @namespace=https://app.test/base-receiver/1 | {elements | {element @name=view @required-attributes=items @optional-attributes=\"count choice names\"}} {attributes | {attribute @name=items @type=node @maxItems=2}}}";
 const RECEIVER_URI: &str = "https://app.test/receiver/1";
 const SCALAR_URI: &str = "https://app.test/scalars/1";
 const SCALAR_TEXT:&str="{schema @name=scalars @namespace=https://app.test/scalars/1 | {attributes | {attribute @name=cart-count @type=integer @minInclusive=2 @maxInclusive=5}}}";
@@ -50,6 +51,7 @@ fn data_attributes(tree: &RetainedCemTree) -> BTreeMap<String, u32> {
         .collect()
 }
 struct Setup {
+    source_inputs: Vec<cem_ql::application_source_transport::SourceInput>,
     h: FreshStructuralHost,
     owner: Arc<FreshDependencyDatatypeCompilation>,
     bindings: BTreeMap<DatatypeAssemblyOperationKey, DatatypeAssemblyOperationBinding>,
@@ -233,10 +235,40 @@ fn configured_application_in_runtime(
     base_receiver: bool,
     generation: Option<&Arc<cem_ml::runtime_admission::generation::NativeGeneration>>,
 ) -> Setup {
+    configured_application_with_sources(input_text, receiver_text, receiver_grant, input_grant, rule, typed, load, extra, base_receiver, generation, None)
+}
+fn configured_application_with_sources(
+    input_text: &str,
+    receiver_text: &str,
+    receiver_grant: bool,
+    input_grant: bool,
+    rule: bool,
+    typed: bool,
+    load: impl FnOnce(
+        envelope::BuiltApplicationEnvelope,
+        &cem_ql::application_declaration::NamedReceiverType,
+        &OperationControl,
+    ) -> Arc<envelope::VerifiedApplicationEnvelope>,
+    extra: impl FnOnce(&mut FreshStructuralHost, &Arc<assembly::VerifiedDatatypeModules>),
+    base_receiver: bool,
+    generation: Option<&Arc<cem_ml::runtime_admission::generation::NativeGeneration>>,
+    restored: Option<&cem_ql::application_source_transport::VerifiedApplicationSources>,
+) -> Setup {
+    let original = |text: &str, uri: &str| {
+        match restored {
+            Some(packet) => {
+                let s=packet.source(uri).expect("original source from handoff");
+                (s.tree.clone(), s.capture.clone())
+            },
+            None => imported(text, uri),
+        }
+    };
+    let mut source_inputs=Vec::new();
     let choice = Arc::new(AtomicUsize::new(0));
     let selector_calls = Arc::new(AtomicUsize::new(0));
     let control = OperationControl::default();
-    let (scalar_tree, scalar_capture) = imported(SCALAR_TEXT, "file:///app/scalars.cem");
+    let (scalar_tree, scalar_capture) = original(SCALAR_TEXT, "file:///app/scalars.cem");
+    source_inputs.push(cem_ql::application_source_transport::SourceInput {identity:SourceIdentity::new("file:///app/scalars.cem", SourceId(1), SCALAR_TEXT.as_bytes()),tree:scalar_tree.clone(),capture:scalar_capture.clone()});
     let scalar_attrs = attributes(&scalar_tree);
     let model = cem_ml::schema::document_model::compile_schema_document_model_from_retained(
         SCALAR_URI,
@@ -252,7 +284,8 @@ fn configured_application_in_runtime(
             ..Default::default()
         },
     };
-    let (receiver, capture) = imported(receiver_text, "file:///app/receiver.cem");
+    let (receiver, capture) = original(receiver_text, "file:///app/receiver.cem");
+    source_inputs.push(cem_ql::application_source_transport::SourceInput {identity:SourceIdentity::new("file:///app/receiver.cem", SourceId(1), receiver_text.as_bytes()),tree:receiver.clone(),capture:capture.clone()});
     let attrs = attributes(&receiver);
     let (input, input_capture) = imported(input_text, "file:///app/input.cem");
     let ids = data_attributes(&input);
@@ -277,9 +310,16 @@ fn configured_application_in_runtime(
     let id = b
         .add_contract(legacy::ContractArtifact::structural(sc), BTreeSet::new())
         .unwrap();
-    let base_source=base_receiver.then(||{
-        let (tree,_)=imported("{schema @name=base @namespace=https://app.test/base-receiver/1 | {elements | {element @name=view @required-attributes=items @optional-attributes=\"count choice names\"}} {attributes | {attribute @name=items @type=node @maxItems=2}}}","file:///app/base-receiver.cem");
-        legacy_install::ComponentReceiverSource{schema_uri:"https://app.test/base-receiver/1".into(),attributes:attributes(&tree),source:tree}
+    let base_source = base_receiver.then(|| {
+        let (tree, capture) = original(BASE_RECEIVER_TEXT, "file:///app/base-receiver.cem");
+        source_inputs.push(cem_ql::application_source_transport::SourceInput {
+            identity: SourceIdentity::new("file:///app/base-receiver.cem", SourceId(1), BASE_RECEIVER_TEXT.as_bytes()),
+            tree: tree.clone(), capture,
+        });
+        legacy_install::ComponentReceiverSource {
+            schema_uri: "https://app.test/base-receiver/1".into(),
+            attributes: attributes(&tree), source: tree,
+        }
     });
     let body = if base_receiver {
         "{attribute @name=items @type=cart-lines @maxItems=2}{p | Hello}"
@@ -498,6 +538,7 @@ fn configured_application_in_runtime(
     let c = records::build(decl, parent.clone(), contracts, &control).unwrap();
     let contract = Arc::new(records::verify(&c.bytes, &c.pin, parent.clone(), &control).unwrap());
     Setup {
+        source_inputs,
         h: f.h,
         owner,
         bindings: f.bindings,
