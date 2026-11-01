@@ -204,6 +204,35 @@ fn configured_application(
     extra: impl FnOnce(&mut FreshStructuralHost, &Arc<assembly::VerifiedDatatypeModules>),
     base_receiver: bool,
 ) -> Setup {
+    configured_application_in_runtime(
+        input_text,
+        receiver_text,
+        receiver_grant,
+        input_grant,
+        rule,
+        typed,
+        load,
+        extra,
+        base_receiver,
+        None,
+    )
+}
+fn configured_application_in_runtime(
+    input_text: &str,
+    receiver_text: &str,
+    receiver_grant: bool,
+    input_grant: bool,
+    rule: bool,
+    typed: bool,
+    load: impl FnOnce(
+        envelope::BuiltApplicationEnvelope,
+        &cem_ql::application_declaration::NamedReceiverType,
+        &OperationControl,
+    ) -> Arc<envelope::VerifiedApplicationEnvelope>,
+    extra: impl FnOnce(&mut FreshStructuralHost, &Arc<assembly::VerifiedDatatypeModules>),
+    base_receiver: bool,
+    generation: Option<&Arc<cem_ml::runtime_admission::generation::NativeGeneration>>,
+) -> Setup {
     let choice = Arc::new(AtomicUsize::new(0));
     let selector_calls = Arc::new(AtomicUsize::new(0));
     let control = OperationControl::default();
@@ -279,7 +308,7 @@ fn configured_application(
         .unwrap();
     let metadata = std::cell::RefCell::new(None);
     let mut parent = None;
-    let f = fixture_custom_profile(
+    let f = fixture_custom_host(
         rule,
         typed,
         |bytes, leaves, profiles| {
@@ -409,6 +438,10 @@ fn configured_application(
                 .unwrap();
             }
             extra(h, g);
+        },
+        |registry, control| match generation {
+            Some(g) => FreshStructuralHost::new_in_generation(registry, control, g).unwrap(),
+            None => FreshStructuralHost::new(registry, control).unwrap(),
         },
     );
     let parent = parent.unwrap();

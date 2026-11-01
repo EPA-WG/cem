@@ -1170,6 +1170,95 @@ cover original owners, query demand, source conflicts, malformed/repinned inputs
 limits, exact registry selection, peer invalidation, stale receipts, weak
 lifetimes, reentry, callback retirement and atomic replacement.
 
+## Native publication generation enrollment
+
+[`cem_ml::runtime_admission::generation`](../packages/cem_ml/src/runtime_admission/generation.rs)
+adds an original native `NativeGeneration` bound to an actual `Arc<NativeAdmission>`.
+`claim_current` uses the admission object of the linked native runtime instance;
+`claim` supports a native embedding that already owns its actual admission object.
+Neither accepts a runtime label, serialized identity or caller-supplied census as
+authority. One admission object can be claimed once, and ordinary closure is
+monotonic. A new wrapper around the old closed object cannot create a fresh
+generation. Dropping the original generation owner closes its admission gate.
+
+This is a native prerequisite for worker/owned-fallback enrollment. It does not
+claim that a caller-provided native admission object identifies a JavaScript
+Worker or Memory. The future shared physical adapter must use the actual linked
+instance and original participant, and join its complete native census,
+ownership confirmation and checkpoint/journal handoff before retirement or
+transport. No CEMAPPD4 worker/fallback endpoint is introduced here.
+
+`FreshStructuralHost::new_in_generation` binds an empty actual host before source
+scope, lexical context, native implementation or compilation registration.
+Legacy `new` remains an explicitly unmanaged native API. Host checks reject
+closed/lost generations. Ordinary publication/type selection, compilation,
+root/field execution, structural input and validation paths retain owned entry
+permits across callbacks. These permits use the same native admission lock and
+active-entry counter as the existing bridge, including when a callback triggers
+closure. Results cannot escape the existing post-call owner checks after that
+closure; cleanup and object destruction remain available.
+
+The [native resource ledger](../packages/cem_ml/src/runtime_admission/resources.rs)
+records original, noncloneable object leases and count-preserving mutations.
+It is not an AST, source export, checkpoint, allocation-size report or complete
+heap census. Its `cem-native-enrolled-generation/1` control inventory reports
+only counters, closed/frozen state and a per-admission revision:
+
+| Root kind | Actual retained native ownership |
+| --- | --- |
+| Host | The enrolled host, including its original registered source scopes and native implementation map. |
+| Compilation | The checked original datatype assembly compilation and its guarded code/source dependencies. |
+| Registry | The exact caller-held CEMAPPD4 registry selection. |
+| Publication | The common parent/mixed/peer publication guard. |
+| Preparation | The original native preparation invocation, descriptor, input and remaining budget. |
+| Evidence | The private issuer-bound preparation receipt and its retained original values/input. |
+
+There are at most 256 enrolled roots and 256 simultaneous native entries. Resource
+IDs and revisions do not wrap into renewed authority. Counts remain live until
+the owning objects actually drop: retiring an application, closing a host or
+closing an invocation does not pretend that retained native allocations vanished.
+Retained `Arc` application handles and evidence keep the census nonempty even
+when they can no longer execute. Plain inspection data is not a managed execution
+capability; raw/unmanaged aliases and arbitrary direct memory access remain
+outside this enrollment contract.
+
+`begin_drain(timeout, control)` closes the original admission object, caps the
+attempt at five seconds and returns one original pollable drain. It starts no
+background task, serialization, refetch or replay. `poll` reads actual entry and
+resource counts. `seal` succeeds only when those enrolled counts are zero and
+returns a private witness bound to the original drain/generation and exact local
+revision. Foreign, cancelled, expired, dropped or superseded drains cannot become
+current proofs. A native cleanup entry or resource mutation invalidates a prior
+witness even when counts return to zero. Failed attempts leave ordinary admission
+closed; cleanup can finish and a new original drain can be prepared.
+
+This witness is scoped enrollment evidence, **not** the existing full
+`NativeRetirementPermit` and not replacement authority. The original complete
+command census format and registry list are unchanged. Its admission validator
+and retirement freeze additionally reject any live enrolled roots under the same
+lock, so a forged or otherwise incomplete zero-root DTO cannot bypass these
+objects. The physical adapter still needs to join the original enrolled proof
+with the complete census/ownership and private retirement permit at the final
+boundary; a scoped inventory cannot replace those checks.
+
+The [core fixtures](../packages/cem_ml/tests/runtime_generation.rs) cover owned
+work, exact retained roots, limits, duplicate claims/drains, count-preserving
+cleanup, forged empty census rejection, cancellation, expiry and owner loss.
+The [publication fixtures](../packages/cem_ql/tests/support/application_generation.rs)
+cover callback-time closure during execution and original type resolution,
+retained retired handles, dropped owners, stale receipts and fresh native source
+reimport/recompilation. They use separate actual native admission objects; they
+do not impersonate physical JavaScript runtimes using labels. Same pinned bytes
+on a fresh host do not admit the old compilation or receipt.
+
+No metadata reconstructs live handles, no original source is fabricated and no
+native tree passes through JSON. Physical worker/fallback participant joining,
+fresh-heap source/registry-owner transport, portable query-owner adapters and
+component admission remain gates. Link-closure/admission flags stay false.
+Entered credentials still block recovery until explicitly cleared; automatic
+whole-Studio recovery stays off, with 4 MiB checkpoints and five-second deadlines.
+No production JavaScript or component/theme implementation changed.
+
 ## Native application receiver assembly
 
 [`structural_receiver::application`](../packages/cem_ql/src/structural_receiver/application.rs)

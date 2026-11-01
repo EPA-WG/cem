@@ -132,12 +132,14 @@ impl Group {
             .publication()?
             .map(|guard| guard.enter(host))
             .transpose()?;
+        let runtime = host.runtime_entry()?;
         self.busy
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .map_err(|_| REFUSED)?;
         Ok(Entry {
             busy: &self.busy,
             _publication: publication,
+            _runtime: runtime,
         })
     }
     pub(super) fn retire(&self) {
@@ -152,6 +154,7 @@ impl Group {
 struct Entry<'a> {
     busy: &'a AtomicBool,
     _publication: Option<super::publication::Entry>,
+    _runtime: Option<cem_ml::runtime_admission::OwnedNativeEntry>,
 }
 impl Drop for Entry<'_> {
     fn drop(&mut self) {
@@ -226,6 +229,7 @@ pub fn stage(
     scalar_sources: BTreeMap<String, ScalarReceiverSource>,
     roots: BTreeMap<String, Arc<v3::InstalledDatatypeRoot>>,
 ) -> Result<LinkedMixedReceivers, String> {
+    let _runtime = host.runtime_entry()?;
     host.check().map_err(|_| REFUSED)?;
     if contract.pin().registry_hash != host.registry_hash {
         return Err(REFUSED.into());

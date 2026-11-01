@@ -9,8 +9,8 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [complete native application publication](archive/todo-completed-complete-application-publication-2026-10-31.md).
-The [original mixed receiver binding](archive/todo-completed-original-mixed-receivers-2026-10-31.md) preserves the preceding stage.
+Latest completion: [native publication generation enrollment](archive/todo-completed-native-publication-generation-enrollment-2026-10-31.md).
+The [complete native application publication](archive/todo-completed-complete-application-publication-2026-10-31.md) preserves the preceding stage.
 
 Prioritize Studio functionality and presentation samples before unrelated helper
 work and physical-device/browser/AT acceptance. Examples remain ordinary projects
@@ -399,6 +399,17 @@ inventory, not the minimum set loaded by every app.
                             generation inventories and retirement. Add native fixtures
                             for draining, timeouts, cancellation, stale receipts and
                             fresh source reimport/recompilation before new endpoints.
+
+                            Original native admission/resource enrollment and its
+                            drain/reimport fixtures are [complete](archive/todo-completed-native-publication-generation-enrollment-2026-10-31.md).
+                            They do not yet identify physical JavaScript runtimes.
+
+                            - [ ] Join the native enrollment to actual shared worker/
+                              owned-fallback participants and complete native census
+                              retirement, ownership confirmation and checkpoint/journal
+                              handoff. Add physical-generation, callback-drain, deadline,
+                              cancellation, stale-proof and fresh-source fixtures before
+                              endpoints; keep transport/admission gated until joined.
 
                 - [ ] Enroll portable query source/binding/invocation owners in
                   actual worker/owned-fallback generation and inventory groups;

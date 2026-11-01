@@ -4,6 +4,19 @@ use cem_ql::{
     application_envelope::v4 as package,
     structural_receiver::application::publication as install_publication,
 };
+thread_local! {static SELECTOR_ACTION:std::cell::RefCell<Option<Box<dyn Fn()>>>=const{std::cell::RefCell::new(None)};}
+#[derive(Debug)]
+struct SelectorHook(Pick);
+impl cem_ql::native::NativeQueryFunction for SelectorHook {
+    fn call(&self, request: cem_ql::native::NativeQueryRequest<'_>) -> ItemStream {
+        SELECTOR_ACTION.with(|a| {
+            if let Some(callback) = a.borrow().as_ref() {
+                callback();
+            }
+        });
+        cem_ql::native::NativeQueryFunction::call(&self.0, request)
+    }
+}
 struct PublicationFixture {
     f: Setup,
     package: Arc<package::VerifiedApplicationEnvelope>,
@@ -17,6 +30,12 @@ fn fixture() -> PublicationFixture {
     fixture_rule(false)
 }
 fn fixture_rule(rule: bool) -> PublicationFixture {
+    fixture_runtime(rule, None)
+}
+fn fixture_runtime(
+    rule: bool,
+    generation: Option<&Arc<cem_ml::runtime_admission::generation::NativeGeneration>>,
+) -> PublicationFixture {
     let mut package = None;
     let mut raw = None;
     let peer_choice = Arc::new(AtomicUsize::new(0));
@@ -35,7 +54,7 @@ fn fixture_rule(rule: bool) -> PublicationFixture {
         capture: peer_capture.clone(),
         attributes: attributes(&peer_tree),
     };
-    let f = configured_application(
+    let f = configured_application_in_runtime(
         INPUT,
         RECEIVER_TEXT,
         true,
@@ -95,12 +114,12 @@ fn fixture_rule(rule: bool) -> PublicationFixture {
                 .register(
                     "fixture.pick",
                     2,
-                    Pick {
+                    SelectorHook(Pick {
                         choice: peer_choice.clone(),
                         stop: Arc::new(std::sync::atomic::AtomicBool::new(false)),
                         calls: Arc::new(AtomicUsize::new(0)),
                         _marker: marker.clone(),
-                    },
+                    }),
                 )
                 .unwrap();
             let from = h
@@ -119,6 +138,7 @@ fn fixture_rule(rule: bool) -> PublicationFixture {
             h.allow_scope_crossing(from, to);
         },
         true,
+        generation,
     );
     let package = package.unwrap();
     let registry = Arc::new(
@@ -543,3 +563,6 @@ fn complete_publication_validates_parent_structural_input_under_the_common_guard
         .is_err());
     assert!(p.f.owner.is_live(&p.f.h));
 }
+
+#[path = "application_generation.rs"]
+mod generation;

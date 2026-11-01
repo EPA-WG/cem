@@ -69,6 +69,7 @@ pub struct FreshDependencyDatatypeCompilation {
     executing: AtomicBool,
     rules: rules::RuleOwners,
     operations: Vec<operations::Owner>,
+    _runtime_resource: Option<cem_ml::runtime_admission::NativeResourceLease>,
 }
 struct ExecutionEntry<'a>(&'a AtomicBool);
 impl Drop for ExecutionEntry<'_> {
@@ -155,6 +156,7 @@ impl FreshDependencyDatatypeCompilation {
         assembly_only: bool,
         run: impl FnOnce(&ExecutableDatatype, &ValidationRuntime<'_>, &dyn crate::datatype_validation::RuleValidationContexts) -> T,
     ) -> Result<T, String> {
+        let _runtime = host.runtime_entry()?;
         self.check(host)?;
         if assembly_only && !matches!(self.inputs, Inputs::Assembly(_)) {
             return Err(REFUSED.into());
@@ -263,6 +265,7 @@ impl FreshStructuralHost {
         limits: ReferenceTraversalLimits,
     ) -> Result<FreshDependencyDatatypeCompilation, DatatypeDependencyCompileError> {
         let input = inputs.borrow();
+        let _runtime = self.runtime_entry()?;
         self.check().map_err(|_| REFUSED)?;
         if bindings.is_empty() && input.root_has_rules() {
             return Err(DatatypeDependencyCompileError::refused(
@@ -441,6 +444,8 @@ impl FreshStructuralHost {
             executing: AtomicBool::new(false),
             rules: owners,
             operations: operation_owners,
+            _runtime_resource: self
+                .runtime_resource(cem_ml::runtime_admission::NativeRootKind::Compilation)?,
         };
         result.check(self)?;
         Ok(result)

@@ -48,6 +48,8 @@ pub struct FreshStructuralHost {
     grants: BTreeSet<(DeclarationScope, DeclarationScope)>,
     closed: AtomicBool,
     native_implementations: BTreeMap<String, Arc<native::Entry>>,
+    runtime: Option<std::sync::Weak<cem_ml::runtime_admission::generation::NativeGeneration>>,
+    _runtime_resource: Option<cem_ml::runtime_admission::NativeResourceLease>,
 }
 impl FreshStructuralHost {
     pub fn new(registry_hash: &str, control: OperationControl) -> Result<Self, String> {
@@ -74,7 +76,49 @@ impl FreshStructuralHost {
             grants: BTreeSet::new(),
             closed: AtomicBool::new(false),
             native_implementations: BTreeMap::new(),
+            runtime: None,
+            _runtime_resource: None,
         })
+    }
+    /// Original runtime enrollment must precede every source and code registration.
+    pub fn new_in_generation(
+        registry_hash: &str,
+        control: OperationControl,
+        generation: &Arc<cem_ml::runtime_admission::generation::NativeGeneration>,
+    ) -> Result<Self, String> {
+        let mut host = Self::new(registry_hash, control)?;
+        host._runtime_resource = Some(
+            generation
+                .resource(cem_ml::runtime_admission::NativeRootKind::Host)
+                .map_err(str::to_owned)?,
+        );
+        host.runtime = Some(Arc::downgrade(generation));
+        Ok(host)
+    }
+    fn runtime_entry(&self) -> Result<Option<cem_ml::runtime_admission::OwnedNativeEntry>, String> {
+        self.runtime
+            .as_ref()
+            .map(|r| {
+                r.upgrade()
+                    .ok_or_else(|| INVALID.to_string())?
+                    .admit()
+                    .map_err(str::to_owned)
+            })
+            .transpose()
+    }
+    fn runtime_resource(
+        &self,
+        kind: cem_ml::runtime_admission::NativeRootKind,
+    ) -> Result<Option<cem_ml::runtime_admission::NativeResourceLease>, String> {
+        self.runtime
+            .as_ref()
+            .map(|r| {
+                r.upgrade()
+                    .ok_or_else(|| INVALID.to_string())?
+                    .resource(kind)
+                    .map_err(str::to_owned)
+            })
+            .transpose()
     }
     pub fn register_scope(
         &mut self,
@@ -154,7 +198,13 @@ impl FreshStructuralHost {
         self.context.close();
     }
     fn check(&self) -> Result<(), ReferenceResolutionError> {
-        if self.closed.load(Ordering::Acquire) || !self.context.lease().matches(&self.context) {
+        if self.closed.load(Ordering::Acquire)
+            || !self.context.lease().matches(&self.context)
+            || self
+                .runtime
+                .as_ref()
+                .is_some_and(|r| r.upgrade().is_none_or(|g| !g.is_open()))
+        {
             return Err(ReferenceResolutionError::OperationStopped);
         }
         self.control
@@ -249,6 +299,9 @@ impl FreshStructuralHost {
         source: Arc<RetainedCemTree>,
         model: &SchemaDocumentModel,
     ) -> Result<StructuralInputValidation<CemQlSchemaReferenceNode>, ReferenceResolutionError> {
+        let _runtime = self
+            .runtime_entry()
+            .map_err(|_| ReferenceResolutionError::OperationStopped)?;
         self.check()?;
         let result = cem_ml::schema::input_references::validate_structural_input_references(
             source.ast_owner().clone(),

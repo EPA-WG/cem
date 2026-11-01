@@ -241,6 +241,7 @@ impl FreshStructuralHost {
         imports: &[DatatypeDependencyImport],
         limits: ReferenceTraversalLimits,
     ) -> Result<FreshDatatypeDependencySelection, String> {
+        let _runtime = self.runtime_entry()?;
         let input = inputs.borrow();
         let Environment {
             context,

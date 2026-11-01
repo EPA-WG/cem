@@ -125,20 +125,24 @@ fn entry_limit_and_every_generated_export_have_explicit_native_contracts() {
                 continue;
             }
             let end = capture.get(0).unwrap().end();
-            assert!(
-                source[end..]
-                    .trim_start()
-                    .starts_with("let _native = match"),
-                "unguarded {name}"
-            );
-            assert!(
-                source[end..]
-                    .lines()
-                    .take(2)
-                    .collect::<String>()
-                    .contains("runtime_admission::admit("),
-                "unguarded {name}"
-            );
+            let body = source[end..].trim_start();
+            if body.starts_with("let _native = match") {
+                assert!(
+                    body.lines()
+                        .take(2)
+                        .collect::<String>()
+                        .contains("runtime_admission::admit("),
+                    "unguarded {name}"
+                );
+            } else {
+                // These existing Result-returning exports retain the same
+                // original RAII permit and propagate refusal before any work.
+                let fallible = regex::Regex::new(
+                    r"^let _native = (?:crate|cem_ml)::runtime_admission::admit\((?:true|false)\)\.map_err\([a-zA-Z_][a-zA-Z_0-9:]*\)\?;",
+                )
+                .unwrap();
+                assert!(fallible.is_match(body), "unguarded {name}");
+            }
         }
     }
     assert!(total > 130);

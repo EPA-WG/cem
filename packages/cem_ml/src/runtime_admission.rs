@@ -1,7 +1,11 @@
 //! Monotonic native closure, with an original-permit retirement barrier.
 use crate::runtime_inventory::{inventory_revision, note_mutation, RuntimeResourceInventory};
 use serde::Serialize;
-use std::sync::Mutex;
+use std::collections::BTreeMap;
+use std::sync::{Arc, LazyLock, Mutex};
+pub mod generation;
+mod resources;
+pub use resources::{EnrolledInventory, NativeResourceLease, NativeRootKind, OwnedNativeEntry};
 
 pub const CLOSED: &str = "cem.runtime.admission.closed";
 const UNCERTAIN: &str = "cem.runtime.admission.uncertain";
@@ -12,6 +16,11 @@ struct State {
     closed: bool,
     active: usize,
     frozen: bool,
+    uncertain: bool,
+    generation_claimed: bool,
+    revision: u64,
+    next_resource: u64,
+    resources: BTreeMap<u64, NativeRootKind>,
 }
 #[derive(Default)]
 pub struct NativeAdmission {
@@ -34,6 +43,9 @@ pub struct NativeClosureValidation {
 impl NativeAdmission {
     pub fn admit(&self, cleanup: bool) -> Result<NativeEntry<'_>, &'static str> {
         let mut state = self.state.lock().map_err(|_| UNCERTAIN)?;
+        if state.uncertain {
+            return Err(UNCERTAIN);
+        }
         if state.frozen {
             return Err("cem.runtime.retirement.pending");
         }
@@ -44,14 +56,14 @@ impl NativeAdmission {
             return Err("cem.runtime.admission.limit");
         }
         state.active += 1;
-        note_mutation();
+        mutation(&mut state);
         Ok(NativeEntry { gate: self })
     }
     pub fn close(&self) -> Result<(), &'static str> {
         let mut state = self.state.lock().map_err(|_| UNCERTAIN)?;
         if !state.closed {
             state.closed = true;
-            note_mutation();
+            mutation(&mut state);
         }
         Ok(())
     }
@@ -82,6 +94,8 @@ impl NativeAdmission {
         if !state.closed
             || state.frozen
             || state.active != 0
+            || !state.resources.is_empty()
+            || state.uncertain
             || !inventory.complete
             || inventory.blocking_resources != 0
             || inventory.replacement_allowed
@@ -91,7 +105,7 @@ impl NativeAdmission {
             return Err("cem.runtime.retirement.stale");
         }
         state.frozen = true;
-        note_mutation();
+        mutation(&mut state);
         Ok(NativeRetirementPermit {
             gate: self,
             inventory_revision: expected,
@@ -111,6 +125,8 @@ impl NativeAdmission {
         }
         if state.frozen
             || state.active != 0
+            || !state.resources.is_empty()
+            || state.uncertain
             || !inventory.complete
             || inventory.blocking_resources != 0
             || inventory.replacement_allowed
@@ -131,7 +147,7 @@ impl Drop for NativeEntry<'_> {
     fn drop(&mut self) {
         if let Ok(mut state) = self.gate.state.lock() {
             state.active -= 1;
-            note_mutation();
+            mutation(&mut state);
         }
     }
 }
@@ -156,18 +172,29 @@ impl Drop for NativeRetirementPermit<'_> {
     fn drop(&mut self) {
         if let Ok(mut state) = self.gate.state.lock() {
             state.frozen = false;
-            note_mutation();
+            mutation(&mut state);
         }
     }
 }
 
-static GATE: NativeAdmission = NativeAdmission {
-    state: Mutex::new(State {
-        closed: false,
-        active: 0,
-        frozen: false,
-    }),
-};
+fn mutation(state: &mut State) {
+    if let Some(next) = state
+        .revision
+        .checked_add(1)
+        .filter(|v| *v <= (1 << 53) - 1)
+    {
+        state.revision = next;
+    } else {
+        state.uncertain = true;
+    }
+    note_mutation();
+}
+static GATE: LazyLock<Arc<NativeAdmission>> =
+    LazyLock::new(|| Arc::new(NativeAdmission::default()));
+/// The original native admission object of this linked runtime instance.
+pub fn current_gate() -> Arc<NativeAdmission> {
+    GATE.clone()
+}
 pub fn admit(cleanup: bool) -> Result<NativeEntry<'static>, &'static str> {
     GATE.admit(cleanup)
 }

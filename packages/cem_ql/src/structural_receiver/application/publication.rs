@@ -25,6 +25,7 @@ pub struct RegistryOwner {
     context: AttributeDatatypeContextLease,
     registry: SelectedFunctionRegistry,
     active: AtomicBool,
+    _runtime_resource: Option<cem_ml::runtime_admission::NativeResourceLease>,
 }
 impl RegistryOwner {
     fn check(
@@ -67,6 +68,8 @@ pub fn link_registry(
         context: host.context.lease(),
         registry,
         active: AtomicBool::new(true),
+        _runtime_resource: host
+            .runtime_resource(cem_ml::runtime_admission::NativeRootKind::Registry)?,
     })
 }
 pub struct MixedSource {
@@ -148,6 +151,7 @@ pub fn stage(
     mut mixed_sources: BTreeMap<String, MixedSource>,
     compilations: &BTreeMap<String, Arc<FreshDependencyDatatypeCompilation>>,
 ) -> Result<LinkedApplication, String> {
+    let _runtime = host.runtime_entry()?;
     registry.check(host, &envelope)?;
     if mixed_sources
         .keys()

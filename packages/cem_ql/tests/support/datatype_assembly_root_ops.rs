@@ -468,6 +468,21 @@ fn fixture_custom_profile(
     ) -> Arc<assembly::VerifiedDatatypeModules>,
     setup: impl FnOnce(&mut FreshStructuralHost),
 ) -> Fixture {
+    fixture_custom_host(rule, typed, load, setup, |registry, control| {
+        FreshStructuralHost::new(registry, control).unwrap()
+    })
+}
+fn fixture_custom_host(
+    rule: bool,
+    typed: bool,
+    load: impl FnOnce(
+        assembly::BuiltDatatypeModules,
+        Vec<cem_ql::datatype_dependency_capsule::DependencyArtifact>,
+        Vec<assembly::ProfileArtifact>,
+    ) -> Arc<assembly::VerifiedDatatypeModules>,
+    setup: impl FnOnce(&mut FreshStructuralHost),
+    create: impl FnOnce(&str, OperationControl) -> FreshStructuralHost,
+) -> Fixture {
     let text="@ns s = https://cem.dev/ns/schema/1\n@default s\n{schema @namespace=urn:core | {types | {type @name=scalar @kind=scalar}}}";
     let text = if rule {
         text.replace("@kind=scalar", "@kind=scalar @rule={#check}")
@@ -594,7 +609,7 @@ fn fixture_custom_profile(
     )
     .unwrap();
     let g = load(bytes, artifacts, profiles.into());
-    let mut h = FreshStructuralHost::new(&hash(b"registry"), control.clone()).unwrap();
+    let mut h = create(&hash(b"registry"), control.clone());
     let mut scopes = BTreeMap::new();
     for id in g.module_ids().chain(g.leaf_ids()) {
         let mut context = StandaloneExpressionContext::default();

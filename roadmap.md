@@ -826,6 +826,12 @@ registry demand, source-claim agreement and one live native registry/code/peer
 guard. Generation-bound transport and checkpoint enrollment remain next; this
 native publication grants no renderer or runtime admission and claims no linked
 binary omission or arbitrary provider closure.
+The [native generation enrollment](docs/cem-native-schema-capsules.md#native-publication-generation-enrollment)
+now uses the original admission object, owned entry permits, retained authority
+root counters and scoped drain witnesses for CEMAPPD4 lifetimes. It refuses stale
+or foreign proofs and requires fresh sources/compilation on a new native domain.
+Joining actual worker/fallback participants and the complete native retirement
+census remains the next gate before exposing transport or component admission.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 

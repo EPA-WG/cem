@@ -27,9 +27,11 @@ pub struct MixedPreparationInvocation {
     name: String,
     input: values::ReceiverInput,
     invocation: DatatypePreparationInvocation,
+    _runtime_resource: Option<cem_ml::runtime_admission::NativeResourceLease>,
 }
 pub struct MixedPreparationEvidence {
     inner: SealedDatatypePreparationEvidence,
+    _runtime_resource: Option<cem_ml::runtime_admission::NativeResourceLease>,
 }
 pub struct MixedPreparationResult {
     pub report: DatatypePreparation,
@@ -66,6 +68,8 @@ impl LinkedMixedReceivers {
             name: name.into(),
             input,
             invocation,
+            _runtime_resource: host
+                .runtime_resource(cem_ml::runtime_admission::NativeRootKind::Preparation)?,
         })
     }
 }
@@ -94,7 +98,15 @@ impl MixedPreparationInvocation {
             report: result.report,
             evidence: result
                 .evidence
-                .map(|inner| MixedPreparationEvidence { inner }),
+                .map(|inner| {
+                    Ok::<_, String>(MixedPreparationEvidence {
+                        inner,
+                        _runtime_resource: host.runtime_resource(
+                            cem_ml::runtime_admission::NativeRootKind::Evidence,
+                        )?,
+                    })
+                })
+                .transpose()?,
             stopped: result.stopped,
         })
     }

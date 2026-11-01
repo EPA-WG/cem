@@ -143,6 +143,7 @@ impl FreshStructuralHost {
         input: &ValidationInput,
         limits: ValidationLimits,
     ) -> Result<ValidationBatch, String> {
+        let _runtime = self.runtime_entry()?;
         let check = || {
             self.check().map_err(|_| INVALID)?;
             if !invocation.context.matches(&self.context)

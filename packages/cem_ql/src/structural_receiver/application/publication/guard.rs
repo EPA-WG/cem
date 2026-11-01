@@ -7,6 +7,7 @@ pub(in crate::structural_receiver::application) struct Guard {
     groups: Vec<Weak<mixed::Group>>,
     active: AtomicBool,
     busy: AtomicBool,
+    _runtime_resource: Option<cem_ml::runtime_admission::NativeResourceLease>,
 }
 impl Guard {
     pub(super) fn new(
@@ -24,6 +25,8 @@ impl Guard {
             groups: groups.iter().map(Arc::downgrade).collect(),
             active: AtomicBool::new(true),
             busy: AtomicBool::new(false),
+            _runtime_resource: host
+                .runtime_resource(cem_ml::runtime_admission::NativeRootKind::Publication)?,
         });
         value.check(host)?;
         Ok(value)
@@ -77,11 +80,13 @@ impl Guard {
         host: &FreshStructuralHost,
     ) -> Result<Entry, String> {
         self.check(host)?;
+        let runtime = host.runtime_entry()?;
         self.busy
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .map_err(|_| INVALID)?;
         Ok(Entry {
             guard: self.clone(),
+            _runtime: runtime,
         })
     }
     pub(super) fn retire(&self) {
@@ -98,6 +103,7 @@ impl Guard {
 }
 pub(in crate::structural_receiver::application) struct Entry {
     guard: Arc<Guard>,
+    _runtime: Option<cem_ml::runtime_admission::OwnedNativeEntry>,
 }
 impl Drop for Entry {
     fn drop(&mut self) {
