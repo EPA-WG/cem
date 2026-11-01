@@ -23,6 +23,28 @@ fn enrolled(g: &Arc<NativeGeneration>) -> FreshStructuralHost {
 fn active() -> Active {
     active_with_control(Default::default())
 }
+
+#[test]
+fn native_emitted_wasm_handoff_fixture_has_checked_source_and_independent_pins() {
+    let old = active();
+    let packet = old.host.capture_query_handoff(&old.binding).unwrap();
+    let checked = transport::verify(&packet.bytes, &packet.pin, &Default::default()).unwrap();
+    assert_eq!(
+        checked.declaration().source().source_uri(),
+        "https://example.test/schema.cem"
+    );
+    if let Some(path) = std::env::var_os("CEM_QUERY_HANDOFF_FIXTURE_DIR") {
+        let path = std::path::PathBuf::from(path);
+        std::fs::create_dir_all(&path).unwrap();
+        std::fs::write(path.join("source.cemq"), &packet.bytes).unwrap();
+        // Explicit control/deployment metadata; the source AST stays binary.
+        std::fs::write(
+            path.join("pins.json"),
+            serde_json::to_vec(&packet.pin).unwrap(),
+        )
+        .unwrap();
+    }
+}
 fn active_with_control(control: OperationControl) -> Active {
     let generation = generation();
     let mut host =

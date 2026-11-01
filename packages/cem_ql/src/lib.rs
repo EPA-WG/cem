@@ -13,7 +13,7 @@ pub mod attribute_activation;
 pub mod attribute_datatypes;
 pub mod attribute_readiness;
 pub mod attribute_validation;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
 pub mod structural_receiver;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod datatype_source_capsule;
@@ -23,7 +23,7 @@ pub mod datatype_dependency_capsule;
 pub mod datatype_module_capsule;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod native_registrations;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
 pub mod query_validator_capsule;
 #[cfg(feature = "debug-control")]
 pub mod debug_control;
@@ -35,7 +35,11 @@ pub mod declaration_closure;
 pub mod application_requirements;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod application_envelope;
-#[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
+#[cfg(any(
+    not(target_arch = "wasm32"),
+    feature = "component-runtime",
+    feature = "query-source-runtime"
+))]
 pub mod selected_registry;
 #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
 pub mod application_declaration;

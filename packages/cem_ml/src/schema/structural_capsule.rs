@@ -5,7 +5,6 @@ use crate::{
     operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID},
     parser::{document::CemDocument, AstNodeId, CemAstNode},
     schema::machine::{LexicalReloadMetadata, LexicallyScopedDocument},
-    source::SourceId,
     source_map::SourceMapStack,
 };
 use serde::{Deserialize, Serialize};
@@ -63,25 +62,7 @@ pub fn validate_mixed_receiver_source(
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct SourceIdentity {
-    pub uri: String,
-    pub hash: String,
-    pub byte_length: usize,
-    pub id: SourceId,
-}
-impl SourceIdentity {
-    /// Trusted build input, tied to the original capture by its caller.
-    pub fn new(uri: &str, id: SourceId, bytes: &[u8]) -> Self {
-        Self {
-            uri: uri.into(),
-            hash: hash(bytes),
-            byte_length: bytes.len(),
-            id,
-        }
-    }
-}
+pub use super::native_source::SourceIdentity;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CapsulePin {

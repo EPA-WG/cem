@@ -20,7 +20,7 @@ pub mod document_model;
 pub mod structural_capsule;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod structural_receiver;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
 pub mod native_source;
 pub mod ir;
 pub mod input_references;

@@ -16,6 +16,8 @@ default = ["debug-control"]
 # Separate compiled-component ABI; never used by the full/default build.
 component-runtime = ["cem-ml/component-runtime"]
 debug-control = ["cem-ml/debug-control"]
+# Internal source/owner adapters only; no production WASM endpoint or admission.
+query-source-runtime = ["cem-ml/query-source-runtime"]
 
 [dependencies]
 cem-ml = { version = "=0.1.0", path = "../cem_ml", default-features = false }
@@ -30,3 +32,8 @@ wasm-bindgen = "0.2"
 
 [dev-dependencies]
 url_unpatched = { package = "url", version = "=2.5.8" }
+
+[[example]]
+name = "query_source_probe"
+crate-type = ["cdylib"]
+required-features = ["query-source-runtime", "component-runtime"]

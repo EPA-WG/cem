@@ -14,8 +14,10 @@ impl FreshStructuralHost {
             return Err(INVALID.into());
         }
         // Native callback requirements have a different code-ownership contract.
-        let BindingOwner::Query(declaration) = &binding.declaration else {
-            return Err(INVALID.into());
+        let declaration = match &binding.declaration {
+            BindingOwner::Query(declaration) => declaration,
+            #[cfg(not(target_arch = "wasm32"))]
+            BindingOwner::Native(_) => return Err(INVALID.into()),
         };
         let datatype = binding.rule.source_declaration();
         if !Arc::ptr_eq(datatype.document(), declaration.source().ast_owner()) {

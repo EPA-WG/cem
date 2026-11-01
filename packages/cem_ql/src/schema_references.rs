@@ -271,7 +271,7 @@ impl CemQlSchemaDeclarationHost {
     /// In-process fresh-host adapter boundary. A source identity or scope index
     /// alone cannot select another registered owner's runtime context. Closed
     /// validators never inherit ambient callbacks, module resolvers or inputs.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
     pub(crate) fn registered_validator_context(
         &self,
         scope: DeclarationScope,
@@ -292,7 +292,7 @@ impl CemQlSchemaDeclarationHost {
             ..Default::default()
         })
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
     pub(crate) fn registered_scope_validator_context(
         &self,
         scope: DeclarationScope,

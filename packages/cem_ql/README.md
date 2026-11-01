@@ -1833,3 +1833,21 @@ available through the same raw native value allocation. The cache retains only
 the most recent capability scope; selected native nodes independently own their
 indexes and memory permits. There is no XML/JSON serialization or source parser
 handoff. Source provenance is independent of the constructed document URI.
+
+## Query source WASM adapters
+
+The internal `query-source-runtime` Cargo feature makes the existing CEMQV1/
+CEMQD1/CEMQH1 verifier and original query host/source/binding/request owners
+available to Rust WASM embeddings. It is disabled by default and adds no
+production JavaScript endpoint or component admission. Structural/native
+installation and imported-rule assembly remain native-only.
+
+Run `NX_DAEMON=false yarn nx run cem_ql:test:query-source-wasm --skipNxCache`
+to author a native source fixture, build the isolated test-only WASM example
+and exercise it in independent heaps and a worker. Sources stay binary; pins
+and diagnostic counters cross explicitly named metadata boundaries. This probe
+checks original source provenance, selected execution, request budgets and owner
+lifetimes, while production physical checkpoint/ownership handoff and credential
+refusal remain admission gates.
+
+See the [adapter contract](../../docs/cem-native-schema-capsules.md#opt-in-query-source-wasm-adapters).

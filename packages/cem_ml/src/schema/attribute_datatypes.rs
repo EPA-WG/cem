@@ -43,7 +43,7 @@ impl AttributeDatatypeContext {
 #[derive(Debug, Clone)]
 pub struct AttributeDatatypeContextLease(Weak<AtomicBool>);
 impl AttributeDatatypeContextLease {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
     pub fn is_live(&self) -> bool {
         self.0
             .upgrade()

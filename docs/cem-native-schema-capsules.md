@@ -319,7 +319,8 @@ native implementation registration remain gates before deployment admission.
 ## Native compiled validator query subset
 
 [`cem_ql::query_validator_capsule`](../packages/cem_ql/src/query_validator_capsule.rs)
-provides native-only `export` and `verify` entry points for `CEMQV1` programs.
+provides native `export` and `verify` entry points for `CEMQV1` programs, also
+available as Rust adapters under the opt-in `query-source-runtime` WASM feature.
 Build compiles one checked inline validation function through the existing query
 compiler. The binary carries its typed instruction tables, original source maps,
 fixed role bindings and exact reviewed function requirements. It contains no
@@ -510,11 +511,11 @@ cover real registered validator execution, draining, cancellation, request reent
 and late-result refusal; imported-rule coverage borrows the original native
 assembly and source components.
 
-These adapters remain native-only. The source-only handoff below supplies a
+These adapters are also available as an opt-in WASM query core. The source-only handoff below supplies a
 bounded passive transport record. Physical query-owner endpoints, live binding
-transport, fresh-WASM reimport/relinking and query-specific worker/
+transport, production fresh-WASM reimport/relinking and query-specific worker/
 owned-fallback checkpoint handoff remain gates before admission. There is no new
-WASM export, application/component JavaScript, credential transfer or effect
+production WASM export, application/component JavaScript, credential transfer or effect
 replay. Automatic Studio recovery remains off; entered passwords/OTP block
 recovery until explicitly cleared, with unchanged checkpoint/deadline budgets.
 
@@ -573,11 +574,65 @@ prove any of those conditions. Automatic Studio recovery remains off.
 The [native fixtures](../packages/cem_ql/tests/query_validator_capsule/handoff.rs)
 exercise independent source reimport, original diagnostic provenance, old-handle
 refusal, malformed/oversized packets, payload exclusion, stale owners,
-cancellation and failed allocation. This source adapter is native-only and for
-direct pure-query bindings. Imported-rule/code-owner transport, actual WASM
+cancellation and failed allocation. The opt-in WASM adapter below shares this
+source contract for direct pure-query bindings. Imported-rule/code-owner transport, production
 worker/fallback wiring, physical shutdown/replacement and credential acceptance
 remain in the [active TODO](todo.md#component-application-wasm-profile-separate-target).
 No transport endpoint or component admission is enabled by CEMQH1.
+
+## Opt-in query source WASM adapters
+
+The `query-source-runtime` Cargo feature exposes the existing source verifier,
+`FreshStructuralHost` query core, source/binding/request owners, selected evaluator
+and conservative validator work budget to Rust WASM embeddings. It is disabled
+by default and does not add a production JavaScript endpoint, renderer admission
+or a new application profile. It can compile alongside the full runtime or the
+separate `component-runtime` prototype.
+
+This shares the original host and typed CEM/IR paths. It does not substitute a
+record-shaped source, parallel evaluator or synthetic scope. The ML feature
+shares passive original source snapshots and bounded binary preflight.
+`native_source::SourceIdentity` is re-exported at the previous
+`structural_capsule::SourceIdentity` native path; source/pin serialization is
+unchanged. Original structural receiver installation, imported datatype/rule
+assembly, native implementation registration and CEMAPPD4 publication remain
+native-only. The WASM query core keeps the actual context epochs, weak source
+authority, native entry/root accounting, post-call checks and cumulative request
+budget; it does not restart an exhausted request.
+
+Run the isolated acceptance probe with:
+
+```sh
+NX_DAEMON=false yarn nx run cem_ql:test:query-source-wasm --skipNxCache
+```
+
+The target first authors and checks CEMQH1 through the native Rust fixture,
+writing binary source and independent deployment pins under `dist`. It then
+builds only the test example with `component-runtime,query-source-runtime` and
+uses pinned wasm-bindgen glue. The example supplies an explicit trusted fixture
+host, original linked generation, reviewed functions and result adapter from the
+shipped schema. It reimports the binary declaration, registers its original
+lexical capture, links a new binding and creates a new request. Its adapter setup
+parses the trusted shipped schema; the transported query is never reparsed or
+recompiled. This fixture is not evidence of a schema-free minimal binary.
+
+The [Node probe](../packages/cem_ql/tests/query-source-wasm.mjs) uses two distinct
+WASM memories and a real worker. It checks original diagnostics, unavailable
+functions, malformed bytes, cumulative budget exhaustion, cancellation, changed
+contexts, cross-host requests, source-only capture and owner counts through
+retirement and actual drop. A five-second original scoped drain remains blocked
+by retained query owners and closes ordinary admission. Scoped inventory/sealing
+is not the full native retirement census or permission to replace a physical
+generation. The probe uses test-only exports from the example; production full
+and component entry points receive none of these exports.
+
+Shared worker/owned-fallback resource adapters must still retain the actual
+physical participants and source/code/registry owners, join complete checkpoint/
+journal handoff, and prove shutdown/replacement and credential refusal. The probe
+does not issue checkpoint receipts, activate automatic Studio recovery or copy
+evaluated credentials into source packets. Entered passwords/OTPs still block
+recovery until explicitly cleared; 4 MiB checkpoints and five-second recovery
+deadlines remain unchanged. These integration gates stay in the active TODO.
 
 ## Exact native validator and tokenizer requirements
 

@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(
-    not(target_arch = "wasm32"),
+    any(not(target_arch = "wasm32"), feature = "query-source-runtime"),
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub struct ContractName {

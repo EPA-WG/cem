@@ -844,8 +844,12 @@ next; verification still grants no execution or recovery admission. The separate
 now captures a live binding's original pinned CEMQD1 bytes and selectors, checks
 bounded framing and passively reimports original sources for explicit relinking
 on a fresh native host. It carries no invocation data, context or recovery proof.
-Actual WASM transport and physical worker/fallback/credential acceptance remain
+Production query transport and physical worker/fallback/credential acceptance remain
 the next gate; the source adapter enables no endpoint or reduced-runtime admission.
+The internal [query-source WASM feature](docs/cem-native-schema-capsules.md#opt-in-query-source-wasm-adapters)
+now shares the original Rust host, source verifier and request/binding guards.
+Its isolated probe consumes native-emitted binary sources in separate WASM heaps
+and a worker; production physical resource/checkpoint integration remains next.
 See the
 [query subset contract](docs/cem-native-schema-capsules.md#native-compiled-validator-query-subset).
 

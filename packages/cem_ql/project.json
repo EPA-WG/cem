@@ -23,6 +23,12 @@
         ]
     },
     "targets": {
+        "test:query-source-wasm": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": { "command": "node tools/scripts/verify-query-source-wasm.mjs", "cwd": "{workspaceRoot}" },
+            "outputs": ["{workspaceRoot}/dist/fixtures/query-source-wasm"]
+        },
         "test:native-generation": {
             "cache": true,
             "executor": "nx:run-commands",

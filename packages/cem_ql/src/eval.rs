@@ -45,7 +45,11 @@ pub(crate) use data::source_node as imported_source_node;
 pub use data::{imported_cem_tree, retained_cem_node, DataReaderCache, RetainedCemNode};
 pub(crate) use data::xpath_node as result_native_node;
 pub mod pipeline;
-#[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
+#[cfg(any(
+    not(target_arch = "wasm32"),
+    feature = "component-runtime",
+    feature = "query-source-runtime"
+))]
 mod selected;
 mod url;
 pub mod set_ops;
@@ -560,7 +564,7 @@ pub enum BudgetAxis {
     ExternalFetches,
     XPathTextBytes,
     XPathWorkUnits,
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
     ValidatorWork,
 }
 
@@ -575,7 +579,7 @@ impl BudgetAxis {
             BudgetAxis::ExternalFetches => "external-fetches",
             BudgetAxis::XPathTextBytes => "xpath-text-bytes",
             BudgetAxis::XPathWorkUnits => "xpath-work-units",
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
             BudgetAxis::ValidatorWork => "validator-work",
         }
     }
@@ -646,7 +650,11 @@ impl Evaluator {
 
     /// Native selected-registry prototype; this does not enable tracked reuse
     /// or confer host/native/resource capabilities.
-    #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
+    #[cfg(any(
+        not(target_arch = "wasm32"),
+        feature = "component-runtime",
+        feature = "query-source-runtime"
+    ))]
     pub fn evaluate_with_selected_registry(
         query: &CompiledQuery,
         context: &EvaluationContext,
@@ -656,7 +664,11 @@ impl Evaluator {
     ) -> ItemStream {
         Self::evaluate_selected_internal(query, context, registry, control, scope, false)
     }
-    #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
+    #[cfg(any(
+        not(target_arch = "wasm32"),
+        feature = "component-runtime",
+        feature = "query-source-runtime"
+    ))]
     pub(crate) fn evaluate_selected_internal(
         query: &CompiledQuery,
         context: &EvaluationContext,
@@ -672,7 +684,7 @@ impl Evaluator {
     }
     /// Charge the verified program's conservative expanded instruction cost to
     /// the enclosing invocation before entering the ordinary selected evaluator.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
     pub(crate) fn evaluate_verified_validator(
         query: &CompiledQuery,
         context: &EvaluationContext,
@@ -705,7 +717,11 @@ impl Evaluator {
 
 pub(crate) struct EvalCtx<'a> {
     query: &'a CompiledQuery,
-    #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
+    #[cfg(any(
+        not(target_arch = "wasm32"),
+        feature = "component-runtime",
+        feature = "query-source-runtime"
+    ))]
     selected_registry: Option<Arc<crate::selected_registry::SelectedFunctionRegistry>>,
     reads: Option<dependencies::ReadTracker>,
     template_host: Option<&'a mut dyn crate::native::TemplateQueryHost>,
@@ -767,7 +783,11 @@ impl<'a> EvalCtx<'a> {
         }
         let mut ctx = Self {
             query,
-            #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
+            #[cfg(any(
+                not(target_arch = "wasm32"),
+                feature = "component-runtime",
+                feature = "query-source-runtime"
+            ))]
             selected_registry: None,
             reads: None,
             template_host: None,
@@ -977,7 +997,11 @@ impl<'a> EvalCtx<'a> {
             }
             IrNode::Call { callee, args } => self.eval_call(id, callee, &args),
             IrNode::StdlibCall { module, name, args } => {
-                #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
+                #[cfg(any(
+                    not(target_arch = "wasm32"),
+                    feature = "component-runtime",
+                    feature = "query-source-runtime"
+                ))]
                 if self.selected_registry.is_some() {
                     return selected::call(&module.0,&name.local,&args,self);
                 }
@@ -1955,7 +1979,7 @@ pub(crate) fn first_integer(stream: &ItemStream) -> Option<i64> {
 
 fn limits_from_policy(policy: ScopePolicy) -> HashMap<BudgetAxis, u64> {
     [
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
         (
             BudgetAxis::ValidatorWork,
             (policy.queue_size.max(1) as u64)

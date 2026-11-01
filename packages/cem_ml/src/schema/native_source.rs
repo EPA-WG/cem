@@ -1,5 +1,6 @@
 //! Literal source arena and occurrence verification.
-use super::structural_capsule::SourceIdentity;
+mod identity;
+pub use identity::SourceIdentity;
 use crate::{
     parser::{document::CemDocument, AstNodeId, CemAstNode, ExpandedName},
     source::SourceId,

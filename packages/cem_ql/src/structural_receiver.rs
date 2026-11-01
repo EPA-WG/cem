@@ -1,42 +1,58 @@
-//! Concrete native host for explicitly linked structural node receivers.
+//! Original host for explicitly linked receivers and query owners. The opt-in
+//! WASM feature shares the query core; structural/native installation stays native.
 use crate::{
     api::StandaloneExpressionContext,
     schema_references::{CemQlSchemaDeclarationHost, CemQlSchemaReferenceNode, DeclarationScope},
 };
 use cem_ml::{
     operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID},
-    parser::{tree::RetainedCemTree, AstNodeId, CemAstNode, ExpandedName},
+    parser::{tree::RetainedCemTree, AstNodeId},
     schema::{
         attribute_datatypes::AttributeDatatypeContext,
         declaration_references::{SchemaDeclarationHost, SchemaDeclarationNode},
-        document_model::SchemaDocumentModel,
-        input_references::{InputReferenceHost, StructuralInputValidation},
         reference_policy::{ReferenceOccurrence, ReferenceScopePolicy, ReferenceUnresolvedPolicy},
         reference_traversal::ReferenceTraversalLimits,
-        structural_capsule::VerifiedStructuralCapsule,
-        structural_receiver::StructuralNodeReceiver,
     },
     value::reference_resolution::*,
 };
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeSet,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
 };
+#[cfg(not(target_arch = "wasm32"))]
+use cem_ml::{
+    parser::{CemAstNode, ExpandedName},
+    schema::{
+        document_model::SchemaDocumentModel,
+        input_references::{InputReferenceHost, StructuralInputValidation},
+        structural_capsule::VerifiedStructuralCapsule,
+        structural_receiver::StructuralNodeReceiver,
+    },
+};
+#[cfg(not(target_arch = "wasm32"))]
+use std::collections::BTreeMap;
 const INVALID: &str = "fresh structural host refused";
+#[cfg(not(target_arch = "wasm32"))]
 pub mod application;
+#[cfg(not(target_arch = "wasm32"))]
 mod datatypes;
+#[cfg(not(target_arch = "wasm32"))]
 mod dependencies;
+#[cfg(not(target_arch = "wasm32"))]
 pub use dependencies::{
     DatatypeAssemblyOperationBinding, DatatypeAssemblyOperationKey,
     DatatypeDependencyCompileError, DatatypeDependencyImport, DatatypeDependencyRuleRegistration,
     FreshDatatypeDependencySelection, FreshDatatypeRuleBinding, FreshDependencyDatatypeCompilation,
 };
+#[cfg(not(target_arch = "wasm32"))]
 pub use datatypes::{FreshDatatypeCompilation, FreshDatatypePreparationInvocation};
+#[cfg(not(target_arch = "wasm32"))]
 mod native;
 mod query;
+#[cfg(not(target_arch = "wasm32"))]
 pub use native::{FreshNativeOperation, FreshNativeTokenizer, NativeResultAdapter};
 pub use query::{FreshQueryBinding, FreshQueryInvocation, FreshQuerySource};
 /// Never cloned/serialized. Contexts belong to this actual host allocation.
@@ -47,6 +63,7 @@ pub struct FreshStructuralHost {
     control: OperationControl,
     grants: BTreeSet<(DeclarationScope, DeclarationScope)>,
     closed: AtomicBool,
+    #[cfg(not(target_arch = "wasm32"))]
     native_implementations: BTreeMap<String, Arc<native::Entry>>,
     runtime: Option<std::sync::Weak<cem_ml::runtime_admission::generation::NativeGeneration>>,
     _runtime_resource: Option<cem_ml::runtime_admission::NativeResourceLease>,
@@ -75,6 +92,7 @@ impl FreshStructuralHost {
             control,
             grants: BTreeSet::new(),
             closed: AtomicBool::new(false),
+            #[cfg(not(target_arch = "wasm32"))]
             native_implementations: BTreeMap::new(),
             runtime: None,
             _runtime_resource: None,
@@ -213,6 +231,7 @@ impl FreshStructuralHost {
     }
     /// All data scopes/grants must be established first. Failure publishes no
     /// mutation; callers explicitly choose when to replace a receiving model.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn link_receiver(
         &self,
         capsule: Arc<VerifiedStructuralCapsule>,
@@ -223,6 +242,7 @@ impl FreshStructuralHost {
         self.link_receiver_with_guard(capsule, schema_uri, source, attribute)
             .map(|(model, _)| model)
     }
+    #[cfg(not(target_arch = "wasm32"))]
     fn link_receiver_with_guard(
         &self,
         capsule: Arc<VerifiedStructuralCapsule>,
@@ -294,6 +314,7 @@ impl FreshStructuralHost {
         model.attribute_datatypes.insert(name, contract.clone());
         Ok((model, contract))
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn validate_input(
         &mut self,
         source: Arc<RetainedCemTree>,
@@ -350,6 +371,7 @@ impl ReferenceResolutionHost for FreshStructuralHost {
         self.inner.evaluate(node)
     }
 }
+#[cfg(not(target_arch = "wasm32"))]
 impl InputReferenceHost for FreshStructuralHost {
     fn attribute_receiver_context(&self) -> Option<&AttributeDatatypeContext> {
         Some(&self.context)

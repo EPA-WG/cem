@@ -413,7 +413,9 @@ inventory, not the minimum set loaded by every app.
                   before exposing a new endpoint or enabling admission.
                   Native source/binding/invocation and imported-rule lifecycle
                   adapters and their original-owner fixtures are [complete](archive/todo-completed-native-query-owner-adapters-2026-10-31.md).
-                  They remain native-only and enable no endpoint or admission.
+                  The query core is now available through the [opt-in WASM
+                  adapter](archive/todo-completed-query-source-wasm-core-2026-10-31.md);
+                  it enables no production endpoint or admission.
 
                   - [ ] Add physical query-owner transport/source adapters and
                     complete worker/owned-fallback fresh-heap/credential acceptance
@@ -424,6 +426,14 @@ inventory, not the minimum set loaded by every app.
                     Wire this into original physical worker/fallback resource
                     adapters with source/code owners, drain/retirement and privacy
                     checks; packets alone grant no checkpoint or recovery authority.
+
+                    - [ ] Connect the opt-in query core to original shared
+                      worker/owned-fallback resource adapters and byte transport,
+                      with original participants, source/code/registry owners,
+                      complete native census and checkpoint/journal handoff.
+                      Test stale/foreign transport handles, drain/cancellation,
+                      late acknowledgments and entered-credential refusal before
+                      exposing production endpoints or enabling admission.
 
       - [ ] Bind compiled declarations, retained CSS installation and shared
         behavior/provider ownership to the reduced ABI. Prove the compiled form's

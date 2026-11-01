@@ -398,7 +398,7 @@ lifetimes to the actual native admission object, with owned activity, retained
 root counters and original deadline-bound drain witnesses. The [physical join](cem-native-schema-capsules.md#physical-generation-census-and-checkpoint-handoff)
 now binds the linked owner to existing worker/owned-fallback retirement through
 the complete v2 census, original native freeze and checkpoint/journal handoff.
-CEMAPPD4/query-owner source transport and fresh WASM reimport remain separate;
+CEMAPPD4 and production query-owner source transport/fresh WASM reimport remain separate;
 no portable/runtime admission is implied.
 The [portable query lifecycle adapters](cem-native-schema-capsules.md#portable-query-lifecycle-owners)
 now enroll original native source/program owners, weak source-bound registries,
@@ -408,9 +408,13 @@ query transport and fresh-WASM handoff remain explicit gates. The separate
 captures the original live pure-query binding's pinned declaration and exact
 selectors, with bounded passive reimport and explicit fresh native relinking.
 It carries no invocation payload, budget, callbacks or grants and grants no
-checkpoint or recovery authority. It remains native-only: physical worker/
-fallback transport, source-backed code/registry owners and credential acceptance
-still precede endpoints or admission.
+checkpoint or recovery authority. The internal
+[`query-source-runtime` WASM feature](cem-native-schema-capsules.md#opt-in-query-source-wasm-adapters)
+now shares those original Rust query adapters, selected execution and request
+budgets. A test-only harness exercises native-emitted source bytes in independent
+WASM heaps and a worker. No production endpoint or profile is enabled; complete
+physical resource/checkpoint handoff, source-backed code/registry owners and
+credential acceptance still precede admission.
 
 
 Do not equate downloaded code with an active native generation. Register every

@@ -139,7 +139,7 @@ impl Default for ValidationLimits {
 enum Implementation {
     Native(Arc<dyn NativeDatatypeValidator>),
     Query(Arc<CompiledQuery>),
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
     VerifiedQuery(Arc<crate::query_validator_capsule::LinkedValidatorQuery>),
 }
 #[derive(Debug, Clone)]
@@ -175,11 +175,11 @@ impl DatatypeValidationRegistry {
     /// Register verified instructions against independently supplied, checked
     /// original native declarations. This never parses/compiles query source or
     /// installs native callbacks, grants or generation ownership.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
     pub fn register_verified_query(
         &mut self,
         contract: DatatypeBehaviorContract,
-        source: &cem_ml::schema::structural_capsule::SourceIdentity,
+        source: &cem_ml::schema::native_source::SourceIdentity,
         registry_hash: &str,
         functions: &crate::selected_registry::SelectedFunctionRegistry,
         query: Arc<crate::query_validator_capsule::VerifiedValidatorQuery>,
@@ -347,11 +347,11 @@ pub struct BoundDatatypeRule {
     declaration: SchemaDeclarationNode,
 }
 impl BoundDatatypeRule {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
     pub(crate) fn source_declaration(&self) -> &SchemaDeclarationNode {
         &self.declaration
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
     pub(crate) fn result_adapter(&self) -> &DatatypeResultAdapter {
         &self.registration.adapter
     }
@@ -588,7 +588,7 @@ pub(crate) fn validate_rules_in_contexts(
                     runtime.scope,
                 ))
             }
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(any(not(target_arch = "wasm32"), feature = "query-source-runtime"))]
             Implementation::VerifiedQuery(query) => RuleExecution::Complete(query.evaluate(
                 &query_context(input, rule, runtime),
                 runtime.control,

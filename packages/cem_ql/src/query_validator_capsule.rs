@@ -1,4 +1,4 @@
-//! Native-only, inert typed validator programs. Original declaration sources are
+//! Inert typed validator programs, with an opt-in WASM Rust adapter. Original declaration sources are
 //! explicit host dependencies, not serialized callbacks or source-to-compile.
 use crate::{
     api::{StandaloneExpressionBinding, StandaloneExpressionContext},
@@ -18,7 +18,7 @@ use cem_ml::{
             CandidateRequirement, DatatypeBehaviorContract, ResultRepresentation,
             ScalarRepresentation, ValidationImplementation, ValueRepresentation,
         },
-        structural_capsule::SourceIdentity,
+        native_source::SourceIdentity,
     },
     source_map::SourceMapStack,
 };

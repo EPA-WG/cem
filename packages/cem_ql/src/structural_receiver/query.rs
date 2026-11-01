@@ -15,7 +15,9 @@ use cem_ml::schema::attribute_datatypes::AttributeDatatypeContextLease;
 mod owners;
 mod handoff;
 pub use owners::FreshQuerySource;
-pub(in crate::structural_receiver) use owners::{QuerySourceLease, RuntimeOwner};
+#[cfg(not(target_arch = "wasm32"))]
+pub(in crate::structural_receiver) use owners::QuerySourceLease;
+pub(in crate::structural_receiver) use owners::RuntimeOwner;
 
 pub struct FreshQueryBinding {
     pub(super) declaration: BindingOwner,
@@ -29,12 +31,14 @@ pub struct FreshQueryBinding {
 }
 pub(super) enum BindingOwner {
     Query(Arc<VerifiedQueryDeclaration>),
+    #[cfg(not(target_arch = "wasm32"))]
     Native(Arc<crate::native_registrations::VerifiedNativeRequirement>),
 }
 impl BindingOwner {
     fn source(&self) -> &Arc<RetainedCemTree> {
         match self {
             Self::Query(owner) => owner.source(),
+            #[cfg(not(target_arch = "wasm32"))]
             Self::Native(owner) => owner.source(),
         }
     }
