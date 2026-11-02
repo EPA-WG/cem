@@ -77,3 +77,39 @@ gallery and theme checks still pass, with 904 files and unchanged WASM sizes.
 Verifier lint and syntax checks also pass. The new run's log is
 `dist/reports/demo-site/playground-browser.log`. This repair still needs to be
 deployed to the public host.
+
+## Public deployment check — 2026-11-02
+
+Direct HTTPS requests and an isolated Chromium session confirm that the public
+host still serves the older playground: it lacks the WASM factory mapping,
+reports the unresolved `@epa-wg/cem-ml/wasm/factory` import, stays at “Loading
+CEM…” and leaves Render disabled. The HTML request redirects to the extensionless
+`/packages/cem-demo-element/demo/playground` route. This is a public deployment
+failure; the repaired local page continues to pass.
+
+The public deployment inventory has 898 files; the local inventory has 904.
+Comparing the inventory records finds 99 changed or absent entries, including
+six paths absent from the public inventory. These include shared runtime helpers
+and newer Login/Supplier sample bytes. This comparison checks inventory records,
+not a byte-for-byte download of every public asset. The public inventory SHA-256
+is `7d88a2d8b34eaff2a1be945f3552e5c527058eedcd1d235d948155bc3ee51b2f`.
+The playground HTML was also compared directly and differs from the local copy.
+
+The general demo probe reached native rendering/highlighting successfully on
+the public host, then stopped at its local-server-specific Studio revision-path
+assertion: public Studio uses `/studio/`. That assertion does not establish a
+public Studio runtime defect or full functional acceptance. The separate real
+playground browser probe establishes the import failure above.
+
+Refresh the published deployment from the verified `/home/suns/cem-bin` folder,
+then recheck its inventory and browser functionality. Sasha confirms that no
+Wrangler project is configured. No credentials were accessed or changed.
+Existing projects/drafts and personal
+browser storage were not accessed. Ignored evidence files are
+`dist/reports/demo-site/public-{freshness,inventory-diff,playground}.json` and
+`public-browser.log` in that directory.
+
+The [discussion resource comment draft](discussion-resource-comment-draft.md)
+maps physical slide numbers and stable slide IDs to ordinary project/resource/
+configuration links. It is not posted, and its public operations remain pending
+verification after deployment.

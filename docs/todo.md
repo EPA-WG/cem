@@ -289,6 +289,9 @@ channels; private agreements remain unverified. This file owns execution order.
       walkthrough: 23 offline configurations, failure/repair, live view,
       provenance, independent copies and offline draft preservation.
       Public-route functionality remains open.
+      Public check 2026-11-02: the 898-file deployment is older than the local
+      904-file build; the actual playground still fails on the missing factory
+      import. Refresh the public deployment and repeat browser acceptance.
       The deployed playground initialization/editor/Render regression now passes;
       its import map includes the command service's WASM factory dependency.
 
@@ -308,6 +311,8 @@ channels; private agreements remain unverified. This file owns execution order.
       for Studio links. Prepare the complete comment for review, verify every
       destination after publication, then post it as an explicit delivery action.
       Do not treat this TODO entry or a draft as an already-published comment.
+      The [slide-to-demo comment draft](declarative-amsterdam-2026/discussion-resource-comment-draft.md)
+      is prepared; public deployment freshness and operation checks remain open.
 
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,
       output and demo path. Check slide readability and the fallback flow;
