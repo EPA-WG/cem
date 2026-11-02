@@ -195,10 +195,19 @@ channels; private agreements remain unverified. This file owns execution order.
   3600 planned seconds. Eleven guard tests and Studio lint passed on 2026-11-01;
   measured rehearsal and native-deck readback remain open.
 
-- [ ] Synchronize the reviewed operational presenter cues into the native deck
+- [x] Synchronize the reviewed operational presenter cues into the native deck
   speaker-note fields by stable slide ID, preserving Sasha's slide content/order.
+  Add guards for order drift, missing/duplicate notes owners, preservation of
+  existing notes/content, idempotence and resource-link readback.
   Read back the updated notes and resource links; keep the recorded timing and
   privacy boundaries. Do not reimport the initial PowerPoint over native edits.
+  Verified 2026-11-01: 30 revision-guarded notes-only insertions, exact current
+  blocks/resource-link/original-note readback and unchanged visible slide structure.
+  Zero repeat insertions planned; signed image download URLs are excluded from
+  structural comparison. [Receipt](declarative-amsterdam-2026/native-deck-notes-readback.json)
+  records stable IDs and block hashes. Palette/animation and measured rehearsal
+  remain separate; 21 resource/notes guard tests and Studio lint passed. No
+  discussion message was posted.
 
 - [ ] Apply the canonical CEM theme light palette throughout the slide deck.
       Keep physical slide 2 (the original title slide) in dark mode as contrast.
@@ -223,7 +232,8 @@ channels; private agreements remain unverified. This file owns execution order.
       included in the session. Prepare resource entries for discussion #24;
       add verified links as materials become available. Use that stable URL
       throughout the deck. The verified local Studio kit and current repository
-      notes are available; public hosting/installation and native-deck sync remain open.
+      notes and native-deck note readback are available; public hosting/installation
+      and measured rehearsal remain open.
 
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,
       output and demo path. Check slide readability and the fallback flow;

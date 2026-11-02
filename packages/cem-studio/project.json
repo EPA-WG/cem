@@ -1575,11 +1575,12 @@
             "cache": true,
             "executor": "nx:run-commands",
             "options": {
-                "command": "node --test scripts/presentation-resources.test.mjs",
+                "command": "node --test scripts/presentation-resources.test.mjs scripts/presentation-deck-notes.test.mjs",
                 "cwd": "{projectRoot}"
             },
             "inputs": [
                 "{projectRoot}/scripts/presentation-resources*.mjs",
+                "{projectRoot}/scripts/presentation-deck-notes*.mjs",
                 "{projectRoot}/scripts/presenter-project.mjs",
                 "{projectRoot}/scripts/login-presenter.mjs",
                 "{projectRoot}/scripts/supplier-presenter.mjs",
@@ -1609,6 +1610,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/presentation-resources*.mjs",
+                "{projectRoot}/scripts/presentation-deck-notes*.mjs",
                 "{projectRoot}/scripts/presenter-project.mjs",
                 "{projectRoot}/scripts/login-presenter.mjs",
                 "{projectRoot}/scripts/supplier-presenter.mjs",

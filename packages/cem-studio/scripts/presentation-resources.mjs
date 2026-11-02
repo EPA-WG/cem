@@ -23,7 +23,7 @@ const seconds = value => {
 export async function verifyPresenterResources(data, notes) {
     data ??= await loadPresenterResources();
     assert.equal(data.schemaVersion, 1);
-    assert.equal(data.nativeDeckNotes, 'pending-sync-and-readback');
+    assert.equal(data.nativeDeckNotes, 'synced-and-read-back');
     assert.equal(data.rehearsal, 'not-yet-measured');
     assert.match(data.referenceRevision, /^[0-9a-f]{40}$/);
     assert.equal(data.resourceHub, 'https://github.com/EPA-WG/cem/discussions/24');
@@ -92,10 +92,17 @@ export async function verifyPresenterResources(data, notes) {
             assert.equal(await access(path).then(() => true, () => false), true, `Local resource link missing: ${target}`);
         }
     }
+    const deckNotes = JSON.parse(await readFile(resolve(docs, 'native-deck-notes-readback.json'), 'utf8'));
+    assert.equal(deckNotes.cueTableSha256, presenterHash(JSON.stringify(cues)), 'Synced cue table changed; review native notes');
+    assert.equal(deckNotes.resourceBindingsSha256, presenterHash(JSON.stringify({ privacy: data.privacy, publicResources: data.publicResources, cues: data.cues })), 'Synced resource bindings changed');
+    assert.equal(deckNotes.slides, 30);
+    for (const field of ['originalNotesPreserved', 'visibleContentUnchanged', 'exactResourceLinkReadback']) assert.equal(deckNotes[field], true);
+    assert.deepEqual(deckNotes.blocks.map(block => block.slideId), cues.map(row => row[1].replaceAll('`', '')));
     return { schemaVersion: 1, referenceRevision: data.referenceRevision, publicSourceLinks: 3,
         recordedWebReadDate: data.webReadVerified, projects: data.projects.map(item => item.id), cues: data.cues.length,
         nativeSlideIds: 30, timedSlides: timed, plannedSeconds: elapsed, measuredRehearsal: false,
-        nativeDeckSync: data.nativeDeckNotes, discussionPosted: false, checks: 'local identities, pinned git blobs, fallback bytes and planned timing' };
+        nativeDeckSync: data.nativeDeckNotes, nativeDeckReadbackDate: deckNotes.checkedDate,
+        discussionPosted: false, checks: 'local identities, pinned git blobs, fallback bytes, planned timing and recorded deck-note readback bindings' };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

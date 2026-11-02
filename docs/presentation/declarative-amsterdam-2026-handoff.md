@@ -38,9 +38,9 @@ and [current operational notes](../declarative-amsterdam-2026/presenter-notes.md
 are prepared. The hub and three pinned source pages were read publicly. A
 checked JSON run sheet binds 12 cues to source/configuration IDs and native
 fallback files, and preserves 30 recorded slide IDs / 26 timed slides / 60 minutes.
-No discussion message was posted and no live deck content was changed. Next
-synchronize reviewed speaker notes by native slide ID, read them back, verify
-palette/opening playback, and rehearse the timed route.
+No discussion message was posted. The subsequent native-deck notes readback
+below completes speaker-note synchronization without changing visible slides.
+Next verify palette/opening playback and rehearse the timed route.
 
 Started 2026-10-10 before clearing chat context; updated 2026-10-11 after agenda
 alignment. The user requested a temporary switch from implementation to preparing
@@ -388,3 +388,14 @@ installation at this checkpoint is `/home/suns/.nvm/versions/node/v24.16.0/bin`;
 prefix commands with that path if the next shell lacks Node/Yarn. Rebuild
 `cem-elements` before comparing legacy browser suites, which consume its packaged
 output, and avoid rebuilding component outputs during running browser gates.
+
+## Native speaker notes — 2026-11-01
+
+Current operational cues and three pinned participant source URLs were inserted
+above the original notes in all 30 native slides, with a revision guard. Exact
+readback preserved original text and visible slide structure/order. Repeat
+planning produces zero insertions. See the [readback receipt](../declarative-amsterdam-2026/native-deck-notes-readback.json)
+and [current presenter notes](../declarative-amsterdam-2026/presenter-notes.md).
+Palette, animation playback, public hosting/installation and measured rehearsal
+remain open. Original historical status notes remain below the current blocks.
+No slides were reimported and no discussion comment was posted.

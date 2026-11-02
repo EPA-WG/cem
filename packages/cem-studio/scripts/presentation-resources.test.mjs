@@ -31,3 +31,7 @@ test('refuses a broken local presenter reference', async () => {
     const notes = await readFile(resolve(workspaceRoot, 'docs/declarative-amsterdam-2026/presenter-notes.md'), 'utf8');
     await assert.rejects(verifyPresenterResources(await loadPresenterResources(), notes.replace('slide-story.md', 'missing-story.md')), /Local resource link missing/);
 });
+test('refuses cue prose changed after the recorded native notes readback', async () => {
+    const notes = await readFile(resolve(workspaceRoot, 'docs/declarative-amsterdam-2026/presenter-notes.md'), 'utf8');
+    await assert.rejects(verifyPresenterResources(await loadPresenterResources(), notes.replace('Explain the DNA metaphor.', 'Invent a different opening.')), /Synced cue table changed/);
+});

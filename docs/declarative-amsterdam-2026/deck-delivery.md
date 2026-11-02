@@ -126,10 +126,13 @@ The [participant resource index](participant-resources.md),
 [current presenter notes](presenter-notes.md) are ready in the repository.
 The new notes preserve the recorded 30 slide IDs and 60-minute schedule.
 
-Native-deck note synchronization/readback, palette and opening playback checks,
-public release/host verification, organizer requirements and timed rehearsal
-remain in [docs/todo.md](../todo.md). These repository notes do not establish that
-the live deck's existing speaker-note fields or static images have been updated.
+Native-deck operational notes were synchronized and read back on 2026-11-01:
+30 revision-guarded insertions preserved original notes and visible slide content.
+The [readback receipt](native-deck-notes-readback.json) binds stable IDs and hashes
+to the reviewed cues and links. Current blocks supersede older execution-status
+claims while preserving the original narrative beneath them. Static images were
+not updated. Palette and opening playback checks, public release/host verification,
+organizer requirements and measured rehearsal remain in [docs/todo.md](../todo.md).
 
 The supplier pipeline is labelled a companion scenario. Six-layer insulation
 is an architectural target with partial controls. Performance slides describe

@@ -3,9 +3,9 @@
 Operational cues for the frozen Login/Supplier route, prepared 2026-11-01.
 Use these with the [slide story](slide-story.md) and the
 [recorded native slide order](native-slide-order.md). Stable IDs below identify
-the recorded deck; this document does not claim a current native-deck readback
-or synchronization of its speaker-note fields. Palette, animation and deck-note
-synchronization remain delivery checks. A rehearsal has not yet measured these times.
+the live deck read back on 2026-11-01. Operational blocks were inserted into all
+30 speaker-note fields by stable ID, above the preserved original notes. Palette
+and animation remain delivery checks. A rehearsal has not yet measured these times.
 
 ## Before starting the clock
 
@@ -129,4 +129,26 @@ Studio lint passed. The source-link audit read the hub and three pinned GitHub
 pages; routine local verification checks the corresponding committed blob hashes
 and local links, without claiming a fresh external HTTP check. The generated
 report is `dist/reports/cem-studio/presentation-resources.json`. Native-deck
-synchronization/readback and measured rehearsal remain separate checks.
+readback is recorded in [the notes receipt](native-deck-notes-readback.json);
+measured rehearsal remains a separate check.
+
+## Native-deck notes readback — 2026-11-01
+
+Thirty notes-only insertions used the current revision guard. Exact text readback
+confirmed every new operational block, the three pinned resource URLs and all
+original note text. The original narrative remains below the current block;
+current execution cues explicitly supersede older preparation/status claims.
+All slide IDs, order, visible text, geometry, styles and image source properties
+were unchanged. Only revision metadata and temporary image download URLs were
+excluded from structural comparison. No slide visuals were edited or rerendered.
+An idempotence check planned zero further insertions. The combined resource and
+notes suite passes 21 tests, including post-sync cue-drift refusal; Studio lint
+passes. Shared components and credential policy are unchanged.
+
+The receipt is dated evidence, not a claim that later deck edits are unchanged.
+Full before/after connector responses stay in ignored local reports; the committed
+receipt contains stable IDs, revision IDs and block hashes, without copying user
+notes. The local verifier checks receipt bindings against current cue-table and
+resource identities. Any intentional cue change requires review and a fresh native
+notes readback. No discussion message was posted, public kit availability was not
+changed, and no browser projects, drafts or credential fields were accessed.
