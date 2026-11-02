@@ -132,3 +132,6 @@ much work you keep.
 
 Follow [resources and updates](https://github.com/EPA-WG/cem/discussions/24)
 for links to examples, releases, and Studio as they become available.
+
+The [completed story map](story-map.md) connects these messages to the existing
+native slides and the Site document journey, with evidence and speaking limits.

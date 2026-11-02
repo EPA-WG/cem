@@ -207,3 +207,6 @@ CEM earns a broader role when it makes that first integration clearer, its next
 change cheaper, and its behavior easier to explain.
 
 **Bring your data. Keep your expertise. Build a capability others can compose.**
+
+The [completed story map](story-map.md) connects these messages to the existing
+native slides and the Site document journey, with evidence and speaking limits.

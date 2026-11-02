@@ -17,6 +17,14 @@ is the stable resource destination; add Studio and other access links there as
 they become available. The implementation evidence below does not establish
 public availability.
 
+**Selected-route update, 2026-11-01:** the [Login freeze](login-presenter/README.md),
+[Supplier freeze](supplier-presenter/README.md), [participant-kit checks](participant-kit-verification.md)
+and [story map](story-map.md) now establish the selected native/deployed exercise
+results. The older design-proof table below records the broader October audit;
+it must not reopen completed Login/Supplier work or imply that those proofs
+establish full platform conformance. Public installation/hosting, broader denied-
+action/host-swap examples and measured full-session rehearsal remain separate.
+
 ## DCE promises carried forward
 
 The supplied
@@ -105,8 +113,9 @@ imply arbitrary dynamic splitting or a transaction across all destinations.
 ## Development lifecycle
 
 The pitch describes the developer's lifecycle and the definitions shared
-between its stages. These are the supporting platform surfaces; the full
-supplier walkthrough remains a demonstration to prepare and verify.
+between its stages. These are the supporting platform surfaces. The selected
+Supplier composition now has frozen native outputs and deployed offline checks;
+see the dated update above. Broader host/service variants remain separate.
 
 | Lifecycle foundation | Evidence | Claim supported |
 | --- | --- | --- |
@@ -302,6 +311,10 @@ implementation records. Prefer the current owning runtime contract, package
 README and focused tests when they conflict with older roadmap prose.
 
 ## Demonstration evidence and gaps
+
+This table preserves October proposal scope. The November selected-route update
+above and the story map distinguish completed Login/Supplier checkpoints from
+broader companion designs; its original work column is not the execution TODO.
 
 | Proposed proof | Existing anchor | Work still required |
 | --- | --- | --- |

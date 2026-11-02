@@ -495,3 +495,6 @@ capability gaps. The [EPA/DWA source notes](platform-evidence.md#ideas-from-epa-
 explain inspiration retained from those repositories without adopting their
 old implementation recipes. Execution and completion tracking remain solely
 in [docs/todo.md](../todo.md#amsterdam-presentation-setup-and-rehearsal).
+
+The [completed story map](story-map.md) connects these messages to the existing
+native slides and the Site document journey, with evidence and speaking limits.

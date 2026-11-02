@@ -136,3 +136,19 @@ supports the token catalog within its 65,536-value budget; small expression
 imports retain their existing limits. Runtime bootstrapping reads the already
 published semantic HTML as scalar control data; it does not reparse source JSON
 or replace the native import boundary with an application document model.
+
+## Amsterdam document journey
+
+`/guides/declarative-amsterdam-2026/` follows the six presentation intervals from
+Login source/edit through validation, provenance, light DOM and a bounded pilot.
+It is authored Markdown (GFM for its platform-role table), published through the
+existing native pipeline and shared page layout. It adds no UI JavaScript.
+The [story map](../../docs/declarative-amsterdam-2026/story-map.md) connects all
+manifesto/pitch sections to the existing slide IDs and evidence boundaries.
+
+After building Site, run
+`yarn nx run @epa-wg/cem-studio:verify:presentation-story` for the focused native
+output/browser check. It verifies source excerpts, headings, an actual HTML table,
+participant links and privacy boundaries. Whole-site publication verification
+remains distinct; its currently recorded CLI-guide relative-link-policy failure
+is tracked in the main TODO. A local build does not establish public hosting.

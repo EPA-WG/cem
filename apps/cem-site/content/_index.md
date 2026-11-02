@@ -20,3 +20,5 @@ the CEMT layout owns the shared semantic shell.
 Static documentation, token, and component routes deliberately have no JavaScript
 runtime dependency. The interactive and search routes load only their exact
 assets through schema-owned module maps.
+
+Follow the [Amsterdam document journey](/guides/declarative-amsterdam-2026/) from a Login edit to the platform boundaries and a bounded pilot.

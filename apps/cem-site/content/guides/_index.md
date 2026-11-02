@@ -17,3 +17,5 @@ graph rather than an implicit directory copy.
 
 Additional guides will render their canonical package or repository sources
 without duplicating those sources inside the site application.
+
+Follow the [Amsterdam document journey](/guides/declarative-amsterdam-2026/) from a Login edit to the platform boundaries and a bounded pilot.

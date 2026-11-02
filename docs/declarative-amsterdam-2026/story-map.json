@@ -1,0 +1,347 @@
+{
+  "schemaVersion": 1,
+  "siteRoute": "/guides/declarative-amsterdam-2026/",
+  "siteSource": "apps/cem-site/content/guides/declarative-amsterdam-2026.md",
+  "blocks": [
+    {
+      "minutes": [
+        0,
+        7
+      ],
+      "heading": "Start from a useful result"
+    },
+    {
+      "minutes": [
+        7,
+        17
+      ],
+      "heading": "Keep your expertise and make one edit"
+    },
+    {
+      "minutes": [
+        17,
+        35
+      ],
+      "heading": "Trust a check you can inspect and repair"
+    },
+    {
+      "minutes": [
+        35,
+        47
+      ],
+      "heading": "Follow processing into a view"
+    },
+    {
+      "minutes": [
+        47,
+        54
+      ],
+      "heading": "Choose a host and name the boundaries"
+    },
+    {
+      "minutes": [
+        54,
+        60
+      ],
+      "heading": "Bring one useful integration"
+    }
+  ],
+  "mappings": [
+    {
+      "source": "cem-manifesto.md",
+      "heading": "Carry definitions through the whole development lifecycle",
+      "message": "Keep one definition useful from editing through operation",
+      "slides": [
+        "p4",
+        "p8",
+        "p9",
+        "p10"
+      ],
+      "websiteHeading": "Start from a useful result",
+      "status": "demonstrated",
+      "evidence": "login-presenter/README.md",
+      "boundary": "The demonstrated path is the frozen Login journey, not a complete IDE or deployment service."
+    },
+    {
+      "source": "cem-manifesto.md",
+      "heading": "Make processing reusable across delivery channels",
+      "message": "Use shared rules for more than one useful output",
+      "slides": [
+        "p14",
+        "p16",
+        "p20"
+      ],
+      "websiteHeading": "Trust a check you can inspect and repair",
+      "status": "bounded",
+      "evidence": "supplier-presenter/README.md",
+      "boundary": "Supplier is a companion overview; a service embedding demonstration is not claimed."
+    },
+    {
+      "source": "cem-manifesto.md",
+      "heading": "Meet people where their work happens",
+      "message": "Put a capability inside the workflow that needs it",
+      "slides": [
+        "p18",
+        "p19"
+      ],
+      "websiteHeading": "Follow processing into a view",
+      "status": "bounded",
+      "evidence": "platform-evidence.md",
+      "boundary": "The Login view is not authentication, and provider/host integration remains an explicit contract."
+    },
+    {
+      "source": "cem-manifesto.md",
+      "heading": "Let people keep their language and expertise",
+      "message": "Begin with the document knowledge people already have",
+      "slides": [
+        "p5",
+        "p6",
+        "p13",
+        "p15"
+      ],
+      "websiteHeading": "Keep your expertise and make one edit",
+      "status": "demonstrated",
+      "evidence": "login-presenter/README.md",
+      "boundary": "Compare 21 named values on the selected inputs; universal syntax interchangeability is not promised."
+    },
+    {
+      "source": "cem-manifesto.md",
+      "heading": "Separate processing from data location",
+      "message": "Keep representation, location and processing boundaries explicit",
+      "slides": [
+        "p3",
+        "p14",
+        "p21"
+      ],
+      "websiteHeading": "Choose a host and name the boundaries",
+      "status": "bounded",
+      "evidence": "platform-evidence.md",
+      "boundary": "Adapters handle representation; host resolver/publication interfaces govern access. No live location-swap proof is scheduled."
+    },
+    {
+      "source": "cem-manifesto.md",
+      "heading": "Make contracts reusable",
+      "message": "Give schemas, queries, templates and views clear owners",
+      "slides": [
+        "p8",
+        "p15",
+        "p16",
+        "p20"
+      ],
+      "websiteHeading": "Choose a host and name the boundaries",
+      "status": "demonstrated",
+      "evidence": "login-presenter/README.md",
+      "boundary": "New lexical syntaxes still require their own parser/import adapter."
+    },
+    {
+      "source": "cem-manifesto.md",
+      "heading": "Make effects explicit",
+      "message": "Separate a view from the authority to save or act",
+      "slides": [
+        "p18",
+        "p19",
+        "p22"
+      ],
+      "websiteHeading": "Follow processing into a view",
+      "status": "bounded",
+      "evidence": "platform-evidence.md",
+      "boundary": "Declarative markup and light DOM do not by themselves grant or confine business actions."
+    },
+    {
+      "source": "cem-manifesto.md",
+      "heading": "Make change a normal operation",
+      "message": "Change one input and check what remained true",
+      "slides": [
+        "p4",
+        "p10",
+        "p13",
+        "p16",
+        "p24"
+      ],
+      "websiteHeading": "Bring one useful integration",
+      "status": "demonstrated",
+      "evidence": "login-walkthrough.md",
+      "boundary": "Use the saved template edit and named semantic comparison; no untested version-adapter exercise is added."
+    },
+    {
+      "source": "cem-manifesto.md",
+      "heading": "Insulate every included scope",
+      "message": "Requested authority needs host grants and real enforcement",
+      "slides": [
+        "h209a9db50e1b8a77_0_0",
+        "p22",
+        "p27"
+      ],
+      "websiteHeading": "Choose a host and name the boundaries",
+      "status": "direction",
+      "evidence": "platform-evidence.md",
+      "boundary": "Six-layer hostile-vendor confinement is a target with partial controls; the diagram is not an enforcement test."
+    },
+    {
+      "source": "cem-manifesto.md",
+      "heading": "Let state survive movement and rendering",
+      "message": "Keep state ownership explicit across execution boundaries",
+      "slides": [
+        "p23",
+        "p27"
+      ],
+      "websiteHeading": "Choose a host and name the boundaries",
+      "status": "bounded",
+      "evidence": "participant-kit-verification.md",
+      "boundary": "Offline drafts/copies are verified; this talk does not demonstrate arbitrary SSR/resume or automatic whole-Studio recovery."
+    },
+    {
+      "source": "cem-manifesto.md",
+      "heading": "Treat performance as a property of the whole lifecycle",
+      "message": "Measure the whole path to a useful result",
+      "slides": [
+        "p23"
+      ],
+      "websiteHeading": "Choose a host and name the boundaries",
+      "status": "bounded",
+      "evidence": "platform-evidence.md",
+      "boundary": "Mechanisms are described without benchmark numbers, automatic speedup, full streaming or bundler-parity claims."
+    },
+    {
+      "source": "cem-manifesto.md",
+      "heading": "Keep explanations attached to results",
+      "message": "Explain a failure or output through its owning source",
+      "slides": [
+        "p9",
+        "p11",
+        "p17"
+      ],
+      "websiteHeading": "Trust a check you can inspect and repair",
+      "status": "demonstrated",
+      "evidence": "login-presenter/README.md",
+      "boundary": "Printed Inspect coordinates are not interactive links; graph provenance identifies authored rules, not universal data lineage."
+    },
+    {
+      "source": "cem-manifesto.md",
+      "heading": "Make generated software reviewable",
+      "message": "Review generated declarations with the same checks",
+      "slides": [
+        "p19",
+        "p22"
+      ],
+      "websiteHeading": "Choose a host and name the boundaries",
+      "status": "direction",
+      "evidence": "platform-evidence.md",
+      "boundary": "AI adoption is a thesis; generated declarations are not safe by construction and no AI demonstration is added."
+    },
+    {
+      "source": "cem-manifesto.md",
+      "heading": "Earn adoption through a useful first step",
+      "message": "Earn a broader role through one bounded integration",
+      "slides": [
+        "p24"
+      ],
+      "websiteHeading": "Bring one useful integration",
+      "status": "bounded",
+      "evidence": "presentation-plan.md",
+      "boundary": "Define pilot measures; do not promise savings, a public download, or clean installation evidence."
+    },
+    {
+      "source": "cem-platform-pitch.md",
+      "heading": "Keep your data useful across systems",
+      "message": "Begin with the document knowledge people already have",
+      "slides": [
+        "p5",
+        "p6",
+        "p13",
+        "p15"
+      ],
+      "websiteHeading": "Keep your expertise and make one edit",
+      "status": "demonstrated",
+      "evidence": "login-presenter/README.md",
+      "boundary": "Compare 21 named values on the selected inputs; universal syntax interchangeability is not promised."
+    },
+    {
+      "source": "cem-platform-pitch.md",
+      "heading": "Defining schemas across every stage: from design and development to ongoing operations.",
+      "message": "Keep one definition useful from editing through operation",
+      "slides": [
+        "p4",
+        "p8",
+        "p9",
+        "p10"
+      ],
+      "websiteHeading": "Start from a useful result",
+      "status": "demonstrated",
+      "evidence": "login-presenter/README.md",
+      "boundary": "The demonstrated path is the frozen Login journey, not a complete IDE or deployment service."
+    },
+    {
+      "source": "cem-platform-pitch.md",
+      "heading": "Compose vendors with security insulation",
+      "message": "Requested authority needs host grants and real enforcement",
+      "slides": [
+        "h209a9db50e1b8a77_0_0",
+        "p22",
+        "p27"
+      ],
+      "websiteHeading": "Choose a host and name the boundaries",
+      "status": "direction",
+      "evidence": "platform-evidence.md",
+      "boundary": "Six-layer hostile-vendor confinement is a target with partial controls; the diagram is not an enforcement test."
+    },
+    {
+      "source": "cem-platform-pitch.md",
+      "heading": "Embedding applications",
+      "message": "Put a capability inside the workflow that needs it",
+      "slides": [
+        "p18",
+        "p19"
+      ],
+      "websiteHeading": "Follow processing into a view",
+      "status": "bounded",
+      "evidence": "platform-evidence.md",
+      "boundary": "The Login view is not authentication, and provider/host integration remains an explicit contract."
+    },
+    {
+      "source": "cem-platform-pitch.md",
+      "heading": "Put processing where the work happens",
+      "message": "Keep representation, location and processing boundaries explicit",
+      "slides": [
+        "p3",
+        "p14",
+        "p21"
+      ],
+      "websiteHeading": "Choose a host and name the boundaries",
+      "status": "bounded",
+      "evidence": "platform-evidence.md",
+      "boundary": "Adapters handle representation; host resolver/publication interfaces govern access. No live location-swap proof is scheduled."
+    },
+    {
+      "source": "cem-platform-pitch.md",
+      "heading": "Evolve without repeating the work",
+      "message": "Change one input and check what remained true",
+      "slides": [
+        "p4",
+        "p10",
+        "p13",
+        "p16",
+        "p24"
+      ],
+      "websiteHeading": "Bring one useful integration",
+      "status": "demonstrated",
+      "evidence": "login-walkthrough.md",
+      "boundary": "Use the saved template edit and named semantic comparison; no untested version-adapter exercise is added."
+    },
+    {
+      "source": "cem-platform-pitch.md",
+      "heading": "Bring one useful integration",
+      "message": "Earn a broader role through one bounded integration",
+      "slides": [
+        "p24"
+      ],
+      "websiteHeading": "Bring one useful integration",
+      "status": "bounded",
+      "evidence": "presentation-plan.md",
+      "boundary": "Define pilot measures; do not promise savings, a public download, or clean installation evidence."
+    }
+  ],
+  "publication": "repository-build-only; public host not verified",
+  "nativeDeck": "existing slide content and operational notes; no slide rewrite",
+  "measuredRehearsal": false
+}

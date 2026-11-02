@@ -136,6 +136,48 @@
     "searchImportMap": "{\"imports\":{\"@epa-wg/cem-site/components-runtime\":\"components-runtime.js\",\"@epa-wg/cem-site/runtime\":\"site-runtime.js\",\"@epa-wg/cem-site/search\":\"search-runtime.js\",\"@epa-wg/cem-elements\":\"../../../packages/cem-elements/dist/index.js\"}}",
     "searchDocuments": [
         {
+            "route": "/guides/declarative-amsterdam-2026/",
+            "title": "One document, reusable capabilities",
+            "summary": "Follow the Login lifecycle and connect its verified results to the CEM platform story.",
+            "headings": [
+                {
+                    "id": "heading-1",
+                    "level": 1,
+                    "text": "One document, reusable capabilities"
+                },
+                {
+                    "id": "heading-2",
+                    "level": 2,
+                    "text": "Start from a useful result"
+                },
+                {
+                    "id": "heading-3",
+                    "level": 2,
+                    "text": "Keep your expertise and make one edit"
+                },
+                {
+                    "id": "heading-4",
+                    "level": 2,
+                    "text": "Trust a check you can inspect and repair"
+                },
+                {
+                    "id": "heading-5",
+                    "level": 2,
+                    "text": "Follow processing into a view"
+                },
+                {
+                    "id": "heading-6",
+                    "level": 2,
+                    "text": "Choose a host and name the boundaries"
+                },
+                {
+                    "id": "heading-7",
+                    "level": 2,
+                    "text": "Bring one useful integration"
+                }
+            ]
+        },
+        {
             "route": "/",
             "title": "CEM Site",
             "summary": "Native CEM-ML static-site entry point and currently published surfaces.",
@@ -335,6 +377,19 @@
         }
     ],
     "entries": [
+        {
+            "kind": "page",
+            "route": "/guides/declarative-amsterdam-2026/",
+            "output": "guides/declarative-amsterdam-2026/index.html",
+            "source": "apps/cem-site/content/guides/declarative-amsterdam-2026.md",
+            "sourceKind": "authored",
+            "contentRole": "guide",
+            "relativeLinkPolicy": "site-routes",
+            "owner": "cem-site",
+            "upstreamTarget": null,
+            "importId": "amsterdam-source",
+            "exportId": "amsterdam"
+        },
         {
             "kind": "page",
             "route": "/",

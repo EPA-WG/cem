@@ -425,3 +425,16 @@ Nine native timing/ownership tests, 32 resource/notes/palette tests and Studio l
 pass. Next finish the manifesto/platform story mapping, remaining delivery
 materials and measured full-session rehearsal. Desktop presenter-control checks
 remain distinct from the tested anonymous Chromium slideshow.
+
+## Manifesto/platform coverage — 2026-11-01
+
+All 14 manifesto principles and seven pitch sections now map to existing native
+slide IDs and six authored Site guide sections. See the [map](../declarative-amsterdam-2026/story-map.md)
+and checked JSON beside it. The guide's native build and focused browser checks
+pass, with 40 resource/notes/palette/story tests and Studio lint. No native slide
+or speaker-note rewrite was needed. The 60-minute agenda, required Login spine,
+companion limits and credential policy remain intact. Whole-site verification
+exposes the unchanged CLI route's missing canonical-source link policy; repair
+that before public publication acceptance. Next finish release/setup verification
+and the timed full-session rehearsal, without promoting architectural goals into
+runtime proof.

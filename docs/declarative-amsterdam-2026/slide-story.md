@@ -22,8 +22,8 @@ slide assets captured a smaller CLI/static-preview route. Since then, the
 and extracted local kit have passed their native and deployed offline checks.
 Use the [current presenter notes](presenter-notes.md) for exact live actions,
 resource IDs, expected warnings and fallbacks. Their stable slide IDs match this
-recorded order; synchronizing the live deck's notes and rereading the deck remain
-separate delivery tasks. Existing static slide images are reference illustrations,
+recorded order; native notes, palette and opening playback are verified in the
+[delivery record](deck-delivery.md). Existing static slide images are reference illustrations,
 not a transcript of a new live run.
 
 ## 01 · CEM — DNA for structured data
@@ -841,3 +841,6 @@ the edit, failure/repair, inspection, conversion, rendered result, required
 platform map, and six-minute question period. The evidence state of the final
 assets belongs in the generated transcript and preparation checklist, not in
 guessed screenshots or invisible assumptions.
+
+The [manifesto/platform map](story-map.md) binds every principle and pitch section
+to this slide order and the Site guide without adding scheduled slides or claims.

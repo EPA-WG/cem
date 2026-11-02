@@ -194,3 +194,16 @@ eight stage samples, retained content at 30 seconds and unchanged native revisio
 The 45-second opening slot and 60-minute agenda remain unchanged. Nine timing/
 ownership tests, 32 resource/notes/palette tests and Studio lint pass. Full timed
 rehearsal and physical presenter controls remain separate.
+
+## Manifesto/platform story mapping — 2026-11-01
+
+The [completed story map](story-map.md) covers all 14 manifesto principles and
+seven pitch sections against existing native slide IDs, current presenter cues
+and six website story sections. No slides or notes need rewriting: the current
+narrative already carries those messages. The authored Site route is
+`/guides/declarative-amsterdam-2026/`; it uses the native Markdown/HTML/DOM/CEMT
+pipeline and existing shared page layout, without app UI JavaScript. The final
+six-minute question period, optional-reference rules and credential policy remain.
+Native build and focused browser acceptance pass, alongside 40 guard tests and
+Studio lint. The whole-site CLI-guide relative-link policy failure is recorded in
+the map and TODO; public hosting and full-session rehearsal are still open.

@@ -1575,13 +1575,17 @@
             "cache": true,
             "executor": "nx:run-commands",
             "options": {
-                "command": "node --test scripts/presentation-resources.test.mjs scripts/presentation-deck-notes.test.mjs scripts/presentation-palette.test.mjs",
+                "command": "node --test scripts/presentation-resources.test.mjs scripts/presentation-deck-notes.test.mjs scripts/presentation-palette.test.mjs scripts/presentation-story.test.mjs",
                 "cwd": "{projectRoot}"
             },
             "inputs": [
                 "{projectRoot}/scripts/presentation-resources*.mjs",
                 "{projectRoot}/scripts/presentation-deck-notes*.mjs",
                 "{projectRoot}/scripts/presentation-palette*.mjs",
+                "{projectRoot}/scripts/presentation-story*.mjs",
+                "{workspaceRoot}/apps/cem-site/content/**/*.md",
+                "{workspaceRoot}/apps/cem-site/site.cem",
+                "{workspaceRoot}/apps/cem-site/site.routes.json",
                 "{workspaceRoot}/packages/cem-theme/src/lib/tokens/cem-colors.md",
                 "{projectRoot}/scripts/presenter-project.mjs",
                 "{projectRoot}/scripts/login-presenter.mjs",
@@ -1614,6 +1618,10 @@
                 "{projectRoot}/scripts/presentation-resources*.mjs",
                 "{projectRoot}/scripts/presentation-deck-notes*.mjs",
                 "{projectRoot}/scripts/presentation-palette*.mjs",
+                "{projectRoot}/scripts/presentation-story*.mjs",
+                "{workspaceRoot}/apps/cem-site/content/**/*.md",
+                "{workspaceRoot}/apps/cem-site/site.cem",
+                "{workspaceRoot}/apps/cem-site/site.routes.json",
                 "{workspaceRoot}/packages/cem-theme/src/lib/tokens/cem-colors.md",
                 "{projectRoot}/scripts/presenter-project.mjs",
                 "{projectRoot}/scripts/login-presenter.mjs",
@@ -1663,6 +1671,29 @@
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/opening-playback"
+            ]
+        },
+        "verify:presentation-story": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "test:presentation-resources"
+            ],
+            "options": {
+                "command": "node scripts/presentation-story-built.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/presentation-story*.mjs",
+                "{projectRoot}/scripts/presentation-resources.mjs",
+                "{workspaceRoot}/docs/declarative-amsterdam-2026/**/*",
+                "{workspaceRoot}/apps/cem-site/content/**/*.md",
+                "{workspaceRoot}/apps/cem-site/site.cem",
+                "{workspaceRoot}/apps/cem-site/site.routes.json",
+                "{workspaceRoot}/dist/apps/cem-site/**/*.html"
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/presentation-story.json"
             ]
         }
     },

@@ -236,12 +236,27 @@ channels; private agreements remain unverified. This file owns execution order.
       [receipt](declarative-amsterdam-2026/native-opening-readback.json).
       Full-session rehearsal and physical presenter controls remain separate.
 
-- [ ] Use the presentation plan to map the manifesto and platform pitch into
+- [x] Use the presentation plan to map the manifesto and platform pitch into
       the presentation website and slides, following the current presentation
       minutes. Use familiar side-by-side representations and visible outcomes;
       prioritize XML/XSLT developers, web UI developers and platform/integration
       owners. Keep the published activities and 60-minute slot; use broader
-      pipeline and security examples as companions.
+      pipeline and security examples as companions. Add coverage fixtures for
+      omitted manifesto/pitch sections, stale slide IDs, changed public intervals,
+      missing evidence and missing built website headings/resource links.
+      Completed 2026-11-01: [story map](declarative-amsterdam-2026/story-map.md)
+      covers 14 manifesto principles and seven pitch sections across existing
+      stable slide IDs and six native-published Site sections. Preserve the
+      60-minute slot and final six minutes of questions. Site build, focused
+      built-route acceptance, 40 guard tests and Studio lint passed. No native
+      slide rewrite or public-hosting claim; source/credential policies unchanged.
+
+- [ ] Repair the Site CLI-guide publication policy before public-site acceptance:
+      add canonical-source link fixtures, map the existing package-relative links
+      to their repository owner, and rerun the whole-site verifier. Current failure:
+      `/guides/cem-ml/cli/ leaves repository-relative links without a policy`.
+      The Amsterdam guide builds and passes focused acceptance; do not weaken the
+      global publication gate or count a local build as public availability.
 
 - [ ] Produce the presentation, speaker notes, diagrams and participant setup
       instructions. Check the proposed Node/Linux installation paths against
