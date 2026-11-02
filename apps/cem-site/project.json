@@ -82,10 +82,31 @@
             ],
             "outputs": ["{workspaceRoot}/dist/apps/cem-site"]
         },
+        "test:canonical-links": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node --test apps/cem-site/scripts/canonical-links.test.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/canonical-links.test.mjs",
+                "{projectRoot}/scripts/publication-html.mjs",
+                "{projectRoot}/runtime/*.module-map.json",
+                "{projectRoot}/site.routes.json",
+                "{projectRoot}/site.cem",
+                "{projectRoot}/layouts/page.cemt",
+                "{workspaceRoot}/packages/cem-ml-cli-npm/README.md",
+                "{workspaceRoot}/packages/cem-ml-npm/README.md",
+                { "dependentTasksOutputFiles": "**/*", "transitive": false }
+            ],
+            "outputs": []
+        },
         "verify": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["build", "verify:determinism", "verify:interactive", "verify:production", "verify:search"],
+            "dependsOn": ["build", "test:canonical-links", "verify:determinism", "verify:interactive", "verify:production", "verify:search"],
             "options": {
                 "command": "node apps/cem-site/scripts/verify.mjs",
                 "cwd": "{workspaceRoot}"
@@ -94,6 +115,7 @@
                 "{projectRoot}/site.cem",
                 "{projectRoot}/site.routes.json",
                 "{projectRoot}/scripts/verify.mjs",
+                "{projectRoot}/scripts/publication-html.mjs",
                 "{projectRoot}/runtime/*.module-map.json",
                 "{workspaceRoot}/nx.json",
                 "{workspaceRoot}/package.json",

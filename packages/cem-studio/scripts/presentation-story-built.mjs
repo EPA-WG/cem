@@ -27,6 +27,7 @@ try {
     const observed = await page.evaluate(() => ({
         title: document.title,
         headings: [...document.querySelectorAll('main h2')].map(element => element.textContent.replace(/\s+/g, ' ').trim()),
+        headingIds: [...document.querySelectorAll('main h1, main h2')].map(element => element.id),
         tables: document.querySelectorAll('main table').length,
         tableRows: [...document.querySelectorAll('main table tr')].map(row => row.textContent),
         code: [...document.querySelectorAll('main pre code')].map(element => element.textContent),
@@ -37,6 +38,8 @@ try {
     }));
     assert.equal(observed.title, 'One document, reusable capabilities');
     assert.deepEqual(observed.headings, data.blocks.map(block => block.heading));
+    const manifest = JSON.parse(await readFile(resolve(workspaceRoot, 'apps/cem-site/site.routes.json'), 'utf8'));
+    assert.deepEqual(observed.headingIds, manifest.searchDocuments.find(row => row.route === data.siteRoute).headings.map(heading => heading.id), 'Search fragments differ from native headings');
     assert.equal(observed.mains, 1); assert.equal(observed.scripts, 0);
     assert.equal(observed.tables, 1, 'Platform roles must be a real HTML table');
     assert.equal(observed.tableRows.length, 8);

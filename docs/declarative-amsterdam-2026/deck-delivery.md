@@ -205,5 +205,25 @@ narrative already carries those messages. The authored Site route is
 pipeline and existing shared page layout, without app UI JavaScript. The final
 six-minute question period, optional-reference rules and credential policy remain.
 Native build and focused browser acceptance pass, alongside 40 guard tests and
-Studio lint. The whole-site CLI-guide relative-link policy failure is recorded in
-the map and TODO; public hosting and full-session rehearsal are still open.
+Studio lint. The subsequent Site publication repair below resolves the recorded
+CLI-guide failure; public hosting and full-session rehearsal are still open.
+
+## Site publication repair — 2026-11-01
+
+The CLI and WASM reference routes now use the existing native canonical-source
+policy for repository-relative links. Amsterdam search anchors and five shifted
+component-reference anchors match native output. The escaped-page guard retains
+its rejection outside legitimate code examples. Both runtime maps include five
+existing shared `cem-elements` transport/schema/declaration helpers, with exact
+source/output byte checks. No component or application behavior was added.
+
+Five regression tests and the native publication verifier passed. Two clean
+builds produced 303 identical files (aggregate SHA-256
+`7f33a0bd9d29a58aca94b30222b4583c796988afb2c38f241b6fa0921c7e0ffb`).
+Production Chromium crawled all 27 routes with zero runtime errors, checking 86
+fragment links; focused Amsterdam acceptance includes the actual search anchors.
+Interactive examples and search also passed their browser gates; lint passed.
+Reports are in `dist/reports/cem-site/` and remain ignored. These
+checks establish local Site acceptance; they do not establish a public host,
+registry installation or a measured full-session rehearsal. Credential privacy,
+slides and frozen participant projects are unchanged.

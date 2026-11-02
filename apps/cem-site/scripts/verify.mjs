@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { createProjectGraphAsync } from '@nx/devkit';
+import { hasEscapedPageBridge } from './publication-html.mjs';
 
 const workspaceRoot = resolve(import.meta.dirname, '../../..');
 const projectRoot = resolve(workspaceRoot, 'apps/cem-site');
@@ -713,7 +714,7 @@ for (const entry of manifest.entries) {
         if (!output.includes('<nav aria-label="Primary">')) {
             throw new Error(`${entry.output} does not contain the shared primary navigation`);
         }
-        if (output.includes('&lt;h1') || /<(?:script|link)\b[^>]*(?:src|href)="[^"]*node_modules/i.test(output)) {
+        if (hasEscapedPageBridge(output) || /<(?:script|link)\b[^>]*(?:src|href)="[^"]*node_modules/i.test(output)) {
             throw new Error(`${entry.output} contains an escaped HTML bridge or source-only runtime asset path`);
         }
         if (!Array.isArray(sourceMap.outputSpans) || sourceMap.outputSpans.length === 0) {

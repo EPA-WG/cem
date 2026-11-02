@@ -487,6 +487,26 @@
         "@epa-wg/cem-elements/dist/lib/checkpoint-reference-resume.js": {
             "path": "./assets/cem-elements/lib/checkpoint-reference-resume.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/compiled-declaration-assets.js": {
+            "path": "./assets/cem-elements/lib/compiled-declaration-assets.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/http-resource-transport.js": {
+            "path": "./assets/cem-elements/lib/http-resource-transport.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/schema-asset-protocol.js": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/schema-asset-protocol.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/schema-asset-protocol.js": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/vendor/schema-asset-protocol.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/schema-asset-pack.js": {
+            "path": "./assets/cem-elements/lib/schema-asset-pack.js",
+            "contentType": "text/javascript"
         }
     }
 }

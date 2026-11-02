@@ -149,6 +149,8 @@ manifesto/pitch sections to the existing slide IDs and evidence boundaries.
 After building Site, run
 `yarn nx run @epa-wg/cem-studio:verify:presentation-story` for the focused native
 output/browser check. It verifies source excerpts, headings, an actual HTML table,
-participant links and privacy boundaries. Whole-site publication verification
-remains distinct; its currently recorded CLI-guide relative-link-policy failure
-is tracked in the main TODO. A local build does not establish public hosting.
+participant links, native search fragments and privacy boundaries. The CLI and
+WASM reference routes use the native canonical-source policy for package-relative
+links. `cem-site:test:canonical-links` adds publication regressions for parent-path
+links/fragments, code excerpts and the five shared runtime helper assets. It is
+part of the full verification target. A local build does not establish public hosting.

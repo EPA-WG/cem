@@ -127,9 +127,17 @@ credential boundaries. Forty resource/notes/palette/story tests and Studio lint
 pass. Run the Site build before `@epa-wg/cem-studio:verify:presentation-story`.
 The nine opening-animation tests remain a separate unchanged gate.
 
-The whole-site verifier currently stops at `/guides/cem-ml/cli/`: that unchanged
-route declares `relativeLinkPolicy: none` although its package README now contains
-repository-relative links. The new story route uses the existing site-owned
-link policy and passes its focused checks. Whole-site publication is not claimed
-until the CLI route's canonical-source policy and subsequent gates pass. This
-follow-up belongs to release/hosting acceptance, not an additional on-stage proof.
+The publication follow-up is resolved. CLI and WASM reference routes now use the
+existing native canonical-source policy. Search records use the native-generated
+Amsterdam and component-reference heading IDs. The escaped-page sanity check
+accepts literal HTML only inside code examples; escaped page content outside
+those examples still fails. Five existing shared transport/schema/declaration
+helpers are now included byte-for-byte in both interactive/search runtime maps.
+
+On 2026-11-01, all five publication regression tests, native Site verification,
+two clean deterministic builds (303 identical files), and the production crawl
+of all 27 routes passed. Interactive and search browser gates passed as well.
+The focused Amsterdam browser check includes search
+fragment identities. The unchanged 60-minute story and credential privacy policy
+remain intact. Reports stay under ignored `dist/reports/cem-site/`; local
+publication acceptance is not public hosting or clean-install verification.

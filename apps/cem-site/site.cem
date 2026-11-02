@@ -92,6 +92,8 @@
             @template-schema="https://cem.dev/ns/transform/cem/1"
             @entrypoint="page" |
           {param @name="title" @value="CEM-ML Browser and Node CLI Guide"}
+          {param @name="canonicalSourceBase"
+              @value="https://github.com/EPA-WG/cem/blob/develop/packages/cem-ml-cli-npm/"}
           {export @id=cli-guide @out="../../dist/apps/cem-site/guides/cem-ml/cli/index.html"
               @content-type="text/html"
               @schema="https://cem.dev/ns/data/html/1"}
@@ -140,6 +142,8 @@
             @template-schema="https://cem.dev/ns/transform/cem/1"
             @entrypoint="page" |
           {param @name="title" @value="CEM-ML WASM Runtime Reference"}
+          {param @name="canonicalSourceBase"
+              @value="https://github.com/EPA-WG/cem/blob/develop/packages/cem-ml-npm/"}
           {export @id=wasm-reference
               @out="../../dist/apps/cem-site/reference/cem-ml/wasm-runtime/index.html"
               @content-type="text/html"

@@ -433,8 +433,21 @@ slide IDs and six authored Site guide sections. See the [map](../declarative-ams
 and checked JSON beside it. The guide's native build and focused browser checks
 pass, with 40 resource/notes/palette/story tests and Studio lint. No native slide
 or speaker-note rewrite was needed. The 60-minute agenda, required Login spine,
-companion limits and credential policy remain intact. Whole-site verification
-exposes the unchanged CLI route's missing canonical-source link policy; repair
-that before public publication acceptance. Next finish release/setup verification
+companion limits and credential policy remain intact. The Site publication
+repair below resolves the CLI policy and subsequent verification failures.
+Next finish release/setup verification
 and the timed full-session rehearsal, without promoting architectural goals into
 runtime proof.
+
+## Site publication acceptance — 2026-11-01
+
+CLI/WASM relative-link ownership, native search anchors, code-example admission
+and five missing shared runtime asset declarations are repaired. The existing
+native layout and shared runtime implementations are reused. Five regression
+tests, native publication validation, two deterministic builds (303 files),
+27-route production crawl and the focused Amsterdam guide check passed, as did
+lint. Interactive examples and search passed their browser checks too.
+The crawl checked 86 fragment links and reported zero runtime errors.
+See the [delivery record](../declarative-amsterdam-2026/deck-delivery.md#site-publication-repair--2026-11-01).
+Public-host/release installation checks and timed rehearsal remain open; no
+credential storage, saved projects, drafts or native slides were changed.

@@ -251,12 +251,18 @@ channels; private agreements remain unverified. This file owns execution order.
       built-route acceptance, 40 guard tests and Studio lint passed. No native
       slide rewrite or public-hosting claim; source/credential policies unchanged.
 
-- [ ] Repair the Site CLI-guide publication policy before public-site acceptance:
-      add canonical-source link fixtures, map the existing package-relative links
-      to their repository owner, and rerun the whole-site verifier. Current failure:
-      `/guides/cem-ml/cli/ leaves repository-relative links without a policy`.
-      The Amsterdam guide builds and passes focused acceptance; do not weaken the
-      global publication gate or count a local build as public availability.
+- [x] Repair the Site CLI/WASM-guide publication policies using existing native
+      canonical-source rewriting. Add parent-path/fragment fixtures, native search
+      heading checks, literal-code/escaped-page guards and exact shared-helper
+      publication fixtures. Refresh the Amsterdam and five component-reference
+      search anchors; include five existing transport/schema/declaration helpers
+      in both runtime maps. Keep all selected headings and actual link targets.
+      Verified 2026-11-01: five regression tests, source/asset/provenance verifier,
+      two identical clean builds (303 files), 27-route production browser crawl,
+      focused Amsterdam guide acceptance, interactive/search browser checks and
+      lint passed. No new runtime behavior
+      or app UI JavaScript; credential policy unchanged. Public hosting,
+      installation acceptance and full-session rehearsal remain separate.
 
 - [ ] Produce the presentation, speaker notes, diagrams and participant setup
       instructions. Check the proposed Node/Linux installation paths against
