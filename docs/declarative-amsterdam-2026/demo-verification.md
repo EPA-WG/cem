@@ -1,0 +1,63 @@
+# Amsterdam demo verification
+
+The demo site is published at
+[green-morning-fd6e.trans-acf.workers.dev](https://green-morning-fd6e.trans-acf.workers.dev/),
+as confirmed by Sasha. Verify locally before checking the public deployment.
+The demo deployment and the separately built CEM documentation Site have
+different build inventories; acceptance of one does not establish the other.
+
+## Local deployment — 2026-11-02
+
+The initial `/home/suns/cem-bin` copy contained 898 files and matched its own
+deployment inventory, but 23 Studio files were stale or absent compared with
+`packages/cem-studio/dist/static`. These included runtime modules, the navigation
+template and the Login sample. Inventory integrity alone does not establish
+freshness against the current build.
+
+The demo verifier now compares file bytes without formatting entire binary
+buffers on failure. A stale copy fails promptly with the affected path and the
+`yarn copy:demo` refresh command. The real stale deployment exercised this
+negative case. All 17 deployment/hosting regression tests and verifier lint pass.
+
+The release build and inventory-based refresh passed: 904 files total, with all
+four WASM files below 25 MiB. The CEM-QL pair is 24,140,410 bytes per file and
+the CEM-ML pair is 24,860,607 bytes per file. The deployment inventory SHA-256 is
+`80fab6035f8e264325c27775b50733adfbfae7bf907c022b1712b215d78bbfb8`.
+The local Studio scope is `/studio/__cem_preview__/6c04487c4a7f8804/`.
+
+`yarn verify:demo` passed against `http://localhost:8081/`. All 334 Studio files
+and paired gallery runtimes match their build outputs. Browser checks passed
+for native rendering/highlighting, shared initialization, isolated runtime
+memories, Studio links and URL selection, independent cloning, native HTML/CSS
+preview, offline rebuild and service-worker scope. All 10 theme generators
+rendered; all 120 canonical playground URLs returned successfully, and the live
+tree gallery rendered. URL reachability does not establish interaction coverage
+for every playground. Detailed ignored logs and inventory evidence are under
+`dist/reports/demo-site/`.
+
+The shared `@epa-wg/cem-studio:verify:login-navigation` target also passed against
+that exact local Studio scope via `CEM_STUDIO_ACCEPTANCE_URL`, with build
+dependencies and cache reuse excluded for this verification run. It exercised
+20 Login and three Supplier configurations offline, including schema
+failure/repair, template output, graph provenance across save/reload, live view,
+source inspection/formatting/coloring and standalone expressions. Both README
+routes, URL/tree agreement, independent source ownership and unsaved draft
+restoration after offline reload passed. The temporary test context was closed;
+existing browser storage was not used. The report is
+`dist/reports/cem-studio/presentation-samples.json`.
+
+Reproduce the complete local check from the repository root:
+
+```bash
+yarn copy:demo
+yarn serve:demo
+# In another terminal:
+yarn verify:demo
+```
+
+Use isolated browser contexts for clone, editing and offline checks. Preserve
+existing saved projects and drafts. Entered passwords or one-time codes must
+continue blocking recovery until explicitly cleared; never export credentials.
+
+Public-route functionality, deployment freshness and the slide-to-demo resource
+comment remain separate delivery checks in [the todo list](../todo.md).

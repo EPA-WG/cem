@@ -271,7 +271,41 @@ channels; private agreements remain unverified. This file owns execution order.
       add verified links as materials become available. Use that stable URL
       throughout the deck. The verified local Studio kit and current repository
       notes and native-deck note readback are available; public hosting/installation
-      and measured rehearsal remain open.
+      and measured rehearsal remain open. Add release-readiness fixtures rejecting
+      promotion from HTTP reachability or CLI version smoke to full exercise
+      acceptance, and retain exact tested archive identities and platform limits.
+
+- [ ] Verify the functionality of every Amsterdam demo page selected for the
+      presentation and participant links. Check the deployed source/edit,
+      validation failure/repair, inspection/formatting, query/graph, live preview,
+      navigation and linked assets in isolated browser contexts. Record exact
+      URLs, build/release identities and failures; preserve saved projects,
+      drafts and the credential privacy policy. Resolve presentation blockers
+      before publishing or advertising the corresponding demo links.
+      Local demo release build, inventory freshness and the shared demo browser
+      verifier pass (904 files, four WASM files below 25 MiB); see
+      [the local verification record](declarative-amsterdam-2026/demo-verification.md).
+      The same local demo scope also passes the complete selected Login/Supplier
+      walkthrough: 23 offline configurations, failure/repair, live view,
+      provenance, independent copies and offline draft preservation.
+      Public-route functionality remains open.
+
+- [ ] Publish the reviewed Amsterdam presentation site and related demo pages
+      after their functionality checks pass. Verify the actual public routes,
+      deployed assets, cache freshness and presentation resource links. Record
+      the deployment identity; a successful local build is not publication.
+      The demo site is already published at
+      https://green-morning-fd6e.trans-acf.workers.dev/ (confirmed by Sasha).
+      Verify the local demo deployment first, then check the corresponding
+      public routes; publication alone does not establish functional acceptance.
+
+- [ ] Append a resource comment to [GitHub discussion #24](https://github.com/EPA-WG/cem/discussions/24)
+      mapping each demo-related slide number to its verified public demo-page
+      link. Keep the stable native slide ID beside the current physical slide
+      number in the preparation map, and use projects/resources/configurations
+      for Studio links. Prepare the complete comment for review, verify every
+      destination after publication, then post it as an explicit delivery action.
+      Do not treat this TODO entry or a draft as an already-published comment.
 
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,
       output and demo path. Check slide readability and the fallback flow;

@@ -27,7 +27,9 @@ for (const entry of inventory.files) {
 }
 console.log(`Demo inventory: ${inventory.fileCount} managed files, ${totalFiles.length} total; all owned hashes match.`);
 async function compare(source, target) {
-    assert.deepEqual(await readFile(join(destination, target)), await readFile(join(repo, source)), target);
+    const actual = await readFile(join(destination, target));
+    const expected = await readFile(join(repo, source));
+    assert.ok(actual.equals(expected), `Stale demo file: ${target}. Run yarn copy:demo to refresh the deployment.`);
 }
 async function studioFiles(path = '') {
     let count = 0;
