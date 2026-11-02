@@ -57,6 +57,7 @@ vitest.config.*.timestamp*
 # Generated browser-test screenshots and diagnostic attachments.
 **/.vitest-attachments/
 **/__screenshots__/
+**/__pycache__/
 
 # Derived inputs for the optional Studio deployment graph.
 /packages/cem-studio/generated/schema-assets/

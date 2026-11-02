@@ -132,7 +132,7 @@ Native-deck operational notes were synchronized and read back on 2026-11-01:
 The [readback receipt](native-deck-notes-readback.json) binds stable IDs and hashes
 to the reviewed cues and links. Current blocks supersede older execution-status
 claims while preserving the original narrative beneath them. Static images were
-not updated. Opening playback checks, public release/host verification,
+not updated. Public release/host verification,
 organizer requirements and measured rehearsal remain in [docs/todo.md](../todo.md).
 
 The supplier pipeline is labelled a companion scenario. Six-layer insulation
@@ -179,5 +179,18 @@ it accepts saved full native reads, writes an ignored review plan, and never
 mutates Drive itself. Submit only the reviewed structured requests with the
 recorded revision guard; keep full responses and rendered files in ignored
 `dist/reports/cem-studio/`. Shared components, project storage and the credential
-privacy policy are unchanged. Opening animation playback and measured rehearsal
-remain open; this PDF review is not a Slideshow timing test.
+privacy policy are unchanged. The subsequent [opening playback check](opening-animation.md) verifies the
+existing automatic native sequence; measured rehearsal remains open. This PDF
+review alone is not a Slideshow timing test.
+
+## Integrated opening playback — 2026-11-01
+
+Fresh native timing export and anonymous Google Slides playback confirm the
+opening is already integrated. Preserve the newer brain artwork and current
+25.1-second automatic Thought → DNA → CEM sequence; do not copy the older
+three-fade reference over it. The [timeline and repeated-check instructions](opening-animation.md)
+and [readback receipt](native-opening-readback.json) record zero-click start,
+eight stage samples, retained content at 30 seconds and unchanged native revision.
+The 45-second opening slot and 60-minute agenda remain unchanged. Nine timing/
+ownership tests, 32 resource/notes/palette tests and Studio lint pass. Full timed
+rehearsal and physical presenter controls remain separate.

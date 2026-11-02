@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "checkedDate": "2026-11-01",
+  "native": {
+    "schemaVersion": 1,
+    "presentationId": "1v5JEclFycuXuYk5Mnpwb0alxdKIi30J6XgvLBmawxI4",
+    "nativeRevision": "0yRVSFpJ02gOuw",
+    "slideId": "p1",
+    "slideCount": 30,
+    "groupObjectCounts": {
+      "cem_teaser_dna": 53,
+      "cem_teaser_cem": 11,
+      "cem_teaser_thought": 3
+    },
+    "effects": [
+      {
+        "target": "cem_teaser_thought",
+        "startMs": 0,
+        "durationMs": 3000,
+        "effect": "fade",
+        "properties": [],
+        "trigger": "afterEffect",
+        "automatic": true
+      },
+      {
+        "target": "cem_teaser_pause_1",
+        "startMs": 3000,
+        "durationMs": 3000,
+        "effect": "fade",
+        "properties": [],
+        "trigger": "afterEffect",
+        "automatic": true
+      },
+      {
+        "target": "cem_teaser_pause_2",
+        "startMs": 6000,
+        "durationMs": 4100,
+        "effect": "fade",
+        "properties": [],
+        "trigger": "afterEffect",
+        "automatic": true
+      },
+      {
+        "target": "cem_teaser_dna",
+        "startMs": 10100,
+        "durationMs": 3000,
+        "effect": "resize",
+        "properties": [
+          "ppt_w",
+          "ppt_h"
+        ],
+        "trigger": "afterEffect",
+        "automatic": true
+      },
+      {
+        "target": "cem_teaser_pause_3",
+        "startMs": 13100,
+        "durationMs": 5000,
+        "effect": "fade",
+        "properties": [],
+        "trigger": "afterEffect",
+        "automatic": true
+      },
+      {
+        "target": "cem_teaser_pause_4",
+        "startMs": 18100,
+        "durationMs": 5000,
+        "effect": "fade",
+        "properties": [],
+        "trigger": "afterEffect",
+        "automatic": true
+      },
+      {
+        "target": "cem_teaser_cem",
+        "startMs": 23100,
+        "durationMs": 2000,
+        "effect": "fade",
+        "properties": [],
+        "trigger": "afterEffect",
+        "automatic": true
+      }
+    ],
+    "completeMs": 25100,
+    "exportSha256": "75aa0f7bec418fcbadf7e5960294ab2c404dc610f61798b2ac2804bfcd3a4546",
+    "slideXmlSha256": "26a1db77fb942053727fddf7dd4aab7fd66291a894d1e2952bbdb573046be7ba",
+    "mainDeckMutated": false,
+    "credentialStorageAccessed": false
+  },
+  "playback": {
+    "schemaVersion": 1,
+    "checkedDate": "2026-11-01",
+    "presentationId": "1v5JEclFycuXuYk5Mnpwb0alxdKIi30J6XgvLBmawxI4",
+    "url": "https://docs.google.com/presentation/d/1v5JEclFycuXuYk5Mnpwb0alxdKIi30J6XgvLBmawxI4/present?slide=id.p1",
+    "browser": "148.0.7778.96",
+    "isolatedAnonymousContext": true,
+    "clicks": 0,
+    "slideEntryStarts": true,
+    "sampledStageOrder": [
+      "thought",
+      "dna",
+      "cem"
+    ],
+    "allVisibleAt26Seconds": true,
+    "earlierStagesRetainedAt30Seconds": true,
+    "measurementOrigin": "DOMContentLoaded; sampled intervals, not exact transition timestamps",
+    "nativeTimelineMs": 25100,
+    "measuredFullRehearsal": false,
+    "frames": [
+      {
+        "milliseconds": 0,
+        "capturedMs": 119.58985600000005,
+        "file": "frame-0.png",
+        "sha256": "10785b3e526a2dab2c839aa6ef7bbb587c4dd507050ca27be7733c1f8c7dc2e2",
+        "pixels": {
+          "thought": 0,
+          "dna": 0,
+          "cem": 0
+        }
+      },
+      {
+        "milliseconds": 3500,
+        "capturedMs": 3552.3230569999996,
+        "file": "frame-3500.png",
+        "sha256": "d95a1aaf1c4a9894bac0298603638704076728e383de3b3e9814b332102806a1",
+        "pixels": {
+          "thought": 20608,
+          "dna": 0,
+          "cem": 0
+        }
+      },
+      {
+        "milliseconds": 7500,
+        "capturedMs": 7550.621981,
+        "file": "frame-7500.png",
+        "sha256": "d95a1aaf1c4a9894bac0298603638704076728e383de3b3e9814b332102806a1",
+        "pixels": {
+          "thought": 20608,
+          "dna": 0,
+          "cem": 0
+        }
+      },
+      {
+        "milliseconds": 12500,
+        "capturedMs": 12558.752885,
+        "file": "frame-12500.png",
+        "sha256": "9b34d7d2bcf5706975962c65cb25d71cb232f712ea89c2648876d521f42cbf74",
+        "pixels": {
+          "thought": 20608,
+          "dna": 4784,
+          "cem": 0
+        }
+      },
+      {
+        "milliseconds": 17500,
+        "capturedMs": 17552.079121000002,
+        "file": "frame-17500.png",
+        "sha256": "eec718d4a017293eca028f5fa6d33ce72fec0c5e06e408d1db29d1058d40d0ba",
+        "pixels": {
+          "thought": 20608,
+          "dna": 6260,
+          "cem": 0
+        }
+      },
+      {
+        "milliseconds": 22500,
+        "capturedMs": 22567.754823000003,
+        "file": "frame-22500.png",
+        "sha256": "eec718d4a017293eca028f5fa6d33ce72fec0c5e06e408d1db29d1058d40d0ba",
+        "pixels": {
+          "thought": 20608,
+          "dna": 6260,
+          "cem": 0
+        }
+      },
+      {
+        "milliseconds": 26000,
+        "capturedMs": 26035.504864000002,
+        "file": "frame-26000.png",
+        "sha256": "0d50a2884b7138119bef33a4ddd28c9c838fdf6ae7e8194cfda6727b8cf87c0c",
+        "pixels": {
+          "thought": 20608,
+          "dna": 6261,
+          "cem": 13180
+        }
+      },
+      {
+        "milliseconds": 30000,
+        "capturedMs": 30037.837205,
+        "file": "frame-30000.png",
+        "sha256": "0d50a2884b7138119bef33a4ddd28c9c838fdf6ae7e8194cfda6727b8cf87c0c",
+        "pixels": {
+          "thought": 20608,
+          "dna": 6261,
+          "cem": 13180
+        }
+      }
+    ],
+    "pageErrors": []
+  },
+  "existingIntegrationPreserved": true,
+  "olderPreparedSlideCopied": false,
+  "fullSessionRehearsal": false,
+  "notesPaletteAndOrderUnchanged": true,
+  "sameNativeRevisionAfterPlayback": "0yRVSFpJ02gOuw"
+}

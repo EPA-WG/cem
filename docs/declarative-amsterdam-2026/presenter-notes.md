@@ -5,8 +5,8 @@ Use these with the [slide story](slide-story.md) and the
 [recorded native slide order](native-slide-order.md). Stable IDs below identify
 the live deck read back on 2026-11-01. Operational blocks were inserted into all
 30 speaker-note fields by stable ID, above the preserved original notes. The
-canonical palette is verified; animation remains a delivery check. A rehearsal
-has not yet measured these times.
+canonical palette and automatic opening playback are verified. A rehearsal
+has not yet measured the full-session timings.
 
 ## Before starting the clock
 
@@ -155,5 +155,5 @@ notes readback. No discussion message was posted, public kit availability was no
 changed, and no browser projects, drafts or credential fields were accessed.
 
 The subsequent [palette readback](native-deck-palette-readback.json) preserves all
-30 speaker notes while applying canonical CEM colors. Opening Slideshow playback
-and measured rehearsal remain open.
+30 speaker notes while applying canonical CEM colors. The subsequent
+[opening check](opening-animation.md) verifies the existing automatic sequence. Measured full-session rehearsal remains open.

@@ -223,11 +223,18 @@ channels; private agreements remain unverified. This file owns execution order.
       tests and Studio lint passed. [Receipt](declarative-amsterdam-2026/native-deck-palette-readback.json).
       Opening playback and measured rehearsal remain separate.
 
-- [ ] Copy the prepared animated opening into the main deck and verify the
-      26-second sequence in Slideshow. Import currently requires one starting
-      click; try After previous in the Motion panel for automatic slide-entry
-      playback, then recheck timing. This animation has not yet been copied into
-      the live deck; notes and palette updates are complete.
+- [x] Verify the integrated native opening and preserve the current brain artwork,
+      speaker notes, palette and slide order. Add fixtures for group ownership,
+      timing/trigger drift, missing targets and paired DNA resize orchestration.
+      Fresh native export shows an existing automatic sequence completing at
+      25.1 seconds, rather than the older 26-second reference; the 45-second
+      opening slot is unchanged. The older slide must not overwrite it. Actual anonymous Google Slides playback
+      passed with zero clicks, eight sampled frames, stage visibility/order and
+      retained content at 30 seconds. Native revision stayed unchanged.
+      Nine native-contract tests, 32 resource/notes/palette tests and Studio lint
+      passed. [Current timeline and checks](declarative-amsterdam-2026/opening-animation.md),
+      [receipt](declarative-amsterdam-2026/native-opening-readback.json).
+      Full-session rehearsal and physical presenter controls remain separate.
 
 - [ ] Use the presentation plan to map the manifesto and platform pitch into
       the presentation website and slides, following the current presentation

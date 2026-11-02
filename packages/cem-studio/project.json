@@ -1633,6 +1633,37 @@
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/presentation-resources.json"
             ]
+        },
+        "test:opening-animation": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "python3 -B scripts/presentation_opening_test.py",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/presentation_opening*.py"
+            ],
+            "outputs": []
+        },
+        "verify:opening-playback": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "test:opening-animation"
+            ],
+            "options": {
+                "command": "node scripts/presentation-opening-playback.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/presentation-opening-playback.mjs",
+                "{projectRoot}/scripts/presenter-project.mjs",
+                "{projectRoot}/scripts/presentation-deck-notes.mjs"
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/opening-playback"
+            ]
         }
     },
     "tags": [

@@ -409,5 +409,19 @@ PDF pages were visually reviewed; the issue checker has zero errors and the
 existing lifecycle-arrow warning. The [palette receipt](../declarative-amsterdam-2026/native-deck-palette-readback.json)
 and [delivery record](../declarative-amsterdam-2026/deck-delivery.md#canonical-palette--2026-11-01)
 record contrast, revisions, PDF hash and explicit image/source checks. Thirty-two
-guard tests and Studio lint pass. Next integrate the prepared animated opening
-and verify actual Slideshow timing; measured rehearsal still remains open.
+guard tests and Studio lint pass. The subsequent opening verification below
+checks the existing native integration; measured rehearsal still remains open.
+
+## Integrated opening verification — 2026-11-01
+
+The main native opening was already integrated; fresh export revealed the newer
+brain artwork, paired DNA zoom and automatic 25.1-second sequence. Preserve it
+rather than copying the older reference. Anonymous Google Slides playback passed
+with zero clicks, eight sampled frames, correct stage order and retained content
+at 30 seconds. The native revision, notes, palette and all 30 slide IDs stayed
+unchanged. See the [timeline](../declarative-amsterdam-2026/opening-animation.md)
+and [receipt](../declarative-amsterdam-2026/native-opening-readback.json).
+Nine native timing/ownership tests, 32 resource/notes/palette tests and Studio lint
+pass. Next finish the manifesto/platform story mapping, remaining delivery
+materials and measured full-session rehearsal. Desktop presenter-control checks
+remain distinct from the tested anonymous Chromium slideshow.

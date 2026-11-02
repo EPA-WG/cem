@@ -36,10 +36,12 @@ and variation; CEM supplies the platform ambition.
 ## Design and timing
 
 The first slide uses native editable branching, helix and template diagrams.
-The [prepared animation](opening-animation.md) reveals these groups with
-2-second fades starting at 0, 12 and 24 seconds after one starting click.
-Its native timing survived import; copying it into the main deck and checking
-Slideshow playback remain open.
+The [current native animation](opening-animation.md) already reveals the current
+brain/Thought group, then DNA, then CEM automatically. Its native timeline
+completes at 25.1 seconds, rather than the older 26-second reference. Google Slides
+playback verified the reveals and retained content without a starting click.
+The older prepared three-fade slide is a historical reference; copying it would
+replace the newer brain artwork and current speaker notes.
 Its colors come from the [CEM palette](../../packages/cem-theme/src/lib/tokens/cem-colors.md):
 comfort `#F1FEFE`, comfort-text `#001010`, creativity-x `#6A1B9A`, creativity
 `#E1BEE7`, trust `#D7E3FF`, trust-x `#002F65`, calm-x `#006A6A`.
@@ -52,9 +54,9 @@ Sasha's “Browser vs DCE security” diagram takes 50:00–50:30 within the pla
 questions remain 54:00–60:00 on slide 30. The [slide story](slide-story.md)
 follows the native order and owns the per-slide notes.
 
-The deck-wide CEM light palette and dark terminal samples are recorded in
-[docs/todo.md](../todo.md). This update applies light mode to the teaser only;
-the bulk restyle remains a separate presentation action.
+The deck-wide canonical CEM light palette and dark diagnostic panel are verified
+in the [palette readback](native-deck-palette-readback.json). The original dark
+title, source screenshots and security image are preserved.
 
 The native deck includes Sasha's changes and is authoritative. Rebuilding the
 original PowerPoint would overwrite that work. [update-opening-slide.cjs](update-opening-slide.cjs)
