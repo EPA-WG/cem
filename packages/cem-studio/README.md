@@ -413,6 +413,13 @@ exact HTML/JSON/YAML publications. Run
 `yarn nx run @epa-wg/cem-studio:verify:supplier-presenter`; the participant kit
 now carries both project references. Its browser check opens the printed
 `collection=amsterdam-2026` Login/Supplier README URLs directly while offline.
+The [participant links](../../docs/declarative-amsterdam-2026/participant-resources.md)
+and [presenter notes](../../docs/declarative-amsterdam-2026/presenter-notes.md)
+map those inputs/results to the recorded deck. Run
+`yarn nx run @epa-wg/cem-studio:verify:presentation-resources` to check routes,
+resource/configuration IDs, native fallback bytes, pinned public source blobs
+and the planned 60-minute timing. It does not post the discussion draft or
+synchronize native slides.
 
 With project navigation active, **Results → Operation output** uses the shared
 `cem-media-preview` to show text, sandboxed documents and live CEM output. The

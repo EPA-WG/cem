@@ -1570,6 +1570,63 @@
                 "{workspaceRoot}/dist/target/cem_ml_cli/debug/cem-ml"
             ],
             "outputs": []
+        },
+        "test:presentation-resources": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node --test scripts/presentation-resources.test.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/presentation-resources*.mjs",
+                "{projectRoot}/scripts/presenter-project.mjs",
+                "{projectRoot}/scripts/login-presenter.mjs",
+                "{projectRoot}/scripts/supplier-presenter.mjs",
+                "{projectRoot}/scripts/native-catalog-execution.mjs",
+                "{projectRoot}/scripts/fixtures/catalog-native-diagnostics.json",
+                "{projectRoot}/src/file-system-provider.js",
+                "{projectRoot}/generated/feature-tour/index.json",
+                "{projectRoot}/generated/feature-tour/examples/login.cem-studio.json",
+                "{projectRoot}/generated/feature-tour/examples/supplier-pipeline.cem-studio.json",
+                "{workspaceRoot}/examples/projects/login/**/*",
+                "{workspaceRoot}/examples/projects/supplier-pipeline/**/*",
+                "{workspaceRoot}/examples/cem-ml/login.cem",
+                "{workspaceRoot}/examples/semantic/login.html",
+                "{workspaceRoot}/docs/declarative-amsterdam-2026/**/*"
+            ],
+            "outputs": []
+        },
+        "verify:presentation-resources": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "test:presentation-resources"
+            ],
+            "options": {
+                "command": "node scripts/presentation-resources.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/presentation-resources*.mjs",
+                "{projectRoot}/scripts/presenter-project.mjs",
+                "{projectRoot}/scripts/login-presenter.mjs",
+                "{projectRoot}/scripts/supplier-presenter.mjs",
+                "{projectRoot}/scripts/native-catalog-execution.mjs",
+                "{projectRoot}/scripts/fixtures/catalog-native-diagnostics.json",
+                "{projectRoot}/src/file-system-provider.js",
+                "{projectRoot}/generated/feature-tour/index.json",
+                "{projectRoot}/generated/feature-tour/examples/login.cem-studio.json",
+                "{projectRoot}/generated/feature-tour/examples/supplier-pipeline.cem-studio.json",
+                "{workspaceRoot}/examples/projects/login/**/*",
+                "{workspaceRoot}/examples/projects/supplier-pipeline/**/*",
+                "{workspaceRoot}/examples/cem-ml/login.cem",
+                "{workspaceRoot}/examples/semantic/login.html",
+                "{workspaceRoot}/docs/declarative-amsterdam-2026/**/*"
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/presentation-resources.json"
+            ]
         }
     },
     "tags": [

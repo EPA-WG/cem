@@ -182,6 +182,24 @@ subject, timing, required demonstration and adoption scope. Resolve outstanding
 organizer/delivery requirements through the existing evidence and authorized
 channels; private agreements remain unverified. This file owns execution order.
 
+- [x] Prepare participant resource links and current presenter cues keyed to
+  recorded native slide IDs. Verify public pinned source links, keep the kit a
+  local-transfer artifact, and prepare a reviewable discussion resource block
+  without posting it. Add fixtures rejecting stale collection/resource/config IDs,
+  broken fallback links, timing drift and weakened credential policy.
+  [Resource index](declarative-amsterdam-2026/participant-resources.md),
+  [discussion draft](declarative-amsterdam-2026/discussion-24-resources.md) and
+  [current presenter notes](declarative-amsterdam-2026/presenter-notes.md) are ready.
+  Three pinned source pages and the hub were read publicly on 2026-11-01.
+  Local verification checks 12 cues, 30 recorded slide IDs, 26 timed slides and
+  3600 planned seconds. Eleven guard tests and Studio lint passed on 2026-11-01;
+  measured rehearsal and native-deck readback remain open.
+
+- [ ] Synchronize the reviewed operational presenter cues into the native deck
+  speaker-note fields by stable slide ID, preserving Sasha's slide content/order.
+  Read back the updated notes and resource links; keep the recorded timing and
+  privacy boundaries. Do not reimport the initial PowerPoint over native edits.
+
 - [ ] Apply the canonical CEM theme light palette throughout the slide deck.
       Keep physical slide 2 (the original title slide) in dark mode as contrast.
       Use CEM dark mode for terminal output samples. Preserve semantic syntax
@@ -204,7 +222,8 @@ channels; private agreements remain unverified. This file owns execution order.
       actual available releases, and record requirements for any other platforms
       included in the session. Prepare resource entries for discussion #24;
       add verified links as materials become available. Use that stable URL
-      throughout the deck; Studio remains a future participant route.
+      throughout the deck. The verified local Studio kit and current repository
+      notes are available; public hosting/installation and native-deck sync remain open.
 
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,
       output and demo path. Check slide readability and the fallback flow;

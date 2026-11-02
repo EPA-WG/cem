@@ -1,0 +1,249 @@
+{
+  "schemaVersion": 1,
+  "referenceRevision": "712ff2e45b89d159abba7b8447ab53e5efb8ae68",
+  "resourceHub": "https://github.com/EPA-WG/cem/discussions/24",
+  "webReadVerified": "2026-11-01",
+  "privacy": {
+    "enteredCredentials": "block-until-explicitly-cleared",
+    "automaticRecovery": false,
+    "aggregateCheckpointBytes": 4194304,
+    "handoffTimeoutMs": 5000,
+    "inputs": "checked-in-project-only",
+    "browserStorage": "never-read"
+  },
+  "publicResources": [
+    {
+      "label": "Participant setup",
+      "path": "docs/declarative-amsterdam-2026/participant-setup.md",
+      "url": "https://github.com/EPA-WG/cem/blob/712ff2e45b89d159abba7b8447ab53e5efb8ae68/docs/declarative-amsterdam-2026/participant-setup.md",
+      "sha256": "fb92b422ac05d95334fd86743f5d83a8af381aec9b6f5d3dfe0a822975018097",
+      "webReadVerified": "2026-11-01"
+    },
+    {
+      "label": "Login inputs and expected results",
+      "path": "docs/declarative-amsterdam-2026/login-presenter/README.md",
+      "url": "https://github.com/EPA-WG/cem/blob/712ff2e45b89d159abba7b8447ab53e5efb8ae68/docs/declarative-amsterdam-2026/login-presenter/README.md",
+      "sha256": "54233500a5006b684bca01ec336da72136b6b9d57e48ccb8a4d52f14a57d71a2",
+      "webReadVerified": "2026-11-01"
+    },
+    {
+      "label": "Supplier inputs and expected results",
+      "path": "docs/declarative-amsterdam-2026/supplier-presenter/README.md",
+      "url": "https://github.com/EPA-WG/cem/blob/712ff2e45b89d159abba7b8447ab53e5efb8ae68/docs/declarative-amsterdam-2026/supplier-presenter/README.md",
+      "sha256": "8d724d4a6c06e6e18b7d5edfccea12df8442cf336b40f120fb126cef4228bf97",
+      "webReadVerified": "2026-11-01"
+    }
+  ],
+  "projects": [
+    {
+      "id": "login",
+      "version": "2.8.1",
+      "collection": "amsterdam-2026",
+      "readme": "readme",
+      "route": "/?collection=amsterdam-2026&sample=login&file=readme",
+      "freeze": "docs/declarative-amsterdam-2026/login-presenter/manifest.json"
+    },
+    {
+      "id": "supplier-pipeline",
+      "version": "1.1.1",
+      "collection": "amsterdam-2026",
+      "readme": "readme",
+      "route": "/?collection=amsterdam-2026&sample=supplier-pipeline&file=readme",
+      "freeze": "docs/declarative-amsterdam-2026/supplier-presenter/manifest.json"
+    }
+  ],
+  "cues": [
+    {
+      "id": "read",
+      "slide": 3,
+      "project": "login",
+      "resource": "readme",
+      "configurations": [
+        "read-edit"
+      ],
+      "fallback": {
+        "checkpoint": "read-edit",
+        "field": "output",
+        "path": "docs/declarative-amsterdam-2026/login-presenter/checkpoints/read-edit.cem"
+      },
+      "slideId": "p2"
+    },
+    {
+      "id": "edit",
+      "slide": 8,
+      "project": "login",
+      "resource": "login-cem",
+      "configurations": [
+        "validate"
+      ],
+      "fallback": {
+        "checkpoint": "validate",
+        "field": "output",
+        "path": "docs/declarative-amsterdam-2026/login-presenter/checkpoints/validate.json"
+      },
+      "slideId": "p7"
+    },
+    {
+      "id": "fail",
+      "slide": 10,
+      "project": "login",
+      "resource": "login-invalid",
+      "configurations": [
+        "validation-repair"
+      ],
+      "fallback": {
+        "checkpoint": "validation-repair",
+        "field": "output",
+        "path": "docs/declarative-amsterdam-2026/login-presenter/checkpoints/validation-repair.json"
+      },
+      "slideId": "p9"
+    },
+    {
+      "id": "repair",
+      "slide": 11,
+      "project": "login",
+      "resource": "login-invalid",
+      "configurations": [
+        "validation-repair"
+      ],
+      "fallback": {
+        "checkpoint": "validation-repair-repaired",
+        "field": "output",
+        "path": "docs/declarative-amsterdam-2026/login-presenter/checkpoints/validation-repair-repaired.json"
+      },
+      "slideId": "p10"
+    },
+    {
+      "id": "inspect",
+      "slide": 12,
+      "project": "login",
+      "resource": "login-cem",
+      "configurations": [
+        "inspect"
+      ],
+      "fallback": {
+        "checkpoint": "inspect",
+        "field": "output",
+        "path": "docs/declarative-amsterdam-2026/login-presenter/checkpoints/inspect.cem"
+      },
+      "slideId": "p11"
+    },
+    {
+      "id": "format",
+      "slide": 13,
+      "project": "login",
+      "resource": "login-cem",
+      "configurations": [
+        "format-pretty",
+        "format-tabular",
+        "source-colors"
+      ],
+      "fallback": {
+        "checkpoint": "format-tabular",
+        "field": "output",
+        "path": "docs/declarative-amsterdam-2026/login-presenter/checkpoints/format-tabular.cem"
+      },
+      "slideId": "p12"
+    },
+    {
+      "id": "compare",
+      "slide": 14,
+      "project": "login",
+      "resource": "login-html",
+      "configurations": [
+        "semantics-html",
+        "semantics-cem",
+        "html-conversion"
+      ],
+      "fallback": {
+        "checkpoint": "semantics-html",
+        "field": "output",
+        "path": "docs/declarative-amsterdam-2026/login-presenter/checkpoints/semantics-html.json"
+      },
+      "slideId": "p13"
+    },
+    {
+      "id": "query",
+      "slide": 16,
+      "project": "login",
+      "resource": "login-cem",
+      "configurations": [
+        "semantics-html-cemql",
+        "semantics-cem-cemql"
+      ],
+      "fallback": {
+        "checkpoint": "semantics-cem-cemql",
+        "field": "output",
+        "path": "docs/declarative-amsterdam-2026/login-presenter/checkpoints/semantics-cem-cemql.json"
+      },
+      "slideId": "p15"
+    },
+    {
+      "id": "expression",
+      "slide": 16,
+      "project": "login",
+      "resource": "login-expression",
+      "configurations": [
+        "expression-html",
+        "expression-cem"
+      ],
+      "fallback": {
+        "checkpoint": "expression-cem",
+        "field": "output",
+        "path": "docs/declarative-amsterdam-2026/login-presenter/checkpoints/expression-cem.json"
+      },
+      "slideId": "p15"
+    },
+    {
+      "id": "transform",
+      "slide": 17,
+      "project": "login",
+      "resource": "login-view-graph",
+      "configurations": [
+        "render-graph",
+        "render-html",
+        "render-cem"
+      ],
+      "fallback": {
+        "checkpoint": "render-graph",
+        "field": "output",
+        "path": "docs/declarative-amsterdam-2026/login-presenter/checkpoints/render-graph.html"
+      },
+      "slideId": "p16"
+    },
+    {
+      "id": "live",
+      "slide": 19,
+      "project": "login",
+      "resource": "login-live-view",
+      "configurations": [
+        "live-view"
+      ],
+      "fallback": {
+        "checkpoint": "render-graph",
+        "field": "output",
+        "path": "docs/declarative-amsterdam-2026/login-presenter/checkpoints/render-graph.html"
+      },
+      "fallbackMeaning": "Static graph HTML; does not demonstrate live interaction.",
+      "slideId": "p18"
+    },
+    {
+      "id": "supplier",
+      "slide": 30,
+      "project": "supplier-pipeline",
+      "resource": "supplier-stock",
+      "configurations": [
+        "stock-source",
+        "availability"
+      ],
+      "fallback": {
+        "checkpoint": "availability",
+        "field": "output",
+        "path": "docs/declarative-amsterdam-2026/supplier-presenter/checkpoints/availability/generated/availability.html"
+      },
+      "slideId": "p24"
+    }
+  ],
+  "nativeDeckNotes": "pending-sync-and-readback",
+  "rehearsal": "not-yet-measured"
+}

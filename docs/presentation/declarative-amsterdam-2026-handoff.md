@@ -31,6 +31,17 @@ The refreshed 417-file kit passed offline acceptance. The handout collection ID
 is corrected to `amsterdam-2026`, with direct offline entry checks for both
 projects. Continue with delivery materials and timed rehearsal.
 
+Participant links and presenter notes (2026-11-01): the
+[resource index](../declarative-amsterdam-2026/participant-resources.md),
+[reviewable discussion block](../declarative-amsterdam-2026/discussion-24-resources.md)
+and [current operational notes](../declarative-amsterdam-2026/presenter-notes.md)
+are prepared. The hub and three pinned source pages were read publicly. A
+checked JSON run sheet binds 12 cues to source/configuration IDs and native
+fallback files, and preserves 30 recorded slide IDs / 26 timed slides / 60 minutes.
+No discussion message was posted and no live deck content was changed. Next
+synchronize reviewed speaker notes by native slide ID, read them back, verify
+palette/opening playback, and rehearse the timed route.
+
 Started 2026-10-10 before clearing chat context; updated 2026-10-11 after agenda
 alignment. The user requested a temporary switch from implementation to preparing
 the CEM presentation for Declarative Amsterdam 2026. The user changed priority

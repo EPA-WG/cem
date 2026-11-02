@@ -15,15 +15,16 @@ The verified asset manifest and command transcript take precedence over any
 proposed example wording below. Do not invent a diagnostic or command result
 to fill a demonstration slot.
 
-The native deck's timing is mirrored below; its current readback is
-`dist/declarative-amsterdam-2026/slides/raw-after-user-sync.json`. Current asset evidence
-is `dist/declarative-amsterdam-2026/slide-assets/evidence.json`: native validation
-demonstrates the teaching schema's required-method error and repair; XPath and
-CEM-QL select matching source spans from a namespace-repaired XML export.
-The sign-in screenshot is the canonical static HTML example. The complete
-template and `<cem-element>` login run and generated-result transformation
-trace remain preparation work. The corresponding notes below describe the
-intended session checkpoint, not additional executed evidence.
+The native deck's recorded timing is mirrored below; its dated readback is
+`dist/declarative-amsterdam-2026/slides/raw-after-user-sync.json`. The original
+slide assets captured a smaller CLI/static-preview route. Since then, the
+[frozen Login](login-presenter/README.md), [Supplier companion](supplier-presenter/README.md)
+and extracted local kit have passed their native and deployed offline checks.
+Use the [current presenter notes](presenter-notes.md) for exact live actions,
+resource IDs, expected warnings and fallbacks. Their stable slide IDs match this
+recorded order; synchronizing the live deck's notes and rereading the deck remain
+separate delivery tasks. Existing static slide images are reference illustrations,
+not a transcript of a new live run.
 
 ## 01 · CEM — DNA for structured data
 
@@ -380,9 +381,11 @@ output branches. Distinguish the representation adapters from the business rule.
 direction also serves data pipelines: combine a product catalog with stock,
 then supply partners, services, and a UI from the agreed domain result.” Explain
 that product-ID matching and numeric conversion are explicit business logic;
-a graph join alone does not reconcile records. This is the companion design,
-not a newly verified end-to-end demonstration. Its purpose is to show why the
-format boundary matters beyond browser forms.
+a graph join alone does not reconcile records. The ordinary Supplier project now has frozen native checkpoints and deployed
+offline acceptance. Show its baseline three-format result or diagram here.
+Keep live stock failure/repair for a relevant question after the required Login
+journey; add no scheduled minutes. Its purpose is to show why the format boundary
+matters beyond browser forms.
 
 **Sources:** [Supplier companion](presentation-plan.md#companion-supplier-data-across-inputs-outputs-and-hosts),
 [demonstration gaps](platform-evidence.md#demonstration-evidence-and-gaps).
@@ -468,18 +471,18 @@ Declarative data, events, queries, and templates
 
 `<cem-element>` → ordinary light DOM
 
-**Visual:** Static login preview, visibly identified as such. The intended
-complete demonstration adds a readable browser DOM excerpt and connects the
-edited label through the declaration to its rendered element.
+**Visual:** Show the verified kit's live Login preview and an ordinary light-DOM
+excerpt. Existing static artwork remains a labelled reference illustration.
 
-**Speaker notes:** “Here is the result in the browser. Light DOM means these
-rendered elements are part of the ordinary document tree that browser tools
-can inspect.” The current image shows the static HTML counterpart; it does not
-prove query/template execution or `<cem-element>` integration. Before the live
-session, verify the complete path, identify the bindings it uses, and demonstrate
-the edit's visible effect. Distinguish the declaration from generated output.
-Light DOM is an integration and inspection choice; it is not itself a security
-boundary against arbitrary same-page JavaScript.
+**Speaker notes:** “Here is the saved declaration rendered in the browser.
+Light DOM means its elements are in the ordinary document tree we can inspect.”
+Use `login-live-view` / `live-view`: change the local action to `Continue locally`,
+save and rerun. Its data input is `login-html`; the CEM graph is independent.
+The shared text-field/action/alert components own interaction. If live execution
+fails, identify the failure and use a saved static result without claiming it
+proved the edit or interaction. Preserve entered-password/OTP recovery refusal;
+automatic whole-Studio recovery stays disabled. Light DOM is an integration
+choice, not a security boundary against arbitrary same-page JavaScript.
 
 **Sources:** [cem-elements](../../packages/cem-elements/README.md),
 [declarative UI principle](../declarative-ui-principle.md).
@@ -534,9 +537,10 @@ Rust engine and schema packages supply common processing. Native and WASM
 hosts expose it to commands, embedded libraries, and browser work. The
 declarative component layer connects processing to interaction, with semantic
 theme definitions and reusable components.” Locate Studio as the workbench in
-development and Site as the platform's publishing/presentation surface. Studio
-is not ready for participants. These names identify roles, not a claim that
-all migrations, public releases, or runtime capabilities are complete.
+development and Site as the platform's publishing/presentation surface. The local
+participant kit is verified on the recorded Linux/Node/Chromium host; public Studio
+hosting and public CLI installation remain unverified. These names identify roles,
+not a claim that all releases or runtime capabilities are complete.
 
 **Sources:** [Required platform map](presentation.md#published-agenda-and-topic-coverage),
 [implementation boundaries](presentation.md#implementation-claims-and-preparation-boundaries).

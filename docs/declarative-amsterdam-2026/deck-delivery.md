@@ -117,12 +117,19 @@ Chromium 148.0.7778.96; the native PDF was rendered with `pdftoppm` at 120 dpi.
 
 ## Preparation still open
 
-The public HTML-alternate-input checkpoint, login expression/template execution
-into `<cem-element>`, edited interactive result and complete generated-result
-transformation trace still need verification. Slides 17–19 explain those
-contracts without fabricating an execution transcript. The participant handout,
-clean-install instructions, website, organizer requirements and timed rehearsal
-remain in [docs/todo.md](../todo.md).
+The original slide export on October 11 covered a smaller CLI/static route.
+The [frozen Login](login-presenter/README.md), [Supplier](supplier-presenter/README.md)
+and [local participant kit](participant-kit-verification.md) now supply verified
+source/command/output evidence, including the live view and graph provenance.
+The [participant resource index](participant-resources.md),
+[reviewable discussion block](discussion-24-resources.md) and
+[current presenter notes](presenter-notes.md) are ready in the repository.
+The new notes preserve the recorded 30 slide IDs and 60-minute schedule.
+
+Native-deck note synchronization/readback, palette and opening playback checks,
+public release/host verification, organizer requirements and timed rehearsal
+remain in [docs/todo.md](../todo.md). These repository notes do not establish that
+the live deck's existing speaker-note fields or static images have been updated.
 
 The supplier pipeline is labelled a companion scenario. Six-layer insulation
 is an architectural target with partial controls. Performance slides describe

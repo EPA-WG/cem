@@ -278,10 +278,11 @@ The platform block allocates 47:00–49:00 to slide 21, 49:00–50:00 to slide 2
 52:30–54:00 to slide 26. The six public intervals and final six-minute question
 period remain intact.
 
-The current XML
-checkpoint supplements the promised HTML input exercise. Complete HTML import,
-template execution, interactive `<cem-element>` output and generated-result
-tracing remain preparation work, as recorded in [deck delivery](deck-delivery.md).
+The original XML slide checkpoint supplements the promised HTML input exercise.
+The [frozen Login route](login-presenter/README.md) now verifies HTML/CEM comparison,
+expression/template/graph execution, generated-output provenance and the light-DOM
+view. Use the [current presenter notes](presenter-notes.md) for actions and fallback
+choices. Native-deck synchronization and timed rehearsal remain separate checks.
 
 ### Required tutorial checkpoints
 
@@ -429,7 +430,15 @@ the concrete deliverables for those existing actions.
 6. **Finalize the handoff.** Add the final artifact paths and verification
    evidence to the existing handoff before completing the presentation task set.
 
-| Evidence field | Status on 2026-10-11 |
+Current update (2026-11-01): [participant resources](participant-resources.md),
+[prepared discussion entry](discussion-24-resources.md) and
+[presenter notes](presenter-notes.md) now identify the verified local kit and
+frozen Login/Supplier results. Public source links were read at pinned revision
+`712ff2e4`; the discussion entry is prepared, not posted. Native speaker-note
+synchronization and timed rehearsal remain open. The table below retains the
+historical October 11 snapshot rather than current execution status.
+
+| Evidence field | Historical status on 2026-10-11 |
 | --- | --- |
 | Published agenda and proposal timeline coverage | Reviewed; all six blocks and public lifecycle/platform subjects mapped into 60 working minutes |
 | Stable participant resource link | Discussion #24 selected; add and update resource links as materials become available |
