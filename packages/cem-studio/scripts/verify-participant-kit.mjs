@@ -40,11 +40,13 @@ try {
     const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
     const browserVersion = browser.version(); await browser.close();
     const report = { schemaVersion: 1, sourceRevision: manifest.sourceRevision, frozenSourceRevision: manifest.frozenSourceRevision,
+        supplierVersion: manifest.supplierVersion, frozenSupplierRevision: manifest.frozenSupplierRevision,
         archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'),
         node: process.version, platform: process.platform, arch: process.arch, browser: browserVersion,
         extractedOutsideWorkspace: true, launcher: 'node-builtins', installedApplicationDependencies: false,
         originalProductionIndex: true, fileCount: manifest.files.length + 1,
         loginConfigurations: 20, supplierConfigurations: 3, offline: true, draftPreservation: true, independentCopies: true,
+        advertisedAmsterdamRoutes: ['login', 'supplier-pipeline'],
         credentialPolicy: manifest.privacy, publicAvailability: 'unverified' };
     const reports = resolve(workspaceRoot, 'dist/reports/cem-studio'); await mkdir(reports, { recursive: true });
     await writeFile(resolve(reports, 'participant-kit.json'), `${JSON.stringify(report, null, 2)}\n`);

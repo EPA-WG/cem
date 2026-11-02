@@ -1,0 +1,20 @@
+[
+  {
+    "uri": null,
+    "line": null,
+    "column": null,
+    "byteOffset": null,
+    "code": "cem.transform_runtime.export_representation_unsupported",
+    "severity": "fatal",
+    "message": "transform graph export `service` cannot encode native representation `cem.tree-ast`: transform artifact exporter `cem-ql.constructed-data` failed for `cem.tree-ast`: invalid data number"
+  },
+  {
+    "uri": null,
+    "line": null,
+    "column": null,
+    "byteOffset": null,
+    "code": "cem.transform_runtime.export_representation_unsupported",
+    "severity": "fatal",
+    "message": "transform graph export `partner` cannot encode native representation `cem.tree-ast`: transform artifact exporter `cem-ql.constructed-data` failed for `cem.tree-ast`: invalid data number"
+  }
+]

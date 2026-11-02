@@ -11,7 +11,7 @@ inputs and exact expected checkpoint outputs, with a native replay/drift check.
 ## Ordered checkpoints
 
 Open Studio at its deployed base (`/studio/` on the demo site, `/` on the
-standalone server). Append `?collection=amsterdam&sample=login&file=readme`.
+standalone server). Append `?collection=amsterdam-2026&sample=login&file=readme`.
 The URL selects the predefined sample; create an independent copy before editing.
 Saved copies use their own project selection URL, not `sample=login`.
 
@@ -28,7 +28,7 @@ Saved copies use their own project selection URL, not `sample=login`.
 | Interact | `login-live-view` / `live-view` | Parse the element-template and show shared text fields, action and alert in a script-free light-DOM preview. Edit its action label, save and rerun. Its data input is `login-html`, independently of the CEM graph source. |
 
 To jump directly to a predefined checkpoint, append, for example,
-`?collection=amsterdam&sample=login&file=login-view-graph&build=render-graph`.
+`?collection=amsterdam-2026&sample=login&file=login-view-graph&build=render-graph`.
 Resource IDs drive selection; displayed paths are not resolver identities.
 Configuration arguments and all declared dependencies are recorded in the
 linked manifest; Studio runs the saved project revisions.

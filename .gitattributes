@@ -28,6 +28,7 @@ examples/projects/native-projections/projections/*.cem-bin binary
 # Preserve trailing spaces emitted by native byte-exact output fixtures.
 examples/projects/login/expected/view.html whitespace=-blank-at-eol
 docs/declarative-amsterdam-2026/login-presenter/checkpoints/render-*.html whitespace=-blank-at-eol
+docs/declarative-amsterdam-2026/supplier-presenter/checkpoints/*/generated/*.html whitespace=-blank-at-eol
 examples/projects/csv-inventory/expected/low-stock.html whitespace=-blank-at-eol
 examples/projects/json-yaml-report/expected/formatted.json whitespace=-blank-at-eol
 examples/projects/json-yaml-report/expected/report.html whitespace=-blank-at-eol

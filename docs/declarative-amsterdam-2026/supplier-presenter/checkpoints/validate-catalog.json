@@ -1,0 +1,27 @@
+{
+  "generatedAt": "1970-01-01T00:00:00.000Z",
+  "inputs": [
+    "data/catalog.xml"
+  ],
+  "summary": {
+    "inputCount": 1,
+    "infoCount": 0,
+    "warningCount": 0,
+    "errorCount": 0,
+    "fatalCount": 0,
+    "hardViolationCount": 0
+  },
+  "options": {
+    "failLevel": "validate",
+    "schema": null,
+    "contentType": null,
+    "baseUri": null
+  },
+  "diagnostics": [],
+  "reportAst": {
+    "schedulerTrace": {
+      "eventCount": 0,
+      "events": []
+    }
+  }
+}

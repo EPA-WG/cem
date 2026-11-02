@@ -11,7 +11,7 @@ installation instruction or a claim that a public Studio URL is available.
 1. Unpack the supplied archive into a new folder. Keep the whole directory tree.
 2. In a terminal, enter the `cem-studio-login-kit` folder and run `node start.mjs`.
 3. Open the printed loopback URL, normally `http://127.0.0.1:8080/`.
-4. Open `/?collection=amsterdam&sample=login&file=readme` on that same origin.
+4. Open `/?collection=amsterdam-2026&sample=login&file=readme` on that same origin.
    In Projects, select Login and use **Clone selected** to create your own copy.
 5. Read the README, select `data/login.cem` in Structure, and follow the exercise below.
 
@@ -47,6 +47,10 @@ the inventory. The inventory detects drift; it is not a signed release artifact.
 
 The complete resource/configuration IDs and commands are in
 [the frozen project](docs/declarative-amsterdam-2026/login-presenter/README.md).
+The selected [Supplier companion](docs/declarative-amsterdam-2026/supplier-presenter/README.md)
+has its own frozen XML/CSV inputs, six configurations and HTML/JSON/YAML results.
+Open it with `/?collection=amsterdam-2026&sample=supplier-pipeline&file=readme`
+on the same origin, then make an independent copy before editing stock.
 Saved HTML/query/diagnostic checkpoints remain readable there if a live step
 cannot be completed. Native replay commands in those developer reference notes
 require the repository/toolchain; they are separate from this kit's Node launcher.

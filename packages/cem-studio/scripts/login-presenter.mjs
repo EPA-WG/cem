@@ -1,33 +1,17 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, resolve, sep } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseCemStudioProjectBundle } from '../src/file-system-provider.js';
 import { executeNativeCatalogCommand, nativeCatalogReceipt } from './native-catalog-execution.mjs';
 
-export const workspaceRoot = resolve(import.meta.dirname, '../../..');
+import { workspaceRoot, presenterPrivacy, presenterHash as hash, presenterJson as json,
+    presenterText as text, presenterFile as file, presenterCommand as command, withPresenterProject } from './presenter-project.mjs';
+export { workspaceRoot, presenterPrivacy } from './presenter-project.mjs';
 export const presenterRoot = resolve(workspaceRoot, 'docs/declarative-amsterdam-2026/login-presenter');
-export const presenterPrivacy = Object.freeze({ enteredCredentials: 'block-until-explicitly-cleared',
-    automaticRecovery: false, aggregateCheckpointBytes: 4 * 1024 * 1024, handoffTimeoutMs: 5000,
-    inputs: 'checked-in-project-only', browserStorage: 'never-read' });
 const archivePath = 'packages/cem-studio/generated/feature-tour/examples/login.cem-studio.json';
 const definitionPath = 'examples/projects/login/example.json';
-const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-const json = value => `${JSON.stringify(value, null, 2)}\n`;
-const text = bytes => new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-const file = (root, name) => {
-    const path = resolve(root, name);
-    assert.ok(path.startsWith(`${root}${sep}`), `Presenter path escapes its directory: ${name}`);
-    return path;
-};
-const command = (bundle, entry) => {
-    const resource = bundle.project.resources.find(item => item.id === entry.runConfigResourceId);
-    const config = JSON.parse(text(bundle.contents[resource.id]));
-    return config.argv ?? ['validate', '--config', resource.path, '--format', 'json', '--no-color'];
-};
 const outputExtension = configuration => configuration.expectedOutput || configuration.id === 'source-colors' ? 'html'
     : configuration.kind === 'validation' || configuration.expectedSemanticContract ? 'json' : 'cem';
 
@@ -73,13 +57,7 @@ export async function readLoginPresenter(root = presenterRoot) {
 
 /** Replay the shared native CLI on ordinary project files in an isolated directory. */
 async function replay(bundle, definition, visit) {
-    const directory = await mkdtemp(resolve(tmpdir(), 'cem-login-presenter-'));
-    try {
-        for (const resource of bundle.project.resources) {
-            const path = file(directory, resource.path);
-            await mkdir(dirname(path), { recursive: true });
-            await writeFile(path, bundle.contents[resource.id]);
-        }
+    return withPresenterProject(bundle, 'cem-login-presenter-', async directory => {
         for (const config of definition.configurations) {
             const argv = command(bundle, bundle.project.entries.find(item => item.id === config.id));
             const run = async repaired => {
@@ -112,7 +90,7 @@ async function replay(bundle, definition, visit) {
                 await writeFile(file(directory, resource.path), bundle.contents[resource.id]);
             }
         }
-    } finally { await rm(directory, { recursive: true, force: true }); }
+    });
 }
 
 export async function verifyLoginPresenter(root = presenterRoot) {

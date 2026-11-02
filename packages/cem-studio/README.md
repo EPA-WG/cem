@@ -407,6 +407,12 @@ The [frozen presenter project](../../docs/declarative-amsterdam-2026/login-prese
 contains the portable Login inputs and all 21 saved native checkpoint outputs.
 `yarn nx run @epa-wg/cem-studio:verify:login-presenter` verifies source/configuration
 identity and replays the exact outputs and original diagnostics without browser storage.
+The [Supplier companion freeze](../../docs/declarative-amsterdam-2026/supplier-presenter/README.md)
+adds all six native configurations, XML repair, zero/invalid/restored stock and
+exact HTML/JSON/YAML publications. Run
+`yarn nx run @epa-wg/cem-studio:verify:supplier-presenter`; the participant kit
+now carries both project references. Its browser check opens the printed
+`collection=amsterdam-2026` Login/Supplier README URLs directly while offline.
 
 With project navigation active, **Results → Operation output** uses the shared
 `cem-media-preview` to show text, sandboxed documents and live CEM output. The

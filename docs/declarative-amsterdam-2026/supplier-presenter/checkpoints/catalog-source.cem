@@ -1,0 +1,76 @@
+@doc cem-ml 1
+@ns cemast = "https://cem.dev/ns/projection/ast/1"
+@default cemast
+{ast @schema=https://cem.dev/ns/data/xml/1 @content-type=application/xml @hash-scheme=blake3
+    @source-id=data/catalog.xml |
+    {node @id=node-0 @kind=document @order=0 @source-id=data/catalog.xml @byte-offset=0
+        @byte-length=337 @line=1 @column=1}
+    {node @id=node-1 @kind=processing-instruction @order=0 @source-id=data/catalog.xml
+        @parent-id=node-0 @value='version="1.0" encoding="UTF-8"' @byte-offset=0 @byte-length=38
+        @target=xml @line=1 @column=1}
+    {node @id=node-2 @kind=whitespace @order=1 @source-id=data/catalog.xml @parent-id=node-0 @value="
+"
+        @byte-offset=38 @byte-length=1 @line=1 @column=39}
+    {node @id=node-3 @kind=element @order=2 @source-id=data/catalog.xml @parent-id=node-0
+        @name=catalog @byte-offset=39 @byte-length=61 @namespace=urn:demo:supplier @line=2 @column=1}
+    {node @id=node-4 @kind=attribute @order=0 @source-id=data/catalog.xml @parent-id=node-3
+        @name=xmlns @value=urn:demo:supplier @byte-offset=55 @byte-length=17
+        @namespace=http://www.w3.org/2000/xmlns/ @line=2 @column=17}
+    {node @id=node-5 @kind=attribute @order=1 @source-id=data/catalog.xml @parent-id=node-3
+        @name=supplier @value="Canal Supplies" @byte-offset=84 @byte-length=14 @namespace="" @line=2
+        @column=46}
+    {node @id=node-6 @kind=whitespace @order=2 @source-id=data/catalog.xml @parent-id=node-3
+        @value="
+  " @byte-offset=100 @byte-length=3 @line=2 @column=62}
+    {node @id=node-7 @kind=element @order=3 @source-id=data/catalog.xml @parent-id=node-3
+        @name=product @byte-offset=103 @byte-length=20 @namespace=urn:demo:supplier @line=3
+        @column=3}
+    {node @id=node-8 @kind=attribute @order=0 @source-id=data/catalog.xml @parent-id=node-7 @name=id
+        @value=SKU-A @byte-offset=116 @byte-length=5 @namespace="" @line=3 @column=16}
+    {node @id=node-9 @kind=element @order=1 @source-id=data/catalog.xml @parent-id=node-7 @name=name
+        @byte-offset=123 @byte-length=6 @namespace=urn:demo:supplier @line=3 @column=23}
+    {node @id=node-10 @kind=text @order=0 @source-id=data/catalog.xml @parent-id=node-9
+        @value="Café cups" @byte-offset=129 @byte-length=10 @line=3 @column=29}
+    {node @id=node-11 @kind=whitespace @order=4 @source-id=data/catalog.xml @parent-id=node-3
+        @value="
+  " @byte-offset=156 @byte-length=3 @line=3 @column=56}
+    {node @id=node-12 @kind=element @order=5 @source-id=data/catalog.xml @parent-id=node-3
+        @name=product @byte-offset=159 @byte-length=20 @namespace=urn:demo:supplier @line=4
+        @column=3}
+    {node @id=node-13 @kind=attribute @order=0 @source-id=data/catalog.xml @parent-id=node-12
+        @name=id @value=SKU-B @byte-offset=172 @byte-length=5 @namespace="" @line=4 @column=16}
+    {node @id=node-14 @kind=element @order=1 @source-id=data/catalog.xml @parent-id=node-12
+        @name=name @byte-offset=179 @byte-length=6 @namespace=urn:demo:supplier @line=4 @column=23}
+    {node @id=node-15 @kind=text @order=0 @source-id=data/catalog.xml @parent-id=node-14
+        @value="Tea pots" @byte-offset=185 @byte-length=8 @line=4 @column=29}
+    {node @id=node-16 @kind=whitespace @order=6 @source-id=data/catalog.xml @parent-id=node-3
+        @value="
+  " @byte-offset=210 @byte-length=3 @line=4 @column=54}
+    {node @id=node-17 @kind=element @order=7 @source-id=data/catalog.xml @parent-id=node-3
+        @name=product @byte-offset=213 @byte-length=20 @namespace=urn:demo:supplier @line=5
+        @column=3}
+    {node @id=node-18 @kind=attribute @order=0 @source-id=data/catalog.xml @parent-id=node-17
+        @name=id @value=SKU-C @byte-offset=226 @byte-length=5 @namespace="" @line=5 @column=16}
+    {node @id=node-19 @kind=element @order=1 @source-id=data/catalog.xml @parent-id=node-17
+        @name=name @byte-offset=233 @byte-length=6 @namespace=urn:demo:supplier @line=5 @column=23}
+    {node @id=node-20 @kind=text @order=0 @source-id=data/catalog.xml @parent-id=node-19
+        @value="Glass jars" @byte-offset=239 @byte-length=10 @line=5 @column=29}
+    {node @id=node-21 @kind=whitespace @order=8 @source-id=data/catalog.xml @parent-id=node-3
+        @value="
+  " @byte-offset=266 @byte-length=3 @line=5 @column=56}
+    {node @id=node-22 @kind=element @order=9 @source-id=data/catalog.xml @parent-id=node-3
+        @name=product @byte-offset=269 @byte-length=20 @namespace=urn:demo:supplier @line=6
+        @column=3}
+    {node @id=node-23 @kind=attribute @order=0 @source-id=data/catalog.xml @parent-id=node-22
+        @name=id @value=SKU-D @byte-offset=282 @byte-length=5 @namespace="" @line=6 @column=16}
+    {node @id=node-24 @kind=element @order=1 @source-id=data/catalog.xml @parent-id=node-22
+        @name=name @byte-offset=289 @byte-length=6 @namespace=urn:demo:supplier @line=6 @column=23}
+    {node @id=node-25 @kind=text @order=0 @source-id=data/catalog.xml @parent-id=node-24
+        @value="Serving trays" @byte-offset=295 @byte-length=13 @line=6 @column=29}
+    {node @id=node-26 @kind=whitespace @order=10 @source-id=data/catalog.xml @parent-id=node-3
+        @value="
+" @byte-offset=325 @byte-length=1 @line=6 @column=59}
+    {node @id=node-27 @kind=whitespace @order=3 @source-id=data/catalog.xml @parent-id=node-0
+        @value="
+" @byte-offset=336 @byte-length=1 @line=7 @column=11}
+}

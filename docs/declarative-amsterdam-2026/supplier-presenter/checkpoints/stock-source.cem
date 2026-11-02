@@ -1,0 +1,100 @@
+@doc cem-ml 1
+@ns cemast = "https://cem.dev/ns/projection/ast/1"
+@default cemast
+{ast @schema=https://cem.dev/ns/data/csv/1 @content-type="text/csv;header=present"
+    @hash-scheme=blake3 @source-id=data/stock.csv |
+    {node @id=node-0 @kind=document @order=0 @source-id=data/stock.csv @byte-offset=0
+        @byte-length=64 @line=1 @column=1}
+    {node @id=node-1 @kind=element @order=0 @source-id=data/stock.csv @parent-id=node-0 @name=array
+        @byte-offset=0 @byte-length=64 @namespace=cem:generic-data @line=1 @column=1}
+    {node @id=node-2 @kind=element @order=0 @source-id=data/stock.csv @parent-id=node-1 @name=object
+        @byte-offset=20 @byte-length=8 @namespace=cem:generic-data @line=2 @column=1}
+    {node @id=node-3 @kind=element @order=0 @source-id=data/stock.csv @parent-id=node-2
+        @name=property @byte-offset=20 @byte-length=5 @namespace=cem:generic-data @line=2 @column=1}
+    {node @id=node-4 @kind=attribute @order=0 @source-id=data/stock.csv @parent-id=node-3 @name=name
+        @value=product_id @byte-offset=0 @byte-length=10 @namespace="" @line=1 @column=1}
+    {node @id=node-5 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-3 @name=string
+        @byte-offset=20 @byte-length=5 @namespace=cem:generic-data @line=2 @column=1}
+    {node @id=node-6 @kind=text @order=0 @source-id=data/stock.csv @parent-id=node-5 @value=SKU-B
+        @byte-offset=20 @byte-length=5 @line=2 @column=1}
+    {node @id=node-7 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-2
+        @name=property @byte-offset=26 @byte-length=1 @namespace=cem:generic-data @line=2 @column=7}
+    {node @id=node-8 @kind=attribute @order=0 @source-id=data/stock.csv @parent-id=node-7 @name=name
+        @value=quantity @byte-offset=11 @byte-length=8 @namespace="" @line=1 @column=12}
+    {node @id=node-9 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-7 @name=string
+        @byte-offset=26 @byte-length=1 @namespace=cem:generic-data @line=2 @column=7}
+    {node @id=node-10 @kind=text @order=0 @source-id=data/stock.csv @parent-id=node-9 @value=0
+        @byte-offset=26 @byte-length=1 @line=2 @column=7}
+    {node @id=node-11 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-1
+        @name=object @byte-offset=28 @byte-length=8 @namespace=cem:generic-data @line=3 @column=1}
+    {node @id=node-12 @kind=element @order=0 @source-id=data/stock.csv @parent-id=node-11
+        @name=property @byte-offset=28 @byte-length=5 @namespace=cem:generic-data @line=3 @column=1}
+    {node @id=node-13 @kind=attribute @order=0 @source-id=data/stock.csv @parent-id=node-12
+        @name=name @value=product_id @byte-offset=0 @byte-length=10 @namespace="" @line=1 @column=1}
+    {node @id=node-14 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-12
+        @name=string @byte-offset=28 @byte-length=5 @namespace=cem:generic-data @line=3 @column=1}
+    {node @id=node-15 @kind=text @order=0 @source-id=data/stock.csv @parent-id=node-14 @value=SKU-D
+        @byte-offset=28 @byte-length=5 @line=3 @column=1}
+    {node @id=node-16 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-11
+        @name=property @byte-offset=34 @byte-length=1 @namespace=cem:generic-data @line=3 @column=7}
+    {node @id=node-17 @kind=attribute @order=0 @source-id=data/stock.csv @parent-id=node-16
+        @name=name @value=quantity @byte-offset=11 @byte-length=8 @namespace="" @line=1 @column=12}
+    {node @id=node-18 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-16
+        @name=string @byte-offset=34 @byte-length=1 @namespace=cem:generic-data @line=3 @column=7}
+    {node @id=node-19 @kind=text @order=0 @source-id=data/stock.csv @parent-id=node-18 @value=2
+        @byte-offset=34 @byte-length=1 @line=3 @column=7}
+    {node @id=node-20 @kind=element @order=2 @source-id=data/stock.csv @parent-id=node-1
+        @name=object @byte-offset=36 @byte-length=8 @namespace=cem:generic-data @line=4 @column=1}
+    {node @id=node-21 @kind=element @order=0 @source-id=data/stock.csv @parent-id=node-20
+        @name=property @byte-offset=36 @byte-length=5 @namespace=cem:generic-data @line=4 @column=1}
+    {node @id=node-22 @kind=attribute @order=0 @source-id=data/stock.csv @parent-id=node-21
+        @name=name @value=product_id @byte-offset=0 @byte-length=10 @namespace="" @line=1 @column=1}
+    {node @id=node-23 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-21
+        @name=string @byte-offset=36 @byte-length=5 @namespace=cem:generic-data @line=4 @column=1}
+    {node @id=node-24 @kind=text @order=0 @source-id=data/stock.csv @parent-id=node-23 @value=SKU-A
+        @byte-offset=36 @byte-length=5 @line=4 @column=1}
+    {node @id=node-25 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-20
+        @name=property @byte-offset=42 @byte-length=1 @namespace=cem:generic-data @line=4 @column=7}
+    {node @id=node-26 @kind=attribute @order=0 @source-id=data/stock.csv @parent-id=node-25
+        @name=name @value=quantity @byte-offset=11 @byte-length=8 @namespace="" @line=1 @column=12}
+    {node @id=node-27 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-25
+        @name=string @byte-offset=42 @byte-length=1 @namespace=cem:generic-data @line=4 @column=7}
+    {node @id=node-28 @kind=text @order=0 @source-id=data/stock.csv @parent-id=node-27 @value=7
+        @byte-offset=42 @byte-length=1 @line=4 @column=7}
+    {node @id=node-29 @kind=element @order=3 @source-id=data/stock.csv @parent-id=node-1
+        @name=object @byte-offset=44 @byte-length=8 @namespace=cem:generic-data @line=5 @column=1}
+    {node @id=node-30 @kind=element @order=0 @source-id=data/stock.csv @parent-id=node-29
+        @name=property @byte-offset=44 @byte-length=5 @namespace=cem:generic-data @line=5 @column=1}
+    {node @id=node-31 @kind=attribute @order=0 @source-id=data/stock.csv @parent-id=node-30
+        @name=name @value=product_id @byte-offset=0 @byte-length=10 @namespace="" @line=1 @column=1}
+    {node @id=node-32 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-30
+        @name=string @byte-offset=44 @byte-length=5 @namespace=cem:generic-data @line=5 @column=1}
+    {node @id=node-33 @kind=text @order=0 @source-id=data/stock.csv @parent-id=node-32 @value=SKU-D
+        @byte-offset=44 @byte-length=5 @line=5 @column=1}
+    {node @id=node-34 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-29
+        @name=property @byte-offset=50 @byte-length=1 @namespace=cem:generic-data @line=5 @column=7}
+    {node @id=node-35 @kind=attribute @order=0 @source-id=data/stock.csv @parent-id=node-34
+        @name=name @value=quantity @byte-offset=11 @byte-length=8 @namespace="" @line=1 @column=12}
+    {node @id=node-36 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-34
+        @name=string @byte-offset=50 @byte-length=1 @namespace=cem:generic-data @line=5 @column=7}
+    {node @id=node-37 @kind=text @order=0 @source-id=data/stock.csv @parent-id=node-36 @value=4
+        @byte-offset=50 @byte-length=1 @line=5 @column=7}
+    {node @id=node-38 @kind=element @order=4 @source-id=data/stock.csv @parent-id=node-1
+        @name=object @byte-offset=52 @byte-length=12 @namespace=cem:generic-data @line=6 @column=1}
+    {node @id=node-39 @kind=element @order=0 @source-id=data/stock.csv @parent-id=node-38
+        @name=property @byte-offset=52 @byte-length=8 @namespace=cem:generic-data @line=6 @column=1}
+    {node @id=node-40 @kind=attribute @order=0 @source-id=data/stock.csv @parent-id=node-39
+        @name=name @value=product_id @byte-offset=0 @byte-length=10 @namespace="" @line=1 @column=1}
+    {node @id=node-41 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-39
+        @name=string @byte-offset=52 @byte-length=8 @namespace=cem:generic-data @line=6 @column=1}
+    {node @id=node-42 @kind=text @order=0 @source-id=data/stock.csv @parent-id=node-41
+        @value=UNLISTED @byte-offset=52 @byte-length=8 @line=6 @column=1}
+    {node @id=node-43 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-38
+        @name=property @byte-offset=61 @byte-length=2 @namespace=cem:generic-data @line=6 @column=10}
+    {node @id=node-44 @kind=attribute @order=0 @source-id=data/stock.csv @parent-id=node-43
+        @name=name @value=quantity @byte-offset=11 @byte-length=8 @namespace="" @line=1 @column=12}
+    {node @id=node-45 @kind=element @order=1 @source-id=data/stock.csv @parent-id=node-43
+        @name=string @byte-offset=61 @byte-length=2 @namespace=cem:generic-data @line=6 @column=10}
+    {node @id=node-46 @kind=text @order=0 @source-id=data/stock.csv @parent-id=node-45 @value=99
+        @byte-offset=61 @byte-length=2 @line=6 @column=10}
+}

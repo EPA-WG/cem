@@ -1,0 +1,44 @@
+[
+  {
+    "uri": "data/catalog-invalid.xml",
+    "line": 6,
+    "column": 49,
+    "byteOffset": 315,
+    "code": "cem.xml.parse_error",
+    "severity": "error",
+    "message": "XML parse error: ill-formed document: expected `</product>`, but `</product-broken>` was found",
+    "details": {
+      "xml": {
+        "behavior": "xml-parse-report-fact",
+        "byteLength": 1,
+        "contentType": "application/xml",
+        "contract": "xml-source-parser",
+        "factKind": "parse-error",
+        "phase": "parse",
+        "policy": "delegate-to-xml-parser",
+        "resourceKind": "document"
+      }
+    }
+  },
+  {
+    "uri": "data/catalog-invalid.xml",
+    "line": 6,
+    "column": 66,
+    "byteOffset": 332,
+    "code": "cem.xml.parse_error",
+    "severity": "error",
+    "message": "XML start tag `<product>` is missing a matching end tag",
+    "details": {
+      "xml": {
+        "behavior": "xml-parse-report-fact",
+        "byteLength": 1,
+        "contentType": "application/xml",
+        "contract": "xml-source-parser",
+        "factKind": "parse-error",
+        "phase": "parse",
+        "policy": "delegate-to-xml-parser",
+        "resourceKind": "document"
+      }
+    }
+  }
+]

@@ -1107,6 +1107,21 @@ async function exerciseExampleProjects(page, context) {
     };
     await context.setOffline(false); await context.setOffline(true);
     assert.equal(await page.evaluate(() => navigator.onLine), false);
+    // Exercise the URLs printed in the participant handout, not only legacy choices.
+    for (const sample of ['login', 'supplier-pipeline']) {
+        const route = new URLSearchParams({ collection: 'amsterdam-2026', sample, file: 'readme' }).toString();
+        await page.goto(`${server.url}/?${route}`, { waitUntil: 'load' });
+        await page.waitForFunction(sample => {
+            const nav = globalThis.__cemStudioApplication?.workbench.snapshot().navigation;
+            return nav?.selection.sample === sample && nav.sampleTextAvailable;
+        }, sample); await settle();
+        const nav = await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().navigation);
+        assert.equal(nav.error, undefined); assert.equal(nav.selection.collection, 'amsterdam-2026');
+        assert.equal(nav.selection.sample, sample); assert.equal(nav.selection.file, 'readme');
+        assert.equal(new URL(page.url()).searchParams.get('collection'), 'amsterdam-2026');
+        assert.equal(nav.sampleTextAvailable, true);
+    }
+    console.log('[cem-studio:examples] advertised Amsterdam Login/Supplier README routes passed offline');
     const before = await snapshot();
     await copyExampleProject(page, sampleName);
     assert.deepEqual(await snapshot(), before);

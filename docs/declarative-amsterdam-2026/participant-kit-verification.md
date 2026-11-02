@@ -62,3 +62,37 @@ runs offline browser acceptance, verifies the unchanged kit and removes only its
 own temporary directory. It records exact artifact/host evidence in
 `dist/reports/cem-studio/participant-kit.json`. Initial toolchain/browser installation
 is a preparation prerequisite; it is not covered by the offline exercise claim.
+
+## Supplier refresh and advertised entry URLs — 2026-11-01
+
+The refreshed kit also includes the frozen Supplier 1.1.1 project: all six
+configurations plus XML repair and zero/invalid/restored stock (ten native
+checkpoints). All three generated formats and original diagnostics replayed
+exactly. Seven Supplier tests, 12 existing Login tests, Login's 21 unchanged
+native results and package lint passed after extracting shared project helpers.
+
+The original handout used `collection=amsterdam`, although the catalog's actual
+ID is `amsterdam-2026`. The initial browser workflow used legacy workbench choices
+and did not validate that printed collection parameter. The handout and Login
+walkthrough now use the real ID. Acceptance now cold-opens both advertised
+README routes while offline; separate root-path checks also passed for the exact
+`/?collection=amsterdam-2026&sample=login&file=readme` and corresponding Supplier
+URL. The generated `participant-entry-routes.json` records those root-path checks.
+
+The extracted kit again completed all 23 selected offline configurations,
+independent copies, diagnostic selection, live preview and unsaved-draft reload.
+Those browser scenarios include three of Supplier's six configurations; the
+native freeze covers all six. Existing user sessions were never opened or cleared.
+
+| Refreshed artifact evidence | Observed value |
+| --- | --- |
+| Preparation baseline | `ee3731757e2864334ef2bb18f67c92ea4ed37a3b` |
+| Frozen Supplier inputs | `ee3731757e2864334ef2bb18f67c92ea4ed37a3b`, version 1.1.1 |
+| File count | 417 |
+| Archive SHA-256 | `2b8cec8f3cebe74c3a705313f9fc8b815056e614a1bd707a336c9b550ccfdf53` |
+| Host | v24.16.0, linux/x64, Chromium 148.0.7778.96 |
+
+The archive path remains `dist/packages/cem-studio-login-kit.tgz`. The original
+386-file record above is historical; the refreshed artifact has 417 files.
+The local Node launcher, credential policy and public-availability limits remain
+the same. This record does not expand the tested operating-system matrix.

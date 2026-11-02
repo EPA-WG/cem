@@ -22,6 +22,15 @@ independent copies and draft restoration passed from an extracted kit. Public
 hosting/registry installation remains unverified. Next select/freeze the shown
 companion checkpoints, finish materials and rehearse the timed route.
 
+Supplier selection/freeze (2026-11-01): the [ordinary Supplier project](../declarative-amsterdam-2026/supplier-presenter/README.md)
+now has ten native checkpoints covering all six configurations and failure/repair,
+with exact HTML/JSON/YAML outputs. Live companion selection is availability and
+stock edits/failure/repair after Login; XML inspection/query/repair stay prepared
+references. The Markdown site stays optional outside the frozen live route.
+The refreshed 417-file kit passed offline acceptance. The handout collection ID
+is corrected to `amsterdam-2026`, with direct offline entry checks for both
+projects. Continue with delivery materials and timed rehearsal.
+
 Started 2026-10-10 before clearing chat context; updated 2026-10-11 after agenda
 alignment. The user requested a temporary switch from implementation to preparing
 the CEM presentation for Declarative Amsterdam 2026. The user changed priority

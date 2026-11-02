@@ -1404,7 +1404,8 @@
                 "{workspaceRoot}/examples/cem-ml/login.cem",
                 "{workspaceRoot}/examples/semantic/login.html",
                 "{workspaceRoot}/docs/declarative-amsterdam-2026/login-presenter/**/*",
-                "{workspaceRoot}/dist/target/cem_ml_cli/debug/cem-ml"
+                "{workspaceRoot}/dist/target/cem_ml_cli/debug/cem-ml",
+                "{projectRoot}/scripts/presenter-project.mjs"
             ],
             "outputs": [],
             "dependsOn": [
@@ -1441,7 +1442,8 @@
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
-                }
+                },
+                "{projectRoot}/scripts/presenter-project.mjs"
             ],
             "outputs": []
         },
@@ -1464,7 +1466,8 @@
             "dependsOn": [
                 "verify:output",
                 "verify:login-presenter",
-                "test:participant-kit"
+                "test:participant-kit",
+                "verify:supplier-presenter"
             ],
             "options": {
                 "command": "node scripts/package-participant-kit.mjs",
@@ -1481,7 +1484,10 @@
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
-                }
+                },
+                "{projectRoot}/scripts/supplier-presenter.mjs",
+                "{projectRoot}/scripts/presenter-project.mjs",
+                "{workspaceRoot}/docs/declarative-amsterdam-2026/supplier-presenter/**/*"
             ],
             "outputs": [
                 "{workspaceRoot}/dist/packages/cem-studio-login-kit",
@@ -1512,6 +1518,58 @@
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/participant-kit.json"
             ]
+        },
+        "test:supplier-presenter": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "generate:feature-tour",
+                {
+                    "projects": [
+                        "cem_ml_cli"
+                    ],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "command": "node --test scripts/supplier-presenter.test.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/supplier-presenter*.mjs",
+                "{projectRoot}/scripts/presenter-project.mjs",
+                "{projectRoot}/scripts/native-catalog-execution.mjs",
+                "{projectRoot}/scripts/fixtures/catalog-native-diagnostics.json",
+                "{projectRoot}/src/file-system-provider.js",
+                "{projectRoot}/generated/feature-tour/examples/supplier-pipeline.cem-studio.json",
+                "{workspaceRoot}/examples/projects/supplier-pipeline/**/*",
+                "{workspaceRoot}/docs/declarative-amsterdam-2026/supplier-presenter/**/*",
+                "{workspaceRoot}/dist/target/cem_ml_cli/debug/cem-ml"
+            ],
+            "outputs": []
+        },
+        "verify:supplier-presenter": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "test:supplier-presenter"
+            ],
+            "options": {
+                "command": "node scripts/supplier-presenter.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/supplier-presenter*.mjs",
+                "{projectRoot}/scripts/presenter-project.mjs",
+                "{projectRoot}/scripts/native-catalog-execution.mjs",
+                "{projectRoot}/scripts/fixtures/catalog-native-diagnostics.json",
+                "{projectRoot}/src/file-system-provider.js",
+                "{projectRoot}/generated/feature-tour/examples/supplier-pipeline.cem-studio.json",
+                "{workspaceRoot}/examples/projects/supplier-pipeline/**/*",
+                "{workspaceRoot}/docs/declarative-amsterdam-2026/supplier-presenter/**/*",
+                "{workspaceRoot}/dist/target/cem_ml_cli/debug/cem-ml"
+            ],
+            "outputs": []
         }
     },
     "tags": [

@@ -142,12 +142,27 @@ native/release follow-ups.
   outputs as fallback. Public hosting/registry installation and untested OSes
   are not advertised; verify them separately if selected for participant delivery.
 
-- [ ] After the core Login route is ready, select and verify only the companion
+- [x] Freeze Supplier presenter fixtures for all six configurations, XML repair,
+  zero-stock output, invalid numeric stock with no new artifacts, and restored
+  stock. Reuse shared native project helpers; test drift, all output hashes and
+  repair independence. Verify the advertised Amsterdam collection ID in the
+  participant route and correct any mismatch before rebuilding the kit.
+  Verified 2026-11-01: ten exact Supplier checkpoints, seven Supplier tests,
+  12 Login tests/21 unchanged native replays and lint passed. The refreshed
+  417-file kit passed offline acceptance and exact root-entry URL checks.
+  [Supplier freeze](declarative-amsterdam-2026/supplier-presenter/README.md);
+  [refresh evidence](declarative-amsterdam-2026/participant-kit-verification.md#supplier-refresh-and-advertised-entry-urls--2026-11-01).
+
+- [x] After the core Login route is ready, select and verify only the companion
   projects actually shown: Supplier pipeline XML/CSV matching and HTML/JSON/YAML
   outputs with failure/repair; optionally the ordinary Markdown + CEM-ML folder
   site build and preview. Keep project copies, source provenance and offline
   inputs independent. Record expected artifacts and the demonstrated host/profile;
   omit an unready optional variant rather than delaying a required Login stage.
+  Selected companion: Supplier availability outputs and stock failure/repair,
+  after the required Login journey. XML source/query/repair snapshots remain
+  reference checkpoints. The Markdown site remains optional reference material
+  outside this frozen live route; no additional example screen is introduced.
 
 ## Amsterdam presentation, setup and rehearsal
 

@@ -1,0 +1,163 @@
+{
+  "language": "xpath",
+  "result": {
+    "contentType": "application/vnd.cem.xpath-result+json",
+    "evaluator": {
+      "evaluatorId": "cem.xpath.native",
+      "evaluatorVersion": "0.1.0"
+    },
+    "expressionUri": "queries/products.xpath",
+    "grammarVersion": "xpath-3.1/cem-ast-1",
+    "invocationHost": "query",
+    "resolverPolicyStamp": "resolver-policy/1;substitutions=;denials=",
+    "safetyPolicyStamp": "cem-ml-query/1;result-items=unbounded;work-units=unbounded;xpath-text-bytes=1048576;xpath-work-units=16777216",
+    "schemaUri": "https://cem.dev/ns/query/xpath/1",
+    "sequence": {
+      "items": [
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 61,
+                    "start": 58
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "SKU-A=Café cups",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 61,
+                    "start": 58
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "SKU-B=Tea pots",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 61,
+                    "start": 58
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "SKU-C=Glass jars",
+            "typeName": "xs:string"
+          }
+        },
+        {
+          "kind": "atomic",
+          "sourceMap": {
+            "frames": [
+              {
+                "source_id": 1,
+                "span": {
+                  "kind": "Single",
+                  "ranges": {
+                    "len": 61,
+                    "start": 58
+                  }
+                },
+                "transform": {
+                  "content_type": "application/vnd.cem.xpath",
+                  "kind": "ContentTypeTransform"
+                }
+              }
+            ]
+          },
+          "value": {
+            "lexicalValue": "SKU-D=Serving trays",
+            "typeName": "xs:string"
+          }
+        }
+      ],
+      "sequenceType": "xs:string+"
+    },
+    "sourceMap": {
+      "frames": [
+        {
+          "source_id": 1,
+          "span": {
+            "kind": "Single",
+            "ranges": {
+              "len": 119,
+              "start": 0
+            }
+          },
+          "transform": {
+            "content_type": "application/vnd.cem.xpath",
+            "kind": "ContentTypeTransform"
+          }
+        }
+      ]
+    },
+    "staticContext": {
+      "decimalFormats": {},
+      "defaultElementNamespace": null,
+      "defaultFunctionNamespace": null,
+      "functionBindings": {},
+      "namespaces": {
+        "supplier": "urn:demo:supplier"
+      },
+      "unnamedDecimalFormat": {
+        "decimalSeparator": ".",
+        "digit": "#",
+        "exponentSeparator": "e",
+        "groupingSeparator": ",",
+        "infinity": "Infinity",
+        "minusSign": "-",
+        "nan": "NaN",
+        "patternSeparator": ";",
+        "perMille": "‰",
+        "percent": "%",
+        "zeroDigit": "0"
+      },
+      "variableBindings": {}
+    },
+    "xpathVersion": "3.1"
+  }
+}

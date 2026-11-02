@@ -1,0 +1,346 @@
+{
+  "schemaVersion": 1,
+  "projectVersion": "1.1.1",
+  "sourceRevision": "ee3731757e2864334ef2bb18f67c92ea4ed37a3b",
+  "privacy": {
+    "enteredCredentials": "block-until-explicitly-cleared",
+    "automaticRecovery": false,
+    "aggregateCheckpointBytes": 4194304,
+    "handoffTimeoutMs": 5000,
+    "inputs": "checked-in-project-only",
+    "browserStorage": "never-read"
+  },
+  "archive": {
+    "file": "supplier-pipeline.cem-studio.json",
+    "sha256": "d14f97e9601a818b9698ad2e8fa7d8c7d5e5b038afe7e34e72488d07ce3ba790"
+  },
+  "definition": {
+    "file": "example.json",
+    "sha256": "9426cfced7dd3a0b41237e25c5f46a36a34893024b0d2a9660dc5e084ce3e0e3"
+  },
+  "checkpoints": [
+    {
+      "scenario": {
+        "id": "catalog-source",
+        "configuration": "catalog-source"
+      },
+      "argv": [
+        "parse",
+        "data/catalog.xml",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/catalog-source.cem",
+        "sha256": "7285c3d7f576c1652d237dbdaadd517bcf0f640ee4c4559b919d879ba0870f92"
+      },
+      "diagnostics": {
+        "file": "checkpoints/catalog-source.diagnostics.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "artifacts": []
+    },
+    {
+      "scenario": {
+        "id": "validate-catalog",
+        "configuration": "validate-catalog"
+      },
+      "argv": [
+        "validate",
+        "--config",
+        "config/validate-catalog.json",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/validate-catalog.json",
+        "sha256": "fb39b52718dbc82035a795f631ae03a044bb31fe609cab92a0188269b5a16ce7"
+      },
+      "diagnostics": {
+        "file": "checkpoints/validate-catalog.diagnostics.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "artifacts": []
+    },
+    {
+      "scenario": {
+        "id": "query-products",
+        "configuration": "query-products"
+      },
+      "argv": [
+        "query",
+        "data/catalog.xml",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--query-file",
+        "queries/products.xpath",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--namespace",
+        "supplier=urn:demo:supplier",
+        "--output",
+        "json"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/query-products.json",
+        "sha256": "46f53e3feccccf1c5cd064b1984d1411e88cdeeeb9e232a81bef94accab520e6"
+      },
+      "diagnostics": {
+        "file": "checkpoints/query-products.diagnostics.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "artifacts": []
+    },
+    {
+      "scenario": {
+        "id": "repair-catalog",
+        "configuration": "repair-catalog"
+      },
+      "argv": [
+        "validate",
+        "--config",
+        "config/repair-catalog.json",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "exitCode": 1,
+      "output": {
+        "file": "checkpoints/repair-catalog.json",
+        "sha256": "b9ebaf0a3d11f9f6051c0b27f652c2bfb25e0f9d0f5af188de1fbe112f01a2a1"
+      },
+      "diagnostics": {
+        "file": "checkpoints/repair-catalog.diagnostics.json",
+        "sha256": "325eb205617e87b57bebf499ca7b6038f19186432546b411b1b00248e23c54ea"
+      },
+      "artifacts": []
+    },
+    {
+      "scenario": {
+        "id": "repair-catalog-repaired",
+        "configuration": "repair-catalog",
+        "repair": true
+      },
+      "argv": [
+        "validate",
+        "--config",
+        "config/repair-catalog.json",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/repair-catalog-repaired.json",
+        "sha256": "7ff265b9450b9a800d73e0c14328aab5c878333b51585fb5ee621213ac480a2f"
+      },
+      "diagnostics": {
+        "file": "checkpoints/repair-catalog-repaired.diagnostics.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "artifacts": []
+    },
+    {
+      "scenario": {
+        "id": "stock-source",
+        "configuration": "stock-source"
+      },
+      "argv": [
+        "parse",
+        "data/stock.csv",
+        "--content-type",
+        "text/csv;header=present",
+        "--schema",
+        "https://cem.dev/ns/data/csv/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "exitCode": 0,
+      "output": {
+        "file": "checkpoints/stock-source.cem",
+        "sha256": "5ec2c06f3e167a974426eadf2087ac733eda2a81fc12280258e9466137e5bacd"
+      },
+      "diagnostics": {
+        "file": "checkpoints/stock-source.diagnostics.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "artifacts": []
+    },
+    {
+      "scenario": {
+        "id": "availability",
+        "configuration": "availability"
+      },
+      "argv": [
+        "transform",
+        "--config",
+        "graphs/availability.cem",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "exitCode": 0,
+      "output": {
+        "path": "generated/availability.html",
+        "file": "checkpoints/availability/generated/availability.html",
+        "sha256": "ecaf78aa20df7a426484c68542f6624b3508b7b55ae45ba3d59e9e693b4ac3c8"
+      },
+      "diagnostics": {
+        "file": "checkpoints/availability.diagnostics.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "artifacts": [
+        {
+          "path": "generated/availability.json",
+          "file": "checkpoints/availability/generated/availability.json",
+          "sha256": "0c860ba4726f1cdc325319d70c0cecc4c0dff926ede26e52b4509d9edfab4bdb"
+        },
+        {
+          "path": "generated/availability.yaml",
+          "file": "checkpoints/availability/generated/availability.yaml",
+          "sha256": "af4edaae8079cad4a773edad803dc19f2e0e005aceee8d9925411a5b197e6834"
+        },
+        {
+          "path": "generated/availability.html",
+          "file": "checkpoints/availability/generated/availability.html",
+          "sha256": "ecaf78aa20df7a426484c68542f6624b3508b7b55ae45ba3d59e9e693b4ac3c8"
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "id": "availability-zero-stock",
+        "configuration": "availability",
+        "stock": "zero"
+      },
+      "argv": [
+        "transform",
+        "--config",
+        "graphs/availability.cem",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "exitCode": 0,
+      "output": {
+        "path": "generated/availability.html",
+        "file": "checkpoints/availability-zero-stock/generated/availability.html",
+        "sha256": "38835b23b8d3635e84f1c7ac3a7228b9adc072dcff58d551b8ef0c8d36121ef3"
+      },
+      "diagnostics": {
+        "file": "checkpoints/availability-zero-stock.diagnostics.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "artifacts": [
+        {
+          "path": "generated/availability.json",
+          "file": "checkpoints/availability-zero-stock/generated/availability.json",
+          "sha256": "cbf4fc41d5d5c9f6c9292fc6551eaa6647c482cf1e1592760349fe6fb76b4387"
+        },
+        {
+          "path": "generated/availability.yaml",
+          "file": "checkpoints/availability-zero-stock/generated/availability.yaml",
+          "sha256": "f43d6af5879389162a079d572935fc919b136232ffb50ab7cec32ea899069b3a"
+        },
+        {
+          "path": "generated/availability.html",
+          "file": "checkpoints/availability-zero-stock/generated/availability.html",
+          "sha256": "38835b23b8d3635e84f1c7ac3a7228b9adc072dcff58d551b8ef0c8d36121ef3"
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "id": "availability-invalid-stock",
+        "configuration": "availability",
+        "stock": "invalid"
+      },
+      "argv": [
+        "transform",
+        "--config",
+        "graphs/availability.cem",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "exitCode": 1,
+      "output": {
+        "file": "checkpoints/availability-invalid-stock.cem",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "diagnostics": {
+        "file": "checkpoints/availability-invalid-stock.diagnostics.json",
+        "sha256": "8e377688be87bd664633e954ca3789d4baadacbaf515a022395df4afaa1feafa"
+      },
+      "artifacts": []
+    },
+    {
+      "scenario": {
+        "id": "availability-restored-stock",
+        "configuration": "availability",
+        "stock": "restored"
+      },
+      "argv": [
+        "transform",
+        "--config",
+        "graphs/availability.cem",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "exitCode": 0,
+      "output": {
+        "path": "generated/availability.html",
+        "file": "checkpoints/availability-restored-stock/generated/availability.html",
+        "sha256": "ecaf78aa20df7a426484c68542f6624b3508b7b55ae45ba3d59e9e693b4ac3c8"
+      },
+      "diagnostics": {
+        "file": "checkpoints/availability-restored-stock.diagnostics.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "artifacts": [
+        {
+          "path": "generated/availability.json",
+          "file": "checkpoints/availability-restored-stock/generated/availability.json",
+          "sha256": "0c860ba4726f1cdc325319d70c0cecc4c0dff926ede26e52b4509d9edfab4bdb"
+        },
+        {
+          "path": "generated/availability.yaml",
+          "file": "checkpoints/availability-restored-stock/generated/availability.yaml",
+          "sha256": "af4edaae8079cad4a773edad803dc19f2e0e005aceee8d9925411a5b197e6834"
+        },
+        {
+          "path": "generated/availability.html",
+          "file": "checkpoints/availability-restored-stock/generated/availability.html",
+          "sha256": "ecaf78aa20df7a426484c68542f6624b3508b7b55ae45ba3d59e9e693b4ac3c8"
+        }
+      ]
+    }
+  ]
+}
