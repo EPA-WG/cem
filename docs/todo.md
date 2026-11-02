@@ -289,6 +289,8 @@ channels; private agreements remain unverified. This file owns execution order.
       walkthrough: 23 offline configurations, failure/repair, live view,
       provenance, independent copies and offline draft preservation.
       Public-route functionality remains open.
+      The deployed playground initialization/editor/Render regression now passes;
+      its import map includes the command service's WASM factory dependency.
 
 - [ ] Publish the reviewed Amsterdam presentation site and related demo pages
       after their functionality checks pass. Verify the actual public routes,

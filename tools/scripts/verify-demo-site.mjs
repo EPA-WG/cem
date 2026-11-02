@@ -106,6 +106,19 @@ try {
     await context.setOffline(true); await page.reload(); await ready(); assert.equal(await build(), online);
     await context.setOffline(false); await page.goto(url); assert.equal(await page.evaluate(() => navigator.serviceWorker.controller), null);
 
+    await page.goto(new URL('packages/cem-demo-element/demo/playground.html', url).href);
+    const playgroundStatus = page.locator('.playground-status');
+    await page.waitForFunction(() => document.querySelector('.playground-status')?.getAttribute('data-state') === 'ready');
+    const sourceEditor = page.getByRole('textbox', { name: 'Source code', exact: true });
+    await sourceEditor.fill('<article><h2>Deployment render check</h2><p>Edited source</p></article>');
+    await page.getByRole('combobox', { name: 'Input format', exact: true }).selectOption('html');
+    await page.getByRole('button', { name: 'Render', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('.playground-status')?.getAttribute('data-state') === 'ready');
+    assert.equal(await playgroundStatus.textContent(), 'HTML → HTML');
+    assert.equal(await page.locator('.playground-preview h2').textContent(), 'Deployment render check');
+    assert.equal(await page.locator('.playground-preview p').textContent(), 'Edited source');
+    console.log('Demo playground: module initialization, shared editable source and native Render action passed.');
+
     const baseline = process.env.CEM_DEMO_THEME_BASELINE
         ? JSON.parse(await readFile(process.env.CEM_DEMO_THEME_BASELINE, 'utf8')) : undefined;
     const generators = (await readdir(join(repo, 'packages/cem-theme/src/lib/css-generators')))

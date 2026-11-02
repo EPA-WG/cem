@@ -61,3 +61,19 @@ continue blocking recovery until explicitly cleared; never export credentials.
 
 Public-route functionality, deployment freshness and the slide-to-demo resource
 comment remain separate delivery checks in [the todo list](../todo.md).
+
+## Playground initialization repair — 2026-11-02
+
+The real playground page initially remained at “Loading CEM…” because its import
+map omitted `@epa-wg/cem-ml/wasm/factory`, a dependency of the shared command
+service. The earlier runtime probes and playground HTTP checks did not exercise
+this page's initialization. The authored page now maps the factory to the paired
+browser runtime; no UI behavior was added.
+
+After `yarn copy:demo`, the expanded `yarn verify:demo` passes. It opens the actual
+deployed playground page, waits for initialization, edits the shared source
+editor, invokes Render and checks the resulting HTML. The existing Studio,
+gallery and theme checks still pass, with 904 files and unchanged WASM sizes.
+Verifier lint and syntax checks also pass. The new run's log is
+`dist/reports/demo-site/playground-browser.log`. This repair still needs to be
+deployed to the public host.
