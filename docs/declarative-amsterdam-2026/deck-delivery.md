@@ -16,7 +16,8 @@ approved formatting and colors. Discussion
 
 Sasha's cloned opening now introduces [DNA for structured data](opening-teaser.md).
 The teaser is light; the original title slide remains dark at position 2. The
-deck-wide palette change and dark terminal samples are recorded in the checklist.
+deck-wide palette and dark diagnostic panel are now verified in the
+[palette readback](native-deck-palette-readback.json).
 The native deck includes these edits and is authoritative over the initial PPTX.
 The later update preserves the added “Browser vs DCE security” image and the
 revised embedding quotations. The DCE promise takes 50:00–50:30, within the
@@ -29,10 +30,10 @@ existing platform block; the deployment overview now takes 49:00–50:00.
 | Speaker script and timing | [slide-story.md](slide-story.md) |
 | Current physical order and stable slide IDs | [native-slide-order.md](native-slide-order.md) |
 | Initial PowerPoint, before the native opening edit | [cem-declarative-amsterdam-2026.pptx](../../dist/declarative-amsterdam-2026/slides/cem-declarative-amsterdam-2026.pptx) |
-| Current native Google Slides PDF | [presentation.pdf](../../dist/declarative-amsterdam-2026/slides/render-user-sync/presentation.pdf) |
+| Current native Google Slides PDF | [presentation.pdf](../../dist/reports/cem-studio/palette-final-render/presentation.pdf) |
 | Source and command evidence | [evidence.md](../../dist/declarative-amsterdam-2026/slide-assets/evidence.md), [evidence.json](../../dist/declarative-amsterdam-2026/slide-assets/evidence.json) |
-| Current slide PNGs | `dist/declarative-amsterdam-2026/slides/render-user-sync/slide-01.png` through `slide-30.png` |
-| Current native readback | `dist/declarative-amsterdam-2026/slides/raw-after-user-sync.json` |
+| Current slide PNGs | `dist/reports/cem-studio/palette-final-render/slide-01.png` through `slide-30.png` |
+| Current native readback | `dist/reports/cem-studio/palette-final.json` |
 | Current numbering/timing patch and checks | `dist/declarative-amsterdam-2026/slides/user-sync-requests.json`, `user-sync-issues.json` |
 | Initial-deck QA and repairs | `dist/declarative-amsterdam-2026/slides/output-issues-final.json`, `native-repairs.json` |
 
@@ -113,7 +114,7 @@ Chromium 148.0.7778.96; the native PDF was rendered with `pdftoppm` at 120 dpi.
 | Canonical login | `68f0487d911ed0a072366fbb19f9b52c3afce80cb0b404b3d6c345d07e71dbea` |
 | Initial 28-slide PDF, 611700 bytes | `edfeaac5c7e2ac737aa14fd13e6f01c309fb0a04d641d37b3e822c6011c072da` |
 | Opening-update 29-slide PDF, 616632 bytes | `5b5d926163897714182c9689ae6ffa2e9ff461ec4e2bf7b8dc1c70e164ce0f4f` |
-| Current 30-slide PDF, 846673 bytes | `c7dafc51e4050a9922449e953fe8dbb75834e7cf459c44955845303feca5e913` |
+| October 11 30-slide PDF, 846673 bytes | `c7dafc51e4050a9922449e953fe8dbb75834e7cf459c44955845303feca5e913` |
 
 ## Preparation still open
 
@@ -131,10 +132,52 @@ Native-deck operational notes were synchronized and read back on 2026-11-01:
 The [readback receipt](native-deck-notes-readback.json) binds stable IDs and hashes
 to the reviewed cues and links. Current blocks supersede older execution-status
 claims while preserving the original narrative beneath them. Static images were
-not updated. Palette and opening playback checks, public release/host verification,
+not updated. Opening playback checks, public release/host verification,
 organizer requirements and measured rehearsal remain in [docs/todo.md](../todo.md).
 
 The supplier pipeline is labelled a companion scenario. Six-layer insulation
 is an architectural target with partial controls. Performance slides describe
 mechanisms without invented benchmarks or measured savings. The catalog lists
 32 **packages**, including internal contracts and module-map revisions.
+
+## Canonical palette — 2026-11-01
+
+The native deck now uses CEM comfort canvas/text, creativity emphasis, neutral
+cards, trust containers/links and calm contours from the canonical
+[cem-colors source](../../packages/cem-theme/src/lib/tokens/cem-colors.md).
+The original title at physical slide 2 is preserved in dark mode; slide 30 is
+light. The diagnostic excerpt on slide 10 has a CEM dark comfort canvas, warm
+error emphasis and light message text. This remains a labelled diagnostic
+excerpt, not a fabricated terminal transcript. Source screenshots, the QR and
+Sasha's security image are unchanged; raster artwork is not recolored.
+
+Revision-guarded color updates preserve slide IDs/order, wording, styled runs,
+fonts, links, geometry and every speaker note. Exact readback is normalized only
+for temporary image download URLs, revision IDs, 8-bit color precision/omitted
+zero channels, equivalent run splits/nonpainting newline colors and subpixel
+numeric precision. The preserved title is excluded from color updates.
+
+All 30 output pages were rendered at 90 dpi and visually inspected. One
+consolidated repair changed both resource-link colors to the CEM trust endpoint,
+then the final 30-page export was inspected again. The structural issue checker
+has zero errors and the existing intentional lifecycle-arrow warning. No wording,
+image or layout repair was necessary. The final PDF is 889089 bytes, SHA-256
+`5bacacc1cd6f936a9d498abef8fb2eb7b6bef26975bb98173cee2cf63f31e703`.
+The [committed receipt](native-deck-palette-readback.json) records the native
+revision, canonical token bindings and 21 used palette contrast pairs.
+
+Every checked narrative text pairing exceeds 4.5:1. Calm text is used on canvas,
+neutral or trust surfaces; it is not used as small text on creativity surfaces.
+Nine approved local source-image HTML documents retain their semantic syntax
+colors, with minimum measured text contrast 5.837:1. This checks those local
+source documents, not OCR or a new native colorizer run. Before/after native
+images are structurally preserved. A repeat update plan contains zero requests.
+
+Thirty-two resource/notes/palette guard tests and Studio lint pass. The guarded
+planner/readback tool is `packages/cem-studio/scripts/presentation-palette.mjs`;
+it accepts saved full native reads, writes an ignored review plan, and never
+mutates Drive itself. Submit only the reviewed structured requests with the
+recorded revision guard; keep full responses and rendered files in ignored
+`dist/reports/cem-studio/`. Shared components, project storage and the credential
+privacy policy are unchanged. Opening animation playback and measured rehearsal
+remain open; this PDF review is not a Slideshow timing test.

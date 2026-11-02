@@ -4,8 +4,9 @@ Operational cues for the frozen Login/Supplier route, prepared 2026-11-01.
 Use these with the [slide story](slide-story.md) and the
 [recorded native slide order](native-slide-order.md). Stable IDs below identify
 the live deck read back on 2026-11-01. Operational blocks were inserted into all
-30 speaker-note fields by stable ID, above the preserved original notes. Palette
-and animation remain delivery checks. A rehearsal has not yet measured these times.
+30 speaker-note fields by stable ID, above the preserved original notes. The
+canonical palette is verified; animation remains a delivery check. A rehearsal
+has not yet measured these times.
 
 ## Before starting the clock
 
@@ -152,3 +153,7 @@ notes. The local verifier checks receipt bindings against current cue-table and
 resource identities. Any intentional cue change requires review and a fresh native
 notes readback. No discussion message was posted, public kit availability was not
 changed, and no browser projects, drafts or credential fields were accessed.
+
+The subsequent [palette readback](native-deck-palette-readback.json) preserves all
+30 speaker notes while applying canonical CEM colors. Opening Slideshow playback
+and measured rehearsal remain open.

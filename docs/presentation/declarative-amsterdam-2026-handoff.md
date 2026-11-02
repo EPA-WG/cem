@@ -399,3 +399,15 @@ and [current presenter notes](../declarative-amsterdam-2026/presenter-notes.md).
 Palette, animation playback, public hosting/installation and measured rehearsal
 remain open. Original historical status notes remain below the current blocks.
 No slides were reimported and no discussion comment was posted.
+
+## Canonical deck palette — 2026-11-01
+
+Canonical CEM light colors are applied to the native deck, with the original dark
+title preserved and a dark diagnostic panel. All notes, slide wording, original
+source/security/QR images, links, geometry and order are preserved. Thirty final
+PDF pages were visually reviewed; the issue checker has zero errors and the
+existing lifecycle-arrow warning. The [palette receipt](../declarative-amsterdam-2026/native-deck-palette-readback.json)
+and [delivery record](../declarative-amsterdam-2026/deck-delivery.md#canonical-palette--2026-11-01)
+record contrast, revisions, PDF hash and explicit image/source checks. Thirty-two
+guard tests and Studio lint pass. Next integrate the prepared animated opening
+and verify actual Slideshow timing; measured rehearsal still remains open.

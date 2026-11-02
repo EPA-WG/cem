@@ -1,0 +1,656 @@
+{
+  "presentationId": "1v5JEclFycuXuYk5Mnpwb0alxdKIi30J6XgvLBmawxI4",
+  "checkedDate": "2026-11-01",
+  "beforeRevision": "lAeYJZxQGqzK9A",
+  "afterRevision": "0yRVSFpJ02gOuw",
+  "slides": 30,
+  "colorRequests": 663,
+  "titlePreserved": true,
+  "notesPreserved": true,
+  "imagesPreserved": true,
+  "textAndGeometryPreserved": true,
+  "exactColorReadback": true,
+  "palette": {
+    "bindings": {
+      "cyan-xl": "F1FEFE",
+      "cyan-xd": "001010",
+      "grey-d": "1A1C18",
+      "purple-d": "6A1B9A",
+      "purple-l": "E1BEE7",
+      "grey-l": "F1F1EB",
+      "blue-l": "D7E3FF",
+      "blue-d": "002F65",
+      "cyan-d": "006A6A",
+      "red-l": "BA1A1A",
+      "orange-xl": "F0F070"
+    },
+    "checks": [
+      {
+        "foreground": "001010",
+        "background": "F1FEFE",
+        "ratio": 18.812923451777912
+      },
+      {
+        "foreground": "1A1C18",
+        "background": "F1FEFE",
+        "ratio": 16.63489614525614
+      },
+      {
+        "foreground": "6A1B9A",
+        "background": "F1FEFE",
+        "ratio": 9.099271765451734
+      },
+      {
+        "foreground": "002F65",
+        "background": "F1FEFE",
+        "ratio": 12.761200968770696
+      },
+      {
+        "foreground": "006A6A",
+        "background": "F1FEFE",
+        "ratio": 6.223143241572633
+      },
+      {
+        "foreground": "001010",
+        "background": "F1F1EB",
+        "ratio": 17.12456560369888
+      },
+      {
+        "foreground": "1A1C18",
+        "background": "F1F1EB",
+        "ratio": 15.142004435426287
+      },
+      {
+        "foreground": "6A1B9A",
+        "background": "F1F1EB",
+        "ratio": 8.282661474319521
+      },
+      {
+        "foreground": "002F65",
+        "background": "F1F1EB",
+        "ratio": 11.615952392080102
+      },
+      {
+        "foreground": "006A6A",
+        "background": "F1F1EB",
+        "ratio": 5.664649886801862
+      },
+      {
+        "foreground": "001010",
+        "background": "E1BEE7",
+        "ratio": 11.7611078885635
+      },
+      {
+        "foreground": "1A1C18",
+        "background": "E1BEE7",
+        "ratio": 10.399489945350156
+      },
+      {
+        "foreground": "6A1B9A",
+        "background": "E1BEE7",
+        "ratio": 5.688510731208224
+      },
+      {
+        "foreground": "002F65",
+        "background": "E1BEE7",
+        "ratio": 7.977806414088682
+      },
+      {
+        "foreground": "001010",
+        "background": "D7E3FF",
+        "ratio": 15.089747455673843
+      },
+      {
+        "foreground": "1A1C18",
+        "background": "D7E3FF",
+        "ratio": 13.342763150378694
+      },
+      {
+        "foreground": "6A1B9A",
+        "background": "D7E3FF",
+        "ratio": 7.298478268045793
+      },
+      {
+        "foreground": "002F65",
+        "background": "D7E3FF",
+        "ratio": 10.235692519742434
+      },
+      {
+        "foreground": "006A6A",
+        "background": "D7E3FF",
+        "ratio": 4.991550629359519
+      },
+      {
+        "foreground": "F1FEFE",
+        "background": "001010",
+        "ratio": 18.812923451777912
+      },
+      {
+        "foreground": "F0F070",
+        "background": "001010",
+        "ratio": 16.0901279722237
+      }
+    ],
+    "sourceSha256": "aec50eb7ac7e30da85d46b15878137f7e46e689bf51b1c7be20bf8db36302880"
+  },
+  "schemaVersion": 1,
+  "visualReview": {
+    "pages": 30,
+    "dpi": 90,
+    "pdfSha256": "5bacacc1cd6f936a9d498abef8fb2eb7b6bef26975bb98173cee2cf63f31e703",
+    "pdfBytes": 889089,
+    "issueErrors": 0,
+    "intentionalWarnings": 1,
+    "warning": "Existing lifecycle arrow on physical slide 3",
+    "repair": "Two hyperlink colors; one consolidated correction pass"
+  },
+  "syntaxSources": [
+    {
+      "file": "markup-cem",
+      "pairs": [
+        {
+          "foreground": [
+            95,
+            100,
+            98
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.837379029877408
+        },
+        {
+          "foreground": [
+            136,
+            68,
+            173
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.851973171217084
+        },
+        {
+          "foreground": [
+            109,
+            1,
+            6
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 12.278461049544237
+        },
+        {
+          "foreground": [
+            12,
+            28,
+            28
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 16.977883870196287
+        }
+      ],
+      "min": 5.837379029877408
+    },
+    {
+      "file": "markup-xml",
+      "pairs": [
+        {
+          "foreground": [
+            95,
+            100,
+            98
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.837379029877408
+        },
+        {
+          "foreground": [
+            136,
+            68,
+            173
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.851973171217084
+        },
+        {
+          "foreground": [
+            109,
+            1,
+            6
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 12.278461049544237
+        },
+        {
+          "foreground": [
+            12,
+            28,
+            28
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 16.977883870196287
+        },
+        {
+          "foreground": [
+            0,
+            16,
+            16
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 18.812923451777912
+        }
+      ],
+      "min": 5.837379029877408
+    },
+    {
+      "file": "edit-before",
+      "pairs": [
+        {
+          "foreground": [
+            95,
+            100,
+            98
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.837379029877408
+        },
+        {
+          "foreground": [
+            136,
+            68,
+            173
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.851973171217084
+        },
+        {
+          "foreground": [
+            109,
+            1,
+            6
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 12.278461049544237
+        },
+        {
+          "foreground": [
+            12,
+            28,
+            28
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 16.977883870196287
+        }
+      ],
+      "min": 5.837379029877408
+    },
+    {
+      "file": "edit-after",
+      "pairs": [
+        {
+          "foreground": [
+            95,
+            100,
+            98
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.837379029877408
+        },
+        {
+          "foreground": [
+            136,
+            68,
+            173
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.851973171217084
+        },
+        {
+          "foreground": [
+            109,
+            1,
+            6
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 12.278461049544237
+        },
+        {
+          "foreground": [
+            12,
+            28,
+            28
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 16.977883870196287
+        }
+      ],
+      "min": 5.837379029877408
+    },
+    {
+      "file": "validation-before",
+      "pairs": [
+        {
+          "foreground": [
+            95,
+            100,
+            98
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.837379029877408
+        },
+        {
+          "foreground": [
+            136,
+            68,
+            173
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.851973171217084
+        },
+        {
+          "foreground": [
+            109,
+            1,
+            6
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 12.278461049544237
+        },
+        {
+          "foreground": [
+            12,
+            28,
+            28
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 16.977883870196287
+        }
+      ],
+      "min": 5.837379029877408
+    },
+    {
+      "file": "validation-after",
+      "pairs": [
+        {
+          "foreground": [
+            95,
+            100,
+            98
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.837379029877408
+        },
+        {
+          "foreground": [
+            136,
+            68,
+            173
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.851973171217084
+        },
+        {
+          "foreground": [
+            109,
+            1,
+            6
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 12.278461049544237
+        },
+        {
+          "foreground": [
+            12,
+            28,
+            28
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 16.977883870196287
+        }
+      ],
+      "min": 5.837379029877408
+    },
+    {
+      "file": "inspect",
+      "pairs": [
+        {
+          "foreground": [
+            95,
+            100,
+            98
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.837379029877408
+        },
+        {
+          "foreground": [
+            136,
+            68,
+            173
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.851973171217084
+        },
+        {
+          "foreground": [
+            109,
+            1,
+            6
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 12.278461049544237
+        },
+        {
+          "foreground": [
+            12,
+            28,
+            28
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 16.977883870196287
+        }
+      ],
+      "min": 5.837379029877408
+    },
+    {
+      "file": "query-cemql",
+      "pairs": [
+        {
+          "foreground": [
+            112,
+            35,
+            158
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 8.39756820085864
+        },
+        {
+          "foreground": [
+            12,
+            28,
+            28
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 16.977883870196287
+        },
+        {
+          "foreground": [
+            136,
+            68,
+            173
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.851973171217084
+        },
+        {
+          "foreground": [
+            95,
+            100,
+            98
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.837379029877408
+        }
+      ],
+      "min": 5.837379029877408
+    },
+    {
+      "file": "query-xpath",
+      "pairs": [
+        {
+          "foreground": [
+            95,
+            100,
+            98
+          ],
+          "background": [
+            241,
+            254,
+            254
+          ],
+          "ratio": 5.837379029877408
+        }
+      ],
+      "min": 5.837379029877408
+    }
+  ],
+  "syntaxScope": "Computed text colors in nine local approved source-image HTML documents; native deck images were preserved, not regenerated.",
+  "normalization": [
+    "Temporary image content URLs",
+    "Revision IDs",
+    "RGB byte precision and omitted zero channels",
+    "Equivalent text-run splits and nonpainting newline foreground",
+    "Subpixel numeric precision (1e-6)"
+  ],
+  "darkTitle": "h36c7c826c4eee100_0_0",
+  "darkDiagnosticPanel": "p9_i10",
+  "privacy": "Unchanged; no browser storage or credentials read"
+}

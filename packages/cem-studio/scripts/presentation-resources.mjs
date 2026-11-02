@@ -98,10 +98,14 @@ export async function verifyPresenterResources(data, notes) {
     assert.equal(deckNotes.slides, 30);
     for (const field of ['originalNotesPreserved', 'visibleContentUnchanged', 'exactResourceLinkReadback']) assert.equal(deckNotes[field], true);
     assert.deepEqual(deckNotes.blocks.map(block => block.slideId), cues.map(row => row[1].replaceAll('`', '')));
+    const palette = JSON.parse(await readFile(resolve(docs, 'native-deck-palette-readback.json'), 'utf8'));
+    assert.equal(palette.palette.sourceSha256, presenterHash(await readFile(resolve(workspaceRoot, 'packages/cem-theme/src/lib/tokens/cem-colors.md'))), 'Reviewed palette source changed');
+    assert.equal(palette.slides, 30); assert.equal(palette.visualReview.pages, 30);
+    for (const key of ['titlePreserved', 'notesPreserved', 'imagesPreserved', 'textAndGeometryPreserved', 'exactColorReadback']) assert.equal(palette[key], true);
     return { schemaVersion: 1, referenceRevision: data.referenceRevision, publicSourceLinks: 3,
         recordedWebReadDate: data.webReadVerified, projects: data.projects.map(item => item.id), cues: data.cues.length,
         nativeSlideIds: 30, timedSlides: timed, plannedSeconds: elapsed, measuredRehearsal: false,
-        nativeDeckSync: data.nativeDeckNotes, nativeDeckReadbackDate: deckNotes.checkedDate,
+        nativeDeckSync: data.nativeDeckNotes, nativeDeckReadbackDate: deckNotes.checkedDate, recordedPaletteReviewDate: palette.checkedDate,
         discussionPosted: false, checks: 'local identities, pinned git blobs, fallback bytes, planned timing and recorded deck-note readback bindings' };
 }
 

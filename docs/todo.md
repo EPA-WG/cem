@@ -209,15 +209,25 @@ channels; private agreements remain unverified. This file owns execution order.
   remain separate; 21 resource/notes guard tests and Studio lint passed. No
   discussion message was posted.
 
-- [ ] Apply the canonical CEM theme light palette throughout the slide deck.
+- [x] Apply the canonical CEM theme light palette throughout the slide deck.
       Keep physical slide 2 (the original title slide) in dark mode as contrast.
+      Add palette fixtures for canonical token drift, slide/order/text/notes
+      preservation, exact color-only readback, dark-title exceptions and contrast.
       Use CEM dark mode for terminal output samples. Preserve semantic syntax
       colors and verify their contrast. The new opening teaser uses light mode.
+      Verified 2026-11-01: color-only native readback preserves title/notes/text/
+      images/geometry/order; all 30 final PDF pages visually reviewed. Narrative
+      palette pairs exceed 4.5:1; nine unchanged syntax-image source documents
+      measure at least 5.837:1. Two hyperlink colors fixed in one repair pass.
+      Zero structural errors, one existing lifecycle-arrow warning; 32 guard
+      tests and Studio lint passed. [Receipt](declarative-amsterdam-2026/native-deck-palette-readback.json).
+      Opening playback and measured rehearsal remain separate.
 
 - [ ] Copy the prepared animated opening into the main deck and verify the
       26-second sequence in Slideshow. Import currently requires one starting
       click; try After previous in the Motion panel for automatic slide-entry
-      playback, then recheck timing. The live deck remains unchanged.
+      playback, then recheck timing. This animation has not yet been copied into
+      the live deck; notes and palette updates are complete.
 
 - [ ] Use the presentation plan to map the manifesto and platform pitch into
       the presentation website and slides, following the current presentation
