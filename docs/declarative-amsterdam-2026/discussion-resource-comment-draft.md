@@ -1,8 +1,10 @@
 # Discussion #24 resource comment — draft
 
-Do not post yet. These routes target the published host, whose deployment is
-older than the locally verified build. Redeploy and verify the linked operations
-before removing this notice and posting. No comment has been sent.
+Do not post yet. The owner-deployed `ab74c3a7` version now matches the verified
+local inventory and the public playground passes editing/Render, but Studio
+still misses the original cold-start readiness deadline. Complete the public
+Login/Supplier acceptance before removing this notice and posting. No comment
+has been sent.
 
 The presentation uses ordinary Studio projects, resources and configurations.
 Clone a sample before editing. The slide numbers follow the recorded native

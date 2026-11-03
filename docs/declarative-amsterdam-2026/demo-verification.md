@@ -179,3 +179,73 @@ independent copies, offline drafts and credential refusal. Do not post the
 resource comment or advertise completed public acceptance until both gates pass.
 The browser contexts used for these checks are disposable; no existing projects,
 drafts or user browser storage were read or cleared, and no credentials were entered.
+
+
+## Owner-deployed version ab74c3a7 — 2026-11-03
+
+Sasha supplied Wrangler's version ID
+`ab74c3a7-489a-4f77-be59-a3ed65f8cac4`. This version ID is owner-reported;
+the Cloudflare account API was not queried. The
+[post-upload readback](public-demo-ab74c3a7-readback.json) supersedes the earlier
+stale-deployment finding: the public inventory now exactly matches the verified
+904-file local inventory, SHA-256
+`19913ea5e36db3f247494a6a2fb1994cf36606fa54c392974141b6c5a28cb82e`.
+All 11 critical asset byte checks pass, including all four WASM files. This is
+not a byte-for-byte download of every public asset.
+
+The actual public playground also passes its isolated initialization, source
+edit and Render check: the final state is `HTML → HTML`, with the expected
+heading and paragraph and no browser errors or failed requests. That run uses
+Chromium 148.0.7778.96 with HTTP/3 and HTTP/2 disabled. The earlier missing
+factory import is repaired in the deployed page.
+
+Public Studio acceptance remains incomplete. The general browser run reaches
+native gallery rendering, then misses the original 30-second Studio startup
+deadline. A separate default-browser Studio probe captures a WASM transfer
+aborted with `ERR_QUIC_PROTOCOL_ERROR`. A retry using Chrome for Testing with
+QUIC disabled fails during gallery WASM initialization with an aborted response
+body; its cause is not attributed. The HTTP/1.1-only general run renders the
+galleries but still misses Studio's startup deadline. Separate direct WASM
+fetches succeed over both HTTP/2 and HTTP/1.1; those controls do not establish
+that disabling either protocol repairs the failed runs.
+
+A fresh HTTP/1.1-only lifecycle observation retains the failed cutoff: Studio
+is still “Opening Studio…” at the 32.215-second snapshot after the existing
+30-second readiness wait. At the later 52.238-second snapshot it is ready with
+no page errors. This bounds observed late readiness; it is not an exact startup
+time or a passing acceptance result. The two largest completed main-page WASM
+transfers take about 10.24 and 6.34 seconds. Main-page CDP still lists worker
+scripts as pending even at the ready snapshot; worker-target completion was not
+captured, so those entries do not establish stalled worker downloads or explain
+the remaining startup time. Preserve these distinctions before a runtime repair.
+
+The full selected Login/Supplier verifier now supports an explicit
+`amsterdam-2026` public profile, allowing only the exact HTTPS host and Studio
+subtree and requiring the presentation suite. Loopback-only acceptance remains
+the default. Credentials, query/fragment selections, foreign origins/ports,
+profile typos and other suites are refused. Trailing slashes normalize before
+constructing entry URLs. All 22 participant/target guards and Studio lint pass.
+
+Public results use a separate `public-presentation-samples.json` receipt with
+started/passed/failed status and target/browser provenance. The actual public
+attempt writes `failed` at startup before any of the 23 configurations run;
+an older local report cannot stand in for that result. Run public acceptance
+directly rather than reusing a cached Nx result for a changing remote host:
+
+```sh
+CEM_STUDIO_PUBLIC_ACCEPTANCE=amsterdam-2026 \
+CEM_STUDIO_ACCEPTANCE_URL=https://green-morning-fd6e.trans-acf.workers.dev/studio/ \
+node packages/cem-studio/scripts/verify-static-worker.mjs --presentation-only
+```
+
+The diagnostic protocol controls used a temporary `CEM_STUDIO_CHROME` wrapper
+that appends `--disable-quic --disable-http2` to the bundled Chrome for Testing
+executable. They did not change browser defaults in the repository, application
+code, deadlines, service-worker scope, credential refusal or saved storage.
+No user browser profile was accessed and no real credentials were entered.
+
+Next capture the worker-side loading/initialization timeline and reproduce the
+cold-start bottleneck before choosing a bounded correction. Rerun both public
+browser and complete Login/Supplier acceptance with unchanged deadlines. Keep
+the verified local kit as the participant fallback and the discussion comment
+unposted until public functionality is accepted.

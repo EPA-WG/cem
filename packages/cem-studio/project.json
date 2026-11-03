@@ -567,6 +567,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/verify-static-worker.mjs",
+                "{projectRoot}/scripts/studio-acceptance-url.mjs",
                 "{projectRoot}/dist/static/**/*",
                 {
                     "dependentTasksOutputFiles": "**/*",
@@ -788,6 +789,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/verify-static-worker.mjs",
+                "{projectRoot}/scripts/studio-acceptance-url.mjs",
                 "{projectRoot}/dist/static/**/*",
                 {
                     "dependentTasksOutputFiles": "**/*",
@@ -813,6 +815,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/verify-static-worker.mjs",
+                "{projectRoot}/scripts/studio-acceptance-url.mjs",
                 "{projectRoot}/dist/static/**/*",
                 {
                     "dependentTasksOutputFiles": "**/*",
@@ -1377,6 +1380,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/verify-static-worker.mjs",
+                "{projectRoot}/scripts/studio-acceptance-url.mjs",
                 "{projectRoot}/scripts/catalog-acceptance.mjs",
                 "{projectRoot}/dist/static/**/*",
                 {
@@ -1457,6 +1461,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/participant-kit*.mjs",
+                "{projectRoot}/scripts/studio-acceptance-url.mjs",
                 "{projectRoot}/scripts/presenter-project.mjs",
                 "{workspaceRoot}/docs/declarative-amsterdam-2026/participant-kit-readback.json",
                 "{projectRoot}/scripts/serve-preview.mjs"
@@ -1512,6 +1517,7 @@
                 "{projectRoot}/scripts/participant-kit-acceptance.mjs",
                 "{projectRoot}/scripts/presenter-project.mjs",
                 "{projectRoot}/scripts/verify-static-worker.mjs",
+                "{projectRoot}/scripts/studio-acceptance-url.mjs",
                 "{projectRoot}/scripts/participant-kit-launcher.mjs",
                 "{projectRoot}/scripts/catalog-acceptance.mjs",
                 "{workspaceRoot}/dist/packages/cem-studio-login-kit.tgz",

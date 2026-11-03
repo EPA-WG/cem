@@ -1,0 +1,230 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-03",
+  "runtimeSourceRevision": "db9767f8589c5f2118fc9292b42210dbeb6a9e79",
+  "verificationChanges": "Public-profile and receipt changes in the accompanying commit; deployed runtime bytes are unchanged.",
+  "origin": "https://green-morning-fd6e.trans-acf.workers.dev/",
+  "deploymentVersionId": "ab74c3a7-489a-4f77-be59-a3ed65f8cac4",
+  "deploymentVersionIdSource": "Owner-supplied Wrangler output; Cloudflare account API was not queried.",
+  "freshness": {
+    "inventorySha256": "19913ea5e36db3f247494a6a2fb1994cf36606fa54c392974141b6c5a28cb82e",
+    "fileCount": 904,
+    "matchesVerifiedLocalInventory": true,
+    "criticalAssetByteChecksPassed": 11,
+    "wasmFilesChecked": 4,
+    "isEveryRemoteAssetByteVerification": false
+  },
+  "browser": {
+    "version": "148.0.7778.96",
+    "platform": "linux",
+    "node": "v24.16.0"
+  },
+  "generalBrowserRuns": [
+    {
+      "variant": "Playwright default headless shell",
+      "flags": [],
+      "galleryRendering": "passed",
+      "studioStartup": "failed-30000ms-readiness-deadline"
+    },
+    {
+      "variant": "Chrome for Testing via temporary executable wrapper",
+      "flags": [
+        "--disable-quic"
+      ],
+      "failedPhase": "gallery WebAssembly initialization",
+      "error": "WebAssembly compilation aborted: Network error: Response body loading was aborted"
+    },
+    {
+      "variant": "Chrome for Testing via temporary executable wrapper",
+      "flags": [
+        "--disable-quic",
+        "--disable-http2"
+      ],
+      "galleryRendering": "passed",
+      "studioStartup": "failed-30000ms-readiness-deadline"
+    }
+  ],
+  "defaultStudioProbe": {
+    "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+    "ready": false,
+    "errors": [
+      "CEM Studio component installation failed: invalid source base for `https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/dist/components.xhtml#cem-icon`: TypeError: WebAssembly compilation aborted: Network error: Response body loading was aborted"
+    ],
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_QUIC_PROTOCOL_ERROR"
+    ],
+    "failures": [
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "error": "net::ERR_QUIC_PROTOCOL_ERROR"
+      }
+    ]
+  },
+  "isolatedWasmTransfers": [
+    {
+      "flags": [
+        "--disable-quic"
+      ],
+      "result": {
+        "status": 200,
+        "bytes": 24140410
+      },
+      "protocols": [
+        "h2"
+      ],
+      "failures": []
+    },
+    {
+      "flags": [
+        "--disable-quic",
+        "--disable-http2"
+      ],
+      "result": {
+        "status": 200,
+        "bytes": 24140410
+      },
+      "protocols": [
+        "http/1.1"
+      ],
+      "failures": []
+    }
+  ],
+  "startupLifecycle": {
+    "browser": "148.0.7778.96",
+    "flags": [
+      "--disable-quic",
+      "--disable-http2"
+    ],
+    "deadlinePassed": false,
+    "atDeadline": {
+      "elapsedMs": 32215,
+      "ready": false,
+      "body": "CEM Studio\n\nOpening Studio\u2026",
+      "errors": [],
+      "pending": [
+        {
+          "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml-cli/dist/browser-worker.js",
+          "start": 12557,
+          "type": "Script"
+        },
+        {
+          "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+          "start": 25515,
+          "type": "Script"
+        }
+      ],
+      "slowestCompleted": [
+        {
+          "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+          "start": 2320,
+          "type": "Fetch",
+          "end": 12559,
+          "encodedBytes": 6841805
+        },
+        {
+          "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "start": 19183,
+          "type": "Fetch",
+          "end": 25518,
+          "encodedBytes": 6608223
+        },
+        {
+          "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/choice-select-capability.js",
+          "start": 614,
+          "type": "Script",
+          "end": 1774,
+          "encodedBytes": 8350
+        }
+      ]
+    },
+    "later": {
+      "elapsedMs": 52238,
+      "ready": true,
+      "body": "Examples - CEM Studio\n\u25d0\n \nNavigation\n3 folders\n+\n\u25a3\n\u00d7\n\u25c7\nProjects\n\u25be\n\u25be\n\ud83d\udcc1\nExamples\n\u2713\n\u25b8\n\ud83d\udcc1\nContent types and schemas\n\u25b8\n\ud83d\udcc1\nAmsterdam 2026\n\u25b8\n\ud83d\udcc1\nSchema examples\n\ud83d\udcc1\nSaved projects\n\ud83d\udcc1\nStructure\n\u25b8\n\u25a4\nOutput files\n\u25b8\nExamples\n\nPredefined example projects. Clone a sample to save your own version.\n\n\u25b1\nContent types and schemas\nExplore supported data, document, query, transformation and schema workflows.\n\u25b1\nAmsterdam 2026\nLogin, Supplier and Markdown site projects for the Amsterdam presentation.\n\u25b1\nSchema examples\nAll registered schema-package source-validation examples and portable command configurations.\nOutput preview\nSelect a project to build its preview.\nReady\nRecovery \u00b7 Not configured",
+      "errors": [],
+      "pending": [
+        {
+          "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml-cli/dist/browser-worker.js",
+          "start": 12557,
+          "type": "Script"
+        },
+        {
+          "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+          "start": 25515,
+          "type": "Script"
+        }
+      ],
+      "slowestCompleted": [
+        {
+          "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+          "start": 2320,
+          "type": "Fetch",
+          "end": 12559,
+          "encodedBytes": 6841805
+        },
+        {
+          "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "start": 19183,
+          "type": "Fetch",
+          "end": 25518,
+          "encodedBytes": 6608223
+        },
+        {
+          "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/choice-select-capability.js",
+          "start": 614,
+          "type": "Script",
+          "end": 1774,
+          "encodedBytes": 8350
+        }
+      ]
+    },
+    "laterObservationDoesNotPassAcceptance": true,
+    "completedRequestSample": "Three slowest completed main-page requests; full ignored capture is dist/reports/demo-site/public-startup-lifecycle.json."
+  },
+  "playground": {
+    "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+    "browser": "148.0.7778.96",
+    "flags": [
+      "--disable-quic",
+      "--disable-http2"
+    ],
+    "passed": true,
+    "errors": [],
+    "failures": [],
+    "status": "HTML \u2192 HTML",
+    "renderDisabled": false
+  },
+  "overallPublicAcceptance": "incomplete",
+  "privacy": {
+    "isolatedBrowserContexts": true,
+    "userBrowserStorageRead": false,
+    "userStorageCleared": false,
+    "credentialsEntered": false,
+    "credentialPolicyChanged": false,
+    "deadlinesChanged": false
+  },
+  "limits": [
+    "Late readiness does not pass the original startup deadline.",
+    "Successful isolated HTTP/2 and HTTP/1.1 transfers do not attribute the other aborted transfers.",
+    "Main-page CDP events may omit worker-target completion; pending worker script entries do not prove stalled worker downloads.",
+    "The complete Login/Supplier suite cannot be claimed before it runs."
+  ],
+  "selectedWalkthrough": {
+    "schemaVersion": 1,
+    "status": "failed",
+    "targetUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio",
+    "hostingProfile": "amsterdam-2026",
+    "browser": "148.0.7778.96",
+    "checkedAt": "2026-11-03T13:28:24.105Z",
+    "error": "Error: page.waitForFunction: Timeout 30000ms exceeded.\n{\"browserErrors\":[],\"httpFailures\":[]}",
+    "browserErrors": [],
+    "httpFailures": [],
+    "executedConfigurations": 0,
+    "failedBeforeExercise": true
+  },
+  "verification": {
+    "participantAndTargetTests": 22,
+    "studioLint": "passed",
+    "publicFailureReceipt": "written-and-checked"
+  }
+}

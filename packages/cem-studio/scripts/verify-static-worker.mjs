@@ -5,6 +5,7 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, extname, resolve, sep } from 'node:path';
 
 import { chromium } from 'playwright';
+import { studioAcceptanceUrl } from './studio-acceptance-url.mjs';
 import { catalogAcceptanceStamp } from './catalog-acceptance.mjs';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -15,15 +16,14 @@ const lifecycleOnly = process.argv.includes('--lifecycle-only');
 const shellOnly = process.argv.includes('--shell-only');
 const presentationOnly = process.argv.includes('--presentation-only');
 const supplierOnly = process.argv.includes('--supplier-only');
-const reportPath = resolve(workspaceRoot, `dist/reports/cem-studio/${supplierOnly ? 'supplier-project' : presentationOnly ? 'presentation-samples' : lifecycleOnly ? 'workspace-delivery' : shellOnly ? 'shell-delivery' : 'static-worker'}.json`);
-const externalUrl = process.env.CEM_STUDIO_ACCEPTANCE_URL;
-if (externalUrl) {
-    const target = new URL(externalUrl);
-    assert.equal(target.protocol, 'http:');
-    assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(target.hostname), 'External acceptance must use a local test server');
-    assert.equal(target.username, ''); assert.equal(target.password, '');
-}
+const publicProfile = process.env.CEM_STUDIO_PUBLIC_ACCEPTANCE;
+const reportPath = resolve(workspaceRoot, `dist/reports/cem-studio/${supplierOnly ? 'supplier-project' : presentationOnly ? publicProfile ? 'public-presentation-samples' : 'presentation-samples' : lifecycleOnly ? 'workspace-delivery' : shellOnly ? 'shell-delivery' : 'static-worker'}.json`);
+const externalUrl = studioAcceptanceUrl(process.env.CEM_STUDIO_ACCEPTANCE_URL, { publicProfile, presentationOnly: presentationOnly && !supplierOnly && !lifecycleOnly && !shellOnly });
 const server = externalUrl ? { url: externalUrl, close: async () => undefined } : await startStaticServer(outputRoot);
+if (publicProfile) {
+    await mkdir(dirname(reportPath), { recursive: true });
+    await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, status: 'started', targetUrl: server.url, hostingProfile: publicProfile, checkedAt: new Date().toISOString() }, null, 2)}\n`);
+}
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
 const context = await browser.newContext({ serviceWorkers: 'allow' });
 const page = await context.newPage();
@@ -188,7 +188,7 @@ try {
         await exerciseExampleProjects(page, context);
         assertNoUnexpectedBrowserErrors(); assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
-        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, ...acceptanceStamp, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurationCoverage: 'selected', configurations: 23, loginConfigurations: 20, supplierConfigurations: 3, supplierPipeline: true, graphProvenance: true, liveView: true, sourceInspection: true, sourceFormatting: true, sourceColors: true, standaloneExpression: true }, null, 2)}\n`);
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, ...acceptanceStamp, status: 'passed', targetUrl: server.url, hostingProfile: publicProfile ?? 'local', browser: browser.version(), checkedAt: new Date().toISOString(), exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurationCoverage: 'selected', configurations: 23, loginConfigurations: 20, supplierConfigurations: 3, supplierPipeline: true, graphProvenance: true, liveView: true, sourceInspection: true, sourceFormatting: true, sourceColors: true, standaloneExpression: true }, null, 2)}\n`);
         console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload graph provenance and twenty-three selected offline configurations across Login and Supplier pipeline.');
     } else if (lifecycleOnly) {
         const lifecycle = await exerciseProjectLifecycle(page, context);
@@ -453,6 +453,9 @@ try {
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
     console.log('Verified graph-emitted CEM-ML CLI worker and WASM command online and offline.');
     }
+} catch (error) {
+    if (publicProfile) await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, status: 'failed', targetUrl: server.url, hostingProfile: publicProfile, browser: browser.version(), checkedAt: new Date().toISOString(), error: String(error), browserErrors, httpFailures }, null, 2)}\n`);
+    throw error;
 } finally {
     await context.setOffline(false).catch(() => undefined);
     await page

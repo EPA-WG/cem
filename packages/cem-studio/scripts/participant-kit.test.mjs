@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+import { studioAcceptanceUrl, amsterdamStudioUrl } from './studio-acceptance-url.mjs';
 import { verifyParticipantAcceptance } from './participant-kit-acceptance.mjs';
 import { participantFiles, startParticipantKit, verifyParticipantFiles } from './participant-kit-launcher.mjs';
 import { createCemStudioPreviewHandler } from './serve-preview.mjs';
@@ -90,4 +91,29 @@ for (const [name, mutate] of [
     ['public promotion', data => ({ ...data, publicAvailability: 'verified' })],
 ]) test(`release claims refuse ${name}`, () => {
     assert.throws(() => verifyParticipantAcceptance(mutate(structuredClone(receipt)), kitClaim));
+});
+
+
+test('full exercise acceptance remains loopback-only by default and normalizes trailing slashes', () => {
+    assert.equal(studioAcceptanceUrl(), undefined);
+    for (const host of ['localhost', '127.0.0.1', '[::1]']) {
+        assert.equal(studioAcceptanceUrl(`http://${host}:8080/studio/`), `http://${host}:8080/studio`);
+    }
+    assert.throws(() => studioAcceptanceUrl(amsterdamStudioUrl));
+    assert.equal(studioAcceptanceUrl(amsterdamStudioUrl, {publicProfile:'amsterdam-2026',presentationOnly:true}), amsterdamStudioUrl.slice(0,-1));
+});
+test('public full exercise acceptance requires its named profile, exact target and selected suite', () => {
+    const options = { publicProfile:'amsterdam-2026', presentationOnly:true };
+    for (const target of [
+        'http://green-morning-fd6e.trans-acf.workers.dev/studio/',
+        'https://example.test/studio/',
+        'https://green-morning-fd6e.trans-acf.workers.dev/',
+        'https://green-morning-fd6e.trans-acf.workers.dev/studio/other/',
+        'https://green-morning-fd6e.trans-acf.workers.dev:8443/studio/',
+        'https://user:password@green-morning-fd6e.trans-acf.workers.dev/studio/',
+        `${amsterdamStudioUrl}?project=existing`, `${amsterdamStudioUrl}#existing`,
+    ]) assert.throws(() => studioAcceptanceUrl(target,options));
+    assert.throws(() => studioAcceptanceUrl(amsterdamStudioUrl, {...options,publicProfile:'amsterdam'}));
+    assert.throws(() => studioAcceptanceUrl(amsterdamStudioUrl, {...options,presentationOnly:false}));
+    assert.throws(() => studioAcceptanceUrl(undefined, options));
 });

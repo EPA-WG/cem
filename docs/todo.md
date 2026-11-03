@@ -340,6 +340,16 @@ channels; private agreements remain unverified. This file owns execution order.
       and a 12-file local HTTP control pass. Production mode refuses the actual
       stale public inventory; the public-path gate retains exact worker scope.
 
+- [x] Fixture: add an explicit Amsterdam production profile to the full
+      Login/Supplier verifier. Keep loopback-only acceptance as the default;
+      require the exact HTTPS host/subtree and selected presentation suite for
+      public runs. Cover foreign origins, credentials, query/fragment inputs,
+      profile typos and trailing-slash normalization; retain target provenance
+      in separate public receipts that record failures as well as success.
+      Verified 2026-11-03: 22 participant/target tests and Studio lint pass;
+      the actual public attempt records its startup failure in a separate receipt
+      before executing any configuration. Local/default hosting remains guarded.
+
 - [ ] Verify the functionality of every Amsterdam demo page selected for the
       presentation and participant links. Check the deployed source/edit,
       validation failure/repair, inspection/formatting, query/graph, live preview,
@@ -367,6 +377,16 @@ channels; private agreements remain unverified. This file owns execution order.
       from a signed-in machine. See the [readback](declarative-amsterdam-2026/public-demo-readback.json).
       Repeat public freshness, general browser and full Login/Supplier gates
       after the upload; keep this functionality item open until they pass.
+      Post-upload `ab74c3a7` check: the 904-file public inventory and all 11
+      critical asset byte checks match; isolated playground editing/Render passes.
+      Studio cold startup still fails the original 30-second readiness deadline.
+      A diagnostic is not ready at 32.215 seconds, then ready at 52.238 seconds;
+      worker-side completion is not captured. Preserve separate QUIC/aborted-body
+      failures and successful isolated transport controls without inferring a fix.
+      Full public Login/Supplier acceptance stops before any configuration.
+      [Version readback](declarative-amsterdam-2026/public-demo-ab74c3a7-readback.json).
+      Attribute the selected cold-start bottleneck, repair the demonstrated cause,
+      then rerun both public gates; no timeout extension or warm-only pass.
 
 - [ ] Publish the reviewed Amsterdam presentation site and related demo pages
       after their functionality checks pass. Verify the actual public routes,
@@ -376,6 +396,9 @@ channels; private agreements remain unverified. This file owns execution order.
       https://green-morning-fd6e.trans-acf.workers.dev/ (confirmed by Sasha).
       Verify the local demo deployment first, then check the corresponding
       public routes; publication alone does not establish functional acceptance.
+      Owner-reported version `ab74c3a7-489a-4f77-be59-a3ed65f8cac4` now serves
+      the refreshed demo bytes. Keep presentation Site publication and the
+      unresolved public Studio cold-start/functionality gates separate.
 
 - [ ] Append a resource comment to [GitHub discussion #24](https://github.com/EPA-WG/cem/discussions/24)
       mapping each demo-related slide number to its verified public demo-page

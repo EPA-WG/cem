@@ -1,5 +1,17 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+Post-upload check (2026-11-03): owner-reported version `ab74c3a7` now matches the
+verified 904-file inventory and all 11 critical asset byte checks. The actual
+public playground editing/Render check passes. Studio still misses the original
+30-second cold-start deadline; a diagnostic becomes ready only in the later
+52-second observation. The full public Login/Supplier attempt stops before any
+configuration runs. Keep the earlier transport failures separate from that late
+readiness observation. The [version readback](../declarative-amsterdam-2026/public-demo-ab74c3a7-readback.json)
+and [verification notes](../declarative-amsterdam-2026/demo-verification.md#owner-deployed-version-ab74c3a7--2026-11-03)
+retain the evidence and exact public-profile command. Attribute the cold-start
+bottleneck and rerun the unchanged gates before claiming public acceptance;
+the local kit remains the participant fallback.
+
 Public-demo handoff (2026-11-03): the [production verifier/readback](../declarative-amsterdam-2026/demo-verification.md#production-verifier-and-refreshed-local-copy--2026-11-03)
 now distinguishes production `/studio/` from local revision scopes and refuses
 stale inventory/critical bytes. The refreshed 904-file local copy passes general
