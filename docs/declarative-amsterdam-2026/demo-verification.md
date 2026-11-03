@@ -306,3 +306,28 @@ After the owner's next signed-in upload, rerun production freshness, general
 public browser acceptance and the full selected public suite with the commands
 above. Check existing cached-client updates separately, preserving projects and
 drafts. Keep the discussion draft unposted until public destinations pass.
+
+## Uploaded 253278d1 copy and hosting/cache regressions — 2026-11-03
+
+The owner confirmed deployment without supplying a new version ID. The public
+905-file inventory exactly matches `253278d1…`, and all 11 critical byte checks
+pass on retry. A first asset probe hit its unchanged 30-second request timeout.
+Default browser general and full selected gates fail Studio readiness; no
+selected public configuration is executed. The startup trace measures both
+main WASM transfers at about 43.6 seconds without JavaScript errors.
+
+An explicit HTTP/1.1 control reaches application readiness at 25.287 seconds,
+but is not a passing default-browser gate or an attribution of one transport
+protocol. The controlled selected suite then stops at shell inspection: literal
+`@epa-wg` module URLs redirect to `%40epa-wg`, and a second module instance tries
+to install already declared views. The [public readback](public-demo-253278d1-readback.json)
+preserves every attempt and scope.
+
+The [hosting/cache correction](hosting-upgrade-verification.md) adds a small
+Worker asset adapter and native-graph-emitted deployment revision metadata.
+Actual Studio browser regressions verify zero adapter redirects, idempotent
+installation, versioned-cache upgrades, waiting-worker isolation and preservation
+of the saved project and dirty draft through two upgrades and offline reload.
+General local demo acceptance passes for the new 906-file copy. Public
+functionality remains open until the updated Worker and assets are deployed and
+the unchanged default public gates pass.

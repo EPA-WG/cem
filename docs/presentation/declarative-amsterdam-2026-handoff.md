@@ -1,5 +1,24 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+Hosting/cache corrections prepared (2026-11-03): [verification and receipt](../declarative-amsterdam-2026/hosting-upgrade-verification.md)
+cover Cloudflare's literal-`@` redirects, duplicate module installation and
+stale same-version caches. The asset adapter eliminates the observed redirect;
+graph-emitted revision metadata pins static caches by deployment and scope.
+Two real browser upgrades retain the saved project and dirty draft, including
+an imported-dependency-only update and offline reload. Eight Node checks,
+browser regressions, lint, typecheck, general demo checks and all 23 selected
+offline Login/Supplier configurations pass. The new `/home/suns/cem-bin` copy
+has 906 files, inventory `ee7cc90c…`; all four WASM files are unchanged.
+Deploy from the updated checkout so Wrangler includes the new Worker entry and
+`ASSETS` binding as well as those bytes.
+
+The preceding upload is verified at `253278d1…`, but public acceptance remains
+open: default main WASM transfers take about 43.6 s, and a separate HTTP/1.1
+control reaches readiness at 25.287 s before exposing duplicate module identity.
+Neither attempt executes selected public configurations. Retain that distinction
+and rerun unchanged default public gates after the next upload. No discussion
+comment has been posted; publication/rehearsal remain separate delivery items.
+
 Worker startup correction prepared (2026-11-03): [verification and receipt](../declarative-amsterdam-2026/startup-code-reuse-verification.md)
 confirm one installed CEM-ML code acquisition while retaining separate native
 instances and memories. The deployed-host control hits its original worker

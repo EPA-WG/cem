@@ -1,3 +1,5 @@
+import { deploymentRevision } from '@epa-wg/cem-studio/deployment-revision';
+
 const CACHE_NAMESPACE = 'cem-studio';
 const DEPLOYMENT_INVENTORY = new URL('./cache-inventory.json', self.location.href).href;
 const SHELL_FALLBACK = new URL('./index.html', self.location.href).href;
@@ -56,17 +58,46 @@ async function activateDeployment() {
 }
 
 async function cachedDeploymentResponse(request) {
-    const cached = await caches.match(request);
+    const plan = await deploymentPlan();
+    const cached = await responseFromPlan(plan, request);
     if (cached) return cached;
     try {
         return await fetch(request);
     } catch (error) {
         if (request.mode === 'navigate') {
-            const shell = await caches.match(SHELL_FALLBACK);
+            const shell = await responseFromPlan(plan, SHELL_FALLBACK);
             if (shell) return scopedShellResponse(shell);
         }
         throw error;
     }
+}
+
+async function responseFromPlan(plan, request) {
+    for (const { cacheName } of plan.groups) {
+        const response = await (await caches.open(cacheName)).match(request);
+        if (response) return response;
+    }
+}
+
+let scopeHashPromise;
+function scopeHash() {
+    return scopeHashPromise ??= crypto.subtle.digest('SHA-256', new TextEncoder().encode(self.registration.scope))
+        .then(bytes => Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join(''));
+}
+
+// A restarted old worker must read its own metadata, even after a new deploy.
+// Never search unrelated scopes/revisions or the legacy global cache family.
+async function deploymentResource(url) {
+    const scope = await scopeHash();
+    const defaultPrefix = `${CACHE_NAMESPACE}:deployment:${scope}:${deploymentRevision}:`;
+    const profilePrefix = `${CACHE_NAMESPACE}:profile:${scope}:`;
+    for (const name of await caches.keys()) {
+        if (!name.startsWith(defaultPrefix)
+            && !(name.startsWith(profilePrefix) && name.slice(profilePrefix.length).split(':')[1] === deploymentRevision)) continue;
+        const response = await (await caches.open(name)).match(url);
+        if (response) return response;
+    }
+    return fetch(url, { cache: 'no-store' });
 }
 
 async function scopedShellResponse(shell) {
@@ -90,7 +121,8 @@ function deploymentPlan() {
 }
 
 async function loadDeploymentPlan() {
-    const inventoryResponse = await fetch(DEPLOYMENT_INVENTORY, { cache: 'no-store' });
+    if (!/^[a-f0-9]{64}$/.test(deploymentRevision)) throw new Error('CEM Studio deployment revision is invalid');
+    const inventoryResponse = await deploymentResource(DEPLOYMENT_INVENTORY);
     if (!inventoryResponse.ok) {
         throw new Error(`CEM Studio cache inventory failed: ${inventoryResponse.status}`);
     }
@@ -99,17 +131,17 @@ async function loadDeploymentPlan() {
         throw new Error('CEM Studio cache inventory is invalid');
     }
 
-    let namespace = CACHE_NAMESPACE;
-    let cacheFamily = `${CACHE_NAMESPACE}:`;
+    const scope = await scopeHash();
+    let cacheFamily = `${CACHE_NAMESPACE}:deployment:${scope}:`;
+    let namespace = `${cacheFamily}${deploymentRevision}`;
     const profile = inventory.deploymentProfile !== undefined || inventory.deploymentDigest !== undefined;
     if (profile) {
         if (typeof inventory.deploymentProfile !== 'string' || !/^[a-z0-9-]{1,32}$/.test(inventory.deploymentProfile)
             || typeof inventory.deploymentDigest !== 'string' || !/^[a-f0-9]{64}$/.test(inventory.deploymentDigest)) {
             throw new Error('CEM Studio deployment profile is invalid');
         }
-        const scopeHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
-            new TextEncoder().encode(self.registration.scope))), byte => byte.toString(16).padStart(2, '0')).join('');
-        cacheFamily = `${CACHE_NAMESPACE}:profile:${scopeHash}:${inventory.deploymentProfile}:`;
+        if (inventory.deploymentDigest !== deploymentRevision) throw new Error('CEM Studio profile revision is invalid');
+        cacheFamily = `${CACHE_NAMESPACE}:profile:${scope}:${inventory.deploymentProfile}:`;
         namespace = `${cacheFamily}${inventory.deploymentDigest}`;
     }
 
@@ -122,7 +154,7 @@ async function loadDeploymentPlan() {
             });
         } else if (group?.id === 'runtime' && typeof group.moduleMap === 'string') {
             const moduleMapUrl = new URL(group.moduleMap, self.registration.scope).href;
-            const moduleMapResponse = await fetch(moduleMapUrl, { cache: 'no-store' });
+            const moduleMapResponse = await deploymentResource(moduleMapUrl);
             if (!moduleMapResponse.ok) {
                 throw new Error(`CEM Studio module map failed: ${moduleMapResponse.status}`);
             }
@@ -135,7 +167,7 @@ async function loadDeploymentPlan() {
             });
         } else if (group?.id === 'samples' && group.strategy === 'cache-first' && typeof group.catalog === 'string') {
             const catalogUrl = new URL(group.catalog, self.registration.scope).href;
-            const catalogResponse = await fetch(catalogUrl, { cache: 'no-store' });
+            const catalogResponse = await deploymentResource(catalogUrl);
             if (!catalogResponse.ok) {
                 throw new Error(`CEM Studio sample catalog failed: ${catalogResponse.status}`);
             }

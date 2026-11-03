@@ -192,6 +192,47 @@
             ],
             "outputs": ["{workspaceRoot}/dist/reports/cem-studio/startup-latency.json"]
         },
+        "verify:deployment-upgrade": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node scripts/verify-deployment-upgrade.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-deployment-upgrade.mjs",
+                "{projectRoot}/scripts/serve-preview.mjs",
+                "{projectRoot}/dist/static/**/*"
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/deployment-upgrade.json"]
+        },
+        "test:deployment-revision": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node --test scripts/deployment-revision.test.mjs scripts/service-worker-cache.test.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": ["{projectRoot}/scripts/deployment-revision*.mjs", "{projectRoot}/scripts/service-worker-cache.test.mjs", "{projectRoot}/src/service-worker.js"],
+            "outputs": []
+        },
+        "verify:hosting-module-identity": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node --test tools/scripts/demo-worker.test.mjs && node tools/scripts/verify-demo-module-identity.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/cloudflare/demo-worker.mjs",
+                "{workspaceRoot}/tools/scripts/demo-worker.test.mjs",
+                "{workspaceRoot}/tools/scripts/verify-demo-module-identity.mjs",
+                "{projectRoot}/dist/static/**/*"
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/demo-site/module-identity.json"]
+        },
         "test:feature-tour": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -436,6 +477,7 @@
                 "{projectRoot}/src/**/*",
                 "{projectRoot}/runtime/**/*",
                 "{projectRoot}/scripts/build.mjs",
+                "{projectRoot}/scripts/deployment-revision.mjs",
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
@@ -443,6 +485,8 @@
             ],
             "outputs": [
                 "{projectRoot}/dist/static",
+                "{projectRoot}/dist/deployment-inputs",
+                "{workspaceRoot}/dist/reports/cem-studio/deployment-revision.json",
                 "{workspaceRoot}/dist/reports/cem-studio/build.json",
                 "{workspaceRoot}/dist/reports/cem-studio/feature-tour-build.json"
             ]
@@ -970,6 +1014,7 @@
                 "{projectRoot}/src/**/*",
                 "{projectRoot}/generated/feature-tour/**/*",
                 "{projectRoot}/scripts/build-schema-assets-profile.mjs",
+                "{projectRoot}/scripts/deployment-revision.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ql-wasm-factory.mjs",
                 {
                     "dependentTasksOutputFiles": "**/*",

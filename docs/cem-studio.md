@@ -2342,6 +2342,18 @@ intercept requests and serve cached resources offline
 records remain in IndexedDB; never copy mutable projects into an opaque static
 asset cache.
 
+Default deployment builds emit a `deployment-revision.js` dependency through
+the native graph. Its digest covers the complete provisional deployment in
+stable path order, including shell, module, stylesheet and sample bytes; a final
+native emission supplies the revision value. The service worker's dependency
+graph detects same-version builds, and static caches are pinned to that revision
+and registration scope. Workers read their own cached metadata after restart
+and never search unrelated deployment caches. Updates retain the existing
+waiting-worker/explicit-activation policy; projects and dirty drafts survive
+closing and reopening a client. Optional schema-assets profiles use their own
+explicit deployment digest. This cache identity does not replace the native
+bootstrap's schema-package authentication or grant native recovery authority.
+
 | Operation                                                  | Offline behavior                                                                            |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Open/edit local project                                    | Fully available.                                                                            |

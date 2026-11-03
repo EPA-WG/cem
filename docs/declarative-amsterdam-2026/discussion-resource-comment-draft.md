@@ -1,10 +1,10 @@
 # Discussion #24 resource comment — draft
 
-Do not post yet. The public host serves the 905-file `2ea68bcd` deployment.
-Its inventory and critical bytes match, but Studio's command worker times out
-at the existing 10-second limit. The shared correction passes local acceptance;
-the prepared 905-file copy is `253278d1…`. Complete public Login/Supplier
-acceptance after the next upload before
+Do not post yet. The public host serves the verified 905-file `253278d1…` copy.
+Default startup remains outside its deadline; a transport control also exposes
+duplicate shell installation through redirected module URLs. Hosting and cache
+upgrade corrections are prepared in the 906-file `ee7cc90c…` copy and updated
+Worker entry. Complete default public Login/Supplier acceptance after the next upload before
 removing this notice and posting. No comment has been sent.
 
 The presentation uses ordinary Studio projects, resources and configurations.

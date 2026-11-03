@@ -1,0 +1,422 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-03",
+  "url": "https://green-morning-fd6e.trans-acf.workers.dev/",
+  "deployment": {
+    "ownerReportedUpload": true,
+    "versionId": null,
+    "versionIdProvenance": "No new Wrangler version ID supplied; identity verified by public inventory and asset bytes",
+    "sourceCommit": "2fe90e32c5e39e1b18eaf93063a86a9da652efdb"
+  },
+  "inventory": {
+    "checkedAt": "2026-11-03T23:02:19.320Z",
+    "url": "https://green-morning-fd6e.trans-acf.workers.dev/demo-deployment.json",
+    "status": 200,
+    "elapsedMs": 391,
+    "bytes": 176219,
+    "sha256": "253278d16f34b620b2bbde2d9085f03950b69bee9d8938d250036334c623a55d",
+    "matchesPreparedCopy": true
+  },
+  "generalVerification": {
+    "schemaVersion": 1,
+    "startedAt": "2026-11-03T23:02:47.375Z",
+    "url": "https://green-morning-fd6e.trans-acf.workers.dev/",
+    "status": "failed",
+    "previousAttempt": "original production verifier aborted during remote freshness with unchanged 30000 ms request timeout",
+    "assets": [
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/demo-deployment.json",
+        "status": 200,
+        "bytes": 176219,
+        "sha256": "253278d16f34b620b2bbde2d9085f03950b69bee9d8938d250036334c623a55d",
+        "elapsedMs": 224
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground.html",
+        "status": 200,
+        "bytes": 5039,
+        "sha256": "c02c8083549bb90a9e368bc51f6c4442712747c1bf0cd31a64480fb56f4beb0a",
+        "elapsedMs": 528
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/module-map.json",
+        "status": 200,
+        "bytes": 47375,
+        "sha256": "3ce2ef3a45e16d1d2cb67ebc99ed7f106abea79a8da0c80ccab41807b2a16c43",
+        "elapsedMs": 147
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/cache-inventory.json",
+        "status": 200,
+        "bytes": 733,
+        "sha256": "01566eafdcf8086c461f64c66545dce0b816cdcf055d0b0425c21de43e99a029",
+        "elapsedMs": 113
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/samples/examples/login.cem-studio.json",
+        "status": 200,
+        "bytes": 93611,
+        "sha256": "abc7d53da3c2197c2c2a5a8bdecfb7eaea86e013c6ee973d1be322b4a85505bf",
+        "elapsedMs": 114
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/samples/examples/supplier-pipeline.cem-studio.json",
+        "status": 200,
+        "bytes": 41657,
+        "sha256": "d14f97e9601a818b9698ad2e8fa7d8c7d5e5b038afe7e34e72488d07ce3ba790",
+        "elapsedMs": 117
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-ml-npm/dist/wasm/browser/cem_ml_factory.js",
+        "status": 200,
+        "bytes": 130769,
+        "sha256": "fcb7b0bef273fc08a46675dbfbfd990a05257824441782c1889ea18007f13fe6",
+        "elapsedMs": 165
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem_ql/dist/wasm/cem_ql_factory.js",
+        "status": 200,
+        "bytes": 130643,
+        "sha256": "4b85f7274b6d6c2d6471352ca4ab89e8ed37fd691d851e4e8882fcbf953e8516",
+        "elapsedMs": 155
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-ml-npm/dist/wasm/browser/cem_ml_bg.wasm",
+        "status": 200,
+        "bytes": 24860607,
+        "sha256": "966df03a97851e50fa69cb62551bc3fe29409865e49d2ffc8767c9b1719aeb43",
+        "elapsedMs": 28546
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+        "status": 200,
+        "bytes": 24140410,
+        "sha256": "3856b98560281753dffb49b807b1bb4a76f76f4f088a5ce179a2a03c577037b5",
+        "elapsedMs": 21313
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "status": 200,
+        "bytes": 24140410,
+        "sha256": "3856b98560281753dffb49b807b1bb4a76f76f4f088a5ce179a2a03c577037b5",
+        "elapsedMs": 23643
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "status": 200,
+        "bytes": 24860607,
+        "sha256": "966df03a97851e50fa69cb62551bc3fe29409865e49d2ffc8767c9b1719aeb43",
+        "elapsedMs": 29578
+      }
+    ],
+    "error": {
+      "message": "page.waitForFunction: Timeout 30000ms exceeded.",
+      "stack": "page.waitForFunction: Timeout 30000ms exceeded.\n    at ready (/home/suns/cem/tools/scripts/verify-demo-site.mjs:88:44)\n    at /home/suns/cem/tools/scripts/verify-demo-site.mjs:89:11"
+    },
+    "finishedAt": "2026-11-03T23:06:24.317Z"
+  },
+  "defaultSelectedSuite": {
+    "schemaVersion": 1,
+    "status": "failed",
+    "targetUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio",
+    "hostingProfile": "amsterdam-2026",
+    "browser": "148.0.7778.96",
+    "checkedAt": "2026-11-03T23:07:29.797Z",
+    "error": "Error: page.waitForFunction: Timeout 30000ms exceeded.\n{\"browserErrors\":[],\"httpFailures\":[]}",
+    "browserErrors": [],
+    "httpFailures": []
+  },
+  "defaultStartupDiagnostic": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-03T23:07:55.614Z",
+    "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+    "browser": "148.0.7778.96",
+    "flags": [],
+    "errors": [],
+    "requests": [
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "startedMs": 4333
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "startedMs": 4524
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "startedMs": 4534
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "startedMs": 4534
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "startedMs": 11829
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "startedMs": 16833
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "failedMs": 47033,
+        "error": "net::ERR_CACHE_WRITE_FAILURE"
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "failedMs": 47033,
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "startedMs": 48386
+      }
+    ],
+    "workers": [
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml-cli/dist/browser-worker.js",
+        "createdMs": 48042,
+        "performance": {
+          "timeOrigin": 1793747323655.3,
+          "now": 5664.79999999702,
+          "resources": []
+        }
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+        "createdMs": 48270,
+        "performance": {
+          "timeOrigin": 1793747323883.1,
+          "now": 5439.29999999702,
+          "resources": []
+        }
+      }
+    ],
+    "navigationMs": 3692,
+    "atDeadline": {
+      "elapsedMs": 33695,
+      "ready": false,
+      "errors": [],
+      "performance": {
+        "timeOrigin": 1793747275617.9,
+        "now": 33694,
+        "resources": []
+      }
+    },
+    "final": {
+      "elapsedMs": 53699,
+      "ready": false,
+      "errors": [],
+      "performance": {
+        "timeOrigin": 1793747275617.9,
+        "now": 53699.59999999404,
+        "resources": [
+          {
+            "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "start": 4328.70000000298,
+            "duration": 43622.70000000298,
+            "end": 47951.40000000596,
+            "decoded": 24860607
+          },
+          {
+            "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "start": 4518.9000000059605,
+            "duration": 43593.5,
+            "end": 48112.40000000596,
+            "decoded": 24140410
+          }
+        ]
+      }
+    },
+    "requestSummary": {
+      "observations": 107,
+      "failureCounts": {
+        "net::ERR_CACHE_WRITE_FAILURE": 1,
+        "net::ERR_ABORTED": 99
+      },
+      "abortedNonWasmRequestsSummarized": 98
+    }
+  },
+  "http1StartupControl": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-03T23:11:41.090Z",
+    "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+    "browser": "148.0.7778.96",
+    "flags": [
+      "--disable-quic",
+      "--disable-http2"
+    ],
+    "errors": [],
+    "requests": [
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "startedMs": 1940
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "startedMs": 2038
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "startedMs": 2048
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "startedMs": 2049
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "startedMs": 4040
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "startedMs": 5660
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "failedMs": 13678,
+        "error": "net::ERR_CACHE_WRITE_FAILURE"
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "failedMs": 13678,
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "startedMs": 15164
+      }
+    ],
+    "workers": [
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+        "createdMs": 14936,
+        "performance": {
+          "timeOrigin": 1793747516025.6,
+          "now": 30370.29999999702,
+          "resources": [
+            {
+              "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+              "start": 228.5,
+              "duration": 5972.600000008941,
+              "end": 6201.100000008941,
+              "decoded": 24140410,
+              "encoded": 6604791,
+              "transferred": 6605091,
+              "protocol": "http/1.1"
+            }
+          ]
+        }
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml-cli/dist/browser-worker.js",
+        "createdMs": 14959,
+        "performance": {
+          "timeOrigin": 1793747516048.5,
+          "now": 30350.40000000596,
+          "resources": []
+        }
+      }
+    ],
+    "navigationMs": 1780,
+    "atDeadline": {
+      "elapsedMs": 25287,
+      "ready": true,
+      "errors": [],
+      "performance": {
+        "timeOrigin": 1793747501093.2,
+        "now": 25292.10000000894,
+        "resources": [
+          {
+            "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "start": 1937.2999999970198,
+            "duration": 12252.5,
+            "end": 14189.79999999702,
+            "decoded": 24860607,
+            "encoded": 6836765,
+            "transferred": 6837065,
+            "protocol": "http/1.1"
+          },
+          {
+            "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "start": 2034,
+            "duration": 11939.29999999702,
+            "end": 13973.29999999702,
+            "decoded": 24140410,
+            "encoded": 6604791,
+            "transferred": 6605091,
+            "protocol": "http/1.1"
+          }
+        ]
+      }
+    },
+    "final": {
+      "elapsedMs": 45299,
+      "ready": true,
+      "errors": [],
+      "performance": {
+        "timeOrigin": 1793747501093.2,
+        "now": 45300,
+        "resources": [
+          {
+            "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "start": 1937.2999999970198,
+            "duration": 12252.5,
+            "end": 14189.79999999702,
+            "decoded": 24860607,
+            "encoded": 6836765,
+            "transferred": 6837065,
+            "protocol": "http/1.1"
+          },
+          {
+            "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "start": 2034,
+            "duration": 11939.29999999702,
+            "end": 13973.29999999702,
+            "decoded": 24140410,
+            "encoded": 6604791,
+            "transferred": 6605091,
+            "protocol": "http/1.1"
+          }
+        ]
+      }
+    },
+    "requestSummary": {
+      "observations": 118,
+      "failureCounts": {
+        "net::ERR_CACHE_WRITE_FAILURE": 1,
+        "net::ERR_ABORTED": 110
+      },
+      "abortedNonWasmRequestsSummarized": 109
+    }
+  },
+  "http1SelectedSuite": {
+    "schemaVersion": 1,
+    "status": "failed",
+    "targetUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio",
+    "hostingProfile": "amsterdam-2026",
+    "browser": "148.0.7778.96",
+    "checkedAt": "2026-11-03T23:17:05.814Z",
+    "error": "Error: page.evaluate: Error: CEM Studio view declaration failed: declaration tag `cem-studio-shell` is already declared in this CEM scope\n    at installComponents (https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-studio/shell.js:517:26)\n    at async eval (eval at evaluate (:302:30), <anonymous>:7:28)\n    at async <anonymous>:328:30",
+    "browserErrors": [],
+    "httpFailures": []
+  },
+  "canonicalAssetObservation": {
+    "checkedAt": "2026-11-03T23:20:07Z",
+    "literalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/shell.js",
+    "literalStatus": 307,
+    "location": "/studio/assets/%40epa-wg/cem-studio/shell.js",
+    "encodedStatus": 200
+  },
+  "conclusions": {
+    "criticalByteChecks": 11,
+    "defaultPublicAcceptance": "failed at unchanged 30000 ms readiness limit",
+    "transportControl": "HTTP/1.1 reaches application readiness at 25287 ms; this does not replace default-browser acceptance or attribute one transport protocol as the cause",
+    "selectedConfigurationsExecuted": 0,
+    "controlledSuiteBlocker": "A second shell-module URL caused duplicate declaration installation",
+    "publicAcceptance": "open",
+    "discussionCommentPosted": false,
+    "additionalNetworkEvidence": "Both diagnostics record net::ERR_CACHE_WRITE_FAILURE on the encoded CEM-ML WASM URL and bulk aborted precache requests; these are not attributed to an individual protocol."
+  }
+}

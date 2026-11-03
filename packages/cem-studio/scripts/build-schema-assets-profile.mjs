@@ -5,6 +5,7 @@ import { relative, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import ts from 'typescript';
 import { ownedWasmFactory } from '../../../tools/scripts/cem-ql-wasm-factory.mjs';
+import { deploymentRevisionModule } from './deployment-revision.mjs';
 
 // Build configuration only. CEM's native graph emits every deployment byte;
 // this script never copies a deployment tree or interprets application sources.
@@ -56,6 +57,8 @@ for (const [id, file] of [
 entry('@epa-wg/cem-elements/cem-ql').path = './cem_ql.js';
 entry('@epa-wg/cem-elements/cem-ql-factory').path = './cem_ql_factory.js';
 const assetHashes = [];
+entry('@epa-wg/cem-studio/deployment-revision').path = './revision.js';
+await writeFile(resolve(generated, 'revision.js'), deploymentRevisionModule(''));
 for (const group of ['imports', 'resources']) for (const [id, asset] of Object.entries(source[group])) {
     assetHashes.push([id, hash(await readFile(resolve(generated, asset.path)))]);
 }
@@ -64,6 +67,7 @@ for (const group of ['imports', 'resources']) for (const [id, asset] of Object.e
 // replace selected modules only; hash both complete sets to avoid stale caches.
 const deploymentDigest = hash(JSON.stringify([source, target, pin.indexDigest, assetHashes, baseline,
     hash(await readFile(resolve(project, 'studio.cem'))), hash(await readFile(import.meta.filename))]));
+await writeFile(resolve(generated, 'revision.js'), deploymentRevisionModule(deploymentDigest));
 const build = await json(resolve(project, 'src/studio.build.json'));
 Object.assign(build, { buildIdentity: 'cem-studio-schema-assets-v1', deploymentProfile: 'schema-assets', deploymentDigest,
     schemaAssetBase: './schema-assets/', schemaAssetIndexDigest: pin.indexDigest, embeddedBodies: 'bootstrap-only', embeddingProfile,

@@ -88,3 +88,11 @@ Use the owner's signed-in `npx wrangler@4 deploy` route from the checkout whose
 Login/Supplier acceptance remain open until those bytes are uploaded and the
 unchanged public gates pass. Existing cached-client upgrades require a separate
 check preserving saved projects and drafts. The discussion comment stays unposted.
+
+Follow-up: the owner uploaded this `253278d1…` copy. Its public byte checks pass,
+but default readiness still fails during slow main WASM transfers. A controlled
+transport run reaches readiness, then reveals redirected module identities.
+See the [public readback](public-demo-253278d1-readback.json) and subsequent
+[hosting/cache correction](hosting-upgrade-verification.md), which supersedes
+the prepared copy above. These findings do not undo the measured code-reuse
+regression or imply a public acceptance pass.

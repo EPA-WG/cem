@@ -100,6 +100,13 @@
     "resources": {
         "@epa-wg/cem-studio/service-worker": {
             "path": "./service-worker.js",
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@epa-wg/cem-studio/deployment-revision": "@epa-wg/cem-studio/deployment-revision"
+            }
+        },
+        "@epa-wg/cem-studio/deployment-revision": {
+            "path": "./deployment-revision.js",
             "contentType": "text/javascript"
         },
         "@epa-wg/cem-ml-cli/browser-command": {

@@ -3,9 +3,12 @@
     //npx wrangler@4 deploy --dry-run
     //npx wrangler@4 deploy
     "name": "green-morning-fd6e",
+    "main": "tools/cloudflare/demo-worker.mjs",
     "compatibility_date": "2026-11-02",
     "workers_dev": true,
     "assets": {
-        "directory": "../cem-bin"
+        "directory": "../cem-bin",
+        "binding": "ASSETS",
+        "run_worker_first": true
     }
 }

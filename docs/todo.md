@@ -384,6 +384,22 @@ channels; private agreements remain unverified. This file owns execution order.
       [Verification and receipt](declarative-amsterdam-2026/startup-code-reuse-verification.md).
       Public functionality remains gated on upload and actual public acceptance.
 
+- [x] Fixture: check a previously cached Studio command module across deployment
+      refresh at the unchanged production scope/version. Require current asset
+      bytes after the update flow and preserve an isolated saved project and
+      draft; keep cold public acceptance separate from cached-client upgrades.
+      Cover deterministic whole-deployment fingerprints and changed non-module
+      assets, worker dependency updates, revision/scope cache isolation and
+      old-worker offline reads. Keep every deployment byte graph-emitted and
+      retain explicit update activation and optional-profile identity.
+      Verified 2026-11-03: six revision/cache checks and two real browser upgrades
+      pass. A native-graph revision dependency detects build changes; caches stay
+      pinned to their deployment/scope and restart offline from their own metadata.
+      Archived command bytes refresh, and the saved project and unsaved draft
+      survive activation and offline reload. A dependency-only update also works
+      while the primary worker bytes remain unchanged. Lint/typecheck pass.
+      [Verification](declarative-amsterdam-2026/hosting-upgrade-verification.md).
+
 - [ ] Verify the functionality of every Amsterdam demo page selected for the
       presentation and participant links. Check the deployed source/edit,
       validation failure/repair, inspection/formatting, query/graph, live preview,
@@ -441,6 +457,32 @@ channels; private agreements remain unverified. This file owns execution order.
       repeat both public gates. Check existing cached clients separately from
       fresh-context acceptance while preserving saved projects and drafts.
       [Prepared-copy receipt](declarative-amsterdam-2026/startup-code-reuse-readback.json).
+      Post-upload check: public now matches `253278d1…` (905 files) and all 11
+      critical asset checks; no new version ID was supplied. Default Chromium
+      still misses readiness; a trace measures both main WASM transfers at about
+      43.6 s without JavaScript errors. An explicit HTTP/1.1 control reaches
+      readiness at 25.287 s, then the full suite stops at duplicate shell
+      declaration caused by literal-`@` asset redirects. No selected public
+      configuration passes, and transport-control success is not default-browser
+      acceptance. [Public readback](declarative-amsterdam-2026/public-demo-253278d1-readback.json).
+      Cache-upgrade and module-identity fixes are now prepared locally; deploy
+      the updated Worker entry/binding and 906-file copy, then repeat unchanged
+      default public and selected-workflow gates. Preserve transport evidence.
+      Final prepared inventory is `ee7cc90c…` (906 files, four unchanged WASM
+      files). General local demo acceptance and all 23 selected offline
+      Login/Supplier configurations pass at the new `6ddd7228329531b8` alias.
+      [Prepared-copy receipt](declarative-amsterdam-2026/hosting-upgrade-readback.json).
+
+- [x] Fixture: reproduce Cloudflare's literal-`@` asset redirect and duplicate
+      shell-module installation. Verify the hosting adapter serves canonical
+      asset bytes without redirecting the browser's module URL, preserving
+      request semantics, CSP, the complete native deployment and Studio scope.
+      Verified 2026-11-03: actual public HEAD is 307 for literal `@`, 200 for
+      `%40`. With real Studio modules and unchanged CSP over fixture HTTPS, the
+      baseline has five redirects and the same duplicate declaration; the
+      adapter has zero redirects and reuses the installation. Both forwarding
+      unit checks, lint and Wrangler 4.157.0 dry-run pass; `ASSETS` binding exists.
+      [Verification](declarative-amsterdam-2026/hosting-upgrade-verification.md).
 
 - [ ] Publish the reviewed Amsterdam presentation site and related demo pages
       after their functionality checks pass. Verify the actual public routes,
@@ -454,6 +496,11 @@ channels; private agreements remain unverified. This file owns execution order.
       the 905-file overlap correction but fails command-worker startup.
       Keep presentation Site publication and the
       unresolved public Studio cold-start/functionality gates separate.
+      Subsequent owner-confirmed upload now matches the 905-file `253278d1…`
+      inventory; no new version ID was supplied. It still fails default startup
+      and the controlled shell check. The next 906-file `ee7cc90c…` copy and
+      updated Wrangler Worker are prepared and locally accepted; publication
+      does not close default public functionality, destination checks or rehearsal.
 
 - [x] Fixture: validate all discussion #24 slide/demo draft rows against frozen
       project/resource/configuration identities and recorded native slide IDs.
@@ -466,7 +513,8 @@ channels; private agreements remain unverified. This file owns execution order.
       saved projects). Two footer pages return 200 and exact pinned source bytes;
       relative footer links are replaced. All 59 resource guards and Studio lint
       pass. [Receipt](declarative-amsterdam-2026/discussion-demo-links-verification.md).
-      Public now serves 905 files but fails worker startup; this preparation does not complete public
+      Public now serves the 905-file `253278d1…` copy but fails default startup
+      and controlled shell inspection; this preparation does not complete public
       acceptance or post the comment.
 
 - [ ] Append a resource comment to [GitHub discussion #24](https://github.com/EPA-WG/cem/discussions/24)
@@ -480,7 +528,7 @@ channels; private agreements remain unverified. This file owns execution order.
       is prepared; public deployment freshness and operation checks remain open.
       The 14-row map now has frozen-identity guards, complete local deep-link
       navigation checks and pinned public footer links. The draft notice reflects
-      the pending 905-file startup-fix upload; public destination acceptance and
+      the pending 906-file hosting/cache correction; public destination acceptance and
       the actual posting action remain open.
 
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,

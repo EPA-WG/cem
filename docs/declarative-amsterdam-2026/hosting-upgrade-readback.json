@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-03",
+  "publicBaseline": "public-demo-253278d1-readback.json",
+  "upgrade": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-03T23:34:35.671Z",
+    "browser": "148.0.7778.96",
+    "scope": "http://127.0.0.1:52911/studio/",
+    "isPublicAcceptance": false,
+    "fixture": "previous and current graph-emitted deployments at unchanged scope/version",
+    "status": "passed",
+    "workerVersions": [
+      {
+        "versionId": "0",
+        "status": "redundant",
+        "scriptURL": "http://127.0.0.1:52911/studio/service-worker.js"
+      },
+      {
+        "versionId": "1",
+        "status": "redundant",
+        "scriptURL": "http://127.0.0.1:52911/studio/service-worker.js"
+      },
+      {
+        "versionId": "2",
+        "status": "activated",
+        "scriptURL": "http://127.0.0.1:52911/studio/service-worker.js"
+      }
+    ],
+    "workerErrors": [],
+    "before": {
+      "projectId": "project-422e24b9-6d51-465c-ad62-2eb889eb94b6",
+      "projectRevision": 1,
+      "resourceId": "command-build-html",
+      "persistedText": "{\n  \"$schema\": \"https://cem.dev/ns/cli/command/1\",\n  \"schemaVersion\": 1,\n  \"commandSchemaVersion\": 1,\n  \"commonVersion\": \"0.1.0\",\n  \"binaryName\": \"cem-ml\",\n  \"argv\": [\n    \"transform\",\n    \"--config\",\n    \"graphs/styles.cem\",\n    \"--config-content-type\",\n    \"application/cem\",\n    \"--config-schema\",\n    \"https://cem.dev/ns/cli/transform-config/1\",\n    \"--scope-budget\",\n    \"queueSize=1024\"\n  ]\n}\n",
+      "draft": "{\n  \"$schema\": \"https://cem.dev/ns/cli/command/1\",\n  \"schemaVersion\": 1,\n  \"commandSchemaVersion\": 1,\n  \"commonVersion\": \"0.1.0\",\n  \"binaryName\": \"cem-ml\",\n  \"argv\": [\n    \"transform\",\n    \"--config\",\n    \"graphs/styles.cem\",\n    \"--config-content-type\",\n    \"application/cem\",\n    \"--config-schema\",\n    \"https://cem.dev/ns/cli/transform-config/1\",\n    \"--scope-budget\",\n    \"queueSize=1024\"\n  ]\n}\n\n// Unsaved deployment-upgrade witness\n",
+      "dirty": true
+    },
+    "cachedAsset": {
+      "cacheName": "cem-studio:0.1.0:runtime",
+      "url": "http://127.0.0.1:52911/studio/assets/@epa-wg/cem-ml-cli/dist/browser-command.js"
+    },
+    "waitingWorkerInstalled": true,
+    "projectAndDraftPreserved": true,
+    "expectedSha256": "7c7c35b75a4d1c7cf84dc03f495fd8fe970fd6215589c6c94a1c20f0a69977a7",
+    "previousSha256": "d4844d95b7a5d0f69eee6c71919ceb2dda43c6e9a5b44fae52391875199fdfe6",
+    "receivedSha256": "7c7c35b75a4d1c7cf84dc03f495fd8fe970fd6215589c6c94a1c20f0a69977a7",
+    "updateState": {
+      "waiting": false,
+      "installing": false
+    },
+    "dependencyOnlyUpdate": {
+      "installed": true,
+      "oldWorkerPinnedWhileWaiting": true,
+      "projectAndDraftPreserved": true,
+      "primaryWorkerUnchanged": true,
+      "revision": "b6059f8827bdeed6d07ab5c4b7f07763e896c0ec48750afff1601301ef14c0fa"
+    },
+    "offlineReloadPreserved": true
+  },
+  "hostingIdentity": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-03T23:33:08.168Z",
+    "browser": "148.0.7778.96",
+    "isPublicAcceptance": false,
+    "fixture": "Cloudflare-observed literal-at redirect; real Studio modules",
+    "results": [
+      {
+        "variant": "redirect-baseline",
+        "redirects": [
+          "https://127.0.0.1:53587/studio/assets/@epa-wg/cem-theme/dist/lib/css/cem-combined.css",
+          "https://127.0.0.1:53587/studio/assets/@epa-wg/cem-components/dist/styles.css",
+          "https://127.0.0.1:53587/studio/assets/@epa-wg/cem-studio/main.js",
+          "https://127.0.0.1:53587/studio/assets/@epa-wg/cem-components/dist/components.xhtml",
+          "https://127.0.0.1:53587/studio/assets/@epa-wg/cem-studio/shell.js"
+        ],
+        "errors": [
+          "An unknown error occurred when fetching the script."
+        ],
+        "error": "CEM Studio view declaration failed: declaration tag `cem-studio-shell` is already declared in this CEM scope"
+      },
+      {
+        "variant": "asset-adapter",
+        "redirects": [],
+        "errors": [],
+        "reused": true
+      }
+    ],
+    "status": "passed"
+  },
+  "fixtureTls": "Ephemeral loopback HTTPS certificate only; fixture context trusts it; application CSP retained; public verification uses normal TLS validation",
+  "nodeChecks": {
+    "deploymentAndCache": 6,
+    "assetAdapter": 2,
+    "lint": "passed",
+    "typecheck": "passed"
+  },
+  "preparedDemo": {
+    "root": "/home/suns/cem-bin",
+    "files": 906,
+    "inventorySha256": "ee7cc90c4507e467b9ab621b10682029cffb520a52dca7fc6b5d254163d78c71",
+    "changedAssets": [
+      "studio/cache-inventory.json",
+      "studio/deployment-revision.js",
+      "studio/module-map.json",
+      "studio/service-worker.js"
+    ],
+    "unchangedWasm": [
+      {
+        "path": "packages/cem-ml-npm/dist/wasm/browser/cem_ml_bg.wasm",
+        "bytes": 24860607,
+        "sha256": "966df03a97851e50fa69cb62551bc3fe29409865e49d2ffc8767c9b1719aeb43"
+      },
+      {
+        "path": "packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+        "bytes": 24140410,
+        "sha256": "3856b98560281753dffb49b807b1bb4a76f76f4f088a5ce179a2a03c577037b5"
+      },
+      {
+        "path": "studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "bytes": 24140410,
+        "sha256": "3856b98560281753dffb49b807b1bb4a76f76f4f088a5ce179a2a03c577037b5"
+      },
+      {
+        "path": "studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "bytes": 24860607,
+        "sha256": "966df03a97851e50fa69cb62551bc3fe29409865e49d2ffc8767c9b1719aeb43"
+      }
+    ],
+    "deploymentRevisionModule": "export const deploymentRevision = 'dd79e9bc0715130912a0e7dcc34da028169fb700cf73a2e1be6f7fcb76e0e70d';\n",
+    "studioSourceFilesMatched": 336
+  },
+  "generalLocalAcceptance": "passed",
+  "selectedOfflineWalkthrough": {
+    "schemaVersion": 1,
+    "catalogIdentity": "e25ba06efca9ef63a849d7784cdda8e04b126930c79cb1fbfa03ca11c8e54c18",
+    "deployedSha256": "feb44e41b9568e86817919f0c8563af0b95e81d17634c0522b57e4280b613ab2",
+    "status": "passed",
+    "targetUrl": "http://127.0.0.1:8081/studio/__cem_preview__/6ddd7228329531b8",
+    "hostingProfile": "local",
+    "browser": "148.0.7778.96",
+    "checkedAt": "2026-11-03T23:47:14.932Z",
+    "exampleProjects": true,
+    "validationRepair": true,
+    "templateOutput": true,
+    "offline": true,
+    "configurationCoverage": "selected",
+    "configurations": 23,
+    "loginConfigurations": 20,
+    "supplierConfigurations": 3,
+    "supplierPipeline": true,
+    "graphProvenance": true,
+    "liveView": true,
+    "sourceInspection": true,
+    "sourceFormatting": true,
+    "sourceColors": true,
+    "standaloneExpression": true
+  },
+  "wranglerDryRun": {
+    "version": "4.157.0",
+    "status": "passed",
+    "assetBinding": "ASSETS",
+    "workerEntry": "tools/cloudflare/demo-worker.mjs",
+    "published": false
+  },
+  "preserved": {
+    "workerStartupMs": 10000,
+    "studioReadinessMs": 30000,
+    "checkpointMs": 5000,
+    "checkpointBytes": 4194304,
+    "automaticRecovery": false,
+    "uiDeclarations": "unchanged",
+    "credentialRefusal": "unchanged"
+  },
+  "publicAcceptance": {
+    "status": "open; updated Worker and 906-file copy not uploaded by this session",
+    "versionId": null,
+    "discussionCommentPosted": false
+  }
+}
