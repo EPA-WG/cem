@@ -1,0 +1,11 @@
+{
+    // npx wrangler@4 login
+    //npx wrangler@4 deploy --dry-run
+    //npx wrangler@4 deploy
+    "name": "green-morning-fd6e",
+    "compatibility_date": "2026-11-02",
+    "workers_dev": true,
+    "assets": {
+        "directory": "../cem-bin"
+    }
+}
