@@ -299,6 +299,15 @@ channels; private agreements remain unverified. This file owns execution order.
       or app UI JavaScript; credential policy unchanged. Public hosting,
       installation acceptance and full-session rehearsal remain separate.
 
+- [x] Fixture: guard participant release claims against HTTP-only and CLI-version
+      smoke evidence, archive/platform mismatch, incomplete offline exercises and
+      credential-policy drift. Preserve the dated local-kit receipt; do not
+      promote it to public-host, fresh-install or other-platform acceptance.
+      Verified 2026-11-03: 20 participant-kit tests and Studio lint pass; the
+      verifier checks its report before writing it. The retained receipt pins
+      the historical 417-file archive and exact tested host. No new full-browser
+      run, public availability, installation or rehearsal claim.
+
 - [ ] Produce the presentation, speaker notes, diagrams and participant setup
       instructions. Check the proposed Node/Linux installation paths against
       actual available releases, and record requirements for any other platforms

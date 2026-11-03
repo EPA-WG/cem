@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 import { workspaceRoot } from './login-presenter.mjs';
+import { verifyParticipantAcceptance } from './participant-kit-acceptance.mjs';
 import { verifyParticipantFiles } from './participant-kit-launcher.mjs';
 
 const archive = resolve(workspaceRoot, 'dist/packages/cem-studio-login-kit.tgz');
@@ -48,6 +49,9 @@ try {
         loginConfigurations: 20, supplierConfigurations: 3, offline: true, draftPreservation: true, independentCopies: true,
         advertisedAmsterdamRoutes: ['login', 'supplier-pipeline'],
         credentialPolicy: manifest.privacy, publicAvailability: 'unverified' };
+    verifyParticipantAcceptance(report, { archiveSha256: createHash('sha256').update(await readFile(archive)).digest('hex'),
+        sourceRevision: manifest.sourceRevision, node: process.version, platform: process.platform,
+        arch: process.arch, browser: browserVersion });
     const reports = resolve(workspaceRoot, 'dist/reports/cem-studio'); await mkdir(reports, { recursive: true });
     await writeFile(resolve(reports, 'participant-kit.json'), `${JSON.stringify(report, null, 2)}\n`);
     console.log('Extracted participant kit passed local production hosting and complete offline Login/Supplier acceptance.');

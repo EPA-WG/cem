@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "ee3731757e2864334ef2bb18f67c92ea4ed37a3b",
+  "frozenSourceRevision": "c5e5b89274175997387a4d0e160a7e6f6262147f",
+  "supplierVersion": "1.1.1",
+  "frozenSupplierRevision": "ee3731757e2864334ef2bb18f67c92ea4ed37a3b",
+  "archiveSha256": "2b8cec8f3cebe74c3a705313f9fc8b815056e614a1bd707a336c9b550ccfdf53",
+  "node": "v24.16.0",
+  "platform": "linux",
+  "arch": "x64",
+  "browser": "148.0.7778.96",
+  "extractedOutsideWorkspace": true,
+  "launcher": "node-builtins",
+  "installedApplicationDependencies": false,
+  "originalProductionIndex": true,
+  "fileCount": 417,
+  "loginConfigurations": 20,
+  "supplierConfigurations": 3,
+  "offline": true,
+  "draftPreservation": true,
+  "independentCopies": true,
+  "advertisedAmsterdamRoutes": [
+    "login",
+    "supplier-pipeline"
+  ],
+  "credentialPolicy": {
+    "enteredCredentials": "block-until-explicitly-cleared",
+    "automaticRecovery": false,
+    "aggregateCheckpointBytes": 4194304,
+    "handoffTimeoutMs": 5000,
+    "inputs": "checked-in-project-only",
+    "browserStorage": "never-read"
+  },
+  "publicAvailability": "unverified"
+}

@@ -96,3 +96,26 @@ The archive path remains `dist/packages/cem-studio-login-kit.tgz`. The original
 386-file record above is historical; the refreshed artifact has 417 files.
 The local Node launcher, credential policy and public-availability limits remain
 the same. This record does not expand the tested operating-system matrix.
+
+
+## Release-claim guards — 2026-11-03
+
+The [retained machine-readable receipt](participant-kit-readback.json) preserves
+exactly the refreshed 417-file report described above. It records a historical
+acceptance run, not a new browser run or the identity of a later rebuilt archive.
+The participant-kit verifier now validates its report before writing it; the
+participant-kit test target also checks the retained receipt against the recorded
+archive, source revision and tested Node/Linux/Chromium versions.
+
+Negative fixtures reject HTTP-only reachability, CLI version smoke, mismatched
+archive/source/platform/browser identities, incomplete configuration and offline
+coverage, lost drafts/copy isolation, incorrect entry routes and weakened
+credential policy. Successful local exercise evidence still leaves public
+availability, fresh installation and other platforms unverified. A compatible
+Node engine range does not establish that each version was installed or tested.
+These guards validate recorded evidence; only running the extracted kit's complete
+browser verifier establishes a new exercise result.
+
+Verification: `yarn nx run @epa-wg/cem-studio:test:participant-kit` (20 tests)
+and `yarn nx run @epa-wg/cem-studio:lint` passed on 2026-11-03 using the
+existing Linux Node v24.16.0 toolchain. No fresh installation was performed.

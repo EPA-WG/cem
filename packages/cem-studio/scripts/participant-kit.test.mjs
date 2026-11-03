@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+import { verifyParticipantAcceptance } from './participant-kit-acceptance.mjs';
 import { participantFiles, startParticipantKit, verifyParticipantFiles } from './participant-kit-launcher.mjs';
 import { createCemStudioPreviewHandler } from './serve-preview.mjs';
 
@@ -60,3 +61,33 @@ test('refuses unexpected files', async () => fixture(async root => {
     await writeFile(resolve(root, 'unexpected.txt'), 'unreviewed');
     await assert.rejects(verifyParticipantFiles(root), /inventory changed/);
 }));
+
+
+const receipt = JSON.parse(await readFile(new URL('../../../docs/declarative-amsterdam-2026/participant-kit-readback.json', import.meta.url), 'utf8'));
+const kitClaim = { archiveSha256: '2b8cec8f3cebe74c3a705313f9fc8b815056e614a1bd707a336c9b550ccfdf53',
+    sourceRevision: 'ee3731757e2864334ef2bb18f67c92ea4ed37a3b', node: 'v24.16.0',
+    platform: 'linux', arch: 'x64', browser: '148.0.7778.96' };
+
+test('dated exercise evidence accepts only the exact local kit and tested host', () => {
+    const result = verifyParticipantAcceptance(receipt, kitClaim);
+    assert.equal(result.route, 'local-transfer');
+    for (const field of ['publicAvailability', 'freshInstallation', 'otherPlatforms']) assert.equal(result[field], 'unverified');
+});
+for (const [name, mutate] of [
+    ['HTTP reachability', () => ({ schemaVersion: 1, httpStatus: 200 })],
+    ['CLI version smoke', () => ({ schemaVersion: 1, node: receipt.node, cliVersion: '0.1.1' })],
+    ['different archive', data => ({ ...data, archiveSha256: 'a'.repeat(64) })],
+    ['different source', data => ({ ...data, sourceRevision: 'a'.repeat(40) })],
+    ['another OS', data => ({ ...data, platform: 'win32' })],
+    ['another Node', data => ({ ...data, node: 'v22.12.0' })],
+    ['another browser', data => ({ ...data, browser: 'unverified' })],
+    ['no offline run', data => ({ ...data, offline: false })],
+    ['lost drafts', data => ({ ...data, draftPreservation: false })],
+    ['shared copies', data => ({ ...data, independentCopies: false })],
+    ['incomplete configurations', data => ({ ...data, loginConfigurations: 19 })],
+    ['wrong advertised routes', data => ({ ...data, advertisedAmsterdamRoutes: ['login'] })],
+    ['credential export', data => ({ ...data, credentialPolicy: { ...data.credentialPolicy, enteredCredentials: 'export' } })],
+    ['public promotion', data => ({ ...data, publicAvailability: 'verified' })],
+]) test(`release claims refuse ${name}`, () => {
+    assert.throws(() => verifyParticipantAcceptance(mutate(structuredClone(receipt)), kitClaim));
+});

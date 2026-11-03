@@ -1457,6 +1457,8 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/participant-kit*.mjs",
+                "{projectRoot}/scripts/presenter-project.mjs",
+                "{workspaceRoot}/docs/declarative-amsterdam-2026/participant-kit-readback.json",
                 "{projectRoot}/scripts/serve-preview.mjs"
             ],
             "outputs": []
@@ -1507,6 +1509,8 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/verify-participant-kit.mjs",
+                "{projectRoot}/scripts/participant-kit-acceptance.mjs",
+                "{projectRoot}/scripts/presenter-project.mjs",
                 "{projectRoot}/scripts/verify-static-worker.mjs",
                 "{projectRoot}/scripts/participant-kit-launcher.mjs",
                 "{projectRoot}/scripts/catalog-acceptance.mjs",
