@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { loadPresenterResources, verifyPresenterResources } from './presentation-resources.mjs';
+import { loadPresenterResources, verifyPresenterResources, verifyDiscussionDemoDraft } from './presentation-resources.mjs';
 import { workspaceRoot } from './presenter-project.mjs';
 
 test('participant resources and cues match frozen projects, recorded slide IDs and the 60-minute plan', async () => {
@@ -34,4 +34,31 @@ test('refuses a broken local presenter reference', async () => {
 test('refuses cue prose changed after the recorded native notes readback', async () => {
     const notes = await readFile(resolve(workspaceRoot, 'docs/declarative-amsterdam-2026/presenter-notes.md'), 'utf8');
     await assert.rejects(verifyPresenterResources(await loadPresenterResources(), notes.replace('Explain the DNA metaphor.', 'Invent a different opening.')), /Synced cue table changed/);
+});
+
+
+const demoDraft = () => readFile(resolve(workspaceRoot, 'docs/declarative-amsterdam-2026/discussion-resource-comment-draft.md'), 'utf8');
+test('all 14 prepared demo links match their frozen projects and 13 recorded slides without claiming public acceptance', async () => {
+    const result = await verifyDiscussionDemoDraft();
+    assert.equal(result.links.length, 14); assert.equal(result.slideCount, 13);
+    assert.equal(result.publicFunctionalityVerified, false); assert.equal(result.discussionPosted, false);
+    const query = result.links.find(link => link.cue === 'query');
+    assert.equal(query.resource, 'login-cem'); assert.equal(query.configurationInput, 'login-html');
+});
+for (const [name, mutate, pattern] of [
+    ['foreign host', text => text.replace('https://green-morning-fd6e.trans-acf.workers.dev', 'https://example.test'), /host\/subtree/],
+    ['wrong Studio subtree', text => text.replace('/studio/?', '/other/?'), /host\/subtree/],
+    ['stale slide ID', text => text.replace('| `p2` |', '| `p999` |'), /stable slide/],
+    ['missing cue', text => text.split('\n').filter(line => !line.startsWith('| 08 |')).join('\n'), /every cue/],
+    ['duplicate URL key', text => text.replace('collection=amsterdam-2026', 'collection=amsterdam-2026&collection=other'), /ambiguous/],
+    ['foreign collection', text => text.replace('collection=amsterdam-2026', 'collection=other'), /collection/],
+    ['wrong resource', text => text.replace('file=readme', 'file=login-cem'), /viewed resource/],
+    ['wrong command', text => text.replace('build=read-edit', 'build=validate'), /entry configuration/],
+    ['omitted alternate configuration', text => text.replace('— `format-pretty`, `format-tabular`, `source-colors`', '— `format-pretty`'), /advertised configurations/],
+    ['weakened credential policy', text => text.replace('block recovery until explicitly cleared', 'allow recovery immediately'), /publication\/privacy/],
+    ['relative footer URL', text => text.replace(/https:\/\/github\.com\/EPA-WG\/cem\/blob\/[^)]+\/participant-resources\.md/, 'participant-resources.md'), /pinned public footer/],
+    ['unreviewed destination', text => text + '\n[Download](https://example.test/kit.tgz)\n', /unreviewed destination/],
+    ['premature posting claim', text => text.replace(/No comment\s+has been sent\./, 'The comment was posted.'), /publication\/privacy/],
+]) test(`demo draft refuses ${name}`, async () => {
+    await assert.rejects(verifyDiscussionDemoDraft(undefined, mutate(await demoDraft())), pattern);
 });

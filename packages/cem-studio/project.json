@@ -1616,6 +1616,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/presentation-resources*.mjs",
+                "{projectRoot}/scripts/studio-acceptance-url.mjs",
                 "{projectRoot}/scripts/presentation-deck-notes*.mjs",
                 "{projectRoot}/scripts/presentation-palette*.mjs",
                 "{projectRoot}/scripts/presentation-story*.mjs",
@@ -1652,6 +1653,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/presentation-resources*.mjs",
+                "{projectRoot}/scripts/studio-acceptance-url.mjs",
                 "{projectRoot}/scripts/presentation-deck-notes*.mjs",
                 "{projectRoot}/scripts/presentation-palette*.mjs",
                 "{projectRoot}/scripts/presentation-story*.mjs",

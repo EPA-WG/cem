@@ -1,0 +1,436 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-03",
+  "draftPath": "docs/declarative-amsterdam-2026/discussion-resource-comment-draft.md",
+  "draftSha256": "e256212d4d63c51dfea9215a276b13624fb8b7b360b1893244391955c61f6133",
+  "localNavigation": {
+    "schemaVersion": 1,
+    "browser": "148.0.7778.96",
+    "deploymentBase": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/",
+    "localNavigationPassed": true,
+    "publicFunctionalityVerified": false,
+    "discussionPosted": false,
+    "results": [
+      {
+        "slide": 3,
+        "slideId": "p2",
+        "cue": "read",
+        "project": "login",
+        "resource": "readme",
+        "configuration": "read-edit",
+        "configurationInput": "login-cem",
+        "configurations": [
+          "read-edit"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=readme&build=read-edit",
+        "localUrl": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/?collection=amsterdam-2026&sample=login&file=readme&build=read-edit",
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "readme",
+            "key": "collection=amsterdam-2026&sample=login&file=readme",
+            "kind": "file"
+          },
+          "configuration": "read-edit",
+          "sampleTextAvailable": true,
+          "structure": "collection=amsterdam-2026&sample=login&file=readme",
+          "projectCount": 0
+        }
+      },
+      {
+        "slide": 8,
+        "slideId": "p7",
+        "cue": "edit",
+        "project": "login",
+        "resource": "login-cem",
+        "configuration": "validate",
+        "configurationInput": "login-cem",
+        "configurations": [
+          "validate"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=validate",
+        "localUrl": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/?collection=amsterdam-2026&sample=login&file=login-cem&build=validate",
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-cem",
+            "key": "collection=amsterdam-2026&sample=login&file=login-cem",
+            "kind": "file"
+          },
+          "configuration": "validate",
+          "sampleTextAvailable": true,
+          "structure": "collection=amsterdam-2026&sample=login&file=login-cem",
+          "projectCount": 0
+        }
+      },
+      {
+        "slide": 10,
+        "slideId": "p9",
+        "cue": "fail",
+        "project": "login",
+        "resource": "login-invalid",
+        "configuration": "validation-repair",
+        "configurationInput": "login-invalid",
+        "configurations": [
+          "validation-repair"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-invalid&build=validation-repair",
+        "localUrl": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/?collection=amsterdam-2026&sample=login&file=login-invalid&build=validation-repair",
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-invalid",
+            "key": "collection=amsterdam-2026&sample=login&file=login-invalid",
+            "kind": "file"
+          },
+          "configuration": "validation-repair",
+          "sampleTextAvailable": true,
+          "structure": "collection=amsterdam-2026&sample=login&file=login-invalid",
+          "projectCount": 0
+        }
+      },
+      {
+        "slide": 11,
+        "slideId": "p10",
+        "cue": "repair",
+        "project": "login",
+        "resource": "login-invalid",
+        "configuration": "validation-repair",
+        "configurationInput": "login-invalid",
+        "configurations": [
+          "validation-repair"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-invalid&build=validation-repair",
+        "localUrl": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/?collection=amsterdam-2026&sample=login&file=login-invalid&build=validation-repair",
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-invalid",
+            "key": "collection=amsterdam-2026&sample=login&file=login-invalid",
+            "kind": "file"
+          },
+          "configuration": "validation-repair",
+          "sampleTextAvailable": true,
+          "structure": "collection=amsterdam-2026&sample=login&file=login-invalid",
+          "projectCount": 0
+        }
+      },
+      {
+        "slide": 12,
+        "slideId": "p11",
+        "cue": "inspect",
+        "project": "login",
+        "resource": "login-cem",
+        "configuration": "inspect",
+        "configurationInput": "login-cem",
+        "configurations": [
+          "inspect"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=inspect",
+        "localUrl": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/?collection=amsterdam-2026&sample=login&file=login-cem&build=inspect",
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-cem",
+            "key": "collection=amsterdam-2026&sample=login&file=login-cem",
+            "kind": "file"
+          },
+          "configuration": "inspect",
+          "sampleTextAvailable": true,
+          "structure": "collection=amsterdam-2026&sample=login&file=login-cem",
+          "projectCount": 0
+        }
+      },
+      {
+        "slide": 13,
+        "slideId": "p12",
+        "cue": "format",
+        "project": "login",
+        "resource": "login-cem",
+        "configuration": "format-pretty",
+        "configurationInput": "login-cem",
+        "configurations": [
+          "format-pretty",
+          "format-tabular",
+          "source-colors"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=format-pretty",
+        "localUrl": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/?collection=amsterdam-2026&sample=login&file=login-cem&build=format-pretty",
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-cem",
+            "key": "collection=amsterdam-2026&sample=login&file=login-cem",
+            "kind": "file"
+          },
+          "configuration": "format-pretty",
+          "sampleTextAvailable": true,
+          "structure": "collection=amsterdam-2026&sample=login&file=login-cem",
+          "projectCount": 0
+        }
+      },
+      {
+        "slide": 14,
+        "slideId": "p13",
+        "cue": "compare",
+        "project": "login",
+        "resource": "login-html",
+        "configuration": "semantics-html",
+        "configurationInput": "login-html",
+        "configurations": [
+          "semantics-html",
+          "semantics-cem",
+          "html-conversion"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-html&build=semantics-html",
+        "localUrl": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/?collection=amsterdam-2026&sample=login&file=login-html&build=semantics-html",
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-html",
+            "key": "collection=amsterdam-2026&sample=login&file=login-html",
+            "kind": "file"
+          },
+          "configuration": "semantics-html",
+          "sampleTextAvailable": true,
+          "structure": "collection=amsterdam-2026&sample=login&file=login-html",
+          "projectCount": 0
+        }
+      },
+      {
+        "slide": 15,
+        "slideId": "p14",
+        "cue": "companion pipeline overview",
+        "project": "supplier-pipeline",
+        "resource": "supplier-graph",
+        "configuration": "availability",
+        "configurationInput": "supplier-graph",
+        "configurations": [
+          "availability"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-graph&build=availability",
+        "localUrl": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-graph&build=availability",
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "supplier-pipeline",
+            "file": "supplier-graph",
+            "key": "collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-graph",
+            "kind": "file"
+          },
+          "configuration": "availability",
+          "sampleTextAvailable": true,
+          "structure": "collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-graph",
+          "projectCount": 0
+        }
+      },
+      {
+        "slide": 16,
+        "slideId": "p15",
+        "cue": "query",
+        "project": "login",
+        "resource": "login-cem",
+        "configuration": "semantics-html-cemql",
+        "configurationInput": "login-html",
+        "configurations": [
+          "semantics-html-cemql",
+          "semantics-cem-cemql"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=semantics-html-cemql",
+        "localUrl": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/?collection=amsterdam-2026&sample=login&file=login-cem&build=semantics-html-cemql",
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-cem",
+            "key": "collection=amsterdam-2026&sample=login&file=login-cem",
+            "kind": "file"
+          },
+          "configuration": "semantics-html-cemql",
+          "sampleTextAvailable": true,
+          "structure": "collection=amsterdam-2026&sample=login&file=login-cem",
+          "projectCount": 0
+        }
+      },
+      {
+        "slide": 16,
+        "slideId": "p15",
+        "cue": "expression",
+        "project": "login",
+        "resource": "login-expression",
+        "configuration": "expression-html",
+        "configurationInput": "login-html",
+        "configurations": [
+          "expression-html",
+          "expression-cem"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-expression&build=expression-html",
+        "localUrl": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/?collection=amsterdam-2026&sample=login&file=login-expression&build=expression-html",
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-expression",
+            "key": "collection=amsterdam-2026&sample=login&file=login-expression",
+            "kind": "file"
+          },
+          "configuration": "expression-html",
+          "sampleTextAvailable": true,
+          "structure": "collection=amsterdam-2026&sample=login&file=login-expression",
+          "projectCount": 0
+        }
+      },
+      {
+        "slide": 17,
+        "slideId": "p16",
+        "cue": "transform",
+        "project": "login",
+        "resource": "login-view-graph",
+        "configuration": "render-graph",
+        "configurationInput": "login-view-graph",
+        "configurations": [
+          "render-graph",
+          "render-html",
+          "render-cem"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-graph&build=render-graph",
+        "localUrl": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/?collection=amsterdam-2026&sample=login&file=login-view-graph&build=render-graph",
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-view-graph",
+            "key": "collection=amsterdam-2026&sample=login&file=login-view-graph",
+            "kind": "file"
+          },
+          "configuration": "render-graph",
+          "sampleTextAvailable": true,
+          "structure": "collection=amsterdam-2026&sample=login&file=login-view-graph",
+          "projectCount": 0
+        }
+      },
+      {
+        "slide": 18,
+        "slideId": "p17",
+        "cue": "source provenance",
+        "project": "login",
+        "resource": "login-view-template",
+        "configuration": "render-graph",
+        "configurationInput": "login-view-graph",
+        "configurations": [
+          "render-graph"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-template&build=render-graph",
+        "localUrl": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/?collection=amsterdam-2026&sample=login&file=login-view-template&build=render-graph",
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-view-template",
+            "key": "collection=amsterdam-2026&sample=login&file=login-view-template",
+            "kind": "file"
+          },
+          "configuration": "render-graph",
+          "sampleTextAvailable": true,
+          "structure": "collection=amsterdam-2026&sample=login&file=login-view-template",
+          "projectCount": 0
+        }
+      },
+      {
+        "slide": 19,
+        "slideId": "p18",
+        "cue": "live",
+        "project": "login",
+        "resource": "login-live-view",
+        "configuration": "live-view",
+        "configurationInput": "login-live-view",
+        "configurations": [
+          "live-view"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-live-view&build=live-view",
+        "localUrl": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/?collection=amsterdam-2026&sample=login&file=login-live-view&build=live-view",
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-live-view",
+            "key": "collection=amsterdam-2026&sample=login&file=login-live-view",
+            "kind": "file"
+          },
+          "configuration": "live-view",
+          "sampleTextAvailable": true,
+          "structure": "collection=amsterdam-2026&sample=login&file=login-live-view",
+          "projectCount": 0
+        }
+      },
+      {
+        "slide": 30,
+        "slideId": "p24",
+        "cue": "supplier",
+        "project": "supplier-pipeline",
+        "resource": "supplier-stock",
+        "configuration": "stock-source",
+        "configurationInput": "supplier-stock",
+        "configurations": [
+          "stock-source",
+          "availability"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock&build=stock-source",
+        "localUrl": "http://127.0.0.1:8081/studio/__cem_preview__/794250804fe15b59/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock&build=stock-source",
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "supplier-pipeline",
+            "file": "supplier-stock",
+            "key": "collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock",
+            "kind": "file"
+          },
+          "configuration": "stock-source",
+          "sampleTextAvailable": true,
+          "structure": "collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock",
+          "projectCount": 0
+        }
+      }
+    ]
+  },
+  "publicFooterReadback": [
+    {
+      "path": "docs/declarative-amsterdam-2026/participant-resources.md",
+      "url": "https://github.com/EPA-WG/cem/blob/056be4ae3b546af0ad0a308ec10878d58ff1fc99/docs/declarative-amsterdam-2026/participant-resources.md",
+      "revision": "056be4ae3b546af0ad0a308ec10878d58ff1fc99",
+      "sha256": "5e9da5ac4f241a7aee9623af5bdf3d4c21331a956eae49f8dd0b7f7f59a1770c",
+      "pageStatus": 200,
+      "rawStatus": 200,
+      "bytes": 3911,
+      "publicBytesMatchPinnedGitBlob": true
+    },
+    {
+      "path": "docs/declarative-amsterdam-2026/demo-verification.md",
+      "url": "https://github.com/EPA-WG/cem/blob/056be4ae3b546af0ad0a308ec10878d58ff1fc99/docs/declarative-amsterdam-2026/demo-verification.md",
+      "revision": "056be4ae3b546af0ad0a308ec10878d58ff1fc99",
+      "sha256": "59e8b3d0afd8ca2ffab777a073339e5a5ade7a6de9d73e0c683e337905e2de18",
+      "pageStatus": 200,
+      "rawStatus": 200,
+      "bytes": 16060,
+      "publicBytesMatchPinnedGitBlob": true
+    }
+  ],
+  "localDeployment": {
+    "files": 905,
+    "inventorySha256": "5deaa8422c508c2484a1cd177bf8641825ced00fa615a943ab123f783a74d3a2"
+  },
+  "publicDeployment": {
+    "files": 904,
+    "inventorySha256": "19913ea5e36db3f247494a6a2fb1994cf36606fa54c392974141b6c5a28cb82e",
+    "matchesLocal": false
+  },
+  "publicFunctionalityVerified": false,
+  "discussionPosted": false
+}

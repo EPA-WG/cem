@@ -1,10 +1,9 @@
 # Discussion #24 resource comment — draft
 
-Do not post yet. The owner-deployed `ab74c3a7` version now matches the verified
-local inventory and the public playground passes editing/Render, but Studio
-still misses the original cold-start readiness deadline. Complete the public
-Login/Supplier acceptance before removing this notice and posting. No comment
-has been sent.
+Do not post yet. The public host still serves the 904-file `ab74c3a7` baseline.
+The 905-file cold-start correction is prepared and verified locally, awaiting
+upload. Complete public Login/Supplier acceptance after that upload before
+removing this notice and posting. No comment has been sent.
 
 The presentation uses ordinary Studio projects, resources and configurations.
 Clone a sample before editing. The slide numbers follow the recorded native
@@ -31,6 +30,6 @@ Use checked-in or disposable example data. Do not enter real credentials.
 Entered passwords or one-time codes block recovery until explicitly cleared;
 they must never be exported.
 
-The [participant resource index](participant-resources.md) provides the checked
-setup and frozen reference results. The [demo verification record](demo-verification.md)
+The [participant resource index](https://github.com/EPA-WG/cem/blob/056be4ae3b546af0ad0a308ec10878d58ff1fc99/docs/declarative-amsterdam-2026/participant-resources.md) provides the checked
+setup and frozen reference results. The [demo verification record](https://github.com/EPA-WG/cem/blob/056be4ae3b546af0ad0a308ec10878d58ff1fc99/docs/declarative-amsterdam-2026/demo-verification.md)
 distinguishes completed local acceptance from pending public acceptance.

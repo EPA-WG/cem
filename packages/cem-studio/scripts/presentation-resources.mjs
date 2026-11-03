@@ -3,11 +3,13 @@ import { execFileSync } from 'node:child_process';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { amsterdamStudioUrl } from './studio-acceptance-url.mjs';
 import { readLoginPresenter } from './login-presenter.mjs';
 import { readSupplierPresenter } from './supplier-presenter.mjs';
 import { workspaceRoot, presenterPrivacy, presenterFile, presenterHash } from './presenter-project.mjs';
 
 const docs = resolve(workspaceRoot, 'docs/declarative-amsterdam-2026');
+const discussionSourceRevision = '056be4ae3b546af0ad0a308ec10878d58ff1fc99';
 export async function loadPresenterResources() {
     return JSON.parse(await readFile(resolve(docs, 'presenter-resources.json'), 'utf8'));
 }
@@ -18,6 +20,64 @@ const seconds = value => {
     const [minutes, seconds] = value.split(':').map(Number);
     assert.ok(seconds < 60); return minutes * 60 + seconds;
 };
+
+/** Validate a prepared comment's control links; this never establishes public functionality or posts. */
+export async function verifyDiscussionDemoDraft(data, draft, { freezes, native } = {}) {
+    data ??= await loadPresenterResources();
+    draft ??= await readFile(resolve(docs, 'discussion-resource-comment-draft.md'), 'utf8');
+    freezes ??= { login: await readLoginPresenter(), 'supplier-pipeline': await readSupplierPresenter() };
+    native ??= rows(await readFile(resolve(docs, 'native-slide-order.md'), 'utf8'));
+    const expected = [...data.cues.map(cue => ({ ...cue, name: cue.id })),
+        { slide: 15, slideId: 'p14', name: 'companion pipeline overview', project: 'supplier-pipeline', resource: 'supplier-graph', configurations: ['availability'] },
+        { slide: 18, slideId: 'p17', name: 'source provenance', project: 'login', resource: 'login-view-template', configurations: ['render-graph'] },
+    ].sort((a, b) => a.slide - b.slide);
+    const actual = rows(draft);
+    assert.equal(actual.length, expected.length, 'Demo draft must include every cue and companion row');
+    const links = [];
+    for (const [index, row] of actual.entries()) {
+        const cue = expected[index];
+        assert.equal(row.length, 4, 'Demo draft table shape changed');
+        assert.equal(Number(row[0]), cue.slide, 'Demo draft slide order changed');
+        assert.equal(row[1], '`' + cue.slideId + '`', 'Demo draft stable slide ID changed');
+        assert.equal(native.find(slide => Number(slide[0]) === cue.slide)?.[1], row[1], 'Demo draft differs from recorded native slides');
+        assert.equal(row[2], cue.name, 'Demo draft cue coverage/order changed');
+        const link = row[3].match(/^\[([^\]]+)\]\(([^)]+)\) — (.+)$/);
+        assert.ok(link, 'Demo draft must have one destination and explicit configurations');
+        const target = new URL(link[2]);
+        assert.equal(target.origin + target.pathname, amsterdamStudioUrl, 'Demo draft host/subtree changed');
+        assert.equal(target.username, ''); assert.equal(target.password, ''); assert.equal(target.hash, '');
+        assert.deepEqual([...target.searchParams.keys()].sort(), ['build', 'collection', 'file', 'sample'], 'Demo draft URL parameters are ambiguous');
+        const project = data.projects.find(project => project.id === cue.project); assert.ok(project);
+        assert.equal(target.searchParams.get('collection'), project.collection, 'Demo draft collection changed');
+        assert.equal(target.searchParams.get('sample'), cue.project, 'Demo draft project changed');
+        assert.equal(target.searchParams.get('file'), cue.resource, 'Demo draft viewed resource changed');
+        assert.equal(target.searchParams.get('build'), cue.configurations[0], 'Demo draft entry configuration changed');
+        const frozen = freezes[cue.project];
+        assert.ok(frozen.bundle.project.resources.some(resource => resource.id === cue.resource), 'Demo draft resource is absent from frozen project');
+        const configurations = [...link[3].matchAll(/`([^`]+)`/g)].map(match => match[1]);
+        assert.deepEqual(configurations, cue.configurations, 'Demo draft advertised configurations changed');
+        for (const id of configurations) assert.ok(frozen.definition.configurations.some(config => config.id === id), 'Demo draft configuration is absent from frozen project');
+        links.push({ slide: cue.slide, slideId: cue.slideId, cue: cue.name, project: cue.project, resource: cue.resource,
+            configuration: cue.configurations[0], configurationInput: frozen.definition.configurations.find(config => config.id === cue.configurations[0]).source,
+            configurations, url: target.href });
+    }
+    const references = ['participant-resources.md', 'demo-verification.md'].map(name => {
+        const path = `docs/declarative-amsterdam-2026/${name}`;
+        const url = `https://github.com/EPA-WG/cem/blob/${discussionSourceRevision}/${path}`;
+        assert.ok(draft.includes('](' + url + ')'), 'Demo draft must use pinned public footer links');
+        const bytes = execFileSync('git', ['show', `${discussionSourceRevision}:${path}`], { cwd: workspaceRoot });
+        return { path, url, revision: discussionSourceRevision, sha256: presenterHash(bytes) };
+    });
+    const allowed = new Set([data.resourceHub, ...links.map(link => link.url), ...references.map(reference => reference.url)]);
+    for (const [, target] of draft.matchAll(/\]\(([^)]+)\)/g)) assert.ok(allowed.has(target), 'Demo draft contains an unreviewed destination');
+    const prose = draft.replace(/\s+/g, ' ');
+    for (const text of ['Do not post yet.', 'No comment has been sent.', 'Clone a sample before editing.',
+        'Do not enter real credentials.', 'Entered passwords or one-time codes block recovery until explicitly cleared;', 'they must never be exported.']) {
+        assert.ok(prose.includes(text), 'Demo draft publication/privacy boundary changed');
+    }
+    return { links, references, slideCount: new Set(links.map(link => link.slideId)).size,
+        publicFunctionalityVerified: false, discussionPosted: false, checks: 'frozen identities and recorded slide bindings only' };
+}
 
 /** Checks documentation/control identities only. Native trees stay in the shared engine. */
 export async function verifyPresenterResources(data, notes) {
@@ -115,7 +175,8 @@ export async function verifyPresenterResources(data, notes) {
     assert.equal(opening.playback.slideEntryStarts, true);
     assert.equal(opening.playback.earlierStagesRetainedAt30Seconds, true);
     assert.equal(opening.notesPaletteAndOrderUnchanged, true);
-    return { schemaVersion: 1, referenceRevision: data.referenceRevision, publicSourceLinks: 3,
+    const demoLinks = await verifyDiscussionDemoDraft(data, undefined, { freezes, native });
+    return { schemaVersion: 1, demoLinks, referenceRevision: data.referenceRevision, publicSourceLinks: 3,
         recordedWebReadDate: data.webReadVerified, projects: data.projects.map(item => item.id), cues: data.cues.length,
         nativeSlideIds: 30, timedSlides: timed, plannedSeconds: elapsed, measuredRehearsal: false,
         nativeDeckSync: data.nativeDeckNotes, nativeDeckReadbackDate: deckNotes.checkedDate, recordedPaletteReviewDate: palette.checkedDate,
@@ -127,5 +188,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     const result = await verifyPresenterResources();
     const path = resolve(workspaceRoot, 'dist/reports/cem-studio/presentation-resources.json');
     await mkdir(dirname(path), { recursive: true }); await writeFile(path, JSON.stringify(result, null, 2) + '\n');
-    console.log(`Verified ${result.cues} presenter cues, 30 recorded slide IDs and three pinned participant source links.`);
+    console.log(`Verified ${result.cues} presenter cues, 30 recorded slide IDs and three pinned participant source links; ${result.demoLinks.links.length} prepared demo routes (public acceptance pending).`);
 }

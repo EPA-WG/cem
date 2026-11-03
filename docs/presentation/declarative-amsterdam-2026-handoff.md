@@ -1,5 +1,13 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+Discussion draft preflight (2026-11-03): the [14-row slide/demo map](../declarative-amsterdam-2026/discussion-demo-links-verification.md)
+passes frozen project/configuration/slide bindings and actual local URL/source/
+tree/configuration selection in 14 fresh contexts. Footer links are absolute,
+commit-pinned GitHub pages with exact public source-byte readback. All 59
+presentation/resource guards and Studio lint pass. No comment was posted.
+The public host still serves the 904-file baseline; upload the prepared 905-file
+startup correction before public acceptance and final discussion delivery.
+
 Startup correction prepared (2026-11-03): the [worker trace and regression](../declarative-amsterdam-2026/startup-overlap-verification.md)
 identify serial default validator/component initialization. The new startup
 coordinates those existing services concurrently while preserving optional

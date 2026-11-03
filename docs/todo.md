@@ -420,6 +420,20 @@ channels; private agreements remain unverified. This file owns execution order.
       the refreshed demo bytes. Keep presentation Site publication and the
       unresolved public Studio cold-start/functionality gates separate.
 
+- [x] Fixture: validate all discussion #24 slide/demo draft rows against frozen
+      project/resource/configuration identities and recorded native slide IDs.
+      Reject omitted cues, foreign/ambiguous URLs and weakened credential text;
+      verify the selected deep links locally while the new public upload is pending.
+      Preserve independent viewed-resource/command-input selection and keep local
+      navigation, public functionality and actual posting as separate evidence.
+      Verified 2026-11-03: all 14 links across 13 recorded slides pass local
+      URL/resource/tree/configuration checks in separate fresh contexts (zero
+      saved projects). Two footer pages return 200 and exact pinned source bytes;
+      relative footer links are replaced. All 59 resource guards and Studio lint
+      pass. [Receipt](declarative-amsterdam-2026/discussion-demo-links-verification.md).
+      Public still serves 904 files; this preparation does not complete public
+      acceptance or post the comment.
+
 - [ ] Append a resource comment to [GitHub discussion #24](https://github.com/EPA-WG/cem/discussions/24)
       mapping each demo-related slide number to its verified public demo-page
       link. Keep the stable native slide ID beside the current physical slide
@@ -429,6 +443,10 @@ channels; private agreements remain unverified. This file owns execution order.
       Do not treat this TODO entry or a draft as an already-published comment.
       The [slide-to-demo comment draft](declarative-amsterdam-2026/discussion-resource-comment-draft.md)
       is prepared; public deployment freshness and operation checks remain open.
+      The 14-row map now has frozen-identity guards, complete local deep-link
+      navigation checks and pinned public footer links. The draft notice reflects
+      the pending 905-file startup-fix upload; public destination acceptance and
+      the actual posting action remain open.
 
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,
       output and demo path. Check slide readability and the fallback flow;
