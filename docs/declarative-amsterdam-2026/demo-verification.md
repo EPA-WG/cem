@@ -249,3 +249,29 @@ cold-start bottleneck before choosing a bounded correction. Rerun both public
 browser and complete Login/Supplier acceptance with unchanged deadlines. Keep
 the verified local kit as the participant fallback and the discussion comment
 unposted until public functionality is accepted.
+
+
+## Prepared cold-start correction — 2026-11-03
+
+The [worker trace and overlap verification](startup-overlap-verification.md)
+now attribute the observed serial acquisition path to main-thread/worker
+initialization of the validator followed by main-thread/worker initialization
+of the component runtime. Overlapping those independent default-profile services
+passes a controlled cold-download regression without extending the 30-second
+deadline. Optional package activation retains its serial order. This does not
+attribute the separate QUIC or aborted-response failures.
+
+The new 905-file copy at `/home/suns/cem-bin` has inventory SHA-256
+`5deaa8422c508c2484a1cd177bf8641825ced00fa615a943ab123f783a74d3a2`.
+The normal general demo verifier and all 23 selected offline Login/Supplier
+configurations pass against that exact copy. Source/destination maps include
+the private startup helper and the CSP hash matches the emitted import map.
+All four WASM files, component declarations, CSS and sample hashes match the
+preceding public inventory. The [readback](startup-overlap-readback.json) retains
+these boundaries and the complete local walkthrough receipt.
+
+The owner must upload this new copy before post-fix public acceptance can run.
+The earlier `ab74c3a7` public findings remain the baseline; no public pass or
+new deployment version is inferred from local results. Use the existing
+Wrangler deployment from the signed-in machine, then repeat production freshness,
+the general public browser verifier and the full selected public suite above.

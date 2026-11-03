@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-03",
+  "deployedVersionId": "ab74c3a7-489a-4f77-be59-a3ed65f8cac4",
+  "versionIdSource": "owner-reported",
+  "mainSha256": "51403722973d524d03515e3db3dd7c7e15cb9d8eb992e79727d3b5dde2adec08",
+  "browser": "148.0.7778.96",
+  "flags": [
+    "--disable-quic",
+    "--disable-http2"
+  ],
+  "readyAtInitialSnapshot": false,
+  "initialSnapshotMs": 31669,
+  "readyAtFinalSnapshot": true,
+  "finalSnapshotMs": 38270,
+  "wasmTransfers": [
+    {
+      "realm": "main",
+      "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+      "startMs": 1830,
+      "durationMs": 11079.20000000298,
+      "endMs": 12909.20000000298,
+      "decodedBytes": 24860607
+    },
+    {
+      "realm": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml-cli/dist/browser-worker.js",
+      "timeOrigin": 1793713396284,
+      "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+      "startMs": 13616.30009765178,
+      "durationMs": 6065.60000000149,
+      "endMs": 19681.90009765327,
+      "decodedBytes": 24860607
+    },
+    {
+      "realm": "main",
+      "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+      "startMs": 19822.29999999702,
+      "durationMs": 5993,
+      "endMs": 25815.29999999702,
+      "decodedBytes": 24140410
+    },
+    {
+      "realm": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+      "timeOrigin": 1793713408880.5,
+      "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+      "startMs": 26305.20009765774,
+      "durationMs": 5814.5,
+      "endMs": 32119.70009765774,
+      "decodedBytes": 24140410
+    }
+  ],
+  "errors": [],
+  "interpretation": "Validator main/worker acquisition precedes component main/worker acquisition. Existing main.js awaits validator initialization before installing components. This is not an attribution of separate QUIC or aborted-response failures."
+}

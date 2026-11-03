@@ -17,6 +17,10 @@
                 "@epa-wg/cem-elements": "@epa-wg/cem-elements/index"
             }
         },
+        "@epa-wg/cem-studio/startup": {
+            "path": "./assets/@epa-wg/cem-studio/startup.js",
+            "contentType": "text/javascript"
+        },
         "@epa-wg/cem-studio/shell": {
             "path": "./assets/@epa-wg/cem-studio/shell.js",
             "contentType": "text/javascript",

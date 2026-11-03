@@ -1,4 +1,5 @@
 import { CemElementRuntime, CemNativeRecoveryScope, CemSchemaAssetDemandGroup, isolateCemFallbackGeneration, processingSchemaAssetBinding, cemSchemaAssetGenerationTarget } from '@epa-wg/cem-elements';
+import { prepareCemStudioRuntime } from './startup.js';
 import { createCemStudioNavigation } from './navigation.js';
 import '@epa-wg/custom-element';
 
@@ -25,6 +26,7 @@ if (!deploymentResponse.ok || deploymentResponse.redirected) throw Error('CEM St
 const deployment = await deploymentResponse.json();
 /** @type {CemSchemaAssetDemandGroup | undefined} */
 let packageDemand;
+/** @type {object | undefined} */
 let packageHostConfiguration;
 if (deployment.deploymentProfile === 'schema-assets') {
     if (deployment.packagePublication !== 'explicit-host-admission' || deployment.automaticRecovery !== false
@@ -39,16 +41,19 @@ if (deployment.deploymentProfile === 'schema-assets') {
         participant: fallback.generationParticipant(), current: () => true,
         target: cemSchemaAssetGenerationTarget }));
 }
-const validator = await createCemStudioBrowserValidator({ recoveryScope, packageDemand, packageHostConfiguration });
 const demandGroup = packageDemand;
 /** @type {ReturnType<CemElementRuntime['previewRuntimeOptions']>['processingNativeWork']} */
 const processingNativeWork = demandGroup && ((host, work, cleanup) => cleanup ? demandGroup.cleanup(work) : demandGroup.run(work, async () => ({
     ...await processingSchemaAssetBinding(host), current: () => true,
     target: cemSchemaAssetGenerationTarget,
 })));
-await installCemStudioShellComponents({ runtime: new CemElementRuntime({ declarationTag: 'cem-studio-component-declaration', recoveryScope,
-    processingPackageHostConfiguration: packageHostConfiguration && JSON.stringify(packageHostConfiguration),
-    processingNativeWork, loadHttpResource: packageDemand?.loadResource }) });
+const validator = await prepareCemStudioRuntime({
+    createValidator: () => createCemStudioBrowserValidator({ recoveryScope, packageDemand, packageHostConfiguration }),
+    installComponents: () => installCemStudioShellComponents({ runtime: new CemElementRuntime({ declarationTag: 'cem-studio-component-declaration', recoveryScope,
+        processingPackageHostConfiguration: packageHostConfiguration && JSON.stringify(packageHostConfiguration),
+        processingNativeWork, loadHttpResource: packageDemand?.loadResource }) }),
+    serial: Boolean(packageDemand),
+});
 const repository = createCemStudioProjectRepository({
     validateProject: validator.validateProject,
 });

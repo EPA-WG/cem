@@ -1,5 +1,16 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+Startup correction prepared (2026-11-03): the [worker trace and regression](../declarative-amsterdam-2026/startup-overlap-verification.md)
+identify serial default validator/component initialization. The new startup
+coordinates those existing services concurrently while preserving optional
+package admission ordering and original publication/error boundaries. The
+controlled cold-download comparison improves from a failed 30-second deadline
+(36.54 s to ready) to 20.36 s; all four original runtimes remain. All 19 shell/
+startup tests and the full selected offline Login/Supplier route pass locally.
+The new 905-file `/home/suns/cem-bin` copy (`5deaa842…`) is ready for the owner's
+signed-in upload. Public verification must follow that upload; prior transport
+failures and the `ab74c3a7` baseline remain distinct.
+
 Post-upload check (2026-11-03): owner-reported version `ab74c3a7` now matches the
 verified 904-file inventory and all 11 critical asset byte checks. The actual
 public playground editing/Render check passes. Studio still misses the original

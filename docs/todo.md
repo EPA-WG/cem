@@ -350,6 +350,20 @@ channels; private agreements remain unverified. This file owns execution order.
       the actual public attempt records its startup failure in a separate receipt
       before executing any configuration. Local/default hosting remains guarded.
 
+- [x] Fixture: reproduce the public cold-start's serialized validator/component
+      initialization with deferred services and a controlled cold-WASM deployment
+      run. Overlap independent default-profile startup, wait for both original
+      owners before publication, and close the validator on peer failure. Preserve
+      optional schema-assets ordering, failure diagnostics, the original 30-second
+      deadline, credential refusal and all native generation authorities.
+      Verified 2026-11-03: the worker trace captures all four serialized transfers;
+      the controlled baseline misses 30 seconds (ready at 36.54 s), while the
+      overlapping candidate is ready at 20.36 s with all four runtimes retained.
+      All 19 startup/shell tests, typecheck, lint, graph output, general local demo
+      checks and the complete 23-configuration offline Login/Supplier route pass.
+      [Verification](declarative-amsterdam-2026/startup-overlap-verification.md).
+      Public acceptance remains gated on the owner uploading the new 905-file copy.
+
 - [ ] Verify the functionality of every Amsterdam demo page selected for the
       presentation and participant links. Check the deployed source/edit,
       validation failure/repair, inspection/formatting, query/graph, live preview,
@@ -387,6 +401,12 @@ channels; private agreements remain unverified. This file owns execution order.
       [Version readback](declarative-amsterdam-2026/public-demo-ab74c3a7-readback.json).
       Attribute the selected cold-start bottleneck, repair the demonstrated cause,
       then rerun both public gates; no timeout extension or warm-only pass.
+      The selected serialization bottleneck is now repaired and verified locally:
+      independent default validator/component startup overlaps; optional package
+      admission stays serial. `/home/suns/cem-bin` has 905 files, inventory
+      `5deaa842…`, and passes general plus all selected offline workflows. Upload
+      this copy through the owner's existing Wrangler login and rerun the exact
+      public gates. Separate QUIC/aborted-transfer causes remain unattributed.
 
 - [ ] Publish the reviewed Amsterdam presentation site and related demo pages
       after their functionality checks pass. Verify the actual public routes,

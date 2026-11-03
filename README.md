@@ -231,7 +231,7 @@ files and unrelated files. Matching current outputs are overwritten as before.
 The first migration recognizes the previous copier's known outputs by
 hash. A preflight guard refuses an update exceeding **999 total files**, including
 unrelated files, or containing a file **at or above 25 MiB**, before writing or
-deleting deployment files. The locally verified 2026-11-03 deployment has 904
+deleting deployment files. The locally verified 2026-11-03 deployment has 905
 files and four WASM assets at 23.02 MiB (two copies) and 23.71 MiB (two copies).
 Public deployment freshness is recorded separately in the
 [Amsterdam verification record](docs/declarative-amsterdam-2026/demo-verification.md).

@@ -142,12 +142,14 @@
                 }
             ],
             "options": {
-                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run src/shell.browser.spec.js --no-file-parallelism",
+                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run src/shell.browser.spec.js src/startup.browser.spec.js --no-file-parallelism",
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
                 "{projectRoot}/src/shell.js",
                 "{projectRoot}/src/shell.browser.spec.js",
+                "{projectRoot}/src/startup.js",
+                "{projectRoot}/src/startup.browser.spec.js",
                 "{workspaceRoot}/packages/cem-theme/dist/lib/css/cem-combined.css",
                 "{projectRoot}/src/repository.js",
                 "{projectRoot}/src/build-snapshots.js",
@@ -172,6 +174,23 @@
                 "{projectRoot}/src/workbench-center.xhtml"
             ],
             "outputs": []
+        },
+        "verify:startup-latency": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build", "test:shell"],
+            "options": {
+                "command": "node scripts/verify-startup-latency.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-startup-latency.mjs",
+                "{projectRoot}/scripts/serve-preview.mjs",
+                "{projectRoot}/src/startup.js",
+                "{projectRoot}/src/main.js",
+                "{projectRoot}/dist/static/**/*"
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/startup-latency.json"]
         },
         "test:feature-tour": {
             "cache": true,
