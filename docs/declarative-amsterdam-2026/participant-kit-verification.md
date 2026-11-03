@@ -119,3 +119,33 @@ browser verifier establishes a new exercise result.
 Verification: `yarn nx run @epa-wg/cem-studio:test:participant-kit` (20 tests)
 and `yarn nx run @epa-wg/cem-studio:lint` passed on 2026-11-03 using the
 existing Linux Node v24.16.0 toolchain. No fresh installation was performed.
+
+
+## Fresh Node download and full kit repeat — 2026-11-03
+
+The [Node/Linux setup guide](node-linux-setup.md) now supplies an exact Node
+archive and preparation commands. Node 24.16.0 Linux x64 was downloaded from
+nodejs.org, checked against its official SHA-256 list and extracted into a new
+temporary directory. Its actual executable ran the existing extracted-kit
+verifier against the unchanged 417-file archive with SHA-256
+`2b8cec8f3cebe74c3a705313f9fc8b815056e614a1bd707a336c9b550ccfdf53`.
+
+The complete local production-hosting and offline Login/Supplier acceptance
+passed again: 20 Login plus three Supplier configurations, failure/repair,
+inspection/formatting, graph provenance, live interaction, independent copies,
+URL/tree agreement and unsaved Unicode draft restoration. Inventory checks pass
+before and after browser use. Chromium is 148.0.7778.96; the generated report
+exactly matches the [retained receipt](participant-kit-readback.json).
+
+The [installation readback](installation-readback.json) records the Node/archive
+hashes, runner command and actual host: Ubuntu 26.04 LTS x64 under WSL2 with
+glibc 2.43. The helper was invoked directly to preserve the exact accepted kit;
+Nx packaging prerequisites would rebuild a different archive. This verifies a
+fresh Node extraction on an existing host, not a clean OS or other-platform
+installation. Public npm metadata returns 404 for both expected CEM packages;
+the downloaded GitHub prerelease CLIs do not match the frozen first Login AST
+output. They remain outside the participant route. No kit rebuild, publication,
+user-data clearing or credential-policy change was performed.
+
+The presentation resource verification also passed through Nx: 45 guard tests,
+12 presenter cues, 30 recorded native slide IDs and three pinned source links.

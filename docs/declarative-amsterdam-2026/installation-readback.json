@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-03",
+  "repositoryRevision": "fc256b9df3f746c6c3b07ce3c24b350f4b235315",
+  "host": {
+    "os": "Ubuntu 26.04 LTS",
+    "platform": "linux",
+    "arch": "x64",
+    "kernel": "6.18.54.1-microsoft-standard-WSL2",
+    "glibc": "2.43",
+    "node": "v24.16.0",
+    "freshOs": false
+  },
+  "release": {
+    "tag": "cem-ml-v0.1.0-rc.2",
+    "url": "https://github.com/EPA-WG/cem/releases/tag/cem-ml-v0.1.0-rc.2",
+    "publishedAt": "2026-08-18T15:30:41Z",
+    "prerelease": true,
+    "sourceCommit": "f85b7703b2a7f8be2746824763ac4fdd8c911d6b"
+  },
+  "assets": [
+    {
+      "name": "cem-ml-0.1.0-rc.2-linux-amd64-gnu.tar.gz",
+      "url": "https://github.com/EPA-WG/cem/releases/download/cem-ml-v0.1.0-rc.2/cem-ml-0.1.0-rc.2-linux-amd64-gnu.tar.gz",
+      "bytes": 8916102,
+      "sha256": "3d9ead31cfff57e76b61dc3daeff42655f5aade37234218ff8679cd45e43a914",
+      "matchesGithubAssetDigest": true
+    },
+    {
+      "name": "cem-ml-0.1.0-rc.2-universal-cli-npm.tgz",
+      "url": "https://github.com/EPA-WG/cem/releases/download/cem-ml-v0.1.0-rc.2/cem-ml-0.1.0-rc.2-universal-cli-npm.tgz",
+      "bytes": 81501,
+      "sha256": "5860aa151715a20eebf846f1209adaeaa5899c524970cd0603c00d5c3ad66648",
+      "matchesGithubAssetDigest": true
+    },
+    {
+      "name": "cem-ml-0.1.0-rc.2-wasm-runtime-npm.tgz",
+      "url": "https://github.com/EPA-WG/cem/releases/download/cem-ml-v0.1.0-rc.2/cem-ml-0.1.0-rc.2-wasm-runtime-npm.tgz",
+      "bytes": 7065104,
+      "sha256": "faa55dc682e8cfd245906e8dbe5a2bfddc4ae963d9a57901b7b0d0f30206ff03",
+      "matchesGithubAssetDigest": true
+    },
+    {
+      "name": "node-v24.16.0-linux-x64.tar.xz",
+      "url": "https://nodejs.org/dist/v24.16.0/node-v24.16.0-linux-x64.tar.xz",
+      "bytes": 31428548,
+      "sha256": "d804845d34eddc21dc1092b519d643ef40b1f58ec5dec5c22b1f4bd8fabde6c9",
+      "matchesOfficialChecksums": true
+    }
+  ],
+  "registryChecks": [
+    {
+      "url": "https://registry.npmjs.org/@epa-wg%2fcem-ml-cli",
+      "httpStatus": 404
+    },
+    {
+      "url": "https://registry.npmjs.org/@epa-wg%2fcem-ml",
+      "httpStatus": 404
+    }
+  ],
+  "nodePackages": {
+    "install": "local GitHub release tarballs, offline, ignore-scripts, empty npm cache/config, temporary consumer directory",
+    "exitCode": 0,
+    "packageVersion": "0.1.0-rc.2",
+    "installedPackages": 2,
+    "argv": [
+      "npm",
+      "install",
+      "--offline",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+      "<download-directory>/cem-ml-0.1.0-rc.2-universal-cli-npm.tgz",
+      "<download-directory>/cem-ml-0.1.0-rc.2-wasm-runtime-npm.tgz"
+    ],
+    "versions": {
+      "cem-ml": "0.1.0-rc.2",
+      "cem-ml-cli": "0.1.0-rc.2"
+    }
+  },
+  "login": {
+    "version": "2.8.1",
+    "sourceRevision": "c5e5b89274175997387a4d0e160a7e6f6262147f",
+    "probes": [
+      {
+        "host": "linux-native",
+        "results": [
+          {
+            "id": "read-edit",
+            "argv": [
+              "parse",
+              "data/login.cem",
+              "--content-type",
+              "application/cem",
+              "--schema",
+              "https://cem.dev/ns/cem-ml/1",
+              "--format",
+              "ast",
+              "--no-color",
+              "--report-json",
+              "probe.report.json"
+            ],
+            "expectedExit": 0,
+            "exitCode": 0,
+            "outputSha256": "2765ca70053c15a325324d35977d27cedddd13783c059a3291cc766a6ca180cf",
+            "expectedOutputSha256": "2934bfd4082834957bb1c35d8370f1f05b6c4c09fb11e6e5569a508ee7c996d2",
+            "diagnosticsSha256": "ee9d1b1be3123a731ccbdcb0cccf567714399ab51cd0b9c98310640b8dec0e67",
+            "expectedDiagnosticsSha256": "ee9d1b1be3123a731ccbdcb0cccf567714399ab51cd0b9c98310640b8dec0e67",
+            "stderr": "data/login.cem:6:28: warning: reference `login-title` did not match any element id [cem.ast.unresolved_reference]\ndata/login.cem:9:13: warning: reference `email` did not match any element id [cem.ast.unresolved_reference]\ndata/login.cem:12:13: warning: reference `password` did not match any element id [cem.ast.unresolved_reference]\n",
+            "matchesFrozen": false
+          }
+        ]
+      },
+      {
+        "host": "node-wasm",
+        "results": [
+          {
+            "id": "read-edit",
+            "argv": [
+              "parse",
+              "data/login.cem",
+              "--content-type",
+              "application/cem",
+              "--schema",
+              "https://cem.dev/ns/cem-ml/1",
+              "--format",
+              "ast",
+              "--no-color",
+              "--report-json",
+              "probe.report.json"
+            ],
+            "expectedExit": 0,
+            "exitCode": 0,
+            "outputSha256": "2765ca70053c15a325324d35977d27cedddd13783c059a3291cc766a6ca180cf",
+            "expectedOutputSha256": "2934bfd4082834957bb1c35d8370f1f05b6c4c09fb11e6e5569a508ee7c996d2",
+            "diagnosticsSha256": "8bfa45e246004e357e909ac806dac25f9962770bca2e7e1ecc7e4d26f02075a1",
+            "expectedDiagnosticsSha256": "ee9d1b1be3123a731ccbdcb0cccf567714399ab51cd0b9c98310640b8dec0e67",
+            "stderr": "",
+            "matchesFrozen": false
+          }
+        ]
+      }
+    ],
+    "stoppedAfter": "first output mismatch on each host",
+    "completeExerciseAccepted": false
+  },
+  "decision": "Keep verified local Studio kit; do not advertise prerelease CLI parity, registry installation, fresh OS or other-platform acceptance.",
+  "linuxBinary": {
+    "versionProbe": {
+      "argv": [
+        "--version"
+      ],
+      "exitCode": 0,
+      "stdout": "cem-ml 0.1.0-rc.2\n",
+      "stderr": ""
+    },
+    "sha256": "bf561c517fe45877efe307e1943e98d3a1444c7a9c5af0f5337da576bb2163f9"
+  },
+  "participantKit": {
+    "checkedOn": "2026-11-03",
+    "archiveSha256": "2b8cec8f3cebe74c3a705313f9fc8b815056e614a1bd707a336c9b550ccfdf53",
+    "fileCount": 417,
+    "receipt": "participant-kit-readback.json",
+    "receiptExactlyMatchesRetainedReport": true,
+    "runner": "fresh official node-v24.16.0-linux-x64 archive listed above",
+    "command": "PATH=<fresh-node-directory>/bin:$PATH node packages/cem-studio/scripts/verify-participant-kit.mjs",
+    "reasonForDirectHelper": "Preserve the exact accepted archive instead of rebuilding it through packaging prerequisites.",
+    "completeLocalExerciseAccepted": true,
+    "loginConfigurations": 20,
+    "supplierConfigurations": 3,
+    "browser": "148.0.7778.96",
+    "offline": true,
+    "draftPreservation": true,
+    "independentCopies": true,
+    "publicAvailability": "unverified",
+    "freshOs": false
+  }
+}

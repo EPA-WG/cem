@@ -26,6 +26,10 @@ Chromium 148.0.7778.96; other platforms and public CLI installation remain separ
 verification work. The [dated kit record](participant-kit-verification.md) identifies
 the 417-file artifact by checksum and records the offline acceptance scope.
 
+The [Node/Linux preparation guide](node-linux-setup.md) records the exact
+downloaded Node archive, tested host and public CLI availability/compatibility
+checks. It keeps the verified local Studio route separate from CLI installation.
+
 On the kit's printed origin, open:
 
 - `/?collection=amsterdam-2026&sample=login&file=readme`

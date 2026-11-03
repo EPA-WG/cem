@@ -370,6 +370,13 @@ until a tested participant installation is available.
 
 ## Delivery, setup, and fallback
 
+Setup audit (2026-11-03): the [Node/Linux preparation guide](node-linux-setup.md)
+pins the tested Node download and the selected local Studio kit. The public
+0.1.0-rc.2 CLI assets download and run, but both hosts differ at the first frozen
+Login AST checkpoint; the two expected npm registry packages return 404. Keep
+CLI installation outside the participant exercise. Public demo functionality
+and timed rehearsal remain their own delivery gates.
+
 Use [discussion #24](https://github.com/EPA-WG/cem/discussions/24) as the single
 resource destination in slides, QR codes, handouts, and the presentation website.
 Keep links to examples, CLI releases, installation notes, recordings, and Studio

@@ -308,16 +308,29 @@ channels; private agreements remain unverified. This file owns execution order.
       the historical 417-file archive and exact tested host. No new full-browser
       run, public availability, installation or rehearsal claim.
 
-- [ ] Produce the presentation, speaker notes, diagrams and participant setup
+- [x] Produce the presentation, speaker notes, diagrams and participant setup
       instructions. Check the proposed Node/Linux installation paths against
       actual available releases, and record requirements for any other platforms
       included in the session. Prepare resource entries for discussion #24;
       add verified links as materials become available. Use that stable URL
-      throughout the deck. The verified local Studio kit and current repository
-      notes and native-deck note readback are available; public hosting/installation
-      and measured rehearsal remain open. Add release-readiness fixtures rejecting
-      promotion from HTTP reachability or CLI version smoke to full exercise
-      acceptance, and retain exact tested archive identities and platform limits.
+      throughout the deck. Add release-readiness fixtures rejecting promotion
+      from HTTP reachability or CLI version smoke to full exercise acceptance,
+      and retain exact tested archive identities and platform limits.
+      The native deck/notes/diagrams retain their existing guarded readbacks;
+      participant resource entries and discussion drafts are prepared.
+      The [Node/Linux setup guide](declarative-amsterdam-2026/node-linux-setup.md)
+      and [installation readback](declarative-amsterdam-2026/installation-readback.json)
+      now pin downloaded Node and CLI assets and actual temporary-consumer runs.
+      Public npm metadata returns 404 for both expected packages; both GitHub
+      prerelease CLI hosts differ at the first frozen Login AST checkpoint.
+      Keep the selected local Studio kit; no public CLI parity or other-platform
+      acceptance is advertised. Public deployment and rehearsal stay separate.
+      Verified 2026-11-03: the freshly downloaded official Node 24.16.0 runs
+      the unchanged 417-file kit through all 23 selected offline Login/Supplier
+      configurations, live interaction, failure/repair and draft/copy checks.
+      The new report exactly matches the retained receipt; 45 presentation/resource
+      guards and the resource verifier pass. This completes materials for the
+      selected local route, not a public CLI release or clean-OS acceptance.
 
 - [ ] Verify the functionality of every Amsterdam demo page selected for the
       presentation and participant links. Check the deployed source/edit,

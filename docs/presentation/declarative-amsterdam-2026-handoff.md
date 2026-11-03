@@ -1,5 +1,16 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+Setup audit (2026-11-03): the [Node/Linux guide](../declarative-amsterdam-2026/node-linux-setup.md)
+records downloaded release identities and actual temporary-consumer checks. Both
+public CLI hosts differ at the first frozen Login AST checkpoint; public npm
+metadata returns 404 for both expected packages. Keep the selected local Studio
+kit and frozen outputs as the participant route. Public deployment verification
+and full rehearsal remain next; this audit does not advertise CLI parity or
+other-platform acceptance. The freshly downloaded official Node 24.16.0 also
+passes the complete unchanged-kit browser repeat (23 selected offline
+configurations); its report exactly matches the retained 417-file receipt.
+All 45 presentation/resource guards pass.
+
 Projector update (2026-11-02): the native deck now uses the classic-light-based
 `projector` variation with white canvases and retained semantic fills. Studio's
 shared selector exposes it as **Presentation**. Canonical exports, guarded native
