@@ -368,6 +368,73 @@ CEM defines 5 operational modes for color behavior:
 
 ---
 
+### 6.1 projector presentation variation
+
+`projector` is an opt-in variation of classic `light`, labeled **Presentation**
+in theme selectors. Select `.cem-theme-projector` or
+`data-theme="cem-theme-projector"`; alternatively set
+`data-cem-presentation="projector"` on an explicit light theme root. It fixes
+`color-scheme: light`. The five operational modes above remain unchanged.
+
+The variation keeps semantic background fills, ordinary state progression and
+pending background gradients. It does not activate contrast-mode fill collapse
+or substitute zebra contours for backgrounds. Focus, target and selection keep
+their independent light-mode indicators. Nested explicit theme roots resolve
+their own palette, state endpoints and stroke policy. Forced colors takes priority.
+
+The table overrides existing tokens only; it adds no new token family or manifest
+entries. Dark fills use white text; the narrative canvas uses black on white.
+Base/extreme pairs target 7:1 text contrast. The projector target indicator
+uses amber `#A67C00`: it exceeds 3:1 against white and both neighboring dark
+focus/selected stripes, preserving combined-state visibility. Pending uses a darker first endpoint
+and a neutral stripe so white text remains at least 7:1 throughout the gradient
+and stripe separation exceeds 1.8:1. Disabled states retain the standard policy.
+See the [palette example](../../../../../docs/presentation/projector-slides-palette.svg).
+
+###### cem-projector-overrides
+| Token | Value | Forced colors | Notes | tier |
+| --- | --- | --- | --- | --- |
+| `--cem-palette-comfort` | #FFFFFF | Canvas | comfort base | recommended |
+| `--cem-palette-comfort-x` | #000000 | CanvasText | comfort -x | recommended |
+| `--cem-palette-comfort-text` | #000000 | CanvasText | comfort -text | recommended |
+| `--cem-palette-comfort-text-x` | #FFFFFF | Canvas | comfort -text-x | recommended |
+| `--cem-palette-conservative` | #F2F2F2 | ButtonFace | conservative base | recommended |
+| `--cem-palette-conservative-x` | #333333 | ButtonText | conservative -x | recommended |
+| `--cem-palette-conservative-text` | #000000 | ButtonText | conservative -text | recommended |
+| `--cem-palette-conservative-text-x` | #FFFFFF | ButtonFace | conservative -text-x | recommended |
+| `--cem-palette-creativity` | #6A1B9A | ButtonFace | creativity base | recommended |
+| `--cem-palette-creativity-x` | #4A148C | ButtonText | creativity -x | recommended |
+| `--cem-palette-creativity-text` | #FFFFFF | ButtonText | creativity -text | recommended |
+| `--cem-palette-creativity-text-x` | #FFFFFF | ButtonFace | creativity -text-x | recommended |
+| `--cem-palette-trust` | #002F65 | Highlight | trust base | recommended |
+| `--cem-palette-trust-x` | #001B3F | HighlightText | trust -x | recommended |
+| `--cem-palette-trust-text` | #FFFFFF | HighlightText | trust -text | recommended |
+| `--cem-palette-trust-text-x` | #FFFFFF | Highlight | trust -text-x | recommended |
+| `--cem-palette-calm` | #005A5A | ButtonFace | calm base | recommended |
+| `--cem-palette-calm-x` | #004040 | ButtonText | calm -x | recommended |
+| `--cem-palette-calm-text` | #FFFFFF | ButtonText | calm -text | recommended |
+| `--cem-palette-calm-text-x` | #FFFFFF | ButtonFace | calm -text-x | recommended |
+| `--cem-palette-enthusiasm` | #723600 | Mark | enthusiasm base | recommended |
+| `--cem-palette-enthusiasm-x` | #502400 | MarkText | enthusiasm -x | recommended |
+| `--cem-palette-enthusiasm-text` | #FFFFFF | MarkText | enthusiasm -text | recommended |
+| `--cem-palette-enthusiasm-text-x` | #FFFFFF | Mark | enthusiasm -text-x | recommended |
+| `--cem-palette-danger` | #9B1C1C | ButtonFace | danger base | recommended |
+| `--cem-palette-danger-x` | #690005 | ButtonText | danger -x | recommended |
+| `--cem-palette-danger-text` | #FFFFFF | ButtonText | danger -text | recommended |
+| `--cem-palette-danger-text-x` | #FFFFFF | ButtonFace | danger -text-x | recommended |
+| `--cem-separator-color` | #595959 | CanvasText | Structural separation | required |
+| `--cem-select-group-text` | var(--cem-palette-conservative-x) | CanvasText | Readable group headings on light choice popups | recommended |
+| `--cem-action-primary-pending-background` | color-mix(in srgb, var(--cem-palette-creativity-x) 50%, black) | ButtonFace | Dark pending background; retain light-mode gradient | recommended |
+| `--cem-action-primary-pending-stripe-background` | #595959 | ButtonFace | Pending stripe with white text and more than 1.8:1 separation | recommended |
+| `--cem-action-explicit-pending-background` | color-mix(in srgb, var(--cem-palette-trust-x) 50%, black) | ButtonFace | Dark pending background; retain light-mode gradient | recommended |
+| `--cem-action-explicit-pending-stripe-background` | #595959 | ButtonFace | Pending stripe with white text and more than 1.8:1 separation | recommended |
+| `--cem-action-contextual-pending-background` | color-mix(in srgb, var(--cem-palette-comfort-x) 50%, black) | ButtonFace | Dark pending background; retain light-mode gradient | recommended |
+| `--cem-action-contextual-pending-stripe-background` | #595959 | ButtonFace | Pending stripe with white text and more than 1.8:1 separation | recommended |
+| `--cem-action-alternate-pending-background` | color-mix(in srgb, var(--cem-palette-enthusiasm-x) 50%, black) | ButtonFace | Dark pending background; retain light-mode gradient | recommended |
+| `--cem-action-alternate-pending-stripe-background` | #595959 | ButtonFace | Pending stripe with white text and more than 1.8:1 separation | recommended |
+| `--cem-action-destructive-pending-background` | color-mix(in srgb, var(--cem-palette-danger-x) 50%, black) | ButtonFace | Dark pending background; retain light-mode gradient | recommended |
+| `--cem-action-destructive-pending-stripe-background` | #595959 | ButtonFace | Pending stripe with white text and more than 1.8:1 separation | recommended |
+
 ## 7. Action intent and state tokens
 
 Action tokens encode **user-flow intent** (primary, explicit, destructive, etc.) and **interaction/state**.
@@ -918,6 +985,7 @@ palette overrides on an explicit theme root remain effective.
 |------------------|--------------------------------------|-------------------------------|--------------------------------|----------------------------------|
 | `native`         | `Canvas`                             | `CanvasText`                  | `Mark`                         | `SelectedItem`                   |
 | `light`          | `--cem-palette-comfort`              | `--cem-palette-trust-x`       | `--cem-color-orange-l`         | `--cem-palette-creativity-x`     |
+| `projector`     | `--cem-palette-comfort`              | `--cem-palette-trust-x`       | `#A67C00`         | `--cem-palette-creativity-x`     |
 | `dark`           | `--cem-palette-comfort`              | `--cem-palette-comfort-x`     | `--cem-palette-creativity`     | `--cem-palette-calm-x`           |
 | `contrast-light` | `--cem-palette-comfort`              | `--cem-palette-trust-x`       | `--cem-color-orange-l`         | `--cem-palette-creativity-x`     |
 | `contrast-dark`  | `--cem-palette-comfort`              | `--cem-palette-comfort-x`     | `--cem-palette-enthusiasm-x`   | `--cem-palette-trust`          |
@@ -1228,6 +1296,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-action-outline-colors` | Five intent contours and pending contour image (6 tokens) | one token per row |
 | `cem-action-native-overrides` | Existing stripe tokens retain native system colors | no new tokens |
 | `cem-action-contrast-overrides` | Existing destructive stripe and slider marker endpoints | overrides only; no new tokens |
+| `cem-projector-overrides` | Existing palette, pending, separator and choice-group endpoints | profile overrides only; no new tokens |
 | `cem-zebra-tokens`                                     | `--cem-zebra-*` (5 tokens)    | one token per row                   |
 | `cem-input-indicator-colors`                           | `--cem-input-background-color` + `--cem-input-indicator-*` (10 tokens) | one token per row             |
 | `cem-progress-indicator-colors`                        | `--cem-progress-*` (2 tokens) | one token per row                   |
@@ -1239,6 +1308,8 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-separator-colors`                                  | `--cem-separator-*` (1 token) | one token per row                     |
 | `cem-workflow-step-colors`                              | `--cem-workflow-*` (4 tokens) | one token per row                     |
 | `cem-action-intent-emotion` × `cem-action-state-color` | `--cem-action-*` (80 tokens)  | intent × state × {background, text} |
+The `cem-projector-overrides` table overrides existing tokens for the light-based
+projector variation; it adds no manifest entries.
 The contrast and contextual columns in `cem-action-state-color` generate overrides of
 existing intent × state background/text tokens; they declare no additional tokens.
 

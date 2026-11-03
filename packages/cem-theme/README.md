@@ -26,6 +26,21 @@ tokens via `var(--cem-...)`.
 | `dist/lib/css/cem-combined.css` | Single concatenated file. One HTTP request — best for `<link>` and CDN delivery.                                                               |
 | `dist/lib/css/cem.css`          | `@import` index over per-spec files (`cem-colors.css`, `cem-dimension.css`, …). Best when a tool resolves `@import` and you want tree-shaking. |
 
+### Presentation variation
+
+Select `data-theme="cem-theme-projector"` or class `cem-theme-projector` on a
+presentation container (including the document root). The shared theme selector
+labels this value **Presentation**. It uses classic CEM light rendering with a
+white canvas, black narrative ink, colored semantic fills and pending background
+gradients. It does not enable contrast-mode zebra substitution. A nested explicit
+theme restores its own palette; forced colors retains system control.
+
+An explicit `cem-theme-light` root can also opt in with
+`data-cem-presentation="projector"`. Public JSON/TypeScript metadata exposes
+`profiles.projector` separately from the five operational `modes`; catalog profile
+metadata identifies its base mode as `light`. See the
+[canonical projector contract](src/lib/tokens/cem-colors.md#61-projector-presentation-variation).
+
 ## Via the npm package
 
 ```bash

@@ -5,6 +5,7 @@ const ACTIVATE_UPDATE_MESSAGE = 'cem-studio-activate-update';
 
 export const CEM_STUDIO_THEME_MODES = Object.freeze([
     'cem-theme-light',
+    'cem-theme-projector',
     'cem-theme-dark',
     'cem-theme-contrast-light',
     'cem-theme-contrast-dark',

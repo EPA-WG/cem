@@ -7,8 +7,8 @@
     {local-storage @slice=selection @key="{$storage-key}" @type=text @live=true}
     {attribute @name=mode | light}
     {attribute @name=contrast | false}
-    {attribute @name=current-theme @select='datadom.attributes.value ?? datadom.slices.selection ?? (if $mode == "dark" { if $contrast == "true" { "cem-theme-contrast-dark" } else { "cem-theme-dark" } } else { if $mode == "native" { "cem-theme-native" } else { if $contrast == "true" { "cem-theme-contrast-light" } else { "cem-theme-light" } } })'}
-    {attribute @name=data-theme @select='if ($current-theme == "cem-theme-dark") || ($current-theme == "cem-theme-contrast-dark") || ($current-theme == "cem-theme-contrast-light") || ($current-theme == "cem-theme-native") { $current-theme } else { "cem-theme-light" }'}
+    {attribute @name=current-theme @select='datadom.attributes.value ?? datadom.slices.selection ?? (if $mode == "projector" { "cem-theme-projector" } else { if $mode == "dark" { if $contrast == "true" { "cem-theme-contrast-dark" } else { "cem-theme-dark" } } else { if $mode == "native" { "cem-theme-native" } else { if $contrast == "true" { "cem-theme-contrast-light" } else { "cem-theme-light" } } } })'}
+    {attribute @name=data-theme @select='if ($current-theme == "cem-theme-projector") || ($current-theme == "cem-theme-dark") || ($current-theme == "cem-theme-contrast-dark") || ($current-theme == "cem-theme-contrast-light") || ($current-theme == "cem-theme-native") { $current-theme } else { "cem-theme-light" }'}
     {attribute @name=interaction-scope @select='""'}
     {style @type="text/css" |```
       :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
@@ -22,6 +22,7 @@
         {cem-icon-button @align=start @image="☾" @variant=contextual @selectable=true @selected={if $data-theme == "cem-theme-dark" { true } else { null } } @control-role=menuitemradio @aria-label="Dark" @value=cem-theme-dark | Dark}
         {cem-icon-button @align=start @image="☀" @variant=contextual @selectable=true @selected={if $data-theme == "cem-theme-contrast-light" { true } else { null } } @control-role=menuitemradio @aria-label="Contrast light" @value=cem-theme-contrast-light | Contrast light}
         {cem-icon-button @align=start @image="☾" @variant=contextual @selectable=true @selected={if $data-theme == "cem-theme-contrast-dark" { true } else { null } } @control-role=menuitemradio @aria-label="Contrast dark" @value=cem-theme-contrast-dark | Contrast dark}
+        {cem-icon-button @align=start @image="▣" @variant=contextual @selectable=true @selected={if $data-theme == "cem-theme-projector" { true } else { null } } @control-role=menuitemradio @aria-label="Presentation" @value=cem-theme-projector | Presentation}
         {cem-icon-button @align=start @image="◐" @variant=contextual @selectable=true @selected={if $data-theme == "cem-theme-native" { true } else { null } } @control-role=menuitemradio @aria-label="System" @value=cem-theme-native | System}
       }
     }

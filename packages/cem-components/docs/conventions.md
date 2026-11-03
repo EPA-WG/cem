@@ -458,7 +458,7 @@ content. Do not retain a fixed light class or a second page theme-switch wrapper
 Navigation receives the page storage key and resolved theme, then passes both
 to the production `cem-theme-switch`. User activation writes that key; existing
 live storage updates the page and other open demos. The full theme identifier
-keeps light/dark, contrast and native selection together. Invalid values display
+keeps light/dark, contrast, native and Presentation (`cem-theme-projector`) selection together. Invalid values display
 light without rewriting the saved bytes. Page theme changes retain projected
 controls, edited properties, form values and source viewers.
 

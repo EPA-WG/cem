@@ -1,5 +1,12 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+Projector update (2026-11-02): the native deck now uses the classic-light-based
+`projector` variation with white canvases and retained semantic fills. Studio's
+shared selector exposes it as **Presentation**. Canonical exports, guarded native
+color/source-image readback, all 30 final PDF pages and the unchanged automatic
+opening are verified in the [delivery record](../declarative-amsterdam-2026/deck-delivery.md#projector-palette-2026-11-02).
+Physical projector acceptance and the full timed rehearsal remain separate.
+
 Current priority (2026-11-01): complete the required Login/Studio demonstration,
 delivery route, materials and rehearsal before unrelated runtime/profile work.
 Follow the [active sample checklist](../todo.md#amsterdam-presentation-samples-active-studio-priority)

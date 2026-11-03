@@ -98,6 +98,15 @@ export function verifyPaletteReadback(before, after, plan) {
     const expected = structuredClone(unwrap(before)); after = unwrap(after);
     for (const { path, value } of plan.patches) {
         let owner = expected; for (const part of path.slice(0, -1)) owner = owner[part]; owner[path.at(-1)] = value;
+        if (path.at(-1) === 'colorScheme') {
+            // Google derives TEXT/BACKGROUND aliases from the editable LIGHT/DARK slots.
+            owner.colorScheme = structuredClone(value);
+            for (const [alias, slot] of Object.entries({ TEXT1: 'DARK1', BACKGROUND1: 'LIGHT1', TEXT2: 'LIGHT2', BACKGROUND2: 'DARK2' })) {
+                const pair = owner.colorScheme.colors.find(pair => pair.type === alias);
+                const source = owner.colorScheme.colors.find(pair => pair.type === slot);
+                if (pair && source) pair.color = source.color;
+            }
+        }
     }
     const normalize = value => {
         if (Array.isArray(value)) return value.map(normalize);
@@ -107,6 +116,9 @@ export function verifyPaletteReadback(before, after, plan) {
             // Slides omits zero RGB channels, merges identical runs, and
             // propagates a paragraph's paint to its nonpainting newline.
             if (key === 'rgbColor') return [key, hex(child)];
+            if (key === 'colors' && Array.isArray(child) && child.every(pair => pair.type && pair.color)) {
+                return [key, child.map(pair => ({ ...pair, color: hex(pair.color) }))];
+            }
             if (key === 'textElements') return [key, normalize(child.flatMap(run => {
                 if (!run.textRun) return [run];
                 return run.textRun.content.split('').map(character => ({ textRun: { ...run.textRun, content: character,

@@ -14,7 +14,7 @@ const meta = preview.meta({
 
 async function choose(host: HTMLElement, value: string): Promise<void> {
     await waitFor(() => expect(host.querySelector('[part=trigger] button')).not.toBeNull());
-    await waitFor(() => expect(host.querySelectorAll('cem-menu cem-icon-button button')).toHaveLength(5));
+    await waitFor(() => expect(host.querySelectorAll('cem-menu cem-icon-button button')).toHaveLength(6));
     await userEvent.click(required(host, '[part=trigger] button'));
     await userEvent.click(required(host, `cem-icon-button[value="cem-theme-${value}"] button`));
     await whenCemRendered(host);
@@ -29,7 +29,7 @@ export const ModesAndContrast = meta.story({
         await whenCemRendered(host);
         const retained = required<HTMLInputElement>(host, '[data-retained]');
         retained.value = 'Edited';
-        await waitFor(() => expect(host.querySelectorAll('cem-menu cem-icon-button button')).toHaveLength(5));
+        await waitFor(() => expect(host.querySelectorAll('cem-menu cem-icon-button button')).toHaveLength(6));
         await expect(host.querySelector('cem-dropdown > [part=base] button')).toBeNull();
         await expect(required(host, 'cem-icon-button[part=trigger]')).toHaveAttribute('image', '◐');
         await expect(required(host, 'cem-icon-button[part=trigger]')).toHaveAttribute('variant', 'contextual');
@@ -40,12 +40,12 @@ export const ModesAndContrast = meta.story({
             const icon = required(item, 'cem-icon');
             await whenCemRendered(icon);
             const glyph = required(icon, '[part=icon]');
-            expect(glyph.textContent?.trim()).toBe(['☀', '☾', '☀', '☾', '◐'][index]);
+            expect(glyph.textContent?.trim()).toBe(['☀', '☾', '☀', '☾', '▣', '◐'][index]);
             expect(parseFloat(getComputedStyle(glyph).fontSize)).toBeGreaterThan(parseFloat(getComputedStyle(required(item, 'button')).fontSize));
             await expect(required(item, 'button')).toHaveAttribute('role', 'menuitemradio');
             await expect(required(item, 'button')).not.toHaveAttribute('aria-pressed');
         }
-        for (const mode of ['dark', 'contrast-light', 'contrast-dark', 'native', 'light']) {
+        for (const mode of ['dark', 'contrast-light', 'contrast-dark', 'projector', 'native', 'light']) {
             await choose(host, mode);
             await waitFor(() => expect(localStorage.getItem('story-theme-modes')).toBe(`cem-theme-${mode}`));
             await expect(host.querySelector('[data-retained]')).toBe(retained);
@@ -56,6 +56,23 @@ export const ModesAndContrast = meta.story({
             await expect(selected).toHaveAttribute('variant', 'contextual');
             await expect(getComputedStyle(required(selected, 'button')).boxShadow).not.toBe('none');
         }
+    },
+});
+
+export const PresentationBackgrounds = meta.story({
+    render: () => '<cem-theme-switch value="cem-theme-projector" storage-key="story-theme-presentation"><cem-action variant="primary">Continue</cem-action><cem-action variant="explicit" pending="true">Building</cem-action></cem-theme-switch>',
+    play: async ({ canvasElement }) => {
+        const host = required(canvasElement, 'cem-theme-switch');
+        await whenCemRendered(host);
+        for (const action of host.querySelectorAll<HTMLElement>('cem-action')) await whenCemRendered(action);
+        await expect(host).toHaveAttribute('data-theme', 'cem-theme-projector');
+        await expect(getComputedStyle(host).backgroundColor).toBe('rgb(255, 255, 255)');
+        const normal = required(host, 'cem-action[variant="primary"] button');
+        const pending = required(host, 'cem-action[pending] button');
+        await expect(getComputedStyle(normal).backgroundColor).toBe('rgb(106, 27, 154)');
+        await expect(getComputedStyle(normal).color).toBe('rgb(255, 255, 255)');
+        await expect(getComputedStyle(pending).backgroundImage).toContain('linear-gradient');
+        await expect(getComputedStyle(pending, '::before').display).toBe('none');
     },
 });
 
@@ -96,7 +113,7 @@ export const Keyboard = meta.story({
         const host = required(canvasElement, 'cem-theme-switch'); await whenCemRendered(host);
         await waitFor(() => expect(host.querySelector('[part=trigger] button')).not.toBeNull());
         const trigger = required(host, '[part=trigger] button');
-        await waitFor(() => expect(host.querySelectorAll('cem-menu cem-icon-button button')).toHaveLength(5));
+        await waitFor(() => expect(host.querySelectorAll('cem-menu cem-icon-button button')).toHaveLength(6));
         await userEvent.click(trigger);
         await userEvent.keyboard('{ArrowDown}{Enter}');
         await waitFor(() => expect(host).toHaveAttribute('data-theme', 'cem-theme-dark'));
@@ -112,7 +129,7 @@ export const ViewportMenu = meta.story({
     beforeEach: () => { localStorage.removeItem('story-theme-viewport'); },
     play: async ({ canvasElement }) => {
         const host = required(canvasElement, 'cem-theme-switch'); await whenCemRendered(host);
-        await waitFor(() => expect(host.querySelectorAll('cem-menu button')).toHaveLength(5));
+        await waitFor(() => expect(host.querySelectorAll('cem-menu button')).toHaveLength(6));
         await Promise.all([...host.querySelectorAll<HTMLElement>('cem-dropdown,cem-menu,cem-icon-button,cem-icon')].map(whenCemRendered));
         await userEvent.click(required(host, '[part=trigger] button'));
         const popup = required(host, 'cem-dropdown > [part=popup]');
@@ -136,7 +153,7 @@ export const MenuIndicatorClearance = meta.story({
     play: async ({ canvasElement }) => {
         for (const [index, host] of [...canvasElement.querySelectorAll<HTMLElement>('cem-theme-switch')].entries()) {
             await whenCemRendered(host);
-            await waitFor(() => expect(host.querySelectorAll('cem-menu cem-icon-button button')).toHaveLength(5));
+            await waitFor(() => expect(host.querySelectorAll('cem-menu cem-icon-button button')).toHaveLength(6));
             await Promise.all([...host.querySelectorAll<HTMLElement>('cem-dropdown,cem-menu,cem-icon-button,cem-icon')].map(whenCemRendered));
             await userEvent.click(required(host, '[part=trigger] button'));
             const popup = required(host, 'cem-dropdown > [part=popup]');
@@ -173,12 +190,12 @@ export const MenuIndicatorClearance = meta.story({
 });
 
 export const SuperCompactMenuSurface = meta.story({
-    render: () => ['light', 'dark', 'contrast-light', 'contrast-dark', 'native'].map(theme =>
+    render: () => ['light', 'dark', 'contrast-light', 'contrast-dark', 'projector', 'native'].map(theme =>
         `<section data-cem-density="super-compact"><cem-theme-switch value="cem-theme-${theme}" storage-key="story-compact-menu-${theme}"></cem-theme-switch></section>`).join(''),
     play: async ({ canvasElement }) => {
         for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-theme-switch')) {
             await whenCemRendered(host);
-            await waitFor(() => expect(host.querySelectorAll('cem-menu button')).toHaveLength(5));
+            await waitFor(() => expect(host.querySelectorAll('cem-menu button')).toHaveLength(6));
             await Promise.all([...host.querySelectorAll<HTMLElement>('cem-dropdown,cem-menu,cem-icon-button,cem-icon')].map(whenCemRendered));
             await userEvent.click(required(host, '[part=trigger] button'));
             const popup = required(host, 'cem-dropdown > [part=popup]');

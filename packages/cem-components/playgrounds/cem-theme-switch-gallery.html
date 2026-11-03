@@ -57,7 +57,7 @@
 <header>
 <p class="component-description">A theme selector for light, dark, native, and contrast modes that applies the chosen theme to its child content. Use it around components such as <a href="./cem-action-gallery.html"><code>cem-action</code></a>, <a href="./cem-field-gallery.html"><code>cem-field</code></a>, and <a href="./cem-select-gallery.html"><code>cem-select</code></a> to compare their themed appearance.</p>
 <p><a href="./cem-theme-switch.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-theme-switch/cem-theme-switch.stories.ts">Automated stories</a></p></header><main>
-<style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
+<style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five operational theme rows and projector variation stay fixed so you can compare the same states side by side.</p>
 <p>The contextual ◐ icon button opens a keyboard-accessible menu. Light is the default; each example uses its own storage key and restores its last selection on reload. Current menu choices use selected-action styling. Mode and contrast provide the initial choice; the default slot preserves child content while switching.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="mode"><code>mode</code></li>
 <li data-gallery-attribute="contrast"><code>contrast</code></li>
 <li data-gallery-attribute="storage-key"><code>storage-key</code></li>
@@ -75,6 +75,12 @@
 <cem-demo-element legend="Hidden by presence"><template slot="source">
 <cem-theme-switch storage-key="hidden-theme" hidden="false"><p>Hidden by presence.</p></cem-theme-switch>
 </template></cem-demo-element>
+<section data-gallery-theme="projector" class="cem-theme-projector"><h2>Presentation</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch storage-key="projector-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Dark"><h3>Dark</h3><cem-theme-switch storage-key="projector-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch storage-key="projector-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch storage-key="projector-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="projector-Native" mode="native"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Presentation"><h3>Presentation</h3><cem-theme-switch storage-key="projector-Presentation" mode="projector"><p>White canvas and retained semantic fills.</p></cem-theme-switch></article></div></section>
 </main>
 <section aria-label="Theme and state variation matrix">
 <h2>Theme and state variation matrix</h2>
@@ -82,31 +88,36 @@
 <article data-variation="Dark"><h3>Dark</h3><cem-theme-switch storage-key="light-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
 <article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch storage-key="light-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
 <article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch storage-key="light-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="light-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
+<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="light-Native" mode="native"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Presentation"><h3>Presentation</h3><cem-theme-switch storage-key="light-Presentation" mode="projector"><p>White canvas and retained semantic fills.</p></cem-theme-switch></article></div></section>
 
 <section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch storage-key="dark-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
 <article data-variation="Dark"><h3>Dark</h3><cem-theme-switch storage-key="dark-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
 <article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch storage-key="dark-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
 <article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch storage-key="dark-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="dark-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
+<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="dark-Native" mode="native"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Presentation"><h3>Presentation</h3><cem-theme-switch storage-key="dark-Presentation" mode="projector"><p>White canvas and retained semantic fills.</p></cem-theme-switch></article></div></section>
 
 <section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch storage-key="contrast-light-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
 <article data-variation="Dark"><h3>Dark</h3><cem-theme-switch storage-key="contrast-light-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
 <article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch storage-key="contrast-light-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
 <article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch storage-key="contrast-light-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="contrast-light-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
+<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="contrast-light-Native" mode="native"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Presentation"><h3>Presentation</h3><cem-theme-switch storage-key="contrast-light-Presentation" mode="projector"><p>White canvas and retained semantic fills.</p></cem-theme-switch></article></div></section>
 
 <section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch storage-key="contrast-dark-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
 <article data-variation="Dark"><h3>Dark</h3><cem-theme-switch storage-key="contrast-dark-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
 <article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch storage-key="contrast-dark-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
 <article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch storage-key="contrast-dark-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="contrast-dark-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
+<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="contrast-dark-Native" mode="native"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Presentation"><h3>Presentation</h3><cem-theme-switch storage-key="contrast-dark-Presentation" mode="projector"><p>White canvas and retained semantic fills.</p></cem-theme-switch></article></div></section>
 
 <section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch storage-key="native-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
 <article data-variation="Dark"><h3>Dark</h3><cem-theme-switch storage-key="native-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
 <article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch storage-key="native-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
 <article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch storage-key="native-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="native-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
+<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="native-Native" mode="native"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Presentation"><h3>Presentation</h3><cem-theme-switch storage-key="native-Presentation" mode="projector"><p>White canvas and retained semantic fills.</p></cem-theme-switch></article></div></section>
 
 </section>
 </template>

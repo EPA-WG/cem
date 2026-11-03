@@ -35,7 +35,7 @@
 <template type="cem-ml; version=0.0"
           id="cem-colors-template"
           data-token-url="../../../dist/lib/tokens/cem-colors.xhtml"
-          data-slices="nativeaction=cem-action-native-overrides outline=cem-action-outline-colors contrast=cem-action-contrast-overrides pending=cem-pending-colors hue=cem-color-hue-variant native=cem-color-native shift=cem-palette-emotion-shift mode=cem-theme-mode intent=cem-action-intent-emotion state=cem-action-state-color input=cem-input-indicator-colors select=cem-select-state-colors navigation=cem-navigation-item-state-colors content=cem-content-interaction-state-colors separator=cem-separator-colors progress=cem-progress-indicator-colors workflow=cem-workflow-step-colors slider=cem-slider-colors resource=cem-resource-kind-colors zebra=cem-zebra-tokens zmap=cem-zebra-mode-mapping">
+          data-slices="projector=cem-projector-overrides nativeaction=cem-action-native-overrides outline=cem-action-outline-colors contrast=cem-action-contrast-overrides pending=cem-pending-colors hue=cem-color-hue-variant native=cem-color-native shift=cem-palette-emotion-shift mode=cem-theme-mode intent=cem-action-intent-emotion state=cem-action-state-color input=cem-input-indicator-colors select=cem-select-state-colors navigation=cem-navigation-item-state-colors content=cem-content-interaction-state-colors separator=cem-separator-colors progress=cem-progress-indicator-colors workflow=cem-workflow-step-colors slider=cem-slider-colors resource=cem-resource-kind-colors zebra=cem-zebra-tokens zmap=cem-zebra-mode-mapping">
 {table @id=cem-color-hue-variant @data-selected-token="" |
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-color-hue-variant" | cem-color-hue-variant} Branded colors}
     {thead | {tr | {th | Token}{th | Hue}{th | Swatch}{th | Label}{th | Value}}}
@@ -117,7 +117,7 @@
     {cem:for-each @select="$datadom.slices.mode" @as="mode" |
         {section @class="cem-theme-{$mode.mode}" |
             {table @id=cem-action-state-color
-                @data-selected-token='{str:concat(("[data-theme*=\"cem-theme-\"], .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark ", "{}"))}' |
+                @data-selected-token='{str:concat(("[data-theme*=\"cem-theme-\"], .cem-theme-projector, .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark ", "{}"))}' |
                 {caption | {b @title="{$mode.description}" | {$mode.mode}} {sub | {$mode.description}}}
                 {thead | {tr |
                     {th | {sub | State} \ {sup | intent:}}
@@ -321,7 +321,7 @@
   /* endregion resource kind colors */
 
   /* region common for cem themes */
-  [data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark {
+  &.cem-theme-projector, &[data-theme="cem-theme-projector"], &.cem-theme-light[data-cem-presentation="projector"], &[data-theme="cem-theme-light"][data-cem-presentation="projector"], [data-theme*="cem-theme-"], .cem-theme-projector, .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark {
     /* Each explicit theme root resolves its own canonical emotion palette. */```{cem:for-each @select="$datadom.slices.shift" @as="emo" |```
   ```{$emo.token}: {cem:choose |{cem:when @test='emo.dark != ""' |light-dark({cem:choose |{cem:when @test='datadom.slices.hue.token & (str:concat(("--cem-color-", emo.light)))' |var(--cem-color-{$emo.light})}{cem:otherwise |var(--cem-palette-{$emo.light})}}, {cem:choose |{cem:when @test='datadom.slices.hue.token & (str:concat(("--cem-color-", emo.dark)))' |var(--cem-color-{$emo.dark})}{cem:otherwise |var(--cem-palette-{$emo.dark})}})}{cem:otherwise |{cem:choose |{cem:when @test='datadom.slices.hue.token & (str:concat(("--cem-color-", emo.light)))' |var(--cem-color-{$emo.light})}{cem:otherwise |var(--cem-palette-{$emo.light})}}}};}```
 
@@ -359,16 +359,26 @@
   }
   /* endregion common for cem themes */
 
-  .cem-theme-light, [data-theme="cem-theme-light"], .cem-theme-contrast-light, [data-theme="cem-theme-contrast-light"] { color-scheme: light; }
+  .cem-theme-projector, [data-theme="cem-theme-projector"], .cem-theme-light, [data-theme="cem-theme-light"], .cem-theme-contrast-light, [data-theme="cem-theme-contrast-light"] { color-scheme: light; }
   .cem-theme-dark, [data-theme="cem-theme-dark"], .cem-theme-contrast-dark, [data-theme="cem-theme-contrast-dark"] { color-scheme: dark; }
 
   /* region zebra state per theme mode (§8.2 cem-zebra-mode-mapping) */```{cem:for-each @select="$datadom.slices.zmap" @as="z" |```
-  @scope (.cem-theme-```{$z.theme_mode}```, [data-theme="cem-theme-```{$z.theme_mode}```"]) to ([data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark) {
+  /* Explicit roots carry their own state as well as scoping descendant controls. */
+  &:is(.cem-theme-```{$z.theme_mode}```, [data-theme="cem-theme-```{$z.theme_mode}```"]```{cem:if @test='z.theme_mode == "projector"' |```, .cem-theme-light[data-cem-presentation="projector"], [data-theme="cem-theme-light"][data-cem-presentation="projector"]```}```):is([focus], :focus, :focus-visible, :focus-within, .focus), :is(.cem-theme-```{$z.theme_mode}```, [data-theme="cem-theme-```{$z.theme_mode}```"]```{cem:if @test='z.theme_mode == "projector"' |```, .cem-theme-light[data-cem-presentation="projector"], [data-theme="cem-theme-light"][data-cem-presentation="projector"]```}```):is([focus], :focus, :focus-visible, :focus-within, .focus) { --cem-zebra-color-1: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_1_focus, "--")' |var({$z.cem_zebra_color_1_focus})}{cem:otherwise |{$z.cem_zebra_color_1_focus}}}```; }
+  &:is(.cem-theme-```{$z.theme_mode}```, [data-theme="cem-theme-```{$z.theme_mode}```"]```{cem:if @test='z.theme_mode == "projector"' |```, .cem-theme-light[data-cem-presentation="projector"], [data-theme="cem-theme-light"][data-cem-presentation="projector"]```}```):is([target], :target, .target), :is(.cem-theme-```{$z.theme_mode}```, [data-theme="cem-theme-```{$z.theme_mode}```"]```{cem:if @test='z.theme_mode == "projector"' |```, .cem-theme-light[data-cem-presentation="projector"], [data-theme="cem-theme-light"][data-cem-presentation="projector"]```}```):is([target], :target, .target) { --cem-zebra-color-2: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_2_target, "--")' |var({$z.cem_zebra_color_2_target})}{cem:otherwise |{$z.cem_zebra_color_2_target}}}```; }
+  &:is(.cem-theme-```{$z.theme_mode}```, [data-theme="cem-theme-```{$z.theme_mode}```"]```{cem:if @test='z.theme_mode == "projector"' |```, .cem-theme-light[data-cem-presentation="projector"], [data-theme="cem-theme-light"][data-cem-presentation="projector"]```}```):is([selected], .selected), :is(.cem-theme-```{$z.theme_mode}```, [data-theme="cem-theme-```{$z.theme_mode}```"]```{cem:if @test='z.theme_mode == "projector"' |```, .cem-theme-light[data-cem-presentation="projector"], [data-theme="cem-theme-light"][data-cem-presentation="projector"]```}```):is([selected], .selected) { --cem-zebra-color-3: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_3_selected, "--")' |var({$z.cem_zebra_color_3_selected})}{cem:otherwise |{$z.cem_zebra_color_3_selected}}}```; }
+  @scope (.cem-theme-```{$z.theme_mode}```, [data-theme="cem-theme-```{$z.theme_mode}```"]```{cem:if @test='z.theme_mode == "projector"' |```, .cem-theme-light[data-cem-presentation="projector"], [data-theme="cem-theme-light"][data-cem-presentation="projector"]```}```) to ([data-theme*="cem-theme-"], .cem-theme-projector, .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark) {
     :scope:where([focus], :focus, :focus-visible, :focus-within, .focus), [focus], :focus, :focus-visible, :focus-within, .focus { --cem-zebra-color-1: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_1_focus, "--")' |var({$z.cem_zebra_color_1_focus})}{cem:otherwise |{$z.cem_zebra_color_1_focus}}}```; }
     :scope:where([target], :target, .target), [target], :target, .target { --cem-zebra-color-2: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_2_target, "--")' |var({$z.cem_zebra_color_2_target})}{cem:otherwise |{$z.cem_zebra_color_2_target}}}```; }
     :scope:where([selected], .selected), [selected], .selected { --cem-zebra-color-3: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_3_selected, "--")' |var({$z.cem_zebra_color_3_selected})}{cem:otherwise |{$z.cem_zebra_color_3_selected}}}```; }
   }```}```
   /* endregion zebra state */
+
+  /* projector is a light palette variation: keep fills and pending backgrounds. */
+  &.cem-theme-projector, &[data-theme="cem-theme-projector"], &.cem-theme-light[data-cem-presentation="projector"], &[data-theme="cem-theme-light"][data-cem-presentation="projector"], .cem-theme-projector, [data-theme="cem-theme-projector"], .cem-theme-light[data-cem-presentation="projector"], [data-theme="cem-theme-light"][data-cem-presentation="projector"] {
+    color-scheme: light;```{cem:for-each @select="$datadom.slices.projector" @as="row" |```
+    ```{$row.token}: {$row.value};}```
+  }
 
   /* region native theme overrides */
   .cem-theme-native, [data-theme="cem-theme-native"] {
@@ -397,7 +407,7 @@
   }
 
   @media (forced-colors: active) {
-    &, [data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark {```{cem:for-each @select="$datadom.slices.separator" @as="row" |```
+    &, [data-theme*="cem-theme-"], .cem-theme-projector, .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark {```{cem:for-each @select="$datadom.slices.separator" @as="row" |```
       ```{$row.token}: {$row.forced_colors};}```
       ```{cem:for-each @select="$datadom.slices.progress" @as="row" |```
       ```{$row.token}: {$row.forced_colors};}```
@@ -406,6 +416,12 @@
       ```{cem:for-each @select="$datadom.slices.slider" @as="row" |```
       ```{$row.token}: {$row.forced_colors};}```
       ```{cem:for-each @select="$datadom.slices.resource" @as="row" |```
+      ```{$row.token}: {$row.forced_colors};}```
+    }
+  }
+
+  @media (forced-colors: active) {
+    &.cem-theme-projector, &[data-theme="cem-theme-projector"], &.cem-theme-light[data-cem-presentation="projector"], &[data-theme="cem-theme-light"][data-cem-presentation="projector"], .cem-theme-projector, [data-theme="cem-theme-projector"], .cem-theme-light[data-cem-presentation="projector"], [data-theme="cem-theme-light"][data-cem-presentation="projector"] {```{cem:for-each @select="$datadom.slices.projector" @as="row" |```
       ```{$row.token}: {$row.forced_colors};}```
     }
   }

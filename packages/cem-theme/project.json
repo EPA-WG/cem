@@ -388,6 +388,27 @@
                 "{projectRoot}/dist/**/*.json"
             ]
         },
+        "verify:projector": {
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "build:tokens"
+            ],
+            "options": {
+                "command": "node scripts/verify-projector.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/scripts/verify-projector.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": true
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-theme/projector.json"
+            ]
+        },
         "verify:phase13": {
             "dependsOn": ["build:css"],
             "executor": "nx:run-commands",

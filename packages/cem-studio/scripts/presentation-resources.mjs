@@ -98,10 +98,15 @@ export async function verifyPresenterResources(data, notes) {
     assert.equal(deckNotes.slides, 30);
     for (const field of ['originalNotesPreserved', 'visibleContentUnchanged', 'exactResourceLinkReadback']) assert.equal(deckNotes[field], true);
     assert.deepEqual(deckNotes.blocks.map(block => block.slideId), cues.map(row => row[1].replaceAll('`', '')));
-    const palette = JSON.parse(await readFile(resolve(docs, 'native-deck-palette-readback.json'), 'utf8'));
+    const palette = JSON.parse(await readFile(resolve(docs, 'native-deck-projector-readback.json'), 'utf8'));
+    assert.equal(palette.profile, 'projector');
+    assert.equal(palette.media.exactImageReadback, true);
+    assert.equal(palette.media.suppliedArtworkAndQRPreserved, true);
+    assert.equal(palette.media.sourceTextPreserved, true);
+    assert.equal(palette.media.replaced.length, 12);
     assert.equal(palette.palette.sourceSha256, presenterHash(await readFile(resolve(workspaceRoot, 'packages/cem-theme/src/lib/tokens/cem-colors.md'))), 'Reviewed palette source changed');
     assert.equal(palette.slides, 30); assert.equal(palette.visualReview.pages, 30);
-    for (const key of ['titlePreserved', 'notesPreserved', 'imagesPreserved', 'textAndGeometryPreserved', 'exactColorReadback']) assert.equal(palette[key], true);
+    for (const key of ['titlePreserved', 'notesPreserved', 'textAndGeometryPreserved', 'exactColorReadback']) assert.equal(palette[key], true);
     const opening = JSON.parse(await readFile(resolve(docs, 'native-opening-readback.json'), 'utf8'));
     assert.equal(opening.native.presentationId, palette.presentationId);
     assert.equal(opening.native.completeMs, 25100);

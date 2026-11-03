@@ -77,7 +77,7 @@
 }
 
 /* Action contour presence is inherited across explicit theme boundaries. */
-:root, [data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-light, .cem-theme-dark, .cem-theme-contrast-light, .cem-theme-contrast-dark {```{call @from=docs @template=css-properties @with:rows={datadom.slices.action} @with:indent="  "}```
+:root, .cem-theme-projector, [data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-light, .cem-theme-dark, .cem-theme-contrast-light, .cem-theme-contrast-dark {```{call @from=docs @template=css-properties @with:rows={datadom.slices.action} @with:indent="  "}```
 }
 [data-theme="cem-theme-contrast-light"], [data-theme="cem-theme-contrast-dark"], .cem-theme-contrast-light, .cem-theme-contrast-dark {```{cem:for-each @select="$datadom.slices.action" @as="row" |```
   ```{$row.token}: {$row.contrast};}```

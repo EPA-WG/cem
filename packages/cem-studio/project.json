@@ -148,6 +148,7 @@
             "inputs": [
                 "{projectRoot}/src/shell.js",
                 "{projectRoot}/src/shell.browser.spec.js",
+                "{workspaceRoot}/packages/cem-theme/dist/lib/css/cem-combined.css",
                 "{projectRoot}/src/repository.js",
                 "{projectRoot}/src/build-snapshots.js",
                 "{projectRoot}/src/build-snapshots.d.ts",
@@ -1571,11 +1572,17 @@
             ],
             "outputs": []
         },
+        "prepare:projector-assets": {
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:css" }],
+            "options": { "command": "node scripts/presentation-projector-assets.mjs", "cwd": "{projectRoot}" }
+        },
         "test:presentation-resources": {
+            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
             "cache": true,
             "executor": "nx:run-commands",
             "options": {
-                "command": "node --test scripts/presentation-resources.test.mjs scripts/presentation-deck-notes.test.mjs scripts/presentation-palette.test.mjs scripts/presentation-story.test.mjs",
+                "command": "node --test scripts/presentation-resources.test.mjs scripts/presentation-deck-notes.test.mjs scripts/presentation-palette.test.mjs scripts/presentation-palette-projector.test.mjs scripts/presentation-story.test.mjs",
                 "cwd": "{projectRoot}"
             },
             "inputs": [

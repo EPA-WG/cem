@@ -1,4 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
+import themeCss from '@epa-wg/cem-theme/styles.css?raw';
 
 import {
     CEM_STUDIO_THEME_MODES,
@@ -32,10 +33,10 @@ afterEach(async () => {
 
 describe('CEM Studio installable application shell', () => {
     it('loads the saved theme before mount and defaults missing or invalid storage to light', () => {
-        for (const saved of [null, 'invalid', 'cem-theme-dark']) {
+        for (const saved of [null, 'invalid', 'cem-theme-dark', 'cem-theme-projector']) {
             const storage = memoryStorage(saved === null ? {} : { 'cem-studio-theme': saved });
             const theme = createCemStudioThemeController({ storage });
-            expect(theme.mode).toBe(saved === 'cem-theme-dark' ? saved : 'cem-theme-light');
+            expect(theme.mode).toBe(saved?.startsWith('cem-theme-') ? saved : 'cem-theme-light');
         }
     });
     it('serializes host operations during the asynchronous declarative disabled-state update', async () => {
@@ -76,6 +77,10 @@ describe('CEM Studio installable application shell', () => {
     });
 
     it('binds the theme declaratively and omits storage/install/update controls while retaining workbench state', async () => {
+        // Exercise the real presentation palette without changing the isolated
+        // consumer-override fixtures in the other shell cases.
+        const colors = document.createElement('style'); colors.textContent = themeCss;
+        document.head.append(colors); onTestFinished(() => colors.remove());
         const { userEvent } = await import('vitest/browser');
         const root = document.createElement('main');
         document.body.append(root);
@@ -100,15 +105,21 @@ describe('CEM Studio installable application shell', () => {
 
         // Real theme items contain nested icon/label nodes. Every part of a
         // menu item must deliver its enclosing native button's value.
-        for (const mode of ['cem-theme-light', 'cem-theme-contrast-dark', 'cem-theme-contrast-light', 'cem-theme-native', 'cem-theme-dark']) {
+        for (const mode of ['cem-theme-projector', 'cem-theme-light', 'cem-theme-contrast-dark', 'cem-theme-contrast-light', 'cem-theme-native', 'cem-theme-dark']) {
             await userEvent.click(trigger); await shell.whenSettled();
             const item = theme.querySelector(`cem-menu cem-icon-button[value="${mode}"]`);
             await userEvent.click(item.querySelector('[part=glyph]'));
             await shell.whenSettled();
             expect(shell.theme.mode).toBe(mode);
             expect(shell.view.element.dataset.theme).toBe(mode);
+            if (mode === 'cem-theme-projector') {
+                expect(getComputedStyle(shell.view.element).backgroundColor).toBe('rgb(255, 255, 255)');
+                expect(getComputedStyle(shell.view.element).color).toBe('rgb(0, 0, 0)');
+            }
             expect(storage.getItem('cem-studio-theme')).toBe(mode);
         }
+
+        expect(theme.querySelector('[aria-label="Presentation"][value="cem-theme-projector"]')).toBeTruthy();
 
         const workbench = document.createElement('section');
         const editor = document.createElement('textarea');
@@ -235,6 +246,7 @@ describe('CEM Studio installable application shell', () => {
 
         expect(CEM_STUDIO_THEME_MODES).toEqual([
             'cem-theme-light',
+            'cem-theme-projector',
             'cem-theme-dark',
             'cem-theme-contrast-light',
             'cem-theme-contrast-dark',

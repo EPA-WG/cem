@@ -35,6 +35,9 @@ const VALID_TIERS = new Set(["required", "recommended", "optional", "adapter", "
 // Supported color-scheme modes
 const MODES = ["light", "dark", "contrast-light", "contrast-dark", "native"];
 
+// Palette profiles are resolved separately from the five operational modes.
+const PROFILES = { projector: { mode: "light", theme: "cem-theme-projector" } };
+
 // Tokens overridden by data-cem-spacing (from cem-dimension.css parallel group rules)
 const SPACING_TOKENS = new Set([
     "--cem-gap-related", "--cem-gap-group", "--cem-gap-block", "--cem-gap-section", "--cem-gap-page",
@@ -301,6 +304,12 @@ async function stage2Resolve(tokens) {
             modeResults[mode] = await readValues(`cem-theme-${mode}`, {});
         }
 
+        const profileResults = {};
+        for (const [profile, { theme }] of Object.entries(PROFILES)) {
+            console.log(`  resolving profile: ${profile}`);
+            profileResults[profile] = await readValues(theme, {});
+        }
+
         // --- Parallel group variant passes (light mode as reference base) ---
         console.log("  resolving spacing/coupling/shape variants");
         const spacingDense      = await readValues("cem-theme-light", { "data-cem-spacing": "dense" });
@@ -335,7 +344,7 @@ async function stage2Resolve(tokens) {
                 warnings.push(msg);
             }
 
-            return { ...t, valueByMode, valueType: classifyValueType(t.valueRaw, valueByMode["light"]) };
+            return { ...t, valueByMode, valueByProfile: Object.fromEntries(Object.entries(profileResults).map(([profile, values]) => [profile, values[t.name] ?? ""])), valueType: classifyValueType(t.valueRaw, valueByMode["light"]) };
         });
 
         // --- 5-token spot-check against known tokens ---
@@ -673,6 +682,8 @@ function buildDtcgTokenRecord(token) {
             rawValue: token.valueRaw,
             portability: token.valueType,
             modes: token.valueByMode ?? {},
+            profiles: token.valueByProfile ?? {},
+            profileDefinitions: PROFILES,
         },
     };
     return record;
@@ -1531,6 +1542,7 @@ function buildTokenMeta(token, bucket) {
         bucket,
         rawValue: token.valueRaw ?? "",
         modes: token.valueByMode ?? {},
+        profiles: token.valueByProfile ?? {},
     };
 }
 
@@ -1545,6 +1557,7 @@ async function emitTokenCatalog(allMeta, generated) {
     const outPath = path.join(DIST_TOKENS, "cem.tokens.catalog.json");
     const catalog = {
         $generated: generated,
+        profiles: PROFILES,
         tokens: allMeta,
     };
     await fs.mkdir(DIST_TOKENS, { recursive: true });
@@ -1597,6 +1610,7 @@ async function emitTypeScriptMetadata(allMeta, generated) {
     lines.push("    bucket: CemTokenBucket;");
     lines.push("    rawValue: string;");
     lines.push("    modes: Readonly<Record<string, string>>;");
+    lines.push("    profiles: Readonly<Record<string, string>>;");
     lines.push("}");
     lines.push("");
     lines.push("export const cemTokens = [");
@@ -1612,6 +1626,7 @@ async function emitTypeScriptMetadata(allMeta, generated) {
         lines.push(`        bucket: ${tsString(meta.bucket)},`);
         lines.push(`        rawValue: ${tsString(meta.rawValue)},`);
         lines.push(`        modes: ${JSON.stringify(meta.modes)},`);
+        lines.push(`        profiles: ${JSON.stringify(meta.profiles)},`);
         lines.push("    },");
     }
     lines.push("] as const satisfies readonly CemTokenMeta[];");

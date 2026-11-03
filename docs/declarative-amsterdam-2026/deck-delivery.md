@@ -11,13 +11,13 @@ reordering. References remain at positions 25 and 27–29; closing/Q&A is slide 
 The main run follows the six public intervals
 and reserves 54–60 minutes for questions. CEM narrative text and diagrams are
 editable; the supplied DCE diagram remains an image. Source images retain the
-approved formatting and colors. Discussion
+approved formatting; source images now use the projector palette. Discussion
 #24 is the resource link and QR destination; Studio is marked in development.
 
 Sasha's cloned opening now introduces [DNA for structured data](opening-teaser.md).
 The teaser is light; the original title slide remains dark at position 2. The
 deck-wide palette and dark diagnostic panel are now verified in the
-[palette readback](native-deck-palette-readback.json).
+[projector readback](native-deck-projector-readback.json).
 The native deck includes these edits and is authoritative over the initial PPTX.
 The later update preserves the added “Browser vs DCE security” image and the
 revised embedding quotations. The DCE promise takes 50:00–50:30, within the
@@ -30,10 +30,11 @@ existing platform block; the deployment overview now takes 49:00–50:00.
 | Speaker script and timing | [slide-story.md](slide-story.md) |
 | Current physical order and stable slide IDs | [native-slide-order.md](native-slide-order.md) |
 | Initial PowerPoint, before the native opening edit | [cem-declarative-amsterdam-2026.pptx](../../dist/declarative-amsterdam-2026/slides/cem-declarative-amsterdam-2026.pptx) |
-| Current native Google Slides PDF | [presentation.pdf](../../dist/reports/cem-studio/palette-final-render/presentation.pdf) |
+| Current native Google Slides PDF | [presentation.pdf](../../dist/reports/cem-studio/projector-final-render/presentation.pdf) |
 | Source and command evidence | [evidence.md](../../dist/declarative-amsterdam-2026/slide-assets/evidence.md), [evidence.json](../../dist/declarative-amsterdam-2026/slide-assets/evidence.json) |
-| Current slide PNGs | `dist/reports/cem-studio/palette-final-render/slide-01.png` through `slide-30.png` |
-| Current native readback | `dist/reports/cem-studio/palette-final.json` |
+| Current slide PNGs | `dist/reports/cem-studio/projector-final-render/slide-01.png` through `slide-30.png` |
+| Current native readback | `dist/reports/cem-studio/projector-final-restored.json` |
+| Projector palette and source-image evidence | [native-deck-projector-readback.json](native-deck-projector-readback.json) |
 | Current numbering/timing patch and checks | `dist/declarative-amsterdam-2026/slides/user-sync-requests.json`, `user-sync-issues.json` |
 | Initial-deck QA and repairs | `dist/declarative-amsterdam-2026/slides/output-issues-final.json`, `native-repairs.json` |
 
@@ -139,6 +140,63 @@ The supplier pipeline is labelled a companion scenario. Six-layer insulation
 is an architectural target with partial controls. Performance slides describe
 mechanisms without invented benchmarks or measured savings. The catalog lists
 32 **packages**, including internal contracts and module-map revisions.
+
+## Projector palette 2026-11-02
+
+The native deck now uses the canonical `projector` variation of classic CEM
+light: white slide canvases, black primary text and colored semantic backgrounds
+with paired foregrounds. The original dark title and labeled diagnostic panel
+remain intentional exceptions. The source artwork, security diagram, QR and
+static login preview are preserved.
+
+The [projector receipt](native-deck-projector-readback.json) records 724
+revision-guarded color updates, including the native master color scheme,
+and 409 checked native text runs with a minimum calculated contrast of 7.19:1.
+Nine approved source-image DOM snapshots were re-exported in 12 existing image
+locations. Their source text, pixel dimensions, accessibility descriptions and
+original native transforms are preserved; every measured source-image text color
+exceeds 7:1 on the new white surface. Supplied artwork and the static login image
+remain outside that source-image contrast claim.
+
+Color-only readback and the separately guarded source-image readback preserve
+all other native content, notes, fonts, geometry, order and links. The repeated
+palette plan contains zero requests. All 30 final PDF pages were inspected after
+the consolidated source-image repair. The issue checker reports zero errors and
+the existing intentional lifecycle-arrow warning. The PDF is 905977 bytes,
+SHA-256 `2e17b6a76f2068cfd3fa7f828641d7b825d212b2d3107acb9fa4dd69ff4e32f1`.
+
+A fresh native PowerPoint export confirms the same automatic seven-effect
+opening and 25.1-second completion. Anonymous, zero-click Google Slides playback
+also passes all staged-reveal and retention checks. Browser sampling now uses
+navigation start because DOM readiness can occur after slide playback begins;
+exact timing remains owned by native animation XML.
+
+Theme CSS and public JSON/TypeScript metadata expose `projector` separately from
+the five operational modes. The shared theme selector and Studio label
+`cem-theme-projector` as **Presentation** and preserve the selection in storage.
+The variation retains light-mode fills and pending background gradients;
+keyboard focus, target and selection remain independent indicators.
+
+Verification covers 69 projector color/state checks, document-root and nested
+theme selection, inherited overrides, combined state indicators and forced
+colors. The existing Phase 13 and density gates, nine theme-switch browser
+stories, 13 Studio shell browser cases, 45 presentation/resource guard tests and
+the Studio production build/output check pass. Physical projector acceptance
+and the full timed rehearsal remain open.
+
+For source-image regeneration, first retain or regenerate the approved baseline
+HTML/PNG assets with `generate-slide-assets.mjs`, then run:
+
+```sh
+yarn nx run @epa-wg/cem-theme:verify:projector
+yarn nx run @epa-wg/cem-studio:prepare:projector-assets
+```
+
+`presentation-palette-projector.mjs` resolves the published profile against the
+canonical source table and exports the revision/order-guarded native planner
+and readback checks. Full native reads, request plans, HTML/PNG snapshots and
+PDF exports remain under ignored `dist/reports/cem-studio/projector-*` paths.
+Do not reimport the initial PPTX over the current native presentation.
 
 ## Canonical palette — 2026-11-01
 

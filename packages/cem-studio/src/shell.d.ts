@@ -2,6 +2,7 @@ import type { CemHostView, CemElementRuntime } from '@epa-wg/cem-elements';
 
 export declare const CEM_STUDIO_THEME_MODES: readonly [
     'cem-theme-light',
+    'cem-theme-projector',
     'cem-theme-dark',
     'cem-theme-contrast-light',
     'cem-theme-contrast-dark',

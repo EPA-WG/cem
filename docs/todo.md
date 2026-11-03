@@ -223,6 +223,41 @@ channels; private agreements remain unverified. This file owns execution order.
       tests and Studio lint passed. [Receipt](declarative-amsterdam-2026/native-deck-palette-readback.json).
       Opening playback and measured rehearsal remain separate.
 
+- [x] Implement the `projector` palette in canonical CEM theme tables and generated
+      CSS/exports, retaining classic light fills and pending backgrounds. Add
+      computed-color fixtures for state contrast, pending stripes, inheritance,
+      nested themes, forced colors and class/attribute selection. Expose
+      “Presentation” in the shared theme switch and Studio persistence; extend
+      their browser fixtures. Apply the canonical profile to the current native
+      Amsterdam deck with revision/order/content guards, profile drift and
+      idempotence fixtures, exact readback, PDF review and opening preservation.
+      Verified 2026-11-02: 69 projector color/state checks, existing Phase 13 and
+      density gates, nine shared-switch browser stories, 13 Studio shell cases,
+      45 presentation/resource tests, Studio build/output and all affected lint
+      targets pass. Public exports separate profiles from the five operational
+      modes; Presentation persists as `cem-theme-projector`. The 30-page native
+      deck/PDF is reviewed, nine source images are re-exported in 12 positions,
+      and exact color/media readback plus a zero repeat plan preserve other
+      content, metadata, notes, geometry and supplied artwork. Fresh native
+      timing and zero-click playback confirm the unchanged 25.1-second opening;
+      the browser audit now measures from navigation start rather than late DOM
+      readiness. [Delivery](declarative-amsterdam-2026/deck-delivery.md#projector-palette-2026-11-02)
+      and [receipt](declarative-amsterdam-2026/native-deck-projector-readback.json).
+      Physical projector acceptance and full timed rehearsal remain separate.
+
+- [x] Propose a reusable `projector` color variation for the Amsterdam
+      presentation, centered on white backgrounds and black primary text.
+      [Palette example](presentation/projector-slides-palette.svg) prepared
+      2026-11-02 using W3C WAI/WCAG, Microsoft and projection research.
+      Verified 16 ink/stroke surface pairs, all 14 emotional-palette text pairs,
+      design references and the rendered SVG. Documented canonical token
+      ownership, inherited profile boundaries, forced-colors precedence and
+      native export acceptance. Revised to use classic CEM light with retained
+      background fills/state progression and no contrast-mode zebra substitution;
+      retained SVG colors and recorded pending-recipe validation requirements.
+      The proposal document was removed after implementation; the canonical
+      D0 contract and delivery record now own the implemented behavior and evidence.
+
 - [x] Verify the integrated native opening and preserve the current brain artwork,
       speaker notes, palette and slide order. Add fixtures for group ownership,
       timing/trigger drift, missing targets and paired DNA resize orchestration.

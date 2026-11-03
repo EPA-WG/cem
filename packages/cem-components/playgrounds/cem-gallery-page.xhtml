@@ -8,7 +8,7 @@
     {attribute @name=data-cem-density | super-compact}
     {attribute @name=data-cem-spacing | normal}
     {local-storage @slice=theme @key="{$storage-key}" @type=text @live=true}
-    {attribute @name=data-theme @select='if ((datadom.slices.theme ?? "") == "cem-theme-dark") || ((datadom.slices.theme ?? "") == "cem-theme-contrast-light") || ((datadom.slices.theme ?? "") == "cem-theme-contrast-dark") || ((datadom.slices.theme ?? "") == "cem-theme-native") { datadom.slices.theme } else { "cem-theme-light" }'}
+    {attribute @name=data-theme @select='if ((datadom.slices.theme ?? "") == "cem-theme-projector") || ((datadom.slices.theme ?? "") == "cem-theme-dark") || ((datadom.slices.theme ?? "") == "cem-theme-contrast-light") || ((datadom.slices.theme ?? "") == "cem-theme-contrast-dark") || ((datadom.slices.theme ?? "") == "cem-theme-native") { datadom.slices.theme } else { "cem-theme-light" }'}
     {style @type="text/css" |```
       :scope { display: block; box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); }
       :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }

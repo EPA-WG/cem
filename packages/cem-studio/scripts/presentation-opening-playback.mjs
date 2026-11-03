@@ -7,7 +7,7 @@ import { presentationId } from './presentation-deck-notes.mjs';
 
 // Fresh anonymous context: no saved profile, credentials, keyboard or mouse input.
 const url = `https://docs.google.com/presentation/d/${presentationId}/present?slide=id.p1`;
-const output = resolve(workspaceRoot, 'dist/reports/cem-studio/opening-playback');
+const output = resolve(workspaceRoot, 'dist/reports/cem-studio/projector-opening-playback');
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 try {
@@ -16,7 +16,10 @@ try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     assert.equal(page.url(), url, 'Unexpected redirect; do not automate authentication');
     assert.match(await page.title(), /CEM-ML.*Google Slides/);
-    const start = performance.now(), frames = [];
+    // Slide playback may start before DOMContentLoaded. Reference navigation
+    // start rather than treating our later readiness callback as slide entry.
+    const readyMs = await page.evaluate(() => performance.now());
+    const start = performance.now() - readyMs, frames = [];
     for (const milliseconds of [0, 3500, 7500, 12500, 17500, 22500, 26000, 30000]) {
         const wait = start + milliseconds - performance.now();
         if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
@@ -49,11 +52,12 @@ try {
         assert.ok(at(ms).cem < 100, 'CEM appeared before its interval');
     }
     for (const ms of [26000, 30000]) for (const count of Object.values(at(ms))) assert.ok(count > 1000, 'Final stage missing');
-    assert.ok(frames.every(frame => frame.capturedMs < frame.milliseconds + 1500), 'Browser too slow to claim the sampled intervals');
-    const result = { schemaVersion: 1, checkedDate: '2026-11-01', presentationId, url,
+    assert.ok(frames.filter(frame => frame.milliseconds !== 0).every(frame => frame.capturedMs < frame.milliseconds + 1500), 'Browser too slow to claim the sampled intervals');
+    const result = { schemaVersion: 1, checkedDate: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }), presentationId, url,
         browser: browser.version(), isolatedAnonymousContext: true, clicks: 0, slideEntryStarts: true,
         sampledStageOrder: ['thought', 'dna', 'cem'], allVisibleAt26Seconds: true,
-        earlierStagesRetainedAt30Seconds: true, measurementOrigin: 'DOMContentLoaded; sampled intervals, not exact transition timestamps',
+        earlierStagesRetainedAt30Seconds: true, measurementOrigin: 'navigationStart; first frame captured on DOM readiness; sampled intervals, not exact transition timestamps',
+        readyMs,
         nativeTimelineMs: 25100, measuredFullRehearsal: false, frames, pageErrors: errors };
     await writeFile(resolve(output, 'report.json'), JSON.stringify(result, null, 2) + '\n');
     console.log('Verified zero-click opening playback, staged reveals and retained content at 30 seconds.');

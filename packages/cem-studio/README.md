@@ -66,7 +66,7 @@ workspace checkpoints retain the existing aggregate 4 MiB budget.
   archive codec. It never prompts on status or background work; picker and
   retained-handle permission requests require an explicit caller action.
 - `@epa-wg/cem-studio/shell` exposes the production CEM-component shell, five
-  theme modes, browser install state, and explicit safe-update coordinator.
+  operational theme modes plus **Presentation** (`cem-theme-projector`), browser install state, and explicit safe-update coordinator.
 - `@epa-wg/cem-studio/project-session` exposes `createCemStudioProjectSession`.
   It admits durable identities through an injected workbench resolver after
   independent source Save/Discard/Cancel and command Apply/Discard/Cancel
