@@ -96,7 +96,13 @@ require shared-memory WASM or cross-origin isolation.
 
 The browser command-service API is a separate strict boundary: it always owns
 exactly one dedicated worker and never falls back to pool scheduling or
-main-thread execution. Callers provide explicit asynchronous revision, read,
+main-thread execution. Its trusted bootstrap structured-clones the installed
+factory's immutable compiled WASM module, avoiding a duplicate code download
+when an owned invocation already loaded it. The worker still creates its own
+instance and memory and validates native headroom, protocol and ABI as before.
+The entire startup, including code acquisition, remains inside the existing
+10-second default budget; cancellation or timeout prevents a late bootstrap.
+Callers provide explicit asynchronous revision, read,
 and transactional-write capabilities; URLs and virtual resources have no
 implicit filesystem behavior.
 

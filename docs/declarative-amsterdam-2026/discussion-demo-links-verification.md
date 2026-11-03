@@ -37,9 +37,10 @@ the corresponding raw Markdown bytes match the pinned Git blobs exactly.
 These are documentation checks, not evidence of public Studio functionality.
 The immutable source edition still describes the prepared startup correction.
 
-The public inventory remains the earlier 904-file `19913ea5…` baseline. The
-905-file `5deaa842…` startup correction still needs the owner's signed-in upload.
-After that upload, repeat public freshness, general browser acceptance, the full
+The owner subsequently uploaded the 905-file `5deaa842…` overlap correction as
+`2ea68bcd`. [Public readback](public-demo-2ea68bcd-readback.json) confirms its bytes
+but records the separate command-worker timeout. After the next corrected
+upload, repeat public freshness, general browser acceptance, the full
 Login/Supplier walkthrough and these exact destinations on the public host.
 Review the complete comment before the explicit posting action. Preserve the
 stable discussion #24 resource destination, disposable-data instruction and

@@ -10,6 +10,7 @@ import {
     parseCemMlCommand,
     projectBrowserCommandPresentation,
 } from '../dist/browser.js';
+import { createCemMlWasmGeneration } from '@epa-wg/cem-ml/wasm/factory';
 import parseRunPlan from './browser-command-run-plan.fixture.json' with { type: 'json' };
 import {
     commandCases,
@@ -19,6 +20,8 @@ import {
 } from './command-all-operations.fixture.mjs';
 
 globalThis.runCemMlBrowserFixture = async (scenario) => {
+    if (scenario === 'command-compiled-code') return runCompiledCodeFixture();
+    if (scenario === 'command-code-deadline') return runCodeDeadlineFixture();
     if (scenario === 'owned-invocation') return runOwnedInvocationFixture();
     if (scenario === 'command-host-configuration') return runHostConfigurationFixture();
     if (scenario === 'command-recovery-enrollment') return runRecoveryEnrollmentFixture();
@@ -112,6 +115,64 @@ globalThis.runCemMlBrowserFixture = async (scenario) => {
         globalThis.Worker = NativeWorker;
     }
 };
+
+async function runCompiledCodeFixture() {
+    const first = createCemMlWasmGeneration(), second = createCemMlWasmGeneration();
+    const NativeWorker = globalThis.Worker, modules = [], clients = [];
+    let invalid = false;
+    globalThis.Worker = class extends NativeWorker {
+        postMessage(message, transfer) {
+            if (message?.type === 'cem-worker-initialize') {
+                modules.push(message.compiledModule);
+                if (invalid) message = { ...message, compiledModule: {} };
+            }
+            super.postMessage(message, transfer);
+        }
+    };
+    try {
+        await Promise.all([first.initialize(), second.initialize()]);
+        for (let index = 0; index < 2; index++) {
+            const client = await createBrowserCommandServiceClient({ host: versionCommandHost() });
+            clients.push(client);
+            const result = await client.execute(versionCommandRequest(`compiled-code-${index}`)).result();
+            if (result.status !== 'succeeded') throw Error('compiled worker command failed');
+        }
+        invalid = true;
+        const rejected = await createBrowserCommandServiceClient({ host: versionCommandHost() })
+            .then(client => { clients.push(client); return 'accepted'; }, error => error.message);
+        return { codeOnly: modules.every(module => module instanceof WebAssembly.Module
+                && WebAssembly.Module.imports(module).every(entry => entry.kind !== 'memory')),
+            reused: modules.length === 3 && modules.every(module => module === modules[0]),
+            separateMemories: first.memory() !== second.memory(),
+            separateWorkers: clients[0].worker.runtimeInstanceId !== clients[1].worker.runtimeInstanceId,
+            rejected };
+    } finally {
+        await Promise.all(clients.map(client => client.close()));
+        first.dispose(); second.dispose(); globalThis.Worker = NativeWorker;
+    }
+}
+
+async function runCodeDeadlineFixture() {
+    const NativeWorker = globalThis.Worker, originalFetch = globalThis.fetch;
+    let release, posted = 0, terminated = 0, requested = false;
+    const delayed = new Promise(resolve => { release = resolve; });
+    globalThis.fetch = async (...args) => { requested = true; await delayed; return originalFetch(...args); };
+    globalThis.Worker = class extends NativeWorker {
+        postMessage(...args) { posted++; super.postMessage(...args); }
+        terminate() { terminated++; super.terminate(); }
+    };
+    try {
+        const failure = await createBrowserCommandServiceClient({ host: versionCommandHost(), startupTimeoutMs: 50 })
+            .then(client => { void client.close(); return 'accepted'; }, error => error.message);
+        release();
+        // Wait for the actual delayed acquisition/compilation, then its queued
+        // continuation: timed-out initialization must never bootstrap a worker.
+        const { loadCemMlWasmModule } = await import('@epa-wg/cem-ml/wasm/factory');
+        await loadCemMlWasmModule();
+        await new Promise(resolve => setTimeout(resolve, 0));
+        return { failure, requested, posted, terminated };
+    } finally { release(); globalThis.Worker = NativeWorker; globalThis.fetch = originalFetch; }
+}
 
 async function runCommandAllOperationsFixture() {
     const encoder = new TextEncoder();

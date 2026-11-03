@@ -106,7 +106,8 @@
             "path": "../../../node_modules/@epa-wg/cem-ml-cli/dist/browser-command.js",
             "contentType": "text/javascript",
             "moduleImports": {
-                "@epa-wg/cem-ml/runtime.json": "@epa-wg/cem-ml/runtime.json"
+                "@epa-wg/cem-ml/runtime.json": "@epa-wg/cem-ml/runtime.json",
+                "@epa-wg/cem-ml/wasm/factory": "@epa-wg/cem-ml/wasm/factory"
             }
         },
         "@epa-wg/cem-ml-cli/browser-invocation": {

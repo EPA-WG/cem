@@ -4,6 +4,7 @@ export type { CommandNativeEmbeddingOwnership, CommandNativeInventory, CommandNa
 import { CommandNativeClientCheckpoint, type CommandNativeDrain } from './native-admission.js';
 export type { CommandNativeDrain } from './native-admission.js';
 import runtimeMetadata from '@epa-wg/cem-ml/runtime.json' with { type: 'json' };
+import { loadCemMlWasmModule } from '@epa-wg/cem-ml/wasm/factory';
 
 import {
     parseBrowserCommandPackageRequest,
@@ -345,7 +346,7 @@ export class BrowserCommandServiceClient {
             type: 'module',
         });
         try {
-            const initialization = await initializeFreshGeneration(signal, () => initializeWorker(physicalWorker, startupTimeoutMs, runtimeHostId, hostConfigurationJson), () => physicalWorker.terminate());
+            const initialization = await initializeFreshGeneration(signal, () => initializeWorker(physicalWorker, startupTimeoutMs, runtimeHostId, hostConfigurationJson, signal), () => physicalWorker.terminate());
             return new BrowserCommandServiceClient(
                 physicalWorker,
                 initialization,
@@ -817,6 +818,7 @@ async function initializeWorker(
     startupTimeoutMs: number,
     runtimeHostId: string,
     packageHostConfigurationJson?: string,
+    signal?: AbortSignal,
 ): Promise<BrowserWorkerInitializePayload> {
     return new Promise((resolve, reject) => {
         let settled = false;
@@ -827,6 +829,7 @@ async function initializeWorker(
             worker.removeEventListener('message', onMessage);
             worker.removeEventListener('error', onError);
             worker.removeEventListener('messageerror', onMessageError);
+            signal?.removeEventListener('abort', onAbort);
             callback();
         };
         const onMessage = (event: MessageEvent<unknown>): void => {
@@ -844,21 +847,32 @@ async function initializeWorker(
         const onMessageError = (): void => {
             finish(() => reject(new Error('CEM-ML browser command worker initialization was not cloneable')));
         };
+        const onAbort = (): void => {
+            finish(() => reject(new Error('cem.runtime.allocation.cancelled')));
+        };
         const timeout = setTimeout(() => {
             finish(() => reject(new Error('CEM-ML browser command worker startup timed out')));
         }, startupTimeoutMs);
         worker.addEventListener('message', onMessage);
         worker.addEventListener('error', onError);
         worker.addEventListener('messageerror', onMessageError);
-        const bootstrap: BrowserWorkerBootstrap = {
-            type: 'cem-worker-initialize',
-            worker: { slot: 1, generation: 1 },
-            effectiveWorkers: 1,
-            runtimeHostId,
-            abiIdentity: runtimeAbiIdentity(),
-            ...(packageHostConfigurationJson === undefined ? {} : { packageHostConfigurationJson }),
-        };
-        worker.postMessage(bootstrap);
+        signal?.addEventListener('abort', onAbort, { once: true });
+        if (signal?.aborted) { onAbort(); return; }
+        // The original startup budget covers code acquisition as well as worker
+        // initialization. Reuse installed code, never a native instance/memory.
+        void loadCemMlWasmModule().then(compiledModule => {
+            if (settled) return;
+            const bootstrap: BrowserWorkerBootstrap = {
+                type: 'cem-worker-initialize',
+                worker: { slot: 1, generation: 1 },
+                effectiveWorkers: 1,
+                runtimeHostId,
+                abiIdentity: runtimeAbiIdentity(),
+                compiledModule,
+                ...(packageHostConfigurationJson === undefined ? {} : { packageHostConfigurationJson }),
+            };
+            worker.postMessage(bootstrap);
+        }).catch(error => finish(() => reject(asError(error))));
     });
 }
 

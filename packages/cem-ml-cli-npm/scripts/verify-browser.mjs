@@ -15,6 +15,8 @@ const temporaryRoot = mkdtempSync(resolve(tmpdir(), 'cem-ml-browser-worker-'));
 const bundleRoot = resolve(temporaryRoot, 'bundle');
 let browser;
 let server;
+const wasmRequests = [];
+const codeStartup = {};
 
 try {
     await build({
@@ -41,6 +43,7 @@ try {
 
     server = createServer((request, response) => {
         const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+        if (pathname.endsWith('.wasm')) wasmRequests.push(pathname);
         if (pathname.startsWith('/command-native/')) {
             const name = pathname.slice('/command-native/'.length);
             const paths = {
@@ -87,6 +90,28 @@ try {
     assert.ok(address && typeof address === 'object');
 
     browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_CHROME });
+    for (const scenario of ['command-compiled-code', 'command-code-deadline']) {
+        const isolated = await browser.newContext();
+        try {
+            const cold = await isolated.newPage();
+            await cold.goto(`http://127.0.0.1:${address.port}/`);
+            await cold.waitForFunction(() => typeof globalThis.runCemMlBrowserFixture === 'function');
+            const before = wasmRequests.length;
+            const result = await runFixture(cold, scenario);
+            codeStartup[scenario] = { ...result, wasmRequests: wasmRequests.slice(before) };
+            if (scenario === 'command-compiled-code') {
+                const { rejected, ...ownership } = result;
+                assert.match(rejected, /CEM-ML browser worker bootstrap is invalid$/);
+                assert.deepEqual(ownership, { codeOnly: true, reused: true, separateMemories: true,
+                    separateWorkers: true });
+            } else {
+                assert.deepEqual(result, { failure: 'CEM-ML browser command worker startup timed out',
+                    requested: true, posted: 0, terminated: 1 });
+            }
+            assert.equal(wasmRequests.length - before, 1, `${scenario}: one installed code acquisition, no worker download`);
+            console.log(`Verified ${scenario}: ${JSON.stringify(result)}`);
+        } finally { await isolated.close(); }
+    }
     const page = await browser.newPage();
     page.on('pageerror', (error) => console.error(`browser page error: ${error.message}`));
     await page.goto(`http://127.0.0.1:${address.port}/`);
@@ -307,10 +332,10 @@ try {
         scope: 'managed-cli-only', replacementAllowed: false });
     const nativeInventory = await runFixture(page, 'command-native-inventory');
     assert.deepEqual(nativeInventory, { omitted: 'cem.command.embedding.invalid', blocked: 'cem.command.inventory.blocked',
-        live: 1, registries: 29, owners: 2, blockers: 0, current: true, copied: false, afterRelease: false, replacementAllowed: false });
+        live: 1, registries: 36, owners: 2, blockers: 0, current: true, copied: false, afterRelease: false, replacementAllowed: false });
     const nativeClosure = await runFixture(page, 'command-native-closure');
     assert.deepEqual(nativeClosure, { omitted: 'cem.command.embedding.invalid', blocked: 'cem.command.inventory.blocked',
-        live: 1, registries: 29, owners: 2, blockers: 0, current: true, copied: false, afterRelease: false, replacementAllowed: false,
+        live: 1, registries: 36, owners: 2, blockers: 0, current: true, copied: false, afterRelease: false, replacementAllowed: false,
         denied: { document: 'cem.runtime.admission.closed', template: 'cem.runtime.admission.closed', command: 'cem.runtime.admission.closed', callbacks: 0 },
         stale: 'cem.command.native.stale', hostCurrent: true, closed: true });
     const nativeRetirement = await runFixture(page, 'command-native-retirement');
@@ -341,6 +366,7 @@ try {
                 successProgress: command.progress,
                 operations: allOperations.summaries,
                 cancellation,
+                codeStartup,
             },
             null,
             2,

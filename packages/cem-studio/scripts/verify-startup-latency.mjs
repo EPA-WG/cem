@@ -9,21 +9,26 @@ import { createCemStudioPreviewHandler } from './serve-preview.mjs';
 const workspace = resolve(import.meta.dirname, '../../..');
 const root = resolve(workspace, 'packages/cem-studio/dist/static');
 const reportPath = resolve(workspace, 'dist/reports/cem-studio/startup-latency.json');
-const baseline = process.env.CEM_STUDIO_STARTUP_BASELINE;
+const baseline = process.env.CEM_STUDIO_WORKER_STARTUP_BASELINE;
 const baselineBytes = baseline ? await readFile(resolve(baseline)) : undefined;
 const main = 'assets/@epa-wg/cem-studio/main.js';
+const command = 'assets/@epa-wg/cem-ml-cli/dist/browser-command.js';
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const handler = createCemStudioPreviewHandler({ root, versionedAssets: false });
 let override, requests = [], started;
 const server = createServer(async (request, response) => {
     const path = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
-    if (path === `/${main}` && override) {
+    if (path === `/${command}` && override) {
         response.writeHead(200, { 'content-type': 'text/javascript', 'cache-control': 'no-store' }).end(override); return;
     }
     if (path.endsWith('.wasm')) {
         const entry = { path, startedMs: Date.now() - started };
         requests.push(entry);
-        await new Promise(done => setTimeout(done, 8000));
+        // A redundant CEM-ML acquisition exceeds the unchanged worker budget.
+        const duplicateCommandCode = path.endsWith('/cem_ml_bg.wasm')
+            && requests.filter(request => request.path === path).length > 1;
+        entry.delayMs = duplicateCommandCode ? 11000 : 8000;
+        await new Promise(done => setTimeout(done, entry.delayMs));
         entry.releasedMs = Date.now() - started;
     }
     await handler(request, response);
@@ -46,22 +51,25 @@ try {
             try { await page.waitForFunction(() => Boolean(globalThis.__cemStudioApplication), undefined, { timeout: 30_000 }); }
             catch { readyWithinDeadline = false; }
             const deadlineObservationMs = Date.now() - started;
-            // Observe a failed baseline settling without relabeling its deadline.
-            if (!readyWithinDeadline) await page.waitForFunction(() => Boolean(globalThis.__cemStudioApplication), undefined, { timeout: 30_000 });
-            await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
-            const result = { variant, mainSha256: hash(override ?? await readFile(resolve(root, main))),
-                readyWithinDeadline, deadlineObservationMs, settledMs: Date.now() - started,
+            if (readyWithinDeadline) await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
+            const result = { variant, mainSha256: hash(await readFile(resolve(root, main))),
+                commandSha256: hash(override ?? await readFile(resolve(root, command))),
+                readyWithinDeadline, deadlineObservationMs,
+                ...(readyWithinDeadline ? { settledMs: Date.now() - started } : {}),
                 wasmRequests: [...requests], errors };
             results.push(result);
             console.log(`${variant}: readyWithinDeadline=${readyWithinDeadline}; deadline observation ${deadlineObservationMs} ms; ${requests.length} WASM requests`);
-            assert.deepEqual(errors, []);
-            assert.equal(requests.length, 4, 'Both original main/worker runtimes must still initialize');
+            if (variant === 'candidate') assert.deepEqual(errors, []);
+            else assert.ok(errors.some(error => error.includes('CEM-ML browser command worker startup timed out')));
+            assert.equal(requests.length, variant === 'candidate' ? 3 : 4, 'CEM-ML code is reused; all original runtime owners still initialize');
+            assert.equal(requests.filter(request => request.path.endsWith('/cem_ml_bg.wasm')).length, variant === 'candidate' ? 1 : 2);
             assert.equal(readyWithinDeadline, variant === 'candidate', `${variant} cold-start deadline outcome changed`);
         } finally { await context.close(); }
     }
 } finally {
     await mkdir(dirname(reportPath), { recursive: true });
     await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, browser: browser.version(), delayBeforeEachWasmResponseMs: 8000,
+        duplicateCommandCodeDelayMs: 11000,
         readinessDeadlineMs: 30_000, serviceWorkers: 'blocked-for-controlled-download-fixture',
         isPublicAcceptance: false, results }, null, 2)}\n`);
     await browser.close(); server.closeAllConnections(); await new Promise(done => server.close(done));

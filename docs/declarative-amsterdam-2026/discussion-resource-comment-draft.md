@@ -1,8 +1,10 @@
 # Discussion #24 resource comment — draft
 
-Do not post yet. The public host still serves the 904-file `ab74c3a7` baseline.
-The 905-file cold-start correction is prepared and verified locally, awaiting
-upload. Complete public Login/Supplier acceptance after that upload before
+Do not post yet. The public host serves the 905-file `2ea68bcd` deployment.
+Its inventory and critical bytes match, but Studio's command worker times out
+at the existing 10-second limit. The shared correction passes local acceptance;
+the prepared 905-file copy is `253278d1…`. Complete public Login/Supplier
+acceptance after the next upload before
 removing this notice and posting. No comment has been sent.
 
 The presentation uses ordinary Studio projects, resources and configurations.

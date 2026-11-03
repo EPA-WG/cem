@@ -362,7 +362,27 @@ channels; private agreements remain unverified. This file owns execution order.
       All 19 startup/shell tests, typecheck, lint, graph output, general local demo
       checks and the complete 23-configuration offline Login/Supplier route pass.
       [Verification](declarative-amsterdam-2026/startup-overlap-verification.md).
-      Public acceptance remains gated on the owner uploading the new 905-file copy.
+      Owner uploaded the 905-file copy as `2ea68bcd`; inventory/bytes match.
+      Its separate command-worker timeout is tracked below; public acceptance
+      remains open.
+
+- [x] Fixture: reproduce the deployed command worker's duplicate WASM download
+      and 10-second startup failure. Reuse only the installed immutable compiled
+      module across the trusted bootstrap; retain separate instances/memories,
+      native admission/ABI checks, cancellation, the complete 10-second startup
+      budget and 30-second Studio readiness limit. Reject invalid bootstrap code,
+      verify cold network reuse and late-load cleanup, then repeat local gates.
+      Align stale browser inventory assertions (29 registries) with the existing
+      native/unit contract (36), retaining exact registry and ownership checks;
+      the rebuilt WASM hash is unchanged.
+      Verified 2026-11-03: full CLI browser suite, 57 Node/native-boundary tests,
+      19 shell/startup tests, 59 resource guards, lint and typecheck pass. The
+      controlled deployed-host baseline hits its original worker timeout; the
+      candidate settles at 20.58 s with three WASM requests and one CEM-ML load.
+      General demo checks and all 23 selected offline Login/Supplier configurations
+      pass against the new 905-file `253278d1…` copy. Four WASM files are unchanged.
+      [Verification and receipt](declarative-amsterdam-2026/startup-code-reuse-verification.md).
+      Public functionality remains gated on upload and actual public acceptance.
 
 - [ ] Verify the functionality of every Amsterdam demo page selected for the
       presentation and participant links. Check the deployed source/edit,
@@ -407,6 +427,20 @@ channels; private agreements remain unverified. This file owns execution order.
       `5deaa842…`, and passes general plus all selected offline workflows. Upload
       this copy through the owner's existing Wrangler login and rerun the exact
       public gates. Separate QUIC/aborted-transfer causes remain unattributed.
+      Post-upload `2ea68bcd-f2ab-444f-a215-deda0fd9b624`: the 905-file inventory
+      and all 11 critical asset byte checks match. Main WASM downloads overlap
+      (about 12.4 s each), but Studio still fails readiness: the command worker
+      reports its existing 10-second startup timeout, with no network failure
+      recorded in this diagnostic. Its terminated worker transfer was not timed.
+      [Readback](declarative-amsterdam-2026/public-demo-2ea68bcd-readback.json).
+      Shared compiled-code reuse now removes the redundant command-worker
+      acquisition while retaining independent instances/memory and the original budget.
+      `/home/suns/cem-bin` is prepared at 905 files, inventory `253278d1…`;
+      general local acceptance and the complete selected 23-configuration offline
+      route pass. Upload these bytes through the owner's existing login, then
+      repeat both public gates. Check existing cached clients separately from
+      fresh-context acceptance while preserving saved projects and drafts.
+      [Prepared-copy receipt](declarative-amsterdam-2026/startup-code-reuse-readback.json).
 
 - [ ] Publish the reviewed Amsterdam presentation site and related demo pages
       after their functionality checks pass. Verify the actual public routes,
@@ -416,8 +450,9 @@ channels; private agreements remain unverified. This file owns execution order.
       https://green-morning-fd6e.trans-acf.workers.dev/ (confirmed by Sasha).
       Verify the local demo deployment first, then check the corresponding
       public routes; publication alone does not establish functional acceptance.
-      Owner-reported version `ab74c3a7-489a-4f77-be59-a3ed65f8cac4` now serves
-      the refreshed demo bytes. Keep presentation Site publication and the
+      Latest owner-reported version `2ea68bcd-f2ab-444f-a215-deda0fd9b624` serves
+      the 905-file overlap correction but fails command-worker startup.
+      Keep presentation Site publication and the
       unresolved public Studio cold-start/functionality gates separate.
 
 - [x] Fixture: validate all discussion #24 slide/demo draft rows against frozen
@@ -431,7 +466,7 @@ channels; private agreements remain unverified. This file owns execution order.
       saved projects). Two footer pages return 200 and exact pinned source bytes;
       relative footer links are replaced. All 59 resource guards and Studio lint
       pass. [Receipt](declarative-amsterdam-2026/discussion-demo-links-verification.md).
-      Public still serves 904 files; this preparation does not complete public
+      Public now serves 905 files but fails worker startup; this preparation does not complete public
       acceptance or post the comment.
 
 - [ ] Append a resource comment to [GitHub discussion #24](https://github.com/EPA-WG/cem/discussions/24)

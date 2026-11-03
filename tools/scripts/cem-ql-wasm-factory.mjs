@@ -40,7 +40,7 @@ export function ownedWasmFactory(source, stem, name) {
 // One immutable code module per installed asset; never cache an Instance,
 // Memory, binding closure, custom input or an unbounded set of URLs.
 let defaultModule;
-function loadDefaultModule() {
+export function load${name}WasmModule() {
     return defaultModule ??= fetch(new URL('${stem}_bg.wasm', import.meta.url)).then(async response => {
         if (!response.ok) throw new Error('cem.runtime.generation.load');
         if (typeof WebAssembly.compileStreaming === 'function' && response.headers.get('content-type')?.split(';')[0].trim() === 'application/wasm')
@@ -76,7 +76,7 @@ ${source}
             alive();
             initialization ??= (async () => {
                 signal?.throwIfAborted();
-                const module = await cancellable(input === undefined ? loadDefaultModule() : input, signal);
+                const module = await cancellable(input === undefined ? load${name}WasmModule() : input, signal);
                 alive(); signal?.throwIfAborted();
                 await __wbg_init({ module_or_path: module });
                 alive(); signal?.throwIfAborted(); initialized = true;
@@ -159,5 +159,7 @@ export interface ${name}WasmGeneration {
     dispose(current?: () => boolean): Readonly<{ schemaVersion: 1; frozen: true; inventoryRevision: number; frozenRevision: number; replacementAllowed: false }>;
 }
 export declare function create${name}WasmGeneration(): ${name}WasmGeneration;
+/** Installed immutable code only; each generation still owns its instance and memory. */
+export declare function load${name}WasmModule(): Promise<WebAssembly.Module>;
 `;
 }

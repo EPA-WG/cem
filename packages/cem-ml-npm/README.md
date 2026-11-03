@@ -36,6 +36,12 @@ WASM exports. Browser command consumers should use the managed
 which adds bounded admission, complete embedding ownership, group allocation and
 explicit stable host rebinding.
 
+`loadCemMlWasmModule()` from the same factory entry returns the cached immutable
+compiled code for the adjacent installed asset. It accepts no URL or custom
+input and owns no instance, memory or native resource. Trusted worker creators
+may structured-clone that code to instantiate an independent runtime; native
+ownership, admission and retirement remain per instance.
+
 ## Static CEM-ML HTML rendering
 
 `renderCemMlToHtmlV1(requestJson)` exposes the common Rust parser and light-DOM

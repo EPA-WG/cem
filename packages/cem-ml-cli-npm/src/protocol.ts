@@ -97,6 +97,8 @@ export interface NodeWorkerBootstrap {
 }
 
 export interface BrowserWorkerBootstrap {
+    /** Installed immutable code, structured-cloned by the trusted creator only. */
+    readonly compiledModule?: WebAssembly.Module;
     /** Trusted setup snapshot; never supplied by package demand messages. */
     readonly packageHostConfigurationJson?: string;
     readonly type: 'cem-worker-initialize';

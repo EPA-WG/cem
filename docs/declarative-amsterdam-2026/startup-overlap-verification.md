@@ -59,11 +59,11 @@ Run the candidate regression through Nx:
 yarn nx run @epa-wg/cem-studio:verify:startup-latency
 ```
 
-For a before/after comparison, set `CEM_STUDIO_STARTUP_BASELINE` to a saved
-original graph-emitted `main.js` before running the same target. The report pins
-both module hashes and all request start/release times. A baseline that becomes
-ready inside the deadline or a candidate that misses it fails the comparison.
-A late baseline observation never turns the original deadline failure into a pass.
+The archived comparison used `CEM_STUDIO_STARTUP_BASELINE` with the original
+graph-emitted `main.js`. That fixture mode is superseded by the subsequent
+worker-code reuse regression; the retained readback above pins the original
+module hashes and request times. See [worker startup verification](startup-code-reuse-verification.md)
+for the current comparison command. Historical measurements remain separate.
 
 Normal offline/navigation acceptance also passes with service workers enabled
 against the exact assembled copy at
@@ -74,12 +74,15 @@ retained in the readback. This is local acceptance, not public acceptance.
 
 ## Delivery boundary
 
-The prepared copy is `/home/suns/cem-bin`, with 905 files and inventory SHA-256
+The overlap copy had 905 files and inventory SHA-256
 `5deaa8422c508c2484a1cd177bf8641825ced00fa615a943ab123f783a74d3a2`.
 Sasha's signed-in deployment route remains `npx wrangler@4 deploy` from the
-checkout whose `../cem-bin` is that verified folder. This change is not yet a
-new public deployment. Repeat public freshness, the general browser verifier and
-the full Login/Supplier suite after upload, retaining the original deadlines.
+checkout whose `../cem-bin` is the verified folder. The owner subsequently
+uploaded this copy as `2ea68bcd`; [public readback](public-demo-2ea68bcd-readback.json)
+confirms matching inventory/bytes but a command-worker startup timeout.
+The [worker-code reuse correction](startup-code-reuse-verification.md) supersedes
+this prepared copy. Repeat public freshness, the general browser verifier and
+the full Login/Supplier suite after that upload, retaining the original deadlines.
 Public acceptance stays open until those checks pass; the local participant kit
 and frozen references remain the fallback. Entered-password/OTP refusal,
 automatic recovery being disabled and the 4 MiB budget remain unchanged.

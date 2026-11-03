@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-03",
+  "url": "https://green-morning-fd6e.trans-acf.workers.dev/",
+  "deployment": {
+    "versionId": "2ea68bcd-f2ab-444f-a215-deda0fd9b624",
+    "provenance": "Owner-supplied Wrangler deployment output; not queried through Cloudflare account APIs"
+  },
+  "inventory": {
+    "fileCount": 905,
+    "sha256": "5deaa8422c508c2484a1cd177bf8641825ced00fa615a943ab123f783a74d3a2",
+    "matchesPreparedCopy": true,
+    "criticalAssetByteChecks": {
+      "passed": 11,
+      "failed": 0
+    }
+  },
+  "generalBrowserAcceptance": {
+    "status": "failed",
+    "passedBeforeFailure": [
+      "root galleries initialize with isolated memories",
+      "gallery rendering and highlighting"
+    ],
+    "failure": "Studio application readiness exceeds unchanged 30000 ms deadline",
+    "selectedConfigurationsExecuted": 0
+  },
+  "diagnostic": {
+    "schemaVersion": 1,
+    "versionId": "2ea68bcd-f2ab-444f-a215-deda0fd9b624",
+    "browser": "148.0.7778.96",
+    "flags": [],
+    "atDeadline": {
+      "elapsedMs": 31208,
+      "readyWithinDeadline": false,
+      "errors": [
+        {
+          "name": "Error",
+          "message": "CEM-ML browser command worker startup timed out"
+        }
+      ],
+      "performance": {
+        "timeOrigin": 1793744129325.6,
+        "now": 31208.29999999702,
+        "resources": [
+          {
+            "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "start": 1338.8999999910593,
+            "duration": 12381.5,
+            "end": 13720.39999999106,
+            "decoded": 24860607
+          },
+          {
+            "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "start": 1444.7999999970198,
+            "duration": 12441,
+            "end": 13885.79999999702,
+            "decoded": 24140410
+          }
+        ]
+      },
+      "failures": []
+    },
+    "final": {
+      "elapsedMs": 51221,
+      "ready": false,
+      "errors": [
+        {
+          "name": "Error",
+          "message": "CEM-ML browser command worker startup timed out"
+        }
+      ],
+      "performance": {
+        "timeOrigin": 1793744129325.6,
+        "now": 51221.09999999404,
+        "resources": [
+          {
+            "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "start": 1338.8999999910593,
+            "duration": 12381.5,
+            "end": 13720.39999999106,
+            "decoded": 24860607
+          },
+          {
+            "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "start": 1444.7999999970198,
+            "duration": 12441,
+            "end": 13885.79999999702,
+            "decoded": 24140410
+          }
+        ]
+      },
+      "workers": [
+        {
+          "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-ml-cli/dist/browser-worker.js",
+          "error": "Error: worker.evaluate: Target page, context or browser has been closed"
+        },
+        {
+          "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+          "createdMs": 14051,
+          "performance": {
+            "timeOrigin": 1793744143372.8,
+            "now": 37171.19999998808,
+            "resources": [
+              {
+                "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/%40epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+                "start": 293.3999999910593,
+                "duration": 10568.90000000596,
+                "end": 10862.29999999702,
+                "decoded": 24140410
+              }
+            ]
+          }
+        }
+      ],
+      "failures": []
+    }
+  },
+  "interpretation": {
+    "confirmed": "Main-thread validator/component WASM downloads overlap; command worker emits its existing startup timeout; no network failures recorded in this diagnostic",
+    "notMeasured": "Command-worker transfer completion/timing unavailable after worker termination",
+    "selectedRepair": "Share installed immutable compiled CEM-ML code with the trusted worker bootstrap, retaining separate instances/memories and the original complete 10000 ms initialization budget",
+    "publicAcceptance": "open; no full public Login/Supplier pass inferred"
+  }
+}

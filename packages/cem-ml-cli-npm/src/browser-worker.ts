@@ -24,7 +24,7 @@ import type {
 import type { ResumableRuntime } from './operation.js';
 
 const workerScope = globalThis as unknown as DedicatedWorkerGlobalScope;
-const initializeRuntime = (runtime as unknown as { readonly default: () => Promise<unknown> }).default;
+const initializeRuntime = (runtime as unknown as { readonly default: (input?: { module_or_path: WebAssembly.Module }) => Promise<unknown> }).default;
 let lifecycle: 'initializing' | 'loading' | 'ready' = 'initializing';
 let bootstrapState: BrowserWorkerBootstrap | undefined;
 let protocolState: WorkerProtocolDescriptor | undefined;
@@ -77,7 +77,7 @@ workerScope.addEventListener('message', (event: MessageEvent<unknown>) => {
 });
 
 async function initialize(bootstrap: BrowserWorkerBootstrap): Promise<void> {
-    await initializeRuntime();
+    await initializeRuntime(bootstrap.compiledModule === undefined ? undefined : { module_or_path: bootstrap.compiledModule });
     assertCommandNativeHeadroom();
     const protocol = JSON.parse(runtime.workerProtocolDescriptor()) as WorkerProtocolDescriptor;
     const capabilityRequest = JSON.stringify({
@@ -339,12 +339,14 @@ function parseBootstrap(value: unknown): BrowserWorkerBootstrap {
         typeof value.runtimeHostId !== 'string' ||
         value.runtimeHostId.length === 0 ||
         typeof value.abiIdentity !== 'string' ||
-        value.abiIdentity.length === 0
+        value.abiIdentity.length === 0 ||
+        (value.compiledModule !== undefined && !(value.compiledModule instanceof WebAssembly.Module))
     ) {
         throw new Error('CEM-ML browser worker bootstrap is invalid');
     }
     return {
         type: 'cem-worker-initialize',
+        ...(value.compiledModule === undefined ? {} : { compiledModule: value.compiledModule }),
         ...(typeof value.packageHostConfigurationJson === 'string' ? { packageHostConfigurationJson: value.packageHostConfigurationJson } : {}),
         worker: {
             slot: value.worker.slot,

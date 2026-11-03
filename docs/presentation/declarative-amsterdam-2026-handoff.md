@@ -1,12 +1,32 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+Worker startup correction prepared (2026-11-03): [verification and receipt](../declarative-amsterdam-2026/startup-code-reuse-verification.md)
+confirm one installed CEM-ML code acquisition while retaining separate native
+instances and memories. The deployed-host control hits its original worker
+timeout; the candidate settles at 20.58 s under the unchanged 30-second Studio
+limit. CLI browser checks, 57 Node/native-boundary tests, 19 shell/startup tests,
+59 resource guards, lint, typecheck, general demo checks and all 23 selected
+offline Login/Supplier configurations pass. `/home/suns/cem-bin` is ready at
+905 files, inventory `253278d1…`; all four WASM files are unchanged. Upload this
+copy through the owner's existing login, then repeat actual public acceptance
+before publication/discussion delivery. Keep existing cached-client upgrades
+separate from fresh-context acceptance and preserve projects/drafts.
+
+Latest upload check (2026-11-03): owner-reported version
+`2ea68bcd-f2ab-444f-a215-deda0fd9b624` matches the 905-file `5deaa842…`
+inventory and all 11 critical byte checks. The main downloads now overlap,
+but the command worker reports its original 10-second startup timeout and
+Studio misses readiness. [Readback](../declarative-amsterdam-2026/public-demo-2ea68bcd-readback.json).
+The [shared compiled-code correction](../declarative-amsterdam-2026/startup-code-reuse-verification.md)
+is tracked separately; public functionality and discussion delivery remain open.
+
 Discussion draft preflight (2026-11-03): the [14-row slide/demo map](../declarative-amsterdam-2026/discussion-demo-links-verification.md)
 passes frozen project/configuration/slide bindings and actual local URL/source/
 tree/configuration selection in 14 fresh contexts. Footer links are absolute,
 commit-pinned GitHub pages with exact public source-byte readback. All 59
 presentation/resource guards and Studio lint pass. No comment was posted.
-The public host still serves the 904-file baseline; upload the prepared 905-file
-startup correction before public acceptance and final discussion delivery.
+The public host now serves the 905-file overlap correction but fails command
+worker startup. Repeat public acceptance after the next verified correction.
 
 Startup correction prepared (2026-11-03): the [worker trace and regression](../declarative-amsterdam-2026/startup-overlap-verification.md)
 identify serial default validator/component initialization. The new startup
@@ -15,9 +35,9 @@ package admission ordering and original publication/error boundaries. The
 controlled cold-download comparison improves from a failed 30-second deadline
 (36.54 s to ready) to 20.36 s; all four original runtimes remain. All 19 shell/
 startup tests and the full selected offline Login/Supplier route pass locally.
-The new 905-file `/home/suns/cem-bin` copy (`5deaa842…`) is ready for the owner's
-signed-in upload. Public verification must follow that upload; prior transport
-failures and the `ab74c3a7` baseline remain distinct.
+The 905-file overlap copy (`5deaa842…`) was uploaded as `2ea68bcd`.
+Its subsequent worker-startup findings are above; prior transport failures
+and the `ab74c3a7` baseline remain distinct.
 
 Post-upload check (2026-11-03): owner-reported version `ab74c3a7` now matches the
 verified 904-file inventory and all 11 critical asset byte checks. The actual

@@ -275,3 +275,34 @@ The earlier `ab74c3a7` public findings remain the baseline; no public pass or
 new deployment version is inferred from local results. Use the existing
 Wrangler deployment from the signed-in machine, then repeat production freshness,
 the general public browser verifier and the full selected public suite above.
+
+## Owner-deployed version 2ea68bcd and prepared worker correction — 2026-11-03
+
+The owner-reported `2ea68bcd-f2ab-444f-a215-deda0fd9b624` deployment now matches
+the 905-file `5deaa842…` overlap copy and all 11 critical asset byte checks.
+Default Chromium confirms overlapping main WASM downloads but records the
+existing command-worker startup timeout. Its worker transfer timing is not
+available after termination; no network failures were captured in this trace.
+Studio never becomes ready, so public functionality remains open. See the
+[version readback](public-demo-2ea68bcd-readback.json).
+
+The [shared compiled-code correction](startup-code-reuse-verification.md)
+removes the redundant CEM-ML worker acquisition while preserving separate native
+memory, admission, protocol/ABI validation, cancellation and the original whole
+10-second worker startup budget. A controlled deployed-host baseline times out;
+the candidate settles at 20.58 seconds with three WASM requests rather than four.
+
+The next prepared `/home/suns/cem-bin` copy has 905 files and inventory SHA-256
+`253278d16f34b620b2bbde2d9085f03950b69bee9d8938d250036334c623a55d`.
+All four WASM files remain unchanged. General local demo acceptance and the
+complete selected 23-configuration offline Login/Supplier walkthrough pass
+against that copy, along with shared CLI browser tests, 57 Node/native-boundary
+tests, 19 shell/startup tests, 59 resource guards, lint and typecheck. The
+[prepared-copy receipt](startup-code-reuse-readback.json) pins the new URL,
+inventory and measured module identities. This supersedes the earlier prepared
+copy; historical public and local receipts above retain their original scope.
+
+After the owner's next signed-in upload, rerun production freshness, general
+public browser acceptance and the full selected public suite with the commands
+above. Check existing cached-client updates separately, preserving projects and
+drafts. Keep the discussion draft unposted until public destinations pass.
