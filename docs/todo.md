@@ -332,6 +332,14 @@ channels; private agreements remain unverified. This file owns execution order.
       guards and the resource verifier pass. This completes materials for the
       selected local route, not a public CLI release or clean-OS acceptance.
 
+- [x] Fixture: make the demo verifier explicitly support production `/studio/`
+      hosting without loosening local revision-path and worker-scope checks.
+      Reject stale public inventory and changed critical asset bytes before
+      browser acceptance; cover rewritten HTML and incorrect production paths.
+      Verified 2026-11-03: 23 combined tests, verifier lint, local browser acceptance
+      and a 12-file local HTTP control pass. Production mode refuses the actual
+      stale public inventory; the public-path gate retains exact worker scope.
+
 - [ ] Verify the functionality of every Amsterdam demo page selected for the
       presentation and participant links. Check the deployed source/edit,
       validation failure/repair, inspection/formatting, query/graph, live preview,
@@ -351,6 +359,14 @@ channels; private agreements remain unverified. This file owns execution order.
       import. Refresh the public deployment and repeat browser acceptance.
       The deployed playground initialization/editor/Render regression now passes;
       its import map includes the command service's WASM factory dependency.
+      Recheck 2026-11-03: refreshed local inventory is `19913ea5…` (904 files);
+      general local browser acceptance passes. Public remains at `7d88a2d8…`
+      (898 files), with 114 changed/missing inventory records and the same real
+      playground import failure. The production verifier is now ready. Wrangler
+      config exists, but this Linux environment has no login; Sasha will deploy
+      from a signed-in machine. See the [readback](declarative-amsterdam-2026/public-demo-readback.json).
+      Repeat public freshness, general browser and full Login/Supplier gates
+      after the upload; keep this functionality item open until they pass.
 
 - [ ] Publish the reviewed Amsterdam presentation site and related demo pages
       after their functionality checks pass. Verify the actual public routes,

@@ -7,11 +7,13 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { demoHostingMode, assertDemoStudioPath, verifyRemoteDemoAssets } from './demo-hosting-verification.mjs';
 import { DEMO_FILE_LIMIT, DEMO_FILE_SIZE_LIMIT, listDemoFiles, readDemoInventory } from './demo-deployment.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const destination = resolve(process.argv[2] ?? join(homedir(), 'cem-bin'));
 const url = process.argv[3] ?? 'http://127.0.0.1:8081/';
+const hosting = demoHostingMode(process.env.CEM_DEMO_HOSTING);
 const inventory = await readDemoInventory(destination);
 assert.ok(inventory, 'Deployment inventory is required.');
 const totalFiles = await listDemoFiles(destination);
@@ -44,6 +46,11 @@ const copied = await studioFiles();
 for (const file of ['cem_ql.js', 'cem_ql_factory.js', 'cem_ql_bg.wasm']) await compare(`packages/cem_ql/dist/wasm/${file}`, `packages/cem_ql/dist/wasm/${file}`);
 for (const file of ['cem_ml.js', 'cem_ml_factory.js', 'cem_ml_bg.wasm']) await compare(`packages/cem-ml-npm/dist/wasm/browser/${file}`, `packages/cem-ml-npm/dist/wasm/browser/${file}`);
 console.log(`Demo copy: all ${copied} Studio files and paired gallery runtime bytes match their build outputs.`);
+
+if (hosting === 'production') {
+    const remote = await verifyRemoteDemoAssets({ destination, url });
+    console.log(`Public demo freshness: inventory ${remote.inventorySha256} and ${remote.checkedRemoteFiles.length - 1} critical asset byte checks passed; browser acceptance follows.`);
+}
 
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
@@ -81,7 +88,7 @@ try {
     const ready = async () => { await page.waitForFunction(() => globalThis.__cemStudioApplication?.workbenchView); await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled()); };
     await ready();
     const studioPath = new URL(page.url()).pathname;
-    assert.match(studioPath, /^\/studio\/__cem_preview__\/[a-f0-9]{16}\/$/);
+    assertDemoStudioPath(studioPath, hosting);
     await page.evaluate(() => navigator.serviceWorker.ready);
     await page.waitForFunction(() => navigator.serviceWorker.controller);
     assert.equal(await page.evaluate(async () => (await navigator.serviceWorker.ready).scope), new URL(studioPath, url).href);

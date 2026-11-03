@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-03",
+  "runtimeSourceRevision": "d6eb982d89770eea0d1f86cdd38c1d1e67cce0ad",
+  "origin": "https://green-morning-fd6e.trans-acf.workers.dev/",
+  "local": {
+    "destination": "/home/suns/cem-bin",
+    "fileCount": 904,
+    "inventorySha256": "19913ea5e36db3f247494a6a2fb1994cf36606fa54c392974141b6c5a28cb82e",
+    "inventoryBytes": 176041,
+    "all334StudioFilesMatchCurrentBuild": true,
+    "generalBrowserAcceptance": "passed",
+    "httpCriticalAssetControl": {
+      "inventoryAndAssetsChecked": 12,
+      "wasmFilesChecked": 4,
+      "status": "passed",
+      "isPublicHostAcceptance": false
+    }
+  },
+  "public": {
+    "requests": [
+      {
+        "path": "demo-deployment.json",
+        "status": 200,
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/demo-deployment.json",
+        "bytes": 174793,
+        "sha256": "7d88a2d8b34eaff2a1be945f3552e5c527058eedcd1d235d948155bc3ee51b2f",
+        "cacheControl": "public, max-age=0, must-revalidate",
+        "fileCount": 898,
+        "matchesLocal": false
+      },
+      {
+        "path": "packages/cem-demo-element/demo/playground.html",
+        "status": 200,
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+        "bytes": 4936,
+        "sha256": "18e6d93e0218d2f8c632ad829909183fd89c92628ba6fea797f1fc7699bf7c7f",
+        "cacheControl": "public, max-age=0, must-revalidate",
+        "factoryImport": false
+      },
+      {
+        "path": "studio/index.html",
+        "status": 200,
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+        "bytes": 2946,
+        "sha256": "879b2e224dd4b3c348058b7d61ba0212b24ca8b0d23271af318784e60cbe9e8c",
+        "cacheControl": "public, max-age=0, must-revalidate"
+      }
+    ],
+    "changedOrMissingInventoryEntries": 114,
+    "missingInventoryEntries": [
+      "packages/cem-elements/dist/lib/compiled-declaration-assets.js",
+      "packages/cem-elements/dist/lib/internal/runtime-support/component-generation.js",
+      "packages/cem-elements/dist/lib/internal/runtime-support/query-source-resource.js",
+      "packages/cem-elements/dist/lib/internal/runtime-support/vendor/query-source-resource.js",
+      "packages/cem-ml-cli-npm/dist/query-source-resource.js",
+      "studio/assets/@epa-wg/cem-elements/dist/lib/compiled-declaration-assets.js"
+    ],
+    "inventoryComparisonIsNotAllAssetByteVerification": true,
+    "playground": {
+      "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+      "readiness": "not-ready-within-existing-30-second-deadline",
+      "status": "Loading CEM\u2026",
+      "state": null,
+      "renderDisabled": true,
+      "pageErrors": [
+        "Failed to resolve module specifier \"@epa-wg/cem-ml/wasm/factory\". Relative references must start with either \"/\", \"./\", or \"../\"."
+      ]
+    },
+    "fullLoginSupplierAcceptance": "not-run-on-stale-deployment"
+  },
+  "browser": "148.0.7778.96",
+  "deployment": {
+    "config": "wrangler.jsonc",
+    "workerName": "green-morning-fd6e",
+    "assetDirectory": "../cem-bin",
+    "configCommit": "3006d6320d1c44a3d1c088adf4fb168921196b36",
+    "wranglerVersion": "4.157.0",
+    "linuxLogin": "not-authenticated",
+    "ownerWillDeployFromSignedInMachine": true
+  },
+  "privacy": {
+    "isolatedBrowserContext": true,
+    "userBrowserStorageRead": false,
+    "userStorageCleared": false,
+    "credentialsEntered": false
+  },
+  "verifier": {
+    "productionMode": "CEM_DEMO_HOSTING=production",
+    "expectedStudioPath": "/studio/",
+    "localRevisionPathPreserved": true,
+    "unitAndHostingTests": 23,
+    "lint": "passed",
+    "publicPreflight": "refused-stale-inventory-before-browser-acceptance"
+  }
+}

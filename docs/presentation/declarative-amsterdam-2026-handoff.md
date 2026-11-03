@@ -1,5 +1,14 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+Public-demo handoff (2026-11-03): the [production verifier/readback](../declarative-amsterdam-2026/demo-verification.md#production-verifier-and-refreshed-local-copy--2026-11-03)
+now distinguishes production `/studio/` from local revision scopes and refuses
+stale inventory/critical bytes. The refreshed 904-file local copy passes general
+browser acceptance. Public still serves the 898-file inventory and reproduces
+the missing factory import; public functionality remains open. The checked-in
+Wrangler configuration targets the existing host, but this Linux environment
+has no login. Sasha will deploy from a signed-in machine; repeat public and
+full Login/Supplier acceptance after that upload before publishing resource links.
+
 Setup audit (2026-11-03): the [Node/Linux guide](../declarative-amsterdam-2026/node-linux-setup.md)
 records downloaded release identities and actual temporary-consumer checks. Both
 public CLI hosts differ at the first frozen Login AST checkpoint; public npm

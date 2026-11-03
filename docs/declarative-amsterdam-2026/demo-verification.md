@@ -113,3 +113,69 @@ The [discussion resource comment draft](discussion-resource-comment-draft.md)
 maps physical slide numbers and stable slide IDs to ordinary project/resource/
 configuration links. It is not posted, and its public operations remain pending
 verification after deployment.
+
+
+## Production verifier and refreshed local copy — 2026-11-03
+
+The [current readback](public-demo-readback.json) records a new local refresh and
+public check. The local directory still matched its own inventory, but Studio's
+packaged `components.xhtml` differed from the current build output. `yarn copy:demo`
+rebuilt/copied the selected dependencies through Nx and refreshed all 904 files.
+The new inventory SHA-256 is
+`19913ea5e36db3f247494a6a2fb1994cf36606fa54c392974141b6c5a28cb82e`.
+All 334 Studio files and paired gallery runtime bytes now match their build outputs.
+The four WASM files remain below 25 MiB.
+
+`yarn verify:demo /home/suns/cem-bin http://127.0.0.1:8081/` passes the actual
+playground's initialization/editor/Render, gallery native rendering/highlighting,
+Studio navigation and independent SCSS project clone, HTML/CSS preview, offline
+rebuild and scoped worker. All ten theme generators render; the live tree gallery
+works and all 120 canonical playground URLs respond. Those HTTP responses do not
+establish every playground's interaction coverage. This run is the general demo
+verifier, not another complete Login/Supplier walkthrough.
+
+The verifier now has an explicit production mode. It requires exactly `/studio/`
+and its original worker scope, while local mode still requires the revision-based
+preview subtree. Production mode compares the public inventory to the verified
+local inventory, then checks original bytes for 11 critical assets: playground,
+module/cache maps, both project samples, both generation factories and all four
+WASM binaries. Browser interactions follow; byte checks alone never establish
+exercise acceptance. A local HTTP control passes all 12 inventory/asset checks.
+
+Six new fixtures cover separate hosting paths, stale inventory, same-size changed
+asset bytes, HTTP-200 fallback HTML, missing assets and invalid deployment roots.
+All 23 combined deployment/hosting tests and verifier lint pass. No application
+UI behavior, service-worker scope, storage policy or browser deadline was changed.
+
+### Public check and deployment handoff
+
+The public inventory still has 898 files with SHA-256
+`7d88a2d8b34eaff2a1be945f3552e5c527058eedcd1d235d948155bc3ee51b2f`.
+It differs from the refreshed local inventory in 114 changed/missing records,
+including six absent paths. This is an inventory-record comparison, not a
+byte-for-byte download of every remote asset. Direct playground HTML still lacks
+the factory import. An isolated Chromium 148.0.7778.96 context reproduces the
+unresolved `@epa-wg/cem-ml/wasm/factory` error, “Loading CEM…” and disabled Render.
+Production-mode verification refuses this stale inventory before claiming any
+browser acceptance. Full public Login/Supplier acceptance remains unrun.
+
+The earlier no-project note is superseded: Sasha checked in `wrangler.jsonc` at
+`3006d632` for worker `green-morning-fd6e` and asset directory `../cem-bin`.
+Wrangler 4.157.0 reports no authentication in this Linux environment. Sasha has
+chosen to deploy from a signed-in machine; no login flow or temporary-account
+deployment was started here. From the checkout with the verified `../cem-bin`,
+the owner's deployment command is `npx wrangler@4 deploy`.
+
+After that upload, run:
+
+```sh
+CEM_DEMO_HOSTING=production yarn verify:demo /home/suns/cem-bin https://green-morning-fd6e.trans-acf.workers.dev/
+```
+
+Then run the separate complete selected Login/Supplier acceptance against
+`https://green-morning-fd6e.trans-acf.workers.dev/studio/` using
+`CEM_STUDIO_ACCEPTANCE_URL`. Preserve the exact source/configuration checks,
+independent copies, offline drafts and credential refusal. Do not post the
+resource comment or advertise completed public acceptance until both gates pass.
+The browser contexts used for these checks are disposable; no existing projects,
+drafts or user browser storage were read or cleared, and no credentials were entered.

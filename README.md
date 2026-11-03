@@ -169,6 +169,22 @@ yarn serve:demo /tmp/cem-site  # serve an optional destination
 yarn verify:demo              # verify the running demo and Studio deployment
 ```
 
+For the existing public Cloudflare host, first verify the local copy above, then
+use the explicit production-hosting mode:
+
+```bash
+CEM_DEMO_HOSTING=production yarn verify:demo ~/cem-bin https://green-morning-fd6e.trans-acf.workers.dev/
+```
+
+Production mode requires the exact `/studio/` path and service-worker scope;
+local mode retains its revision-based path. It first checks the public inventory
+against the selected local copy and verifies critical playground, sample, module-map,
+factory and WASM bytes. Those freshness checks do not replace the following
+browser interactions or the separate full Login/Supplier acceptance. A stale
+public copy fails before browser acceptance. The checked-in `wrangler.jsonc`
+targets this existing worker and `../cem-bin`; deployment requires the owner's
+Cloudflare login. Verify the selected folder before running `npx wrangler@4 deploy`.
+
 The [copy script](tools/scripts/copy-demo-site.mjs) includes the CEM elements
 gallery, all eight component workflow examples and their runtime/styles,
 theme CSS generators and token documentation, the demo viewer's examples, and
@@ -215,8 +231,10 @@ files and unrelated files. Matching current outputs are overwritten as before.
 The first migration recognizes the previous copier's known outputs by
 hash. A preflight guard refuses an update exceeding **999 total files**, including
 unrelated files, or containing a file **at or above 25 MiB**, before writing or
-deleting deployment files. The current deployment has 898 files and four WASM
-assets at 22.42 MiB (two copies) and 23.04 MiB (two copies).
+deleting deployment files. The locally verified 2026-11-03 deployment has 904
+files and four WASM assets at 23.02 MiB (two copies) and 23.71 MiB (two copies).
+Public deployment freshness is recorded separately in the
+[Amsterdam verification record](docs/declarative-amsterdam-2026/demo-verification.md).
 Source maps, TypeScript files,
 dependency trees, debug token artifacts, Figma exports, build reports, and native
 compiler output are excluded from the gallery trees. Studio's complete graph
