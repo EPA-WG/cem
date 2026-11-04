@@ -718,11 +718,15 @@ channels; private agreements remain unverified. This file owns execution order.
       navigation to the index and live Colors generator. Included in the combined
       tables/Tokens deployment bundle.
 
-- [ ] Deploy `cem-site-tables-and-tokens.tgz` from the owner's signed-in machine
+- [x] Deploy `cem-site-tables-and-tokens.tgz` from the owner's signed-in machine
       with `npx wrangler@4 deploy --config wrangler.site.jsonc`, record the actual
       version, then verify the tables, Tokens destination and complete prepared
-      publication on the public Site. The currently accepted `c0833c4c…` release
-      predates these changes. Use the [deployment steps](declarative-amsterdam-2026/site-cloudflare-publication.md).
+      publication on the public Site. Owner deployed version
+      `928c385e-79cb-4ef9-844a-ce64967a6243`; complete public HTTP/2 acceptance
+      passes all 1,206 hashes, 21 Markdown pages/17 tables/619 cells, all 27 Tokens
+      headers, live Colors generation, Site suites, galleries, snippets and
+      Studio/Playground online/offline workflows. Original assertions/deadlines
+      retained. [Public readback](declarative-amsterdam-2026/site-public-928c385e-readback.json).
 
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,
       output and demo path. Check slide readability and the fallback flow;

@@ -1,5 +1,43 @@
 # CEM Site public verification
 
+## Markdown tables and Tokens navigation — 2026-11-04
+
+The owner deployed `cem-site-tables-and-tokens.tgz` to
+[the presentation Site](https://cem-amsterdam-2026.trans-acf.workers.dev/),
+reporting version `928c385e-79cb-4ef9-844a-ce64967a6243`. The complete public
+verification target passes with the documented HTTP/2 browser profile and normal
+TLS validation. All original assertions and deadlines are retained.
+The [public readback](site-public-928c385e-readback.json) records every file hash,
+browser suite, table route and header destination. Source commit: `784ac624`.
+
+All 1,206 decoded files match the prepared package. The native 303-file aggregate
+is `06bcba9070ca9ef22efd62191e7c4505e7e4a71e760413d2bff4a9b354d0011f`;
+the combined aggregate is
+`c9e577dc4b2f1b2d5c2026a51ec42f7fd7ae9d779532d8a7ac9ed695dd007148`.
+The version ID is owner-reported; the served bytes and behavior are independently
+checked against the frozen release.
+
+All 21 Markdown pages match their native table inventory: 17 semantic tables and
+619 header/data cells. The [transform reference](https://cem-amsterdam-2026.trans-acf.workers.dev/reference/cem-ml/transform-config/)
+has its four named columns and eight body rows. The component reference retains
+the enum code and links protected by the native escaped-pipe guard. All 27
+headers keep 12 links and 11 decorative fat dots. Tokens uses the relative path
+`/packages/cem-theme/dist/lib/css-generators/`; actual browser navigation reaches
+the [CSS generators index](https://cem-amsterdam-2026.trans-acf.workers.dev/packages/cem-theme/dist/lib/css-generators/)
+and verifies live Colors generation on the same host.
+
+The full production crawl (27 pages/86 fragments), interactive examples and
+search pass. All 59 gallery and 59 property URLs, three Presentation-theme
+selection/restoration examples, 80 exact source-only snippets (68 with colored
+tokens), and Studio/Playground workflows pass. Studio retains its scoped worker,
+declared security headers, independent saved project, native preview and offline
+rebuild. These application workflows make no requests to the former demo host.
+
+This public pass resolves the tables/Tokens publication gate. The earlier local
+Wrangler timeout and default-transport startup/network failures remain separate
+historical observations, not claims of default-transport acceptance for this run.
+Timed rehearsal and final handoff remain the next presentation actions.
+
 ## Combined Site, Studio, Playground and galleries — 2026-11-04
 
 The owner deployed `cem-site-local-content.tgz` to

@@ -1,9 +1,12 @@
 # CEM Site: Cloudflare publication
 
-## Prepared update: Markdown tables and Tokens navigation — 2026-11-04
+## Published update: Markdown tables and Tokens navigation — 2026-11-04
 
-Implemented and locally verified; **owner deployment and public verification
-are pending**. All 21 Site Markdown imports now select GFM. Seven additional
+Published and publicly verified after the owner deployed version
+`928c385e-79cb-4ef9-844a-ce64967a6243`. The complete public target passes using
+the documented HTTP/2 browser profile, with original TLS validation, assertions
+and deadlines. [Public readback](site-public-928c385e-readback.json).
+All 21 Site Markdown imports now select GFM. Seven additional
 table-bearing pages render semantic tables through the existing native
 Markdown-to-HTML/DOM/page pipeline. The shared parser retains strict CommonMark
 when explicitly requested. Literal pipes in 16 component-reference inline-code
@@ -40,10 +43,12 @@ Wrangler dry run passes. All decoded file bytes match through a Node harness
 using the actual Site adapter. The local Wrangler server stalled during asset
 and snippet checks and exceeded their original deadlines; that attempt is not
 recorded as a workerd pass. The successful production/table tests and Node
-harness are separate evidence. Public acceptance follows owner deployment.
+harness are separate evidence. The subsequent public check passes all 1,206 file
+hashes, the Site suites, gallery/snippet checks, every native Markdown table,
+Tokens-to-Colors navigation and Studio/Playground online/offline workflows.
 See the [tables/Tokens readback](site-tables-tokens-readback.json).
 
-The accepted `c0833c4c…` release below predates this update.
+The `c0833c4c…` release below predates this accepted update.
 
 ## Current update: every demo link stays on the Site — 2026-11-04
 
