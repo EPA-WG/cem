@@ -1,10 +1,10 @@
 {
   "sourceRevision": "4d2973f5",
-  "ownerReportedVersionId": null,
-  "versionNote": "The owner has not supplied the new Wrangler version ID. Public bytes identify the deployed release independently.",
+  "ownerReportedVersionId": "b25d7411-67f9-4a8b-8153-b2e91ff5b61a",
+  "versionNote": "Owner-reported Site Worker version; served bytes and browser behavior independently verified after redeployment.",
   "publication": {
     "schemaVersion": 1,
-    "checkedAt": "2026-11-04T06:12:46.970Z",
+    "checkedAt": "2026-11-04T09:50:31.549Z",
     "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
     "status": "passed",
     "suites": [
@@ -280,7 +280,7 @@
             "themes": [
               {
                 "mode": "light",
-                "background": "color(srgb 0.742353 0.553333 0.815294)",
+                "background": "rgb(225, 190, 231)",
                 "color": "rgb(0, 16, 16)",
                 "fieldIndicator": "color(srgb 0 0.0627451 0.0627451 / 0.62) 0px 1px 0px 0px, rgb(0, 47, 101) 0px 3px 0px 0px, rgb(106, 27, 154) 0px 3px 0px 0px",
                 "radius": 17,
@@ -290,7 +290,7 @@
               },
               {
                 "mode": "dark",
-                "background": "color(srgb 0.555686 0.297647 0.69451)",
+                "background": "rgb(106, 27, 154)",
                 "color": "rgb(241, 254, 254)",
                 "fieldIndicator": "color(srgb 0.945098 0.996078 0.996078 / 0.62) 0px 1px 0px 0px, rgb(241, 254, 254) 0px 3px 0px 0px, rgb(225, 190, 231) 0px 3px 0px 0px",
                 "radius": 17,
@@ -337,6 +337,15 @@
                 "adjust": "auto",
                 "border": "none",
                 "outline": "solid",
+                "outlineWidth": 3
+              },
+              {
+                "tag": "section",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "solid",
+                "outline": "none",
                 "outlineWidth": 3
               },
               {
@@ -2631,7 +2640,7 @@
         }
       ]
     },
-    "finishedAt": "2026-11-04T06:14:55.986Z"
+    "finishedAt": "2026-11-04T09:52:21.128Z"
   },
   "headers": [
     {
@@ -4092,5 +4101,6 @@
       ],
       "dots": 11
     }
-  ]
+  ],
+  "headerRevalidation": "All 27 HTML files match the previously checked header bytes in this fresh 303-file public verification."
 }

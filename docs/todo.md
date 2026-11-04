@@ -646,7 +646,9 @@ channels; private agreements remain unverified. This file owns execution order.
       from the owner's signed-in machine; verify the public inventory, component
       headings, theme control and white Presentation canvas on the actual host.
       Bundle: `dist/releases/cem-demo-gallery-update.tgz`; from the extracted
-      folder run `npx wrangler@4 deploy --config wrangler.jsonc`.
+      folder run `npx wrangler@4 deploy --config wrangler.jsonc`. Wrangler output
+      must name `green-morning-fd6e` and its `green-morning-fd6e.trans-acf.workers.dev`
+      URL; `cem-amsterdam-2026` is the separate, already verified Site.
 
 - [x] Add Studio and Playground links to every Site header and point CEM Components
       at the live package gallery, with a decorative fat-dot separator between links. Verify the native output and keyboard
