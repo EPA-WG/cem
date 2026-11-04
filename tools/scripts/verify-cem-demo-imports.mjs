@@ -9,6 +9,8 @@ const root = resolve(import.meta.dirname, '../..');
 const componentRoot = '@epa-wg/cem-components/components/';
 const mime = { '.html': 'text/html', '.xhtml': 'application/xhtml+xml', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' };
 const selected = process.argv.find(value => value.startsWith('--pages='))?.slice('--pages='.length).split(',');
+const concurrency = Number(process.argv.find(value => value.startsWith('--concurrency='))?.slice('--concurrency='.length) ?? '1');
+assert.ok(Number.isInteger(concurrency) && concurrency >= 1 && concurrency <= 3, 'Demo concurrency must be an integer from 1 to 3');
 const pages = (await readdir(resolve(root, 'packages/cem-components/playgrounds')))
     .filter(name => name.endsWith('.html') && (!selected || selected.includes(name))).sort();
 assert.ok(pages.length, 'No demo pages selected');
@@ -79,7 +81,7 @@ try {
     await new Promise(accept => server.listen(0, '127.0.0.1', accept));
     const origin = `http://127.0.0.1:${server.address().port}`;
     browser = await chromium.launch({ headless: true });
-    await Promise.all(Array.from({ length: 3 }, async () => {
+    await Promise.all(Array.from({ length: concurrency }, async () => {
         const context = await browser.newContext();
         try {
             while (cursor < fixtures.length) {
@@ -132,6 +134,8 @@ try {
                     const state = await page.evaluate(tags => ({
                         missing: tags.filter(tag => !customElements.get(tag)),
                         diagnostics: [...document.querySelectorAll('cem-element')].flatMap(node => window.cemPlaygroundRuntime?.diagnosticsFor(node) ?? []).filter(value => value.code !== 'cem-element.registry_same_scope_duplicate'),
+                        pageTheme: document.querySelector('cem-gallery-page')?.getAttribute('data-theme'),
+                        pageSwitch: [...(document.querySelector('cem-gallery-nav cem-theme-switch')?.attributes ?? [])].map(attribute => [attribute.name, attribute.value]),
                         palette: getComputedStyle(document.querySelector('cem-gallery-page') ?? document.body).getPropertyValue('--cem-palette-comfort'),
                         themeDiagnostics: [...document.querySelectorAll('cem-gallery-page > cem-gallery-nav cem-theme-switch')]
                             .flatMap(node => window.cemPlaygroundRuntime?.diagnosticsFor(node) ?? []),
@@ -166,7 +170,7 @@ async function verifyPageTheme(page) {
     });
     const state = await owner.evaluate(element => {
         const value = localStorage.getItem('cem-playground-theme');
-        const valid = ['cem-theme-dark', 'cem-theme-contrast-light', 'cem-theme-contrast-dark', 'cem-theme-native'];
+        const valid = ['cem-theme-projector', 'cem-theme-dark', 'cem-theme-contrast-light', 'cem-theme-contrast-dark', 'cem-theme-native'];
         return { expected: valid.includes(value) ? value : 'cem-theme-light',
             fixed: [...element.querySelectorAll('[data-gallery-theme]')].map(node => [node.getAttribute('data-gallery-theme'), node.className]),
             otherKeys: Object.entries(localStorage).filter(([key]) => key !== 'cem-playground-theme').sort() };
@@ -179,6 +183,11 @@ async function verifyPageTheme(page) {
     assert.equal(await owner.getAttribute('storage-key'), 'cem-playground-theme');
     assert.equal(await control.getAttribute('storage-key'), 'cem-playground-theme');
     assert.equal(await owner.locator(':scope > cem-gallery-nav h1').textContent(), await owner.getAttribute('heading'));
+    assert.equal(await owner.locator(':scope > cem-gallery-nav h1').isVisible(), true, `${page.url()}: gallery heading must be visible`);
+    assert.equal(await control.locator('[part=trigger] button').isVisible(), true, `${page.url()}: theme switch must be visible`);
+    assert.equal(await owner.locator(':scope > cem-gallery-nav [part=theme-label]').isVisible(), true, `${page.url()}: theme label must be visible`);
+    const gallery = new URL(page.url()).pathname.match(/\/(cem-[\w-]+)-gallery\.html$/u)?.[1];
+    if (gallery) assert.equal(await owner.getAttribute('heading'), `${gallery}: Full examples and variation matrix`);
     await page.waitForFunction(() => getComputedStyle(document.querySelector('cem-gallery-page')).getPropertyValue('--cem-palette-comfort').trim() !== '');
     const next = state.expected === 'cem-theme-dark' ? 'light' : 'dark';
     await control.locator('[part=trigger] button').click();
@@ -207,6 +216,27 @@ async function verifyPageTheme(page) {
         otherKeys: Object.entries(localStorage).filter(([key]) => key !== 'cem-playground-theme').sort(),
     }));
     assert.deepEqual(after, { fixed: state.fixed, otherKeys: state.otherKeys }, `${page.url()}: page theme changed independent examples or storage`);
+    await control.locator('[part=trigger] button').click();
+    await control.getByRole('menuitemradio', { name: 'Presentation', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('cem-gallery-page')?.getAttribute('data-theme') === 'cem-theme-projector'
+        && document.querySelector('cem-gallery-nav cem-theme-switch')?.getAttribute('value') === 'cem-theme-projector'
+        && localStorage.getItem('cem-playground-theme') === 'cem-theme-projector').catch(error => { throw new Error(`Presentation selection: ${error.message}`, { cause: error }); });
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('cem-gallery-page')).backgroundColor === 'rgb(255, 255, 255)');
+    assert.equal(await owner.evaluate(node => getComputedStyle(node).colorScheme), 'light');
+    assert.equal(await control.getAttribute('value'), 'cem-theme-projector');
+    assert.equal(await page.evaluate(() => localStorage.getItem('cem-playground-theme')), 'cem-theme-projector');
+    await page.reload();
+    await page.waitForFunction(() => document.querySelector('cem-gallery-page')?.getAttribute('data-theme') === 'cem-theme-projector'
+        && document.querySelector('cem-gallery-nav cem-theme-switch')?.getAttribute('value') === 'cem-theme-projector'
+        && localStorage.getItem('cem-playground-theme') === 'cem-theme-projector').catch(error => { throw new Error(`Presentation reload: ${error.message}`, { cause: error }); });
+    await control.locator('[part=trigger] button').waitFor();
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('cem-gallery-page')).backgroundColor === 'rgb(255, 255, 255)');
+    assert.equal(await owner.locator(':scope > cem-gallery-nav h1').isVisible(), true);
+    const restored = await owner.evaluate(element => ({
+        fixed: [...element.querySelectorAll('[data-gallery-theme]')].map(node => [node.getAttribute('data-gallery-theme'), node.className]),
+        otherKeys: Object.entries(localStorage).filter(([key]) => key !== 'cem-playground-theme').sort(),
+    }));
+    assert.deepEqual(restored, { fixed: state.fixed, otherKeys: state.otherKeys }, `${page.url()}: Presentation changed independent examples or storage`);
 }
 
 async function verifyCanonicalSources(page, paths) {

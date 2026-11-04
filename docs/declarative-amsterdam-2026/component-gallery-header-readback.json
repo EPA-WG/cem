@@ -1,0 +1,245 @@
+{
+  "preparedAt": "2026-11-04T06:16:46.828Z",
+  "baseInventorySha256": "4d21f9cd63ddb3c7c989b9bc9c123040e7472612274f3be1cb56c97d532a0770",
+  "inventorySha256": "9be9d66f89af037b03e69cd01bbbeccffb0666a3e2c5fbcb4c81744d49b43f75",
+  "fileCount": 906,
+  "changed": [
+    {
+      "path": "packages/cem-components/dist/cem-gallery-nav.xhtml",
+      "before": "eab6a0f7e5d9dd933d6fde2282f37b7063deefb3b6fd3417fc509ca0f92cc28b",
+      "after": "b78716e1781a89e8547f76d84de7227b28d237499efcda9ab27be6be5ab6cc4e"
+    },
+    {
+      "path": "packages/cem-components/playgrounds/cem-autocomplete-gallery.html",
+      "before": "c9d970e6993a2086fa3108d68c7c3a72ed31891cd634e4fb10f1a7668bb58c3d",
+      "after": "90adada844b5a4353c4d62ecc83e8f424de4c02a378c09d25457fa073b7f014e"
+    },
+    {
+      "path": "packages/cem-components/playgrounds/cem-gallery-nav.xhtml",
+      "before": "eab6a0f7e5d9dd933d6fde2282f37b7063deefb3b6fd3417fc509ca0f92cc28b",
+      "after": "b78716e1781a89e8547f76d84de7227b28d237499efcda9ab27be6be5ab6cc4e"
+    },
+    {
+      "path": "packages/cem-components/playgrounds/cem-suggestions-gallery.html",
+      "before": "d114fce30f474e79bdd77b164def633b205327ae6c6ae0a958b74d34b8e43ac0",
+      "after": "7809b01121593436013db26ec096be2eca1a9bf5f2f1d07852a0596953fb1433"
+    }
+  ],
+  "archive": {
+    "path": "/home/suns/cem/dist/releases/cem-demo-gallery-update.tgz",
+    "bytes": 36823740,
+    "sha256": "23e1a72709a3f0b21635b67c0c1b6561ce5fb79b9412697fc4b8680c166c8edc"
+  },
+  "galleryPages": [
+    "cem-accordion-gallery.html",
+    "cem-action-gallery.html",
+    "cem-alert-gallery.html",
+    "cem-app-bar-gallery.html",
+    "cem-autocomplete-gallery.html",
+    "cem-avatar-gallery.html",
+    "cem-badge-gallery.html",
+    "cem-card-gallery.html",
+    "cem-checkbox-gallery.html",
+    "cem-chip-gallery.html",
+    "cem-data-view-gallery.html",
+    "cem-datepicker-gallery.html",
+    "cem-dialog-gallery.html",
+    "cem-dialog-shell-gallery.html",
+    "cem-divider-gallery.html",
+    "cem-dropdown-gallery.html",
+    "cem-expansion-gallery.html",
+    "cem-field-gallery.html",
+    "cem-fieldset-gallery.html",
+    "cem-grid-gallery.html",
+    "cem-icon-button-gallery.html",
+    "cem-icon-gallery.html",
+    "cem-list-gallery.html",
+    "cem-media-preview-gallery.html",
+    "cem-menu-gallery.html",
+    "cem-menu-item-gallery.html",
+    "cem-nav-gallery.html",
+    "cem-option-gallery.html",
+    "cem-option-group-gallery.html",
+    "cem-paginator-gallery.html",
+    "cem-progress-gallery.html",
+    "cem-progress-spinner-gallery.html",
+    "cem-radio-gallery.html",
+    "cem-recovery-status-gallery.html",
+    "cem-select-gallery.html",
+    "cem-sheet-gallery.html",
+    "cem-skeleton-gallery.html",
+    "cem-slider-gallery.html",
+    "cem-sort-header-gallery.html",
+    "cem-source-editor-gallery.html",
+    "cem-stack-gallery.html",
+    "cem-step-gallery.html",
+    "cem-stepper-gallery.html",
+    "cem-suggestions-gallery.html",
+    "cem-surface-gallery.html",
+    "cem-switch-gallery.html",
+    "cem-tab-gallery.html",
+    "cem-table-gallery.html",
+    "cem-tabs-gallery.html",
+    "cem-text-field-gallery.html",
+    "cem-text-gallery.html",
+    "cem-textarea-gallery.html",
+    "cem-theme-switch-gallery.html",
+    "cem-timepicker-gallery.html",
+    "cem-toast-gallery.html",
+    "cem-tooltip-gallery.html",
+    "cem-tree-gallery.html",
+    "cem-tree-item-gallery.html",
+    "cem-workspace-gallery.html"
+  ],
+  "verification": {
+    "inventory": {
+      "status": "passed",
+      "galleryCount": 59,
+      "sourceAndPackagePages": 118,
+      "concurrency": 1,
+      "script": "tools/scripts/verify-cem-demo-imports.mjs",
+      "sourcePages": 59,
+      "packagedPages": 59,
+      "finishedAt": "2026-11-04T06:42:15.468424+00:00",
+      "assertions": [
+        "visible content-specific heading",
+        "visible theme control and Theme label",
+        "persisted Presentation selection",
+        "white Presentation canvas after selection and reload",
+        "independent example themes and storage",
+        "component import fragments and runtime diagnostics"
+      ]
+    },
+    "stories": {
+      "status": "passed",
+      "cases": 8,
+      "source": "packages/cem-elements/src/lib/gallery-page.stories.ts"
+    },
+    "layout": {
+      "status": "passed",
+      "viewportWidths": [
+        320,
+        1440
+      ],
+      "headingAndThemeVisible": true,
+      "keyboardNavigation": true,
+      "readback": [
+        {
+          "width": 320,
+          "state": [
+            {
+              "text": "cem-icon-button: Full examples and variation matrix",
+              "rect": {
+                "x": 24,
+                "y": 24,
+                "width": 272,
+                "height": 200,
+                "top": 24,
+                "right": 296,
+                "bottom": 224,
+                "left": 24
+              }
+            },
+            {
+              "text": "Theme",
+              "rect": {
+                "x": 207.65625,
+                "y": 236,
+                "width": 55.1875,
+                "height": 19,
+                "top": 236,
+                "right": 262.84375,
+                "bottom": 255,
+                "left": 207.65625
+              }
+            },
+            {
+              "text": "theme switch",
+              "rect": {
+                "x": 266.84375,
+                "y": 230.828125,
+                "width": 29.15625,
+                "height": 29.328125,
+                "top": 230.828125,
+                "right": 296,
+                "bottom": 260.15625,
+                "left": 266.84375
+              }
+            }
+          ]
+        },
+        {
+          "width": 1440,
+          "state": [
+            {
+              "text": "cem-icon-button: Full examples and variation matrix",
+              "rect": {
+                "x": 148.140625,
+                "y": 24,
+                "width": 1175.515625,
+                "height": 40,
+                "top": 24,
+                "right": 1323.65625,
+                "bottom": 64,
+                "left": 148.140625
+              }
+            },
+            {
+              "text": "Theme",
+              "rect": {
+                "x": 1327.65625,
+                "y": 34.5,
+                "width": 55.1875,
+                "height": 19,
+                "top": 34.5,
+                "right": 1382.84375,
+                "bottom": 53.5,
+                "left": 1327.65625
+              }
+            },
+            {
+              "text": "theme switch",
+              "rect": {
+                "x": 1386.84375,
+                "y": 29.328125,
+                "width": 29.15625,
+                "height": 29.328125,
+                "top": 29.328125,
+                "right": 1416,
+                "bottom": 58.65625,
+                "left": 1386.84375
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "parallelProbe": {
+      "concurrency": 3,
+      "passedPages": 114,
+      "timedOutPages": [
+        "playgrounds/cem-icon-button-gallery.html",
+        "dist/cem-icon-button-gallery.html",
+        "playgrounds/cem-suggestions-gallery.html",
+        "dist/cem-suggestions-gallery.html"
+      ],
+      "sameAssertionsPassedSequentially": true
+    },
+    "hosting": {
+      "status": "Wrangler 4.157.0 dry run passed",
+      "publicHeaderUpdate": "pending owner deployment",
+      "preDeploymentPublicInventorySha256": "4d21f9cd63ddb3c7c989b9bc9c123040e7472612274f3be1cb56c97d532a0770"
+    }
+  },
+  "localDemo": {
+    "destination": "/home/suns/cem-bin",
+    "files": 906,
+    "inventorySha256": "9be9d66f89af037b03e69cd01bbbeccffb0666a3e2c5fbcb4c81744d49b43f75",
+    "changed": [
+      "packages/cem-components/dist/cem-gallery-nav.xhtml",
+      "packages/cem-components/playgrounds/cem-autocomplete-gallery.html",
+      "packages/cem-components/playgrounds/cem-gallery-nav.xhtml",
+      "packages/cem-components/playgrounds/cem-suggestions-gallery.html"
+    ]
+  }
+}

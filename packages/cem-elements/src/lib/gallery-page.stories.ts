@@ -34,11 +34,16 @@ export const PersistentPageTheme = meta.story({
         const fixed = required(page, 'section'), fixedPaint = [getComputedStyle(fixed).backgroundColor, getComputedStyle(fixed).color];
         const example = required(page, 'cem-theme-switch[storage-key="story-gallery-example"]');
         await whenCemRendered(example);
-        for (const theme of ['contrast-dark', 'native', 'light', 'contrast-light', 'dark']) {
+        for (const theme of ['contrast-dark', 'native', 'light', 'contrast-light', 'projector', 'dark']) {
             await choose(pageSwitch(page), theme);
             await waitFor(() => expect(page).toHaveAttribute('data-theme', `cem-theme-${theme}`));
             await waitFor(() => expect(pageSwitch(page)).toHaveAttribute('value', `cem-theme-${theme}`));
             expect(localStorage.getItem('cem-playground-theme')).toBe(`cem-theme-${theme}`);
+            if (theme === 'projector') {
+                expect(getComputedStyle(page).backgroundColor).toBe('rgb(255, 255, 255)');
+                expect(getComputedStyle(page).color).toBe('rgb(0, 0, 0)');
+                expect(getComputedStyle(page).colorScheme).toBe('light');
+            }
             expect(page.querySelector('input[name=draft]')).toBe(input);
             expect(new FormData(required<HTMLFormElement>(page, 'form')).get('draft')).toBe('Edited');
             expect([getComputedStyle(fixed).backgroundColor, getComputedStyle(fixed).color]).toEqual(fixedPaint);
@@ -112,7 +117,7 @@ export const NestedExampleThemes = meta.story({
             return [style.backgroundColor, style.color, style.colorScheme, control.backgroundColor, control.color, control.boxShadow];
         });
         const baseline = paint();
-        for (const theme of ['dark', 'contrast-light', 'contrast-dark', 'native', 'light']) {
+        for (const theme of ['dark', 'contrast-light', 'contrast-dark', 'native', 'projector', 'light']) {
             await choose(pageSwitch(page), theme);
             await waitFor(() => expect(page).toHaveAttribute('data-theme', `cem-theme-${theme}`));
             expect(paint()).toEqual(baseline);
@@ -245,15 +250,16 @@ async function ready(page: HTMLElement): Promise<void> {
     await whenCemRendered(page);
     await whenCemSourceRendered(page);
     await waitFor(() => {
-        if (page.querySelectorAll(':scope > cem-gallery-nav[part=navigation] cem-menu button').length !== 5) {
+        if (page.querySelectorAll(':scope > cem-gallery-nav[part=navigation] cem-menu button').length !== 6) {
             throw new Error(`Gallery navigation is not ready: ${page.outerHTML.slice(0, 1800)} ${JSON.stringify(storybookCemRuntime().diagnosticsFor(page))}`);
         }
     }, { timeout: 5000 });
+    await expect(required(page, ':scope > cem-gallery-nav [part=theme-label]')).toHaveTextContent('Theme');
     await Promise.all([...page.querySelectorAll<HTMLElement>('cem-gallery-nav, cem-theme-switch, cem-icon-button, cem-icon, cem-dropdown, cem-menu')].map(whenCemRendered));
 }
 async function choose(control: HTMLElement, theme: string): Promise<void> {
     await whenCemRendered(control);
-    await waitFor(() => expect(control.querySelectorAll('cem-menu button')).toHaveLength(5));
+    await waitFor(() => expect(control.querySelectorAll('cem-menu button')).toHaveLength(6));
     await userEvent.click(required(control, '[part=trigger] button'));
     await userEvent.click(required(control, `cem-menu cem-icon-button[value="cem-theme-${theme}"] [part=glyph]`));
     await whenCemRendered(control);

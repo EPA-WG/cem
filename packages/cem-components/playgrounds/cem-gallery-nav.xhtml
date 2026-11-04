@@ -14,6 +14,7 @@
         padding-block: var(--cem-control-padding-y);
         border-block-end: var(--cem-stroke-boundary) solid currentColor;
       }
+      [part~='theme-label'] { margin-inline-start: auto; white-space: nowrap; }
       [part~='title'] {
         flex: 1;
         min-inline-size: 0;
@@ -23,10 +24,15 @@
         font-size: var(--cem-typography-size-xl);
         font-weight: var(--cem-typography-heading-font-weight);
       }
+      @media (max-width: 40rem) {
+        [part~='navigation'] { flex-wrap: wrap; }
+        [part~='title'] { flex-basis: 100%; order: -1; }
+      }
     ```}
     {nav @part=navigation @aria-label="Gallery navigation" |
       {cem-icon-button @part=index @href="{$index-href}" @image="⌂" @variant=contextual @aria-label="Component playground" | Playground}
       {h1 @part=title | {$heading}}
+      {span @part=theme-label @aria-hidden=true | Theme}
       {cem-theme-switch @part=theme @storage-key={datadom.attributes.theme-storage-key ?? "cem-theme"} @value={datadom.attributes.theme-value}}
     }
   </template>

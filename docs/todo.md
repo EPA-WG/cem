@@ -632,17 +632,28 @@ channels; private agreements remain unverified. This file owns execution order.
       [Published comment](https://github.com/EPA-WG/cem/discussions/24#discussioncomment-18867103)
       and [delivery receipt](declarative-amsterdam-2026/discussion-resource-comment-delivery.json).
 
-- [ ] Verify every component gallery has a visible, content-specific shared header
-      and functioning theme switch; reproduce and fix the missing icon-button header
-      and ensure the Projector page canvas is white. Extend shared gallery checks
-      for header visibility, Projector selection/restoration and nested themes.
+- [x] Verify every component gallery has a visible, content-specific shared header
+      and functioning theme switch. Add the visible Theme label, fix narrow header
+      layout and standardize autocomplete/suggestions headings. Verify the white
+      Projector canvas, selection/restoration and independent nested themes.
+      Verified 2026-11-04: all 59 galleries in source and packaged form (118 pages),
+      eight shared stories, 320px/1440px layout and keyboard checks. The final
+      sequential inventory gate passes with the original assertions and deadlines.
+      The refreshed 906-file demo and deploy-only bundle change four header/title
+      assets. [Readback](declarative-amsterdam-2026/component-gallery-header-readback.json).
+
+- [ ] Deploy the prepared component gallery header update to the demo Worker
+      from the owner's signed-in machine; verify the public inventory, component
+      headings, theme control and white Presentation canvas on the actual host.
+      Bundle: `dist/releases/cem-demo-gallery-update.tgz`; from the extracted
+      folder run `npx wrangler@4 deploy --config wrangler.jsonc`.
 
 - [x] Add Studio and Playground links to every Site header and point CEM Components
       at the live package gallery, with a decorative fat-dot separator between links. Verify the native output and keyboard
       navigation, prepare the Cloudflare update, and check it after owner deploy.
       Local verification passed 2026-11-04: all 27 headers, 303 deterministic files,
       27 browser routes, 86 fragments, 1,163 focus stops and Wrangler dry run.
-      Public verification passed: all 303 bytes checks, 27 headers/routes,
+      Public verification passed: all 303 file-byte checks, 27 headers/routes,
       interactive examples and search. [Readback](declarative-amsterdam-2026/site-public-header-readback.json).
 
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,
