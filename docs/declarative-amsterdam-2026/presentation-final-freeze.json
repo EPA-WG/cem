@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "frozenOn": "2026-11-04",
+  "timeZone": "America/Chicago",
+  "status": "final-owner-accepted-and-frozen",
+  "sourceRevision": "4ed30b3b88fe64a369c95a10e18d21cc053ec804",
+  "acceptance": {
+    "schemaVersion": 1,
+    "acceptedOn": "2026-11-04",
+    "timeZone": "America/Chicago",
+    "basis": "explicit-owner-confirmation",
+    "ownerInstruction": "mark completed: ecord your completed rehearsal’s timing, projector/control and offline-fallback results, then freeze the materials and archive completed tasks. continue",
+    "rehearsalTiming": "owner-confirmed-complete",
+    "projectorReadabilityAndControls": "owner-confirmed-complete",
+    "offlineFallback": "owner-confirmed-complete",
+    "numericElapsedSeconds": null,
+    "deviceDetails": null,
+    "independentlyMeasuredByAgent": false,
+    "detailsNotSuppliedAreNotInvented": true,
+    "finalFreezeAuthorized": true,
+    "archiveCompletedTasksAuthorized": true
+  },
+  "archive": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864"
+  },
+  "extractedOutsideWorkspace": true,
+  "verifiedFiles": 165,
+  "missingFiles": 0,
+  "unexpectedFiles": 0,
+  "assets": [
+    {
+      "path": "presentation.pdf",
+      "bytes": 906565,
+      "sha256": "ca903c3e4076ee4285dd3be7640b167ef5f6602d670af5d1beee12d520b23140",
+      "unchangedFromAcceptedTransfer": true
+    },
+    {
+      "path": "cem-studio-login-kit.tgz",
+      "bytes": 16126594,
+      "sha256": "2b8cec8f3cebe74c3a705313f9fc8b815056e614a1bd707a336c9b550ccfdf53",
+      "unchangedFromAcceptedTransfer": true
+    }
+  ],
+  "nativeDeck": {
+    "url": "https://docs.google.com/presentation/d/1v5JEclFycuXuYk5Mnpwb0alxdKIi30J6XgvLBmawxI4/edit",
+    "recordedAcceptedRevision": "DuWnTfroxCPn2A",
+    "freshLiveReadClaimed": false,
+    "frozenStaticAppearance": "presentation.pdf"
+  },
+  "publicSite": {
+    "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/",
+    "acceptedVersion": "928c385e-79cb-4ef9-844a-ce64967a6243",
+    "fullAcceptance": "site-public-928c385e-readback.json",
+    "affectedLinkRecheck": "public-affected-links-stable-readback.json",
+    "browserTransport": "http2"
+  },
+  "archiveOfCompletedTasks": "docs/archive/todo-completed-amsterdam-delivery-2026-11-04.md",
+  "historicalFailuresRetained": true,
+  "retainedLimits": [
+    "Public release CLI checkpoint mismatch; installation outside participant route.",
+    "Unverified other OS/assistive-technology environments and clean toolchain installation.",
+    "Earlier Chromium transport failures remain recorded.",
+    "Automatic whole-Studio recovery disabled; credential refusal and 4 MiB/five-second limits unchanged."
+  ]
+}

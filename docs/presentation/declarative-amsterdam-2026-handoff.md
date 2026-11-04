@@ -1,9 +1,9 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
 
-Current technical handoff (2026-11-04): the [rehearsal record](../declarative-amsterdam-2026/technical-rehearsal-2026-11-04.md)
+Final accepted handoff (2026-11-04): the [rehearsal record](../declarative-amsterdam-2026/technical-rehearsal-2026-11-04.md)
 identifies the current native deck/PDF, offline kit, measured command checks and
-remaining presenter checks. The accepted Site is version
+owner-confirmed presenter acceptance. The accepted Site is version
 `928c385e-79cb-4ef9-844a-ce64967a6243`, with Studio, Playground, components and
 Tokens on the same host. All 30 operational speaker-note blocks now identify
 this public route; original notes and visible slide content passed exact
@@ -12,8 +12,14 @@ The affected public links on slides 18/30 now pass at 27.480 / 25.873 seconds
 under the original 30-second HTTP/2 readiness gate; the
 [readback](../declarative-amsterdam-2026/public-affected-links-stable-readback.json)
 preserves the earlier failures separately. Critical release bytes remain exact.
-The owner reports the spoken/projector rehearsal completed; actual timing,
-readability/controls and offline-fallback results are pending before final freeze.
+The owner explicitly confirmed completion of timing, projector/controls and
+offline-fallback acceptance and directed final freeze/archive. Numeric timings
+and device details were not supplied; no independent measurements are asserted.
+The [final freeze receipt](../declarative-amsterdam-2026/presentation-final-freeze.json)
+records exact archive/assets and the acceptance basis. The frozen delivery is
+`dist/releases/cem-amsterdam-2026-final.tgz`, with companion `.sha256`.
+Completed execution items are in the [delivery archive](../archive/todo-completed-amsterdam-delivery-2026-11-04.md).
+The active TODO now resumes native/release diagnostics.
 
 CEM Site public publication complete (2026-11-03): the [presentation guide](https://cem-amsterdam-2026.trans-acf.workers.dev/guides/declarative-amsterdam-2026/)
 and complete Site are live on `cem-amsterdam-2026.trans-acf.workers.dev`, owner-

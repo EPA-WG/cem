@@ -7,10 +7,11 @@ retains the exact selections, zero network/page errors and unchanged critical
 release bytes. Earlier failed runs below remain historical evidence; this is
 not a fresh single-batch pass of all 14 links.
 
-The presenter reports the spoken/projector rehearsal completed and will provide
-results. Actual timing, readability/controls and offline-fallback outcomes remain
-pending in the acceptance record. Automated execution time does not measure
-explanations, audience edits or questions.
+The owner explicitly confirmed rehearsal acceptance and directed final freeze
+and archive on 2026-11-04. Timing, projector/controls and offline fallback are
+closed on that basis. Numeric timings and device details were not supplied;
+there is no independent measurement of those results. The [freeze receipt](presentation-final-freeze.json)
+identifies the final snapshot. Automated execution time remains separate.
 
 ## Delivery set
 
@@ -25,7 +26,7 @@ explanations, audience edits or questions.
 | Speaker run sheet | [Presenter notes](presenter-notes.md), 30 physical slides / 26 timed / four optional; 3,600 planned seconds |
 | Native notes readback | [Receipt](native-deck-notes-readback.json), revision `DuWnTfroxCPn2A` |
 | Current static fallback PDF | `dist/reports/cem-studio/rehearsal-2026-11-04/render/presentation.pdf`, 906,565 bytes, SHA-256 `ca903c3e4076ee4285dd3be7640b167ef5f6602d670af5d1beee12d520b23140` |
-| Rehearsal transfer | `dist/releases/cem-amsterdam-2026-rehearsal-public-recheck.tgz`; PDF, offline kit, run sheet and current evidence, with a companion `.sha256` file |
+| Rehearsal transfer | `dist/releases/cem-amsterdam-2026-final.tgz`; accepted PDF, offline kit, run sheet and evidence, with a companion `.sha256` file |
 | Local transfer fallback | `dist/packages/cem-studio-login-kit.tgz`; exact bytes and fresh extracted-consumer result in the rehearsal receipt |
 | Frozen commands/results | [Login 2.8.1](login-presenter/README.md) and [Supplier 1.1.1](supplier-presenter/README.md), manifests/checkpoint argv/diagnostics |
 

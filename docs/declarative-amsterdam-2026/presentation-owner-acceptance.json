@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "acceptedOn": "2026-11-04",
+  "timeZone": "America/Chicago",
+  "basis": "explicit-owner-confirmation",
+  "ownerInstruction": "mark completed: ecord your completed rehearsal’s timing, projector/control and offline-fallback results, then freeze the materials and archive completed tasks. continue",
+  "rehearsalTiming": "owner-confirmed-complete",
+  "projectorReadabilityAndControls": "owner-confirmed-complete",
+  "offlineFallback": "owner-confirmed-complete",
+  "numericElapsedSeconds": null,
+  "deviceDetails": null,
+  "independentlyMeasuredByAgent": false,
+  "detailsNotSuppliedAreNotInvented": true,
+  "finalFreezeAuthorized": true,
+  "archiveCompletedTasksAuthorized": true
+}
