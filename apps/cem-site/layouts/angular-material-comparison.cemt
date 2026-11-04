@@ -51,7 +51,7 @@
               }
               {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
               {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="href" @value="/tokens/"}
+                {attribute @name="href" @value="/packages/cem-theme/dist/lib/css-generators/"}
                 Tokens
               }
               {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}

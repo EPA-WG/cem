@@ -5,6 +5,8 @@ import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize, relative, resolve, sep } from 'node:path';
 import { launchPublicationBrowser } from './publication-browser.mjs';
+import { readMarkdownAudit } from './publication-markdown.mjs';
+import { verifyMarkdownTables } from './verify-markdown-tables.mjs';
 
 const workspaceRoot = resolve(import.meta.dirname, '../../..');
 const projectRoot = resolve(workspaceRoot, 'apps/cem-site');
@@ -295,6 +297,10 @@ try {
             );
         }
 
+        const tokensHref = await page.locator('header nav[aria-label=Primary]').getByRole('link', { name: 'Tokens', exact: true }).getAttribute('href');
+        if (tokensHref !== '/packages/cem-theme/dist/lib/css-generators/') {
+            throw new Error(`${entry.route} Tokens header must link to the local CSS generators index`);
+        }
         const reachedFocus = new Set();
         await page.evaluate(() => {
             if (document.activeElement instanceof HTMLElement) {
@@ -367,6 +373,10 @@ try {
         routes: routeReports,
         runtimeErrors: [],
     };
+    if (!process.env.CEM_SITE_ACCEPTANCE_URL) {
+        const { audit } = await readMarkdownAudit(workspaceRoot);
+        report.markdownTables = await verifyMarkdownTables(origin, manifest.entries, audit);
+    }
     await mkdir(reportRoot, { recursive: true });
     const reportPath = join(reportRoot, process.env.CEM_SITE_ACCEPTANCE_URL ? 'public-production.json' : 'production.json');
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');

@@ -1,5 +1,50 @@
 # CEM Site: Cloudflare publication
 
+## Prepared update: Markdown tables and Tokens navigation — 2026-11-04
+
+Implemented and locally verified; **owner deployment and public verification
+are pending**. All 21 Site Markdown imports now select GFM. Seven additional
+table-bearing pages render semantic tables through the existing native
+Markdown-to-HTML/DOM/page pipeline. The shared parser retains strict CommonMark
+when explicitly requested. Literal pipes in 16 component-reference inline-code
+spans are escaped so GFM does not truncate their cells or links.
+
+All seven header layouts now send Tokens to the same-origin URL
+`/packages/cem-theme/dist/lib/css-generators/`. The native `/tokens/` document
+remains available through ordinary content links.
+
+The native audit and browser checks cover all 21 Markdown documents, 17 tables
+and 619 cells. The transform reference has its four named columns and eight body
+rows. Browser acceptance checks all 27 headers, follows Tokens to the generator
+index and exercises live Colors generation. Production checks pass 27 routes,
+86 fragments and 1,161 focus stops. All 80 source-only snippets retain trimmed
+source, with colored tokens in 68. Native tests cover the old-policy failure,
+table cells/inline markup, escaped pipes, literal fenced examples and lost
+inline-code/link refusal. The regular Site verification now includes this audit;
+public verification consumes its fingerprinted inventory from the prepared
+release without rebuilding.
+
+Extract `dist/releases/cem-site-tables-and-tokens.tgz` (54,684,165 bytes) into a
+fresh folder and deploy there:
+
+```sh
+npx wrangler@4 deploy --config wrangler.site.jsonc
+```
+
+Expected Worker: `cem-amsterdam-2026`. Archive SHA-256:
+`c89dbe164766dca1b3c2265302a4abdbc6d6eb59c8705c6b9c6266f1f47bb2b6`.
+Two clean builds agree on 303 native files; the combined package has 1,206 public
+files with aggregate SHA-256
+`c9e577dc4b2f1b2d5c2026a51ec42f7fd7ae9d779532d8a7ac9ed695dd007148`.
+Wrangler dry run passes. All decoded file bytes match through a Node harness
+using the actual Site adapter. The local Wrangler server stalled during asset
+and snippet checks and exceeded their original deadlines; that attempt is not
+recorded as a workerd pass. The successful production/table tests and Node
+harness are separate evidence. Public acceptance follows owner deployment.
+See the [tables/Tokens readback](site-tables-tokens-readback.json).
+
+The accepted `c0833c4c…` release below predates this update.
+
 ## Current update: every demo link stays on the Site — 2026-11-04
 
 The owner deployed version `c0833c4c-6820-4014-a44a-65aba2901282`; public file

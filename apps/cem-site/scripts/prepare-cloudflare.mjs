@@ -6,8 +6,10 @@ import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { compressedSitePaths } from '../../../tools/cloudflare/site-worker.mjs';
 import { collectGalleryPublication, combinedPublication, galleryManifestPath, studioHostingHeaders, assertLocalDemoLinks } from './publication-host-galleries.mjs';
+import { readMarkdownAudit } from './publication-markdown.mjs';
 
 const workspace = resolve(import.meta.dirname, '../../..');
+const markdown = await readMarkdownAudit(workspace);
 const nativeRoot = resolve(workspace, 'dist/apps/cem-site');
 const output = resolve(workspace, 'dist/hosting/cem-site');
 const release = resolve(workspace, 'dist/releases/cem-site-cloudflare');
@@ -62,12 +64,15 @@ for (const path of ['wrangler.site.jsonc', 'tools/cloudflare/site-worker.mjs', '
 }
 await writeFile(resolve(release, 'native-publication-inventory.json'), inventoryBytes);
 await writeFile(resolve(release, 'publication-inventory.json'), publicationBytes);
-await writeFile(resolve(release, 'README.txt'), 'CEM presentation Site with local Studio, Playground, galleries and colored snippets\n\nThis bundle deploys cem-amsterdam-2026, including /studio/, /packages/cem-demo-element/demo/playground and every component gallery. All former demo-host links are relative.\n\nFrom this extracted folder, deploy using your existing Cloudflare login:\n\n  npx wrangler@4 deploy --config wrangler.site.jsonc\n\nShare the actual public URL and Wrangler version ID for public verification.\nNo native build or separate demo deployment is needed for this deploy-only bundle.\n');
+await writeFile(resolve(release, 'markdown-table-inventory.json'), markdown.bytes);
+await writeFile(resolve(release, 'README.txt'), 'CEM presentation Site: native Markdown tables and Tokens CSS generators\n\nAll Site Markdown imports use GFM so tables become semantic HTML. Tokens opens /packages/cem-theme/dist/lib/css-generators/ on this Site.\n\nThis bundle deploys cem-amsterdam-2026, including /studio/, /packages/cem-demo-element/demo/playground and every component gallery. All former demo-host links are relative.\n\nFrom this extracted folder, deploy using your existing Cloudflare login:\n\n  npx wrangler@4 deploy --config wrangler.site.jsonc\n\nShare the actual public URL and Wrangler version ID for public verification.\nNo native build or separate demo deployment is needed for this deploy-only bundle.\n');
 const packed = spawnSync('tar', ['-czf', archive, '-C', release, '.'], { stdio: 'inherit' });
 assert.equal(packed.status, 0, 'Could not package the Cloudflare deploy-only bundle');
 const archiveBytes = await readFile(archive);
 const report = { schemaVersion: 1, preparedAt: new Date().toISOString(), status: 'prepared; not publicly verified',
     nativeAggregateSha256: inventory.aggregateSha256, nativeFileCount: inventory.fileCount,
+    markdownTables: { path: resolve(release, 'markdown-table-inventory.json'), sha256: hash(markdown.bytes),
+        sourceCount: markdown.audit.sourceCount, tableCount: markdown.audit.sources.reduce((total, source) => total + source.tables, 0) },
     publicationInventory: { path: resolve(release, 'publication-inventory.json'), sha256: hash(publicationBytes),
         aggregateSha256: publication.aggregateSha256, fileCount: publication.fileCount },
     galleries: { sourceRoot: galleryRoot, sourceInventorySha256: galleries.sourceInventorySha256,

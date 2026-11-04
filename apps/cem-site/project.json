@@ -107,10 +107,29 @@
             ],
             "outputs": []
         },
+        "test:markdown": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "CEM_SITE_TABLE_REPORT=dist/reports/cem-site/markdown-tables.json CARGO_TARGET_DIR=dist/target/cem_ml_cli cargo test -p cem-ml-cli --test site_markdown_publication",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/site.cem",
+                "{projectRoot}/layouts/page.cemt",
+                "{workspaceRoot}/packages/cem_ml_cli/tests/site_markdown_publication.rs",
+                "{workspaceRoot}/packages/cem_*/src/**/*.rs",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                {"dependentTasksOutputFiles": "**/*", "transitive": false}
+            ],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-site/markdown-tables.json"]
+        },
         "verify": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["build", "test:canonical-links", "verify:determinism", "verify:interactive", "verify:production", "verify:search", "test:publication-host"],
+            "dependsOn": ["build", "test:canonical-links", "verify:determinism", "verify:interactive", "verify:production", "verify:search", "test:publication-host", "test:markdown"],
             "options": {
                 "command": "node apps/cem-site/scripts/verify.mjs",
                 "cwd": "{workspaceRoot}"
@@ -121,6 +140,7 @@
                 "{projectRoot}/scripts/verify.mjs",
                 "{workspaceRoot}/packages/cem-demo-element/dist/**/*.js",
                 "{projectRoot}/scripts/publication-host*.mjs",
+                "{projectRoot}/scripts/publication-markdown.mjs",
                 "{projectRoot}/scripts/publication-html.mjs",
                 "{projectRoot}/runtime/*.module-map.json",
                 "{workspaceRoot}/nx.json",
@@ -188,7 +208,7 @@
         "verify:production": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["verify:determinism"],
+            "dependsOn": ["verify:determinism", "test:markdown"],
             "options": {
                 "command": "node apps/cem-site/scripts/verify-production.mjs",
                 "cwd": "{workspaceRoot}"
@@ -197,6 +217,8 @@
                 "{projectRoot}/scripts/publication-host.mjs",
                 "{projectRoot}/site.routes.json",
                 "{projectRoot}/scripts/verify-production.mjs",
+                "{projectRoot}/scripts/publication-markdown.mjs",
+                "{projectRoot}/scripts/verify-markdown-tables.mjs",
                 "{projectRoot}/scripts/publication-browser.mjs",
                 {"env": "CEM_SITE_BROWSER_TRANSPORT"},
                 "{workspaceRoot}/packages/cem-demo-element/dist/**/*.js",
@@ -271,6 +293,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/prepare-cloudflare.mjs",
+                "{projectRoot}/scripts/publication-markdown.mjs",
                 "{projectRoot}/scripts/publication-host-galleries.mjs",
                 "{workspaceRoot}/wrangler.site.jsonc",
                 "{workspaceRoot}/tools/cloudflare/*.mjs"

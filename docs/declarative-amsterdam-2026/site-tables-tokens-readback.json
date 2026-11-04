@@ -1,0 +1,447 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-04T13:26:36.783348+00:00",
+  "checkedOn": "2026-11-04",
+  "timeZone": "America/Chicago",
+  "status": "implemented and locally verified; owner deployment and public acceptance pending",
+  "baseCommit": "535233a5d8441083435a416e2176a8eb21a5bb13",
+  "destination": {
+    "worker": "cem-amsterdam-2026",
+    "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+    "actualVersionId": null,
+    "config": "wrangler.site.jsonc",
+    "command": "npx wrangler@4 deploy --config wrangler.site.jsonc"
+  },
+  "causes": [
+    "20 of 21 Site Markdown imports explicitly selected CommonMark, which does not enable pipe tables",
+    "16 inline-code spans in component-reference tables contained unescaped literal pipes, truncating cells and links under GFM"
+  ],
+  "solution": {
+    "sitePolicy": "All 21 Markdown imports explicitly select GFM; shared explicit CommonMark behavior remains strict",
+    "sourceCorrection": "Escaped literal pipes in 16 inline-code spans in packages/cem-components/docs/component-reference.md",
+    "tableGuard": "Native per-table audit preserves authored inline-code values and link destinations; no browser Markdown repair",
+    "tokensHeaderHref": "/packages/cem-theme/dist/lib/css-generators/",
+    "headerLayouts": 7,
+    "generatedHeaders": 27
+  },
+  "nativeTests": {
+    "passed": 4,
+    "policyAndPageFixture": "Red before GFM policy change, green after",
+    "inlineCodeAndLinkGuard": "Red on unescaped source pipes, green after source correction"
+  },
+  "nativeAudit": {
+    "pageLayoutSha256": "eb9096164db8680307d4ae47107a1341edede7750771b942d451957383f31ce4",
+    "schemaVersion": 1,
+    "siteGraphSha256": "d8dd878f8349956f12c74c7f16bb412d31d394be4ec3bf146657ed1ab6d765a1",
+    "sourceCount": 21,
+    "sources": [
+      {
+        "cells": 0,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "home-source",
+        "source": "content/_index.md",
+        "sourceSha256": "2b4be03f15375b91fcc7ee5498e14eef28689fcd81d2cf32dbd7636814ef8972",
+        "tables": 0
+      },
+      {
+        "cells": 0,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "guides-source",
+        "source": "content/guides/_index.md",
+        "sourceSha256": "c80bcd94fa9311ee5fe083b689c1a26e0feee03cdc79d514f46a7d4de9049713",
+        "tables": 0
+      },
+      {
+        "cells": 16,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "amsterdam-source",
+        "source": "content/guides/declarative-amsterdam-2026.md",
+        "sourceSha256": "090809e69550ffbdb36e5d3cd8c64ffe5a7ff85943b8d66c0b696bdbaeff0790",
+        "tables": 1
+      },
+      {
+        "cells": 0,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "cli-guide-source",
+        "source": "../../packages/cem-ml-cli-npm/README.md",
+        "sourceSha256": "c3d43f651245084dfd2362906456e588afcdbc6425e4bec4aa6dd7fd44c1c1fc",
+        "tables": 0
+      },
+      {
+        "cells": 36,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "transform-reference-source",
+        "source": "../../packages/cem_ml/dist/cli/transform-config.md",
+        "sourceSha256": "8d9facee78ebde2a63369044a2fece0b3f075c9f06808dcdf2131f3235b1ee33",
+        "tables": 1
+      },
+      {
+        "cells": 0,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "wasm-reference-source",
+        "source": "../../packages/cem-ml-npm/README.md",
+        "sourceSha256": "f2afd8fd06eb33af64a759ae0f6cc3a4705f1e18a4969221302c396e55014b7c",
+        "tables": 0
+      },
+      {
+        "cells": 0,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "cem-elements-reference-source",
+        "source": "../../packages/cem-elements/README.md",
+        "sourceSha256": "d2d13bf0eb83664a1147872a94425d2690de7ace76a60c019084683261b6f508",
+        "tables": 0
+      },
+      {
+        "cells": 0,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "custom-element-reference-source",
+        "source": "../../packages/custom-element/README.md",
+        "sourceSha256": "9e62ba9d912b1ed0dec8ef26c843bd04193888e07401ef4c69d8655fc796429c",
+        "tables": 0
+      },
+      {
+        "cells": 25,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "trang-native-reference-source",
+        "source": "../../packages/trang-native/README.md",
+        "sourceSha256": "9048bf9cc7bd49ff7c69be3749563456b9214ae6a903d442ae4c4260c16830d6",
+        "tables": 2
+      },
+      {
+        "cells": 10,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "cem-ml-crate-reference-source",
+        "source": "../../packages/cem_ml/README.md",
+        "sourceSha256": "60604c9f768658924a774947c3f5ddafc733e7e7a84c8e51e32030db2c2ef45b",
+        "tables": 1
+      },
+      {
+        "cells": 0,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "cem-ml-cli-crate-reference-source",
+        "source": "../../packages/cem_ml_cli/README.md",
+        "sourceSha256": "b44f38818257c7dded78d3b5920d4b4d920f147be3a02c048b57f2264d73014d",
+        "tables": 0
+      },
+      {
+        "cells": 0,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "cem-ml-transform-cem-ql-crate-reference-source",
+        "source": "../../packages/cem_ml_transform_cem_ql/README.md",
+        "sourceSha256": "15d59885ab92ac8badb05036d7e54f84b660de81a9ff2cf0909b0b778abd4c75",
+        "tables": 0
+      },
+      {
+        "cells": 12,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "cem-ql-crate-reference-source",
+        "source": "../../packages/cem_ql/README.md",
+        "sourceSha256": "2664775d8091c66200aed11447a89816dc3fdccb6b68b17ee872e87fed61ea40",
+        "tables": 1
+      },
+      {
+        "cells": 12,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "cem-ml-examples-source",
+        "source": "../../examples/cem-ml/README.md",
+        "sourceSha256": "c7258c2a54882ef08830adead326051e652f510a57471dfde790da14c1ba69c3",
+        "tables": 1
+      },
+      {
+        "cells": 18,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "component-examples-source",
+        "source": "../../packages/cem-components/examples/README.md",
+        "sourceSha256": "924a629e85e3db7f9484c56bf3ce326a401bed7e8852e4fde81eabc9e5234c69",
+        "tables": 1
+      },
+      {
+        "cells": 490,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "component-reference-source",
+        "source": "../../packages/cem-components/docs/component-reference.md",
+        "sourceSha256": "ecee181c87187d370e60c19d90c0957099bcb2936f88e34dcff2ff3d44239da9",
+        "tables": 9
+      },
+      {
+        "cells": 0,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "workspace-releases-source",
+        "source": "../../CHANGELOG.md",
+        "sourceSha256": "d9aa3aa0f916c9d93501cec0d95e6127aa3bd9d0a94b7b01ea9fb3bdb5e4263b",
+        "tables": 0
+      },
+      {
+        "cells": 0,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "component-releases-source",
+        "source": "../../packages/cem-components/CHANGELOG.md",
+        "sourceSha256": "f081f364163a105476d04bd86ea4a22b7bef7d4c2e4bbc7bef103bc58a4e3dbc",
+        "tables": 0
+      },
+      {
+        "cells": 0,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "cem-elements-releases-source",
+        "source": "../../packages/cem-elements/CHANGELOG.md",
+        "sourceSha256": "627c97a7c65e798825f138643ca5a7ed86ba265c54a13a12ba14f08d3e20842c",
+        "tables": 0
+      },
+      {
+        "cells": 0,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "theme-releases-source",
+        "source": "../../packages/cem-theme/CHANGELOG.md",
+        "sourceSha256": "5a0008b0b9994da117f23aeefcaa801a1573263c4a6927734b2a88f67b096399",
+        "tables": 0
+      },
+      {
+        "cells": 0,
+        "contentType": "text/markdown; charset=utf-8; variant=GFM",
+        "importId": "custom-element-releases-source",
+        "source": "../../packages/custom-element/CHANGELOG.md",
+        "sourceSha256": "694cc79d8200c119636a9e60dff9865a1c7bff76a50f06f9593888102206f6b5",
+        "tables": 0
+      }
+    ],
+    "status": "passed"
+  },
+  "browserTables": {
+    "origin": "http://127.0.0.1:53311",
+    "sourceCount": 21,
+    "tableCount": 17,
+    "cellCount": 619,
+    "routes": [
+      {
+        "route": "/",
+        "tables": 0,
+        "cells": 0
+      },
+      {
+        "route": "/guides/",
+        "tables": 0,
+        "cells": 0
+      },
+      {
+        "route": "/guides/declarative-amsterdam-2026/",
+        "tables": 1,
+        "cells": 16
+      },
+      {
+        "route": "/guides/cem-ml/cli/",
+        "tables": 0,
+        "cells": 0
+      },
+      {
+        "route": "/reference/cem-ml/transform-config/",
+        "tables": 1,
+        "cells": 36
+      },
+      {
+        "route": "/reference/cem-ml/wasm-runtime/",
+        "tables": 0,
+        "cells": 0
+      },
+      {
+        "route": "/reference/cem-elements/",
+        "tables": 0,
+        "cells": 0
+      },
+      {
+        "route": "/reference/custom-element/",
+        "tables": 0,
+        "cells": 0
+      },
+      {
+        "route": "/reference/trang-native/",
+        "tables": 2,
+        "cells": 25
+      },
+      {
+        "route": "/reference/crates/cem-ml/",
+        "tables": 1,
+        "cells": 10
+      },
+      {
+        "route": "/reference/crates/cem-ml-cli/",
+        "tables": 0,
+        "cells": 0
+      },
+      {
+        "route": "/reference/crates/cem-ml-transform-cem-ql/",
+        "tables": 0,
+        "cells": 0
+      },
+      {
+        "route": "/reference/crates/cem-ql/",
+        "tables": 1,
+        "cells": 12
+      },
+      {
+        "route": "/examples/cem-ml/",
+        "tables": 1,
+        "cells": 12
+      },
+      {
+        "route": "/examples/components/",
+        "tables": 1,
+        "cells": 18
+      },
+      {
+        "route": "/reference/components/",
+        "tables": 9,
+        "cells": 490
+      },
+      {
+        "route": "/releases/",
+        "tables": 0,
+        "cells": 0
+      },
+      {
+        "route": "/releases/cem-components/",
+        "tables": 0,
+        "cells": 0
+      },
+      {
+        "route": "/releases/cem-elements/",
+        "tables": 0,
+        "cells": 0
+      },
+      {
+        "route": "/releases/cem-theme/",
+        "tables": 0,
+        "cells": 0
+      },
+      {
+        "route": "/releases/custom-element/",
+        "tables": 0,
+        "cells": 0
+      }
+    ],
+    "tokensNavigation": {
+      "href": "/packages/cem-theme/dist/lib/css-generators/",
+      "sameOrigin": true,
+      "colorsGenerator": "passed"
+    },
+    "status": "passed"
+  },
+  "production": {
+    "routeCount": 27,
+    "fragmentLinkCount": 86,
+    "focusableCount": 1161,
+    "aggregateSha256": "06bcba9070ca9ef22efd62191e7c4505e7e4a71e760413d2bff4a9b354d0011f"
+  },
+  "snippets": {
+    "origin": "http://127.0.0.1:8797",
+    "snippetCount": 80,
+    "coloredSnippetCount": 68,
+    "routes": [
+      {
+        "route": "/guides/declarative-amsterdam-2026/",
+        "snippetCount": 2,
+        "coloredSnippetCount": 2
+      },
+      {
+        "route": "/guides/cem-ml/cli/",
+        "snippetCount": 9,
+        "coloredSnippetCount": 9
+      },
+      {
+        "route": "/reference/cem-ml/transform-config/",
+        "snippetCount": 1,
+        "coloredSnippetCount": 1
+      },
+      {
+        "route": "/reference/cem-ml/wasm-runtime/",
+        "snippetCount": 6,
+        "coloredSnippetCount": 6
+      },
+      {
+        "route": "/reference/cem-elements/",
+        "snippetCount": 9,
+        "coloredSnippetCount": 7
+      },
+      {
+        "route": "/reference/custom-element/",
+        "snippetCount": 13,
+        "coloredSnippetCount": 12
+      },
+      {
+        "route": "/reference/trang-native/",
+        "snippetCount": 7,
+        "coloredSnippetCount": 4
+      },
+      {
+        "route": "/reference/crates/cem-ml/",
+        "snippetCount": 1,
+        "coloredSnippetCount": 0
+      },
+      {
+        "route": "/reference/crates/cem-ml-cli/",
+        "snippetCount": 5,
+        "coloredSnippetCount": 3
+      },
+      {
+        "route": "/reference/crates/cem-ml-transform-cem-ql/",
+        "snippetCount": 3,
+        "coloredSnippetCount": 2
+      },
+      {
+        "route": "/reference/crates/cem-ql/",
+        "snippetCount": 21,
+        "coloredSnippetCount": 20
+      },
+      {
+        "route": "/examples/interactive/",
+        "snippetCount": 2,
+        "coloredSnippetCount": 2
+      },
+      {
+        "route": "/reference/components/",
+        "snippetCount": 1,
+        "coloredSnippetCount": 0
+      }
+    ],
+    "status": "passed"
+  },
+  "hosting": {
+    "dryRun": "passed",
+    "nodeAdapterHarness": {
+      "origin": "http://127.0.0.1:8797",
+      "status": "passed",
+      "fileCount": 1206,
+      "aggregateSha256": "c9e577dc4b2f1b2d5c2026a51ec42f7fd7ae9d779532d8a7ac9ed695dd007148"
+    },
+    "localWrangler": "Asset and snippet checks stalled and exceeded original 30-second deadlines. Not recorded as a workerd acceptance pass; same compiled package and actual adapter were then checked through a Node assets harness."
+  },
+  "determinism": {
+    "cleanBuilds": 2,
+    "fileCount": 303,
+    "aggregateSha256": "06bcba9070ca9ef22efd62191e7c4505e7e4a71e760413d2bff4a9b354d0011f"
+  },
+  "archive": {
+    "path": "/home/suns/cem/dist/releases/cem-site-cloudflare.tgz",
+    "bytes": 54684165,
+    "sha256": "c89dbe164766dca1b3c2265302a4abdbc6d6eb59c8705c6b9c6266f1f47bb2b6",
+    "handoffPath": "dist/releases/cem-site-tables-and-tokens.tgz"
+  },
+  "combined": {
+    "path": "/home/suns/cem/dist/releases/cem-site-cloudflare/publication-inventory.json",
+    "sha256": "c8a153d9c36eccead0783493a21df358e1a48c739d1d5cbe7320ae6cfc00617b",
+    "aggregateSha256": "c9e577dc4b2f1b2d5c2026a51ec42f7fd7ae9d779532d8a7ac9ed695dd007148",
+    "fileCount": 1206
+  },
+  "markdownTableInventory": {
+    "path": "/home/suns/cem/dist/releases/cem-site-cloudflare/markdown-table-inventory.json",
+    "sha256": "9dd77c7a5384e27c2f1e185a41a98ef1498bfae550bdfd5b2a6656a335ca3cb8",
+    "sourceCount": 21,
+    "tableCount": 17
+  },
+  "checks": {
+    "canonicalRegressions": 5,
+    "lint": "passed",
+    "sourceAndProvenanceVerifier": "passed",
+    "visualInspection": "Transform reference shows a semantic four-column table with eight body rows on a white canvas"
+  },
+  "publicAcceptance": "Pending owner deployment. cem-site:verify:public now checks pinned native Markdown tables and Tokens navigation as well as existing workflows."
+}

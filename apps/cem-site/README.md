@@ -141,7 +141,7 @@ or replace the native import boundary with an application document model.
 
 `/guides/declarative-amsterdam-2026/` follows the six presentation intervals from
 Login source/edit through validation, provenance, light DOM and a bounded pilot.
-It is authored Markdown (GFM for its platform-role table), published through the
+It is authored Markdown using the Site's GFM policy, published through the
 existing native pipeline and shared page layout. It adds no UI JavaScript.
 The [story map](../../docs/declarative-amsterdam-2026/story-map.md) connects all
 manifesto/pitch sections to the existing slide IDs and evidence boundaries.
@@ -156,6 +156,21 @@ links/fragments, code excerpts and the five shared runtime helper assets. It is
 part of the full verification target. A local build does not establish public hosting.
 
 ## Combined presentation publication
+
+Every Markdown import in `site.cem` explicitly selects GFM, so tables in authored
+pages, generated references, package READMEs and release notes use the same
+native conversion path. Explicit CommonMark remains strict in the shared parser;
+the Site does not repair Markdown with browser JavaScript or per-page rules.
+`cem-site:test:markdown` exercises all imports, escaped pipes and inline markup,
+fenced non-tables, and the complete native Markdown/HTML/DOM/page pipeline. It
+emits a source-fingerprinted table/cell inventory for every Markdown document.
+Regular production checks compare every published table against that native
+inventory. The deployment bundle pins the inventory for public verification.
+
+The Tokens header link opens `/packages/cem-theme/dist/lib/css-generators/` on
+the same host. Header checks cover every generated page; browser acceptance
+follows the Tokens link and exercises the Colors generator. The native token
+browser remains available at `/tokens/` through ordinary content links.
 
 The Cloudflare package includes the native Site, complete prepared demo package
 trees and Studio build. Every header uses relative URLs for CEM Components

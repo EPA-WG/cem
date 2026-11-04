@@ -9,6 +9,7 @@ import { readPublicationInventory } from './publication-host-galleries.mjs';
 import { verifyCodeSnippets } from './verify-snippets.mjs';
 import { verifyLocalApps } from './verify-local-apps.mjs';
 import { browserTransport } from './publication-browser.mjs';
+import { verifyMarkdownTables } from './verify-markdown-tables.mjs';
 
 const workspace = resolve(import.meta.dirname, '../../..');
 const origin = publicationOrigin(process.env.CEM_SITE_ACCEPTANCE_URL);
@@ -38,6 +39,9 @@ try {
             `Prepared Site differs from deterministic build: ${entry.path}`);
     }
     const routes = JSON.parse(await readFile(resolve(workspace, 'apps/cem-site/site.routes.json'), 'utf8'));
+    assert.ok(prepared.markdownTables, 'Prepare the Markdown-table Site update before public verification');
+    const markdownBytes = await readFile(prepared.markdownTables.path);
+    assert.equal(createHash('sha256').update(markdownBytes).digest('hex'), prepared.markdownTables.sha256, 'Prepared Markdown audit changed');
     report.assets = await verifyPublishedAssets(origin, inventory, { routes: [...routes.entries, ...inventory.galleryRoutes] });
     await save();
     // These are the existing browser suites, with their complete original
@@ -55,6 +59,7 @@ try {
     const galleries = JSON.parse(await readFile(resolve(prepared.output, prepared.galleries.manifestPath), 'utf8'));
     report.galleries = await verifyComponentGalleries(origin, galleries);
     report.snippets = await verifyCodeSnippets(origin, routes.entries);
+    report.markdownTables = await verifyMarkdownTables(origin, routes.entries, JSON.parse(markdownBytes));
     const security = JSON.parse(await readFile(resolve(prepared.output, 'studio/security-headers.json'), 'utf8'));
     report.localApps = await verifyLocalApps(origin, security.headers);
     report.status = 'passed';

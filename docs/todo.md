@@ -698,6 +698,32 @@ channels; private agreements remain unverified. This file owns execution order.
       Public verification passed: all 303 file-byte checks, 27 headers/routes,
       interactive examples and search. [Readback](declarative-amsterdam-2026/site-public-header-readback.json).
 
+- [x] Fix Markdown table publication generically across Site content. Audit every
+      Markdown source, add a failing native Site-graph fixture for table structure,
+      inline content, escaped pipes and fenced non-tables, then apply one GFM
+      import policy while retaining explicit CommonMark semantics in the shared
+      parser. Verify every table-bearing page, preserve colored snippets and
+      relative navigation, and prepare the updated Cloudflare Site bundle.
+      Verified locally: all 21 native Markdown sources, 17 tables and 619 cells;
+      four native regression tests including lost inline-code/link detection.
+      All Site imports now use GFM, and 16 component-reference code spans escape
+      literal pipes. Browser table/production checks and all 80 colored-source
+      viewers pass. [Readback](declarative-amsterdam-2026/site-tables-tokens-readback.json).
+
+- [x] Point Tokens in every Site header to the local packaged CSS generators
+      index at `/packages/cem-theme/dist/lib/css-generators/`; verify all seven
+      layouts, generated headers and same-origin browser navigation alongside the
+      Markdown-table publication update.
+      Verified all seven layouts/27 generated headers and actual same-origin
+      navigation to the index and live Colors generator. Included in the combined
+      tables/Tokens deployment bundle.
+
+- [ ] Deploy `cem-site-tables-and-tokens.tgz` from the owner's signed-in machine
+      with `npx wrangler@4 deploy --config wrangler.site.jsonc`, record the actual
+      version, then verify the tables, Tokens destination and complete prepared
+      publication on the public Site. The currently accepted `c0833c4c…` release
+      predates these changes. Use the [deployment steps](declarative-amsterdam-2026/site-cloudflare-publication.md).
+
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,
       output and demo path. Check slide readability and the fallback flow;
       record the tested versions and remaining limitations with the materials.

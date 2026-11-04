@@ -1,6 +1,6 @@
 {run |
   {import @id=home-source @src="content/_index.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=home-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -22,7 +22,7 @@
   }
 
   {import @id=guides-source @src="content/guides/_index.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=guides-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -79,7 +79,7 @@
   }
 
   {import @id=cli-guide-source @src="../../packages/cem-ml-cli-npm/README.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=cli-guide-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -104,7 +104,7 @@
 
   {import @id=transform-reference-source
       @src="../../packages/cem_ml/dist/cli/transform-config.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=transform-reference-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -128,7 +128,7 @@
   }
 
   {import @id=wasm-reference-source @src="../../packages/cem-ml-npm/README.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=wasm-reference-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -154,7 +154,7 @@
   }
 
   {import @id=cem-elements-reference-source @src="../../packages/cem-elements/README.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=cem-elements-reference-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -180,7 +180,7 @@
   }
 
   {import @id=custom-element-reference-source @src="../../packages/custom-element/README.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=custom-element-reference-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -206,7 +206,7 @@
   }
 
   {import @id=trang-native-reference-source @src="../../packages/trang-native/README.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=trang-native-reference-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -232,7 +232,7 @@
   }
 
   {import @id=cem-ml-crate-reference-source @src="../../packages/cem_ml/README.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=cem-ml-crate-reference-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -258,7 +258,7 @@
   }
 
   {import @id=cem-ml-cli-crate-reference-source @src="../../packages/cem_ml_cli/README.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=cem-ml-cli-crate-reference-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -285,7 +285,7 @@
 
   {import @id=cem-ml-transform-cem-ql-crate-reference-source
       @src="../../packages/cem_ml_transform_cem_ql/README.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=cem-ml-transform-cem-ql-crate-reference-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -311,7 +311,7 @@
   }
 
   {import @id=cem-ql-crate-reference-source @src="../../packages/cem_ql/README.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=cem-ql-crate-reference-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -382,7 +382,7 @@
   }
 
   {import @id=cem-ml-examples-source @src="../../examples/cem-ml/README.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=cem-ml-examples-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -409,7 +409,7 @@
 
   {import @id=component-examples-source
       @src="../../packages/cem-components/examples/README.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=component-examples-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -456,7 +456,7 @@
 
   {import @id=component-reference-source
       @src="../../packages/cem-components/docs/component-reference.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=component-reference-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -482,7 +482,7 @@
   }
 
   {import @id=workspace-releases-source @src="../../CHANGELOG.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=workspace-releases-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -509,7 +509,7 @@
 
   {import @id=component-releases-source
       @src="../../packages/cem-components/CHANGELOG.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=component-releases-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -534,7 +534,7 @@
 
   {import @id=cem-elements-releases-source
       @src="../../packages/cem-elements/CHANGELOG.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=cem-elements-releases-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -559,7 +559,7 @@
 
   {import @id=theme-releases-source
       @src="../../packages/cem-theme/CHANGELOG.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=theme-releases-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
@@ -584,7 +584,7 @@
 
   {import @id=custom-element-releases-source
       @src="../../packages/custom-element/CHANGELOG.md"
-      @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+      @content-type="text/markdown; charset=utf-8; variant=GFM"
       @schema="https://cem.dev/ns/data/markdown/1" |
     {convert @id=custom-element-releases-html @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"

@@ -4,9 +4,11 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { createProjectGraphAsync } from '@nx/devkit';
 import { hasEscapedPageBridge } from './publication-html.mjs';
 import { collectGalleryPublication } from './publication-host-galleries.mjs';
+import { readMarkdownAudit } from './publication-markdown.mjs';
 
 const workspaceRoot = resolve(import.meta.dirname, '../../..');
 const projectRoot = resolve(workspaceRoot, 'apps/cem-site');
+await readMarkdownAudit(workspaceRoot);
 const outputRoot = resolve(workspaceRoot, 'dist/apps/cem-site');
 const reportRoot = resolve(workspaceRoot, 'dist/reports/cem-site');
 const manifest = JSON.parse(await readFile(resolve(projectRoot, 'site.routes.json'), 'utf8'));
