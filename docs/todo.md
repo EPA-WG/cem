@@ -92,9 +92,15 @@ typecheck pass. No runtime, declarations, styles or deadlines changed.
 Presentation delivery is complete; these follow-ups can now proceed in order.
 Keep original assertions, deadlines and baseline evidence for each repair.
 
-- [ ] Diagnose relative Node `--out` destination canonicalization before common command-service URI admission. `createNodeCommandService({ cwd })` plus `parse inventory.csv --out inspection.cem` currently refuses `runPlan.outputs.resolvedDestination=inspection.cem` as `cem.command_service.uri_invalid` before reaching Parse; an explicit `file:` destination works and preserves refused output. Add lowering/Node/executable fixtures first, determine the supported argv-path contract and retain strict prepared-URI/publication authority checks. Keep this separate from native Parse refusal policy.
+Completed follow-up: [Node output URI binding](archive/todo-completed-node-output-paths-2026-11-04.md).
+Shared Rust lowering now binds relative/absolute output paths to runtime URIs
+without changing declared paths, config-base policy or authority checks. All
+30 focused native checks, 61 Node tests, browser command-service verification,
+WASM/CLI builds and lint pass. Refused CSV preserves prior output; repair
+publishes. Forged destinations still reject before callbacks and invalid commit
+URIs roll back. Frozen presentation delivery bytes remain unchanged.
 
-- [ ] Diagnose the three existing linked package preparation source-map failures at `schema_package_lifecycle/attribute_datatypes.rs:473`: pretyped handoff, callback context/publication guards and checked preparation replacement retain an additional `SourceBoundary` frame. All three reproduce on unchanged `eca54d20`; preserve source provenance and intended assertions when resolving the mismatch. The broader cohort passes 46/49 cases; see the [CSV contract verification](archive/todo-completed-csv-parser-contracts-2026-10-24.md#verification).
+- [ ] Diagnose the three existing linked package preparation source-map failures at `schema_package_lifecycle/attribute_datatypes.rs:473`: pretyped handoff, callback context/publication guards and checked preparation replacement retain an additional `SourceBoundary` frame. All three reproduce on unchanged `eca54d20`; preserve source provenance and intended assertions when resolving the mismatch. The broader cohort passes 46/49 cases; see the [CSV contract verification](archive/todo-completed-csv-parser-contracts-2026-10-24.md#verification). The current focused pretyped case still reproduces at that assertion (2026-11-04): candidate map has an extra `SourceBoundary { uri: "library.cem" }`. Trace `attribute_activation/pretyped.rs` raw lexical source versus `RetainedCemTree::source_node_map` URI enrichment; retain both original source ownership and exact provenance while diagnosing the mismatch.
 
 - [ ] Isolate the optional Studio sample graph from the ordinary Feature Tour generated directory. `build-schema-assets-profile.mjs` leaves `generated/feature-tour/feature-tour.schema-assets.cem`, causing the subsequent strict default `generate-feature-tour.mjs --check` file-set assertion to fail. Add default → optional → default verification fixtures, move the optional build input into its own generated domain with correct relative resource bases, and retain exact default file-set checking. Removing only that untracked build scratch file permits default verification; saved projects/drafts are unrelated.
 

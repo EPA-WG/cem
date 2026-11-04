@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 
 import {
@@ -159,6 +159,129 @@ test('Rust lowering and Node worker execution preserve file URI and terminal pre
         await service?.close();
         await rm(directory, { recursive: true, force: true });
     }
+});
+
+test('Node relative output lowering preserves authored paths and canonical runtime URI ownership', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'cem-output-É #%-'));
+    try {
+        await writeFile(join(directory, 'input.cem'), '{root}\n');
+        const host = createNodeCommandHost({ cwd: directory });
+        for (const [declared, expected] of [
+            ['inspection.cem', pathToFileURL(join(directory, 'inspection.cem')).href],
+            ['nested/../Café #%.cem', pathToFileURL(join(directory, 'Café #%.cem')).href],
+            [join(directory, 'absolute.cem'), pathToFileURL(join(directory, 'absolute.cem')).href],
+            [pathToFileURL(join(directory, 'encoded #%.cem')).href, pathToFileURL(join(directory, 'encoded #%.cem')).href],
+            ['stream:output', 'stream:output'],
+            ['cem-stdio://stdout', 'cem-stdio://stdout'],
+        ]) {
+            const parsed = parseCemMlCommand(['parse', 'input.cem', '--out', declared], { runtime: 'wasm-node' });
+            const original = JSON.stringify(parsed);
+            const invocation = await buildNodeCommandInvocation(parsed, host);
+            const output = invocation.request.runPlan.outputs[0];
+            assert.equal(output.declaredDestination, declared);
+            assert.equal(output.resolvedDestination, expected);
+            assert.equal(invocation.request.runPlan.effectiveConfig.outputs[0].destination, declared);
+            assert.equal(JSON.stringify(parsed), original);
+        }
+    } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('Node relative output reaches Parse refusal, preserves prior files and publishes repaired CSV', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'cem-relative-output-É #%-'));
+    const service = await createNodeCommandService({ cwd: directory, stdout: new FixtureWritable(), stderr: new FixtureWritable() });
+    try {
+        for (const destination of ['inspection.cem', 'nested/../Café #%.cem']) {
+            const output = join(directory, destination);
+            await mkdir(dirname(output), { recursive: true });
+            await writeFile(join(directory, 'inventory.csv'), 'id,name\n1,"Ada\n');
+            await writeFile(output, 'previous output');
+            const argv = ['parse', 'inventory.csv', '--content-type', 'text/csv; header=present',
+                '--schema', 'https://cem.dev/ns/data/csv/1', '--no-color', '--out', destination];
+            const run = async expectedExit => {
+                const execution = await service.run(parseCemMlCommand(argv, { runtime: 'wasm-node' }));
+                try {
+                    const lowered = execution.invocation.request.runPlan.outputs[0];
+                    assert.equal(lowered.declaredDestination, destination);
+                    assert.equal(lowered.resolvedDestination, pathToFileURL(output).href);
+                    const result = await execution.handle;
+                    assert.equal(result.exitCode, expectedExit);
+                    if (expectedExit === 1) {
+                        assert.equal(result.status, 'failed');
+                        assert.equal(result.artifacts.originalCount, 0);
+                        const diagnostic = result.diagnostics.items.find(item => item.code === 'cem.csv.unclosed_quote');
+                        assert.ok(diagnostic);
+                        assert.equal(diagnostic.uri, pathToFileURL(join(directory, 'inventory.csv')).href);
+                        assert.equal(diagnostic.byteOffset, 10); assert.equal(diagnostic.line, 2); assert.equal(diagnostic.column, 3);
+                    } else {
+                        assert.equal(result.status, 'succeeded'); assert.equal(result.diagnostics.originalCount, 0);
+                        assert.equal(result.artifacts.items[0].uri, pathToFileURL(output).href);
+                    }
+                    await service.publish(execution.invocation, result);
+                } finally { await execution.handle.dispose(); }
+            };
+            await run(1);
+            assert.equal(await readFile(output, 'utf8'), 'previous output');
+            await writeFile(join(directory, 'inventory.csv'), 'id,name\n1,"Café 🍒"\n');
+            await run(0);
+            assert.ok((await readFile(output, 'utf8')).includes('Café 🍒'));
+        }
+    } finally { await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('Node relative output fix retains strict request admission and publication rollback', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'cem-relative-output-admission-'));
+    const host = createNodeCommandHost({ cwd: directory });
+    const callbacks = { currentRevision: 0, readResource: 0, prepareWrite: 0, commitWrite: 0, rollbackWrite: 0 };
+    const originalCommit = host.commitWrite;
+    for (const name of Object.keys(callbacks)) {
+        const original = host[name];
+        host[name] = (...args) => { callbacks[name]++; return original(...args); };
+    }
+    host.commitWrite = async token => { callbacks.commitWrite++; await originalCommit(token); return { uri: 'still-relative.cem' }; };
+    const service = await createNodeCommandService({ host });
+    try {
+        await writeFile(join(directory, 'input.cem'), '{root}\n');
+        const target = join(directory, 'inspection.cem'); await writeFile(target, 'previous output');
+        const parsed = parseCemMlCommand(['parse', 'input.cem', '--out', pathToFileURL(target).href], { runtime: 'wasm-node' });
+        const valid = await buildNodeCommandInvocation(parsed, host);
+        const forged = structuredClone(valid.request);
+        forged.runPlan.outputs[0].resolvedDestination = 'inspection.cem';
+        await assert.rejects(service.execute(forged).result(), error => error.code === 'cem.command_service.uri_invalid');
+        assert.deepEqual(callbacks, { currentRevision: 0, readResource: 0, prepareWrite: 0, commitWrite: 0, rollbackWrite: 0 });
+        assert.equal(await readFile(target, 'utf8'), 'previous output');
+        const execution = await service.run(parseCemMlCommand(['parse', 'input.cem', '--out', 'inspection.cem'], { runtime: 'wasm-node' }));
+        try {
+            const result = await execution.handle;
+            assert.equal(result.status, 'failed'); assert.equal(result.exitCode, 6);
+            assert.equal(result.artifacts.originalCount, 0);
+            assert.ok(result.diagnostics.items.some(item => item.code === 'cem.command_service.publication_resolved_destination'));
+            assert.equal(callbacks.prepareWrite, 1); assert.equal(callbacks.commitWrite, 1); assert.equal(callbacks.rollbackWrite, 1);
+            assert.equal(await readFile(target, 'utf8'), 'previous output');
+        } finally { await execution.handle.dispose(); }
+    } finally { await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('cem-ml executable relative output preserves refused files and publishes repaired CSV', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'cem-relative-output-bin-É #%-'));
+    const target = join(directory, 'Café #%.cem');
+    try {
+        await writeFile(join(directory, 'inventory.csv'), 'id,name\n1,"Ada\n');
+        await writeFile(target, 'previous output');
+        const args = ['parse', 'inventory.csv', '--content-type', 'text/csv; header=present',
+            '--schema', 'https://cem.dev/ns/data/csv/1', '--no-color', '--out', 'Café #%.cem'];
+        const run = () => spawnSync(process.execPath, [fileURLToPath(new URL('../dist/bin.js', import.meta.url)), ...args], {
+            cwd: directory, encoding: 'utf8', timeout: 30_000,
+        });
+        const refused = run();
+        assert.equal(refused.error, undefined); assert.equal(refused.status, 1, refused.stderr);
+        assert.match(refused.stderr, /cem.csv.unclosed_quote/);
+        assert.equal(await readFile(target, 'utf8'), 'previous output');
+        await writeFile(join(directory, 'inventory.csv'), 'id,name\n1,"Café 🍒"\n');
+        const repaired = run();
+        assert.equal(repaired.error, undefined); assert.equal(repaired.status, 0, repaired.stderr);
+        assert.equal(repaired.stderr, ''); assert.equal(repaired.stdout, '');
+        assert.ok((await readFile(target, 'utf8')).includes('Café 🍒'));
+    } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test('Node default Parse preserves refused CSV diagnostics and publishes only repaired output', async () => {

@@ -458,6 +458,14 @@ fn command_run_plan(
         );
         package.resolved_uri = (uri != package.declared_uri).then_some(uri);
     }
+    // Outputs already reflect run-config base resolution where applicable.
+    // Bind their runtime destinations to the host URI space just like inputs;
+    // retain declared paths, effective config and output scope/provenance.
+    for output in &mut plan.outputs {
+        if let Some(destination) = output.resolved_destination.as_deref() {
+            output.resolved_destination = Some(resolve_host_uri(&environment.cwd, destination));
+        }
+    }
 
     let report_routes = report_routes(parsed, environment, command)?;
     Ok((
@@ -1928,6 +1936,74 @@ mod tests {
                 Some("urn:query-default")
             );
         }
+    }
+
+    #[test]
+    fn output_destinations_bind_runtime_uris_without_rewriting_declared_paths() {
+        use crate::command_service::{validate_command_service_request_v1, CommandServiceLimitsV1};
+
+        for (cwd, declared, expected) in [
+            ("/workspace", "inspection.cem", "file:///workspace/inspection.cem"),
+            ("/workspace/project", "../out/./Café #%.cem", "file:///workspace/out/Caf%C3%A9%20%23%25.cem"),
+            ("/workspace", "/shared/../shared/inspection.cem", "file:///shared/inspection.cem"),
+            ("/workspace", "file:///shared/already%20encoded.cem", "file:///shared/already%20encoded.cem"),
+            ("studio://project-one/", "generated/../inspection.cem", "studio://project-one/inspection.cem"),
+            ("memory://project/root/", "inspection.cem", "memory://project/root/inspection.cem"),
+            ("/workspace", "stream:output", "stream:output"),
+            ("/workspace", STDOUT_RESOURCE_URI, STDOUT_RESOURCE_URI),
+        ] {
+            let mut command = parsed("parse");
+            command.positionals.insert("input".into(), ParsedCommandValueV1::String("memory://input/fixture.cem".into()));
+            command.options.insert("out".into(), ParsedCommandValueV1::String(declared.into()));
+            let mut env = environment();
+            env.cwd = cwd.into();
+            let resources = CommandUriMapV1::from(BTreeMap::from([(
+                "memory://input/fixture.cem".into(),
+                VirtualResourceV1 { bytes: b"{root}".to_vec(), identity: None },
+            )]));
+            let response = build_command_invocation_v1(command, env, resources);
+            let CommandInvocationBuildResponseV1::Ready { invocation } = response else {
+                panic!("output destination must lower: {response:?}");
+            };
+            let plan = invocation.request.run_plan.plan().unwrap();
+            assert_eq!(plan.outputs[0].declared_destination.as_deref(), Some(declared));
+            assert_eq!(plan.outputs[0].resolved_destination.as_deref(), Some(expected), "{cwd}: {declared}");
+            assert_eq!(plan.effective_config.outputs[0].destination.as_deref(), Some(declared));
+            validate_command_service_request_v1(&invocation.request, CommandServiceLimitsV1::default()).unwrap();
+
+            // Lowering supplies runtime addresses; service admission still rejects
+            // a forged request that substitutes an unresolved prepared destination.
+            let mut forged = serde_json::to_value(&invocation.request).unwrap();
+            forged["runPlan"]["outputs"][0]["resolvedDestination"] = "relative.cem".into();
+            let forged: CommandServiceRequestV1 = serde_json::from_value(forged).unwrap();
+            let error = validate_command_service_request_v1(&forged, CommandServiceLimitsV1::default()).unwrap_err();
+            assert_eq!(error.code(), "cem.command_service.uri_invalid");
+            assert!(error.to_string().contains("runPlan.outputs.resolvedDestination"));
+        }
+    }
+
+    #[test]
+    fn output_destinations_preserve_config_relative_resolution_and_scope_identity() {
+        let config_uri = "file:///workspace/config/run.json";
+        let config_bytes = br#"{"outputs":[{"destination":"../generated/inspection.cem","rootScope":{"baseUri":"memory://output/base/"}}]}"#;
+        let mut command = parsed("parse");
+        command.positionals.insert("input".into(), ParsedCommandValueV1::String("memory://input/fixture.cem".into()));
+        command.options.insert("config".into(), ParsedCommandValueV1::String("config/run.json".into()));
+        let resources = CommandUriMapV1::from(BTreeMap::from([
+            (config_uri.into(), VirtualResourceV1 { bytes: config_bytes.to_vec(), identity: None }),
+            ("memory://input/fixture.cem".into(), VirtualResourceV1 { bytes: b"{root}".to_vec(), identity: None }),
+        ]));
+        let response = build_command_invocation_v1(command, environment(), resources);
+        let CommandInvocationBuildResponseV1::Ready { invocation } = response else {
+            panic!("configured output must lower: {response:?}");
+        };
+        let plan = invocation.request.run_plan.plan().unwrap();
+        assert_eq!(plan.outputs[0].declared_destination.as_deref(), Some("../generated/inspection.cem"));
+        assert_eq!(plan.outputs[0].resolved_destination.as_deref(), Some("file:///workspace/generated/inspection.cem"));
+        assert_eq!(plan.outputs[0].identity.base_uri.as_deref(), Some("memory://output/base/"));
+        assert_eq!(plan.outputs[0].identity, plan.outputs[0].root_scope.identity);
+        assert_eq!(plan.effective_config.outputs[0].destination.as_deref(), Some("/workspace/config/../generated/inspection.cem"));
+        assert_eq!(invocation.request.resources.get(config_uri).unwrap().bytes, config_bytes);
     }
 
     #[test]

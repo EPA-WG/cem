@@ -212,6 +212,15 @@ application-stream resolution plus prepared file/stream writes. Parsed command
 lowering, resource discovery, canonical requests, diagnostics, reports,
 terminal presentation, and exit codes remain owned by the common Rust runtime.
 
+For ordinary commands without a run config, relative `--out` paths resolve from
+the Node host's `cwd` (the process working directory by default). Rust lowering
+normalizes dot segments and encodes local paths as absolute `file:` URIs before
+command-service admission; the declared path remains in the run plan. Explicit
+URI/stream destinations keep their addresses. Run-config outputs retain the
+normalizer's existing config-relative resolution and output scope identity.
+This path binding does not bypass prepared-write validation: a refused Parse
+leaves an existing output untouched, and a failed publication rolls back.
+
 ```js
 import {
     createNodeCommandHost,
