@@ -80,11 +80,27 @@ export const NativeEditingAndSourcePreservation: Story = {
         await browserInput.keyboard(' café 🧬');
         const source = host.value;
         const selection = [control.selectionStart, control.selectionEnd];
+        const nativeMarkup = control.innerHTML, nativeNodes = [...control.childNodes];
+        const caret = control.lastElementChild;
+        // The shared editor retains a terminal caret BR for exact trailing-LF
+        // selection/paste. Syntax paint must retain it and every native text
+        // node, rather than inserting markup or replacing the editing subtree.
+        await expect([...control.children]).toEqual([caret]);
+        await expect(caret?.tagName).toBe('BR');
+        await expect(caret?.attributes.length).toBe(0);
+        await expect(control.lastChild).toBe(caret);
+        const expectNativeSurface = async () => {
+            await expect(control.innerHTML).toBe(nativeMarkup);
+            await expect(control.childNodes.length).toBe(nativeNodes.length);
+            for (const [index, node] of nativeNodes.entries()) await expect(control.childNodes[index]).toBe(node);
+            await expect(control.textContent).toBe(source);
+            await expect([control.selectionStart, control.selectionEnd]).toEqual(selection);
+        };
         await expectPaint(playground);
-        await expect(host.value).toBe(source); await expect(control.children.length).toBe(0);
-        await expect([control.selectionStart, control.selectionEnd]).toEqual(selection);
+        await expect(host.value).toBe(source); await expectNativeSurface();
         await controller.render();
         await expect(host.value).toBe(source);
+        await expectNativeSurface();
         await expect(source.endsWith('\n\n')).toBe(true);
         await expect(requiredEditor(playground)).toBe(control);
         control.focus(); await browserInput.keyboard('{Control>}z{/Control}');

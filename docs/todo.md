@@ -83,11 +83,11 @@ may be promoted with a link to its required checkpoint and a bounded regression.
 
 ## Native and release follow-ups
 
-- [ ] Diagnose the existing Playground Native Editing And Source Preservation
-      story failure: after Unicode input and trailing blank lines, the plaintext
-      control contains one element rather than zero. Confirmed with the unchanged
-      shared viewer as well as the source-only styling update. Preserve the
-      native-editing assertion; this follows the presentation publication gates.
+Completed follow-up: [Playground native-editing diagnostic and regression repair](archive/todo-completed-playground-native-editing-2026-11-04.md).
+The blanket zero-child assertion conflicted with the documented terminal caret
+BR. Exact native DOM/source/selection/undo checks now pass with the existing
+runtime: all 20 demo-element and ten canonical source-editor stories, lint and
+typecheck pass. No runtime, declarations, styles or deadlines changed.
 
 Presentation delivery is complete; these follow-ups can now proceed in order.
 Keep original assertions, deadlines and baseline evidence for each repair.
