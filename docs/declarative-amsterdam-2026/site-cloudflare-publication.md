@@ -2,8 +2,13 @@
 
 ## Current update: every demo link stays on the Site — 2026-11-04
 
-Prepared and locally verified; **owner deployment and public acceptance remain
-pending**. All seven layouts now use relative URLs for CEM Components
+The owner deployed version `c0833c4c-6820-4014-a44a-65aba2901282`; public file
+checks and the complete public target pass using an explicit HTTP/2 browser
+profile. The earlier default-transport startup and search failures are retained
+as separate observations. See the
+[public verification](site-public-verification.md) and
+[public readback](site-public-c0833c4c-readback.json).
+All seven layouts now use relative URLs for CEM Components
 (`/packages/cem-components/`), Studio (`/studio/`) and Playground
 (`/packages/cem-demo-element/demo/playground`). The presentation Site includes
 all of their content and dependencies. The 383 published HTML/XHTML files contain
@@ -45,9 +50,10 @@ Studio alongside the native Site; this is below Cloudflare's documented
 The standalone demo's 999-file budget is unchanged.
 See the [local-content readback](site-local-content-readback.json).
 
-After owner deployment, use the same `cem-site:verify:public` command below.
-It now also verifies Studio/Playground navigation, security headers, worker
-scope, online/offline project build and Playground rendering on the public Site.
+The public `cem-site:verify:public` target also verifies Studio/Playground
+navigation, security headers, worker scope, online/offline project build and
+Playground rendering. The accepted HTTP/2 profile command and its default-browser
+limitations are recorded in the public verification linked above.
 
 ## Previous prepared update
 

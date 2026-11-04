@@ -4,7 +4,7 @@ import { createReadStream } from 'node:fs';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize, relative, resolve, sep } from 'node:path';
-import { chromium } from 'playwright';
+import { launchPublicationBrowser } from './publication-browser.mjs';
 
 const workspaceRoot = resolve(import.meta.dirname, '../../..');
 const projectRoot = resolve(workspaceRoot, 'apps/cem-site');
@@ -81,7 +81,7 @@ const origin = publicationOrigin(process.env.CEM_SITE_ACCEPTANCE_URL) ?? `http:/
 let browser;
 
 try {
-    browser = await chromium.launch({ headless: true });
+    browser = await launchPublicationBrowser({ headless: true });
     const context = await browser.newContext();
     await context.route('**/*', async (route) => {
         const url = new URL(route.request().url());

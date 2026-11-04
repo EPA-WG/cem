@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { chromium } from 'playwright';
+import { launchPublicationBrowser } from './publication-browser.mjs';
 
 // The same assertions run on local workerd and the owner's deployed Site.
 export async function verifyLocalApps(origin, securityHeaders) {
@@ -9,7 +9,7 @@ export async function verifyLocalApps(origin, securityHeaders) {
     // Studio's production CSP upgrades redirected HTTP requests. Exercise it
     // over local TLS; only loopback previews may use a development certificate.
     const localTls = target.protocol === 'https:' && ['127.0.0.1', 'localhost', '[::1]'].includes(target.hostname);
-    const browser = await chromium.launch({ args: localTls ? ['--ignore-certificate-errors'] : [] });
+    const browser = await launchPublicationBrowser({ args: localTls ? ['--ignore-certificate-errors'] : [] });
     const report = { origin, status: 'started' };
     const errors = [], failures = [], legacyRequests = [], workerErrors = [];
     let stage = 'navigation';

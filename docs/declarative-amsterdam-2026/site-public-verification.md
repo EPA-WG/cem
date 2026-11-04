@@ -1,5 +1,62 @@
 # CEM Site public verification
 
+## Combined Site, Studio, Playground and galleries — 2026-11-04
+
+The owner deployed `cem-site-local-content.tgz` to
+[the presentation Site](https://cem-amsterdam-2026.trans-acf.workers.dev/),
+reporting version `c0833c4c-6820-4014-a44a-65aba2901282`. The served publication
+matches all 1,206 prepared file hashes. CEM Components, Studio and Playground
+use relative links in all 27 headers, with 11 decorative fat-dot separators.
+All 383 published HTML/XHTML files match the locally checked content containing
+no old demo-host links.
+
+The production crawl passes 27 pages, 86 fragment destinations and 1,161 keyboard
+focus stops. Interactive examples and search pass their existing theme,
+forced-color, retained-control and no-JavaScript checks. All 59 gallery and
+59 property routes pass; the icon, icon-button and suggestions galleries pass
+Presentation-theme selection, restoration and white-canvas checks. All 80
+source-only snippets preserve exact trimmed source, with colored tokens in 68.
+
+Studio and Playground pass a separate unchanged browser retry: local header
+navigation, exact Studio security headers, saved project cloning, native
+HTML/CSS preview, offline rebuild and edited-source Playground rendering.
+The Studio service worker controls `/studio/` and does not control the Site
+documents. These workflows make no requests to the former demo host.
+
+The first combined invocation passed all file and Site/gallery/snippet checks,
+then exceeded the unchanged 30-second Studio startup deadline without reporting
+page, HTTP or service-worker errors. A separate fresh direct startup settled in
+23,370 ms. Its timing capture is retained; it does not attribute the first
+failure. A default-transport combined retry then failed search while fetching
+the CEM-QL WASM and field declaration, with captured `ERR_QUIC_PROTOCOL_ERROR`
+and `ERR_NETWORK_CHANGED` errors. The original search run had passed.
+The complete public target then passed with the explicit HTTP/2 browser profile;
+its launcher disables QUIC and retains normal public TLS validation, every
+behavior assertion and all deadlines. The browser's root navigation negotiates
+`h2`. This profile does not establish
+default-transport reliability or attribute the initial Studio timeout.
+Startup variance is tracked separately in `docs/todo.md`.
+
+Reproduce that accepted profile with:
+
+```sh
+CEM_SITE_BROWSER_TRANSPORT=http2 CEM_SITE_ACCEPTANCE_URL=https://cem-amsterdam-2026.trans-acf.workers.dev yarn nx run cem-site:verify:public --parallel=1
+```
+
+The [public readback](site-public-c0833c4c-readback.json) records each stage,
+both default-transport failures, independent application retry and
+[startup network capture](site-public-c0833c4c-startup-network.json).
+The 20 updated discussion links have 19 distinct destinations; all return 200
+on this Site, including the embedded-XSLT source fragment. The existing comment
+has no old-host links. Its text is unchanged since the requested host replacement.
+
+Source commit: `ba206a81`. Prepared archive SHA-256:
+`77ee95afe257a530a96f37af00516022cc31a64867a53dd85812f0ba36730b1c`.
+Combined publication SHA-256:
+`7c98cb068079627ed3b066d869fce9ba06ccf0cc80933a33960ec0e914c47d20`.
+The version ID is owner-reported; served bytes and browser behavior are checked
+independently on the public HTTPS origin. Earlier releases below are historical.
+
 ## Header navigation release — 2026-11-04
 
 The public Site now includes **CEM Components**, **Studio**, and **Playground**

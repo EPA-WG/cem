@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { chromium } from 'playwright';
+import { launchPublicationBrowser } from './publication-browser.mjs';
 
 export async function verifyCodeSnippets(origin, entries) {
-    const browser = await chromium.launch();
+    const browser = await launchPublicationBrowser();
     const report = { origin, snippetCount: 0, coloredSnippetCount: 0, routes: [] };
     try {
         const context = await browser.newContext();

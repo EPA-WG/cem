@@ -184,6 +184,15 @@ scope, clones and builds a project online/offline, and renders edited Playground
 source. The `_headers` hosting control file is fingerprinted separately because
 it is configuration, rather than a public URL.
 
+Public verification uses Chromium's default network transport. After capturing
+a QUIC transport failure, an explicit diagnostic run can set
+`CEM_SITE_BROWSER_TRANSPORT=http2`. This uses Chromium's
+[`--disable-quic` switch](https://github.com/chromium/chromium/blob/main/components/network_session_configurator/common/network_switch_list.h)
+for every browser suite. The public receipt records the selected profile. TLS
+validation, behavior assertions and deadlines are unchanged; retain default-run
+failures separately instead of treating this profile as default-browser proof.
+Cached browser targets include the profile and shared launcher in their inputs.
+
 Markdown block examples use source-only `cem-demo-element` viewers. The native
 page transform trims outer source whitespace while preserving inner indentation
 and escaped markup. The shared viewer colors supported languages without

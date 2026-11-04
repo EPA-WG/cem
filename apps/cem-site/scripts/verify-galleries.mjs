@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { chromium } from 'playwright';
+import { launchPublicationBrowser } from './publication-browser.mjs';
 
 // Exercise the same composed publication locally and after owner deployment.
 export async function verifyComponentGalleries(origin, manifest) {
-    const browser = await chromium.launch();
+    const browser = await launchPublicationBrowser();
     const report = { origin, galleryCount: manifest.galleryCount, galleryRoutes: [], propertyRoutes: [], examples: [] };
     try {
         const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });

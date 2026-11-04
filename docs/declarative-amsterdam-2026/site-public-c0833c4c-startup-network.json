@@ -1,0 +1,2423 @@
+{
+  "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+  "requests": [
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/",
+      "start": 32,
+      "end": 188
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-theme/dist/lib/css/cem-combined.css",
+      "start": 184,
+      "end": 225
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/dist/styles.css",
+      "start": 184,
+      "end": 226
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/main.js",
+      "start": 189,
+      "end": 231
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/index.js",
+      "start": 232,
+      "end": 284
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/startup.js",
+      "start": 232,
+      "end": 296
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/navigation.js",
+      "start": 232,
+      "end": 295
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/custom-element/custom-element.js",
+      "start": 232,
+      "end": 296
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/bootstrap.js",
+      "start": 232,
+      "end": 264
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/repository.js",
+      "start": 265,
+      "end": 322
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/feature-tour.js",
+      "start": 265,
+      "end": 343
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/file-system-provider.js",
+      "start": 265,
+      "end": 332
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/shell.js",
+      "start": 265,
+      "end": 318
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/project-session.js",
+      "start": 265,
+      "end": 349
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench.js",
+      "start": 265,
+      "end": 401
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/preview.js",
+      "start": 265,
+      "end": 319
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/cem-elements.js",
+      "start": 285,
+      "end": 845
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/repository.js",
+      "start": 285,
+      "end": 350
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/http-resource-transport.js",
+      "start": 285,
+      "end": 420
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/schema-asset-pack.js",
+      "start": 285,
+      "end": 526
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/committed-checkpoint.js",
+      "start": 285,
+      "end": 428
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/host-view.js",
+      "start": 286,
+      "end": 486
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/declaration-scope.js",
+      "start": 292,
+      "end": 472
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/legacy-xslt/contract.js",
+      "start": 292,
+      "end": 461
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/cem-ql-render.js",
+      "start": 292,
+      "end": 547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/native-values.js",
+      "start": 292,
+      "end": 428
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/edge-css-publication.js",
+      "start": 292,
+      "end": 468
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/declaration-style-ownership.js",
+      "start": 292,
+      "end": 529
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/action-command-capability.js",
+      "start": 292,
+      "end": 503
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/native-surface.js",
+      "start": 292,
+      "end": 527
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/surface-invocation.js",
+      "start": 292,
+      "end": 476
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/aria-reference-profile.js",
+      "start": 292,
+      "end": 476
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/element-placement-coordinator.js",
+      "start": 292,
+      "end": 518
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/element-placement-ssr.js",
+      "start": 292,
+      "end": 477
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/platform-close.js",
+      "start": 292,
+      "end": 394
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/live-preview.js",
+      "start": 292,
+      "end": 415
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/artifact-preview.js",
+      "start": 292,
+      "end": 465
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-publication.js",
+      "start": 292,
+      "end": 534
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/native-runtime.js",
+      "start": 292,
+      "end": 463
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/native-generation.js",
+      "start": 292,
+      "end": 397
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-processing.js",
+      "start": 292,
+      "end": 401
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-resume.js",
+      "start": 292,
+      "end": 461
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/recovery-status.js",
+      "start": 292,
+      "end": 424
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-host-runtime.js",
+      "start": 292,
+      "end": 553
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/build-snapshots.js",
+      "start": 295,
+      "end": 492
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/resource-reference.js",
+      "start": 295,
+      "end": 404
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/browser-commands.js",
+      "start": 322,
+      "end": 468
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/command-result.js",
+      "start": 343,
+      "end": 486
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/native-generation.js",
+      "start": 397,
+      "end": 552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/checkpoint-domain.js",
+      "start": 401,
+      "end": 549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/location-write-trigger.js",
+      "start": 401,
+      "end": 527
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql.js",
+      "start": 463,
+      "end": 771
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/projection.js",
+      "start": 468,
+      "end": 804
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/css-dom-publication-queue.js",
+      "start": 468,
+      "end": 633
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/instance-stylesheet-installation.js",
+      "start": 468,
+      "end": 636
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/command.js",
+      "start": 468,
+      "end": 656
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/browser-command.js",
+      "start": 468,
+      "end": 718
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/browser-invocation.js",
+      "start": 468,
+      "end": 590
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/owned-browser-invocation.js",
+      "start": 468,
+      "end": 646
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/generation-lifecycle.js",
+      "start": 468,
+      "end": 637
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/element-placement-authority.js",
+      "start": 477,
+      "end": 664
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/element-placement-plans.js",
+      "start": 477,
+      "end": 638
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/plaintext-editor-capability.js",
+      "start": 487,
+      "end": 705
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/dom-realm.js",
+      "start": 503,
+      "end": 649
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/interaction-reference.js",
+      "start": 503,
+      "end": 657
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-interactions.js",
+      "start": 519,
+      "end": 673
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/menu-task-relay.js",
+      "start": 528,
+      "end": 681
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/popup-controller.js",
+      "start": 528,
+      "end": 727
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/surface-references.js",
+      "start": 528,
+      "end": 694
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/form-control-capability.js",
+      "start": 528,
+      "end": 749
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/surface-body.js",
+      "start": 528,
+      "end": 709
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/surface-session.js",
+      "start": 528,
+      "end": 718
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/surface-controls.js",
+      "start": 528,
+      "end": 741
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/declaration-style-markup.js",
+      "start": 529,
+      "end": 705
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-dom-order.js",
+      "start": 529,
+      "end": 730
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-notifications.js",
+      "start": 529,
+      "end": 684
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/element-reference-inputs.js",
+      "start": 547,
+      "end": 706
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-host.js",
+      "start": 547,
+      "end": 744
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/schema-asset-protocol.js",
+      "start": 553,
+      "end": 709
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-engine.js",
+      "start": 553,
+      "end": 782
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-scheduler.js",
+      "start": 553,
+      "end": 720
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/managed-native-runtime.js",
+      "start": 590,
+      "end": 755
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/invocation-core.js",
+      "start": 590,
+      "end": 737
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-installation.js",
+      "start": 636,
+      "end": 776
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/native-generation.js",
+      "start": 638,
+      "end": 798
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_factory.js",
+      "start": 646,
+      "end": 863
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/native-admission.js",
+      "start": 646,
+      "end": 796
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/native-embedding.js",
+      "start": 646,
+      "end": 796
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/generated/command-schema.js",
+      "start": 657,
+      "end": 822
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-controls.js",
+      "start": 673,
+      "end": 801
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/schema-asset-protocol.js",
+      "start": 709,
+      "end": 832
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/cem-ml-runtime.json",
+      "start": 718,
+      "end": 858
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/protocol.js",
+      "start": 718,
+      "end": 839
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/composite-navigation.js",
+      "start": 728,
+      "end": 853
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/surface-position.js",
+      "start": 728,
+      "end": 839
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/surface-geometry.js",
+      "start": 728,
+      "end": 858
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/editor-attributes.js",
+      "start": 750,
+      "end": 858
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/editor-datalist.js",
+      "start": 750,
+      "end": 860
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml.js",
+      "start": 756,
+      "end": 876
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/xpath-function-library.js",
+      "start": 782,
+      "end": 863
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-cache.js",
+      "start": 782,
+      "end": 861
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/disposition.js",
+      "start": 804,
+      "end": 866
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/schema-asset-protocol.js",
+      "start": 840,
+      "end": 877
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/compiled-declaration-assets.js",
+      "start": 847,
+      "end": 881
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-provider-handoff.js",
+      "start": 847,
+      "end": 879
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/standalone-datalist.js",
+      "start": 847,
+      "end": 889
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/manual-listbox.js",
+      "start": 847,
+      "end": 971
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/live-preview-capability.js",
+      "start": 848,
+      "end": 884
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/live-preview-policy.js",
+      "start": 848,
+      "end": 935
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/native-suggestions-publication.js",
+      "start": 848,
+      "end": 961
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/module-url-resolution.js",
+      "start": 848,
+      "end": 952
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/legacy-xslt/template-language.js",
+      "start": 848,
+      "end": 934
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/external-declaration-source.js",
+      "start": 848,
+      "end": 939
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-registry.js",
+      "start": 848,
+      "end": 911
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-reader.js",
+      "start": 848,
+      "end": 891
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/edge-ssr-host.js",
+      "start": 848,
+      "end": 935
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-form-resume.js",
+      "start": 848,
+      "end": 925
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-reference-resume.js",
+      "start": 848,
+      "end": 936
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/navigation-landmark-capability.js",
+      "start": 848,
+      "end": 941
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/disclosure-panel-capability.js",
+      "start": 848,
+      "end": 946
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/sort-action-capability.js",
+      "start": 848,
+      "end": 925
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/progress-status-capability.js",
+      "start": 848,
+      "end": 927
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/pagination-capability.js",
+      "start": 848,
+      "end": 949
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/native-list-capability.js",
+      "start": 848,
+      "end": 925
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/tab-panels-capability.js",
+      "start": 848,
+      "end": 960
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/workflow-panels-capability.js",
+      "start": 848,
+      "end": 970
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/tree-view-capability.js",
+      "start": 848,
+      "end": 990
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/time-input-capability.js",
+      "start": 848,
+      "end": 988
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/range-input-capability.js",
+      "start": 848,
+      "end": 958
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/calendar-input-capability.js",
+      "start": 849,
+      "end": 990
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/editable-choice-capability.js",
+      "start": 849,
+      "end": 987
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkable-control.js",
+      "start": 849,
+      "end": 936
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/suggestions-capability.js",
+      "start": 849,
+      "end": 993
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/popup-capability.js",
+      "start": 849,
+      "end": 988
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/action-control-capability.js",
+      "start": 849,
+      "end": 963
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/composite-menu-capability.js",
+      "start": 849,
+      "end": 996
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/choice-select-capability.js",
+      "start": 849,
+      "end": 996
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/suggestions-placements.js",
+      "start": 860,
+      "end": 988
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/choice-options.js",
+      "start": 988,
+      "end": 1018
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/native-datalist-attachment.js",
+      "start": 993,
+      "end": 1037
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/local-suggestions-capture.js",
+      "start": 993,
+      "end": 1020
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/suggestions-controller.js",
+      "start": 993,
+      "end": 1028
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/suggestions-editor.js",
+      "start": 993,
+      "end": 1034
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/native-capability-session.js",
+      "start": 993,
+      "end": 1031
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/build.json",
+      "start": 1041,
+      "end": 1069
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/dist/components.xhtml",
+      "start": 1073,
+      "end": 1139
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+      "start": 1074,
+      "end": 12833
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+      "start": 1139,
+      "end": 12812
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+      "start": 12812,
+      "end": 12844
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/browser-worker.js",
+      "start": 12833,
+      "end": 12865
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/schema-asset-protocol.js",
+      "start": 12844,
+      "end": 12870
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/native-runtime.js",
+      "start": 12844,
+      "end": 12875
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/cem-ql-render.js",
+      "start": 12844,
+      "end": 12884
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-engine.js",
+      "start": 12844,
+      "end": 12876
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/checkpoint-domain.js",
+      "start": 12844,
+      "end": 12879
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-host.js",
+      "start": 12844,
+      "end": 12877
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/protocol.js",
+      "start": 12866,
+      "end": 12894
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/native-admission.js",
+      "start": 12866,
+      "end": 12895
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/managed-native-runtime.js",
+      "start": 12866,
+      "end": 12893
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/schema-asset-protocol.js",
+      "start": 12870,
+      "end": 12898
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/schema-asset-pack.js",
+      "start": 12877,
+      "end": 12913
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/native-generation.js",
+      "start": 12877,
+      "end": 12913
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql.js",
+      "start": 12877,
+      "end": 12908
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/aria-reference-profile.js",
+      "start": 12880,
+      "end": 12911
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/xpath-function-library.js",
+      "start": 12880,
+      "end": 12916
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/projection.js",
+      "start": 12880,
+      "end": 12925
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-cache.js",
+      "start": 12880,
+      "end": 12922
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/declaration-scope.js",
+      "start": 12880,
+      "end": 12922
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/element-reference-inputs.js",
+      "start": 12884,
+      "end": 12922
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/native-values.js",
+      "start": 12884,
+      "end": 12922
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/native-embedding.js",
+      "start": 12894,
+      "end": 12927
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml.js",
+      "start": 12894,
+      "end": 12930
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/schema-asset-protocol.js",
+      "start": 12894,
+      "end": 12927
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/http-resource-transport.js",
+      "start": 12914,
+      "end": 12947
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/native-generation.js",
+      "start": 12914,
+      "end": 12950
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/disposition.js",
+      "start": 12926,
+      "end": 12952
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+      "start": 12956,
+      "end": 18925
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/shell.xhtml",
+      "start": 19507,
+      "end": 19545
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/project-picker.xhtml",
+      "start": 19555,
+      "end": 19599
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-navigation.xhtml",
+      "start": 19615,
+      "end": 19663
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-controls.xhtml",
+      "start": 19683,
+      "end": 19729
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-command.xhtml",
+      "start": 19744,
+      "end": 19829
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-center.xhtml",
+      "start": 19883,
+      "end": 19915
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-layout.xhtml",
+      "start": 19920,
+      "end": 19949
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-results.xhtml",
+      "start": 19953,
+      "end": 20030
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-preview.xhtml",
+      "start": 20030,
+      "end": 20117
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-tools.xhtml",
+      "start": 20168,
+      "end": 20256
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/service-worker.js",
+      "start": 20312,
+      "end": 20404
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/deployment-revision.js",
+      "start": 20404,
+      "end": 20445
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/index.json",
+      "start": 20447,
+      "end": 20479
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/cache-inventory.json",
+      "start": 20448,
+      "end": 20474
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/module-map.json",
+      "start": 20475,
+      "end": 20502
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/starter.cem-studio.json",
+      "start": 20480,
+      "end": 20509
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/index.json",
+      "start": 20503,
+      "end": 20531
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/index.html",
+      "start": 20534,
+      "end": 20554
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/manifest.webmanifest",
+      "start": 20534,
+      "end": 20559
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/icon.svg",
+      "start": 20534,
+      "end": 20562
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/build.json",
+      "start": 20534,
+      "end": 20585
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/cache-inventory.json",
+      "start": 20534,
+      "end": 20587
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/module-map.json",
+      "start": 20534
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/security-headers.json",
+      "start": 20534,
+      "end": 20613
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/service-worker.js",
+      "start": 20534
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/deployment-revision.js",
+      "start": 20534
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/module-map.json",
+      "start": 20540,
+      "end": 20643
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/bootstrap.js",
+      "start": 20540,
+      "end": 20643
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/main.js",
+      "start": 20540,
+      "end": 20676
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/startup.js",
+      "start": 20540,
+      "end": 20676
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/shell.js",
+      "start": 20540,
+      "end": 20676
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/repository.js",
+      "start": 20540,
+      "end": 20697
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/file-system-provider.js",
+      "start": 20540,
+      "end": 20705
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/feature-tour.js",
+      "start": 20540,
+      "end": 20701
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench.js",
+      "start": 20540,
+      "end": 20732
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/preview.js",
+      "start": 20540,
+      "end": 20732
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/browser-commands.js",
+      "start": 20540,
+      "end": 20733
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/cem-ml-runtime.json",
+      "start": 20540,
+      "end": 20757
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml.js",
+      "start": 20540,
+      "end": 20757
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-theme/dist/index.js",
+      "start": 20540,
+      "end": 20760
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/custom-element/custom-element.js",
+      "start": 20540,
+      "end": 20783
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/project-session.js",
+      "start": 20540,
+      "end": 20786
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/resource-reference.js",
+      "start": 20540,
+      "end": 20787
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/command-result.js",
+      "start": 20540,
+      "end": 20816
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/build-snapshots.js",
+      "start": 20540,
+      "end": 20814
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/service-worker.js",
+      "start": 20541,
+      "end": 20813
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/deployment-revision.js",
+      "start": 20541,
+      "end": 20844
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/browser-command.js",
+      "start": 20541,
+      "end": 20841
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/browser-invocation.js",
+      "start": 20541,
+      "end": 20844
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/browser-worker.js",
+      "start": 20541,
+      "end": 20868
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/command.js",
+      "start": 20541,
+      "end": 20874
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/generated/command-schema.js",
+      "start": 20541,
+      "end": 20870
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/operation.js",
+      "start": 20541,
+      "end": 20895
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/protocol.js",
+      "start": 20541,
+      "end": 20898
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+      "start": 20541
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/dist/styles.css",
+      "start": 20541,
+      "end": 20920
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-theme/dist/lib/cem-theme.js",
+      "start": 20541,
+      "end": 20925
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-theme/dist/lib/css/cem-combined.css",
+      "start": 20542,
+      "end": 20949
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/index.js",
+      "start": 20542,
+      "end": 20955
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/cem-elements.js",
+      "start": 20542,
+      "end": 20981
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/repository.js",
+      "start": 20542,
+      "end": 20981
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/declaration-scope.js",
+      "start": 20542,
+      "end": 21007
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/disposition.js",
+      "start": 20542,
+      "end": 21008
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/edge-ssr-host.js",
+      "start": 20542,
+      "end": 21033
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/projection.js",
+      "start": 20542,
+      "end": 21036
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/legacy-xslt/contract.js",
+      "start": 20542,
+      "end": 21059
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/legacy-xslt/template-language.js",
+      "start": 20542,
+      "end": 21062
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/cem-ql-render.js",
+      "start": 20542,
+      "end": 21109
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-cache.js",
+      "start": 20542,
+      "end": 21112
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-engine.js",
+      "start": 20542,
+      "end": 21171
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-host.js",
+      "start": 20542,
+      "end": 21176
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/checkpoint-domain.js",
+      "start": 20542,
+      "end": 21234
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-host-runtime.js",
+      "start": 20542,
+      "end": 21238
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-scheduler.js",
+      "start": 20542,
+      "end": 21296
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+      "start": 20542,
+      "end": 21301
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql.js",
+      "start": 20542,
+      "end": 21364
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+      "start": 20542
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-action/cem-action.xhtml",
+      "start": 20542,
+      "end": 21433
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-alert/cem-alert.xhtml",
+      "start": 20542,
+      "end": 21504
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-app-bar/cem-app-bar.xhtml",
+      "start": 20542,
+      "end": 21564
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-autocomplete/cem-autocomplete.xhtml",
+      "start": 20542,
+      "end": 21633
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-avatar/cem-avatar.xhtml",
+      "start": 20542,
+      "end": 21694
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-badge/cem-badge.xhtml",
+      "start": 20542,
+      "end": 21770
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-recovery-status/cem-recovery-status.xhtml",
+      "start": 20542,
+      "end": 21853
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-card/cem-card.xhtml",
+      "start": 20542,
+      "end": 21929
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-checkbox/cem-checkbox.xhtml",
+      "start": 20542,
+      "end": 22002
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-chip/cem-chip.xhtml",
+      "start": 20542,
+      "end": 22067
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-datepicker/cem-datepicker.xhtml",
+      "start": 20543,
+      "end": 22130
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-dialog/cem-dialog.xhtml",
+      "start": 20543,
+      "end": 22180
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-dialog-shell/cem-dialog-shell.xhtml",
+      "start": 20543,
+      "end": 22231
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-divider/cem-divider.xhtml",
+      "start": 20543,
+      "end": 22279
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-dropdown/cem-dropdown.xhtml",
+      "start": 20543,
+      "end": 22340
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-expansion/cem-expansion.xhtml",
+      "start": 20543,
+      "end": 22408
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-field/cem-field.xhtml",
+      "start": 20543,
+      "end": 22470
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-grid/cem-grid.xhtml",
+      "start": 20543,
+      "end": 22527
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-icon/cem-icon.xhtml",
+      "start": 20543,
+      "end": 22580
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-icon-button/cem-icon-button.xhtml",
+      "start": 20543,
+      "end": 22641
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-list/cem-list.xhtml",
+      "start": 20543,
+      "end": 22687
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-media-preview/cem-media-preview.xhtml",
+      "start": 20543,
+      "end": 22732
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-menu/cem-menu.xhtml",
+      "start": 20543,
+      "end": 22774
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-menu-item/cem-menu-item.xhtml",
+      "start": 20543,
+      "end": 22830
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-nav/cem-nav.xhtml",
+      "start": 20543,
+      "end": 22888
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-option/cem-option.xhtml",
+      "start": 20543,
+      "end": 22939
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-option-group/cem-option-group.xhtml",
+      "start": 20543,
+      "end": 22987
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-paginator/cem-paginator.xhtml",
+      "start": 20543,
+      "end": 23032
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-progress/cem-progress.xhtml",
+      "start": 20543,
+      "end": 23073
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-progress-spinner/cem-progress-spinner.xhtml",
+      "start": 20543,
+      "end": 23111
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-radio/cem-radio.xhtml",
+      "start": 20543,
+      "end": 23151
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-select/cem-select.xhtml",
+      "start": 20543,
+      "end": 23221
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-sheet/cem-sheet.xhtml",
+      "start": 20543,
+      "end": 23282
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-skeleton/cem-skeleton.xhtml",
+      "start": 20543,
+      "end": 23344
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-slider/cem-slider.xhtml",
+      "start": 20543
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-sort-header/cem-sort-header.xhtml",
+      "start": 20543
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-stack/cem-stack.xhtml",
+      "start": 20543
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-step/cem-step.xhtml",
+      "start": 20543
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-stepper/cem-stepper.xhtml",
+      "start": 20543
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-suggestions/cem-suggestions.xhtml",
+      "start": 20543
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-surface/cem-surface.xhtml",
+      "start": 20543
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-switch/cem-switch.xhtml",
+      "start": 20543
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-tab/cem-tab.xhtml",
+      "start": 20543
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-table/cem-table.xhtml",
+      "start": 20543
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-tabs/cem-tabs.xhtml",
+      "start": 20543
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-text/cem-text.xhtml",
+      "start": 20543
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-text-field/cem-text-field.xhtml",
+      "start": 20543
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-textarea/cem-textarea.xhtml",
+      "start": 20543
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-theme-switch/cem-theme-switch.xhtml",
+      "start": 20544
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-timepicker/cem-timepicker.xhtml",
+      "start": 20544
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-toast/cem-toast.xhtml",
+      "start": 20544
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-tooltip/cem-tooltip.xhtml",
+      "start": 20544
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-tree/cem-tree.xhtml",
+      "start": 20544
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-tree-item/cem-tree-item.xhtml",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/dist/components.xhtml",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/host-view.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/shell.xhtml",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/native-values.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/edge-css-publication.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/declaration-style-ownership.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/action-command-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/native-surface.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/surface-invocation.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/aria-reference-profile.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/element-placement-coordinator.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/element-placement-ssr.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/platform-close.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/native-suggestions-publication.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/element-placement-plans.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/xpath-function-library.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/module-url-resolution.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/external-declaration-source.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-registry.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/instance-stylesheet-installation.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/css-dom-publication-queue.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-reader.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/form-control-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/navigation-landmark-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/disclosure-panel-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/sort-action-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/progress-status-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/pagination-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/native-list-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/tab-panels-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/workflow-panels-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/tree-view-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/time-input-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/range-input-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/calendar-input-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/editable-choice-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkable-control.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/suggestions-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/popup-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/action-control-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/composite-menu-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/choice-select-capability.js",
+      "start": 20547
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/location-write-trigger.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/element-reference-inputs.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/declaration-style-markup.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-notifications.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-dom-order.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/interaction-reference.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/menu-task-relay.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/popup-controller.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/surface-references.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/surface-body.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/surface-session.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/surface-controls.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/element-placement-authority.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-installation.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/editor-attributes.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/editor-datalist.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/choice-options.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/native-datalist-attachment.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/local-suggestions-capture.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/suggestions-controller.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/suggestions-editor.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/native-capability-session.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/suggestions-placements.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/composite-navigation.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/surface-position.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/surface-geometry.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/manual-listbox.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/standalone-datalist.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-navigation.xhtml",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-controls.xhtml",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-command.xhtml",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-layout.xhtml",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-results.xhtml",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/live-preview.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/live-preview-capability.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/live-preview-policy.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/dom-realm.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/project-picker.xhtml",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-tools.xhtml",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-preview.xhtml",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-workspace/cem-workspace.xhtml",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/navigation.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/plaintext-editor-capability.js",
+      "start": 20548
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/artifact-preview.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/committed-checkpoint.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-publication.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/recovery-status.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-resume.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-processing.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-controls.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-interactions.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/native-admission.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/managed-native-runtime.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/native-embedding.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/native-runtime.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_factory.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/native-generation.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/native-generation.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/generation-lifecycle.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/native-generation.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-provider-handoff.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-form-resume.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/checkpoint-reference-resume.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/owned-browser-invocation.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/invocation-core.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_factory.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/workbench-center.xhtml",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-accordion/cem-accordion.xhtml",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/src/components/cem-data-view/cem-data-view.xhtml",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/http-resource-transport.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/schema-asset-pack.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/schema-asset-protocol.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/schema-asset-protocol.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/schema-asset-protocol.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/compiled-declaration-assets.js",
+      "start": 20549
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/index.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/cem-schema.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/cem-transform.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/cemql-orders.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/css-selector.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/css-stylesheet.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/csv-inventory.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/html-cem-card.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/json-schema.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/json-yaml-report.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/login.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/markdown-site.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/mathml-formula.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/module-maps.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/native-projections.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/portable-config.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/relax-ng.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/schema-examples.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/scss-stylesheet.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/starter.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/supplier-pipeline.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/svg-diagram.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/xhtml-document.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/xpath-catalog.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/examples/xslt-transform.cem-studio.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/catalog.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/feature-tour.project.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/cem-ast-projection-basic-ast.cem-bin",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/cem-data-island-complete-instance.cem",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/cem-dom-projection-basic-dom.cem-bin",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/cem-element-template-basic-card.cem",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/cem-events-projection-basic-events.cem-bin",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/cem-ml-basic.cem",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/cem-native-template-basic-template.cem",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/cem-ql-basic-query.cemql",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/cem-transform-basic-transform.cemt",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/cli-command-parse-ast.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/css-basic-stylesheet.css",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/css-selector-basic-selector.css-selector",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/csv-basic-table.csv",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/dependencies/schema-package/schema/note.cem",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/documentation/README.md",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/html-basic-document.html",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/json-basic-object.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/json-schema-basic-schema.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/markdown-basic-document.md",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/mathml-basic-presentation.mml",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/module-map-source-modules.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/module-map-v2-source-modules-and-resources.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/module-map-v3-source-worker-safe-modules.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/portable-operations/data.xml",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/portable-operations/expected/conversion.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/portable-operations/expected/query.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/portable-operations/expected/trace.json",
+      "start": 20550
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/portable-operations/expected/transformation-graph.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/portable-operations/expected/transformation.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/portable-operations/graph.cem",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/portable-operations/input.cem",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/portable-operations/template.xpath",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/relax-ng-basic-schema-xml.rng",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/schema-basic-schema.cem",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/schema-package-basic-package.cem",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/scss-basic-source.scss",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/studio-project-feature-tour-cem.cem",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/svg-basic-icon.svg",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/xhtml-basic-document.xhtml",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/xml-basic-document.xml",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/xpath-basic-path.xpath",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/xslt-basic-stylesheet.xsl",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/resources/yaml-basic-document.yaml",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/cem-ast-projection.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/cem-data-island.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/cem-dom-projection.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/cem-element-template.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/cem-events-projection.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/cem-ml.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/cem-native-template.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/cem-ql.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/cem-transform.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/cli-command.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/css-selector.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/css.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/csv.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/html.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/json-schema.validate.json",
+      "start": 20551
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/json.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/markdown.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/mathml.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/module-map-v2.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/module-map-v3.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/module-map.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/portable-conversion.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/portable-query.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/portable-trace.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/portable-transformation-graph.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/portable-transformation.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/relax-ng.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/schema-package.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/schema.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/scss.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/studio-project.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/svg.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/xhtml.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/xml.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/xpath.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/xslt.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/samples/feature-tour/run-configs/yaml.validate.json",
+      "start": 20552
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/",
+      "start": 20554,
+      "end": 20581
+    }
+  ],
+  "status": "ready",
+  "readyMs": 23370
+}

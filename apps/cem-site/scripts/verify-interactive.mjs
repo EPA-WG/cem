@@ -6,7 +6,7 @@ import { createReadStream } from 'node:fs';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize, relative, resolve, sep } from 'node:path';
-import { chromium } from 'playwright';
+import { launchPublicationBrowser } from './publication-browser.mjs';
 
 const workspaceRoot = resolve(import.meta.dirname, '../../..');
 const outputRoot = resolve(workspaceRoot, 'dist/apps/cem-site');
@@ -45,7 +45,7 @@ await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen
 const address = server.address();
 const port = typeof address === 'object' && address ? address.port : 0;
 const origin = publicationOrigin(process.env.CEM_SITE_ACCEPTANCE_URL) ?? `http://127.0.0.1:${port}`;
-const browser = await chromium.launch({ headless: true });
+const browser = await launchPublicationBrowser({ headless: true });
 
 try {
     const page = await browser.newPage();

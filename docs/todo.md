@@ -675,12 +675,20 @@ channels; private agreements remain unverified. This file owns execution order.
       Playground rendering. Twenty-three publication guards and the 27-route
       Site crawl pass. [Readback](declarative-amsterdam-2026/site-local-content-readback.json).
 
-- [ ] Deploy the combined galleries/snippets Site bundle from the owner's
+- [x] Deploy the combined galleries/snippets Site bundle from the owner's
       signed-in machine, record the actual URL/version, then verify all 1,206 files,
       Site workflows, galleries, code snippets, Studio and Playground on the
       public host. Use the superseding `cem-site-local-content.tgz` and
       `wrangler.site.jsonc`; expected
       Worker `cem-amsterdam-2026`. [Deployment steps](declarative-amsterdam-2026/site-cloudflare-publication.md).
+      Owner deployed `c0833c4c-6820-4014-a44a-65aba2901282` on 2026-11-04.
+      All file hashes, headers, Site/gallery/snippet stages and a separate
+      Studio/Playground retry pass. The first combined run exceeded the existing
+      Studio startup deadline; the default combined retry hit captured QUIC and
+      network-change failures in search. Complete HTTP/2 public verification
+      passes, with original assertions/deadlines and both default failures
+      retained. Default-transport/startup variance remains a separate follow-up.
+      [Public evidence](declarative-amsterdam-2026/site-public-c0833c4c-readback.json).
 
 - [x] Add Studio and Playground links to every Site header and point CEM Components
       at the live package gallery, with a decorative fat-dot separator between links. Verify the native output and keyboard
@@ -821,6 +829,26 @@ physical-device or spoken assistive-technology coverage.
 
 
 ## Studio startup failure watch
+
+- [x] Record the captured public search `ERR_QUIC_PROTOCOL_ERROR` and
+      `ERR_NETWORK_CHANGED` failures on `c0833c4c…`, then verify the complete
+      publication using an explicit HTTP/2 browser transport profile. Keep the
+      default transport, all behavior assertions and deadlines unchanged; record
+      the profile in the acceptance receipt and retain both default failures.
+      Completed 2026-11-04: full public target passes under the explicit HTTP/2
+      profile, with normal public TLS validation and all 1,206 hashes and browser
+      suites. This establishes that profile's acceptance, not default transport
+      reliability. [Readback](declarative-amsterdam-2026/site-public-c0833c4c-readback.json).
+
+- [ ] Attribute the public presentation Site Studio startup variance observed on
+      version `c0833c4c-6820-4014-a44a-65aba2901282`: the first combined public
+      gate exceeded the unchanged 30-second startup deadline with no reported
+      page/HTTP/worker errors. A separate fresh direct startup settled in
+      23,370 ms. Retain the failed attempt and network timing capture; passing
+      repeats alone do not establish the cause. Preserve the existing deadline
+      and full navigation/offline acceptance assertions.
+      The complete HTTP/2 public gate passes; retain the separate default search
+      QUIC/network-change failures when investigating default-transport behavior.
 
 - [ ] On recurrence, attribute the historical aggregate fallback entry-module
       fetch failure before changing the loader or test lifecycle. The old cohort

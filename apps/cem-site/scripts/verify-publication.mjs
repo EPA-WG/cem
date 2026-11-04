@@ -8,13 +8,14 @@ import { verifyComponentGalleries } from './verify-galleries.mjs';
 import { readPublicationInventory } from './publication-host-galleries.mjs';
 import { verifyCodeSnippets } from './verify-snippets.mjs';
 import { verifyLocalApps } from './verify-local-apps.mjs';
+import { browserTransport } from './publication-browser.mjs';
 
 const workspace = resolve(import.meta.dirname, '../../..');
 const origin = publicationOrigin(process.env.CEM_SITE_ACCEPTANCE_URL);
 assert.ok(origin, 'Set CEM_SITE_ACCEPTANCE_URL to the actual HTTPS origin printed by Wrangler');
 const reports = resolve(workspace, 'dist/reports/cem-site');
 const file = resolve(reports, 'public-deployment.json');
-const report = { schemaVersion: 1, checkedAt: new Date().toISOString(), origin, status: 'started', suites: [] };
+const report = { schemaVersion: 1, checkedAt: new Date().toISOString(), origin, browserTransport, status: 'started', suites: [] };
 const save = async () => { await mkdir(reports, { recursive: true }); await writeFile(file, JSON.stringify(report, null, 2) + '\n'); };
 await save();
 try {
