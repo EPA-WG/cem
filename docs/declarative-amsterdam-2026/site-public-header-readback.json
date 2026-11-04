@@ -1,7 +1,7 @@
 {
   "sourceRevision": "4d2973f5",
-  "ownerReportedVersionId": "b25d7411-67f9-4a8b-8153-b2e91ff5b61a",
-  "versionNote": "Owner-reported Site Worker version; served bytes and browser behavior independently verified after redeployment.",
+  "ownerReportedVersionId": "64bcb4de-f161-4fab-9df7-d66991bea01c",
+  "versionNote": "Latest owner-reported Site Worker version; all 303 files reverified after this redeployment. Full browser suites passed after the preceding b25d7411 redeployment of these same bytes.",
   "publication": {
     "schemaVersion": 1,
     "checkedAt": "2026-11-04T09:50:31.549Z",
@@ -4102,5 +4102,13 @@
       "dots": 11
     }
   ],
-  "headerRevalidation": "All 27 HTML files match the previously checked header bytes in this fresh 303-file public verification."
+  "headerRevalidation": "All 27 HTML files match the previously checked header bytes in this fresh 303-file public verification.",
+  "previousOwnerReportedVersionId": "b25d7411-67f9-4a8b-8153-b2e91ff5b61a",
+  "latestRedeployment": {
+    "checkedAt": "2026-11-04T09:57:20.191Z",
+    "status": "passed",
+    "fileCount": 303,
+    "allFileHashesMatchFullAcceptance": true,
+    "fullBrowserAcceptanceVersion": "b25d7411-67f9-4a8b-8153-b2e91ff5b61a"
+  }
 }

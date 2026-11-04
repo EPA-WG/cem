@@ -14,12 +14,12 @@ browser checks, and the full interactive and search suites pass. Native aggregat
 SHA-256: `bce339c3ea8da49b16129ece65683f4504bb4912dc45abbddd662f1ad13497d6`.
 The [readback](site-public-header-readback.json) retains the release identity,
 all byte witnesses, browser receipts and header destinations. Source commit:
-`4d2973f5`. The owner redeployed this Site release as version
-`b25d7411-67f9-4a8b-8153-b2e91ff5b61a`. Fresh public verification passed all
-303 file-byte checks and the production, interactive and search suites. The
-header HTML matches the previously checked bytes on every route. This version
-identifies the presentation Site; the separate demo gallery update still awaits
-deployment to `green-morning-fd6e`.
+`4d2973f5`. Full public verification passed after the owner deployed Site version
+`b25d7411-67f9-4a8b-8153-b2e91ff5b61a`. The owner then redeployed the Site as
+`64bcb4de-f161-4fab-9df7-d66991bea01c`; a fresh check confirms all 303 files
+are byte-identical to the fully accepted release. Header HTML matches on every
+route. Both version IDs identify the presentation Site; the separate demo gallery
+update still awaits deployment to `green-morning-fd6e`.
 
 ## Initial publication — 2026-11-03
 
