@@ -90,3 +90,11 @@ Deploy through the owner's existing signed-in `npx wrangler@4 deploy` route
 from the updated checkout using this verified `../cem-bin`. Repeat default
 public general and full selected acceptance, then the read-only link check.
 Keep the discussion comment unposted and preserve the local participant fallback.
+
+## Public follow-up
+
+The owner subsequently deployed the `4d21f9cd…` copy. Default public general
+acceptance, all 23 selected offline configurations and all 14 fresh-context demo
+links now pass. Readiness across those links is 23.952–28.555 seconds. See the
+[public verification and receipt](public-demo-4d21f9cd-verification.md).
+The pending-upload statements above describe the original prepared-copy stage.

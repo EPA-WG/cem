@@ -188,5 +188,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     const result = await verifyPresenterResources();
     const path = resolve(workspaceRoot, 'dist/reports/cem-studio/presentation-resources.json');
     await mkdir(dirname(path), { recursive: true }); await writeFile(path, JSON.stringify(result, null, 2) + '\n');
-    console.log(`Verified ${result.cues} presenter cues, 30 recorded slide IDs and three pinned participant source links; ${result.demoLinks.links.length} prepared demo routes (public acceptance pending).`);
+    console.log(`Verified ${result.cues} presenter cues, 30 recorded slide IDs and three pinned participant source links; ${result.demoLinks.links.length} prepared demo routes (public browser acceptance recorded separately).`);
 }

@@ -45,3 +45,12 @@ Login/Supplier walkthrough and these exact destinations on the public host.
 Review the complete comment before the explicit posting action. Preserve the
 stable discussion #24 resource destination, disposable-data instruction and
 entered-password/OTP recovery refusal throughout.
+
+## Public destinations accepted — 2026-11-03
+
+All 14 exact destinations now pass in fresh contexts on the public `4d21f9cd…`
+deployment, alongside general acceptance and the complete selected workflow.
+Each URL/resource/tree/configuration selection agrees and each link context has
+zero saved projects. The [public receipt](public-demo-4d21f9cd-verification.md)
+records every row and its readiness duration. This closes destination verification;
+the comment remains unposted pending review and explicit delivery.

@@ -1,0 +1,693 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-04T04:30:40.677150+00:00",
+  "checkedOn": "2026-11-03",
+  "timeZone": "America/Chicago",
+  "status": "passed",
+  "scope": "Public general demo, complete selected 23-configuration workflow and all 14 frozen slide/demo navigation links",
+  "deployment": {
+    "ownerReportedUpdatedCheckoutUpload": true,
+    "versionId": null,
+    "sourceCommit": "f9bc2ef96630e581ed98770e7a3471c56f61aadb",
+    "managedFiles": 906,
+    "inventorySha256": "4d21f9cd63ddb3c7c989b9bc9c123040e7472612274f3be1cb56c97d532a0770"
+  },
+  "preflight": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-04T04:06:31.900Z",
+    "root": "https://green-morning-fd6e.trans-acf.workers.dev/",
+    "versionId": null,
+    "ownerReportedUpdatedCheckoutUpload": true,
+    "checks": [
+      {
+        "path": "demo-deployment.json",
+        "status": 200,
+        "location": null,
+        "bytes": 176382,
+        "sha256": "4d21f9cd63ddb3c7c989b9bc9c123040e7472612274f3be1cb56c97d532a0770",
+        "matchesPreparedCopy": true
+      },
+      {
+        "path": "studio/assets/@epa-wg/cem-studio/main.js",
+        "status": 200,
+        "location": null,
+        "bytes": 9942,
+        "sha256": "6b0f739415b7dd4baa99d5d69c27c2abb15e3ade68aab6f50a253309f35e0a4d",
+        "matchesPreparedCopy": true
+      },
+      {
+        "path": "studio/deployment-revision.js",
+        "status": 200,
+        "location": null,
+        "bytes": 102,
+        "sha256": "85e7b76a03ed66681e9896a24236cf88904533781ab9ce8f381c9a69583a358a",
+        "matchesPreparedCopy": true
+      },
+      {
+        "path": "studio/service-worker.js",
+        "status": 200,
+        "location": null,
+        "bytes": 13948,
+        "sha256": "5a19c13517a563f3202893550455611f3a2bdc3fbfee5f1ee45deac04e6496a2",
+        "matchesPreparedCopy": true
+      }
+    ]
+  },
+  "general": {
+    "schemaVersion": 1,
+    "startedAt": "2026-11-04T04:05:02.323Z",
+    "url": "https://green-morning-fd6e.trans-acf.workers.dev/",
+    "status": "passed",
+    "inventoryExpected": "4d21f9cd63ddb3c7c989b9bc9c123040e7472612274f3be1cb56c97d532a0770",
+    "browserTransportProfile": "default",
+    "browserExecutableOverride": null,
+    "assets": [
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/demo-deployment.json",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/demo-deployment.json",
+        "bytes": 176382,
+        "sha256": "4d21f9cd63ddb3c7c989b9bc9c123040e7472612274f3be1cb56c97d532a0770",
+        "elapsedMs": 205
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground.html",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+        "bytes": 5039,
+        "sha256": "c02c8083549bb90a9e368bc51f6c4442712747c1bf0cd31a64480fb56f4beb0a",
+        "elapsedMs": 245
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/module-map.json",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/module-map.json",
+        "bytes": 47676,
+        "sha256": "9fa2c90b0fb34879a276800c2291d375d56f2fd29c2f217a1ba2656f506a1b9f",
+        "elapsedMs": 53
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/cache-inventory.json",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/cache-inventory.json",
+        "bytes": 777,
+        "sha256": "1700e8ddd746e51197a9dae3a2a02f26a3787a968ef9bab8863bd420a2b2f703",
+        "elapsedMs": 45
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/samples/examples/login.cem-studio.json",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/samples/examples/login.cem-studio.json",
+        "bytes": 93611,
+        "sha256": "abc7d53da3c2197c2c2a5a8bdecfb7eaea86e013c6ee973d1be322b4a85505bf",
+        "elapsedMs": 90
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/samples/examples/supplier-pipeline.cem-studio.json",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/samples/examples/supplier-pipeline.cem-studio.json",
+        "bytes": 41657,
+        "sha256": "d14f97e9601a818b9698ad2e8fa7d8c7d5e5b038afe7e34e72488d07ce3ba790",
+        "elapsedMs": 71
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-ml-npm/dist/wasm/browser/cem_ml_factory.js",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-ml-npm/dist/wasm/browser/cem_ml_factory.js",
+        "bytes": 130769,
+        "sha256": "fcb7b0bef273fc08a46675dbfbfd990a05257824441782c1889ea18007f13fe6",
+        "elapsedMs": 68
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem_ql/dist/wasm/cem_ql_factory.js",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem_ql/dist/wasm/cem_ql_factory.js",
+        "bytes": 130643,
+        "sha256": "4b85f7274b6d6c2d6471352ca4ab89e8ed37fd691d851e4e8882fcbf953e8516",
+        "elapsedMs": 65
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-ml-npm/dist/wasm/browser/cem_ml_bg.wasm",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-ml-npm/dist/wasm/browser/cem_ml_bg.wasm",
+        "bytes": 24860607,
+        "sha256": "966df03a97851e50fa69cb62551bc3fe29409865e49d2ffc8767c9b1719aeb43",
+        "elapsedMs": 6559
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+        "bytes": 24140410,
+        "sha256": "3856b98560281753dffb49b807b1bb4a76f76f4f088a5ce179a2a03c577037b5",
+        "elapsedMs": 6155
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "bytes": 24140410,
+        "sha256": "3856b98560281753dffb49b807b1bb4a76f76f4f088a5ce179a2a03c577037b5",
+        "elapsedMs": 6331
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "bytes": 24860607,
+        "sha256": "966df03a97851e50fa69cb62551bc3fe29409865e49d2ffc8767c9b1719aeb43",
+        "elapsedMs": 6517
+      }
+    ],
+    "finishedAt": "2026-11-04T04:09:44.801Z"
+  },
+  "generalBrowserChecks": [
+    "native gallery rendering/highlighting",
+    "shared initializer and isolated factory memories",
+    "Studio production scope and independent saved copy",
+    "native HTML/CSS preview",
+    "offline SCSS rebuild and service-worker scope",
+    "actual playground editing and Render",
+    "10 theme generators rendered",
+    "120 playground HTTP destinations",
+    "live tree gallery rendered"
+  ],
+  "selectedWorkflow": {
+    "schemaVersion": 1,
+    "catalogIdentity": "e25ba06efca9ef63a849d7784cdda8e04b126930c79cb1fbfa03ca11c8e54c18",
+    "deployedSha256": "fd02f8e49da559e5f447ec99951bfddc9f61cb9a18271e79b14a5c1fc6496040",
+    "status": "passed",
+    "targetUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio",
+    "hostingProfile": "amsterdam-2026",
+    "browser": "148.0.7778.96",
+    "checkedAt": "2026-11-04T04:23:17.050Z",
+    "exampleProjects": true,
+    "validationRepair": true,
+    "templateOutput": true,
+    "offline": true,
+    "configurationCoverage": "selected",
+    "configurations": 23,
+    "loginConfigurations": 20,
+    "supplierConfigurations": 3,
+    "supplierPipeline": true,
+    "graphProvenance": true,
+    "liveView": true,
+    "sourceInspection": true,
+    "sourceFormatting": true,
+    "sourceColors": true,
+    "standaloneExpression": true
+  },
+  "publicDemoLinks": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-04T04:23:29.447Z",
+    "browserFlags": [],
+    "status": "passed",
+    "navigationOnly": true,
+    "fullWorkflowAcceptance": "recorded separately",
+    "discussionPosted": false,
+    "results": [
+      {
+        "slide": 3,
+        "slideId": "p2",
+        "cue": "read",
+        "project": "login",
+        "resource": "readme",
+        "configuration": "read-edit",
+        "configurationInput": "login-cem",
+        "configurations": [
+          "read-edit"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=readme&build=read-edit",
+        "status": "passed",
+        "errors": [],
+        "actualUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=readme&build=read-edit",
+        "readyMs": 25503,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "readme",
+            "key": "collection=amsterdam-2026&sample=login&file=readme",
+            "kind": "file"
+          },
+          "configuration": "read-edit",
+          "structure": "collection=amsterdam-2026&sample=login&file=readme",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 25514
+      },
+      {
+        "slide": 8,
+        "slideId": "p7",
+        "cue": "edit",
+        "project": "login",
+        "resource": "login-cem",
+        "configuration": "validate",
+        "configurationInput": "login-cem",
+        "configurations": [
+          "validate"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=validate",
+        "status": "passed",
+        "errors": [],
+        "actualUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=validate",
+        "readyMs": 24873,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-cem",
+            "key": "collection=amsterdam-2026&sample=login&file=login-cem",
+            "kind": "file"
+          },
+          "configuration": "validate",
+          "structure": "collection=amsterdam-2026&sample=login&file=login-cem",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 24887
+      },
+      {
+        "slide": 10,
+        "slideId": "p9",
+        "cue": "fail",
+        "project": "login",
+        "resource": "login-invalid",
+        "configuration": "validation-repair",
+        "configurationInput": "login-invalid",
+        "configurations": [
+          "validation-repair"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-invalid&build=validation-repair",
+        "status": "passed",
+        "errors": [],
+        "actualUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-invalid&build=validation-repair",
+        "readyMs": 24300,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-invalid",
+            "key": "collection=amsterdam-2026&sample=login&file=login-invalid",
+            "kind": "file"
+          },
+          "configuration": "validation-repair",
+          "structure": "collection=amsterdam-2026&sample=login&file=login-invalid",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 24316
+      },
+      {
+        "slide": 11,
+        "slideId": "p10",
+        "cue": "repair",
+        "project": "login",
+        "resource": "login-invalid",
+        "configuration": "validation-repair",
+        "configurationInput": "login-invalid",
+        "configurations": [
+          "validation-repair"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-invalid&build=validation-repair",
+        "status": "passed",
+        "errors": [],
+        "actualUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-invalid&build=validation-repair",
+        "readyMs": 24394,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-invalid",
+            "key": "collection=amsterdam-2026&sample=login&file=login-invalid",
+            "kind": "file"
+          },
+          "configuration": "validation-repair",
+          "structure": "collection=amsterdam-2026&sample=login&file=login-invalid",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 24412
+      },
+      {
+        "slide": 12,
+        "slideId": "p11",
+        "cue": "inspect",
+        "project": "login",
+        "resource": "login-cem",
+        "configuration": "inspect",
+        "configurationInput": "login-cem",
+        "configurations": [
+          "inspect"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=inspect",
+        "status": "passed",
+        "errors": [],
+        "actualUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=inspect",
+        "readyMs": 25053,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-cem",
+            "key": "collection=amsterdam-2026&sample=login&file=login-cem",
+            "kind": "file"
+          },
+          "configuration": "inspect",
+          "structure": "collection=amsterdam-2026&sample=login&file=login-cem",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 25070
+      },
+      {
+        "slide": 13,
+        "slideId": "p12",
+        "cue": "format",
+        "project": "login",
+        "resource": "login-cem",
+        "configuration": "format-pretty",
+        "configurationInput": "login-cem",
+        "configurations": [
+          "format-pretty",
+          "format-tabular",
+          "source-colors"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=format-pretty",
+        "status": "passed",
+        "errors": [],
+        "actualUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=format-pretty",
+        "readyMs": 24171,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-cem",
+            "key": "collection=amsterdam-2026&sample=login&file=login-cem",
+            "kind": "file"
+          },
+          "configuration": "format-pretty",
+          "structure": "collection=amsterdam-2026&sample=login&file=login-cem",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 24186
+      },
+      {
+        "slide": 14,
+        "slideId": "p13",
+        "cue": "compare",
+        "project": "login",
+        "resource": "login-html",
+        "configuration": "semantics-html",
+        "configurationInput": "login-html",
+        "configurations": [
+          "semantics-html",
+          "semantics-cem",
+          "html-conversion"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-html&build=semantics-html",
+        "status": "passed",
+        "errors": [],
+        "actualUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-html&build=semantics-html",
+        "readyMs": 24439,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-html",
+            "key": "collection=amsterdam-2026&sample=login&file=login-html",
+            "kind": "file"
+          },
+          "configuration": "semantics-html",
+          "structure": "collection=amsterdam-2026&sample=login&file=login-html",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 24457
+      },
+      {
+        "slide": 15,
+        "slideId": "p14",
+        "cue": "companion pipeline overview",
+        "project": "supplier-pipeline",
+        "resource": "supplier-graph",
+        "configuration": "availability",
+        "configurationInput": "supplier-graph",
+        "configurations": [
+          "availability"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-graph&build=availability",
+        "status": "passed",
+        "errors": [],
+        "actualUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-graph&build=availability",
+        "readyMs": 23952,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "supplier-pipeline",
+            "file": "supplier-graph",
+            "key": "collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-graph",
+            "kind": "file"
+          },
+          "configuration": "availability",
+          "structure": "collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-graph",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 23963
+      },
+      {
+        "slide": 16,
+        "slideId": "p15",
+        "cue": "query",
+        "project": "login",
+        "resource": "login-cem",
+        "configuration": "semantics-html-cemql",
+        "configurationInput": "login-html",
+        "configurations": [
+          "semantics-html-cemql",
+          "semantics-cem-cemql"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=semantics-html-cemql",
+        "status": "passed",
+        "errors": [],
+        "actualUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=semantics-html-cemql",
+        "readyMs": 24018,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-cem",
+            "key": "collection=amsterdam-2026&sample=login&file=login-cem",
+            "kind": "file"
+          },
+          "configuration": "semantics-html-cemql",
+          "structure": "collection=amsterdam-2026&sample=login&file=login-cem",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 24026
+      },
+      {
+        "slide": 16,
+        "slideId": "p15",
+        "cue": "expression",
+        "project": "login",
+        "resource": "login-expression",
+        "configuration": "expression-html",
+        "configurationInput": "login-html",
+        "configurations": [
+          "expression-html",
+          "expression-cem"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-expression&build=expression-html",
+        "status": "passed",
+        "errors": [],
+        "actualUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-expression&build=expression-html",
+        "readyMs": 24425,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-expression",
+            "key": "collection=amsterdam-2026&sample=login&file=login-expression",
+            "kind": "file"
+          },
+          "configuration": "expression-html",
+          "structure": "collection=amsterdam-2026&sample=login&file=login-expression",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 24439
+      },
+      {
+        "slide": 17,
+        "slideId": "p16",
+        "cue": "transform",
+        "project": "login",
+        "resource": "login-view-graph",
+        "configuration": "render-graph",
+        "configurationInput": "login-view-graph",
+        "configurations": [
+          "render-graph",
+          "render-html",
+          "render-cem"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-graph&build=render-graph",
+        "status": "passed",
+        "errors": [],
+        "actualUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-graph&build=render-graph",
+        "readyMs": 24493,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-view-graph",
+            "key": "collection=amsterdam-2026&sample=login&file=login-view-graph",
+            "kind": "file"
+          },
+          "configuration": "render-graph",
+          "structure": "collection=amsterdam-2026&sample=login&file=login-view-graph",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 24507
+      },
+      {
+        "slide": 18,
+        "slideId": "p17",
+        "cue": "source provenance",
+        "project": "login",
+        "resource": "login-view-template",
+        "configuration": "render-graph",
+        "configurationInput": "login-view-graph",
+        "configurations": [
+          "render-graph"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-template&build=render-graph",
+        "status": "passed",
+        "errors": [],
+        "actualUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-template&build=render-graph",
+        "readyMs": 28555,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-view-template",
+            "key": "collection=amsterdam-2026&sample=login&file=login-view-template",
+            "kind": "file"
+          },
+          "configuration": "render-graph",
+          "structure": "collection=amsterdam-2026&sample=login&file=login-view-template",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 28578
+      },
+      {
+        "slide": 19,
+        "slideId": "p18",
+        "cue": "live",
+        "project": "login",
+        "resource": "login-live-view",
+        "configuration": "live-view",
+        "configurationInput": "login-live-view",
+        "configurations": [
+          "live-view"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-live-view&build=live-view",
+        "status": "passed",
+        "errors": [],
+        "actualUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-live-view&build=live-view",
+        "readyMs": 24551,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-live-view",
+            "key": "collection=amsterdam-2026&sample=login&file=login-live-view",
+            "kind": "file"
+          },
+          "configuration": "live-view",
+          "structure": "collection=amsterdam-2026&sample=login&file=login-live-view",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 24571
+      },
+      {
+        "slide": 30,
+        "slideId": "p24",
+        "cue": "supplier",
+        "project": "supplier-pipeline",
+        "resource": "supplier-stock",
+        "configuration": "stock-source",
+        "configurationInput": "supplier-stock",
+        "configurations": [
+          "stock-source",
+          "availability"
+        ],
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock&build=stock-source",
+        "status": "passed",
+        "errors": [],
+        "actualUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock&build=stock-source",
+        "readyMs": 24474,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "supplier-pipeline",
+            "file": "supplier-stock",
+            "key": "collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock",
+            "kind": "file"
+          },
+          "configuration": "stock-source",
+          "structure": "collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 24484
+      }
+    ],
+    "inventorySha256": "4d21f9cd63ddb3c7c989b9bc9c123040e7472612274f3be1cb56c97d532a0770",
+    "browser": "148.0.7778.96",
+    "finishedAt": "2026-11-04T04:29:17.266Z"
+  },
+  "freshContextReadiness": {
+    "minMs": 23952,
+    "maxMs": 28555,
+    "measurement": "Context/page setup plus navigation to application readiness; original 30000 ms readiness wait unchanged"
+  },
+  "finalInventory": {
+    "checkedAt": "2026-11-04T04:29:28.216Z",
+    "status": 200,
+    "inventorySha256": "4d21f9cd63ddb3c7c989b9bc9c123040e7472612274f3be1cb56c97d532a0770",
+    "matchesPreparedCopy": true
+  },
+  "privacy": {
+    "existingUserProfilesAccessed": false,
+    "existingProjectsOrDraftsModified": false,
+    "linkContextsSavedProjects": 0,
+    "realCredentialsUsed": false,
+    "discussionPosted": false
+  },
+  "limits": {
+    "studioReadinessMs": 30000,
+    "workerStartupMs": 10000,
+    "checkpointMs": 5000,
+    "checkpointBytes": 4194304,
+    "automaticWholeStudioRecovery": false,
+    "credentialPolicy": "Entered passwords/OTP refuse recovery until explicitly cleared; never export credentials"
+  },
+  "coverageLimits": [
+    "23 selected configurations: 20 Login and three Supplier; not all six Supplier configurations",
+    "120 playground pages checked for HTTP reachability; not all playground interactions",
+    "Presentation Site publication, discussion delivery and timed rehearsal remain separate"
+  ],
+  "verificationChanges": "Attempt every frozen public link despite earlier failures; retain per-link readiness, final URL, elapsed time and failure; all assertions and deadlines retained",
+  "staticChecks": {
+    "studioLint": "passed",
+    "presentationResourceGuards": "passed; 59 guards plus frozen resource map"
+  }
+}

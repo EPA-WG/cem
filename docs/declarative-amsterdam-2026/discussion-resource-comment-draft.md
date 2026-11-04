@@ -1,12 +1,11 @@
 # Discussion #24 resource comment — draft
 
-Do not post yet. The public host serves the verified 906-file `ee7cc90c…` copy.
-The hosting adapter now returns scoped module URLs without redirects, but default
-startup/full workflow acceptance is still open. A measured offline-prefetch
-scheduling correction passes local acceptance in the 906-file `4d21f9cd…` copy.
-Deploy that correction, then complete default public Login/Supplier acceptance
-and all 14 exact demo destinations before removing this notice and posting.
-No comment has been sent.
+Do not post yet. The verified public 906-file `4d21f9cd…` deployment passes
+startup, general browser acceptance, all 23 selected offline Login/Supplier
+configurations and all 14 exact slide/demo destinations. This draft is ready for
+review; posting remains a separate explicit delivery action. The pinned footer
+sources retain their historical edition; current public acceptance is recorded
+in `public-demo-4d21f9cd-verification.md`. No comment has been sent.
 
 The presentation uses ordinary Studio projects, resources and configurations.
 Clone a sample before editing. The slide numbers follow the recorded native

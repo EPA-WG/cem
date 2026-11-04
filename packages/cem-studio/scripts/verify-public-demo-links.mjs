@@ -28,6 +28,7 @@ try {
     browser = await chromium.launch({ headless: true }); report.browser = browser.version();
     for (const link of draft.links) {
         const context = await browser.newContext();
+        const started = Date.now();
         const result = { ...link, status: 'started', errors: [] };
         report.results.push(result);
         try {
@@ -35,7 +36,9 @@ try {
             page.on('pageerror', error => result.errors.push(error.message));
             const response = await page.goto(link.url);
             assert.equal(response.status(), 200);
+            result.actualUrl = page.url();
             await page.waitForFunction(() => Boolean(globalThis.__cemStudioApplication));
+            result.readyMs = Date.now() - started;
             await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
             result.actual = await page.evaluate(async () => {
                 const app = globalThis.__cemStudioApplication, state = app.workbench.snapshot();
@@ -56,9 +59,13 @@ try {
             assert.deepEqual(result.errors, []);
             result.status = 'passed';
             console.log(`Public demo link ${link.slide}/${link.cue}: ${link.project}/${link.resource}/${link.configuration} passed`);
-        } catch (error) { result.status = 'failed'; result.error = error.message; throw error; }
-        finally { await context.close(); await save(); }
+        } catch (error) {
+            result.status = 'failed'; result.error = error.message;
+            console.error(`Public demo link ${link.slide}/${link.cue} failed: ${error.message}`);
+        } finally { result.elapsedMs = Date.now() - started; await context.close(); await save(); }
     }
+    assert.equal(report.results.length, draft.links.length, 'Every frozen link must be attempted');
+    assert.equal(report.results.filter(result => result.status !== 'passed').length, 0, 'Every public demo link must pass');
     report.status = 'passed';
 } catch (error) { report.status = 'failed'; report.error = error.message; throw error; }
 finally { report.finishedAt = new Date().toISOString(); await save(); await browser?.close(); }

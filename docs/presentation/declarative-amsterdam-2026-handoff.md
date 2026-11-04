@@ -1,5 +1,16 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+Public demo acceptance complete (2026-11-03): the owner-deployed 906-file
+`4d21f9cd…` inventory, all 11 critical bytes and additional startup/revision/
+service-worker bytes match, including the final inventory recheck. Default public
+general acceptance, all 23 selected offline Login/Supplier configurations and all
+14 fresh-context slide/demo links pass. Link readiness is 23.952–28.555 s under
+the original 30-second gate. The [verification and receipt](../declarative-amsterdam-2026/public-demo-4d21f9cd-verification.md)
+record exact results and limits. Existing projects/drafts and privacy/recovery
+budgets are preserved. Presentation Site publication, discussion review/delivery,
+timed rehearsal and final handoff remain open; no comment was posted. All earlier
+prepared/uploaded statuses below are historical evidence.
+
 Latest upload and startup follow-up (2026-11-03): the public 906-file inventory
 `ee7cc90c…` and all 11 critical bytes match; literal/encoded scoped module URLs
 return 200 without redirects. Default public full acceptance still fails startup;

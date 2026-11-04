@@ -400,10 +400,17 @@ channels; private agreements remain unverified. This file owns execution order.
       while the primary worker bytes remain unchanged. Lint/typecheck pass.
       [Verification](declarative-amsterdam-2026/hosting-upgrade-verification.md).
 
-- [ ] Fixture: verify all 14 prepared discussion demo links on the fixed public
+- [x] Fixture: verify all 14 prepared discussion demo links on the fixed public
       host in isolated default-browser contexts. Assert URL, resource, tree and
       selected configuration independently; create no saved projects, retain
       failure receipts, and keep navigation separate from full workflow acceptance.
+      Attempt every frozen link even if an earlier destination fails; record each
+      readiness duration and failure without retries or timeout changes.
+      Verified 2026-11-03: all 14 public destinations pass in fresh default
+      Chromium contexts on inventory `4d21f9cd…` (906 files), with exact URL,
+      resource/tree/configuration agreement and zero saved projects. Observed
+      readiness is 23.952–28.555 s under the original gate. No transport overrides
+      or warm-only substitutes. [Public verification](declarative-amsterdam-2026/public-demo-4d21f9cd-verification.md).
 
 - [x] Fixture: measure first-load service-worker prefetch against native runtime
       acquisition with enabled service workers and a shared WASM bandwidth limit.
@@ -421,8 +428,11 @@ channels; private agreements remain unverified. This file owns execution order.
       default startup/full acceptance remain open. The 14-link verifier correctly
       refuses mismatched public inventory; its navigation fixture stays open.
       [Verification and receipt](declarative-amsterdam-2026/startup-prefetch-verification.md).
+      Public follow-up: the owner-deployed `4d21f9cd…` copy now passes general
+      acceptance, all 23 selected workflows and all 14 demo links; see the final
+      public receipt below.
 
-- [ ] Verify the functionality of every Amsterdam demo page selected for the
+- [x] Verify the functionality of every Amsterdam demo page selected for the
       presentation and participant links. Check the deployed source/edit,
       validation failure/repair, inspection/formatting, query/graph, live preview,
       navigation and linked assets in isolated browser contexts. Record exact
@@ -494,6 +504,13 @@ channels; private agreements remain unverified. This file owns execution order.
       files). General local demo acceptance and all 23 selected offline
       Login/Supplier configurations pass at the new `6ddd7228329531b8` alias.
       [Prepared-copy receipt](declarative-amsterdam-2026/hosting-upgrade-readback.json).
+      Completed public verification 2026-11-03: owner-deployed inventory
+      `4d21f9cd…` (906 files) and all 11 critical bytes match before the browser
+      gates; final inventory is unchanged. General public checks, all 23 selected
+      offline configurations (20 Login/three Supplier) and all 14 frozen deep
+      links pass in fresh default contexts. Retain earlier failures as history;
+      playground HTTP reachability does not imply every playground interaction.
+      [Final public receipt](declarative-amsterdam-2026/public-demo-4d21f9cd-verification.md).
 
 - [x] Fixture: reproduce Cloudflare's literal-`@` asset redirect and duplicate
       shell-module installation. Verify the hosting adapter serves canonical
@@ -523,6 +540,9 @@ channels; private agreements remain unverified. This file owns execution order.
       and the controlled shell check. The next 906-file `ee7cc90c…` copy and
       updated Wrangler Worker are prepared and locally accepted; publication
       does not close default public functionality, destination checks or rehearsal.
+      Subsequent upload `4d21f9cd…` now passes public demo functionality and
+      all 14 destinations. The separately reviewed presentation Site publication
+      remains open; timed rehearsal is a separate delivery task.
 
 - [x] Fixture: validate all discussion #24 slide/demo draft rows against frozen
       project/resource/configuration identities and recorded native slide IDs.
@@ -552,6 +572,10 @@ channels; private agreements remain unverified. This file owns execution order.
       navigation checks and pinned public footer links. The draft notice reflects
       the pending 906-file hosting/cache correction; public destination acceptance and
       the actual posting action remain open.
+      Public destination and selected-workflow acceptance are now complete on
+      `4d21f9cd…`; the draft notice records those results. Review the complete
+      comment, including the historical pinned footer edition, before the separate
+      explicit posting action. No comment has been sent.
 
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,
       output and demo path. Check slide readability and the fallback flow;

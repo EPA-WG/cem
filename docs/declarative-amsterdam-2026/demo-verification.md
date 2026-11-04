@@ -363,3 +363,17 @@ unchanged public general and full selected gates. Run
 frozen destinations. Its current mismatch refusal launches no browser and is not
 navigation acceptance. Keep the discussion draft unposted until the public gates
 and destination checks pass.
+
+## Public startup, workflows and all 14 links accepted — 2026-11-03
+
+The owner uploaded the `4d21f9cd…` prepared copy. The general public verifier,
+complete selected 23-configuration offline Login/Supplier suite and all 14
+frozen discussion demo links pass in separate default-browser contexts.
+Fresh link readiness is 23.952–28.555 seconds under the original readiness gate.
+The 906-file inventory, all 11 critical byte checks, startup/revision/service-worker
+bytes and post-cohort inventory recheck match. No new Wrangler version ID was
+supplied. The [verification and readback](public-demo-4d21f9cd-verification.md)
+record exact identities, checks and coverage limits. This supersedes the pending
+public acceptance of the prepared prefetch correction; earlier receipts remain
+historical evidence. Presentation Site publication, discussion delivery and
+measured rehearsal remain separate open work.
