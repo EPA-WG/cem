@@ -4,6 +4,9 @@ import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { publicationOrigin, verifyPublishedAssets } from './publication-host.mjs';
+import { verifyComponentGalleries } from './verify-galleries.mjs';
+import { readPublicationInventory } from './publication-host-galleries.mjs';
+import { verifyCodeSnippets } from './verify-snippets.mjs';
 
 const workspace = resolve(import.meta.dirname, '../../..');
 const origin = publicationOrigin(process.env.CEM_SITE_ACCEPTANCE_URL);
@@ -15,17 +18,20 @@ const save = async () => { await mkdir(reports, { recursive: true }); await writ
 await save();
 try {
     for (const suite of ['production', 'interactive', 'search']) await rm(resolve(reports, `public-${suite}.json`), { force: true });
-    const inventory = JSON.parse(await readFile(resolve(reports, 'determinism.json'), 'utf8'));
+    const native = JSON.parse(await readFile(resolve(reports, 'determinism.json'), 'utf8'));
     const prepared = JSON.parse(await readFile(resolve(reports, 'cloudflare-preparation.json'), 'utf8'));
-    assert.equal(inventory.aggregateSha256, prepared.nativeAggregateSha256, 'Public verification must use the verified prepared release; run cem-site:prepare:cloudflare first');
+    assert.equal(native.aggregateSha256, prepared.nativeAggregateSha256, 'Public verification must use the verified prepared release; run cem-site:prepare:cloudflare first');
+    const inventory = await readPublicationInventory(prepared, native);
     report.preparedArchiveSha256 = prepared.archive.sha256;
+    report.nativeAggregateSha256 = native.aggregateSha256;
+    const nativePaths = new Set(native.files.map(entry => entry.path));
     for (const entry of inventory.files) {
-        const bytes = await readFile(resolve(workspace, 'dist/apps/cem-site', entry.path));
+        const bytes = await readFile(resolve(nativePaths.has(entry.path) ? resolve(workspace, 'dist/apps/cem-site') : prepared.output, entry.path));
         assert.ok(bytes.length === entry.bytes && createHash('sha256').update(bytes).digest('hex') === entry.sha256,
             `Prepared Site differs from deterministic build: ${entry.path}`);
     }
     const routes = JSON.parse(await readFile(resolve(workspace, 'apps/cem-site/site.routes.json'), 'utf8'));
-    report.assets = await verifyPublishedAssets(origin, inventory, { routes: routes.entries });
+    report.assets = await verifyPublishedAssets(origin, inventory, { routes: [...routes.entries, ...inventory.galleryRoutes] });
     await save();
     // These are the existing browser suites, with their complete original
     // assertions and deadlines. Execute sequentially against fresh contexts.
@@ -39,6 +45,9 @@ try {
         assert.equal(result.status, 0, `Public Site ${suite} acceptance failed`);
         report.suites.at(-1).receipt = JSON.parse(await readFile(output, 'utf8'));
     }
+    const galleries = JSON.parse(await readFile(resolve(prepared.output, prepared.galleries.manifestPath), 'utf8'));
+    report.galleries = await verifyComponentGalleries(origin, galleries);
+    report.snippets = await verifyCodeSnippets(origin, routes.entries);
     report.status = 'passed';
 } catch (error) { report.status = 'failed'; report.error = error.message; if (error.cause?.files) report.assetFailures = error.cause.files; throw error; }
 finally { report.finishedAt = new Date().toISOString(); await save(); }

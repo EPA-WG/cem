@@ -154,3 +154,29 @@ WASM reference routes use the native canonical-source policy for package-relativ
 links. `cem-site:test:canonical-links` adds publication regressions for parent-path
 links/fragments, code excerpts and the five shared runtime helper assets. It is
 part of the full verification target. A local build does not establish public hosting.
+
+## Combined presentation publication
+
+The Cloudflare package includes the native Site plus the complete prepared demo
+package trees. Every header links to `/packages/cem-components/` on the same
+host, including all component galleries and property playgrounds. Studio and
+Playground keep their existing external demo URLs. Gallery headers, theme
+selection and the white Presentation canvas retain their shared implementation.
+
+Refresh the demo with `yarn copy:demo` before preparing the Site. Packaging reads
+the verified `../cem-bin` inventory, or `CEM_SITE_GALLERY_ROOT`, checks all current
+gallery pages and shared source-viewer bytes against the workspace, and refuses
+stale assets, collisions or a combined publication above the 999-file budget.
+Run `yarn nx run cem-site:prepare:cloudflare --parallel=1`, then deploy the
+resulting bundle with `npx wrangler@4 deploy --config wrangler.site.jsonc`.
+The Worker is `cem-amsterdam-2026`; a separate gallery deployment is unnecessary.
+The native determinism inventory remains separate from the combined inventory.
+The public verifier checks every combined file before the Site workflows,
+gallery navigation/theme checks and code-snippet browser checks.
+
+Markdown block examples use source-only `cem-demo-element` viewers. The native
+page transform trims outer source whitespace while preserving inner indentation
+and escaped markup. The shared viewer colors supported languages without
+executing examples. Interactive source/output previews use the same viewer.
+The native `site_snippet_publication` test covers exact whitespace and escaping;
+the browser verifier covers displayed source, coloring and empty live regions.

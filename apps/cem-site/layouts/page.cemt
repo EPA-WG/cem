@@ -2,7 +2,7 @@
 @ns transform = "https://cem.dev/ns/transform/cem/1"
 @default transform
 
-{module @version="1.0.0" |
+{module @version="1.0.0" @cem:whitespace=layout |
   {param @name="input" @type="object" @required=true}
   {template @name="page" @visibility="public" |
     {param @name="title" @type="string" @required=true}
@@ -10,6 +10,7 @@
     {body |
       {element @name="html" @namespace="http://www.w3.org/1999/xhtml" |
         {attribute @name="lang" @value="en"}
+        {attribute @name="data-theme" @value="cem-theme-projector"}
         {element @name="head" @namespace="http://www.w3.org/1999/xhtml" |
           {element @name="meta" @namespace="http://www.w3.org/1999/xhtml" |
             {attribute @name="charset" @value="utf-8"}
@@ -19,6 +20,18 @@
             {attribute @name="content" @value="width=device-width, initial-scale=1"}
           }
           {element @name="title" @namespace="http://www.w3.org/1999/xhtml" | {$title}}
+          {element @name="link" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="rel" @value="stylesheet"}
+            {attribute @name="href" @value="/packages/cem-theme/dist/lib/css/cem-combined.css"}
+          }
+          {element @name="script" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="type" @value="importmap"}
+            ```{"imports":{"@epa-wg/cem-ml/wasm":"/packages/cem-ml-npm/dist/wasm/browser/cem_ml.js"}}```
+          }
+          {element @name="script" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="type" @value="module"}
+            {attribute @name="src" @value="/packages/cem-demo-element/dist/index.js"}
+          }
         }
         {element @name="body" @namespace="http://www.w3.org/1999/xhtml" |
           {element @name="header" @namespace="http://www.w3.org/1999/xhtml" |
@@ -55,7 +68,7 @@
               }
               {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
               {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="href" @value="https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/"}
+                {attribute @name="href" @value="/packages/cem-components/"}
                 CEM Components
               }
               {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
@@ -106,6 +119,15 @@
     {param @name="canonicalSourceBase" @type="string" @default=""}
     {body |
       {cem:choose |
+        {cem:when @test='node.kind == "element" && node.name == "pre" && seq:count(seq:where(node.children, fn(child) => child.name == "code")) == 1' |
+          {cem:variable @name=codeNode @select='seq:where(node.children, fn(child) => child.name == "code")'}
+          {cem:variable @name=language @select='str:replace(str:concat(seq:where(codeNode.attributes, fn(attribute) => attribute.name == "class").value), "language-", "")'}
+          {element @name="cem-demo-element" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="demo" @value="false"}
+            {attribute @name="type" @value='{if language != "" { language } else { "text" }}'}
+            {attribute @name="source" @value='{str:trim(str:concat(codeNode.children.data))}'}
+          }
+        }
         {cem:when @test='node.kind == "element"' |
           {cem:variable @name=isHeading @select='node.name == "h1" || node.name == "h2" || node.name == "h3" || node.name == "h4" || node.name == "h5" || node.name == "h6"'}
           {element @name="{$node.name}" @namespace="{$node.namespace}" |

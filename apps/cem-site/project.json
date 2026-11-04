@@ -35,6 +35,10 @@
                 {
                     "projects": ["cem-elements"],
                     "target": "build"
+                },
+                {
+                    "projects": ["@epa-wg/cem-demo-element"],
+                    "target": "build"
                 }
             ],
             "options": {
@@ -115,6 +119,8 @@
                 "{projectRoot}/site.cem",
                 "{projectRoot}/site.routes.json",
                 "{projectRoot}/scripts/verify.mjs",
+                "{workspaceRoot}/packages/cem-demo-element/dist/**/*.js",
+                "{projectRoot}/scripts/publication-host*.mjs",
                 "{projectRoot}/scripts/publication-html.mjs",
                 "{projectRoot}/runtime/*.module-map.json",
                 "{workspaceRoot}/nx.json",
@@ -143,6 +149,7 @@
                 "{projectRoot}/scripts/publication-host.mjs",
                 "{projectRoot}/site.routes.json",
                 "{projectRoot}/scripts/verify-interactive.mjs",
+                "{workspaceRoot}/packages/cem-demo-element/dist/**/*.js",
                 "{projectRoot}/scripts/verify-xhtml.mjs",
                 "{projectRoot}/scripts/verify-themes.mjs",
                 {
@@ -164,6 +171,7 @@
                 "{projectRoot}/scripts/publication-host.mjs",
                 "{projectRoot}/site.routes.json",
                 "{projectRoot}/scripts/verify-search.mjs",
+                "{workspaceRoot}/packages/cem-demo-element/dist/**/*.js",
                 "{projectRoot}/scripts/verify-xhtml.mjs",
                 "{projectRoot}/scripts/verify-themes.mjs",
                 {
@@ -185,6 +193,7 @@
                 "{projectRoot}/scripts/publication-host.mjs",
                 "{projectRoot}/site.routes.json",
                 "{projectRoot}/scripts/verify-production.mjs",
+                "{workspaceRoot}/packages/cem-demo-element/dist/**/*.js",
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
@@ -256,6 +265,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/prepare-cloudflare.mjs",
+                "{projectRoot}/scripts/publication-host-galleries.mjs",
                 "{workspaceRoot}/wrangler.site.jsonc",
                 "{workspaceRoot}/tools/cloudflare/*.mjs"
             ],

@@ -1,0 +1,313 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-04T11:16:40.386694+00:00",
+  "status": "prepared and locally verified; owner deployment and public verification pending",
+  "baseCommit": "d707aa0e623978ac132e84dc1439c7e171e0d58e",
+  "destination": {
+    "worker": "cem-amsterdam-2026",
+    "expectedOrigin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+    "publicVersionId": null,
+    "config": "wrangler.site.jsonc",
+    "command": "npx wrangler@4 deploy --config wrangler.site.jsonc"
+  },
+  "archive": {
+    "path": "/home/suns/cem/dist/releases/cem-site-cloudflare.tgz",
+    "bytes": 38581167,
+    "sha256": "11c7c19e3cb9884161c7c68e412ea28049b935016f686c9d9473c319c0be7659",
+    "handoffPath": "dist/releases/cem-site-galleries-and-snippets.tgz"
+  },
+  "native": {
+    "cleanBuilds": 2,
+    "routeCount": 27,
+    "fileCount": 303,
+    "aggregateSha256": "8bc5f17a3f3fd7d7655d802cc38b074714c066b56beb7b285504527009bba9af"
+  },
+  "combined": {
+    "status": "passed",
+    "fileCount": 870,
+    "aggregateSha256": "75f760ffb79abbc51a197cea1115822cadda4a078f91b54882931fe6a85e6c88"
+  },
+  "galleryInputs": {
+    "sourceRoot": "/home/suns/cem-bin",
+    "sourceInventorySha256": "d8407721643ab82ba16a2b0f72766323a324fdbb84b7cf1ffccb80156094d34c",
+    "fileCount": 566,
+    "galleryCount": 59,
+    "manifestPath": "component-gallery-publication.json"
+  },
+  "headers": {
+    "checkedPages": 27,
+    "componentHref": "/packages/cem-components/",
+    "fatDotSeparatorsPerHeader": 11,
+    "studioAndPlayground": "existing external demo URLs"
+  },
+  "galleries": {
+    "origin": "http://127.0.0.1:8794",
+    "galleryCount": 59,
+    "galleryRoutes": [
+      "/packages/cem-components/playgrounds/cem-accordion-gallery",
+      "/packages/cem-components/playgrounds/cem-action-gallery",
+      "/packages/cem-components/playgrounds/cem-alert-gallery",
+      "/packages/cem-components/playgrounds/cem-app-bar-gallery",
+      "/packages/cem-components/playgrounds/cem-autocomplete-gallery",
+      "/packages/cem-components/playgrounds/cem-avatar-gallery",
+      "/packages/cem-components/playgrounds/cem-badge-gallery",
+      "/packages/cem-components/playgrounds/cem-card-gallery",
+      "/packages/cem-components/playgrounds/cem-checkbox-gallery",
+      "/packages/cem-components/playgrounds/cem-chip-gallery",
+      "/packages/cem-components/playgrounds/cem-data-view-gallery",
+      "/packages/cem-components/playgrounds/cem-datepicker-gallery",
+      "/packages/cem-components/playgrounds/cem-dialog-gallery",
+      "/packages/cem-components/playgrounds/cem-dialog-shell-gallery",
+      "/packages/cem-components/playgrounds/cem-divider-gallery",
+      "/packages/cem-components/playgrounds/cem-dropdown-gallery",
+      "/packages/cem-components/playgrounds/cem-expansion-gallery",
+      "/packages/cem-components/playgrounds/cem-field-gallery",
+      "/packages/cem-components/playgrounds/cem-fieldset-gallery",
+      "/packages/cem-components/playgrounds/cem-grid-gallery",
+      "/packages/cem-components/playgrounds/cem-icon-button-gallery",
+      "/packages/cem-components/playgrounds/cem-icon-gallery",
+      "/packages/cem-components/playgrounds/cem-list-gallery",
+      "/packages/cem-components/playgrounds/cem-media-preview-gallery",
+      "/packages/cem-components/playgrounds/cem-menu-gallery",
+      "/packages/cem-components/playgrounds/cem-menu-item-gallery",
+      "/packages/cem-components/playgrounds/cem-nav-gallery",
+      "/packages/cem-components/playgrounds/cem-option-gallery",
+      "/packages/cem-components/playgrounds/cem-option-group-gallery",
+      "/packages/cem-components/playgrounds/cem-paginator-gallery",
+      "/packages/cem-components/playgrounds/cem-progress-gallery",
+      "/packages/cem-components/playgrounds/cem-progress-spinner-gallery",
+      "/packages/cem-components/playgrounds/cem-radio-gallery",
+      "/packages/cem-components/playgrounds/cem-recovery-status-gallery",
+      "/packages/cem-components/playgrounds/cem-select-gallery",
+      "/packages/cem-components/playgrounds/cem-sheet-gallery",
+      "/packages/cem-components/playgrounds/cem-skeleton-gallery",
+      "/packages/cem-components/playgrounds/cem-slider-gallery",
+      "/packages/cem-components/playgrounds/cem-sort-header-gallery",
+      "/packages/cem-components/playgrounds/cem-source-editor-gallery",
+      "/packages/cem-components/playgrounds/cem-stack-gallery",
+      "/packages/cem-components/playgrounds/cem-step-gallery",
+      "/packages/cem-components/playgrounds/cem-stepper-gallery",
+      "/packages/cem-components/playgrounds/cem-suggestions-gallery",
+      "/packages/cem-components/playgrounds/cem-surface-gallery",
+      "/packages/cem-components/playgrounds/cem-switch-gallery",
+      "/packages/cem-components/playgrounds/cem-tab-gallery",
+      "/packages/cem-components/playgrounds/cem-table-gallery",
+      "/packages/cem-components/playgrounds/cem-tabs-gallery",
+      "/packages/cem-components/playgrounds/cem-text-field-gallery",
+      "/packages/cem-components/playgrounds/cem-text-gallery",
+      "/packages/cem-components/playgrounds/cem-textarea-gallery",
+      "/packages/cem-components/playgrounds/cem-theme-switch-gallery",
+      "/packages/cem-components/playgrounds/cem-timepicker-gallery",
+      "/packages/cem-components/playgrounds/cem-toast-gallery",
+      "/packages/cem-components/playgrounds/cem-tooltip-gallery",
+      "/packages/cem-components/playgrounds/cem-tree-gallery",
+      "/packages/cem-components/playgrounds/cem-tree-item-gallery",
+      "/packages/cem-components/playgrounds/cem-workspace-gallery"
+    ],
+    "propertyRoutes": [
+      "/packages/cem-components/playgrounds/cem-accordion",
+      "/packages/cem-components/playgrounds/cem-action",
+      "/packages/cem-components/playgrounds/cem-alert",
+      "/packages/cem-components/playgrounds/cem-app-bar",
+      "/packages/cem-components/playgrounds/cem-autocomplete",
+      "/packages/cem-components/playgrounds/cem-avatar",
+      "/packages/cem-components/playgrounds/cem-badge",
+      "/packages/cem-components/playgrounds/cem-card",
+      "/packages/cem-components/playgrounds/cem-checkbox",
+      "/packages/cem-components/playgrounds/cem-chip",
+      "/packages/cem-components/playgrounds/cem-data-view",
+      "/packages/cem-components/playgrounds/cem-datepicker",
+      "/packages/cem-components/playgrounds/cem-dialog",
+      "/packages/cem-components/playgrounds/cem-dialog-shell",
+      "/packages/cem-components/playgrounds/cem-divider",
+      "/packages/cem-components/playgrounds/cem-dropdown",
+      "/packages/cem-components/playgrounds/cem-expansion",
+      "/packages/cem-components/playgrounds/cem-field",
+      "/packages/cem-components/playgrounds/cem-fieldset",
+      "/packages/cem-components/playgrounds/cem-grid",
+      "/packages/cem-components/playgrounds/cem-icon-button",
+      "/packages/cem-components/playgrounds/cem-icon",
+      "/packages/cem-components/playgrounds/cem-list",
+      "/packages/cem-components/playgrounds/cem-media-preview",
+      "/packages/cem-components/playgrounds/cem-menu",
+      "/packages/cem-components/playgrounds/cem-menu-item",
+      "/packages/cem-components/playgrounds/cem-nav",
+      "/packages/cem-components/playgrounds/cem-option",
+      "/packages/cem-components/playgrounds/cem-option-group",
+      "/packages/cem-components/playgrounds/cem-paginator",
+      "/packages/cem-components/playgrounds/cem-progress",
+      "/packages/cem-components/playgrounds/cem-progress-spinner",
+      "/packages/cem-components/playgrounds/cem-radio",
+      "/packages/cem-components/playgrounds/cem-recovery-status",
+      "/packages/cem-components/playgrounds/cem-select",
+      "/packages/cem-components/playgrounds/cem-sheet",
+      "/packages/cem-components/playgrounds/cem-skeleton",
+      "/packages/cem-components/playgrounds/cem-slider",
+      "/packages/cem-components/playgrounds/cem-sort-header",
+      "/packages/cem-components/playgrounds/cem-source-editor",
+      "/packages/cem-components/playgrounds/cem-stack",
+      "/packages/cem-components/playgrounds/cem-step",
+      "/packages/cem-components/playgrounds/cem-stepper",
+      "/packages/cem-components/playgrounds/cem-suggestions",
+      "/packages/cem-components/playgrounds/cem-surface",
+      "/packages/cem-components/playgrounds/cem-switch",
+      "/packages/cem-components/playgrounds/cem-tab",
+      "/packages/cem-components/playgrounds/cem-table",
+      "/packages/cem-components/playgrounds/cem-tabs",
+      "/packages/cem-components/playgrounds/cem-text-field",
+      "/packages/cem-components/playgrounds/cem-text",
+      "/packages/cem-components/playgrounds/cem-textarea",
+      "/packages/cem-components/playgrounds/cem-theme-switch",
+      "/packages/cem-components/playgrounds/cem-timepicker",
+      "/packages/cem-components/playgrounds/cem-toast",
+      "/packages/cem-components/playgrounds/cem-tooltip",
+      "/packages/cem-components/playgrounds/cem-tree",
+      "/packages/cem-components/playgrounds/cem-tree-item",
+      "/packages/cem-components/playgrounds/cem-workspace"
+    ],
+    "examples": [
+      {
+        "route": "/packages/cem-components/playgrounds/cem-icon-gallery",
+        "heading": "cem-icon: Full examples and variation matrix",
+        "theme": "cem-theme-projector",
+        "background": "rgb(255, 255, 255)",
+        "restored": true
+      },
+      {
+        "route": "/packages/cem-components/playgrounds/cem-icon-button-gallery",
+        "heading": "cem-icon-button: Full examples and variation matrix",
+        "theme": "cem-theme-projector",
+        "background": "rgb(255, 255, 255)",
+        "restored": true
+      },
+      {
+        "route": "/packages/cem-components/playgrounds/cem-suggestions-gallery",
+        "heading": "cem-suggestions: Full examples and variation matrix",
+        "theme": "cem-theme-projector",
+        "background": "rgb(255, 255, 255)",
+        "restored": true
+      }
+    ],
+    "status": "passed"
+  },
+  "snippets": {
+    "origin": "http://127.0.0.1:8794",
+    "snippetCount": 80,
+    "coloredSnippetCount": 68,
+    "routes": [
+      {
+        "route": "/guides/declarative-amsterdam-2026/",
+        "snippetCount": 2,
+        "coloredSnippetCount": 2
+      },
+      {
+        "route": "/guides/cem-ml/cli/",
+        "snippetCount": 9,
+        "coloredSnippetCount": 9
+      },
+      {
+        "route": "/reference/cem-ml/transform-config/",
+        "snippetCount": 1,
+        "coloredSnippetCount": 1
+      },
+      {
+        "route": "/reference/cem-ml/wasm-runtime/",
+        "snippetCount": 6,
+        "coloredSnippetCount": 6
+      },
+      {
+        "route": "/reference/cem-elements/",
+        "snippetCount": 9,
+        "coloredSnippetCount": 7
+      },
+      {
+        "route": "/reference/custom-element/",
+        "snippetCount": 13,
+        "coloredSnippetCount": 12
+      },
+      {
+        "route": "/reference/trang-native/",
+        "snippetCount": 7,
+        "coloredSnippetCount": 4
+      },
+      {
+        "route": "/reference/crates/cem-ml/",
+        "snippetCount": 1,
+        "coloredSnippetCount": 0
+      },
+      {
+        "route": "/reference/crates/cem-ml-cli/",
+        "snippetCount": 5,
+        "coloredSnippetCount": 3
+      },
+      {
+        "route": "/reference/crates/cem-ml-transform-cem-ql/",
+        "snippetCount": 3,
+        "coloredSnippetCount": 2
+      },
+      {
+        "route": "/reference/crates/cem-ql/",
+        "snippetCount": 21,
+        "coloredSnippetCount": 20
+      },
+      {
+        "route": "/examples/interactive/",
+        "snippetCount": 2,
+        "coloredSnippetCount": 2
+      },
+      {
+        "route": "/reference/components/",
+        "snippetCount": 1,
+        "coloredSnippetCount": 0
+      }
+    ],
+    "status": "passed"
+  },
+  "siteSuites": {
+    "production": {
+      "routeCount": 27,
+      "fragmentLinkCount": 86,
+      "focusableCount": 1161
+    },
+    "interactive": {
+      "status": "passed",
+      "runtimeErrors": [],
+      "importSpecifiers": [
+        "@epa-wg/cem-elements",
+        "@epa-wg/cem-ml/wasm",
+        "@epa-wg/cem-site/components-runtime",
+        "@epa-wg/cem-site/runtime",
+        "@epa-wg/cem-site/search"
+      ]
+    },
+    "search": {
+      "status": "passed",
+      "runtimeErrors": [],
+      "documentCount": 26
+    }
+  },
+  "regressions": {
+    "hostingPublicationGuards": 20,
+    "canonicalPublicationChecks": 5,
+    "nativeSnippetFixture": 1,
+    "sourceOnlyStory": "passed after final assertion cleanup",
+    "lint": [
+      "cem-site passed",
+      "cem-demo-element passed with no warnings"
+    ],
+    "wranglerDryRun": "passed against final prepared assets",
+    "visualInspection": "WASM reference shows white canvas, colored source and no outer blank lines"
+  },
+  "sharedViewerSuite": {
+    "passed": 19,
+    "failed": 1,
+    "failure": "src/playground.stories.ts > Native Editing And Source Preservation: plaintext control.children.length expected 0, received 1",
+    "baseline": "Also reproduced with unchanged Git HEAD shared-viewer implementation; source-only story and six other Playground stories pass. No assertion weakened."
+  },
+  "next": [
+    "Owner deploys this combined Site bundle and reports actual URL/Current Version ID",
+    "Run cem-site:verify:public for all 870 files, Site workflows, galleries and snippets",
+    "Timed presentation rehearsal",
+    "Finalize presentation handoff"
+  ]
+}

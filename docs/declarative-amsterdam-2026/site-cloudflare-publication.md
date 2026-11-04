@@ -1,5 +1,55 @@
 # CEM Site: Cloudflare publication
 
+## Current update: galleries and source snippets — 2026-11-04
+
+Prepared and locally verified; **owner deployment and public acceptance are
+pending**. This update includes all 59 component galleries and their property
+playgrounds on the presentation Site. CEM Components uses the relative URL
+`/packages/cem-components/` in all seven header layouts. Studio and Playground
+retain their existing demo-host destinations. The native document transform
+trims surrounding snippet whitespace and publishes code through source-only
+`cem-demo-element`, preserving indentation and escaped source. Supported
+languages receive syntax coloring without executing the examples.
+
+Use the new deploy-only archive
+`dist/releases/cem-site-galleries-and-snippets.tgz` (38,581,167 bytes), SHA-256
+`11c7c19e3cb9884161c7c68e412ea28049b935016f686c9d9473c319c0be7659`.
+Extract it into a fresh folder and run there:
+
+```sh
+npx wrangler@4 deploy --config wrangler.site.jsonc
+```
+
+The output must name `cem-amsterdam-2026`. Share its public URL and Current
+Version ID for verification. This single Site deployment includes the galleries;
+the old separate demo-gallery bundle is superseded for this task.
+
+The package contains 303 deterministic native files, 566 package/dependency
+files and one gallery manifest: 870 published files, combined SHA-256
+`75f760ffb79abbc51a197cea1115822cadda4a078f91b54882931fe6a85e6c88`.
+All 870 decoded files match through actual local workerd. Browser checks pass
+for all 59 gallery and 59 property URLs, three gallery theme/restoration flows,
+and 80 exact, trimmed, source-only snippets (68 contain colored tokens). The
+27-route/86-fragment Site crawl, interactive workflows and search pass.
+See the [current preparation readback](site-galleries-snippets-readback.json).
+
+Public verification after deployment uses the prepared combined inventory:
+
+```sh
+CEM_SITE_ACCEPTANCE_URL=https://cem-amsterdam-2026.trans-acf.workers.dev yarn nx run cem-site:verify:public --parallel=1
+```
+
+The shared viewer suite passes 19 of 20 stories. Its remaining native-editing
+failure also reproduces with the unchanged viewer: an editable plaintext
+control contains one element where the existing assertion requires zero.
+The source-only story, six other Playground stories and all Site/gallery checks
+pass. The editor issue is recorded separately without weakening that assertion.
+
+## Historical publication receipts
+
+The records below describe earlier 303-file releases and their public checks;
+their archive hashes and external component link are superseded by this update.
+
 Public follow-up: the owner deployed this bundle as
 `431d2a65-f8b6-4f5f-86f1-cdf552c8fb7f`. The [public presentation guide](https://cem-amsterdam-2026.trans-acf.workers.dev/guides/declarative-amsterdam-2026/)
 now passes all 303 byte checks, the 27-route/86-fragment production crawl,

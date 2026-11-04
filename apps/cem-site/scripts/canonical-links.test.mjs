@@ -23,7 +23,10 @@ for (const fixture of [
     assert.ok(links[0].startsWith(entry.canonicalSourceBase), 'Link bypassed the native canonical-source base');
     assert.ok(!hrefs.includes(fixture.sourceHref), 'Package link still resolves relative to the deployed site');
     assert.ok(hrefs.includes('/') && hrefs.includes('/guides/'), 'Shared site navigation must remain site-relative');
-    assert.ok(!/<script\b/.test(output), 'Static reference pages must remain free of UI JavaScript');
+    const scripts = [...output.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gu)];
+    assert.equal(scripts.length, 2, 'Reference pages load only the shared snippet viewer and its import map');
+    assert.ok(scripts.some(([, attrs]) => attrs.includes('src="/packages/cem-demo-element/dist/index.js"')));
+    assert.ok(scripts.some(([, attrs, body]) => attrs.includes('type="importmap"') && JSON.parse(body).imports['@epa-wg/cem-ml/wasm']));
 });
 
 test('native Amsterdam source excerpt is a code example, not an escaped page bridge', async () => {
@@ -35,6 +38,8 @@ test('native Amsterdam source excerpt is a code example, not an escaped page bri
 test('escaped page content outside code still fails, including a page with a legitimate example', () => {
     assert.equal(hasEscapedPageBridge('<main>&lt;h1&gt;A broken bridge&lt;/h1&gt;</main>'), true);
     assert.equal(hasEscapedPageBridge('<pre><code>&lt;h1&gt;Example</code></pre><main>&lt;h1&gt;Broken</main>'), true);
+    assert.equal(hasEscapedPageBridge('<cem-demo-element demo="false" source="&lt;h1&gt;Code&lt;/h1&gt;"></cem-demo-element>'), false);
+    assert.equal(hasEscapedPageBridge('<cem-demo-element demo="false" source="&lt;h1&gt;Code">&lt;h1&gt;Broken body</cem-demo-element>'), true);
 });
 
 test('both runtime routes publish the existing shared transport/schema/declaration helpers byte-for-byte', async () => {

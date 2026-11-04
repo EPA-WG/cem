@@ -18,13 +18,18 @@ const server = createServer(async (request, response) => {
         const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
         const pathname = decodeURIComponent(requestUrl.pathname);
         const relativePath = pathname.endsWith('/') ? `${pathname}index.html` : pathname;
-        const filePath = normalize(join(outputRoot, relativePath));
+        let filePath = normalize(join(outputRoot, relativePath));
         if (!filePath.startsWith(outputRoot + sep)) {
             response.writeHead(403);
             response.end('Forbidden');
             return;
         }
-        const fileStat = await stat(filePath);
+        let fileStat = await stat(filePath).catch(error => { if (error.code !== 'ENOENT') throw error; });
+        if (!fileStat && pathname.startsWith('/packages/')) {
+            const galleryRoot = resolve(process.env.CEM_SITE_GALLERY_ROOT ?? resolve(workspaceRoot, '../cem-bin'));
+            filePath = normalize(join(galleryRoot, relativePath));
+            fileStat = await stat(filePath);
+        }
         if (!fileStat.isFile()) {
             throw new Error('not a file');
         }
@@ -74,6 +79,7 @@ try {
     const xhtml = await verifyDeployedXhtml(page);
     if (browserErrors.length) throw new Error(`XHTML deployment failed: ${browserErrors.join("; ")}`);
 
+    await page.waitForFunction(() => document.querySelector('cem-demo-element[data-native-output]')?.getAttribute('data-state') === 'ready');
     assert.equal(await page.locator('[data-native-output] pre').textContent(),
         await page.locator('[data-cem-fixture-instance] .cem-site-greeting').evaluate(node => node.outerHTML));
     await page.locator('[data-token-filter] input').fill('comfort');
@@ -128,6 +134,7 @@ try {
 
     const expectedImports = [
         '@epa-wg/cem-elements',
+        '@epa-wg/cem-ml/wasm',
         '@epa-wg/cem-site/components-runtime',
         '@epa-wg/cem-site/runtime',
         '@epa-wg/cem-site/search',

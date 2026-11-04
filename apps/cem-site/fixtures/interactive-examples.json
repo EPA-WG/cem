@@ -1,7 +1,7 @@
 {
     "$schema": "https://cem.dev/ns/data/json/1",
     "title": "Interactive CEM examples",
-    "importMap": "{\"imports\":{\"@epa-wg/cem-site/components-runtime\":\"components-runtime.js\",\"@epa-wg/cem-site/runtime\":\"site-runtime.js\",\"@epa-wg/cem-site/search\":\"search-runtime.js\",\"@epa-wg/cem-elements\":\"../../../packages/cem-elements/dist/index.js\"}}",
+    "importMap": "{\"imports\":{\"@epa-wg/cem-site/components-runtime\":\"components-runtime.js\",\"@epa-wg/cem-site/runtime\":\"site-runtime.js\",\"@epa-wg/cem-site/search\":\"search-runtime.js\",\"@epa-wg/cem-elements\":\"../../../packages/cem-elements/dist/index.js\",\"@epa-wg/cem-ml/wasm\":\"/packages/cem-ml-npm/dist/wasm/browser/cem_ml.js\"}}",
     "tokens": [
         {
             "name": "--cem-palette-comfort",

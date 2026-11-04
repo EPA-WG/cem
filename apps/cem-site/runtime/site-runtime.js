@@ -14,7 +14,7 @@ try {
         })),
         actionLabel: root.querySelector('[data-component-example="action"]').getAttribute('label'),
         fieldLabel: root.querySelector('[data-component-example="field"]').getAttribute('label'),
-        source: root.querySelector('[data-cem-source]').textContent,
+        source: root.querySelector('[data-cem-source]').getAttribute('source'),
         name: root.querySelector('[data-cem-fixture-instance]').getAttribute('name'),
         nativeOutput: '',
     };

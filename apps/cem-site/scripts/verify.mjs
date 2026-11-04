@@ -3,12 +3,17 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { createProjectGraphAsync } from '@nx/devkit';
 import { hasEscapedPageBridge } from './publication-html.mjs';
+import { collectGalleryPublication } from './publication-host-galleries.mjs';
 
 const workspaceRoot = resolve(import.meta.dirname, '../../..');
 const projectRoot = resolve(workspaceRoot, 'apps/cem-site');
 const outputRoot = resolve(workspaceRoot, 'dist/apps/cem-site');
 const reportRoot = resolve(workspaceRoot, 'dist/reports/cem-site');
 const manifest = JSON.parse(await readFile(resolve(projectRoot, 'site.routes.json'), 'utf8'));
+const galleryPublication = await collectGalleryPublication(resolve(process.env.CEM_SITE_GALLERY_ROOT ?? resolve(workspaceRoot, '../cem-bin')),
+    { sourceRoot: workspaceRoot, reservedPaths: manifest.entries.flatMap(entry => [entry.output, `${entry.output}.map`]) });
+const galleryAssetPaths = new Set(galleryPublication.files.map(file => file.path));
+const galleryPageRoutes = new Set(galleryPublication.routes.map(entry => entry.route));
 const publicationGraph = await readFile(resolve(projectRoot, 'site.cem'), 'utf8');
 const reportText = await readFile(join(outputRoot, 'site.report.json'), 'utf8');
 const projectGraph = await createProjectGraphAsync({ exitOnError: false });
@@ -739,7 +744,9 @@ for (const entry of manifest.entries) {
             if (
                 target.origin === 'https://cem.invalid' &&
                 !entriesByRoute.has(target.pathname) &&
-                !runtimeContract.assetOutputs.has(target.pathname.slice(1))
+                !runtimeContract.assetOutputs.has(target.pathname.slice(1)) &&
+                !galleryAssetPaths.has(target.pathname.slice(1)) &&
+                !galleryPageRoutes.has(target.pathname)
             ) {
                 throw new Error(`${entry.output} links to unpublished route ${target.pathname}`);
             }
@@ -1133,7 +1140,8 @@ for (const entry of manifest.entries) {
                 '<script type="importmap">',
                 'import "@epa-wg/cem-site/runtime";',
                 '<cem-element tag="cem-site-greeting">',
-                '<pre><code data-native-output>',
+                '<cem-demo-element data-native-output demo="false"',
+                'data-native-output',
                 '@epa-wg/cem-site/runtime',
                 '@epa-wg/cem-elements',
             ]) {

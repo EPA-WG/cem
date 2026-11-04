@@ -642,13 +642,33 @@ channels; private agreements remain unverified. This file owns execution order.
       The refreshed 906-file demo and deploy-only bundle change four header/title
       assets. [Readback](declarative-amsterdam-2026/component-gallery-header-readback.json).
 
-- [ ] Deploy the prepared component gallery header update to the demo Worker
-      from the owner's signed-in machine; verify the public inventory, component
-      headings, theme control and white Presentation canvas on the actual host.
-      Bundle: `dist/releases/cem-demo-gallery-update.tgz`; from the extracted
-      folder run `npx wrangler@4 deploy --config wrangler.jsonc`. Wrangler output
-      must name `green-morning-fd6e` and its `green-morning-fd6e.trans-acf.workers.dev`
-      URL; `cem-amsterdam-2026` is the separate, already verified Site.
+- [x] Remove template-layout whitespace from published code blocks and present
+      snippets through source-only cem-demo-element viewers. Add a failing native
+      CLI fixture for exact snippet whitespace and escaped content before changing
+      the templates; verify syntax coloring and non-execution in the browser,
+      including the WASM reference and interactive source/output previews.
+      Verified locally 2026-11-04: native red/green fixture, 80 exact trimmed
+      source-only snippets (68 with colored tokens), white WASM reference canvas,
+      interactive output, inherited typography/inset tokens and forced colors.
+      Public delivery is included in the combined Site deployment gate below.
+
+- [x] Prepare all component galleries and their complete package dependencies under
+      the presentation Site. Make CEM Components a same-origin relative link in
+      all seven layouts. Add fixture checks for stale inputs, missing galleries,
+      path collisions and publication inventory drift; verify the combined local
+      Worker, same-origin gallery navigation, theme selection and white Projector
+      canvas, then prepare the Site bundle.
+      This supersedes the separate demo-Worker deployment request.
+      Verified locally 2026-11-04: all 870 decoded file hashes, all 59 gallery and
+      59 property URLs, same-origin index navigation and three theme/restoration
+      flows. Twenty publication guards, five canonical regressions and native
+      determinism pass. [Readback](declarative-amsterdam-2026/site-galleries-snippets-readback.json).
+
+- [ ] Deploy the combined galleries/snippets Site bundle from the owner's
+      signed-in machine, record the actual URL/version, then verify all 870 files,
+      Site workflows, galleries and code snippets on the public host. Use
+      `cem-site-galleries-and-snippets.tgz` and `wrangler.site.jsonc`; expected
+      Worker `cem-amsterdam-2026`. [Deployment steps](declarative-amsterdam-2026/site-cloudflare-publication.md).
 
 - [x] Add Studio and Playground links to every Site header and point CEM Components
       at the live package gallery, with a decorative fat-dot separator between links. Verify the native output and keyboard
@@ -676,6 +696,12 @@ SSR pipeline, all optional modules or broad device acceptance. A concrete blocke
 may be promoted with a link to its required checkpoint and a bounded regression.
 
 ## Native and release follow-ups
+
+- [ ] Diagnose the existing Playground Native Editing And Source Preservation
+      story failure: after Unicode input and trailing blank lines, the plaintext
+      control contains one element rather than zero. Confirmed with the unchanged
+      shared viewer as well as the source-only styling update. Preserve the
+      native-editing assertion; this follows the presentation publication gates.
 
 These investigations remain deferred unless one is reproduced as a blocker of
 an active presentation checkpoint. Keep original assertions, deadlines and

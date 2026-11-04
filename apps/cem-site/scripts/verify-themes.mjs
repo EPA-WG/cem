@@ -11,7 +11,8 @@ export async function verifySiteThemes(page) {
             const action = root.querySelector('cem-action button');
             const field = root.querySelector('cem-field input');
             const surface = root.querySelector('cem-surface [part~=root]');
-            const preview = root.querySelector('cem-media-preview [part~=text]');
+            const preview = root.querySelector('cem-media-preview [part~=text], cem-demo-element [slot=text] pre');
+            const previewCode = preview?.querySelector('code') ?? preview;
             const original = { background: getComputedStyle(action).backgroundColor, color: getComputedStyle(action).color,
                 fieldIndicator: getComputedStyle(field).boxShadow };
             root.style.setProperty('--cem-action-border-radius', '13px');
@@ -24,7 +25,7 @@ export async function verifySiteThemes(page) {
                 coupling: parseFloat(style.borderTopWidth),
                 ...(surface ? { surfaceInset: getComputedStyle(surface).paddingTop,
                     surfaceBackground: getComputedStyle(surface).backgroundColor, surfaceColor: getComputedStyle(surface).color } : {}),
-                ...(preview ? { previewFont: getComputedStyle(preview).fontSize, previewInset: getComputedStyle(preview).paddingTop } : {}) };
+                ...(preview ? { previewFont: getComputedStyle(previewCode).fontSize, previewInset: getComputedStyle(preview).paddingTop } : {}) };
             root.removeAttribute('style');
             return result;
         }, mode);
@@ -42,7 +43,7 @@ export async function verifySiteThemes(page) {
         themes.push(result);
     }
     await page.emulateMedia({ forcedColors: 'active' });
-    const forced = await page.evaluate(() => [...document.querySelectorAll('main cem-action button, main cem-field input, main cem-surface [part~=root], main cem-media-preview [part~=root]')]
+    const forced = await page.evaluate(() => [...document.querySelectorAll('main cem-action button, main cem-field input, main cem-surface [part~=root], main cem-media-preview [part~=root], main cem-demo-element')]
         .map(node => { const style = getComputedStyle(node); return { tag: node.localName, color: style.color,
             background: style.backgroundColor, adjust: style.forcedColorAdjust, border: style.borderStyle,
             outline: style.outlineStyle, outlineWidth: parseFloat(style.outlineWidth) }; }));

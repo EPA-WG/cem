@@ -551,14 +551,16 @@ cem-demo-element > [slot="text"] pre {
     box-sizing: border-box;
     max-width: 100%;
     margin: 0;
-    padding: 1rem;
+    padding: var(--cem-inset-container, 1rem);
     overflow: auto;
     tab-size: 4;
     white-space: pre;
 }
 cem-demo-element > [slot="text"] code {
     color: var(--cem-color-syntax-text);
-    font: 0.875rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+    font: var(--cem-typography-script-font-size, 0.875rem)/var(--cem-typography-script-line-height, 1.45) var(--cem-typography-script-font-family, ui-monospace, SFMono-Regular, Consolas, monospace);
+    font-weight: var(--cem-typography-script-font-weight, normal);
+    letter-spacing: var(--cem-typography-script-letter-spacing, normal);
 }
 cem-demo-element > [slot="text"] code.cem-source-code {
     color: var(--cem-color-syntax-raw);
@@ -612,6 +614,9 @@ cem-demo-element code.cem-source-code > mark {
 cem-demo-element > [slot="demo"] {
     min-width: 0;
     padding: 1rem;
+}
+cem-demo-element[demo="false"] > [slot="demo"]:empty {
+    display: none;
 }
 cem-demo-element > [slot="status"] {
     padding: 0 1rem 0.75rem;

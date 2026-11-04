@@ -46,9 +46,9 @@
    {h2 @id=cem-fixture-heading | CEM fixture and native light-DOM output}
    {cem-site-greeting @data-cem-fixture-instance="" @name={state.name}}
    {h3 @id=cem-source | CEM source}
-   {cem-media-preview @data-cem-source="" @label="CEM source" @mode=text @value={state.source}}
+   {cem-demo-element @data-cem-source="" @demo=false @type=cem-ml @source={state.source}}
    {h3 @id=native-output | Native output}
-   {cem-media-preview @data-native-output="" @label="Rendered HTML" @mode=text @value={state.nativeOutput}}
+   {cem-demo-element @data-native-output="" @demo=false @type=html @source={state.nativeOutput}}
 }}}
 
   </template>

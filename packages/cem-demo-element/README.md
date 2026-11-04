@@ -182,6 +182,11 @@ Build with `yarn nx run @epa-wg/cem-demo-element:build`. Nx builds the CLI
 adapter dependency first; the demo compiles against its generated declarations
 without recursively rebuilding its temporary command-schema source.
 
+Source-only viewers (`demo="false"`) hide their empty live-demo region. An
+explicit consumer-supplied preview remains visible. Code presentation consumes
+the shared `--cem-typography-script-*` and `--cem-inset-container` tokens, with
+standalone defaults when those tokens are absent.
+
 ## Tests
 
 Storybook Chromium interaction stories are this package's unit tests.

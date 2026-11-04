@@ -51,13 +51,18 @@ const server = createServer(async (request, response) => {
         const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
         const pathname = decodeURIComponent(requestUrl.pathname);
         const relativePath = pathname.endsWith('/') ? `${pathname}index.html` : pathname;
-        const filePath = normalize(join(outputRoot, relativePath));
+        let filePath = normalize(join(outputRoot, relativePath));
         if (!filePath.startsWith(outputRoot + sep)) {
             response.writeHead(403);
             response.end('Forbidden');
             return;
         }
-        const fileStat = await stat(filePath);
+        let fileStat = await stat(filePath).catch(error => { if (error.code !== 'ENOENT') throw error; });
+        if (!fileStat && pathname.startsWith('/packages/')) {
+            const galleryRoot = resolve(process.env.CEM_SITE_GALLERY_ROOT ?? resolve(workspaceRoot, '../cem-bin'));
+            filePath = normalize(join(galleryRoot, relativePath));
+            fileStat = await stat(filePath);
+        }
         if (!fileStat.isFile()) {
             throw new Error('not a file');
         }

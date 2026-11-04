@@ -313,14 +313,26 @@ export const HighlightedSourceOnly: Story = {
             const demo = document.createElement('cem-demo-element') as CemDemoElement;
             demo.type = type;
             demo.setAttribute('demo', 'false');
+            demo.style.setProperty('--cem-typography-script-font-size', '17px');
+            demo.style.setProperty('--cem-inset-container', '19px');
             demo.src = `data:${mediaType},${encodeURIComponent(source)}`;
             canvasElement.append(demo);
             await demo.updateComplete;
             expect(demo.state).toBe('ready');
             const code = requiredRegion(demo, 'text').querySelector('code');
             expect(code?.textContent).toBe(source);
+            if (!code?.parentElement) throw new Error('Source viewer must contain a code region');
+            expect(getComputedStyle(code).fontSize).toBe('17px');
+            expect(getComputedStyle(code.parentElement).paddingTop).toBe('19px');
             expect(code?.querySelector(token)).not.toBeNull();
             expect(requiredRegion(demo, 'demo')).toBeEmptyDOMElement();
+            expect(requiredRegion(demo, 'demo')).not.toBeVisible();
+            const suppliedPreview = document.createElement('p');
+            suppliedPreview.textContent = 'Application-owned preview';
+            requiredRegion(demo, 'demo').append(suppliedPreview);
+            expect(suppliedPreview).toBeVisible();
+            requiredRegion(demo, 'demo').replaceChildren();
+            expect(requiredRegion(demo, 'demo')).not.toBeVisible();
             expect(demo.lastResult).toBeUndefined();
             if (liveTag) {
                 demo.removeAttribute('demo');

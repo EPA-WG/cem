@@ -54,7 +54,7 @@
               }
               {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
               {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="href" @value="https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/"}
+                {attribute @name="href" @value="/packages/cem-components/"}
                 CEM Components
               }
               {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
