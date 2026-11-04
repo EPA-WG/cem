@@ -331,3 +331,35 @@ of the saved project and dirty draft through two upgrades and offline reload.
 General local demo acceptance passes for the new 906-file copy. Public
 functionality remains open until the updated Worker and assets are deployed and
 the unchanged default public gates pass.
+
+## Owner upload and offline-prefetch scheduling — 2026-11-03
+
+The owner deployed the updated checkout. Inventory `ee7cc90c…` (906 files),
+all 11 critical bytes, the service worker and revision module match the prepared
+hosting correction. Literal and encoded scoped package URLs both return 200
+without redirect. No new Wrangler version ID was supplied; the
+[public readback](public-demo-ee7cc90c-readback.json) records observed identities.
+
+Public full acceptance remains open. Two fresh default selected-suite attempts
+miss readiness before any configuration; the general verifier separately records
+an aborted gallery WASM body. A separate fresh default HTTP/3 trace reaches
+readiness at 24.512 s without JavaScript errors, alongside cache-write/aborted
+precache observations. That trace does not replace full acceptance or attribute
+all failures to a protocol.
+
+The [prefetch regression and correction](startup-prefetch-verification.md) fairly
+share original WASM response bytes with service workers enabled: deployed startup
+misses the unchanged 30-second limit; deferred registration reaches readiness at
+26.171 s. The new 906-file prepared inventory is
+`4d21f9cd63ddb3c7c989b9bc9c123040e7472612274f3be1cb56c97d532a0770`.
+Only main startup and deployment revision changed; all four WASM files remain
+identical. General local acceptance, all 23 selected offline Login/Supplier
+configurations, cached-client upgrades, lint and typecheck pass. The
+[receipt](startup-prefetch-readback.json) pins exact evidence and preview scope.
+
+Deploy this copy through the owner's existing signed-in route, then repeat the
+unchanged public general and full selected gates. Run
+`yarn nx run @epa-wg/cem-studio:verify:public-demo-links` for the separate 14
+frozen destinations. Its current mismatch refusal launches no browser and is not
+navigation acceptance. Keep the discussion draft unposted until the public gates
+and destination checks pass.

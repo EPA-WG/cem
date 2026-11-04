@@ -1,0 +1,280 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-04T03:40:55.587157+00:00",
+  "checkedOn": "2026-11-03",
+  "timeZone": "America/Chicago",
+  "publicBaselineReadback": "public-demo-ee7cc90c-readback.json",
+  "publicAcceptance": "open; candidate not deployed/accepted",
+  "prepared": {
+    "root": "/home/suns/cem-bin",
+    "inventorySha256": "4d21f9cd63ddb3c7c989b9bc9c123040e7472612274f3be1cb56c97d532a0770",
+    "managedFiles": 906,
+    "changedPathsFromPublicBaseline": [
+      "studio/assets/@epa-wg/cem-studio/main.js",
+      "studio/deployment-revision.js"
+    ],
+    "unchangedWasm": [
+      {
+        "path": "packages/cem-ml-npm/dist/wasm/browser/cem_ml_bg.wasm",
+        "bytes": 24860607,
+        "sha256": "966df03a97851e50fa69cb62551bc3fe29409865e49d2ffc8767c9b1719aeb43"
+      },
+      {
+        "path": "packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+        "bytes": 24140410,
+        "sha256": "3856b98560281753dffb49b807b1bb4a76f76f4f088a5ce179a2a03c577037b5"
+      },
+      {
+        "path": "studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "bytes": 24140410,
+        "sha256": "3856b98560281753dffb49b807b1bb4a76f76f4f088a5ce179a2a03c577037b5"
+      },
+      {
+        "path": "studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "bytes": 24860607,
+        "sha256": "966df03a97851e50fa69cb62551bc3fe29409865e49d2ffc8767c9b1719aeb43"
+      }
+    ]
+  },
+  "controlledStartup": {
+    "schemaVersion": 1,
+    "browser": "148.0.7778.96",
+    "readinessDeadlineMs": 30000,
+    "aggregateWasmBytesPerSecond": 3355443.2,
+    "serviceWorkers": "enabled",
+    "isPublicAcceptance": false,
+    "results": [
+      {
+        "variant": "baseline",
+        "mainSha256": "4f5e0f25b6c8e2175fdc2553a6bfd6ac6942c3cceb1f6b24110c83edb86116a8",
+        "errors": [],
+        "requests": [
+          {
+            "path": "assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "startedMs": 527,
+            "bytes": 24140410,
+            "completedMs": 29284
+          },
+          {
+            "path": "assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "startedMs": 529,
+            "bytes": 24860607,
+            "completedMs": 29968
+          },
+          {
+            "path": "assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "startedMs": 609,
+            "bytes": 24860607,
+            "completedMs": 30048
+          },
+          {
+            "path": "assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "startedMs": 664,
+            "bytes": 24140410,
+            "completedMs": 29526
+          },
+          {
+            "path": "assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "startedMs": 29482,
+            "bytes": 24140410,
+            "cancelledMs": 30424
+          }
+        ],
+        "readyWithinDeadline": false,
+        "serviceWorkerCreatedMs": 424,
+        "observedMs": 30418,
+        "runtimeWorkers": [
+          "http://127.0.0.1:53483/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+          "http://127.0.0.1:53483/assets/@epa-wg/cem-ml-cli/dist/browser-worker.js"
+        ]
+      },
+      {
+        "variant": "candidate",
+        "mainSha256": "6b0f739415b7dd4baa99d5d69c27c2abb15e3ade68aab6f50a253309f35e0a4d",
+        "errors": [],
+        "requests": [
+          {
+            "path": "assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "startedMs": 271,
+            "bytes": 24140410,
+            "completedMs": 14723
+          },
+          {
+            "path": "assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "startedMs": 278,
+            "bytes": 24860607,
+            "completedMs": 15005
+          },
+          {
+            "path": "assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "startedMs": 14909,
+            "bytes": 24140410,
+            "completedMs": 22197
+          },
+          {
+            "path": "assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "startedMs": 23449,
+            "bytes": 24860607,
+            "cancelledMs": 26175
+          },
+          {
+            "path": "assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "startedMs": 23495,
+            "bytes": 24140410,
+            "cancelledMs": 26176
+          }
+        ],
+        "readyWithinDeadline": true,
+        "serviceWorkerCreatedMs": 23322,
+        "observedMs": 26171,
+        "runtimeWorkers": [
+          "http://127.0.0.1:53483/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+          "http://127.0.0.1:53483/assets/@epa-wg/cem-ml-cli/dist/browser-worker.js"
+        ]
+      }
+    ],
+    "status": "passed"
+  },
+  "localGeneral": {
+    "status": "passed",
+    "sourceFilesMatched": 336,
+    "checks": [
+      "paired gallery runtime bytes",
+      "native gallery rendering/highlighting",
+      "playground edit and Render",
+      "independent Studio copy",
+      "native HTML/CSS preview",
+      "offline SCSS rebuild",
+      "worker scope",
+      "10 theme generators",
+      "120 playground HTTP destinations",
+      "live tree gallery"
+    ],
+    "ignoredLog": "dist/reports/demo-site or /tmp/cem-prefetch-local-demo.log"
+  },
+  "localSelectedWorkflow": {
+    "schemaVersion": 1,
+    "catalogIdentity": "e25ba06efca9ef63a849d7784cdda8e04b126930c79cb1fbfa03ca11c8e54c18",
+    "deployedSha256": "fd02f8e49da559e5f447ec99951bfddc9f61cb9a18271e79b14a5c1fc6496040",
+    "status": "passed",
+    "targetUrl": "http://127.0.0.1:8081/studio/__cem_preview__/ceb366c46aade55c",
+    "hostingProfile": "local",
+    "browser": "148.0.7778.96",
+    "checkedAt": "2026-11-04T03:39:15.737Z",
+    "exampleProjects": true,
+    "validationRepair": true,
+    "templateOutput": true,
+    "offline": true,
+    "configurationCoverage": "selected",
+    "configurations": 23,
+    "loginConfigurations": 20,
+    "supplierConfigurations": 3,
+    "supplierPipeline": true,
+    "graphProvenance": true,
+    "liveView": true,
+    "sourceInspection": true,
+    "sourceFormatting": true,
+    "sourceColors": true,
+    "standaloneExpression": true
+  },
+  "cachedClientUpgrade": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-04T03:25:43.274Z",
+    "browser": "148.0.7778.96",
+    "scope": "http://127.0.0.1:54303/studio/",
+    "isPublicAcceptance": false,
+    "fixture": "previous and current graph-emitted deployments at unchanged scope/version",
+    "status": "passed",
+    "workerErrors": [],
+    "before": {
+      "projectId": "project-6f7760ff-1f0b-4564-9430-083d21f94b37",
+      "projectRevision": 1,
+      "resourceId": "command-build-html",
+      "persistedText": "{\n  \"$schema\": \"https://cem.dev/ns/cli/command/1\",\n  \"schemaVersion\": 1,\n  \"commandSchemaVersion\": 1,\n  \"commonVersion\": \"0.1.0\",\n  \"binaryName\": \"cem-ml\",\n  \"argv\": [\n    \"transform\",\n    \"--config\",\n    \"graphs/styles.cem\",\n    \"--config-content-type\",\n    \"application/cem\",\n    \"--config-schema\",\n    \"https://cem.dev/ns/cli/transform-config/1\",\n    \"--scope-budget\",\n    \"queueSize=1024\"\n  ]\n}\n",
+      "draft": "{\n  \"$schema\": \"https://cem.dev/ns/cli/command/1\",\n  \"schemaVersion\": 1,\n  \"commandSchemaVersion\": 1,\n  \"commonVersion\": \"0.1.0\",\n  \"binaryName\": \"cem-ml\",\n  \"argv\": [\n    \"transform\",\n    \"--config\",\n    \"graphs/styles.cem\",\n    \"--config-content-type\",\n    \"application/cem\",\n    \"--config-schema\",\n    \"https://cem.dev/ns/cli/transform-config/1\",\n    \"--scope-budget\",\n    \"queueSize=1024\"\n  ]\n}\n\n// Unsaved deployment-upgrade witness\n",
+      "dirty": true
+    },
+    "cachedAsset": {
+      "cacheName": "cem-studio:0.1.0:runtime",
+      "url": "http://127.0.0.1:54303/studio/assets/@epa-wg/cem-ml-cli/dist/browser-command.js"
+    },
+    "waitingWorkerInstalled": true,
+    "projectAndDraftPreserved": true,
+    "expectedSha256": "7c7c35b75a4d1c7cf84dc03f495fd8fe970fd6215589c6c94a1c20f0a69977a7",
+    "previousSha256": "d4844d95b7a5d0f69eee6c71919ceb2dda43c6e9a5b44fae52391875199fdfe6",
+    "receivedSha256": "7c7c35b75a4d1c7cf84dc03f495fd8fe970fd6215589c6c94a1c20f0a69977a7",
+    "updateState": {
+      "waiting": false,
+      "installing": false
+    },
+    "dependencyOnlyUpdate": {
+      "installed": true,
+      "oldWorkerPinnedWhileWaiting": true,
+      "projectAndDraftPreserved": true,
+      "primaryWorkerUnchanged": true,
+      "revision": "b6059f8827bdeed6d07ab5c4b7f07763e896c0ec48750afff1601301ef14c0fa"
+    },
+    "offlineReloadPreserved": true,
+    "latestWorkerVersions": [
+      {
+        "versionId": "0",
+        "registrationId": "0",
+        "scriptURL": "http://127.0.0.1:54303/studio/service-worker.js",
+        "runningStatus": "stopped",
+        "status": "redundant",
+        "scriptLastModified": 0,
+        "scriptResponseTime": 1793762743.577761,
+        "controlledClients": []
+      },
+      {
+        "versionId": "1",
+        "registrationId": "0",
+        "scriptURL": "http://127.0.0.1:54303/studio/service-worker.js",
+        "runningStatus": "stopped",
+        "status": "redundant",
+        "scriptLastModified": 0,
+        "scriptResponseTime": 1793762754.567032,
+        "controlledClients": []
+      },
+      {
+        "versionId": "2",
+        "registrationId": "0",
+        "scriptURL": "http://127.0.0.1:54303/studio/service-worker.js",
+        "runningStatus": "running",
+        "status": "activated",
+        "scriptLastModified": 0,
+        "scriptResponseTime": 1793762754.567032,
+        "controlledClients": [],
+        "targetId": "7D440487A2DAA3CD031DFC90F2FF1736"
+      }
+    ]
+  },
+  "publicLinkPreflight": {
+    "interpretation": "Expected inventory-mismatch refusal; no navigation acceptance",
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-04T03:26:58.411Z",
+    "browserFlags": [],
+    "status": "failed",
+    "navigationOnly": true,
+    "fullWorkflowAcceptance": "recorded separately",
+    "discussionPosted": false,
+    "results": [],
+    "inventorySha256": "ee7cc90c4507e467b9ab621b10682029cffb520a52dca7fc6b5d254163d78c71",
+    "error": "Public inventory must match the prepared deployment before navigation checks",
+    "finishedAt": "2026-11-04T03:26:58.887Z"
+  },
+  "staticChecks": {
+    "studioLint": "passed",
+    "studioTypecheck": "passed (matching Nx cache)",
+    "presentationResources": "passed; 59 guards and 14 frozen route definitions (public navigation pending)"
+  },
+  "retainedLimits": {
+    "workerStartupMs": 10000,
+    "studioReadinessMs": 30000,
+    "checkpointMs": 5000,
+    "checkpointBytes": 4194304,
+    "automaticWholeStudioRecovery": false,
+    "credentialPolicy": "Entered passwords/OTP refuse recovery until explicitly cleared; never export credentials"
+  },
+  "discussionPosted": false
+}

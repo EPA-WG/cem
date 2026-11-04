@@ -1,11 +1,12 @@
 # Discussion #24 resource comment — draft
 
-Do not post yet. The public host serves the verified 905-file `253278d1…` copy.
-Default startup remains outside its deadline; a transport control also exposes
-duplicate shell installation through redirected module URLs. Hosting and cache
-upgrade corrections are prepared in the 906-file `ee7cc90c…` copy and updated
-Worker entry. Complete default public Login/Supplier acceptance after the next upload before
-removing this notice and posting. No comment has been sent.
+Do not post yet. The public host serves the verified 906-file `ee7cc90c…` copy.
+The hosting adapter now returns scoped module URLs without redirects, but default
+startup/full workflow acceptance is still open. A measured offline-prefetch
+scheduling correction passes local acceptance in the 906-file `4d21f9cd…` copy.
+Deploy that correction, then complete default public Login/Supplier acceptance
+and all 14 exact demo destinations before removing this notice and posting.
+No comment has been sent.
 
 The presentation uses ordinary Studio projects, resources and configurations.
 Clone a sample before editing. The slide numbers follow the recorded native

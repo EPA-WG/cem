@@ -233,6 +233,28 @@
             ],
             "outputs": ["{workspaceRoot}/dist/reports/demo-site/module-identity.json"]
         },
+        "verify:public-demo-links": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify:presentation-resources"],
+            "options": {
+                "command": "node scripts/verify-public-demo-links.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": ["{projectRoot}/scripts/verify-public-demo-links.mjs", "{workspaceRoot}/docs/declarative-amsterdam-2026/**/*"],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/public-discussion-demo-links.json"]
+        },
+        "verify:startup-prefetch": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node scripts/verify-startup-prefetch.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": ["{projectRoot}/scripts/verify-startup-prefetch.mjs", "{projectRoot}/dist/static/**/*"],
+            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/startup-prefetch.json"]
+        },
         "test:feature-tour": {
             "cache": true,
             "executor": "nx:run-commands",

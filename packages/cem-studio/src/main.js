@@ -19,7 +19,8 @@ import {
 } from '@epa-wg/cem-studio';
 
 const mounted = mountCemStudio();
-const registration = await registerCemStudioServiceWorker().catch(() => undefined);
+/** @type {ServiceWorkerRegistration | undefined} */
+let registration;
 const recoveryScope = new CemNativeRecoveryScope();
 const deploymentResponse = await fetch(new URL('./build.json', mounted.baseUrl));
 if (!deploymentResponse.ok || deploymentResponse.redirected) throw Error('CEM Studio deployment metadata is unavailable');
@@ -29,6 +30,8 @@ let packageDemand;
 /** @type {object | undefined} */
 let packageHostConfiguration;
 if (deployment.deploymentProfile === 'schema-assets') {
+    // The optional package profile keeps its existing early registration/order.
+    registration = await registerCemStudioServiceWorker().catch(() => undefined);
     if (deployment.packagePublication !== 'explicit-host-admission' || deployment.automaticRecovery !== false
         || typeof deployment.schemaAssetBase !== 'string' || !deployment.schemaPackageHostConfiguration) throw Error('CEM Studio package configuration is invalid');
     const baseUrl = new URL(deployment.schemaAssetBase, mounted.baseUrl).href;
@@ -53,6 +56,10 @@ const validator = await prepareCemStudioRuntime({
         processingPackageHostConfiguration: packageHostConfiguration && JSON.stringify(packageHostConfiguration),
         processingNativeWork, loadHttpResource: packageDemand?.loadResource }) }),
     serial: Boolean(packageDemand),
+}).finally(async () => {
+    // Let core WASM acquisition finish before offline precache starts competing
+    // for the same bytes. Failed core startup still checks for an app update.
+    if (!packageDemand) registration = await registerCemStudioServiceWorker().catch(() => undefined);
 });
 const repository = createCemStudioProjectRepository({
     validateProject: validator.validateProject,

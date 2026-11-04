@@ -1,0 +1,348 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-04T03:33:32.145Z",
+  "checkedOn": "2026-11-03",
+  "checkedOnTimeZone": "America/Chicago",
+  "deployment": {
+    "ownerReportedUpdatedCheckoutUpload": true,
+    "versionId": null,
+    "sourceCommit": "52f08f6f3b9743edbea870035d4115909ff68358",
+    "inventorySha256": "ee7cc90c4507e467b9ab621b10682029cffb520a52dca7fc6b5d254163d78c71"
+  },
+  "preflight": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-04T03:06:20.455Z",
+    "root": "https://green-morning-fd6e.trans-acf.workers.dev/",
+    "ownerReportedUpdatedCheckoutUpload": true,
+    "versionId": null,
+    "checks": [
+      {
+        "path": "demo-deployment.json",
+        "method": "GET",
+        "status": 200,
+        "location": null,
+        "sha256": "ee7cc90c4507e467b9ab621b10682029cffb520a52dca7fc6b5d254163d78c71",
+        "bytes": 176382,
+        "matchesPreparedCopy": true
+      },
+      {
+        "path": "studio/deployment-revision.js",
+        "method": "GET",
+        "status": 200,
+        "location": null,
+        "sha256": "401d190a94ffb436941a9f8f61956d3c4456e79b6b1f8365797a270559de93c5",
+        "bytes": 102,
+        "matchesPreparedCopy": true
+      },
+      {
+        "path": "studio/service-worker.js",
+        "method": "GET",
+        "status": 200,
+        "location": null,
+        "sha256": "5a19c13517a563f3202893550455611f3a2bdc3fbfee5f1ee45deac04e6496a2",
+        "bytes": 13948,
+        "matchesPreparedCopy": true
+      },
+      {
+        "path": "studio/assets/@epa-wg/cem-studio/shell.js",
+        "method": "HEAD",
+        "status": 200,
+        "location": null
+      },
+      {
+        "path": "studio/assets/%40epa-wg/cem-studio/shell.js",
+        "method": "HEAD",
+        "status": 200,
+        "location": null
+      }
+    ]
+  },
+  "general": {
+    "schemaVersion": 1,
+    "startedAt": "2026-11-04T03:06:41.743Z",
+    "url": "https://green-morning-fd6e.trans-acf.workers.dev/",
+    "status": "failed",
+    "inventoryExpected": "ee7cc90c4507e467b9ab621b10682029cffb520a52dca7fc6b5d254163d78c71",
+    "browserTransportProfile": "default",
+    "browserExecutableOverride": null,
+    "assets": [
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/demo-deployment.json",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/demo-deployment.json",
+        "bytes": 176382,
+        "sha256": "ee7cc90c4507e467b9ab621b10682029cffb520a52dca7fc6b5d254163d78c71",
+        "elapsedMs": 539
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground.html",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+        "bytes": 5039,
+        "sha256": "c02c8083549bb90a9e368bc51f6c4442712747c1bf0cd31a64480fb56f4beb0a",
+        "elapsedMs": 518
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/module-map.json",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/module-map.json",
+        "bytes": 47676,
+        "sha256": "9fa2c90b0fb34879a276800c2291d375d56f2fd29c2f217a1ba2656f506a1b9f",
+        "elapsedMs": 248
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/cache-inventory.json",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/cache-inventory.json",
+        "bytes": 777,
+        "sha256": "1700e8ddd746e51197a9dae3a2a02f26a3787a968ef9bab8863bd420a2b2f703",
+        "elapsedMs": 262
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/samples/examples/login.cem-studio.json",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/samples/examples/login.cem-studio.json",
+        "bytes": 93611,
+        "sha256": "abc7d53da3c2197c2c2a5a8bdecfb7eaea86e013c6ee973d1be322b4a85505bf",
+        "elapsedMs": 141
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/samples/examples/supplier-pipeline.cem-studio.json",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/samples/examples/supplier-pipeline.cem-studio.json",
+        "bytes": 41657,
+        "sha256": "d14f97e9601a818b9698ad2e8fa7d8c7d5e5b038afe7e34e72488d07ce3ba790",
+        "elapsedMs": 144
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-ml-npm/dist/wasm/browser/cem_ml_factory.js",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-ml-npm/dist/wasm/browser/cem_ml_factory.js",
+        "bytes": 130769,
+        "sha256": "fcb7b0bef273fc08a46675dbfbfd990a05257824441782c1889ea18007f13fe6",
+        "elapsedMs": 262
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem_ql/dist/wasm/cem_ql_factory.js",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem_ql/dist/wasm/cem_ql_factory.js",
+        "bytes": 130643,
+        "sha256": "4b85f7274b6d6c2d6471352ca4ab89e8ed37fd691d851e4e8882fcbf953e8516",
+        "elapsedMs": 147
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-ml-npm/dist/wasm/browser/cem_ml_bg.wasm",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-ml-npm/dist/wasm/browser/cem_ml_bg.wasm",
+        "bytes": 24860607,
+        "sha256": "966df03a97851e50fa69cb62551bc3fe29409865e49d2ffc8767c9b1719aeb43",
+        "elapsedMs": 6653
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+        "bytes": 24140410,
+        "sha256": "3856b98560281753dffb49b807b1bb4a76f76f4f088a5ce179a2a03c577037b5",
+        "elapsedMs": 6444
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "bytes": 24140410,
+        "sha256": "3856b98560281753dffb49b807b1bb4a76f76f4f088a5ce179a2a03c577037b5",
+        "elapsedMs": 6746
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "status": 200,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "bytes": 24860607,
+        "sha256": "966df03a97851e50fa69cb62551bc3fe29409865e49d2ffc8767c9b1719aeb43",
+        "elapsedMs": 6619
+      }
+    ],
+    "error": {
+      "message": "page.evaluate: TypeError: WebAssembly compilation aborted: Network error: Response body loading was aborted",
+      "stack": "page.evaluate: TypeError: WebAssembly compilation aborted: Network error: Response body loading was aborted\n    at /home/suns/cem/tools/scripts/verify-demo-site.mjs:66:32"
+    },
+    "finishedAt": "2026-11-04T03:07:34.883Z"
+  },
+  "selectedAttempts": [
+    {
+      "schemaVersion": 1,
+      "status": "failed",
+      "targetUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio",
+      "hostingProfile": "amsterdam-2026",
+      "browser": "148.0.7778.96",
+      "checkedAt": "2026-11-04T03:08:49.733Z",
+      "error": "Error: page.waitForFunction: Timeout 30000ms exceeded.\n{\"browserErrors\":[],\"httpFailures\":[]}",
+      "browserErrors": [],
+      "httpFailures": []
+    },
+    {
+      "schemaVersion": 1,
+      "status": "failed",
+      "targetUrl": "https://green-morning-fd6e.trans-acf.workers.dev/studio",
+      "hostingProfile": "amsterdam-2026",
+      "browser": "148.0.7778.96",
+      "checkedAt": "2026-11-04T03:13:00.224Z",
+      "error": "Error: page.waitForFunction: Timeout 30000ms exceeded.\n{\"browserErrors\":[],\"httpFailures\":[]}",
+      "browserErrors": [],
+      "httpFailures": []
+    }
+  ],
+  "defaultBrowserStartupDiagnostic": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-04T03:11:06.579Z",
+    "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+    "browser": "148.0.7778.96",
+    "flags": [],
+    "errors": [],
+    "requests": [
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "startedMs": 1612
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "startedMs": 1705
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "startedMs": 1721
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "startedMs": 1721
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+        "failedMs": 13361,
+        "error": "net::ERR_CACHE_WRITE_FAILURE"
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "failedMs": 13361,
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "startedMs": 14379
+      }
+    ],
+    "workers": [
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+        "createdMs": 14232,
+        "performance": {
+          "timeOrigin": 1793761880809.7,
+          "now": 30322.89999999106,
+          "resources": [
+            {
+              "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+              "start": 147.59999999403954,
+              "duration": 5959.20000000298,
+              "end": 6106.79999999702,
+              "decoded": 24140410,
+              "encoded": 6604777,
+              "transferred": 6605077,
+              "protocol": "h3"
+            }
+          ]
+        }
+      },
+      {
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml-cli/dist/browser-worker.js",
+        "createdMs": 14258,
+        "performance": {
+          "timeOrigin": 1793761880836.4,
+          "now": 30306.5,
+          "resources": []
+        }
+      }
+    ],
+    "navigationMs": 1132,
+    "atDeadline": {
+      "elapsedMs": 24512,
+      "ready": true,
+      "errors": [],
+      "performance": {
+        "timeOrigin": 1793761866583,
+        "now": 24515.79999999702,
+        "resources": [
+          {
+            "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "start": 1608.5,
+            "duration": 12554.59999999404,
+            "end": 14163.09999999404,
+            "decoded": 24860607,
+            "encoded": 6840159,
+            "transferred": 6840459,
+            "protocol": "h3"
+          },
+          {
+            "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "start": 1700.7999999970198,
+            "duration": 12363.90000000596,
+            "end": 14064.70000000298,
+            "decoded": 24140410,
+            "encoded": 6604885,
+            "transferred": 6605185,
+            "protocol": "h3"
+          }
+        ]
+      }
+    },
+    "final": {
+      "elapsedMs": 44526,
+      "ready": true,
+      "errors": [],
+      "performance": {
+        "timeOrigin": 1793761866583,
+        "now": 44537.90000000596,
+        "resources": [
+          {
+            "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "start": 1608.5,
+            "duration": 12554.59999999404,
+            "end": 14163.09999999404,
+            "decoded": 24860607,
+            "encoded": 6840159,
+            "transferred": 6840459,
+            "protocol": "h3"
+          },
+          {
+            "url": "https://green-morning-fd6e.trans-acf.workers.dev/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "start": 1700.7999999970198,
+            "duration": 12363.90000000596,
+            "end": 14064.70000000298,
+            "decoded": 24140410,
+            "encoded": 6604885,
+            "transferred": 6605185,
+            "protocol": "h3"
+          }
+        ]
+      }
+    },
+    "requestSummary": {
+      "observations": 39,
+      "failureCounts": {
+        "net::ERR_CACHE_WRITE_FAILURE": 1,
+        "net::ERR_ABORTED": 33
+      }
+    }
+  },
+  "interpretation": {
+    "assetFreshness": "passed; all 11 critical byte checks match",
+    "canonicalAssetRouting": "passed; raw and encoded package URLs return 200 without redirects",
+    "startup": "one fresh default HTTP/3 context ready at 24512 ms with full WASM transfers; two full selected attempts miss unchanged 30000 ms readiness",
+    "cacheNetworkFailures": "ERR_CACHE_WRITE_FAILURE and aborted precache requests retained; no individual protocol blamed",
+    "selectedConfigurationsExecuted": 0,
+    "publicFunctionality": "open; a passing diagnostic is not a full workflow acceptance result",
+    "selectedRepair": "controlled enabled-service-worker bandwidth regression reproduces prefetch contention; defer default-profile registration until core initialization settles",
+    "newCandidateNotPubliclyVerified": true,
+    "discussionCommentPosted": false
+  }
+}

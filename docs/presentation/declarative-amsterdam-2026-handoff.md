@@ -1,5 +1,19 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+Latest upload and startup follow-up (2026-11-03): the public 906-file inventory
+`ee7cc90c…` and all 11 critical bytes match; literal/encoded scoped module URLs
+return 200 without redirects. Default public full acceptance still fails startup;
+a separate default trace reaches readiness at 24.512 s without establishing a
+workflow pass. The [prefetch verification and receipt](../declarative-amsterdam-2026/startup-prefetch-verification.md)
+retain both outcomes and a controlled regression: early offline prefetch misses
+30 seconds, while registration after core initialization is ready at 26.171 s.
+General local checks, cached-client upgrades and all 23 selected offline
+configurations pass. The next 906-file `/home/suns/cem-bin` copy is `4d21f9cd…`;
+only startup and deployment revision changed, with all WASM bytes retained.
+Upload from the updated checkout, then repeat default public general/full gates
+and the new 14-link public navigation verifier. Discussion remains unposted.
+The earlier prepared/uploaded identities below are historical evidence.
+
 Hosting/cache corrections prepared (2026-11-03): [verification and receipt](../declarative-amsterdam-2026/hosting-upgrade-verification.md)
 cover Cloudflare's literal-`@` redirects, duplicate module installation and
 stale same-version caches. The asset adapter eliminates the observed redirect;

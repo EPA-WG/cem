@@ -400,6 +400,28 @@ channels; private agreements remain unverified. This file owns execution order.
       while the primary worker bytes remain unchanged. Lint/typecheck pass.
       [Verification](declarative-amsterdam-2026/hosting-upgrade-verification.md).
 
+- [ ] Fixture: verify all 14 prepared discussion demo links on the fixed public
+      host in isolated default-browser contexts. Assert URL, resource, tree and
+      selected configuration independently; create no saved projects, retain
+      failure receipts, and keep navigation separate from full workflow acceptance.
+
+- [x] Fixture: measure first-load service-worker prefetch against native runtime
+      acquisition with enabled service workers and a shared WASM bandwidth limit.
+      Compare the deployed startup with registration after core initialization;
+      change scheduling only if the controlled run reproduces and repairs the
+      unchanged 30-second readiness failure. Preserve all runtime owners, the
+      worker startup budget, offline installation and update/dirty-work policy.
+      Verified 2026-11-03: the controlled deployed baseline misses readiness at
+      30.418 s; the built candidate is ready at 26.171 s with the same aggregate
+      3.2 MiB/s WASM budget, all native owners and original deadlines retained.
+      General local checks, cached-client upgrades and all 23 selected offline
+      configurations pass. The prepared 906-file copy is `4d21f9cd…`; only main
+      startup and deployment revision differ from the uploaded `ee7cc90c…` copy.
+      Public byte/routing checks confirm the prior hosting fix is deployed, but
+      default startup/full acceptance remain open. The 14-link verifier correctly
+      refuses mismatched public inventory; its navigation fixture stays open.
+      [Verification and receipt](declarative-amsterdam-2026/startup-prefetch-verification.md).
+
 - [ ] Verify the functionality of every Amsterdam demo page selected for the
       presentation and participant links. Check the deployed source/edit,
       validation failure/repair, inspection/formatting, query/graph, live preview,
