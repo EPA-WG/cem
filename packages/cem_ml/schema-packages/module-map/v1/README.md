@@ -102,7 +102,6 @@ previews are not used.
   }
 }
 ```
-
 ## Standalone source admission
 
 Native Validate/Check and source tooling enforce the selected deployment-map
