@@ -157,22 +157,32 @@ part of the full verification target. A local build does not establish public ho
 
 ## Combined presentation publication
 
-The Cloudflare package includes the native Site plus the complete prepared demo
-package trees. Every header links to `/packages/cem-components/` on the same
-host, including all component galleries and property playgrounds. Studio and
-Playground keep their existing external demo URLs. Gallery headers, theme
-selection and the white Presentation canvas retain their shared implementation.
+The Cloudflare package includes the native Site, complete prepared demo package
+trees and Studio build. Every header uses relative URLs for CEM Components
+(`/packages/cem-components/`), Studio (`/studio/`) and Playground
+(`/packages/cem-demo-element/demo/playground`). All three are served locally
+on the presentation host. Gallery headers, theme selection and the white
+Presentation canvas retain their shared implementation. Studio retains its
+security headers and service worker scoped to `/studio/`.
 
 Refresh the demo with `yarn copy:demo` before preparing the Site. Packaging reads
 the verified `../cem-bin` inventory, or `CEM_SITE_GALLERY_ROOT`, checks all current
-gallery pages and shared source-viewer bytes against the workspace, and refuses
-stale assets, collisions or a combined publication above the 999-file budget.
+gallery pages, shared source-viewer bytes and every Studio build asset against
+the workspace, and refuses stale assets, missing Studio files, former demo-host
+links in HTML, collisions or a combined publication above the 1,999-file budget.
+That Site budget accommodates the combined native and Studio publications;
+the standalone demo keeps its separate 999-file budget. Cloudflare supports
+[20,000 assets on its free plan](https://developers.cloudflare.com/workers/platform/limits/#static-assets).
 Run `yarn nx run cem-site:prepare:cloudflare --parallel=1`, then deploy the
 resulting bundle with `npx wrangler@4 deploy --config wrangler.site.jsonc`.
-The Worker is `cem-amsterdam-2026`; a separate gallery deployment is unnecessary.
+The Worker is `cem-amsterdam-2026`; a separate demo deployment is unnecessary.
 The native determinism inventory remains separate from the combined inventory.
 The public verifier checks every combined file before the Site workflows,
-gallery navigation/theme checks and code-snippet browser checks.
+gallery navigation/theme checks and code-snippet browser checks. It also clicks
+the local Studio/Playground links, checks Studio security headers and worker
+scope, clones and builds a project online/offline, and renders edited Playground
+source. The `_headers` hosting control file is fingerprinted separately because
+it is configuration, rather than a public URL.
 
 Markdown block examples use source-only `cem-demo-element` viewers. The native
 page transform trims outer source whitespace while preserving inner indentation

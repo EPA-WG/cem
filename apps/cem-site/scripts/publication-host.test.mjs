@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { publicationOrigin, verifyPublishedAssets } from './publication-host.mjs';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { collectGalleryPublication, combinedPublication, publicationHash, assetPageRoute, readPublicationInventory } from './publication-host-galleries.mjs';
+import { collectGalleryPublication, combinedPublication, publicationHash, assetPageRoute, readPublicationInventory, siteFileBudget, studioHostingHeaders, assertLocalDemoLinks } from './publication-host-galleries.mjs';
 
 test('public Site acceptance preserves local default and normalizes only an HTTPS origin', () => {
     assert.equal(publicationOrigin(undefined), undefined);
@@ -17,6 +17,12 @@ for (const value of ['http://site.example/', 'https://user:secret@site.example/'
     test(`refuses ambiguous public Site target ${value.replace('secret', 'redacted')}`, () => assert.throws(() => publicationOrigin(value), /HTTPS origin/));
 }
 const bytes = Buffer.from('native publication');
+test('presentation HTML refuses former demo-host links while preserving relative URLs', () => {
+    assertLocalDemoLinks(Buffer.from('<a href="/studio/">Studio</a>'), 'index.html');
+    assert.throws(() => assertLocalDemoLinks(Buffer.from('<a href="https://green-morning-fd6e.trans-acf.workers.dev/studio/">Studio</a>'), 'index.html'), /Former demo-host link remains/);
+    assert.throws(() => assertLocalDemoLinks(Buffer.from('<script src="//green-morning-fd6e.trans-acf.workers.dev/runtime.js"></script>'), 'page.xhtml'), /Former demo-host link remains/);
+    assert.throws(() => assertLocalDemoLinks(Buffer.from('<a href=https://green-morning-fd6e.trans-acf.workers.dev/studio/>Studio</a>'), 'page.html'), /Former demo-host link remains/);
+});
 const inventory = { aggregateSha256: 'fixture', files: [{ path: 'index.html', bytes: bytes.length,
     sha256: createHash('sha256').update(bytes).digest('hex') }] };
 test('graph-emitted HTML is verified at its canonical public route without a redirect', async () => {
@@ -49,13 +55,16 @@ async function galleryFixture(t) {
         'packages/cem-theme/dist/lib/tokens/catalog.json': 'complete public theme metadata',
         'packages/cem-elements/dist/runtime.js': 'shared runtime',
         'packages/cem-demo-element/dist/index.js': 'shared source viewer',
-        'studio/index.html': 'separate Studio', 'index.html': 'separate demo root', '_headers': 'separate headers',
+        'studio/index.html': 'same-origin Studio',
+        'studio/build.json': '{}', 'studio/cache-inventory.json': '{}', 'studio/service-worker.js': 'scoped worker',
+        'studio/security-headers.json': JSON.stringify({ headers: { 'Content-Security-Policy': "default-src 'self'", 'X-Content-Type-Options': 'nosniff' } }),
+        'index.html': 'separate demo root', '_headers': 'separate headers',
     };
     const files = [];
     for (const [path, value] of Object.entries(content)) {
-        for (const base of [demo, source]) {
-            await mkdir(dirname(join(base, path)), { recursive: true });
-            await writeFile(join(base, path), value);
+        for (const destination of [join(demo, path), join(source, path.startsWith('studio/') ? 'packages/cem-studio/dist/static/' + path.slice(7) : path)]) {
+            await mkdir(dirname(destination), { recursive: true });
+            await writeFile(destination, value);
         }
         files.push({ path, bytes: Buffer.byteLength(value), sha256: publicationHash(value) });
     }
@@ -65,10 +74,12 @@ async function galleryFixture(t) {
 test('component publication preserves complete package trees and canonical same-origin routes', async t => {
     const { demo, source } = await galleryFixture(t);
     const gallery = await collectGalleryPublication(demo, { sourceRoot: source });
-    assert.equal(gallery.fileCount, 6);
+    assert.equal(gallery.fileCount, 11);
     assert.equal(gallery.galleryCount, 1);
     assert.ok(gallery.files.some(file => file.path.endsWith('tokens/catalog.json')));
-    assert.ok(!gallery.files.some(file => file.path.startsWith('studio/') || file.path === 'index.html' || file.path === '_headers'));
+    assert.equal(gallery.studioFileCount, 5);
+    assert.ok(gallery.files.some(file => file.path === 'studio/index.html'));
+    assert.ok(!gallery.files.some(file => file.path === 'index.html' || file.path === '_headers'));
     assert.deepEqual(gallery.galleryRoutes, ['/packages/cem-components/playgrounds/cem-icon-gallery']);
     assert.equal(assetPageRoute('packages/cem-components/index.html'), '/packages/cem-components/');
 });
@@ -98,7 +109,27 @@ test('combined inventory covers its gallery manifest and refuses duplicates or e
     assert.equal(combined.fileCount, 3);
     assert.equal(combined.files.find(file => file.path === 'component-gallery-publication.json').sha256, publicationHash(bytes));
     assert.throws(() => combinedPublication(native, { ...gallery, files: native.files }, bytes), /Duplicate/);
-    assert.throws(() => combinedPublication(native, { ...gallery, files: Array.from({ length: 998 }, (_, i) => ({ path: `package/${i}` })) }, bytes), /999-file budget/);
+    assert.throws(() => combinedPublication(native, { ...gallery, files: Array.from({ length: siteFileBudget - 1 }, (_, i) => ({ path: `package/${i}` })) }, bytes), /1999-file budget/);
+});
+test('Studio publication refuses missing build assets, stale builds and incomplete current trees', async t => {
+    const { demo, source } = await galleryFixture(t);
+    await writeFile(join(source, 'packages/cem-studio/dist/static/index.html'), 'new Studio');
+    await assert.rejects(collectGalleryPublication(demo, { sourceRoot: source }), /Studio differs from current build/);
+    await writeFile(join(source, 'packages/cem-studio/dist/static/index.html'), 'same-origin Studio');
+    await writeFile(join(source, 'packages/cem-studio/dist/static/new-module.js'), 'new module');
+    await assert.rejects(collectGalleryPublication(demo, { sourceRoot: source }), /every current Studio asset/);
+    const path = join(demo, 'demo-deployment.json');
+    const inventory = JSON.parse(await readFile(path));
+    inventory.files = inventory.files.filter(file => file.path !== 'studio/service-worker.js');
+    inventory.fileCount--;
+    await writeFile(path, JSON.stringify(inventory));
+    await assert.rejects(collectGalleryPublication(demo), /Missing Studio asset: service-worker.js/);
+});
+test('Studio security headers apply only to its subtree and refuse malformed values', async t => {
+    const { demo } = await galleryFixture(t);
+    assert.equal((await studioHostingHeaders(demo)).toString(), "/studio/*\n  Content-Security-Policy: default-src 'self'\n  X-Content-Type-Options: nosniff\n");
+    await writeFile(join(demo, 'studio/security-headers.json'), JSON.stringify({ headers: { 'Content-Security-Policy': "default-src 'self'\nInjected: value" } }));
+    await assert.rejects(studioHostingHeaders(demo), /Invalid Studio security header/);
 });
 test('public verification refuses a changed combined manifest and lost native members', async t => {
     const { demo } = await galleryFixture(t);

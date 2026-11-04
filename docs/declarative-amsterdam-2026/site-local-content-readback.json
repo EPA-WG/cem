@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-04T11:30:14.538383+00:00",
+  "status": "prepared and locally verified; owner deployment and public acceptance pending",
+  "baseCommit": "4f4fb4e8e5e9cf6d3db2f88770d3072cb2bbcf64",
+  "destination": {
+    "worker": "cem-amsterdam-2026",
+    "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+    "actualVersionId": null,
+    "config": "wrangler.site.jsonc",
+    "command": "npx wrangler@4 deploy --config wrangler.site.jsonc"
+  },
+  "archive": {
+    "path": "/home/suns/cem/dist/releases/cem-site-cloudflare.tgz",
+    "bytes": 54649537,
+    "sha256": "77ee95afe257a530a96f37af00516022cc31a64867a53dd85812f0ba36730b1c",
+    "handoffPath": "dist/releases/cem-site-local-content.tgz",
+    "supersedes": "cem-site-galleries-and-snippets.tgz"
+  },
+  "native": {
+    "cleanBuilds": 2,
+    "routeCount": 27,
+    "fileCount": 303,
+    "aggregateSha256": "8c85b5110970bbe83612e5448840423ff34538215d352e50c5d2329e004ea37c"
+  },
+  "combined": {
+    "status": "passed",
+    "fileCount": 1206,
+    "aggregateSha256": "7c98cb068079627ed3b066d869fce9ba06ccf0cc80933a33960ec0e914c47d20"
+  },
+  "packagedContent": {
+    "sourceRoot": "/home/suns/cem-bin",
+    "sourceInventorySha256": "d8407721643ab82ba16a2b0f72766323a324fdbb84b7cf1ffccb80156094d34c",
+    "fileCount": 902,
+    "galleryCount": 59,
+    "studioFileCount": 336,
+    "manifestPath": "component-gallery-publication.json"
+  },
+  "hostingControls": [
+    {
+      "path": "_headers",
+      "bytes": 708,
+      "sha256": "eac7eeec673f480e9010f0f61aed141b13ae11b20d9611304d08f6daf8261c8f"
+    }
+  ],
+  "navigation": {
+    "status": "passed",
+    "htmlFileCount": 383,
+    "headersChecked": 27,
+    "relativeLinks": [
+      "/studio/",
+      "/packages/cem-demo-element/demo/playground",
+      "/packages/cem-components/"
+    ],
+    "fatDotsPerHeader": 11,
+    "legacyHostLinks": 0
+  },
+  "localApplications": {
+    "origin": "https://127.0.0.1:8795",
+    "status": "passed",
+    "studio": {
+      "route": "/studio/",
+      "scope": "https://127.0.0.1:8795/studio/",
+      "securityHeaders": "matched",
+      "savedCopy": true,
+      "nativeBuild": true,
+      "offlineRebuild": true
+    },
+    "playground": {
+      "route": "/packages/cem-demo-element/demo/playground",
+      "editedSourceRender": true
+    },
+    "legacyRequests": []
+  },
+  "localTls": "Production Studio CSP retained; development certificate accepted only for loopback browser QA. Public origins use normal HTTPS validation.",
+  "siteProduction": {
+    "routeCount": 27,
+    "responseCount": 27,
+    "fragmentLinkCount": 86,
+    "focusableCount": 1161,
+    "aggregateSha256": "8c85b5110970bbe83612e5448840423ff34538215d352e50c5d2329e004ea37c"
+  },
+  "checks": {
+    "sourceVerification": "passed",
+    "hostingPublicationGuards": 23,
+    "canonicalRegressions": 5,
+    "lint": "passed",
+    "wranglerDryRun": "passed"
+  },
+  "retainedEvidence": {
+    "galleriesAndSnippets": "site-galleries-snippets-readback.json",
+    "note": "All prior gallery/package/viewer assets retain their exact prepared bytes; all current 1,206 public files checked through local workerd."
+  },
+  "publicationBudget": {
+    "site": 1999,
+    "standaloneDemo": 999,
+    "cloudflareFreePlan": 20000,
+    "source": "https://developers.cloudflare.com/workers/platform/limits/#static-assets"
+  },
+  "publicAcceptance": "pending owner deployment and cem-site:verify:public; includes all file hashes, Site suites, galleries, snippets and local-app workflows"
+}

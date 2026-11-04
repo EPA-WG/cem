@@ -7,6 +7,7 @@ import { publicationOrigin, verifyPublishedAssets } from './publication-host.mjs
 import { verifyComponentGalleries } from './verify-galleries.mjs';
 import { readPublicationInventory } from './publication-host-galleries.mjs';
 import { verifyCodeSnippets } from './verify-snippets.mjs';
+import { verifyLocalApps } from './verify-local-apps.mjs';
 
 const workspace = resolve(import.meta.dirname, '../../..');
 const origin = publicationOrigin(process.env.CEM_SITE_ACCEPTANCE_URL);
@@ -24,6 +25,11 @@ try {
     const inventory = await readPublicationInventory(prepared, native);
     report.preparedArchiveSha256 = prepared.archive.sha256;
     report.nativeAggregateSha256 = native.aggregateSha256;
+    for (const entry of prepared.hostingControls ?? []) {
+        const bytes = await readFile(resolve(prepared.output, entry.path));
+        assert.ok(bytes.length === entry.bytes && createHash('sha256').update(bytes).digest('hex') === entry.sha256,
+            `Prepared hosting control changed: ${entry.path}`);
+    }
     const nativePaths = new Set(native.files.map(entry => entry.path));
     for (const entry of inventory.files) {
         const bytes = await readFile(resolve(nativePaths.has(entry.path) ? resolve(workspace, 'dist/apps/cem-site') : prepared.output, entry.path));
@@ -48,6 +54,8 @@ try {
     const galleries = JSON.parse(await readFile(resolve(prepared.output, prepared.galleries.manifestPath), 'utf8'));
     report.galleries = await verifyComponentGalleries(origin, galleries);
     report.snippets = await verifyCodeSnippets(origin, routes.entries);
+    const security = JSON.parse(await readFile(resolve(prepared.output, 'studio/security-headers.json'), 'utf8'));
+    report.localApps = await verifyLocalApps(origin, security.headers);
     report.status = 'passed';
 } catch (error) { report.status = 'failed'; report.error = error.message; if (error.cause?.files) report.assetFailures = error.cause.files; throw error; }
 finally { report.finishedAt = new Date().toISOString(); await save(); }

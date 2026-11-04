@@ -1,6 +1,57 @@
 # CEM Site: Cloudflare publication
 
-## Current update: galleries and source snippets — 2026-11-04
+## Current update: every demo link stays on the Site — 2026-11-04
+
+Prepared and locally verified; **owner deployment and public acceptance remain
+pending**. All seven layouts now use relative URLs for CEM Components
+(`/packages/cem-components/`), Studio (`/studio/`) and Playground
+(`/packages/cem-demo-element/demo/playground`). The presentation Site includes
+all of their content and dependencies. The 383 published HTML/XHTML files contain
+no links to the former green-morning host; every native header retains its
+11 decorative fat-dot separators.
+
+This update supersedes the previous galleries/snippets-only bundle. Extract
+`dist/releases/cem-site-local-content.tgz` (54,649,537 bytes) into a fresh folder
+and deploy from that folder:
+
+```sh
+npx wrangler@4 deploy --config wrangler.site.jsonc
+```
+
+Expected Worker: `cem-amsterdam-2026`. Archive SHA-256:
+`77ee95afe257a530a96f37af00516022cc31a64867a53dd85812f0ba36730b1c`.
+The combined inventory contains 1,206 public files: 303 deterministic native
+files, 902 package/Studio files (including all 336 Studio build files), and the
+publication manifest. Combined SHA-256:
+`7c98cb068079627ed3b066d869fce9ba06ccf0cc80933a33960ec0e914c47d20`.
+All decoded file hashes match through local workerd. Studio security headers
+are emitted as a separate fingerprinted `_headers` control file scoped to
+`/studio/*`; the Site root keeps its own publication.
+
+Browser checks on local HTTPS pass for actual header navigation, Studio startup,
+exact security headers, saved project cloning, native HTML/CSS preview, offline
+rebuild, worker scope and Playground edited-source rendering. No request goes
+to the former demo host. The local test accepts a development certificate only
+on loopback; public verification uses normal HTTPS certificate validation.
+Plain HTTP preview is unsuitable for the Studio precache test because its
+production CSP upgrades redirected HTTP requests to HTTPS. The production
+security policy is preserved unchanged.
+
+The Site production crawl (27 routes/86 fragments), native determinism, source
+verification, 23 publication guards, five canonical regressions, lint and Wrangler
+dry run pass. The combined Site budget is now 1,999 public files to accommodate
+Studio alongside the native Site; this is below Cloudflare's documented
+[20,000-file free-plan limit](https://developers.cloudflare.com/workers/platform/limits/#static-assets).
+The standalone demo's 999-file budget is unchanged.
+See the [local-content readback](site-local-content-readback.json).
+
+After owner deployment, use the same `cem-site:verify:public` command below.
+It now also verifies Studio/Playground navigation, security headers, worker
+scope, online/offline project build and Playground rendering on the public Site.
+
+## Previous prepared update
+
+### Galleries and source snippets — 2026-11-04
 
 Prepared and locally verified; **owner deployment and public acceptance are
 pending**. This update includes all 59 component galleries and their property

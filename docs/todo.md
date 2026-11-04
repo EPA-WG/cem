@@ -664,10 +664,22 @@ channels; private agreements remain unverified. This file owns execution order.
       flows. Twenty publication guards, five canonical regressions and native
       determinism pass. [Readback](declarative-amsterdam-2026/site-galleries-snippets-readback.json).
 
+- [x] Make every presentation Site link to the former demo host relative,
+      including Studio and Playground, and package their content on the Site.
+      Add publication fixtures for complete/fresh Studio assets and scoped
+      security headers, scan every published HTML link, and exercise Studio
+      startup, worker scope and Playground rendering on the combined Worker.
+      Verified locally 2026-11-04: 383 HTML/XHTML files with no old-host links,
+      27 relative headers, all 1,206 public hashes, complete 336-file Studio build,
+      unchanged Studio security headers, online/offline native build and local
+      Playground rendering. Twenty-three publication guards and the 27-route
+      Site crawl pass. [Readback](declarative-amsterdam-2026/site-local-content-readback.json).
+
 - [ ] Deploy the combined galleries/snippets Site bundle from the owner's
-      signed-in machine, record the actual URL/version, then verify all 870 files,
-      Site workflows, galleries and code snippets on the public host. Use
-      `cem-site-galleries-and-snippets.tgz` and `wrangler.site.jsonc`; expected
+      signed-in machine, record the actual URL/version, then verify all 1,206 files,
+      Site workflows, galleries, code snippets, Studio and Playground on the
+      public host. Use the superseding `cem-site-local-content.tgz` and
+      `wrangler.site.jsonc`; expected
       Worker `cem-amsterdam-2026`. [Deployment steps](declarative-amsterdam-2026/site-cloudflare-publication.md).
 
 - [x] Add Studio and Playground links to every Site header and point CEM Components
