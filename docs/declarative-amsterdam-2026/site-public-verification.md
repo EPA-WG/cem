@@ -1,4 +1,23 @@
-# CEM Site public verification — 2026-11-03
+# CEM Site public verification
+
+## Header navigation release — 2026-11-04
+
+The public Site now includes **CEM Components**, **Studio**, and **Playground**
+in every header, separated by decorative `•` symbols. CEM Components opens the
+live component package gallery; its icon example is
+[cem-icon](https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/playgrounds/cem-icon-gallery).
+All 27 public headers match their expected 12 destinations and 11 separators.
+
+The public acceptance target passes: every one of 303 decoded native files
+matches the prepared release, all 27 routes and 86 fragment links pass production
+browser checks, and the full interactive and search suites pass. Native aggregate
+SHA-256: `bce339c3ea8da49b16129ece65683f4504bb4912dc45abbddd662f1ad13497d6`.
+The [readback](site-public-header-readback.json) retains the release identity,
+all byte witnesses, browser receipts and header destinations. Source commit:
+`4d2973f5`. The owner has not supplied the new Wrangler version ID; the served
+bytes independently identify the updated release.
+
+## Initial publication — 2026-11-03
 
 The [presentation guide](https://cem-amsterdam-2026.trans-acf.workers.dev/guides/declarative-amsterdam-2026/)
 and the [complete CEM Site](https://cem-amsterdam-2026.trans-acf.workers.dev/)

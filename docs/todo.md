@@ -637,12 +637,13 @@ channels; private agreements remain unverified. This file owns execution order.
       and ensure the Projector page canvas is white. Extend shared gallery checks
       for header visibility, Projector selection/restoration and nested themes.
 
-- [ ] Add Studio and Playground links to every Site header and point CEM Components
+- [x] Add Studio and Playground links to every Site header and point CEM Components
       at the live package gallery, with a decorative fat-dot separator between links. Verify the native output and keyboard
       navigation, prepare the Cloudflare update, and check it after owner deploy.
       Local verification passed 2026-11-04: all 27 headers, 303 deterministic files,
       27 browser routes, 86 fragments, 1,163 focus stops and Wrangler dry run.
-      The prepared header-update bundle awaits owner deployment.
+      Public verification passed: all 303 bytes checks, 27 headers/routes,
+      interactive examples and search. [Readback](declarative-amsterdam-2026/site-public-header-readback.json).
 
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,
       output and demo path. Check slide readability and the fallback flow;

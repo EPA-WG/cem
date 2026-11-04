@@ -1,0 +1,4096 @@
+{
+  "sourceRevision": "4d2973f5",
+  "ownerReportedVersionId": null,
+  "versionNote": "The owner has not supplied the new Wrangler version ID. Public bytes identify the deployed release independently.",
+  "publication": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-04T06:12:46.970Z",
+    "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+    "status": "passed",
+    "suites": [
+      {
+        "suite": "production",
+        "exitCode": 0,
+        "receipt": {
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "hostingProfile": "public",
+          "version": 1,
+          "routeCount": 27,
+          "responseCount": 27,
+          "headingCount": 369,
+          "focusableCount": 1163,
+          "fragmentLinkCount": 86,
+          "cleanOutputFiles": 303,
+          "aggregateSha256": "bce339c3ea8da49b16129ece65683f4504bb4912dc45abbddd662f1ad13497d6",
+          "routes": [
+            {
+              "route": "/guides/declarative-amsterdam-2026/",
+              "status": 200,
+              "title": "One document, reusable capabilities",
+              "headingCount": 7,
+              "focusableCount": 21,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/",
+              "status": 200,
+              "title": "CEM Site",
+              "headingCount": 2,
+              "focusableCount": 23,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/guides/",
+              "status": 200,
+              "title": "CEM Site Guides",
+              "headingCount": 2,
+              "focusableCount": 21,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/packages/",
+              "status": 200,
+              "title": "Public packages and crates",
+              "headingCount": 3,
+              "focusableCount": 25,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/guides/cem-ml/cli/",
+              "status": 200,
+              "title": "CEM-ML Browser and Node CLI Guide",
+              "headingCount": 6,
+              "focusableCount": 18,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/cem-ml/transform-config/",
+              "status": 200,
+              "title": "CEM-ML Transform Graph Reference",
+              "headingCount": 6,
+              "focusableCount": 13,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/cem-ml/wasm-runtime/",
+              "status": 200,
+              "title": "CEM-ML WASM Runtime Reference",
+              "headingCount": 13,
+              "focusableCount": 17,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/cem-elements/",
+              "status": 200,
+              "title": "CEM Elements Package Reference",
+              "headingCount": 25,
+              "focusableCount": 83,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/custom-element/",
+              "status": 200,
+              "title": "Custom Element Package Reference",
+              "headingCount": 33,
+              "focusableCount": 46,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/trang-native/",
+              "status": 200,
+              "title": "Trang Native Package Reference",
+              "headingCount": 13,
+              "focusableCount": 19,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/crates/cem-ml/",
+              "status": 200,
+              "title": "cem-ml Rust Crate Reference",
+              "headingCount": 16,
+              "focusableCount": 21,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/crates/cem-ml-cli/",
+              "status": 200,
+              "title": "cem-ml-cli Rust Crate Reference",
+              "headingCount": 7,
+              "focusableCount": 17,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/crates/cem-ml-transform-cem-ql/",
+              "status": 200,
+              "title": "cem-ml-transform-cem-ql Rust Crate Reference",
+              "headingCount": 17,
+              "focusableCount": 31,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/crates/cem-ql/",
+              "status": 200,
+              "title": "cem-ql Rust Crate Reference",
+              "headingCount": 38,
+              "focusableCount": 77,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/tokens/",
+              "status": 200,
+              "title": "CEM token browser",
+              "headingCount": 1,
+              "focusableCount": 12,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/components/",
+              "status": 200,
+              "title": "CEM component gallery",
+              "headingCount": 4,
+              "focusableCount": 80,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/components/angular-material/",
+              "status": 200,
+              "title": "Angular Material coverage comparison",
+              "headingCount": 41,
+              "focusableCount": 16,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/examples/cem-ml/",
+              "status": 200,
+              "title": "Canonical CEM-ML Examples",
+              "headingCount": 1,
+              "focusableCount": 14,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/examples/components/",
+              "status": 200,
+              "title": "CEM Component Examples",
+              "headingCount": 1,
+              "focusableCount": 20,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/examples/interactive/",
+              "status": 200,
+              "title": "Interactive CEM examples",
+              "headingCount": 6,
+              "focusableCount": 17,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/components/",
+              "status": 200,
+              "title": "CEM Component Authored Reference",
+              "headingCount": 16,
+              "focusableCount": 75,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/releases/",
+              "status": 200,
+              "title": "CEM Workspace Release Notes",
+              "headingCount": 51,
+              "focusableCount": 318,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/releases/cem-components/",
+              "status": 200,
+              "title": "CEM Components Release Notes",
+              "headingCount": 20,
+              "focusableCount": 20,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/releases/cem-elements/",
+              "status": 200,
+              "title": "CEM Elements Release Notes",
+              "headingCount": 5,
+              "focusableCount": 16,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/releases/cem-theme/",
+              "status": 200,
+              "title": "CEM Theme Release Notes",
+              "headingCount": 29,
+              "focusableCount": 29,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/releases/custom-element/",
+              "status": 200,
+              "title": "Custom Element Release Notes",
+              "headingCount": 5,
+              "focusableCount": 14,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/search/",
+              "status": 200,
+              "title": "Search CEM Site",
+              "headingCount": 1,
+              "focusableCount": 100,
+              "fragmentLinkCount": 86,
+              "runtimeErrors": []
+            }
+          ],
+          "runtimeErrors": []
+        }
+      },
+      {
+        "suite": "interactive",
+        "exitCode": 0,
+        "receipt": {
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "hostingProfile": "public",
+          "themes": {
+            "themes": [
+              {
+                "mode": "light",
+                "background": "color(srgb 0.742353 0.553333 0.815294)",
+                "color": "rgb(0, 16, 16)",
+                "fieldIndicator": "color(srgb 0 0.0627451 0.0627451 / 0.62) 0px 1px 0px 0px, rgb(0, 47, 101) 0px 3px 0px 0px, rgb(106, 27, 154) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4,
+                "previewFont": "17px",
+                "previewInset": "19px"
+              },
+              {
+                "mode": "dark",
+                "background": "color(srgb 0.555686 0.297647 0.69451)",
+                "color": "rgb(241, 254, 254)",
+                "fieldIndicator": "color(srgb 0.945098 0.996078 0.996078 / 0.62) 0px 1px 0px 0px, rgb(241, 254, 254) 0px 3px 0px 0px, rgb(225, 190, 231) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4,
+                "previewFont": "17px",
+                "previewInset": "19px"
+              },
+              {
+                "mode": "contrast-light",
+                "background": "rgb(241, 254, 254)",
+                "color": "rgb(0, 16, 16)",
+                "fieldIndicator": "color(srgb 0 0.0627451 0.0627451 / 0.62) 0px 1px 0px 0px, rgb(0, 47, 101) 0px 3px 0px 0px, rgb(106, 27, 154) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4,
+                "previewFont": "17px",
+                "previewInset": "19px"
+              },
+              {
+                "mode": "contrast-dark",
+                "background": "rgb(0, 16, 16)",
+                "color": "rgb(241, 254, 254)",
+                "fieldIndicator": "color(srgb 0.945098 0.996078 0.996078 / 0.62) 0px 1px 0px 0px, rgb(241, 254, 254) 0px 3px 0px 0px, rgb(225, 190, 231) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4,
+                "previewFont": "17px",
+                "previewInset": "19px"
+              },
+              {
+                "mode": "native",
+                "background": "rgb(239, 239, 239)",
+                "color": "rgb(0, 0, 0)",
+                "fieldIndicator": "color(srgb 0 0 0 / 0.62) 0px 1px 0px 0px, rgb(0, 0, 0) 0px 3px 0px 0px, color(srgb 0.351373 0 0.351373) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4,
+                "previewFont": "17px",
+                "previewInset": "19px"
+              }
+            ],
+            "forcedColors": [
+              {
+                "tag": "input",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "none",
+                "outline": "solid",
+                "outlineWidth": 3
+              },
+              {
+                "tag": "button",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "solid",
+                "outline": "none",
+                "outlineWidth": 3
+              },
+              {
+                "tag": "input",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "none",
+                "outline": "solid",
+                "outlineWidth": 1
+              },
+              {
+                "tag": "figure",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "solid",
+                "outline": "none",
+                "outlineWidth": 3
+              },
+              {
+                "tag": "figure",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "solid",
+                "outline": "none",
+                "outlineWidth": 3
+              }
+            ]
+          },
+          "version": 1,
+          "xhtml": {
+            "resource": "./assets/cem-components/cem-select.xhtml",
+            "namedTemplate": "cem-select",
+            "value": "second",
+            "display": "grid",
+            "scoped": true,
+            "shadow": false
+          },
+          "route": "/examples/interactive/",
+          "tokenFilterVisibleCount": 1,
+          "actionCount": 2,
+          "lightDom": {
+            "action": true,
+            "field": true,
+            "cemFixture": true
+          },
+          "importSpecifiers": [
+            "@epa-wg/cem-elements",
+            "@epa-wg/cem-site/components-runtime",
+            "@epa-wg/cem-site/runtime",
+            "@epa-wg/cem-site/search"
+          ],
+          "stylesheetCount": 2,
+          "runtimeErrors": []
+        }
+      },
+      {
+        "suite": "search",
+        "exitCode": 0,
+        "receipt": {
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "hostingProfile": "public",
+          "themes": {
+            "themes": [
+              {
+                "mode": "light",
+                "background": "color(srgb 0.742353 0.553333 0.815294)",
+                "color": "rgb(0, 16, 16)",
+                "fieldIndicator": "color(srgb 0 0.0627451 0.0627451 / 0.62) 0px 1px 0px 0px, rgb(0, 47, 101) 0px 3px 0px 0px, rgb(106, 27, 154) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4
+              },
+              {
+                "mode": "dark",
+                "background": "color(srgb 0.555686 0.297647 0.69451)",
+                "color": "rgb(241, 254, 254)",
+                "fieldIndicator": "color(srgb 0.945098 0.996078 0.996078 / 0.62) 0px 1px 0px 0px, rgb(241, 254, 254) 0px 3px 0px 0px, rgb(225, 190, 231) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4
+              },
+              {
+                "mode": "contrast-light",
+                "background": "rgb(241, 254, 254)",
+                "color": "rgb(0, 16, 16)",
+                "fieldIndicator": "color(srgb 0 0.0627451 0.0627451 / 0.62) 0px 1px 0px 0px, rgb(0, 47, 101) 0px 3px 0px 0px, rgb(106, 27, 154) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4
+              },
+              {
+                "mode": "contrast-dark",
+                "background": "rgb(0, 16, 16)",
+                "color": "rgb(241, 254, 254)",
+                "fieldIndicator": "color(srgb 0.945098 0.996078 0.996078 / 0.62) 0px 1px 0px 0px, rgb(241, 254, 254) 0px 3px 0px 0px, rgb(225, 190, 231) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4
+              },
+              {
+                "mode": "native",
+                "background": "color(srgb 0.76149 0.656078 0.76149)",
+                "color": "rgb(0, 0, 0)",
+                "fieldIndicator": "color(srgb 0 0 0 / 0.62) 0px 1px 0px 0px, rgb(0, 0, 0) 0px 3px 0px 0px, color(srgb 0.351373 0 0.351373) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4
+              }
+            ],
+            "forcedColors": [
+              {
+                "tag": "input",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "none",
+                "outline": "solid",
+                "outlineWidth": 3
+              },
+              {
+                "tag": "button",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "solid",
+                "outline": "none",
+                "outlineWidth": 3
+              }
+            ]
+          },
+          "version": 1,
+          "xhtml": {
+            "resource": "./assets/cem-components/cem-select.xhtml",
+            "namedTemplate": "cem-select",
+            "value": "second",
+            "display": "grid",
+            "scoped": true,
+            "shadow": false
+          },
+          "route": "/search/",
+          "documentCount": 26,
+          "graphSemanticsResults": 1,
+          "liveNativeOutputResults": 1,
+          "deepLink": "/reference/cem-ml/transform-config/#heading-13",
+          "componentLightDom": {
+            "field": true,
+            "action": true
+          },
+          "importSpecifiers": [
+            "@epa-wg/cem-elements",
+            "@epa-wg/cem-site/components-runtime",
+            "@epa-wg/cem-site/runtime",
+            "@epa-wg/cem-site/search"
+          ],
+          "stylesheetCount": 2,
+          "runtimeErrors": []
+        }
+      }
+    ],
+    "preparedArchiveSha256": "240e7934ecfc9d3dcae8dd20c5b2dee494ef192c218a17c452f0c0937a8923e4",
+    "assets": {
+      "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+      "aggregateSha256": "bce339c3ea8da49b16129ece65683f4504bb4912dc45abbddd662f1ad13497d6",
+      "files": [
+        {
+          "path": "components/angular-material/index.html",
+          "requestPath": "/components/angular-material/",
+          "status": 200,
+          "bytes": 112413,
+          "sha256": "9b6ea25233ed462d04e4c1614975ee22ba9f49cc15b6240df68acf4ae3515e25"
+        },
+        {
+          "path": "components/angular-material/index.html.map",
+          "requestPath": "components/angular-material/index.html.map",
+          "status": 200,
+          "bytes": 7534572,
+          "sha256": "8bc06597415cb7ca90262536968ffa389082441eaba740a6ab205ad49e3f7c94"
+        },
+        {
+          "path": "components/index.html",
+          "requestPath": "/components/",
+          "status": 200,
+          "bytes": 116707,
+          "sha256": "e9ced82cc1b06f4f774badcb32d21fb36adc32f94d40a029e772553fd1daf0a2"
+        },
+        {
+          "path": "components/index.html.map",
+          "requestPath": "components/index.html.map",
+          "status": 200,
+          "bytes": 9422311,
+          "sha256": "7f3d38a3b761d6d459a3428f2e9149ebdbef5a12bc5c48de25109e6a88679a03"
+        },
+        {
+          "path": "examples/cem-ml/index.html",
+          "requestPath": "/examples/cem-ml/",
+          "status": 200,
+          "bytes": 7186,
+          "sha256": "b42b4aed790d6e92850b97ce89cf9fcf633753751a2a8df79c4a01e3ebd7ec76"
+        },
+        {
+          "path": "examples/cem-ml/index.html.map",
+          "requestPath": "examples/cem-ml/index.html.map",
+          "status": 200,
+          "bytes": 743287,
+          "sha256": "11e2e88931acd2fa5f6a6a24e74abc904ecb72f5a291b674b659cbea9d4500f2"
+        },
+        {
+          "path": "examples/components/index.html",
+          "requestPath": "/examples/components/",
+          "status": 200,
+          "bytes": 8019,
+          "sha256": "3f62a4c8e82f197c5bbe4bf4d69f1df01e2c58d5426627f7b73c266a3398b49d"
+        },
+        {
+          "path": "examples/components/index.html.map",
+          "requestPath": "examples/components/index.html.map",
+          "status": 200,
+          "bytes": 682424,
+          "sha256": "e3a31b936e13e34296173a2c760654ee30406d068d39cc5c144c7f5d59fad2d6"
+        },
+        {
+          "path": "examples/interactive/assets/cem-components/cem-action.xhtml",
+          "requestPath": "examples/interactive/assets/cem-components/cem-action.xhtml",
+          "status": 200,
+          "bytes": 19487,
+          "sha256": "86ec1aae87c85b97f4419f92da082d7cf904f8a0c3b6d0007efe4e2895377c48"
+        },
+        {
+          "path": "examples/interactive/assets/cem-components/cem-field.xhtml",
+          "requestPath": "examples/interactive/assets/cem-components/cem-field.xhtml",
+          "status": 200,
+          "bytes": 7896,
+          "sha256": "8de9b6faeb9dc9358d44e9063a7faf94951c3ab4a0b52b5c14d0b8097b398bf9"
+        },
+        {
+          "path": "examples/interactive/assets/cem-components/cem-media-preview.xhtml",
+          "requestPath": "examples/interactive/assets/cem-components/cem-media-preview.xhtml",
+          "status": 200,
+          "bytes": 4634,
+          "sha256": "951580887d17559740abb3265843c7b317702ebb0e5e523bbac241cfc96fc603"
+        },
+        {
+          "path": "examples/interactive/assets/cem-components/cem-select.xhtml",
+          "requestPath": "examples/interactive/assets/cem-components/cem-select.xhtml",
+          "status": 200,
+          "bytes": 14775,
+          "sha256": "dcff7b636875704c1aab28fd18cf54e44ed61fb97341ad3c535ffeb927110bcf"
+        },
+        {
+          "path": "examples/interactive/assets/cem-components/cem-surface.xhtml",
+          "requestPath": "examples/interactive/assets/cem-components/cem-surface.xhtml",
+          "status": 200,
+          "bytes": 2305,
+          "sha256": "4fb1e4a4b63b7e33b28b8c3c4c47df109f36d72ea8e50913d107b16e43b79a6f"
+        },
+        {
+          "path": "examples/interactive/assets/cem-components/styles.css",
+          "requestPath": "examples/interactive/assets/cem-components/styles.css",
+          "status": 200,
+          "bytes": 75,
+          "sha256": "105c3e81d9365fdedb871f47c23fbd33519ae40c5d24414318f9e98f1cd476f7"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/index.js",
+          "requestPath": "examples/interactive/assets/cem-elements/index.js",
+          "status": 200,
+          "bytes": 2674,
+          "sha256": "015c64b69a85daaffa624947f76979846a46e4d1cd3710d2a5980d60e911ea0d"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/action-command-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/action-command-capability.js",
+          "status": 200,
+          "bytes": 14390,
+          "sha256": "b76679861af0487596b9ca1b205738eec454de7fa2a1b5e2740627f9267d8f77"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/action-control-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/action-control-capability.js",
+          "status": 200,
+          "bytes": 3372,
+          "sha256": "bbfe63c00434825b3e2b56fb8a925ab5d021afcea100c0b4b127d4cee4d6e945"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/aria-reference-profile.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/aria-reference-profile.js",
+          "status": 200,
+          "bytes": 1074,
+          "sha256": "15cf987f3ffd049d80f90200ccb7e10d36e8f2860f6a0c574b942269bf3e9be1"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/artifact-preview.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/artifact-preview.js",
+          "status": 200,
+          "bytes": 21994,
+          "sha256": "3338d4e0c9741bbd43d989a6fc8c62a87ab8bbb3af7fd7c6839c730fa3224117"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/calendar-input-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/calendar-input-capability.js",
+          "status": 200,
+          "bytes": 28088,
+          "sha256": "a9d446d83eecf042ca90def3e002a96f2377fe9eb384161a448c99521805011d"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/cem-elements.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/cem-elements.js",
+          "status": 200,
+          "bytes": 489147,
+          "sha256": "71023ebc1172324405930ac97c3dffee0d9be40987b1eb5229a8d84bb635a524"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkable-control.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkable-control.js",
+          "status": 200,
+          "bytes": 1474,
+          "sha256": "ac556e4f471b1f34766a9bd8f271d9b30902249b098747581993596756a9efd9"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-controls.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-controls.js",
+          "status": 200,
+          "bytes": 5735,
+          "sha256": "6074b6b16c3e5989c24f2362d8e088607aa7208a8d0a277b7254797c0cea52f9"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-form-resume.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-form-resume.js",
+          "status": 200,
+          "bytes": 3084,
+          "sha256": "88465e2ae7db2df89c1f885e127503cd299dd971a871c338497bb342148dd080"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-interactions.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-interactions.js",
+          "status": 200,
+          "bytes": 8065,
+          "sha256": "6873af6b8c8cca99f9ca6cfc5c70b060bcfd7734974cd0e504832ce6e776cef9"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-processing.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-processing.js",
+          "status": 200,
+          "bytes": 7170,
+          "sha256": "db9b25fc3b054be8aa4d63149ba3ea783aa0caca03676bfb8c5a944f191b59e5"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-provider-handoff.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-provider-handoff.js",
+          "status": 200,
+          "bytes": 1201,
+          "sha256": "908e170f2b8a42ac87f2f900891c6c6bf88d0a5482a1f06a018b4a78d87d7c57"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-publication.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-publication.js",
+          "status": 200,
+          "bytes": 37993,
+          "sha256": "242096236e3481d2314c26cedf66f2a00b38a60b33b5177f3791d6228d33c3be"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-reference-resume.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-reference-resume.js",
+          "status": 200,
+          "bytes": 1595,
+          "sha256": "ee5554e077573612bc9a5df76eb2d052ebbac89af8a68b1c75303c6b1ca392ae"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-resume.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-resume.js",
+          "status": 200,
+          "bytes": 16810,
+          "sha256": "6ee1691953d90a1dfff66bd000ab4a9ac74aa8f3d6855e982042f3ee12cc225d"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/choice-options.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/choice-options.js",
+          "status": 200,
+          "bytes": 4087,
+          "sha256": "c1b8fa2632cca42b36ddc4159cd75b15eee921c5ae79c718157d25d537019918"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/choice-select-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/choice-select-capability.js",
+          "status": 200,
+          "bytes": 28149,
+          "sha256": "7cd99386ad1ec12033bae1b6151b253a32bee5b8fd48db7b3efb14bdd12a7f7b"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/committed-checkpoint.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/committed-checkpoint.js",
+          "status": 200,
+          "bytes": 5309,
+          "sha256": "9e7b2f86e18be199fcd0261f4454cbed54e8cce9663caab7121eaba928580a48"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/compiled-declaration-assets.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/compiled-declaration-assets.js",
+          "status": 200,
+          "bytes": 3393,
+          "sha256": "ef2abc72f3429e4dec84c8258ec085ec74c950f48313a412bb7646648c017801"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/composite-menu-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/composite-menu-capability.js",
+          "status": 200,
+          "bytes": 24332,
+          "sha256": "be095538e4db1a024c6d9204b115100c521ff2a7461edec95e1eb0adaab760d6"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/composite-navigation.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/composite-navigation.js",
+          "status": 200,
+          "bytes": 1841,
+          "sha256": "c64dc09742d7f844cb52fbfe2ac7d48cb5e7562dac4750b00429d1c5d85e24a0"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/declaration-scope.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/declaration-scope.js",
+          "status": 200,
+          "bytes": 9116,
+          "sha256": "53759690446c514dfb0cadd006dea25f434f136b99aa658785e87f3e9a46507f"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/declaration-style-markup.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/declaration-style-markup.js",
+          "status": 200,
+          "bytes": 1736,
+          "sha256": "8aaf68f29aac0a3226e7375434b829763519eb548d4bc2c7ce90471cd75aeb08"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/declaration-style-ownership.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/declaration-style-ownership.js",
+          "status": 200,
+          "bytes": 25244,
+          "sha256": "564c07ec1fc5719dd6df64647f16dbea131ae1d2975e0afdf0e295a9420513fa"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/disclosure-panel-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/disclosure-panel-capability.js",
+          "status": 200,
+          "bytes": 5551,
+          "sha256": "1c9bd8ea25a2f6b5c7c460be7519ebcddef335e980f269461b1348b4a95e65a3"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/disposition.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/disposition.js",
+          "status": 200,
+          "bytes": 7096,
+          "sha256": "6ff512dfa8a393e8f4f6157ba1b73f6bb2a2761fe53406935a57073c325ae6b1"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/dom-realm.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/dom-realm.js",
+          "status": 200,
+          "bytes": 351,
+          "sha256": "21ee04cf2925f3bec1ff869bfc23b0f565fb14dcc26b6938c9699e13eeb7cb65"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/edge-css-publication.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/edge-css-publication.js",
+          "status": 200,
+          "bytes": 4961,
+          "sha256": "a3e177a75f5e94cbc4251331d39fad33c736b93bdf16b60dfdc391e28b2077b7"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/edge-ssr-host.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/edge-ssr-host.js",
+          "status": 200,
+          "bytes": 5432,
+          "sha256": "c349fb52650dc0cfbb33eb20291ed4c737589fbabd5e4d745859e5f52d59d37f"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/editable-choice-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/editable-choice-capability.js",
+          "status": 200,
+          "bytes": 23420,
+          "sha256": "a6051239128ec446f91be0236b9b3028de6803b33ad13609188de43df1f63860"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/editor-attributes.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/editor-attributes.js",
+          "status": 200,
+          "bytes": 7494,
+          "sha256": "5af0acfa7310d0f07b365bfe92cc2d600561615ca1c69b89185c06be905a0ece"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/editor-datalist.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/editor-datalist.js",
+          "status": 200,
+          "bytes": 4049,
+          "sha256": "db678897053430fa6c61e9b7ccb5384bb1b6115753f2a08a91a1582ef830fc69"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/element-placement-authority.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/element-placement-authority.js",
+          "status": 200,
+          "bytes": 19837,
+          "sha256": "200de21581407b642d4f1b7a1c9b41f66d183a9bb502bae588e5e8358e50eb56"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/element-placement-coordinator.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/element-placement-coordinator.js",
+          "status": 200,
+          "bytes": 19332,
+          "sha256": "8c19232cc82b694ed669030157845adc69e06316b5deac41f6259f8a63694f75"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/element-placement-plans.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/element-placement-plans.js",
+          "status": 200,
+          "bytes": 2723,
+          "sha256": "2f4fd7e6b19409a6d4de523adfb58e076ce485d72e945801c39a481fe98126cd"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/element-placement-ssr.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/element-placement-ssr.js",
+          "status": 200,
+          "bytes": 6171,
+          "sha256": "1f274a7b0d575c42945cc2f73e9217f51694a76ef1f0ea0646a1917531500f09"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/element-reference-inputs.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/element-reference-inputs.js",
+          "status": 200,
+          "bytes": 2032,
+          "sha256": "a541804c9ac0fcd984078f73ae5a28c428844e13f6f7642c863eb191b8f1e0c0"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/external-declaration-source.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/external-declaration-source.js",
+          "status": 200,
+          "bytes": 1741,
+          "sha256": "4754aba4f56a8990affab632c26ee65aad8c6d8edee298e0792fffba1688e98c"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/form-control-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/form-control-capability.js",
+          "status": 200,
+          "bytes": 31378,
+          "sha256": "bb34051807ef62d9d3d93ed2f863eddd2cf4bad3431463667fbcdc9eedf07035"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/host-view.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/host-view.js",
+          "status": 200,
+          "bytes": 11697,
+          "sha256": "f1e49b4a119fe2a3b02c9f246bbdf81b43bbc127b894abbe44cad18068d76d65"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/http-resource-transport.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/http-resource-transport.js",
+          "status": 200,
+          "bytes": 2460,
+          "sha256": "b01e363795a323cc71321e29cc3d0b785d74b857e5a66ef45ec03f78e8f388cc"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/interaction-reference.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/interaction-reference.js",
+          "status": 200,
+          "bytes": 3762,
+          "sha256": "718692bab49929e2fda62ff94c179289a1a5a4fe04ca5ca6519b8696c2f94b75"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/cem-ql-render.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/cem-ql-render.js",
+          "status": 200,
+          "bytes": 66059,
+          "sha256": "fec460da8ad95763e139f20b502f105432d17b48628010f5a11f092dbffb86f8"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/checkpoint-domain.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/checkpoint-domain.js",
+          "status": 200,
+          "bytes": 29753,
+          "sha256": "bd9151d726e86c9768ede8723ac54ea1c84d71cfbd6ac731a58ac8486c24f431"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/css-dom-publication-queue.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/css-dom-publication-queue.js",
+          "status": 200,
+          "bytes": 3629,
+          "sha256": "6336fcbccae386830dc855a0d12e98cd6c3b92b5c7a4674c262cfb26a2dfaf18"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/instance-stylesheet-installation.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/instance-stylesheet-installation.js",
+          "status": 200,
+          "bytes": 11572,
+          "sha256": "321067f11e85e4322734070ab2c65a15f31dd8a193c6652123da2fc031d4380b"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/location-write-trigger.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/location-write-trigger.js",
+          "status": 200,
+          "bytes": 345,
+          "sha256": "9142167d96c6e683e5b46df6380e2ce25876d2d59444c178eb1b0dfb41f46b39"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/module-url-resolution.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/module-url-resolution.js",
+          "status": 200,
+          "bytes": 9642,
+          "sha256": "c276024b3a3ec8a04f41a486d1fcb505fa317560931561bab96ae37d56688009"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/native-generation.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/native-generation.js",
+          "status": 200,
+          "bytes": 177,
+          "sha256": "2c157124ca296079ba5ff5fb772b888f6a522fc1fe9dc890a5379d987cbc3f5d"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/native-runtime.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/native-runtime.js",
+          "status": 200,
+          "bytes": 22626,
+          "sha256": "2458a35ca1c039c25041a3e64f6f0f800fc6eebac6bfe572cbef96c74dcefc8a"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-cache.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-cache.js",
+          "status": 200,
+          "bytes": 1179,
+          "sha256": "59b74b700008c3ce880f3769e8330735b0fe131c351ff56d3a75f9ef2e835abd"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-engine.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-engine.js",
+          "status": 200,
+          "bytes": 53558,
+          "sha256": "5077e56d6c8a65e8051ebb0f78d3924e50830f44b917b299ed739abaa3c99f43"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-host-runtime.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-host-runtime.js",
+          "status": 200,
+          "bytes": 74544,
+          "sha256": "51f2a4c55d0d5655a7d7200a20e8ab3d79b90466894f81e284521dad3543c977"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-host.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-host.js",
+          "status": 200,
+          "bytes": 14269,
+          "sha256": "dfd92e5bc55a57dac7f947600bd2cdf6779ef568c46322172f8a358272a3701d"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-scheduler.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-scheduler.js",
+          "status": 200,
+          "bytes": 4612,
+          "sha256": "313fc44fd67f3ab3993c78dc18928722fc6996f7d0fa6b184cc25ad9137d55ab"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-worker.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-worker.js",
+          "status": 200,
+          "bytes": 13287,
+          "sha256": "abbbe2bb3d6e674fb81b82554e2cee9491d60c6009166fb62c4cccf9710fc80e"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/schema-asset-protocol.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/schema-asset-protocol.js",
+          "status": 200,
+          "bytes": 164,
+          "sha256": "3d7076bd036bc326737de4c4d5a23fdcc0a2ef94500494c7e9b3437ac534e62b"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-dom-order.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-dom-order.js",
+          "status": 200,
+          "bytes": 950,
+          "sha256": "ddd8b54f072b6d39691cad97eee127bd41cf3a7a5947114aceb8c74e5b9883db"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-installation.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-installation.js",
+          "status": 200,
+          "bytes": 9674,
+          "sha256": "8016087808a10df7f25f6673a460b72329e2694d1033f0cbc2d8fc1d42c38ab2"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-notifications.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-notifications.js",
+          "status": 200,
+          "bytes": 1564,
+          "sha256": "cd0c8cd4e4be5c1f836293d754d3ba61dbf148b306b2b2efab05f515dbccecb5"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-reader.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-reader.js",
+          "status": 200,
+          "bytes": 2139,
+          "sha256": "afaaf79d9638f453ac122d7305a7445748bd4f4a29149a942bded95444fb1f3c"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-registry.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-registry.js",
+          "status": 200,
+          "bytes": 20186,
+          "sha256": "76b7b3807c8a91f84ec81682d24b3890d513cc8acd3f6302690590a2cd9e5292"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "status": 200,
+          "bytes": 24140410,
+          "sha256": "3856b98560281753dffb49b807b1bb4a76f76f4f088a5ce179a2a03c577037b5"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_factory.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_factory.js",
+          "status": 200,
+          "bytes": 130643,
+          "sha256": "4b85f7274b6d6c2d6471352ca4ab89e8ed37fd691d851e4e8882fcbf953e8516"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql.js",
+          "status": 200,
+          "bytes": 121414,
+          "sha256": "3360d940036dc8d36191723b4bd180ad78ef5b1b3c30bf20b1763d62e12cb712"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/native-generation.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/native-generation.js",
+          "status": 200,
+          "bytes": 28361,
+          "sha256": "9d43450f2c1c789b1bbd1cc8f14edb089b63ae43ce589a833f597f0a80952209"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/schema-asset-protocol.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/schema-asset-protocol.js",
+          "status": 200,
+          "bytes": 2367,
+          "sha256": "de75c0f1495a7da742a86d66b6d1e1d2965d3b3bf83f655a16b5e583aceee083"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/xpath-function-library.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/xpath-function-library.js",
+          "status": 200,
+          "bytes": 6424,
+          "sha256": "fa205da2b3237bd2b8ce16fceee740287c3f40c1a5dba94d35a2d95f1f352093"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/legacy-xslt/contract.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/legacy-xslt/contract.js",
+          "status": 200,
+          "bytes": 2292,
+          "sha256": "a46120509cf8f075855e661519235845a27a8645403140ba1bb7a5fe2ee882a3"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/legacy-xslt/template-language.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/legacy-xslt/template-language.js",
+          "status": 200,
+          "bytes": 720,
+          "sha256": "44ca04370d86a8dad8044d35c00259d441fceb2a9266052690586a752a134c20"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/live-preview-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/live-preview-capability.js",
+          "status": 200,
+          "bytes": 8229,
+          "sha256": "92b03bda111c5e5319643e0b7fb825682350dba3fc563461aae1c16a95f9573e"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/live-preview-policy.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/live-preview-policy.js",
+          "status": 200,
+          "bytes": 1942,
+          "sha256": "ca855c8a30ef971e740e18c2fe8b5f1b7c41f4d5819de7c040abc8cc25c584d0"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/live-preview.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/live-preview.js",
+          "status": 200,
+          "bytes": 10806,
+          "sha256": "db2d20c58c5b7260fc547bfdadd5dd4e0e7cafcea9d5e23e06b83c8019a5d308"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/local-suggestions-capture.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/local-suggestions-capture.js",
+          "status": 200,
+          "bytes": 4713,
+          "sha256": "61e28bdd1e46780c7b3af458be6a4bc526138887770d24acff713409dd758269"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/manual-listbox.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/manual-listbox.js",
+          "status": 200,
+          "bytes": 13620,
+          "sha256": "0edffa99426a5dff9f8851d39ea7ae04fa25e00f04102764eb61daaeba1b9c58"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/menu-task-relay.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/menu-task-relay.js",
+          "status": 200,
+          "bytes": 3290,
+          "sha256": "bcc4e12cb0a11c7169b382bc5feaf19d2bb1d7ebf0a78dd10d64a1228afb2295"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/native-capability-session.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/native-capability-session.js",
+          "status": 200,
+          "bytes": 12970,
+          "sha256": "eae9ce302e8716da7a9ef36e5e1c1a4a70735e7c3555320a2e3ef40fa43d1bf3"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/native-datalist-attachment.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/native-datalist-attachment.js",
+          "status": 200,
+          "bytes": 15478,
+          "sha256": "43104d4eef8bca31b0f1f0b68f804e4802ddb9da91df1e502f96cf1f16ae7e13"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/native-list-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/native-list-capability.js",
+          "status": 200,
+          "bytes": 2480,
+          "sha256": "495b6bd8d164b5fd284977b13cba3f27720b43f872bfa45267ef53863fa019ad"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/native-suggestions-publication.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/native-suggestions-publication.js",
+          "status": 200,
+          "bytes": 12164,
+          "sha256": "b61643c6fd5e182e9d6f48ef2bec39da487aa6e1b447543794a219199bafb7af"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/native-surface.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/native-surface.js",
+          "status": 200,
+          "bytes": 45881,
+          "sha256": "396b9bb6b69842fd7eeafa58067c37adf473e8788a4985f744b42718f75e3e4b"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/native-values.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/native-values.js",
+          "status": 200,
+          "bytes": 4599,
+          "sha256": "427a39dcf46e3800592d49b92851a40f7366bb0400f29c7286535c068593875c"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/navigation-landmark-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/navigation-landmark-capability.js",
+          "status": 200,
+          "bytes": 3081,
+          "sha256": "3389fcd23e10ef1d440049385f9163a6aad2aadd8e0798afd0eaee38f362fd37"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/pagination-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/pagination-capability.js",
+          "status": 200,
+          "bytes": 7389,
+          "sha256": "2c34364b513f647e1b47272366c9efcb52571d39fdfb021d7c362a4e25ed233a"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/plaintext-editor-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/plaintext-editor-capability.js",
+          "status": 200,
+          "bytes": 20621,
+          "sha256": "768e58de7ee87798785ccf77545b57bdb3d392a7609b8faf7a31bc01f1ced0d0"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/platform-close.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/platform-close.js",
+          "status": 200,
+          "bytes": 5105,
+          "sha256": "72d45ae13799d068badfd439a464441999155efdc7cc4a9591e839f1bcfab01c"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/popup-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/popup-capability.js",
+          "status": 200,
+          "bytes": 18313,
+          "sha256": "447a77eaad016ff5d71c426883ca70ef2fc5f5c880d97e3e0bf53065e07c5069"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/popup-controller.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/popup-controller.js",
+          "status": 200,
+          "bytes": 15108,
+          "sha256": "23fe5ab302d33ce496b9e369f4a4550cc88643b5e9bd6fa4044ea86d217c4139"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/progress-status-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/progress-status-capability.js",
+          "status": 200,
+          "bytes": 1154,
+          "sha256": "e7c7704ec82c86094f9aaae91026411d672fc4ad8850151486dbad78d0efd55c"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/projection.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/projection.js",
+          "status": 200,
+          "bytes": 138884,
+          "sha256": "d4c3601b320484a81af9dafa1518b19dcc7f28962093a5e5f1ca7df56aae199e"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/range-input-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/range-input-capability.js",
+          "status": 200,
+          "bytes": 8372,
+          "sha256": "7be79c87053c47dcac306e98073c526068eef9145aa7f36baf3f5aecc41ec185"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/recovery-status.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/recovery-status.js",
+          "status": 200,
+          "bytes": 5947,
+          "sha256": "8b79f8d26791ebf1b7a31e240fdd357e738e34b72e60ef772fa9e7a3bae850ef"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/repository.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/repository.js",
+          "status": 200,
+          "bytes": 5461,
+          "sha256": "02301d389e7cb5699999fff97008aad28056284e713a0791bd1359059a78b702"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/schema-asset-pack.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/schema-asset-pack.js",
+          "status": 200,
+          "bytes": 43743,
+          "sha256": "7046e7e2016efd66a431a8de9eba6128103f2d5d5a94f5cd8e8587f83a3113d7"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/sort-action-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/sort-action-capability.js",
+          "status": 200,
+          "bytes": 3316,
+          "sha256": "daaa701ea34321340499829ead6c01d4d520faa8f1f946e69bae92d631a4fcb7"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/standalone-datalist.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/standalone-datalist.js",
+          "status": 200,
+          "bytes": 8968,
+          "sha256": "8c08bfe79fe381e6129962d09e9eebc99629a12872117b5066d73f3ac6f5908a"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/suggestions-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/suggestions-capability.js",
+          "status": 200,
+          "bytes": 34418,
+          "sha256": "a506f37c436081c643932863718b9feab1022fbdbfa40d6309e6643046c7eda0"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/suggestions-controller.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/suggestions-controller.js",
+          "status": 200,
+          "bytes": 28301,
+          "sha256": "768206202ada8ad7f4219ba909f2ff1d82c0d3e34283a1f44ba39baa852d5104"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/suggestions-editor.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/suggestions-editor.js",
+          "status": 200,
+          "bytes": 2003,
+          "sha256": "8d421529c5fd86fd029a09a985816c2099ffb0d851b4eefe6b19b107b8a2ad86"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/suggestions-placements.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/suggestions-placements.js",
+          "status": 200,
+          "bytes": 15573,
+          "sha256": "507e48a900df422d0c9a52a6560533c72476751abafb51c99972cc5542fb8dc4"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/surface-body.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/surface-body.js",
+          "status": 200,
+          "bytes": 8428,
+          "sha256": "36b7e46ef31572f5e0141bc6b3428fc5d705d1235b2196e96f33cfef8edb18ff"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/surface-controls.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/surface-controls.js",
+          "status": 200,
+          "bytes": 11819,
+          "sha256": "dd17cc009902899c8d402f3bf97a7d9ddb2904af1adf39609e069284da4cecc5"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/surface-geometry.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/surface-geometry.js",
+          "status": 200,
+          "bytes": 7888,
+          "sha256": "a283e1dc4f37922094d7be57f02b9aefacfc4640b350d3add6f270e585396af2"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/surface-invocation.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/surface-invocation.js",
+          "status": 200,
+          "bytes": 1870,
+          "sha256": "34e15fd883489f2467fa7c4b7292d08df251570cec08a84ba5ee3c82dfd49ae1"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/surface-position.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/surface-position.js",
+          "status": 200,
+          "bytes": 2968,
+          "sha256": "7e3001f9309101fa8287f031d500eadaed1b2a746ed6392a9981e9fbaa068416"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/surface-references.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/surface-references.js",
+          "status": 200,
+          "bytes": 3086,
+          "sha256": "79c8847593a23fc48f761fe384c5d9c3c8bebb2887bfa26152f0eb4803eaaddb"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/surface-session.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/surface-session.js",
+          "status": 200,
+          "bytes": 10864,
+          "sha256": "0118316b94c37f7327312041f476518108e64bac5d5ce389ae45526103e41a29"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/tab-panels-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/tab-panels-capability.js",
+          "status": 200,
+          "bytes": 12974,
+          "sha256": "1304ea5ac6f9a610b8059fda81c97bac2aac66e746d4c9db75ecc0c4852029d0"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/time-input-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/time-input-capability.js",
+          "status": 200,
+          "bytes": 24891,
+          "sha256": "159897fc18c5085730e63a376af990c48db0bac3eb4589f16f0834f521b182d4"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/tree-view-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/tree-view-capability.js",
+          "status": 200,
+          "bytes": 20393,
+          "sha256": "d786f02fd9d602be101d091efe6201a4bde7976bca4925651cadfb245dea7d9b"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/workflow-panels-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/workflow-panels-capability.js",
+          "status": 200,
+          "bytes": 12452,
+          "sha256": "5a72f38a4603f7e9ef9eefcdf733d024dec4536b7836c8fef68f005c27e22c5d"
+        },
+        {
+          "path": "examples/interactive/assets/cem-site/components-runtime.js",
+          "requestPath": "examples/interactive/assets/cem-site/components-runtime.js",
+          "status": 200,
+          "bytes": 2400,
+          "sha256": "2667ce757a9ad543823dc047219dcd2489029dfda269038e40239b773f11af9f"
+        },
+        {
+          "path": "examples/interactive/assets/cem-site/examples-view.xhtml",
+          "requestPath": "examples/interactive/assets/cem-site/examples-view.xhtml",
+          "status": 200,
+          "bytes": 2629,
+          "sha256": "bc06f2fa1d49552600ffcbe1d99e4748ae98ee73fd3cf5e9314475fa363a4c40"
+        },
+        {
+          "path": "examples/interactive/assets/cem-site/search-runtime.js",
+          "requestPath": "examples/interactive/assets/cem-site/search-runtime.js",
+          "status": 200,
+          "bytes": 3304,
+          "sha256": "719cba147e2ab6d4560d118d2a1a28620099f4330a629fbc7d97567d4785f86c"
+        },
+        {
+          "path": "examples/interactive/assets/cem-site/search-view.xhtml",
+          "requestPath": "examples/interactive/assets/cem-site/search-view.xhtml",
+          "status": 200,
+          "bytes": 1788,
+          "sha256": "1def971f98630b68d31050f049bf3934945bb037d1d20a32fccd9f42bceb060e"
+        },
+        {
+          "path": "examples/interactive/assets/cem-site/site-runtime.js",
+          "requestPath": "examples/interactive/assets/cem-site/site-runtime.js",
+          "status": 200,
+          "bytes": 1952,
+          "sha256": "9eb6d3afabf8986642487994b787d837b6f135b74f434ad99216e446b8789586"
+        },
+        {
+          "path": "examples/interactive/assets/theme/cem-combined.css",
+          "requestPath": "examples/interactive/assets/theme/cem-combined.css",
+          "status": 200,
+          "bytes": 102037,
+          "sha256": "45a317babd0d779cdd03728d9678c8bf7addf2a785e76435e940c8a7ddf27bec"
+        },
+        {
+          "path": "examples/interactive/index.html",
+          "requestPath": "/examples/interactive/",
+          "status": 200,
+          "bytes": 4376,
+          "sha256": "6d625a26a939b97105311774baeca1090a8a6c53d51864e7e7884fa6fd4c8fea"
+        },
+        {
+          "path": "examples/interactive/index.html.map",
+          "requestPath": "examples/interactive/index.html.map",
+          "status": 200,
+          "bytes": 304918,
+          "sha256": "70851540c779c060e647915f62b98b4e6c464b8b874e7ef71038ff913f0c9c0f"
+        },
+        {
+          "path": "guides/cem-ml/cli/index.html",
+          "requestPath": "/guides/cem-ml/cli/",
+          "status": 200,
+          "bytes": 45999,
+          "sha256": "057cc28680875ba2aed4eb6d6223ad394d17adad748511b2bbd7098d7adb9eff"
+        },
+        {
+          "path": "guides/cem-ml/cli/index.html.map",
+          "requestPath": "guides/cem-ml/cli/index.html.map",
+          "status": 200,
+          "bytes": 3221694,
+          "sha256": "3e0fc051aab101d11e631d750071fa077ad5d2b627c67f87d4f3c677ceb70d6c"
+        },
+        {
+          "path": "guides/declarative-amsterdam-2026/index.html",
+          "requestPath": "/guides/declarative-amsterdam-2026/",
+          "status": 200,
+          "bytes": 18676,
+          "sha256": "5408819fa0645e5ab7dc5bc87abc4f2fa8c7ac04e664a5db433247b7712b5690"
+        },
+        {
+          "path": "guides/declarative-amsterdam-2026/index.html.map",
+          "requestPath": "guides/declarative-amsterdam-2026/index.html.map",
+          "status": 200,
+          "bytes": 1541759,
+          "sha256": "9ee2e1bdbeecd2468e34d5a18c560b1c3a804446429d7d07e4b2e4073cf116e0"
+        },
+        {
+          "path": "guides/index.html",
+          "requestPath": "/guides/",
+          "status": 200,
+          "bytes": 6484,
+          "sha256": "dd32f0ed7fbac429564aeb52a21143e5cef1192bfdc73775a1583503d8647ae0"
+        },
+        {
+          "path": "guides/index.html.map",
+          "requestPath": "guides/index.html.map",
+          "status": 200,
+          "bytes": 649798,
+          "sha256": "bb3906d7f1a549c5507e3d4e80949397ee001db84e555191ae6838c8385fa786"
+        },
+        {
+          "path": "index.html",
+          "requestPath": "/",
+          "status": 200,
+          "bytes": 7174,
+          "sha256": "15f1ea736e5749f3d49a7d4ac1f85072db9aa5c77b1ec9d7de52ba79a57ba619"
+        },
+        {
+          "path": "index.html.map",
+          "requestPath": "index.html.map",
+          "status": 200,
+          "bytes": 721780,
+          "sha256": "1fdbcbc27090ce5d07492da813ee2d4e01adaac59af56f90416cf592da5ba8d4"
+        },
+        {
+          "path": "packages/index.html",
+          "requestPath": "/packages/",
+          "status": 200,
+          "bytes": 8077,
+          "sha256": "eeb3e5869b356859569270161981524d064d3cafb8e02f1d7ac2bb05d8234d33"
+        },
+        {
+          "path": "packages/index.html.map",
+          "requestPath": "packages/index.html.map",
+          "status": 200,
+          "bytes": 539099,
+          "sha256": "1b47a1637c6e567eaf83035f79a3a9781d579c07cbd02312e965af9b16d21b52"
+        },
+        {
+          "path": "reference/cem-elements/index.html",
+          "requestPath": "/reference/cem-elements/",
+          "status": 200,
+          "bytes": 259305,
+          "sha256": "8474dd49df8804b91ff9647b614730284a9cc83b2051178059a47822828181b4"
+        },
+        {
+          "path": "reference/cem-elements/index.html.map",
+          "requestPath": "reference/cem-elements/index.html.map",
+          "status": 200,
+          "bytes": 20032459,
+          "sha256": "37baf9cfe37807db277ea847561914c174a1e827a890f5c9c821c180b74d4164"
+        },
+        {
+          "path": "reference/cem-ml/transform-config/index.html",
+          "requestPath": "/reference/cem-ml/transform-config/",
+          "status": 200,
+          "bytes": 45320,
+          "sha256": "7991e57a8349f8590a20f629bf6860e1afea271d70116ec4a510795f6865df1d"
+        },
+        {
+          "path": "reference/cem-ml/transform-config/index.html.map",
+          "requestPath": "reference/cem-ml/transform-config/index.html.map",
+          "status": 200,
+          "bytes": 4729765,
+          "sha256": "b84d883b22c33fde9a319413c140fbd9f043001925201685e6dfdace6c95b1d4"
+        },
+        {
+          "path": "reference/cem-ml/wasm-runtime/index.html",
+          "requestPath": "/reference/cem-ml/wasm-runtime/",
+          "status": 200,
+          "bytes": 52464,
+          "sha256": "d0469d5077ec691c4b0d9308159cdfa39798da258e3af1bc5d1d7ca78639f6fb"
+        },
+        {
+          "path": "reference/cem-ml/wasm-runtime/index.html.map",
+          "requestPath": "reference/cem-ml/wasm-runtime/index.html.map",
+          "status": 200,
+          "bytes": 4230151,
+          "sha256": "7be1b75177d4b3acb1b44ec5ff645b4309e097f378bbe4f7095109bbc8f79058"
+        },
+        {
+          "path": "reference/components/index.html",
+          "requestPath": "/reference/components/",
+          "status": 200,
+          "bytes": 206002,
+          "sha256": "3874d61786f30c01f95bc8db269ee076c013b5c829d8930110b2942e094cc758"
+        },
+        {
+          "path": "reference/components/index.html.map",
+          "requestPath": "reference/components/index.html.map",
+          "status": 200,
+          "bytes": 19169122,
+          "sha256": "7823f69c8d19e86b618dfbaedc935184c58b52531235e602ea50eadfaa5a3b35"
+        },
+        {
+          "path": "reference/crates/cem-ml-cli/index.html",
+          "requestPath": "/reference/crates/cem-ml-cli/",
+          "status": 200,
+          "bytes": 18867,
+          "sha256": "18627c8e6a6197a7a0cc8dd248defdeecf4e08abfe31c18151955aeb21a70e17"
+        },
+        {
+          "path": "reference/crates/cem-ml-cli/index.html.map",
+          "requestPath": "reference/crates/cem-ml-cli/index.html.map",
+          "status": 200,
+          "bytes": 1563490,
+          "sha256": "0d2c395fe5b3c55e8b337134c980d128543849120bc8166b0dbc8d5816eee0e0"
+        },
+        {
+          "path": "reference/crates/cem-ml-transform-cem-ql/index.html",
+          "requestPath": "/reference/crates/cem-ml-transform-cem-ql/",
+          "status": 200,
+          "bytes": 65604,
+          "sha256": "bdc42d389d295dc76344d18f2d88ff6d95eb53d74a09cceafde56f78eba86419"
+        },
+        {
+          "path": "reference/crates/cem-ml-transform-cem-ql/index.html.map",
+          "requestPath": "reference/crates/cem-ml-transform-cem-ql/index.html.map",
+          "status": 200,
+          "bytes": 5022143,
+          "sha256": "09bd4d605555fb2b545317a94384bac757a7f02742faa786c9afd8fc8cc32e48"
+        },
+        {
+          "path": "reference/crates/cem-ml/index.html",
+          "requestPath": "/reference/crates/cem-ml/",
+          "status": 200,
+          "bytes": 80149,
+          "sha256": "99dc16b54e17425dc54462d72caeb92fb9b78931ff16d620c923a40674f652b4"
+        },
+        {
+          "path": "reference/crates/cem-ml/index.html.map",
+          "requestPath": "reference/crates/cem-ml/index.html.map",
+          "status": 200,
+          "bytes": 5499265,
+          "sha256": "7d8af0c010e7134ff3801b8c07f52e62b21a5de2bc4e76ad9ac17e513df19bda"
+        },
+        {
+          "path": "reference/crates/cem-ql/index.html",
+          "requestPath": "/reference/crates/cem-ql/",
+          "status": 200,
+          "bytes": 258074,
+          "sha256": "9692549800e13bf7a64c081933b9634ccfe79e0cbf4208f25741f60aaadb33ab"
+        },
+        {
+          "path": "reference/crates/cem-ql/index.html.map",
+          "requestPath": "reference/crates/cem-ql/index.html.map",
+          "status": 200,
+          "bytes": 20820957,
+          "sha256": "7477e2b9d67bf0d674ed993a3447c45a668d91db1ce3cc86314d0e5a828fdc73"
+        },
+        {
+          "path": "reference/custom-element/index.html",
+          "requestPath": "/reference/custom-element/",
+          "status": 200,
+          "bytes": 61602,
+          "sha256": "a386d8f91b7fe8c46e65d32017989faaec8cab71e3aee8c76a60843a675cf884"
+        },
+        {
+          "path": "reference/custom-element/index.html.map",
+          "requestPath": "reference/custom-element/index.html.map",
+          "status": 200,
+          "bytes": 5842730,
+          "sha256": "9732fc3734ccd09420c8a565a6987747fa7a09bceb36c6dd30372f99d46a3aac"
+        },
+        {
+          "path": "reference/trang-native/index.html",
+          "requestPath": "/reference/trang-native/",
+          "status": 200,
+          "bytes": 33061,
+          "sha256": "7412ee339ea4a7116328a83ef45b518afe71febb72d5e42e6ab6b2b5a1eae52f"
+        },
+        {
+          "path": "reference/trang-native/index.html.map",
+          "requestPath": "reference/trang-native/index.html.map",
+          "status": 200,
+          "bytes": 3284142,
+          "sha256": "7c695e1426fbd87ea6111362eddcf1bcd65c685c959090a1bff4af34140f93f5"
+        },
+        {
+          "path": "releases/cem-components/index.html",
+          "requestPath": "/releases/cem-components/",
+          "status": 200,
+          "bytes": 13364,
+          "sha256": "df1a6b48785fe14168d69e6f35d296c8cd436f50784e39839fbe264d832030e6"
+        },
+        {
+          "path": "releases/cem-components/index.html.map",
+          "requestPath": "releases/cem-components/index.html.map",
+          "status": 200,
+          "bytes": 1374332,
+          "sha256": "58fd634cb4db1a25e7447fa03256116dc0be58f12eff4d063bdbd23a940b4a05"
+        },
+        {
+          "path": "releases/cem-elements/index.html",
+          "requestPath": "/releases/cem-elements/",
+          "status": 200,
+          "bytes": 5593,
+          "sha256": "16e1eaf1432aa0cfbb42e00bf220912180b8fc9c2b6b6de8ac3bceedfbe413f2"
+        },
+        {
+          "path": "releases/cem-elements/index.html.map",
+          "requestPath": "releases/cem-elements/index.html.map",
+          "status": 200,
+          "bytes": 575183,
+          "sha256": "ca8429f5b09497e1eb1d2c12836a7f301ec2e2378102fb46becc4f85f18317fa"
+        },
+        {
+          "path": "releases/cem-theme/index.html",
+          "requestPath": "/releases/cem-theme/",
+          "status": 200,
+          "bytes": 18253,
+          "sha256": "836e73a04b11d0789d5153036f5c7d1f8224535e2ed1605d12cbbf0597a1d727"
+        },
+        {
+          "path": "releases/cem-theme/index.html.map",
+          "requestPath": "releases/cem-theme/index.html.map",
+          "status": 200,
+          "bytes": 2003777,
+          "sha256": "9b807fd6178d136324d17efb64dee1efe8751003a9002ab2a80d8db67f178b87"
+        },
+        {
+          "path": "releases/custom-element/index.html",
+          "requestPath": "/releases/custom-element/",
+          "status": 200,
+          "bytes": 4872,
+          "sha256": "6221f086bb889bfde229e9673fb4164f2e71c2356c6b92916520eeb4e3733dfc"
+        },
+        {
+          "path": "releases/custom-element/index.html.map",
+          "requestPath": "releases/custom-element/index.html.map",
+          "status": 200,
+          "bytes": 496833,
+          "sha256": "696ba559df0bed2ba968e02edaa773d5eee5066dcaff94d5e01e2041dc0d23b1"
+        },
+        {
+          "path": "releases/index.html",
+          "requestPath": "/releases/",
+          "status": 200,
+          "bytes": 146472,
+          "sha256": "200e328af1d4fe205daff93236c5030e4eb58c76ba59ec02a86e4eb26402c6a3"
+        },
+        {
+          "path": "releases/index.html.map",
+          "requestPath": "releases/index.html.map",
+          "status": 200,
+          "bytes": 15811076,
+          "sha256": "613909826797e2ebbc8c55a31dbe56f3f6ebdf6bd2242f4e1c932a8e30c0f939"
+        },
+        {
+          "path": "search/assets/cem-components/cem-action.xhtml",
+          "requestPath": "search/assets/cem-components/cem-action.xhtml",
+          "status": 200,
+          "bytes": 19487,
+          "sha256": "86ec1aae87c85b97f4419f92da082d7cf904f8a0c3b6d0007efe4e2895377c48"
+        },
+        {
+          "path": "search/assets/cem-components/cem-field.xhtml",
+          "requestPath": "search/assets/cem-components/cem-field.xhtml",
+          "status": 200,
+          "bytes": 7896,
+          "sha256": "8de9b6faeb9dc9358d44e9063a7faf94951c3ab4a0b52b5c14d0b8097b398bf9"
+        },
+        {
+          "path": "search/assets/cem-components/cem-media-preview.xhtml",
+          "requestPath": "search/assets/cem-components/cem-media-preview.xhtml",
+          "status": 200,
+          "bytes": 4634,
+          "sha256": "951580887d17559740abb3265843c7b317702ebb0e5e523bbac241cfc96fc603"
+        },
+        {
+          "path": "search/assets/cem-components/cem-select.xhtml",
+          "requestPath": "search/assets/cem-components/cem-select.xhtml",
+          "status": 200,
+          "bytes": 14775,
+          "sha256": "dcff7b636875704c1aab28fd18cf54e44ed61fb97341ad3c535ffeb927110bcf"
+        },
+        {
+          "path": "search/assets/cem-components/cem-surface.xhtml",
+          "requestPath": "search/assets/cem-components/cem-surface.xhtml",
+          "status": 200,
+          "bytes": 2305,
+          "sha256": "4fb1e4a4b63b7e33b28b8c3c4c47df109f36d72ea8e50913d107b16e43b79a6f"
+        },
+        {
+          "path": "search/assets/cem-components/styles.css",
+          "requestPath": "search/assets/cem-components/styles.css",
+          "status": 200,
+          "bytes": 75,
+          "sha256": "105c3e81d9365fdedb871f47c23fbd33519ae40c5d24414318f9e98f1cd476f7"
+        },
+        {
+          "path": "search/assets/cem-elements/index.js",
+          "requestPath": "search/assets/cem-elements/index.js",
+          "status": 200,
+          "bytes": 2674,
+          "sha256": "015c64b69a85daaffa624947f76979846a46e4d1cd3710d2a5980d60e911ea0d"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/action-command-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/action-command-capability.js",
+          "status": 200,
+          "bytes": 14390,
+          "sha256": "b76679861af0487596b9ca1b205738eec454de7fa2a1b5e2740627f9267d8f77"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/action-control-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/action-control-capability.js",
+          "status": 200,
+          "bytes": 3372,
+          "sha256": "bbfe63c00434825b3e2b56fb8a925ab5d021afcea100c0b4b127d4cee4d6e945"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/aria-reference-profile.js",
+          "requestPath": "search/assets/cem-elements/lib/aria-reference-profile.js",
+          "status": 200,
+          "bytes": 1074,
+          "sha256": "15cf987f3ffd049d80f90200ccb7e10d36e8f2860f6a0c574b942269bf3e9be1"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/artifact-preview.js",
+          "requestPath": "search/assets/cem-elements/lib/artifact-preview.js",
+          "status": 200,
+          "bytes": 21994,
+          "sha256": "3338d4e0c9741bbd43d989a6fc8c62a87ab8bbb3af7fd7c6839c730fa3224117"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/calendar-input-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/calendar-input-capability.js",
+          "status": 200,
+          "bytes": 28088,
+          "sha256": "a9d446d83eecf042ca90def3e002a96f2377fe9eb384161a448c99521805011d"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/cem-elements.js",
+          "requestPath": "search/assets/cem-elements/lib/cem-elements.js",
+          "status": 200,
+          "bytes": 489147,
+          "sha256": "71023ebc1172324405930ac97c3dffee0d9be40987b1eb5229a8d84bb635a524"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkable-control.js",
+          "requestPath": "search/assets/cem-elements/lib/checkable-control.js",
+          "status": 200,
+          "bytes": 1474,
+          "sha256": "ac556e4f471b1f34766a9bd8f271d9b30902249b098747581993596756a9efd9"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-controls.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-controls.js",
+          "status": 200,
+          "bytes": 5735,
+          "sha256": "6074b6b16c3e5989c24f2362d8e088607aa7208a8d0a277b7254797c0cea52f9"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-form-resume.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-form-resume.js",
+          "status": 200,
+          "bytes": 3084,
+          "sha256": "88465e2ae7db2df89c1f885e127503cd299dd971a871c338497bb342148dd080"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-interactions.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-interactions.js",
+          "status": 200,
+          "bytes": 8065,
+          "sha256": "6873af6b8c8cca99f9ca6cfc5c70b060bcfd7734974cd0e504832ce6e776cef9"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-processing.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-processing.js",
+          "status": 200,
+          "bytes": 7170,
+          "sha256": "db9b25fc3b054be8aa4d63149ba3ea783aa0caca03676bfb8c5a944f191b59e5"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-provider-handoff.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-provider-handoff.js",
+          "status": 200,
+          "bytes": 1201,
+          "sha256": "908e170f2b8a42ac87f2f900891c6c6bf88d0a5482a1f06a018b4a78d87d7c57"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-publication.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-publication.js",
+          "status": 200,
+          "bytes": 37993,
+          "sha256": "242096236e3481d2314c26cedf66f2a00b38a60b33b5177f3791d6228d33c3be"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-reference-resume.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-reference-resume.js",
+          "status": 200,
+          "bytes": 1595,
+          "sha256": "ee5554e077573612bc9a5df76eb2d052ebbac89af8a68b1c75303c6b1ca392ae"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-resume.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-resume.js",
+          "status": 200,
+          "bytes": 16810,
+          "sha256": "6ee1691953d90a1dfff66bd000ab4a9ac74aa8f3d6855e982042f3ee12cc225d"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/choice-options.js",
+          "requestPath": "search/assets/cem-elements/lib/choice-options.js",
+          "status": 200,
+          "bytes": 4087,
+          "sha256": "c1b8fa2632cca42b36ddc4159cd75b15eee921c5ae79c718157d25d537019918"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/choice-select-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/choice-select-capability.js",
+          "status": 200,
+          "bytes": 28149,
+          "sha256": "7cd99386ad1ec12033bae1b6151b253a32bee5b8fd48db7b3efb14bdd12a7f7b"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/committed-checkpoint.js",
+          "requestPath": "search/assets/cem-elements/lib/committed-checkpoint.js",
+          "status": 200,
+          "bytes": 5309,
+          "sha256": "9e7b2f86e18be199fcd0261f4454cbed54e8cce9663caab7121eaba928580a48"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/compiled-declaration-assets.js",
+          "requestPath": "search/assets/cem-elements/lib/compiled-declaration-assets.js",
+          "status": 200,
+          "bytes": 3393,
+          "sha256": "ef2abc72f3429e4dec84c8258ec085ec74c950f48313a412bb7646648c017801"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/composite-menu-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/composite-menu-capability.js",
+          "status": 200,
+          "bytes": 24332,
+          "sha256": "be095538e4db1a024c6d9204b115100c521ff2a7461edec95e1eb0adaab760d6"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/composite-navigation.js",
+          "requestPath": "search/assets/cem-elements/lib/composite-navigation.js",
+          "status": 200,
+          "bytes": 1841,
+          "sha256": "c64dc09742d7f844cb52fbfe2ac7d48cb5e7562dac4750b00429d1c5d85e24a0"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/declaration-scope.js",
+          "requestPath": "search/assets/cem-elements/lib/declaration-scope.js",
+          "status": 200,
+          "bytes": 9116,
+          "sha256": "53759690446c514dfb0cadd006dea25f434f136b99aa658785e87f3e9a46507f"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/declaration-style-markup.js",
+          "requestPath": "search/assets/cem-elements/lib/declaration-style-markup.js",
+          "status": 200,
+          "bytes": 1736,
+          "sha256": "8aaf68f29aac0a3226e7375434b829763519eb548d4bc2c7ce90471cd75aeb08"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/declaration-style-ownership.js",
+          "requestPath": "search/assets/cem-elements/lib/declaration-style-ownership.js",
+          "status": 200,
+          "bytes": 25244,
+          "sha256": "564c07ec1fc5719dd6df64647f16dbea131ae1d2975e0afdf0e295a9420513fa"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/disclosure-panel-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/disclosure-panel-capability.js",
+          "status": 200,
+          "bytes": 5551,
+          "sha256": "1c9bd8ea25a2f6b5c7c460be7519ebcddef335e980f269461b1348b4a95e65a3"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/disposition.js",
+          "requestPath": "search/assets/cem-elements/lib/disposition.js",
+          "status": 200,
+          "bytes": 7096,
+          "sha256": "6ff512dfa8a393e8f4f6157ba1b73f6bb2a2761fe53406935a57073c325ae6b1"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/dom-realm.js",
+          "requestPath": "search/assets/cem-elements/lib/dom-realm.js",
+          "status": 200,
+          "bytes": 351,
+          "sha256": "21ee04cf2925f3bec1ff869bfc23b0f565fb14dcc26b6938c9699e13eeb7cb65"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/edge-css-publication.js",
+          "requestPath": "search/assets/cem-elements/lib/edge-css-publication.js",
+          "status": 200,
+          "bytes": 4961,
+          "sha256": "a3e177a75f5e94cbc4251331d39fad33c736b93bdf16b60dfdc391e28b2077b7"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/edge-ssr-host.js",
+          "requestPath": "search/assets/cem-elements/lib/edge-ssr-host.js",
+          "status": 200,
+          "bytes": 5432,
+          "sha256": "c349fb52650dc0cfbb33eb20291ed4c737589fbabd5e4d745859e5f52d59d37f"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/editable-choice-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/editable-choice-capability.js",
+          "status": 200,
+          "bytes": 23420,
+          "sha256": "a6051239128ec446f91be0236b9b3028de6803b33ad13609188de43df1f63860"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/editor-attributes.js",
+          "requestPath": "search/assets/cem-elements/lib/editor-attributes.js",
+          "status": 200,
+          "bytes": 7494,
+          "sha256": "5af0acfa7310d0f07b365bfe92cc2d600561615ca1c69b89185c06be905a0ece"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/editor-datalist.js",
+          "requestPath": "search/assets/cem-elements/lib/editor-datalist.js",
+          "status": 200,
+          "bytes": 4049,
+          "sha256": "db678897053430fa6c61e9b7ccb5384bb1b6115753f2a08a91a1582ef830fc69"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/element-placement-authority.js",
+          "requestPath": "search/assets/cem-elements/lib/element-placement-authority.js",
+          "status": 200,
+          "bytes": 19837,
+          "sha256": "200de21581407b642d4f1b7a1c9b41f66d183a9bb502bae588e5e8358e50eb56"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/element-placement-coordinator.js",
+          "requestPath": "search/assets/cem-elements/lib/element-placement-coordinator.js",
+          "status": 200,
+          "bytes": 19332,
+          "sha256": "8c19232cc82b694ed669030157845adc69e06316b5deac41f6259f8a63694f75"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/element-placement-plans.js",
+          "requestPath": "search/assets/cem-elements/lib/element-placement-plans.js",
+          "status": 200,
+          "bytes": 2723,
+          "sha256": "2f4fd7e6b19409a6d4de523adfb58e076ce485d72e945801c39a481fe98126cd"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/element-placement-ssr.js",
+          "requestPath": "search/assets/cem-elements/lib/element-placement-ssr.js",
+          "status": 200,
+          "bytes": 6171,
+          "sha256": "1f274a7b0d575c42945cc2f73e9217f51694a76ef1f0ea0646a1917531500f09"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/element-reference-inputs.js",
+          "requestPath": "search/assets/cem-elements/lib/element-reference-inputs.js",
+          "status": 200,
+          "bytes": 2032,
+          "sha256": "a541804c9ac0fcd984078f73ae5a28c428844e13f6f7642c863eb191b8f1e0c0"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/external-declaration-source.js",
+          "requestPath": "search/assets/cem-elements/lib/external-declaration-source.js",
+          "status": 200,
+          "bytes": 1741,
+          "sha256": "4754aba4f56a8990affab632c26ee65aad8c6d8edee298e0792fffba1688e98c"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/form-control-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/form-control-capability.js",
+          "status": 200,
+          "bytes": 31378,
+          "sha256": "bb34051807ef62d9d3d93ed2f863eddd2cf4bad3431463667fbcdc9eedf07035"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/host-view.js",
+          "requestPath": "search/assets/cem-elements/lib/host-view.js",
+          "status": 200,
+          "bytes": 11697,
+          "sha256": "f1e49b4a119fe2a3b02c9f246bbdf81b43bbc127b894abbe44cad18068d76d65"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/http-resource-transport.js",
+          "requestPath": "search/assets/cem-elements/lib/http-resource-transport.js",
+          "status": 200,
+          "bytes": 2460,
+          "sha256": "b01e363795a323cc71321e29cc3d0b785d74b857e5a66ef45ec03f78e8f388cc"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/interaction-reference.js",
+          "requestPath": "search/assets/cem-elements/lib/interaction-reference.js",
+          "status": 200,
+          "bytes": 3762,
+          "sha256": "718692bab49929e2fda62ff94c179289a1a5a4fe04ca5ca6519b8696c2f94b75"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/cem-ql-render.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/cem-ql-render.js",
+          "status": 200,
+          "bytes": 66059,
+          "sha256": "fec460da8ad95763e139f20b502f105432d17b48628010f5a11f092dbffb86f8"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/checkpoint-domain.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/checkpoint-domain.js",
+          "status": 200,
+          "bytes": 29753,
+          "sha256": "bd9151d726e86c9768ede8723ac54ea1c84d71cfbd6ac731a58ac8486c24f431"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/css-dom-publication-queue.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/css-dom-publication-queue.js",
+          "status": 200,
+          "bytes": 3629,
+          "sha256": "6336fcbccae386830dc855a0d12e98cd6c3b92b5c7a4674c262cfb26a2dfaf18"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/instance-stylesheet-installation.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/instance-stylesheet-installation.js",
+          "status": 200,
+          "bytes": 11572,
+          "sha256": "321067f11e85e4322734070ab2c65a15f31dd8a193c6652123da2fc031d4380b"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/location-write-trigger.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/location-write-trigger.js",
+          "status": 200,
+          "bytes": 345,
+          "sha256": "9142167d96c6e683e5b46df6380e2ce25876d2d59444c178eb1b0dfb41f46b39"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/module-url-resolution.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/module-url-resolution.js",
+          "status": 200,
+          "bytes": 9642,
+          "sha256": "c276024b3a3ec8a04f41a486d1fcb505fa317560931561bab96ae37d56688009"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/native-generation.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/native-generation.js",
+          "status": 200,
+          "bytes": 177,
+          "sha256": "2c157124ca296079ba5ff5fb772b888f6a522fc1fe9dc890a5379d987cbc3f5d"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/native-runtime.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/native-runtime.js",
+          "status": 200,
+          "bytes": 22626,
+          "sha256": "2458a35ca1c039c25041a3e64f6f0f800fc6eebac6bfe572cbef96c74dcefc8a"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/processing-cache.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/processing-cache.js",
+          "status": 200,
+          "bytes": 1179,
+          "sha256": "59b74b700008c3ce880f3769e8330735b0fe131c351ff56d3a75f9ef2e835abd"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/processing-engine.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/processing-engine.js",
+          "status": 200,
+          "bytes": 53558,
+          "sha256": "5077e56d6c8a65e8051ebb0f78d3924e50830f44b917b299ed739abaa3c99f43"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/processing-host-runtime.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/processing-host-runtime.js",
+          "status": 200,
+          "bytes": 74544,
+          "sha256": "51f2a4c55d0d5655a7d7200a20e8ab3d79b90466894f81e284521dad3543c977"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/processing-host.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/processing-host.js",
+          "status": 200,
+          "bytes": 14269,
+          "sha256": "dfd92e5bc55a57dac7f947600bd2cdf6779ef568c46322172f8a358272a3701d"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/processing-scheduler.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/processing-scheduler.js",
+          "status": 200,
+          "bytes": 4612,
+          "sha256": "313fc44fd67f3ab3993c78dc18928722fc6996f7d0fa6b184cc25ad9137d55ab"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/processing-worker.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/processing-worker.js",
+          "status": 200,
+          "bytes": 13287,
+          "sha256": "abbbe2bb3d6e674fb81b82554e2cee9491d60c6009166fb62c4cccf9710fc80e"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/schema-asset-protocol.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/schema-asset-protocol.js",
+          "status": 200,
+          "bytes": 164,
+          "sha256": "3d7076bd036bc326737de4c4d5a23fdcc0a2ef94500494c7e9b3437ac534e62b"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-dom-order.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-dom-order.js",
+          "status": 200,
+          "bytes": 950,
+          "sha256": "ddd8b54f072b6d39691cad97eee127bd41cf3a7a5947114aceb8c74e5b9883db"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-installation.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-installation.js",
+          "status": 200,
+          "bytes": 9674,
+          "sha256": "8016087808a10df7f25f6673a460b72329e2694d1033f0cbc2d8fc1d42c38ab2"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-notifications.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-notifications.js",
+          "status": 200,
+          "bytes": 1564,
+          "sha256": "cd0c8cd4e4be5c1f836293d754d3ba61dbf148b306b2b2efab05f515dbccecb5"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-reader.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-reader.js",
+          "status": 200,
+          "bytes": 2139,
+          "sha256": "afaaf79d9638f453ac122d7305a7445748bd4f4a29149a942bded95444fb1f3c"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-registry.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-registry.js",
+          "status": 200,
+          "bytes": 20186,
+          "sha256": "76b7b3807c8a91f84ec81682d24b3890d513cc8acd3f6302690590a2cd9e5292"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "status": 200,
+          "bytes": 24140410,
+          "sha256": "3856b98560281753dffb49b807b1bb4a76f76f4f088a5ce179a2a03c577037b5"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_factory.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_factory.js",
+          "status": 200,
+          "bytes": 130643,
+          "sha256": "4b85f7274b6d6c2d6471352ca4ab89e8ed37fd691d851e4e8882fcbf953e8516"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql.js",
+          "status": 200,
+          "bytes": 121414,
+          "sha256": "3360d940036dc8d36191723b4bd180ad78ef5b1b3c30bf20b1763d62e12cb712"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/vendor/native-generation.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/vendor/native-generation.js",
+          "status": 200,
+          "bytes": 28361,
+          "sha256": "9d43450f2c1c789b1bbd1cc8f14edb089b63ae43ce589a833f597f0a80952209"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/vendor/schema-asset-protocol.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/vendor/schema-asset-protocol.js",
+          "status": 200,
+          "bytes": 2367,
+          "sha256": "de75c0f1495a7da742a86d66b6d1e1d2965d3b3bf83f655a16b5e583aceee083"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/xpath-function-library.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/xpath-function-library.js",
+          "status": 200,
+          "bytes": 6424,
+          "sha256": "fa205da2b3237bd2b8ce16fceee740287c3f40c1a5dba94d35a2d95f1f352093"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/legacy-xslt/contract.js",
+          "requestPath": "search/assets/cem-elements/lib/legacy-xslt/contract.js",
+          "status": 200,
+          "bytes": 2292,
+          "sha256": "a46120509cf8f075855e661519235845a27a8645403140ba1bb7a5fe2ee882a3"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/legacy-xslt/template-language.js",
+          "requestPath": "search/assets/cem-elements/lib/legacy-xslt/template-language.js",
+          "status": 200,
+          "bytes": 720,
+          "sha256": "44ca04370d86a8dad8044d35c00259d441fceb2a9266052690586a752a134c20"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/live-preview-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/live-preview-capability.js",
+          "status": 200,
+          "bytes": 8229,
+          "sha256": "92b03bda111c5e5319643e0b7fb825682350dba3fc563461aae1c16a95f9573e"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/live-preview-policy.js",
+          "requestPath": "search/assets/cem-elements/lib/live-preview-policy.js",
+          "status": 200,
+          "bytes": 1942,
+          "sha256": "ca855c8a30ef971e740e18c2fe8b5f1b7c41f4d5819de7c040abc8cc25c584d0"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/live-preview.js",
+          "requestPath": "search/assets/cem-elements/lib/live-preview.js",
+          "status": 200,
+          "bytes": 10806,
+          "sha256": "db2d20c58c5b7260fc547bfdadd5dd4e0e7cafcea9d5e23e06b83c8019a5d308"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/local-suggestions-capture.js",
+          "requestPath": "search/assets/cem-elements/lib/local-suggestions-capture.js",
+          "status": 200,
+          "bytes": 4713,
+          "sha256": "61e28bdd1e46780c7b3af458be6a4bc526138887770d24acff713409dd758269"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/manual-listbox.js",
+          "requestPath": "search/assets/cem-elements/lib/manual-listbox.js",
+          "status": 200,
+          "bytes": 13620,
+          "sha256": "0edffa99426a5dff9f8851d39ea7ae04fa25e00f04102764eb61daaeba1b9c58"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/menu-task-relay.js",
+          "requestPath": "search/assets/cem-elements/lib/menu-task-relay.js",
+          "status": 200,
+          "bytes": 3290,
+          "sha256": "bcc4e12cb0a11c7169b382bc5feaf19d2bb1d7ebf0a78dd10d64a1228afb2295"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/native-capability-session.js",
+          "requestPath": "search/assets/cem-elements/lib/native-capability-session.js",
+          "status": 200,
+          "bytes": 12970,
+          "sha256": "eae9ce302e8716da7a9ef36e5e1c1a4a70735e7c3555320a2e3ef40fa43d1bf3"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/native-datalist-attachment.js",
+          "requestPath": "search/assets/cem-elements/lib/native-datalist-attachment.js",
+          "status": 200,
+          "bytes": 15478,
+          "sha256": "43104d4eef8bca31b0f1f0b68f804e4802ddb9da91df1e502f96cf1f16ae7e13"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/native-list-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/native-list-capability.js",
+          "status": 200,
+          "bytes": 2480,
+          "sha256": "495b6bd8d164b5fd284977b13cba3f27720b43f872bfa45267ef53863fa019ad"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/native-suggestions-publication.js",
+          "requestPath": "search/assets/cem-elements/lib/native-suggestions-publication.js",
+          "status": 200,
+          "bytes": 12164,
+          "sha256": "b61643c6fd5e182e9d6f48ef2bec39da487aa6e1b447543794a219199bafb7af"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/native-surface.js",
+          "requestPath": "search/assets/cem-elements/lib/native-surface.js",
+          "status": 200,
+          "bytes": 45881,
+          "sha256": "396b9bb6b69842fd7eeafa58067c37adf473e8788a4985f744b42718f75e3e4b"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/native-values.js",
+          "requestPath": "search/assets/cem-elements/lib/native-values.js",
+          "status": 200,
+          "bytes": 4599,
+          "sha256": "427a39dcf46e3800592d49b92851a40f7366bb0400f29c7286535c068593875c"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/navigation-landmark-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/navigation-landmark-capability.js",
+          "status": 200,
+          "bytes": 3081,
+          "sha256": "3389fcd23e10ef1d440049385f9163a6aad2aadd8e0798afd0eaee38f362fd37"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/pagination-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/pagination-capability.js",
+          "status": 200,
+          "bytes": 7389,
+          "sha256": "2c34364b513f647e1b47272366c9efcb52571d39fdfb021d7c362a4e25ed233a"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/plaintext-editor-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/plaintext-editor-capability.js",
+          "status": 200,
+          "bytes": 20621,
+          "sha256": "768e58de7ee87798785ccf77545b57bdb3d392a7609b8faf7a31bc01f1ced0d0"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/platform-close.js",
+          "requestPath": "search/assets/cem-elements/lib/platform-close.js",
+          "status": 200,
+          "bytes": 5105,
+          "sha256": "72d45ae13799d068badfd439a464441999155efdc7cc4a9591e839f1bcfab01c"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/popup-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/popup-capability.js",
+          "status": 200,
+          "bytes": 18313,
+          "sha256": "447a77eaad016ff5d71c426883ca70ef2fc5f5c880d97e3e0bf53065e07c5069"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/popup-controller.js",
+          "requestPath": "search/assets/cem-elements/lib/popup-controller.js",
+          "status": 200,
+          "bytes": 15108,
+          "sha256": "23fe5ab302d33ce496b9e369f4a4550cc88643b5e9bd6fa4044ea86d217c4139"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/progress-status-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/progress-status-capability.js",
+          "status": 200,
+          "bytes": 1154,
+          "sha256": "e7c7704ec82c86094f9aaae91026411d672fc4ad8850151486dbad78d0efd55c"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/projection.js",
+          "requestPath": "search/assets/cem-elements/lib/projection.js",
+          "status": 200,
+          "bytes": 138884,
+          "sha256": "d4c3601b320484a81af9dafa1518b19dcc7f28962093a5e5f1ca7df56aae199e"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/range-input-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/range-input-capability.js",
+          "status": 200,
+          "bytes": 8372,
+          "sha256": "7be79c87053c47dcac306e98073c526068eef9145aa7f36baf3f5aecc41ec185"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/recovery-status.js",
+          "requestPath": "search/assets/cem-elements/lib/recovery-status.js",
+          "status": 200,
+          "bytes": 5947,
+          "sha256": "8b79f8d26791ebf1b7a31e240fdd357e738e34b72e60ef772fa9e7a3bae850ef"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/repository.js",
+          "requestPath": "search/assets/cem-elements/lib/repository.js",
+          "status": 200,
+          "bytes": 5461,
+          "sha256": "02301d389e7cb5699999fff97008aad28056284e713a0791bd1359059a78b702"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/schema-asset-pack.js",
+          "requestPath": "search/assets/cem-elements/lib/schema-asset-pack.js",
+          "status": 200,
+          "bytes": 43743,
+          "sha256": "7046e7e2016efd66a431a8de9eba6128103f2d5d5a94f5cd8e8587f83a3113d7"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/sort-action-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/sort-action-capability.js",
+          "status": 200,
+          "bytes": 3316,
+          "sha256": "daaa701ea34321340499829ead6c01d4d520faa8f1f946e69bae92d631a4fcb7"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/standalone-datalist.js",
+          "requestPath": "search/assets/cem-elements/lib/standalone-datalist.js",
+          "status": 200,
+          "bytes": 8968,
+          "sha256": "8c08bfe79fe381e6129962d09e9eebc99629a12872117b5066d73f3ac6f5908a"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/suggestions-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/suggestions-capability.js",
+          "status": 200,
+          "bytes": 34418,
+          "sha256": "a506f37c436081c643932863718b9feab1022fbdbfa40d6309e6643046c7eda0"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/suggestions-controller.js",
+          "requestPath": "search/assets/cem-elements/lib/suggestions-controller.js",
+          "status": 200,
+          "bytes": 28301,
+          "sha256": "768206202ada8ad7f4219ba909f2ff1d82c0d3e34283a1f44ba39baa852d5104"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/suggestions-editor.js",
+          "requestPath": "search/assets/cem-elements/lib/suggestions-editor.js",
+          "status": 200,
+          "bytes": 2003,
+          "sha256": "8d421529c5fd86fd029a09a985816c2099ffb0d851b4eefe6b19b107b8a2ad86"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/suggestions-placements.js",
+          "requestPath": "search/assets/cem-elements/lib/suggestions-placements.js",
+          "status": 200,
+          "bytes": 15573,
+          "sha256": "507e48a900df422d0c9a52a6560533c72476751abafb51c99972cc5542fb8dc4"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/surface-body.js",
+          "requestPath": "search/assets/cem-elements/lib/surface-body.js",
+          "status": 200,
+          "bytes": 8428,
+          "sha256": "36b7e46ef31572f5e0141bc6b3428fc5d705d1235b2196e96f33cfef8edb18ff"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/surface-controls.js",
+          "requestPath": "search/assets/cem-elements/lib/surface-controls.js",
+          "status": 200,
+          "bytes": 11819,
+          "sha256": "dd17cc009902899c8d402f3bf97a7d9ddb2904af1adf39609e069284da4cecc5"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/surface-geometry.js",
+          "requestPath": "search/assets/cem-elements/lib/surface-geometry.js",
+          "status": 200,
+          "bytes": 7888,
+          "sha256": "a283e1dc4f37922094d7be57f02b9aefacfc4640b350d3add6f270e585396af2"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/surface-invocation.js",
+          "requestPath": "search/assets/cem-elements/lib/surface-invocation.js",
+          "status": 200,
+          "bytes": 1870,
+          "sha256": "34e15fd883489f2467fa7c4b7292d08df251570cec08a84ba5ee3c82dfd49ae1"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/surface-position.js",
+          "requestPath": "search/assets/cem-elements/lib/surface-position.js",
+          "status": 200,
+          "bytes": 2968,
+          "sha256": "7e3001f9309101fa8287f031d500eadaed1b2a746ed6392a9981e9fbaa068416"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/surface-references.js",
+          "requestPath": "search/assets/cem-elements/lib/surface-references.js",
+          "status": 200,
+          "bytes": 3086,
+          "sha256": "79c8847593a23fc48f761fe384c5d9c3c8bebb2887bfa26152f0eb4803eaaddb"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/surface-session.js",
+          "requestPath": "search/assets/cem-elements/lib/surface-session.js",
+          "status": 200,
+          "bytes": 10864,
+          "sha256": "0118316b94c37f7327312041f476518108e64bac5d5ce389ae45526103e41a29"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/tab-panels-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/tab-panels-capability.js",
+          "status": 200,
+          "bytes": 12974,
+          "sha256": "1304ea5ac6f9a610b8059fda81c97bac2aac66e746d4c9db75ecc0c4852029d0"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/time-input-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/time-input-capability.js",
+          "status": 200,
+          "bytes": 24891,
+          "sha256": "159897fc18c5085730e63a376af990c48db0bac3eb4589f16f0834f521b182d4"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/tree-view-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/tree-view-capability.js",
+          "status": 200,
+          "bytes": 20393,
+          "sha256": "d786f02fd9d602be101d091efe6201a4bde7976bca4925651cadfb245dea7d9b"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/workflow-panels-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/workflow-panels-capability.js",
+          "status": 200,
+          "bytes": 12452,
+          "sha256": "5a72f38a4603f7e9ef9eefcdf733d024dec4536b7836c8fef68f005c27e22c5d"
+        },
+        {
+          "path": "search/assets/cem-site/components-runtime.js",
+          "requestPath": "search/assets/cem-site/components-runtime.js",
+          "status": 200,
+          "bytes": 2400,
+          "sha256": "2667ce757a9ad543823dc047219dcd2489029dfda269038e40239b773f11af9f"
+        },
+        {
+          "path": "search/assets/cem-site/examples-view.xhtml",
+          "requestPath": "search/assets/cem-site/examples-view.xhtml",
+          "status": 200,
+          "bytes": 2629,
+          "sha256": "bc06f2fa1d49552600ffcbe1d99e4748ae98ee73fd3cf5e9314475fa363a4c40"
+        },
+        {
+          "path": "search/assets/cem-site/search-runtime.js",
+          "requestPath": "search/assets/cem-site/search-runtime.js",
+          "status": 200,
+          "bytes": 3304,
+          "sha256": "719cba147e2ab6d4560d118d2a1a28620099f4330a629fbc7d97567d4785f86c"
+        },
+        {
+          "path": "search/assets/cem-site/search-view.xhtml",
+          "requestPath": "search/assets/cem-site/search-view.xhtml",
+          "status": 200,
+          "bytes": 1788,
+          "sha256": "1def971f98630b68d31050f049bf3934945bb037d1d20a32fccd9f42bceb060e"
+        },
+        {
+          "path": "search/assets/cem-site/site-runtime.js",
+          "requestPath": "search/assets/cem-site/site-runtime.js",
+          "status": 200,
+          "bytes": 1952,
+          "sha256": "9eb6d3afabf8986642487994b787d837b6f135b74f434ad99216e446b8789586"
+        },
+        {
+          "path": "search/assets/theme/cem-combined.css",
+          "requestPath": "search/assets/theme/cem-combined.css",
+          "status": 200,
+          "bytes": 102037,
+          "sha256": "45a317babd0d779cdd03728d9678c8bf7addf2a785e76435e940c8a7ddf27bec"
+        },
+        {
+          "path": "search/index.html",
+          "requestPath": "/search/",
+          "status": 200,
+          "bytes": 23293,
+          "sha256": "04018a8d0ef6570ec07d61b8d8a299b7ca9e26401e2c94f3058ac2cc064d28aa"
+        },
+        {
+          "path": "search/index.html.map",
+          "requestPath": "search/index.html.map",
+          "status": 200,
+          "bytes": 1514549,
+          "sha256": "147d41a6df97f883fe1dc046fa3ac165863b11160266d8900785a3ef4b185dac"
+        },
+        {
+          "path": "site.report.json",
+          "requestPath": "site.report.json",
+          "status": 200,
+          "bytes": 612367,
+          "sha256": "9b8be00f7471220919ffdae175fc977bc559e66cee0905abdb239a3f0c9197bd"
+        },
+        {
+          "path": "tokens/index.html",
+          "requestPath": "/tokens/",
+          "status": 200,
+          "bytes": 598020,
+          "sha256": "77f66815ca01e2c069500c84e386b38ada126c0a6be95586d85b557494a16a02"
+        },
+        {
+          "path": "tokens/index.html.map",
+          "requestPath": "tokens/index.html.map",
+          "status": 200,
+          "bytes": 45749881,
+          "sha256": "46a562d11fed1d89299ec89cedeea70a8820f3e35a0ddbda1a13333c962bc116"
+        }
+      ]
+    },
+    "finishedAt": "2026-11-04T06:14:55.986Z"
+  },
+  "headers": [
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/guides/declarative-amsterdam-2026/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/guides/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/packages/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/guides/cem-ml/cli/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/reference/cem-ml/transform-config/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/reference/cem-ml/wasm-runtime/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/reference/cem-elements/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/reference/custom-element/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/reference/trang-native/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/reference/crates/cem-ml/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/reference/crates/cem-ml-cli/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/reference/crates/cem-ml-transform-cem-ql/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/reference/crates/cem-ql/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/tokens/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/components/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/components/angular-material/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/examples/cem-ml/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/examples/components/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/examples/interactive/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/reference/components/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/releases/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/releases/cem-components/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/releases/cem-elements/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/releases/cem-theme/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/releases/custom-element/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    },
+    {
+      "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/search/",
+      "links": [
+        {
+          "href": "/",
+          "label": "CEM Site"
+        },
+        {
+          "href": "/guides/",
+          "label": "Guides"
+        },
+        {
+          "href": "/packages/",
+          "label": "Packages"
+        },
+        {
+          "href": "/guides/cem-ml/cli/",
+          "label": "CLI guide"
+        },
+        {
+          "href": "/reference/cem-ml/transform-config/",
+          "label": "CEM-ML reference"
+        },
+        {
+          "href": "/tokens/",
+          "label": "Tokens"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/",
+          "label": "CEM Components"
+        },
+        {
+          "href": "/components/angular-material/",
+          "label": "Material comparison"
+        },
+        {
+          "href": "/examples/interactive/",
+          "label": "Interactive examples"
+        },
+        {
+          "href": "/search/",
+          "label": "Search"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/studio/",
+          "label": "Studio"
+        },
+        {
+          "href": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+          "label": "Playground"
+        }
+      ],
+      "dots": 11
+    }
+  ]
+}

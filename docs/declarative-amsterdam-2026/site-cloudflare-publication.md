@@ -105,5 +105,6 @@ Prepared native aggregate: `bce339c3ea8da49b16129ece65683f4504bb4912dc45abbddd66
 Deploy-only archive SHA-256: `240e7934ecfc9d3dcae8dd20c5b2dee494ef192c218a17c452f0c0937a8923e4`.
 The local alias is `dist/releases/cem-site-header-update.tgz`.
 Extract and deploy with `npx wrangler@4 deploy --config wrangler.site.jsonc`.
-Public acceptance of this header update is pending the owner's deployment;
-the previous version's successful receipt remains historical evidence.
+Public acceptance passed on 2026-11-04: all 303 native files, 27 browser routes,
+86 fragments, interactive examples and search. All 27 public headers have the
+new links and separators. See the [header readback](site-public-header-readback.json).
