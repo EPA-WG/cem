@@ -1,0 +1,287 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+  "existingCommentUrl": "https://github.com/EPA-WG/cem/discussions/24#discussioncomment-18867103",
+  "slides": [
+    {
+      "slide": 1,
+      "slideId": "p1",
+      "title": "CEM — DNA for structured data",
+      "timing": "00:00–00:45",
+      "resources": [
+        {
+          "label": "Opening idea: DNA for structured data",
+          "path": "docs/declarative-amsterdam-2026/opening-teaser.md",
+          "fragment": ""
+        }
+      ]
+    },
+    {
+      "slide": 2,
+      "slideId": "h36c7c826c4eee100_0_0",
+      "title": "CEM-ML — Declarative document lifecycle engine",
+      "timing": "00:45–01:10",
+      "resources": [
+        {
+          "label": "Session brief and tutorial plan",
+          "path": "docs/declarative-amsterdam-2026/presentation.md",
+          "fragment": "presentation-brief"
+        }
+      ]
+    },
+    {
+      "slide": 4,
+      "slideId": "p3",
+      "title": "Make capabilities reusable across systems",
+      "timing": "03:00–04:30",
+      "resources": [
+        {
+          "label": "Reusable processing across formats and locations",
+          "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+          "fragment": "format-and-location-independence"
+        }
+      ]
+    },
+    {
+      "slide": 5,
+      "slideId": "p4",
+      "title": "Keep useful rules as systems change",
+      "timing": "04:30–07:00",
+      "resources": [
+        {
+          "label": "Contracts that survive a change",
+          "path": "docs/declarative-amsterdam-2026/cem-manifesto.md",
+          "fragment": "make-change-a-normal-operation"
+        }
+      ]
+    },
+    {
+      "slide": 6,
+      "slideId": "p5",
+      "title": "Keep your markup knowledge",
+      "timing": "07:00–09:30",
+      "resources": [
+        {
+          "label": "HTML Login source",
+          "path": "examples/semantic/login.html",
+          "fragment": ""
+        },
+        {
+          "label": "CEM-ML Login source",
+          "path": "examples/cem-ml/login.cem",
+          "fragment": ""
+        }
+      ]
+    },
+    {
+      "slide": 7,
+      "slideId": "p6",
+      "title": "A small vocabulary for the whole journey",
+      "timing": "09:30–12:00",
+      "resources": [
+        {
+          "label": "Namespace, nodes, attributes and content in Login",
+          "path": "examples/cem-ml/login.cem",
+          "fragment": ""
+        }
+      ]
+    },
+    {
+      "slide": 9,
+      "slideId": "p8",
+      "title": "Pick, extend, or create your own schemas",
+      "timing": "15:00–17:00",
+      "resources": [
+        {
+          "label": "Schema package guide",
+          "path": "packages/cem_ml/schema-packages/README.md",
+          "fragment": ""
+        }
+      ]
+    },
+    {
+      "slide": 20,
+      "slideId": "p19",
+      "title": "Embedding applications",
+      "timing": "44:00–47:00",
+      "resources": [
+        {
+          "label": "Provider and host responsibilities",
+          "path": "docs/declarative-amsterdam-2026/cem-platform-pitch.md",
+          "fragment": "embedding-applications"
+        }
+      ]
+    },
+    {
+      "slide": 21,
+      "slideId": "p20",
+      "title": "Find your place in the platform",
+      "timing": "47:00–49:00",
+      "resources": [
+        {
+          "label": "Platform layers and implementation boundaries",
+          "path": "docs/declarative-amsterdam-2026/presentation.md",
+          "fragment": "published-agenda-and-topic-coverage"
+        }
+      ]
+    },
+    {
+      "slide": 22,
+      "slideId": "p21",
+      "title": "Put processing where the work happens",
+      "timing": "49:00–50:00",
+      "resources": [
+        {
+          "label": "CLI, library and pipeline hosts",
+          "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+          "fragment": "cli-library-and-pipeline-applications"
+        }
+      ]
+    },
+    {
+      "slide": 23,
+      "slideId": "h209a9db50e1b8a77_0_0",
+      "title": "Browser vs DCE security",
+      "timing": "50:00–50:30",
+      "resources": [
+        {
+          "label": "DCE security promise and current limits",
+          "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+          "fragment": "dce-promises-carried-forward"
+        }
+      ]
+    },
+    {
+      "slide": 24,
+      "slideId": "p22",
+      "title": "Insulate each vendor’s contribution",
+      "timing": "50:30–52:30",
+      "resources": [
+        {
+          "label": "Memory, Storage, CPU, Network, DOM and CSS scopes",
+          "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+          "fragment": "six-resource-layers"
+        }
+      ]
+    },
+    {
+      "slide": 25,
+      "slideId": "p27",
+      "title": "Six layers: foundations and boundaries",
+      "timing": "Optional reference",
+      "resources": [
+        {
+          "label": "Six-layer foundations and enforcement gaps",
+          "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+          "fragment": "six-resource-layers"
+        }
+      ]
+    },
+    {
+      "slide": 26,
+      "slideId": "p23",
+      "title": "Make performance a lifecycle property",
+      "timing": "52:30–54:00",
+      "resources": [
+        {
+          "label": "Lifecycle performance mechanisms and limits",
+          "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+          "fragment": "processing-delivery-and-performance"
+        },
+        {
+          "label": "Measured public startup",
+          "path": "docs/declarative-amsterdam-2026/public-demo-4d21f9cd-verification.md",
+          "fragment": ""
+        }
+      ]
+    },
+    {
+      "slide": 27,
+      "slideId": "p28",
+      "title": "Follow the source and the evidence",
+      "timing": "Optional reference",
+      "resources": [
+        {
+          "label": "Local kit and frozen reference results (dated)",
+          "path": "docs/declarative-amsterdam-2026/participant-resources.md",
+          "fragment": ""
+        },
+        {
+          "label": "Verified public workflow and exact build",
+          "path": "docs/declarative-amsterdam-2026/public-demo-4d21f9cd-verification.md",
+          "fragment": ""
+        }
+      ]
+    },
+    {
+      "slide": 28,
+      "slideId": "p25",
+      "title": "32 schema packages",
+      "timing": "Optional reference",
+      "resources": [
+        {
+          "label": "Schema package catalog and capability limits",
+          "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+          "fragment": "schema-package-catalog"
+        },
+        {
+          "label": "Package source guide",
+          "path": "packages/cem_ml/schema-packages/README.md",
+          "fragment": ""
+        }
+      ]
+    },
+    {
+      "slide": 29,
+      "slideId": "p26",
+      "title": "Reuse expertise within explicit profiles",
+      "timing": "Optional reference",
+      "resources": [
+        {
+          "label": "XSLT runtime profile",
+          "path": "docs/xslt-runtime-lowering.md",
+          "fragment": ""
+        },
+        {
+          "label": "Native, Node and browser deployment contracts",
+          "path": "docs/cem-ml-deployment-contract.md",
+          "fragment": ""
+        }
+      ]
+    }
+  ],
+  "publishedLinks": [
+    {
+      "label": "CEM demo site",
+      "url": "https://green-morning-fd6e.trans-acf.workers.dev/"
+    },
+    {
+      "label": "Declarative Amsterdam presentation slides",
+      "url": "https://docs.google.com/presentation/d/1v5JEclFycuXuYk5Mnpwb0alxdKIi30J6XgvLBmawxI4/edit?usp=sharing"
+    },
+    {
+      "label": "CEM formats playground",
+      "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground"
+    },
+    {
+      "label": "Login form CEM-ML",
+      "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground?title=Login+form+CEM-ML&description=A+sign-in+form+with+labeled+email+and+password+fields.&source=%40doc+cem-ml+1%0A%40ns+cem+%3D+%22https%3A%2F%2Fcem.dev%2Fns%2Fcore%2F1%22%0A%40ns+html+%3D+%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxhtml%22%0A%40default+html%0A%7Bmain+%40aria-labelledby%3Dlogin-title+%40cem%3Ascreen%3Dlogin+%7C%0A++++%7Bh1+%40id%3Dlogin-title+%7C+Sign+in%7D%0A++++%7Bform+%40action%3D%22%23session%22+%40method%3Dpost+%40cem%3Aform%3Dsign-in+%7C%0A++++++++%7Blabel+%40for%3Demail+%7C+Email%7D%0A++++++++%7Binput+%40autocomplete%3Demail+%40id%3Demail+%40name%3Demail+%40required+%40type%3Demail%7D%0A++++++++%7Blabel+%40for%3Dpassword+%7C+Password%7D%0A++++++++%7Binput+%40autocomplete%3Dcurrent-password+%40id%3Dpassword+%40name%3Dpassword+%40required+%40type%3Dpassword%7D%0A++++++++%7Bbutton+%40type%3Dsubmit+%40cem%3Aaction%3Dprimary+%7C+Sign+in%7D%0A%7D+++%7D%0A&input=cem&output=html"
+    },
+    {
+      "label": "7e. Embedded XSLT fragment",
+      "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-elements/demo/external-template"
+    },
+    {
+      "label": "XSLT template fragment",
+      "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-elements/demo/html-template.xhtml#embedded-xslt"
+    },
+    {
+      "label": "schema packages",
+      "url": "https://github.com/EPA-WG/cem/tree/develop/packages/cem_ml/schema-packages"
+    },
+    {
+      "label": "Hello, CEM-ML",
+      "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground?title=Hello%2C+CEM-ML&description=The+same+greeting+written+in+CEM-ML+and+rendered+as+HTML.&source=%7Barticle+%7C%0A++++%7Bh2+%7C+Hello%2C+CEM-ML%7D%0A++++%7Bp+%7C+Edit+this+CEM-ML%2C+then+choose+another+output+format.%7D%0A++++%7Bbutton+%40type%3Dbutton+%7C+A+live+HTML+button%7D%0A%7D%0A&input=cem&output=html"
+    }
+  ]
+}

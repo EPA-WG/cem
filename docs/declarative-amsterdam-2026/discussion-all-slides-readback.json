@@ -1,0 +1,748 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-04T04:51:47.023526+00:00",
+  "checkedOn": "2026-11-03",
+  "timeZone": "America/Chicago",
+  "status": "passed",
+  "existingComment": {
+    "url": "https://github.com/EPA-WG/cem/discussions/24#discussioncomment-18867103",
+    "bodySha256": "c563ea5c98b4ba301b2b19464a65b9f952cede0f43d5002e7b0922070db8fe02",
+    "originalLinkedSlides": [
+      1,
+      3,
+      4,
+      5,
+      8
+    ],
+    "unchangedByThisReview": true
+  },
+  "liveDeck": {
+    "url": "https://docs.google.com/presentation/d/1v5JEclFycuXuYk5Mnpwb0alxdKIi30J6XgvLBmawxI4/edit",
+    "presentationId": "1v5JEclFycuXuYk5Mnpwb0alxdKIi30J6XgvLBmawxI4",
+    "revisionId": "Eq03wuK7FUhGiQ",
+    "title": "CEM-ML — Declarative Amsterdam 2026 — Sasha Firsov",
+    "readVia": "Google Drive get_presentation_text",
+    "modified": false,
+    "recordedOrderMatchesLive": true,
+    "slides": [
+      {
+        "slide": 1,
+        "id": "p1",
+        "visibleTextSha256": "bcffd9733d8ff09a0245cae8370f2d2278edaae7328d33e1c0afcded4f635656"
+      },
+      {
+        "slide": 2,
+        "id": "h36c7c826c4eee100_0_0",
+        "visibleTextSha256": "0e6ebdfa8fdebccc819a980fc4f5521c33de235447f428b9c18eb121c059f03b"
+      },
+      {
+        "slide": 3,
+        "id": "p2",
+        "visibleTextSha256": "197b3376eba058c6f3115723d3302a638b02539d9eff15bde69b366739c5149e"
+      },
+      {
+        "slide": 4,
+        "id": "p3",
+        "visibleTextSha256": "22039b2e0c020ef3bcb895d91ed2c7ad6fa9a5a24048116bb2f0767af83f7e8e"
+      },
+      {
+        "slide": 5,
+        "id": "p4",
+        "visibleTextSha256": "b1387a443f04c9e21ba8796d5335608ebc9d32f3b3c230332a0fb9af5c11bfe8"
+      },
+      {
+        "slide": 6,
+        "id": "p5",
+        "visibleTextSha256": "7a3bfbc02bc87b246b69f85deb1e54da4c3e1e2485133ae785cd67893ae72eac"
+      },
+      {
+        "slide": 7,
+        "id": "p6",
+        "visibleTextSha256": "e14ace0ad94a84fc3311eb92de0935522671bd170ccbab05a0093a79d4ea11d7"
+      },
+      {
+        "slide": 8,
+        "id": "p7",
+        "visibleTextSha256": "5bb631901d151c71737326782588babc2392592ff0012e55c957b054c362718a"
+      },
+      {
+        "slide": 9,
+        "id": "p8",
+        "visibleTextSha256": "0c0e2d9b61efe18e49cbb110a9ddf82b4a2aa0e83b5f8af596867a6cafefcb7d"
+      },
+      {
+        "slide": 10,
+        "id": "p9",
+        "visibleTextSha256": "a38273f715d9f101a8cb1631faa7da1801a006b355e92d89396b40d0348f20d1"
+      },
+      {
+        "slide": 11,
+        "id": "p10",
+        "visibleTextSha256": "41e91c75615ede55686c91f036793d1d677ee4b18f9caae0e0ce3a187b08f0bc"
+      },
+      {
+        "slide": 12,
+        "id": "p11",
+        "visibleTextSha256": "379068445a75310c43e5605eb5b8f74673b7e5e6fec289deab6d79385a036e3a"
+      },
+      {
+        "slide": 13,
+        "id": "p12",
+        "visibleTextSha256": "789ea21de4514f04b9f45b0c3767be94cfb71c966e7fc134e0701ec7cbad4569"
+      },
+      {
+        "slide": 14,
+        "id": "p13",
+        "visibleTextSha256": "7006245aa8a057005b9655ac626ed594646f42b34e001c3abf9ca9874493ebf1"
+      },
+      {
+        "slide": 15,
+        "id": "p14",
+        "visibleTextSha256": "115e4bcf932a0c7c2e06e38552d789c9a4042bd0c36656caa67c369e9b38d27d"
+      },
+      {
+        "slide": 16,
+        "id": "p15",
+        "visibleTextSha256": "ce0b740bd7cb18f6103f518384c0c95ab700fd0b05816563916a21dccfe04dc4"
+      },
+      {
+        "slide": 17,
+        "id": "p16",
+        "visibleTextSha256": "9ce243bda40ffd4be1edfaca07e2f8e7038212a6689356db92b7983c5b35104d"
+      },
+      {
+        "slide": 18,
+        "id": "p17",
+        "visibleTextSha256": "235215fa60e0ddba841f27a9d89eedef1e65223be3445042989e6d0cbb672590"
+      },
+      {
+        "slide": 19,
+        "id": "p18",
+        "visibleTextSha256": "ba17db3a7785113e0f550bc062e4f19d202173ba33a8543ab220597b868f7caf"
+      },
+      {
+        "slide": 20,
+        "id": "p19",
+        "visibleTextSha256": "7ee1bbf90c0c7a16d57ad1525ada794d7b5cc1eddda4733bc47b436867e54bfa"
+      },
+      {
+        "slide": 21,
+        "id": "p20",
+        "visibleTextSha256": "d31e505bf503582cbb3ac1da7f96a89b480a081f764e9bc67418a652c41a5d50"
+      },
+      {
+        "slide": 22,
+        "id": "p21",
+        "visibleTextSha256": "b56c203aed2b1c5e9740b8b76b6c1634a3dadd9da4673e14d49dafa328aefa03"
+      },
+      {
+        "slide": 23,
+        "id": "h209a9db50e1b8a77_0_0",
+        "visibleTextSha256": "2659362ff8142d0dec0fdea9651b1fed636ac195236142cacaf96fcac3efc30c"
+      },
+      {
+        "slide": 24,
+        "id": "p22",
+        "visibleTextSha256": "9921508d43379d8caf97527f30d8858d860a5709d047f3b71b57128b8fdc3e3f"
+      },
+      {
+        "slide": 25,
+        "id": "p27",
+        "visibleTextSha256": "f49a3c5f2d4ac170cb2fc7f7fa09f6f63cc95e8a4b8c893cf56e81923d4d57af"
+      },
+      {
+        "slide": 26,
+        "id": "p23",
+        "visibleTextSha256": "b11a06e053e8a7d237cef039f2556cb6f803ae4dc1dbbf36ad285a9090be1cee"
+      },
+      {
+        "slide": 27,
+        "id": "p28",
+        "visibleTextSha256": "10437ebceac41a92719f4b54a84ac72e7543400055d68d12a33c776c9018bd53"
+      },
+      {
+        "slide": 28,
+        "id": "p25",
+        "visibleTextSha256": "e00aea1f5d00d2b8aa9d5c7c5f61d0326807462679d8fb6022ca2476ea224547"
+      },
+      {
+        "slide": 29,
+        "id": "p26",
+        "visibleTextSha256": "cdc80c1ad69d26064ba7af4e6affbe76b085312dee185517c8608785fb0e13b4"
+      },
+      {
+        "slide": 30,
+        "id": "p24",
+        "visibleTextSha256": "f876a93c99aaf1bd741402242e0990c1cc006035fe1693f7cc7c059617cb2605"
+      }
+    ]
+  },
+  "coverage": {
+    "physicalSlides": 30,
+    "tableRows": 31,
+    "demoLinks": 14,
+    "demoSlides": 13,
+    "addedReferenceSlides": 17,
+    "optionalReferenceSlides": [
+      25,
+      27,
+      28,
+      29
+    ],
+    "referenceRevision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+    "additionalReferences": [
+      {
+        "slide": 1,
+        "slideId": "p1",
+        "title": "CEM — DNA for structured data",
+        "timing": "00:00–00:45",
+        "resources": [
+          {
+            "label": "Opening idea: DNA for structured data",
+            "path": "docs/declarative-amsterdam-2026/opening-teaser.md",
+            "fragment": ""
+          }
+        ]
+      },
+      {
+        "slide": 2,
+        "slideId": "h36c7c826c4eee100_0_0",
+        "title": "CEM-ML — Declarative document lifecycle engine",
+        "timing": "00:45–01:10",
+        "resources": [
+          {
+            "label": "Session brief and tutorial plan",
+            "path": "docs/declarative-amsterdam-2026/presentation.md",
+            "fragment": "presentation-brief"
+          }
+        ]
+      },
+      {
+        "slide": 4,
+        "slideId": "p3",
+        "title": "Make capabilities reusable across systems",
+        "timing": "03:00–04:30",
+        "resources": [
+          {
+            "label": "Reusable processing across formats and locations",
+            "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+            "fragment": "format-and-location-independence"
+          }
+        ]
+      },
+      {
+        "slide": 5,
+        "slideId": "p4",
+        "title": "Keep useful rules as systems change",
+        "timing": "04:30–07:00",
+        "resources": [
+          {
+            "label": "Contracts that survive a change",
+            "path": "docs/declarative-amsterdam-2026/cem-manifesto.md",
+            "fragment": "make-change-a-normal-operation"
+          }
+        ]
+      },
+      {
+        "slide": 6,
+        "slideId": "p5",
+        "title": "Keep your markup knowledge",
+        "timing": "07:00–09:30",
+        "resources": [
+          {
+            "label": "HTML Login source",
+            "path": "examples/semantic/login.html",
+            "fragment": ""
+          },
+          {
+            "label": "CEM-ML Login source",
+            "path": "examples/cem-ml/login.cem",
+            "fragment": ""
+          }
+        ]
+      },
+      {
+        "slide": 7,
+        "slideId": "p6",
+        "title": "A small vocabulary for the whole journey",
+        "timing": "09:30–12:00",
+        "resources": [
+          {
+            "label": "Namespace, nodes, attributes and content in Login",
+            "path": "examples/cem-ml/login.cem",
+            "fragment": ""
+          }
+        ]
+      },
+      {
+        "slide": 9,
+        "slideId": "p8",
+        "title": "Pick, extend, or create your own schemas",
+        "timing": "15:00–17:00",
+        "resources": [
+          {
+            "label": "Schema package guide",
+            "path": "packages/cem_ml/schema-packages/README.md",
+            "fragment": ""
+          }
+        ]
+      },
+      {
+        "slide": 20,
+        "slideId": "p19",
+        "title": "Embedding applications",
+        "timing": "44:00–47:00",
+        "resources": [
+          {
+            "label": "Provider and host responsibilities",
+            "path": "docs/declarative-amsterdam-2026/cem-platform-pitch.md",
+            "fragment": "embedding-applications"
+          }
+        ]
+      },
+      {
+        "slide": 21,
+        "slideId": "p20",
+        "title": "Find your place in the platform",
+        "timing": "47:00–49:00",
+        "resources": [
+          {
+            "label": "Platform layers and implementation boundaries",
+            "path": "docs/declarative-amsterdam-2026/presentation.md",
+            "fragment": "published-agenda-and-topic-coverage"
+          }
+        ]
+      },
+      {
+        "slide": 22,
+        "slideId": "p21",
+        "title": "Put processing where the work happens",
+        "timing": "49:00–50:00",
+        "resources": [
+          {
+            "label": "CLI, library and pipeline hosts",
+            "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+            "fragment": "cli-library-and-pipeline-applications"
+          }
+        ]
+      },
+      {
+        "slide": 23,
+        "slideId": "h209a9db50e1b8a77_0_0",
+        "title": "Browser vs DCE security",
+        "timing": "50:00–50:30",
+        "resources": [
+          {
+            "label": "DCE security promise and current limits",
+            "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+            "fragment": "dce-promises-carried-forward"
+          }
+        ]
+      },
+      {
+        "slide": 24,
+        "slideId": "p22",
+        "title": "Insulate each vendor’s contribution",
+        "timing": "50:30–52:30",
+        "resources": [
+          {
+            "label": "Memory, Storage, CPU, Network, DOM and CSS scopes",
+            "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+            "fragment": "six-resource-layers"
+          }
+        ]
+      },
+      {
+        "slide": 25,
+        "slideId": "p27",
+        "title": "Six layers: foundations and boundaries",
+        "timing": "Optional reference",
+        "resources": [
+          {
+            "label": "Six-layer foundations and enforcement gaps",
+            "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+            "fragment": "six-resource-layers"
+          }
+        ]
+      },
+      {
+        "slide": 26,
+        "slideId": "p23",
+        "title": "Make performance a lifecycle property",
+        "timing": "52:30–54:00",
+        "resources": [
+          {
+            "label": "Lifecycle performance mechanisms and limits",
+            "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+            "fragment": "processing-delivery-and-performance"
+          },
+          {
+            "label": "Measured public startup",
+            "path": "docs/declarative-amsterdam-2026/public-demo-4d21f9cd-verification.md",
+            "fragment": ""
+          }
+        ]
+      },
+      {
+        "slide": 27,
+        "slideId": "p28",
+        "title": "Follow the source and the evidence",
+        "timing": "Optional reference",
+        "resources": [
+          {
+            "label": "Local kit and frozen reference results (dated)",
+            "path": "docs/declarative-amsterdam-2026/participant-resources.md",
+            "fragment": ""
+          },
+          {
+            "label": "Verified public workflow and exact build",
+            "path": "docs/declarative-amsterdam-2026/public-demo-4d21f9cd-verification.md",
+            "fragment": ""
+          }
+        ]
+      },
+      {
+        "slide": 28,
+        "slideId": "p25",
+        "title": "32 schema packages",
+        "timing": "Optional reference",
+        "resources": [
+          {
+            "label": "Schema package catalog and capability limits",
+            "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+            "fragment": "schema-package-catalog"
+          },
+          {
+            "label": "Package source guide",
+            "path": "packages/cem_ml/schema-packages/README.md",
+            "fragment": ""
+          }
+        ]
+      },
+      {
+        "slide": 29,
+        "slideId": "p26",
+        "title": "Reuse expertise within explicit profiles",
+        "timing": "Optional reference",
+        "resources": [
+          {
+            "label": "XSLT runtime profile",
+            "path": "docs/xslt-runtime-lowering.md",
+            "fragment": ""
+          },
+          {
+            "label": "Native, Node and browser deployment contracts",
+            "path": "docs/cem-ml-deployment-contract.md",
+            "fragment": ""
+          }
+        ]
+      }
+    ],
+    "publishedLinksRetained": 8,
+    "sourceViewCorrection": "Replaced the view-source: scheme with ordinary HTTPS to the same embedded-xslt fragment; original markup remains available via the browser View source action"
+  },
+  "publicChecks": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-04T04:49:40.470Z",
+    "status": "passed",
+    "sources": [
+      {
+        "path": "docs/declarative-amsterdam-2026/public-demo-4d21f9cd-verification.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/declarative-amsterdam-2026/public-demo-4d21f9cd-verification.md",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "8df0f5045e1fd21ff60ef103828765fa1f5fa7e43b8f66027364bc74a16cf29d",
+        "label": "Verified public workflow and exact build",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 3832,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "docs/declarative-amsterdam-2026/participant-resources.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/declarative-amsterdam-2026/participant-resources.md",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "5e9da5ac4f241a7aee9623af5bdf3d4c21331a956eae49f8dd0b7f7f59a1770c",
+        "label": "Local kit and frozen reference results (dated)",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 3911,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "docs/declarative-amsterdam-2026/presentation.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/declarative-amsterdam-2026/presentation.md#presentation-brief",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "b59c1b196c1140025a8995ffa86266226765d71c1a9add6a259243193c1a4116",
+        "label": "Session brief and tutorial plan",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 35408,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "docs/declarative-amsterdam-2026/opening-teaser.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/declarative-amsterdam-2026/opening-teaser.md",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "db105e49dbe51a498248f054c336d67d5208bf22081200d9d68df8e901695445",
+        "label": "Opening idea: DNA for structured data",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 3183,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "examples/semantic/login.html",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/examples/semantic/login.html",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "03a91bd7a0b8af6e919a2217e87ddbdd0ef6c03d055a80685b8b1097540d3a95",
+        "label": "HTML Login source",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 703,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "docs/declarative-amsterdam-2026/cem-manifesto.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/declarative-amsterdam-2026/cem-manifesto.md#make-change-a-normal-operation",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "66d5543c42d8abc7da77965fd90b5cf597b9653f598309a65201dbd1a66e7eff",
+        "label": "Contracts that survive a change",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 10326,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/declarative-amsterdam-2026/platform-evidence.md#format-and-location-independence",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "da449d9ac7b5a739d68ada37719817afd563908a39c23290dfa5807690cb6fdd",
+        "label": "Reusable processing across formats and locations",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 35581,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "examples/cem-ml/login.cem",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/examples/cem-ml/login.cem",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "68f0487d911ed0a072366fbb19f9b52c3afce80cb0b404b3d6c345d07e71dbea",
+        "label": "Namespace, nodes, attributes and content in Login",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 569,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/declarative-amsterdam-2026/platform-evidence.md#cli-library-and-pipeline-applications",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "da449d9ac7b5a739d68ada37719817afd563908a39c23290dfa5807690cb6fdd",
+        "label": "CLI, library and pipeline hosts",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 35581,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "docs/declarative-amsterdam-2026/presentation.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/declarative-amsterdam-2026/presentation.md#published-agenda-and-topic-coverage",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "b59c1b196c1140025a8995ffa86266226765d71c1a9add6a259243193c1a4116",
+        "label": "Platform layers and implementation boundaries",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 35408,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/declarative-amsterdam-2026/platform-evidence.md#six-resource-layers",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "da449d9ac7b5a739d68ada37719817afd563908a39c23290dfa5807690cb6fdd",
+        "label": "Six-layer foundations and enforcement gaps",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 35581,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/declarative-amsterdam-2026/platform-evidence.md#dce-promises-carried-forward",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "da449d9ac7b5a739d68ada37719817afd563908a39c23290dfa5807690cb6fdd",
+        "label": "DCE security promise and current limits",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 35581,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "docs/declarative-amsterdam-2026/cem-platform-pitch.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/declarative-amsterdam-2026/cem-platform-pitch.md#embedding-applications",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "197518529828cec82073709c6e7b865a8809abb6d0c1f797255e82b410b4016c",
+        "label": "Provider and host responsibilities",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 6856,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "packages/cem_ml/schema-packages/README.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/packages/cem_ml/schema-packages/README.md",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "a6367922d3c46129e35d6426515d467c2e92b6244ae03fe78c77b11eb2d0dfd3",
+        "label": "Package source guide",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 61080,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/declarative-amsterdam-2026/platform-evidence.md#processing-delivery-and-performance",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "da449d9ac7b5a739d68ada37719817afd563908a39c23290dfa5807690cb6fdd",
+        "label": "Lifecycle performance mechanisms and limits",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 35581,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "docs/declarative-amsterdam-2026/platform-evidence.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/declarative-amsterdam-2026/platform-evidence.md#schema-package-catalog",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "da449d9ac7b5a739d68ada37719817afd563908a39c23290dfa5807690cb6fdd",
+        "label": "Schema package catalog and capability limits",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 35581,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "docs/xslt-runtime-lowering.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/xslt-runtime-lowering.md",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "b8cefe18679affdab94eade48d0da125875097831527808704e0dceccb5fb0be",
+        "label": "XSLT runtime profile",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 50897,
+        "rawMatchesPinnedGitBlob": true
+      },
+      {
+        "path": "docs/cem-ml-deployment-contract.md",
+        "url": "https://github.com/EPA-WG/cem/blob/bc51404ef57639c4b627ce88f615b629cbfeb5e8/docs/cem-ml-deployment-contract.md",
+        "revision": "bc51404ef57639c4b627ce88f615b629cbfeb5e8",
+        "sha256": "f3d44444b735dc864fea25f7be6cdbf2230f77d5500edb63b62b939d8b3bc7c6",
+        "label": "Native, Node and browser deployment contracts",
+        "status": 200,
+        "rawStatus": 200,
+        "rawBytes": 40478,
+        "rawMatchesPinnedGitBlob": true
+      }
+    ],
+    "legacyDestinations": [
+      {
+        "label": "CEM demo site",
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/",
+        "status": 200,
+        "bytes": 1092,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/"
+      },
+      {
+        "label": "CEM formats playground",
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground",
+        "status": 200,
+        "bytes": 5039,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground"
+      },
+      {
+        "label": "Login form CEM-ML",
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground?title=Login+form+CEM-ML&description=A+sign-in+form+with+labeled+email+and+password+fields.&source=%40doc+cem-ml+1%0A%40ns+cem+%3D+%22https%3A%2F%2Fcem.dev%2Fns%2Fcore%2F1%22%0A%40ns+html+%3D+%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxhtml%22%0A%40default+html%0A%7Bmain+%40aria-labelledby%3Dlogin-title+%40cem%3Ascreen%3Dlogin+%7C%0A++++%7Bh1+%40id%3Dlogin-title+%7C+Sign+in%7D%0A++++%7Bform+%40action%3D%22%23session%22+%40method%3Dpost+%40cem%3Aform%3Dsign-in+%7C%0A++++++++%7Blabel+%40for%3Demail+%7C+Email%7D%0A++++++++%7Binput+%40autocomplete%3Demail+%40id%3Demail+%40name%3Demail+%40required+%40type%3Demail%7D%0A++++++++%7Blabel+%40for%3Dpassword+%7C+Password%7D%0A++++++++%7Binput+%40autocomplete%3Dcurrent-password+%40id%3Dpassword+%40name%3Dpassword+%40required+%40type%3Dpassword%7D%0A++++++++%7Bbutton+%40type%3Dsubmit+%40cem%3Aaction%3Dprimary+%7C+Sign+in%7D%0A%7D+++%7D%0A&input=cem&output=html",
+        "status": 200,
+        "bytes": 5039,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground?title=Login+form+CEM-ML&description=A+sign-in+form+with+labeled+email+and+password+fields.&source=%40doc+cem-ml+1%0A%40ns+cem+%3D+%22https%3A%2F%2Fcem.dev%2Fns%2Fcore%2F1%22%0A%40ns+html+%3D+%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxhtml%22%0A%40default+html%0A%7Bmain+%40aria-labelledby%3Dlogin-title+%40cem%3Ascreen%3Dlogin+%7C%0A++++%7Bh1+%40id%3Dlogin-title+%7C+Sign+in%7D%0A++++%7Bform+%40action%3D%22%23session%22+%40method%3Dpost+%40cem%3Aform%3Dsign-in+%7C%0A++++++++%7Blabel+%40for%3Demail+%7C+Email%7D%0A++++++++%7Binput+%40autocomplete%3Demail+%40id%3Demail+%40name%3Demail+%40required+%40type%3Demail%7D%0A++++++++%7Blabel+%40for%3Dpassword+%7C+Password%7D%0A++++++++%7Binput+%40autocomplete%3Dcurrent-password+%40id%3Dpassword+%40name%3Dpassword+%40required+%40type%3Dpassword%7D%0A++++++++%7Bbutton+%40type%3Dsubmit+%40cem%3Aaction%3Dprimary+%7C+Sign+in%7D%0A%7D+++%7D%0A&input=cem&output=html"
+      },
+      {
+        "label": "7e. Embedded XSLT fragment",
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-elements/demo/external-template",
+        "status": 200,
+        "bytes": 14284,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-elements/demo/external-template"
+      },
+      {
+        "label": "XSLT template fragment",
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-elements/demo/html-template.xhtml#embedded-xslt",
+        "status": 200,
+        "bytes": 8345,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-elements/demo/html-template.xhtml"
+      },
+      {
+        "label": "schema packages",
+        "url": "https://github.com/EPA-WG/cem/tree/develop/packages/cem_ml/schema-packages",
+        "status": 200,
+        "bytes": 462411,
+        "finalUrl": "https://github.com/EPA-WG/cem/tree/develop/packages/cem_ml/schema-packages"
+      },
+      {
+        "label": "Hello, CEM-ML",
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground?title=Hello%2C+CEM-ML&description=The+same+greeting+written+in+CEM-ML+and+rendered+as+HTML.&source=%7Barticle+%7C%0A++++%7Bh2+%7C+Hello%2C+CEM-ML%7D%0A++++%7Bp+%7C+Edit+this+CEM-ML%2C+then+choose+another+output+format.%7D%0A++++%7Bbutton+%40type%3Dbutton+%7C+A+live+HTML+button%7D%0A%7D%0A&input=cem&output=html",
+        "status": 200,
+        "bytes": 5039,
+        "finalUrl": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground?title=Hello%2C+CEM-ML&description=The+same+greeting+written+in+CEM-ML+and+rendered+as+HTML.&source=%7Barticle+%7C%0A++++%7Bh2+%7C+Hello%2C+CEM-ML%7D%0A++++%7Bp+%7C+Edit+this+CEM-ML%2C+then+choose+another+output+format.%7D%0A++++%7Bbutton+%40type%3Dbutton+%7C+A+live+HTML+button%7D%0A%7D%0A&input=cem&output=html"
+      }
+    ],
+    "browserExamples": [
+      {
+        "label": "Login form CEM-ML",
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground?title=Login+form+CEM-ML&description=A+sign-in+form+with+labeled+email+and+password+fields.&source=%40doc+cem-ml+1%0A%40ns+cem+%3D+%22https%3A%2F%2Fcem.dev%2Fns%2Fcore%2F1%22%0A%40ns+html+%3D+%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxhtml%22%0A%40default+html%0A%7Bmain+%40aria-labelledby%3Dlogin-title+%40cem%3Ascreen%3Dlogin+%7C%0A++++%7Bh1+%40id%3Dlogin-title+%7C+Sign+in%7D%0A++++%7Bform+%40action%3D%22%23session%22+%40method%3Dpost+%40cem%3Aform%3Dsign-in+%7C%0A++++++++%7Blabel+%40for%3Demail+%7C+Email%7D%0A++++++++%7Binput+%40autocomplete%3Demail+%40id%3Demail+%40name%3Demail+%40required+%40type%3Demail%7D%0A++++++++%7Blabel+%40for%3Dpassword+%7C+Password%7D%0A++++++++%7Binput+%40autocomplete%3Dcurrent-password+%40id%3Dpassword+%40name%3Dpassword+%40required+%40type%3Dpassword%7D%0A++++++++%7Bbutton+%40type%3Dsubmit+%40cem%3Aaction%3Dprimary+%7C+Sign+in%7D%0A%7D+++%7D%0A&input=cem&output=html",
+        "errors": [],
+        "heading": "Sign in",
+        "status": "passed"
+      },
+      {
+        "label": "Hello, CEM-ML",
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground?title=Hello%2C+CEM-ML&description=The+same+greeting+written+in+CEM-ML+and+rendered+as+HTML.&source=%7Barticle+%7C%0A++++%7Bh2+%7C+Hello%2C+CEM-ML%7D%0A++++%7Bp+%7C+Edit+this+CEM-ML%2C+then+choose+another+output+format.%7D%0A++++%7Bbutton+%40type%3Dbutton+%7C+A+live+HTML+button%7D%0A%7D%0A&input=cem&output=html",
+        "errors": [],
+        "heading": "Hello, CEM-ML",
+        "status": "passed"
+      },
+      {
+        "label": "7e. Embedded XSLT fragment",
+        "url": "https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-elements/demo/external-template",
+        "errors": [],
+        "renderedFruit": [
+          "🍒",
+          "🍋"
+        ],
+        "nativeDetailsToggle": true,
+        "status": "passed"
+      }
+    ],
+    "unchangedStudioLinks": true,
+    "discussionUpdated": false,
+    "priorStudioAcceptance": "public-demo-4d21f9cd-readback.json",
+    "inventorySha256": "4d21f9cd63ddb3c7c989b9bc9c123040e7472612274f3be1cb56c97d532a0770",
+    "browser": "148.0.7778.96",
+    "finishedAt": "2026-11-04T04:50:36.446Z"
+  },
+  "probeCorrection": "Initial browser probes omitted the documented Render action for shared playground URLs. Corrected probes assert exact URL source, click Render and check the produced heading. Both playgrounds and XSLT pass; no application change was needed.",
+  "checks": {
+    "studioLint": "passed",
+    "presentationResourceGuards": "65 passed; zero failed",
+    "allNativeSlideBindings": "passed",
+    "pinnedSourceAnchors": "passed",
+    "missingDuplicateWrongSlideOrUnreviewedDestinationRefusal": "passed",
+    "privacyAndPostingBoundary": "retained"
+  },
+  "limits": [
+    "Prior 14 Studio navigation and selected 23-configuration acceptance retained by exact URL and unchanged public inventory; not rerun in this review",
+    "References support the named conceptual slide; a reference link does not advertise a new runtime demo",
+    "Existing discussion comment and live slide deck were read, not edited",
+    "Presentation Site publication and measured rehearsal remain open"
+  ]
+}

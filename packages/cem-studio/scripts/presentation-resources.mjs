@@ -9,7 +9,7 @@ import { readSupplierPresenter } from './supplier-presenter.mjs';
 import { workspaceRoot, presenterPrivacy, presenterFile, presenterHash } from './presenter-project.mjs';
 
 const docs = resolve(workspaceRoot, 'docs/declarative-amsterdam-2026');
-const discussionSourceRevision = '056be4ae3b546af0ad0a308ec10878d58ff1fc99';
+const discussionSourceRevision = 'bc51404ef57639c4b627ce88f615b629cbfeb5e8';
 export async function loadPresenterResources() {
     return JSON.parse(await readFile(resolve(docs, 'presenter-resources.json'), 'utf8'));
 }
@@ -31,7 +31,12 @@ export async function verifyDiscussionDemoDraft(data, draft, { freezes, native }
         { slide: 15, slideId: 'p14', name: 'companion pipeline overview', project: 'supplier-pipeline', resource: 'supplier-graph', configurations: ['availability'] },
         { slide: 18, slideId: 'p17', name: 'source provenance', project: 'login', resource: 'login-view-template', configurations: ['render-graph'] },
     ].sort((a, b) => a.slide - b.slide);
-    const actual = rows(draft);
+    const resources = JSON.parse(await readFile(resolve(docs, 'discussion-slide-resources.json'), 'utf8'));
+    assert.equal(resources.schemaVersion, 1);
+    assert.equal(resources.sourceRevision, discussionSourceRevision, 'Slide references must use the reviewed revision');
+    const allRows = rows(draft);
+    const demoSlides = new Set(expected.map(cue => cue.slide));
+    const actual = allRows.filter(row => demoSlides.has(Number(row[0])));
     assert.equal(actual.length, expected.length, 'Demo draft must include every cue and companion row');
     const links = [];
     for (const [index, row] of actual.entries()) {
@@ -61,21 +66,46 @@ export async function verifyDiscussionDemoDraft(data, draft, { freezes, native }
             configuration: cue.configurations[0], configurationInput: frozen.definition.configurations.find(config => config.id === cue.configurations[0]).source,
             configurations, url: target.href });
     }
-    const references = ['participant-resources.md', 'demo-verification.md'].map(name => {
-        const path = `docs/declarative-amsterdam-2026/${name}`;
-        const url = `https://github.com/EPA-WG/cem/blob/${discussionSourceRevision}/${path}`;
-        assert.ok(draft.includes('](' + url + ')'), 'Demo draft must use pinned public footer links');
+    const referenceFor = (path, fragment = '') => {
+        const url = `https://github.com/EPA-WG/cem/blob/${discussionSourceRevision}/${path}${fragment ? '#' + fragment : ''}`;
         const bytes = execFileSync('git', ['show', `${discussionSourceRevision}:${path}`], { cwd: workspaceRoot });
+        if (fragment) assert.ok(bytes.toString().split('\n').filter(line => /^#+ /.test(line)).some(line =>
+            line.replace(/^#+ /, '').toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s/g, '-') === fragment), 'Pinned source anchor is missing');
         return { path, url, revision: discussionSourceRevision, sha256: presenterHash(bytes) };
+    };
+    const references = ['participant-resources.md', 'public-demo-4d21f9cd-verification.md'].map(name => {
+        const reference = referenceFor(`docs/declarative-amsterdam-2026/${name}`);
+        const { url } = reference;
+        assert.ok(draft.includes('](' + url + ')'), 'Demo draft must use pinned public footer links');
+        return reference;
     });
-    const allowed = new Set([data.resourceHub, ...links.map(link => link.url), ...references.map(reference => reference.url)]);
+    const referenceRows = allRows.filter(row => !demoSlides.has(Number(row[0])));
+    assert.deepEqual(resources.slides.map(slide => slide.slide), native.map(row => Number(row[0])).filter(slide => !demoSlides.has(slide)), 'Reference map must cover the remaining native slides');
+    assert.equal(referenceRows.length, resources.slides.length, 'Draft must include every remaining slide exactly once');
+    for (const [index, row] of referenceRows.entries()) {
+        const source = resources.slides[index], nativeRow = native.find(row => Number(row[0]) === source.slide);
+        assert.equal(row.length, 4);
+        assert.equal(Number(row[0]), source.slide, 'Reference slide order changed');
+        assert.equal(row[1], nativeRow[1], 'Reference native slide ID changed');
+        assert.equal('`' + source.slideId + '`', nativeRow[1], 'Reference map native ID changed');
+        assert.equal(source.title, nativeRow[2], 'Reference map native title changed');
+        const suffix = nativeRow[3] === 'Optional reference' ? ' (optional reference)' : ' (reference)';
+        assert.equal(row[2], source.title + suffix, 'Reference slide title/role changed');
+        const targets = source.resources.map(resource => ({ ...referenceFor(resource.path, resource.fragment), label: resource.label }));
+        assert.equal(row[3], targets.map(target => `[${target.label}](${target.url})`).join('; '), 'Reference destination differs from reviewed source');
+        references.push(...targets);
+    }
+    assert.deepEqual([...new Set(allRows.map(row => Number(row[0])))], native.map(row => Number(row[0])), 'Draft must cover all 30 slides in native order');
+    for (const link of resources.publishedLinks) assert.ok(draft.includes(`[${link.label}](${link.url})`), 'Previously published example is missing');
+    const allowed = new Set([data.resourceHub, ...resources.publishedLinks.map(link => link.url), ...links.map(link => link.url), ...references.map(reference => reference.url)]);
     for (const [, target] of draft.matchAll(/\]\(([^)]+)\)/g)) assert.ok(allowed.has(target), 'Demo draft contains an unreviewed destination');
     const prose = draft.replace(/\s+/g, ' ');
     for (const text of ['Do not post yet.', 'No comment has been sent.', 'Clone a sample before editing.',
         'Do not enter real credentials.', 'Entered passwords or one-time codes block recovery until explicitly cleared;', 'they must never be exported.']) {
         assert.ok(prose.includes(text), 'Demo draft publication/privacy boundary changed');
     }
-    return { links, references, slideCount: new Set(links.map(link => link.slideId)).size,
+    return { links, references, publishedLinks: resources.publishedLinks, slideCount: new Set(allRows.map(row => row[1])).size,
+        demoSlideCount: new Set(links.map(link => link.slideId)).size, referenceSlideCount: referenceRows.length,
         publicFunctionalityVerified: false, discussionPosted: false, checks: 'frozen identities and recorded slide bindings only' };
 }
 

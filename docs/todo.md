@@ -559,6 +559,20 @@ channels; private agreements remain unverified. This file owns execution order.
       and controlled shell inspection; this preparation does not complete public
       acceptance or post the comment.
 
+- [x] Fixture: review the existing discussion #24 comment and complete the draft
+      for all 30 recorded slides, including optional references. Preserve the
+      verified 14 demo bindings and existing published examples; add meaningful
+      references for conceptual slides, reject missing/duplicate/misbound slides
+      and unreviewed destinations, verify new public sources, and keep posting
+      separate from draft review.
+      Completed 2026-11-03: live native deck order matches all 30 recorded IDs.
+      The draft covers 30 slides in 31 rows: 14 unchanged accepted Studio links
+      and 17 added reference slides, including all optional references. Original
+      published examples are retained; both playgrounds and embedded XSLT pass
+      browser checks. All 18 source links match pinned public bytes, seven
+      original HTTP destinations return 200, and lint/all 65 guards pass.
+      [Review and receipt](declarative-amsterdam-2026/discussion-all-slides-verification.md).
+
 - [ ] Append a resource comment to [GitHub discussion #24](https://github.com/EPA-WG/cem/discussions/24)
       mapping each demo-related slide number to its verified public demo-page
       link. Keep the stable native slide ID beside the current physical slide
@@ -576,6 +590,9 @@ channels; private agreements remain unverified. This file owns execution order.
       `4d21f9cd…`; the draft notice records those results. Review the complete
       comment, including the historical pinned footer edition, before the separate
       explicit posting action. No comment has been sent.
+      Full draft review is now complete for all 30 slides, with original published
+      examples preserved and current verification footer pins. The existing
+      comment was read but not updated; explicit delivery remains this open item.
 
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,
       output and demo path. Check slide readability and the fallback flow;

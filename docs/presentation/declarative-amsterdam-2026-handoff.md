@@ -1,5 +1,16 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+Discussion draft review complete (2026-11-03): the [full slide-resource map](../declarative-amsterdam-2026/discussion-resource-comment-draft.md)
+covers all 30 physical slides (31 rows, including both slide-16 demos). All 14
+accepted Studio URLs are retained; 17 other slides have relevant pinned
+references. Original published playground/XSLT examples remain and pass browser
+checks; 18 distinct source links match their pinned Git bytes. The live deck's
+order matches the recorded IDs. Lint and all 65 guards pass. The
+[review and receipt](../declarative-amsterdam-2026/discussion-all-slides-verification.md)
+keep existing public acceptance distinct from this review. The discussion comment
+and native deck were not edited; comment delivery, presentation Site publication
+and timed rehearsal remain open.
+
 Public demo acceptance complete (2026-11-03): the owner-deployed 906-file
 `4d21f9cd…` inventory, all 11 critical bytes and additional startup/revision/
 service-worker bytes match, including the final inventory recheck. Default public
