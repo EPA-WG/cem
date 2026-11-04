@@ -230,7 +230,6 @@
             "cache": false,
             "executor": "nx:run-commands",
             "dependsOn": [
-                "verify:determinism",
                 "test:publication-host"
             ],
             "options": {

@@ -16,6 +16,9 @@ await save();
 try {
     for (const suite of ['production', 'interactive', 'search']) await rm(resolve(reports, `public-${suite}.json`), { force: true });
     const inventory = JSON.parse(await readFile(resolve(reports, 'determinism.json'), 'utf8'));
+    const prepared = JSON.parse(await readFile(resolve(reports, 'cloudflare-preparation.json'), 'utf8'));
+    assert.equal(inventory.aggregateSha256, prepared.nativeAggregateSha256, 'Public verification must use the verified prepared release; run cem-site:prepare:cloudflare first');
+    report.preparedArchiveSha256 = prepared.archive.sha256;
     for (const entry of inventory.files) {
         const bytes = await readFile(resolve(workspace, 'dist/apps/cem-site', entry.path));
         assert.ok(bytes.length === entry.bytes && createHash('sha256').update(bytes).digest('hex') === entry.sha256,

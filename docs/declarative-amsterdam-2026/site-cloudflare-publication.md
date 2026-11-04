@@ -1,5 +1,11 @@
 # CEM Site: Cloudflare publication
 
+Public follow-up: the owner deployed this bundle as
+`431d2a65-f8b6-4f5f-86f1-cdf552c8fb7f`. The [public presentation guide](https://cem-amsterdam-2026.trans-acf.workers.dev/guides/declarative-amsterdam-2026/)
+now passes all 303 byte checks, the 27-route/86-fragment production crawl,
+interactive examples and search. See the [final verification](site-public-verification.md).
+The preparation-stage pending statements below are historical.
+
 Prepared 2026-11-03. The owner selected Cloudflare and will deploy from their
 existing signed-in machine. This publishes the native CEM Site as a separate
 Worker, `cem-amsterdam-2026`. The existing demo/Studio Worker remains
@@ -67,7 +73,9 @@ After assigning the origin printed by Wrangler to `CEM_SITE_DEPLOYED_URL`, run:
 CEM_SITE_ACCEPTANCE_URL="$CEM_SITE_DEPLOYED_URL" yarn nx run cem-site:verify:public --parallel=1
 ```
 
-The target is uncached. It verifies every original native file before launching
+The target is uncached and uses the previously verified prepared release without
+rebuilding or replacing it. Its identity must match the recorded clean-build
+inventory and preparation receipt. It verifies every original native file before launching
 the existing production, interactive and search browser suites sequentially.
 HTML is fetched at the canonical routes declared by the native manifest.
 Credentials, non-HTTPS URLs, non-root paths, queries, fragments and custom ports
@@ -75,5 +83,5 @@ are refused. Browser assertions and deadlines are unchanged. Public receipts
 use `public-*.json` names and do not overwrite local acceptance evidence; a
 failure records its stage and does not become a public pass.
 
-The publication TODO remains open until the actual public host passes. Timed
-rehearsal and final handoff are separate remaining work.
+The actual public host has now passed and the publication TODO is complete.
+Timed rehearsal and final handoff remain separate work.

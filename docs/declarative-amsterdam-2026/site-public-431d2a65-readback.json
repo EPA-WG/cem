@@ -1,0 +1,2718 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-04T05:35:18.567919+00:00",
+  "checkedOn": "2026-11-03",
+  "timeZone": "America/Chicago",
+  "status": "passed",
+  "deployment": {
+    "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+    "presentationGuideUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/guides/declarative-amsterdam-2026/",
+    "ownerReportedVersionId": "431d2a65-f8b6-4f5f-86f1-cdf552c8fb7f",
+    "ownerDeployedPreparedBundle": true,
+    "preparedSourceCommit": "c4cc5bdf3137403c8d85dd2e32c77fd4b097154c",
+    "nativeAggregateSha256": "741d9f3c06f15ed8c3f131b3bfdff8e2a0344c4e35cb80f6ddbec5ffe76f19d2"
+  },
+  "publicAcceptance": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-04T05:29:26.943Z",
+    "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+    "status": "passed",
+    "suites": [
+      {
+        "suite": "production",
+        "exitCode": 0,
+        "receipt": {
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "hostingProfile": "public",
+          "version": 1,
+          "routeCount": 27,
+          "responseCount": 27,
+          "headingCount": 369,
+          "focusableCount": 1109,
+          "fragmentLinkCount": 86,
+          "cleanOutputFiles": 303,
+          "aggregateSha256": "741d9f3c06f15ed8c3f131b3bfdff8e2a0344c4e35cb80f6ddbec5ffe76f19d2",
+          "routes": [
+            {
+              "route": "/guides/declarative-amsterdam-2026/",
+              "status": 200,
+              "title": "One document, reusable capabilities",
+              "headingCount": 7,
+              "focusableCount": 19,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/",
+              "status": 200,
+              "title": "CEM Site",
+              "headingCount": 2,
+              "focusableCount": 21,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/guides/",
+              "status": 200,
+              "title": "CEM Site Guides",
+              "headingCount": 2,
+              "focusableCount": 19,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/packages/",
+              "status": 200,
+              "title": "Public packages and crates",
+              "headingCount": 3,
+              "focusableCount": 23,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/guides/cem-ml/cli/",
+              "status": 200,
+              "title": "CEM-ML Browser and Node CLI Guide",
+              "headingCount": 6,
+              "focusableCount": 16,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/cem-ml/transform-config/",
+              "status": 200,
+              "title": "CEM-ML Transform Graph Reference",
+              "headingCount": 6,
+              "focusableCount": 11,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/cem-ml/wasm-runtime/",
+              "status": 200,
+              "title": "CEM-ML WASM Runtime Reference",
+              "headingCount": 13,
+              "focusableCount": 15,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/cem-elements/",
+              "status": 200,
+              "title": "CEM Elements Package Reference",
+              "headingCount": 25,
+              "focusableCount": 81,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/custom-element/",
+              "status": 200,
+              "title": "Custom Element Package Reference",
+              "headingCount": 33,
+              "focusableCount": 44,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/trang-native/",
+              "status": 200,
+              "title": "Trang Native Package Reference",
+              "headingCount": 13,
+              "focusableCount": 17,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/crates/cem-ml/",
+              "status": 200,
+              "title": "cem-ml Rust Crate Reference",
+              "headingCount": 16,
+              "focusableCount": 19,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/crates/cem-ml-cli/",
+              "status": 200,
+              "title": "cem-ml-cli Rust Crate Reference",
+              "headingCount": 7,
+              "focusableCount": 15,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/crates/cem-ml-transform-cem-ql/",
+              "status": 200,
+              "title": "cem-ml-transform-cem-ql Rust Crate Reference",
+              "headingCount": 17,
+              "focusableCount": 29,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/crates/cem-ql/",
+              "status": 200,
+              "title": "cem-ql Rust Crate Reference",
+              "headingCount": 38,
+              "focusableCount": 75,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/tokens/",
+              "status": 200,
+              "title": "CEM token browser",
+              "headingCount": 1,
+              "focusableCount": 10,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/components/",
+              "status": 200,
+              "title": "CEM component gallery",
+              "headingCount": 4,
+              "focusableCount": 78,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/components/angular-material/",
+              "status": 200,
+              "title": "Angular Material coverage comparison",
+              "headingCount": 41,
+              "focusableCount": 14,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/examples/cem-ml/",
+              "status": 200,
+              "title": "Canonical CEM-ML Examples",
+              "headingCount": 1,
+              "focusableCount": 12,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/examples/components/",
+              "status": 200,
+              "title": "CEM Component Examples",
+              "headingCount": 1,
+              "focusableCount": 18,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/examples/interactive/",
+              "status": 200,
+              "title": "Interactive CEM examples",
+              "headingCount": 6,
+              "focusableCount": 15,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/reference/components/",
+              "status": 200,
+              "title": "CEM Component Authored Reference",
+              "headingCount": 16,
+              "focusableCount": 73,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/releases/",
+              "status": 200,
+              "title": "CEM Workspace Release Notes",
+              "headingCount": 51,
+              "focusableCount": 316,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/releases/cem-components/",
+              "status": 200,
+              "title": "CEM Components Release Notes",
+              "headingCount": 20,
+              "focusableCount": 18,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/releases/cem-elements/",
+              "status": 200,
+              "title": "CEM Elements Release Notes",
+              "headingCount": 5,
+              "focusableCount": 14,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/releases/cem-theme/",
+              "status": 200,
+              "title": "CEM Theme Release Notes",
+              "headingCount": 29,
+              "focusableCount": 27,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/releases/custom-element/",
+              "status": 200,
+              "title": "Custom Element Release Notes",
+              "headingCount": 5,
+              "focusableCount": 12,
+              "fragmentLinkCount": 0,
+              "runtimeErrors": []
+            },
+            {
+              "route": "/search/",
+              "status": 200,
+              "title": "Search CEM Site",
+              "headingCount": 1,
+              "focusableCount": 98,
+              "fragmentLinkCount": 86,
+              "runtimeErrors": []
+            }
+          ],
+          "runtimeErrors": []
+        }
+      },
+      {
+        "suite": "interactive",
+        "exitCode": 0,
+        "receipt": {
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "hostingProfile": "public",
+          "themes": {
+            "themes": [
+              {
+                "mode": "light",
+                "background": "color(srgb 0.742353 0.553333 0.815294)",
+                "color": "rgb(0, 16, 16)",
+                "fieldIndicator": "color(srgb 0 0.0627451 0.0627451 / 0.62) 0px 1px 0px 0px, rgb(0, 47, 101) 0px 3px 0px 0px, rgb(106, 27, 154) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4,
+                "previewFont": "17px",
+                "previewInset": "19px"
+              },
+              {
+                "mode": "dark",
+                "background": "rgb(106, 27, 154)",
+                "color": "rgb(241, 254, 254)",
+                "fieldIndicator": "color(srgb 0.945098 0.996078 0.996078 / 0.62) 0px 1px 0px 0px, rgb(241, 254, 254) 0px 3px 0px 0px, rgb(225, 190, 231) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4,
+                "previewFont": "17px",
+                "previewInset": "19px"
+              },
+              {
+                "mode": "contrast-light",
+                "background": "rgb(241, 254, 254)",
+                "color": "rgb(0, 16, 16)",
+                "fieldIndicator": "color(srgb 0 0.0627451 0.0627451 / 0.62) 0px 1px 0px 0px, rgb(0, 47, 101) 0px 3px 0px 0px, rgb(106, 27, 154) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4,
+                "previewFont": "17px",
+                "previewInset": "19px"
+              },
+              {
+                "mode": "contrast-dark",
+                "background": "rgb(0, 16, 16)",
+                "color": "rgb(241, 254, 254)",
+                "fieldIndicator": "color(srgb 0.945098 0.996078 0.996078 / 0.62) 0px 1px 0px 0px, rgb(241, 254, 254) 0px 3px 0px 0px, rgb(225, 190, 231) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4,
+                "previewFont": "17px",
+                "previewInset": "19px"
+              },
+              {
+                "mode": "native",
+                "background": "rgb(239, 239, 239)",
+                "color": "rgb(0, 0, 0)",
+                "fieldIndicator": "color(srgb 0 0 0 / 0.62) 0px 1px 0px 0px, rgb(0, 0, 0) 0px 3px 0px 0px, color(srgb 0.351373 0 0.351373) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4,
+                "previewFont": "17px",
+                "previewInset": "19px"
+              }
+            ],
+            "forcedColors": [
+              {
+                "tag": "input",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "none",
+                "outline": "solid",
+                "outlineWidth": 3
+              },
+              {
+                "tag": "button",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "solid",
+                "outline": "none",
+                "outlineWidth": 3
+              },
+              {
+                "tag": "input",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "none",
+                "outline": "solid",
+                "outlineWidth": 1
+              },
+              {
+                "tag": "figure",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "solid",
+                "outline": "none",
+                "outlineWidth": 3
+              },
+              {
+                "tag": "figure",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "solid",
+                "outline": "none",
+                "outlineWidth": 3
+              }
+            ]
+          },
+          "version": 1,
+          "xhtml": {
+            "resource": "./assets/cem-components/cem-select.xhtml",
+            "namedTemplate": "cem-select",
+            "value": "second",
+            "display": "grid",
+            "scoped": true,
+            "shadow": false
+          },
+          "route": "/examples/interactive/",
+          "tokenFilterVisibleCount": 1,
+          "actionCount": 2,
+          "lightDom": {
+            "action": true,
+            "field": true,
+            "cemFixture": true
+          },
+          "importSpecifiers": [
+            "@epa-wg/cem-elements",
+            "@epa-wg/cem-site/components-runtime",
+            "@epa-wg/cem-site/runtime",
+            "@epa-wg/cem-site/search"
+          ],
+          "stylesheetCount": 2,
+          "runtimeErrors": []
+        }
+      },
+      {
+        "suite": "search",
+        "exitCode": 0,
+        "receipt": {
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "hostingProfile": "public",
+          "themes": {
+            "themes": [
+              {
+                "mode": "light",
+                "background": "color(srgb 0.742353 0.553333 0.815294)",
+                "color": "rgb(0, 16, 16)",
+                "fieldIndicator": "color(srgb 0 0.0627451 0.0627451 / 0.62) 0px 1px 0px 0px, rgb(0, 47, 101) 0px 3px 0px 0px, rgb(106, 27, 154) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4
+              },
+              {
+                "mode": "dark",
+                "background": "color(srgb 0.555686 0.297647 0.69451)",
+                "color": "rgb(241, 254, 254)",
+                "fieldIndicator": "color(srgb 0.945098 0.996078 0.996078 / 0.62) 0px 1px 0px 0px, rgb(241, 254, 254) 0px 3px 0px 0px, rgb(225, 190, 231) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4
+              },
+              {
+                "mode": "contrast-light",
+                "background": "rgb(241, 254, 254)",
+                "color": "rgb(0, 16, 16)",
+                "fieldIndicator": "color(srgb 0 0.0627451 0.0627451 / 0.62) 0px 1px 0px 0px, rgb(0, 47, 101) 0px 3px 0px 0px, rgb(106, 27, 154) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4
+              },
+              {
+                "mode": "contrast-dark",
+                "background": "rgb(0, 16, 16)",
+                "color": "rgb(241, 254, 254)",
+                "fieldIndicator": "color(srgb 0.945098 0.996078 0.996078 / 0.62) 0px 1px 0px 0px, rgb(241, 254, 254) 0px 3px 0px 0px, rgb(225, 190, 231) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4
+              },
+              {
+                "mode": "native",
+                "background": "color(srgb 0.76149 0.656078 0.76149)",
+                "color": "rgb(0, 0, 0)",
+                "fieldIndicator": "color(srgb 0 0 0 / 0.62) 0px 1px 0px 0px, rgb(0, 0, 0) 0px 3px 0px 0px, color(srgb 0.351373 0 0.351373) 0px 3px 0px 0px",
+                "radius": 17,
+                "coupling": 4
+              }
+            ],
+            "forcedColors": [
+              {
+                "tag": "input",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "none",
+                "outline": "solid",
+                "outlineWidth": 3
+              },
+              {
+                "tag": "button",
+                "color": "rgb(0, 0, 0)",
+                "background": "rgb(255, 255, 255)",
+                "adjust": "auto",
+                "border": "solid",
+                "outline": "none",
+                "outlineWidth": 3
+              }
+            ]
+          },
+          "version": 1,
+          "xhtml": {
+            "resource": "./assets/cem-components/cem-select.xhtml",
+            "namedTemplate": "cem-select",
+            "value": "second",
+            "display": "grid",
+            "scoped": true,
+            "shadow": false
+          },
+          "route": "/search/",
+          "documentCount": 26,
+          "graphSemanticsResults": 1,
+          "liveNativeOutputResults": 1,
+          "deepLink": "/reference/cem-ml/transform-config/#heading-13",
+          "componentLightDom": {
+            "field": true,
+            "action": true
+          },
+          "importSpecifiers": [
+            "@epa-wg/cem-elements",
+            "@epa-wg/cem-site/components-runtime",
+            "@epa-wg/cem-site/runtime",
+            "@epa-wg/cem-site/search"
+          ],
+          "stylesheetCount": 2,
+          "runtimeErrors": []
+        }
+      }
+    ],
+    "preparedArchiveSha256": "9dfb3a2aeaed63260f81a232dd60addf48d80227e8065906570eb1d6685e93a0",
+    "assets": {
+      "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+      "aggregateSha256": "741d9f3c06f15ed8c3f131b3bfdff8e2a0344c4e35cb80f6ddbec5ffe76f19d2",
+      "files": [
+        {
+          "path": "components/angular-material/index.html",
+          "requestPath": "/components/angular-material/",
+          "status": 200,
+          "bytes": 111479,
+          "sha256": "229f341db843d5030b79bd4792ec0da89adad0a722bbefc1d3002856751b3ac4"
+        },
+        {
+          "path": "components/angular-material/index.html.map",
+          "requestPath": "components/angular-material/index.html.map",
+          "status": 200,
+          "bytes": 7445844,
+          "sha256": "a29bc286eccfd8dbf38bec30c3345e98bc2802a959618f6581b246949c97518f"
+        },
+        {
+          "path": "components/index.html",
+          "requestPath": "/components/",
+          "status": 200,
+          "bytes": 115773,
+          "sha256": "dde4519effe46480439c2bb54bd7974189eaea6fad54e1604bb78c587f257451"
+        },
+        {
+          "path": "components/index.html.map",
+          "requestPath": "components/index.html.map",
+          "status": 200,
+          "bytes": 9321595,
+          "sha256": "5c2325f45911ed8ed09a1f4aa11614f19c992c0fd5643e166913658227cab3b2"
+        },
+        {
+          "path": "examples/cem-ml/index.html",
+          "requestPath": "/examples/cem-ml/",
+          "status": 200,
+          "bytes": 6252,
+          "sha256": "5747462d7d3225599d28ec45b55933925c5167f858259cec2948f3ccca118f1b"
+        },
+        {
+          "path": "examples/cem-ml/index.html.map",
+          "requestPath": "examples/cem-ml/index.html.map",
+          "status": 200,
+          "bytes": 657555,
+          "sha256": "351a2ce62b4e367569761037e3cb992001bc0ebb8526f95947261c37ddf664d4"
+        },
+        {
+          "path": "examples/components/index.html",
+          "requestPath": "/examples/components/",
+          "status": 200,
+          "bytes": 7085,
+          "sha256": "97de49494eff900b12d33aa4fc0f978425781e2edcd61d2f578e57cb19af74fb"
+        },
+        {
+          "path": "examples/components/index.html.map",
+          "requestPath": "examples/components/index.html.map",
+          "status": 200,
+          "bytes": 596692,
+          "sha256": "bbd1313e72685fca607b9e7c70bd74f3fc305d113bf509e847ca9e8d9cf1f522"
+        },
+        {
+          "path": "examples/interactive/assets/cem-components/cem-action.xhtml",
+          "requestPath": "examples/interactive/assets/cem-components/cem-action.xhtml",
+          "status": 200,
+          "bytes": 19487,
+          "sha256": "86ec1aae87c85b97f4419f92da082d7cf904f8a0c3b6d0007efe4e2895377c48"
+        },
+        {
+          "path": "examples/interactive/assets/cem-components/cem-field.xhtml",
+          "requestPath": "examples/interactive/assets/cem-components/cem-field.xhtml",
+          "status": 200,
+          "bytes": 7896,
+          "sha256": "8de9b6faeb9dc9358d44e9063a7faf94951c3ab4a0b52b5c14d0b8097b398bf9"
+        },
+        {
+          "path": "examples/interactive/assets/cem-components/cem-media-preview.xhtml",
+          "requestPath": "examples/interactive/assets/cem-components/cem-media-preview.xhtml",
+          "status": 200,
+          "bytes": 4634,
+          "sha256": "951580887d17559740abb3265843c7b317702ebb0e5e523bbac241cfc96fc603"
+        },
+        {
+          "path": "examples/interactive/assets/cem-components/cem-select.xhtml",
+          "requestPath": "examples/interactive/assets/cem-components/cem-select.xhtml",
+          "status": 200,
+          "bytes": 14775,
+          "sha256": "dcff7b636875704c1aab28fd18cf54e44ed61fb97341ad3c535ffeb927110bcf"
+        },
+        {
+          "path": "examples/interactive/assets/cem-components/cem-surface.xhtml",
+          "requestPath": "examples/interactive/assets/cem-components/cem-surface.xhtml",
+          "status": 200,
+          "bytes": 2305,
+          "sha256": "4fb1e4a4b63b7e33b28b8c3c4c47df109f36d72ea8e50913d107b16e43b79a6f"
+        },
+        {
+          "path": "examples/interactive/assets/cem-components/styles.css",
+          "requestPath": "examples/interactive/assets/cem-components/styles.css",
+          "status": 200,
+          "bytes": 75,
+          "sha256": "105c3e81d9365fdedb871f47c23fbd33519ae40c5d24414318f9e98f1cd476f7"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/index.js",
+          "requestPath": "examples/interactive/assets/cem-elements/index.js",
+          "status": 200,
+          "bytes": 2674,
+          "sha256": "015c64b69a85daaffa624947f76979846a46e4d1cd3710d2a5980d60e911ea0d"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/action-command-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/action-command-capability.js",
+          "status": 200,
+          "bytes": 14390,
+          "sha256": "b76679861af0487596b9ca1b205738eec454de7fa2a1b5e2740627f9267d8f77"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/action-control-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/action-control-capability.js",
+          "status": 200,
+          "bytes": 3372,
+          "sha256": "bbfe63c00434825b3e2b56fb8a925ab5d021afcea100c0b4b127d4cee4d6e945"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/aria-reference-profile.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/aria-reference-profile.js",
+          "status": 200,
+          "bytes": 1074,
+          "sha256": "15cf987f3ffd049d80f90200ccb7e10d36e8f2860f6a0c574b942269bf3e9be1"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/artifact-preview.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/artifact-preview.js",
+          "status": 200,
+          "bytes": 21994,
+          "sha256": "3338d4e0c9741bbd43d989a6fc8c62a87ab8bbb3af7fd7c6839c730fa3224117"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/calendar-input-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/calendar-input-capability.js",
+          "status": 200,
+          "bytes": 28088,
+          "sha256": "a9d446d83eecf042ca90def3e002a96f2377fe9eb384161a448c99521805011d"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/cem-elements.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/cem-elements.js",
+          "status": 200,
+          "bytes": 489147,
+          "sha256": "71023ebc1172324405930ac97c3dffee0d9be40987b1eb5229a8d84bb635a524"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkable-control.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkable-control.js",
+          "status": 200,
+          "bytes": 1474,
+          "sha256": "ac556e4f471b1f34766a9bd8f271d9b30902249b098747581993596756a9efd9"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-controls.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-controls.js",
+          "status": 200,
+          "bytes": 5735,
+          "sha256": "6074b6b16c3e5989c24f2362d8e088607aa7208a8d0a277b7254797c0cea52f9"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-form-resume.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-form-resume.js",
+          "status": 200,
+          "bytes": 3084,
+          "sha256": "88465e2ae7db2df89c1f885e127503cd299dd971a871c338497bb342148dd080"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-interactions.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-interactions.js",
+          "status": 200,
+          "bytes": 8065,
+          "sha256": "6873af6b8c8cca99f9ca6cfc5c70b060bcfd7734974cd0e504832ce6e776cef9"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-processing.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-processing.js",
+          "status": 200,
+          "bytes": 7170,
+          "sha256": "db9b25fc3b054be8aa4d63149ba3ea783aa0caca03676bfb8c5a944f191b59e5"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-provider-handoff.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-provider-handoff.js",
+          "status": 200,
+          "bytes": 1201,
+          "sha256": "908e170f2b8a42ac87f2f900891c6c6bf88d0a5482a1f06a018b4a78d87d7c57"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-publication.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-publication.js",
+          "status": 200,
+          "bytes": 37993,
+          "sha256": "242096236e3481d2314c26cedf66f2a00b38a60b33b5177f3791d6228d33c3be"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-reference-resume.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-reference-resume.js",
+          "status": 200,
+          "bytes": 1595,
+          "sha256": "ee5554e077573612bc9a5df76eb2d052ebbac89af8a68b1c75303c6b1ca392ae"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/checkpoint-resume.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/checkpoint-resume.js",
+          "status": 200,
+          "bytes": 16810,
+          "sha256": "6ee1691953d90a1dfff66bd000ab4a9ac74aa8f3d6855e982042f3ee12cc225d"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/choice-options.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/choice-options.js",
+          "status": 200,
+          "bytes": 4087,
+          "sha256": "c1b8fa2632cca42b36ddc4159cd75b15eee921c5ae79c718157d25d537019918"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/choice-select-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/choice-select-capability.js",
+          "status": 200,
+          "bytes": 28149,
+          "sha256": "7cd99386ad1ec12033bae1b6151b253a32bee5b8fd48db7b3efb14bdd12a7f7b"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/committed-checkpoint.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/committed-checkpoint.js",
+          "status": 200,
+          "bytes": 5309,
+          "sha256": "9e7b2f86e18be199fcd0261f4454cbed54e8cce9663caab7121eaba928580a48"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/compiled-declaration-assets.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/compiled-declaration-assets.js",
+          "status": 200,
+          "bytes": 3393,
+          "sha256": "ef2abc72f3429e4dec84c8258ec085ec74c950f48313a412bb7646648c017801"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/composite-menu-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/composite-menu-capability.js",
+          "status": 200,
+          "bytes": 24332,
+          "sha256": "be095538e4db1a024c6d9204b115100c521ff2a7461edec95e1eb0adaab760d6"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/composite-navigation.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/composite-navigation.js",
+          "status": 200,
+          "bytes": 1841,
+          "sha256": "c64dc09742d7f844cb52fbfe2ac7d48cb5e7562dac4750b00429d1c5d85e24a0"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/declaration-scope.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/declaration-scope.js",
+          "status": 200,
+          "bytes": 9116,
+          "sha256": "53759690446c514dfb0cadd006dea25f434f136b99aa658785e87f3e9a46507f"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/declaration-style-markup.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/declaration-style-markup.js",
+          "status": 200,
+          "bytes": 1736,
+          "sha256": "8aaf68f29aac0a3226e7375434b829763519eb548d4bc2c7ce90471cd75aeb08"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/declaration-style-ownership.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/declaration-style-ownership.js",
+          "status": 200,
+          "bytes": 25244,
+          "sha256": "564c07ec1fc5719dd6df64647f16dbea131ae1d2975e0afdf0e295a9420513fa"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/disclosure-panel-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/disclosure-panel-capability.js",
+          "status": 200,
+          "bytes": 5551,
+          "sha256": "1c9bd8ea25a2f6b5c7c460be7519ebcddef335e980f269461b1348b4a95e65a3"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/disposition.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/disposition.js",
+          "status": 200,
+          "bytes": 7096,
+          "sha256": "6ff512dfa8a393e8f4f6157ba1b73f6bb2a2761fe53406935a57073c325ae6b1"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/dom-realm.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/dom-realm.js",
+          "status": 200,
+          "bytes": 351,
+          "sha256": "21ee04cf2925f3bec1ff869bfc23b0f565fb14dcc26b6938c9699e13eeb7cb65"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/edge-css-publication.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/edge-css-publication.js",
+          "status": 200,
+          "bytes": 4961,
+          "sha256": "a3e177a75f5e94cbc4251331d39fad33c736b93bdf16b60dfdc391e28b2077b7"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/edge-ssr-host.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/edge-ssr-host.js",
+          "status": 200,
+          "bytes": 5432,
+          "sha256": "c349fb52650dc0cfbb33eb20291ed4c737589fbabd5e4d745859e5f52d59d37f"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/editable-choice-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/editable-choice-capability.js",
+          "status": 200,
+          "bytes": 23420,
+          "sha256": "a6051239128ec446f91be0236b9b3028de6803b33ad13609188de43df1f63860"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/editor-attributes.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/editor-attributes.js",
+          "status": 200,
+          "bytes": 7494,
+          "sha256": "5af0acfa7310d0f07b365bfe92cc2d600561615ca1c69b89185c06be905a0ece"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/editor-datalist.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/editor-datalist.js",
+          "status": 200,
+          "bytes": 4049,
+          "sha256": "db678897053430fa6c61e9b7ccb5384bb1b6115753f2a08a91a1582ef830fc69"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/element-placement-authority.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/element-placement-authority.js",
+          "status": 200,
+          "bytes": 19837,
+          "sha256": "200de21581407b642d4f1b7a1c9b41f66d183a9bb502bae588e5e8358e50eb56"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/element-placement-coordinator.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/element-placement-coordinator.js",
+          "status": 200,
+          "bytes": 19332,
+          "sha256": "8c19232cc82b694ed669030157845adc69e06316b5deac41f6259f8a63694f75"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/element-placement-plans.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/element-placement-plans.js",
+          "status": 200,
+          "bytes": 2723,
+          "sha256": "2f4fd7e6b19409a6d4de523adfb58e076ce485d72e945801c39a481fe98126cd"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/element-placement-ssr.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/element-placement-ssr.js",
+          "status": 200,
+          "bytes": 6171,
+          "sha256": "1f274a7b0d575c42945cc2f73e9217f51694a76ef1f0ea0646a1917531500f09"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/element-reference-inputs.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/element-reference-inputs.js",
+          "status": 200,
+          "bytes": 2032,
+          "sha256": "a541804c9ac0fcd984078f73ae5a28c428844e13f6f7642c863eb191b8f1e0c0"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/external-declaration-source.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/external-declaration-source.js",
+          "status": 200,
+          "bytes": 1741,
+          "sha256": "4754aba4f56a8990affab632c26ee65aad8c6d8edee298e0792fffba1688e98c"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/form-control-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/form-control-capability.js",
+          "status": 200,
+          "bytes": 31378,
+          "sha256": "bb34051807ef62d9d3d93ed2f863eddd2cf4bad3431463667fbcdc9eedf07035"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/host-view.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/host-view.js",
+          "status": 200,
+          "bytes": 11697,
+          "sha256": "f1e49b4a119fe2a3b02c9f246bbdf81b43bbc127b894abbe44cad18068d76d65"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/http-resource-transport.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/http-resource-transport.js",
+          "status": 200,
+          "bytes": 2460,
+          "sha256": "b01e363795a323cc71321e29cc3d0b785d74b857e5a66ef45ec03f78e8f388cc"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/interaction-reference.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/interaction-reference.js",
+          "status": 200,
+          "bytes": 3762,
+          "sha256": "718692bab49929e2fda62ff94c179289a1a5a4fe04ca5ca6519b8696c2f94b75"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/cem-ql-render.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/cem-ql-render.js",
+          "status": 200,
+          "bytes": 66059,
+          "sha256": "fec460da8ad95763e139f20b502f105432d17b48628010f5a11f092dbffb86f8"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/checkpoint-domain.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/checkpoint-domain.js",
+          "status": 200,
+          "bytes": 29753,
+          "sha256": "bd9151d726e86c9768ede8723ac54ea1c84d71cfbd6ac731a58ac8486c24f431"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/css-dom-publication-queue.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/css-dom-publication-queue.js",
+          "status": 200,
+          "bytes": 3629,
+          "sha256": "6336fcbccae386830dc855a0d12e98cd6c3b92b5c7a4674c262cfb26a2dfaf18"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/instance-stylesheet-installation.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/instance-stylesheet-installation.js",
+          "status": 200,
+          "bytes": 11572,
+          "sha256": "321067f11e85e4322734070ab2c65a15f31dd8a193c6652123da2fc031d4380b"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/location-write-trigger.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/location-write-trigger.js",
+          "status": 200,
+          "bytes": 345,
+          "sha256": "9142167d96c6e683e5b46df6380e2ce25876d2d59444c178eb1b0dfb41f46b39"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/module-url-resolution.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/module-url-resolution.js",
+          "status": 200,
+          "bytes": 9642,
+          "sha256": "c276024b3a3ec8a04f41a486d1fcb505fa317560931561bab96ae37d56688009"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/native-generation.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/native-generation.js",
+          "status": 200,
+          "bytes": 177,
+          "sha256": "2c157124ca296079ba5ff5fb772b888f6a522fc1fe9dc890a5379d987cbc3f5d"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/native-runtime.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/native-runtime.js",
+          "status": 200,
+          "bytes": 22626,
+          "sha256": "2458a35ca1c039c25041a3e64f6f0f800fc6eebac6bfe572cbef96c74dcefc8a"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-cache.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-cache.js",
+          "status": 200,
+          "bytes": 1179,
+          "sha256": "59b74b700008c3ce880f3769e8330735b0fe131c351ff56d3a75f9ef2e835abd"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-engine.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-engine.js",
+          "status": 200,
+          "bytes": 53558,
+          "sha256": "5077e56d6c8a65e8051ebb0f78d3924e50830f44b917b299ed739abaa3c99f43"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-host-runtime.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-host-runtime.js",
+          "status": 200,
+          "bytes": 74544,
+          "sha256": "51f2a4c55d0d5655a7d7200a20e8ab3d79b90466894f81e284521dad3543c977"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-host.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-host.js",
+          "status": 200,
+          "bytes": 14269,
+          "sha256": "dfd92e5bc55a57dac7f947600bd2cdf6779ef568c46322172f8a358272a3701d"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-scheduler.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-scheduler.js",
+          "status": 200,
+          "bytes": 4612,
+          "sha256": "313fc44fd67f3ab3993c78dc18928722fc6996f7d0fa6b184cc25ad9137d55ab"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-worker.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/processing-worker.js",
+          "status": 200,
+          "bytes": 13287,
+          "sha256": "abbbe2bb3d6e674fb81b82554e2cee9491d60c6009166fb62c4cccf9710fc80e"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/schema-asset-protocol.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/schema-asset-protocol.js",
+          "status": 200,
+          "bytes": 164,
+          "sha256": "3d7076bd036bc326737de4c4d5a23fdcc0a2ef94500494c7e9b3437ac534e62b"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-dom-order.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-dom-order.js",
+          "status": 200,
+          "bytes": 950,
+          "sha256": "ddd8b54f072b6d39691cad97eee127bd41cf3a7a5947114aceb8c74e5b9883db"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-installation.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-installation.js",
+          "status": 200,
+          "bytes": 9674,
+          "sha256": "8016087808a10df7f25f6673a460b72329e2694d1033f0cbc2d8fc1d42c38ab2"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-notifications.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-notifications.js",
+          "status": 200,
+          "bytes": 1564,
+          "sha256": "cd0c8cd4e4be5c1f836293d754d3ba61dbf148b306b2b2efab05f515dbccecb5"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-reader.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-reader.js",
+          "status": 200,
+          "bytes": 2139,
+          "sha256": "afaaf79d9638f453ac122d7305a7445748bd4f4a29149a942bded95444fb1f3c"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-registry.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/stylesheet-registry.js",
+          "status": 200,
+          "bytes": 20186,
+          "sha256": "76b7b3807c8a91f84ec81682d24b3890d513cc8acd3f6302690590a2cd9e5292"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "status": 200,
+          "bytes": 24140410,
+          "sha256": "3856b98560281753dffb49b807b1bb4a76f76f4f088a5ce179a2a03c577037b5"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_factory.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_factory.js",
+          "status": 200,
+          "bytes": 130643,
+          "sha256": "4b85f7274b6d6c2d6471352ca4ab89e8ed37fd691d851e4e8882fcbf953e8516"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql.js",
+          "status": 200,
+          "bytes": 121414,
+          "sha256": "3360d940036dc8d36191723b4bd180ad78ef5b1b3c30bf20b1763d62e12cb712"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/native-generation.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/native-generation.js",
+          "status": 200,
+          "bytes": 28361,
+          "sha256": "9d43450f2c1c789b1bbd1cc8f14edb089b63ae43ce589a833f597f0a80952209"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/schema-asset-protocol.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/vendor/schema-asset-protocol.js",
+          "status": 200,
+          "bytes": 2367,
+          "sha256": "de75c0f1495a7da742a86d66b6d1e1d2965d3b3bf83f655a16b5e583aceee083"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/xpath-function-library.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/internal/runtime-support/xpath-function-library.js",
+          "status": 200,
+          "bytes": 6424,
+          "sha256": "fa205da2b3237bd2b8ce16fceee740287c3f40c1a5dba94d35a2d95f1f352093"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/legacy-xslt/contract.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/legacy-xslt/contract.js",
+          "status": 200,
+          "bytes": 2292,
+          "sha256": "a46120509cf8f075855e661519235845a27a8645403140ba1bb7a5fe2ee882a3"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/legacy-xslt/template-language.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/legacy-xslt/template-language.js",
+          "status": 200,
+          "bytes": 720,
+          "sha256": "44ca04370d86a8dad8044d35c00259d441fceb2a9266052690586a752a134c20"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/live-preview-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/live-preview-capability.js",
+          "status": 200,
+          "bytes": 8229,
+          "sha256": "92b03bda111c5e5319643e0b7fb825682350dba3fc563461aae1c16a95f9573e"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/live-preview-policy.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/live-preview-policy.js",
+          "status": 200,
+          "bytes": 1942,
+          "sha256": "ca855c8a30ef971e740e18c2fe8b5f1b7c41f4d5819de7c040abc8cc25c584d0"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/live-preview.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/live-preview.js",
+          "status": 200,
+          "bytes": 10806,
+          "sha256": "db2d20c58c5b7260fc547bfdadd5dd4e0e7cafcea9d5e23e06b83c8019a5d308"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/local-suggestions-capture.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/local-suggestions-capture.js",
+          "status": 200,
+          "bytes": 4713,
+          "sha256": "61e28bdd1e46780c7b3af458be6a4bc526138887770d24acff713409dd758269"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/manual-listbox.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/manual-listbox.js",
+          "status": 200,
+          "bytes": 13620,
+          "sha256": "0edffa99426a5dff9f8851d39ea7ae04fa25e00f04102764eb61daaeba1b9c58"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/menu-task-relay.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/menu-task-relay.js",
+          "status": 200,
+          "bytes": 3290,
+          "sha256": "bcc4e12cb0a11c7169b382bc5feaf19d2bb1d7ebf0a78dd10d64a1228afb2295"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/native-capability-session.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/native-capability-session.js",
+          "status": 200,
+          "bytes": 12970,
+          "sha256": "eae9ce302e8716da7a9ef36e5e1c1a4a70735e7c3555320a2e3ef40fa43d1bf3"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/native-datalist-attachment.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/native-datalist-attachment.js",
+          "status": 200,
+          "bytes": 15478,
+          "sha256": "43104d4eef8bca31b0f1f0b68f804e4802ddb9da91df1e502f96cf1f16ae7e13"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/native-list-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/native-list-capability.js",
+          "status": 200,
+          "bytes": 2480,
+          "sha256": "495b6bd8d164b5fd284977b13cba3f27720b43f872bfa45267ef53863fa019ad"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/native-suggestions-publication.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/native-suggestions-publication.js",
+          "status": 200,
+          "bytes": 12164,
+          "sha256": "b61643c6fd5e182e9d6f48ef2bec39da487aa6e1b447543794a219199bafb7af"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/native-surface.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/native-surface.js",
+          "status": 200,
+          "bytes": 45881,
+          "sha256": "396b9bb6b69842fd7eeafa58067c37adf473e8788a4985f744b42718f75e3e4b"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/native-values.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/native-values.js",
+          "status": 200,
+          "bytes": 4599,
+          "sha256": "427a39dcf46e3800592d49b92851a40f7366bb0400f29c7286535c068593875c"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/navigation-landmark-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/navigation-landmark-capability.js",
+          "status": 200,
+          "bytes": 3081,
+          "sha256": "3389fcd23e10ef1d440049385f9163a6aad2aadd8e0798afd0eaee38f362fd37"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/pagination-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/pagination-capability.js",
+          "status": 200,
+          "bytes": 7389,
+          "sha256": "2c34364b513f647e1b47272366c9efcb52571d39fdfb021d7c362a4e25ed233a"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/plaintext-editor-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/plaintext-editor-capability.js",
+          "status": 200,
+          "bytes": 20621,
+          "sha256": "768e58de7ee87798785ccf77545b57bdb3d392a7609b8faf7a31bc01f1ced0d0"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/platform-close.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/platform-close.js",
+          "status": 200,
+          "bytes": 5105,
+          "sha256": "72d45ae13799d068badfd439a464441999155efdc7cc4a9591e839f1bcfab01c"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/popup-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/popup-capability.js",
+          "status": 200,
+          "bytes": 18313,
+          "sha256": "447a77eaad016ff5d71c426883ca70ef2fc5f5c880d97e3e0bf53065e07c5069"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/popup-controller.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/popup-controller.js",
+          "status": 200,
+          "bytes": 15108,
+          "sha256": "23fe5ab302d33ce496b9e369f4a4550cc88643b5e9bd6fa4044ea86d217c4139"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/progress-status-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/progress-status-capability.js",
+          "status": 200,
+          "bytes": 1154,
+          "sha256": "e7c7704ec82c86094f9aaae91026411d672fc4ad8850151486dbad78d0efd55c"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/projection.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/projection.js",
+          "status": 200,
+          "bytes": 138884,
+          "sha256": "d4c3601b320484a81af9dafa1518b19dcc7f28962093a5e5f1ca7df56aae199e"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/range-input-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/range-input-capability.js",
+          "status": 200,
+          "bytes": 8372,
+          "sha256": "7be79c87053c47dcac306e98073c526068eef9145aa7f36baf3f5aecc41ec185"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/recovery-status.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/recovery-status.js",
+          "status": 200,
+          "bytes": 5947,
+          "sha256": "8b79f8d26791ebf1b7a31e240fdd357e738e34b72e60ef772fa9e7a3bae850ef"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/repository.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/repository.js",
+          "status": 200,
+          "bytes": 5461,
+          "sha256": "02301d389e7cb5699999fff97008aad28056284e713a0791bd1359059a78b702"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/schema-asset-pack.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/schema-asset-pack.js",
+          "status": 200,
+          "bytes": 43743,
+          "sha256": "7046e7e2016efd66a431a8de9eba6128103f2d5d5a94f5cd8e8587f83a3113d7"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/sort-action-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/sort-action-capability.js",
+          "status": 200,
+          "bytes": 3316,
+          "sha256": "daaa701ea34321340499829ead6c01d4d520faa8f1f946e69bae92d631a4fcb7"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/standalone-datalist.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/standalone-datalist.js",
+          "status": 200,
+          "bytes": 8968,
+          "sha256": "8c08bfe79fe381e6129962d09e9eebc99629a12872117b5066d73f3ac6f5908a"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/suggestions-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/suggestions-capability.js",
+          "status": 200,
+          "bytes": 34418,
+          "sha256": "a506f37c436081c643932863718b9feab1022fbdbfa40d6309e6643046c7eda0"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/suggestions-controller.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/suggestions-controller.js",
+          "status": 200,
+          "bytes": 28301,
+          "sha256": "768206202ada8ad7f4219ba909f2ff1d82c0d3e34283a1f44ba39baa852d5104"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/suggestions-editor.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/suggestions-editor.js",
+          "status": 200,
+          "bytes": 2003,
+          "sha256": "8d421529c5fd86fd029a09a985816c2099ffb0d851b4eefe6b19b107b8a2ad86"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/suggestions-placements.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/suggestions-placements.js",
+          "status": 200,
+          "bytes": 15573,
+          "sha256": "507e48a900df422d0c9a52a6560533c72476751abafb51c99972cc5542fb8dc4"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/surface-body.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/surface-body.js",
+          "status": 200,
+          "bytes": 8428,
+          "sha256": "36b7e46ef31572f5e0141bc6b3428fc5d705d1235b2196e96f33cfef8edb18ff"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/surface-controls.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/surface-controls.js",
+          "status": 200,
+          "bytes": 11819,
+          "sha256": "dd17cc009902899c8d402f3bf97a7d9ddb2904af1adf39609e069284da4cecc5"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/surface-geometry.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/surface-geometry.js",
+          "status": 200,
+          "bytes": 7888,
+          "sha256": "a283e1dc4f37922094d7be57f02b9aefacfc4640b350d3add6f270e585396af2"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/surface-invocation.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/surface-invocation.js",
+          "status": 200,
+          "bytes": 1870,
+          "sha256": "34e15fd883489f2467fa7c4b7292d08df251570cec08a84ba5ee3c82dfd49ae1"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/surface-position.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/surface-position.js",
+          "status": 200,
+          "bytes": 2968,
+          "sha256": "7e3001f9309101fa8287f031d500eadaed1b2a746ed6392a9981e9fbaa068416"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/surface-references.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/surface-references.js",
+          "status": 200,
+          "bytes": 3086,
+          "sha256": "79c8847593a23fc48f761fe384c5d9c3c8bebb2887bfa26152f0eb4803eaaddb"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/surface-session.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/surface-session.js",
+          "status": 200,
+          "bytes": 10864,
+          "sha256": "0118316b94c37f7327312041f476518108e64bac5d5ce389ae45526103e41a29"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/tab-panels-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/tab-panels-capability.js",
+          "status": 200,
+          "bytes": 12974,
+          "sha256": "1304ea5ac6f9a610b8059fda81c97bac2aac66e746d4c9db75ecc0c4852029d0"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/time-input-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/time-input-capability.js",
+          "status": 200,
+          "bytes": 24891,
+          "sha256": "159897fc18c5085730e63a376af990c48db0bac3eb4589f16f0834f521b182d4"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/tree-view-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/tree-view-capability.js",
+          "status": 200,
+          "bytes": 20393,
+          "sha256": "d786f02fd9d602be101d091efe6201a4bde7976bca4925651cadfb245dea7d9b"
+        },
+        {
+          "path": "examples/interactive/assets/cem-elements/lib/workflow-panels-capability.js",
+          "requestPath": "examples/interactive/assets/cem-elements/lib/workflow-panels-capability.js",
+          "status": 200,
+          "bytes": 12452,
+          "sha256": "5a72f38a4603f7e9ef9eefcdf733d024dec4536b7836c8fef68f005c27e22c5d"
+        },
+        {
+          "path": "examples/interactive/assets/cem-site/components-runtime.js",
+          "requestPath": "examples/interactive/assets/cem-site/components-runtime.js",
+          "status": 200,
+          "bytes": 2400,
+          "sha256": "2667ce757a9ad543823dc047219dcd2489029dfda269038e40239b773f11af9f"
+        },
+        {
+          "path": "examples/interactive/assets/cem-site/examples-view.xhtml",
+          "requestPath": "examples/interactive/assets/cem-site/examples-view.xhtml",
+          "status": 200,
+          "bytes": 2629,
+          "sha256": "bc06f2fa1d49552600ffcbe1d99e4748ae98ee73fd3cf5e9314475fa363a4c40"
+        },
+        {
+          "path": "examples/interactive/assets/cem-site/search-runtime.js",
+          "requestPath": "examples/interactive/assets/cem-site/search-runtime.js",
+          "status": 200,
+          "bytes": 3304,
+          "sha256": "719cba147e2ab6d4560d118d2a1a28620099f4330a629fbc7d97567d4785f86c"
+        },
+        {
+          "path": "examples/interactive/assets/cem-site/search-view.xhtml",
+          "requestPath": "examples/interactive/assets/cem-site/search-view.xhtml",
+          "status": 200,
+          "bytes": 1788,
+          "sha256": "1def971f98630b68d31050f049bf3934945bb037d1d20a32fccd9f42bceb060e"
+        },
+        {
+          "path": "examples/interactive/assets/cem-site/site-runtime.js",
+          "requestPath": "examples/interactive/assets/cem-site/site-runtime.js",
+          "status": 200,
+          "bytes": 1952,
+          "sha256": "9eb6d3afabf8986642487994b787d837b6f135b74f434ad99216e446b8789586"
+        },
+        {
+          "path": "examples/interactive/assets/theme/cem-combined.css",
+          "requestPath": "examples/interactive/assets/theme/cem-combined.css",
+          "status": 200,
+          "bytes": 102037,
+          "sha256": "45a317babd0d779cdd03728d9678c8bf7addf2a785e76435e940c8a7ddf27bec"
+        },
+        {
+          "path": "examples/interactive/index.html",
+          "requestPath": "/examples/interactive/",
+          "status": 200,
+          "bytes": 3743,
+          "sha256": "cb090d5abcecfea6f4c6d1fd8345c824131cfbbecd03e71dc932a3b6d65238b0"
+        },
+        {
+          "path": "examples/interactive/index.html.map",
+          "requestPath": "examples/interactive/index.html.map",
+          "status": 200,
+          "bytes": 234627,
+          "sha256": "447bab20d43b3311bcc5fb36dc6fda9ab35b5f9bfd2e5149ec67ef0088786978"
+        },
+        {
+          "path": "guides/cem-ml/cli/index.html",
+          "requestPath": "/guides/cem-ml/cli/",
+          "status": 200,
+          "bytes": 45065,
+          "sha256": "a7885424e0a1a82b49de403ae32b67d5f37ea5ab16a3f11e7b3ffbcba87e08de"
+        },
+        {
+          "path": "guides/cem-ml/cli/index.html.map",
+          "requestPath": "guides/cem-ml/cli/index.html.map",
+          "status": 200,
+          "bytes": 3135908,
+          "sha256": "c726111ae67f39b98b9d5ac2f8cf5e51bee6989699b04e20358f446a8f4ff375"
+        },
+        {
+          "path": "guides/declarative-amsterdam-2026/index.html",
+          "requestPath": "/guides/declarative-amsterdam-2026/",
+          "status": 200,
+          "bytes": 17742,
+          "sha256": "b2cfdb2806e022bdcef2db9fc5dd2e1d0802be536711233904f60dce70f88a8b"
+        },
+        {
+          "path": "guides/declarative-amsterdam-2026/index.html.map",
+          "requestPath": "guides/declarative-amsterdam-2026/index.html.map",
+          "status": 200,
+          "bytes": 1455965,
+          "sha256": "0a3c6a4fdaca71e21d7486efe4d07ffae66d011ccf5bd379225fd3a8a0856a88"
+        },
+        {
+          "path": "guides/index.html",
+          "requestPath": "/guides/",
+          "status": 200,
+          "bytes": 5550,
+          "sha256": "3b91a35d3e567054af3300680813a1725a47d16150c8db0686e25860cbd19d2f"
+        },
+        {
+          "path": "guides/index.html.map",
+          "requestPath": "guides/index.html.map",
+          "status": 200,
+          "bytes": 564066,
+          "sha256": "705e19a855572b8faa42453f2e2ea5f604cf046a511d069b754d72070b4453ab"
+        },
+        {
+          "path": "index.html",
+          "requestPath": "/",
+          "status": 200,
+          "bytes": 6240,
+          "sha256": "f7cdeb7933e74674a946c16d8f3f9848e8b68a34bfe79b0eee6e9aafd7587be3"
+        },
+        {
+          "path": "index.html.map",
+          "requestPath": "index.html.map",
+          "status": 200,
+          "bytes": 636048,
+          "sha256": "3430ceef169745b052ce59fdde2c148433db78a347548d7dfd9d11a204edebe3"
+        },
+        {
+          "path": "packages/index.html",
+          "requestPath": "/packages/",
+          "status": 200,
+          "bytes": 7143,
+          "sha256": "8f8b5b35cfbba463a851ac9507452a355656eadc2f283c3f94c68d6b27e68508"
+        },
+        {
+          "path": "packages/index.html.map",
+          "requestPath": "packages/index.html.map",
+          "status": 200,
+          "bytes": 452665,
+          "sha256": "6090fda872d06ad429dbecd54dbdba1b231864f68559e02706156776f3a3606d"
+        },
+        {
+          "path": "reference/cem-elements/index.html",
+          "requestPath": "/reference/cem-elements/",
+          "status": 200,
+          "bytes": 258371,
+          "sha256": "e2500230341b31d4b0d9ac5fb8046f547bd4133212870566e5c0dd63c6296d20"
+        },
+        {
+          "path": "reference/cem-elements/index.html.map",
+          "requestPath": "reference/cem-elements/index.html.map",
+          "status": 200,
+          "bytes": 19946495,
+          "sha256": "87ac920d01a989da7b5dd480cd42b61f5bde1c5d6db9d287b2ce198a7aaadaa7"
+        },
+        {
+          "path": "reference/cem-ml/transform-config/index.html",
+          "requestPath": "/reference/cem-ml/transform-config/",
+          "status": 200,
+          "bytes": 44386,
+          "sha256": "7bb0fd33961983e5b80fdee1bc7088caf97294212d544b0eba4aee4653971f14"
+        },
+        {
+          "path": "reference/cem-ml/transform-config/index.html.map",
+          "requestPath": "reference/cem-ml/transform-config/index.html.map",
+          "status": 200,
+          "bytes": 4643829,
+          "sha256": "daab534e0183b566795b23c783aa296c56b0225fd6efeb0f3050adb6ef0a40c7"
+        },
+        {
+          "path": "reference/cem-ml/wasm-runtime/index.html",
+          "requestPath": "/reference/cem-ml/wasm-runtime/",
+          "status": 200,
+          "bytes": 51530,
+          "sha256": "b4e523fcb420dff8d0bcac8791447f8e0d848a6b7ce4338d11ce4d41bccd0c23"
+        },
+        {
+          "path": "reference/cem-ml/wasm-runtime/index.html.map",
+          "requestPath": "reference/cem-ml/wasm-runtime/index.html.map",
+          "status": 200,
+          "bytes": 4144273,
+          "sha256": "0a8932c5a79c6b1751612fd29c7551c4766dd8096699b8fd0655037b62cc7f29"
+        },
+        {
+          "path": "reference/components/index.html",
+          "requestPath": "/reference/components/",
+          "status": 200,
+          "bytes": 205068,
+          "sha256": "b24e3e9cb2f162733fa6f1b8c8f216cc5d292ff6b28100d397d670a422f18e20"
+        },
+        {
+          "path": "reference/components/index.html.map",
+          "requestPath": "reference/components/index.html.map",
+          "status": 200,
+          "bytes": 19083166,
+          "sha256": "4725d207fe898d475fcc4f42adb341f7be161317558f289ec4591cb730c61e27"
+        },
+        {
+          "path": "reference/crates/cem-ml-cli/index.html",
+          "requestPath": "/reference/crates/cem-ml-cli/",
+          "status": 200,
+          "bytes": 17933,
+          "sha256": "07edb69919805ea151f037cd3d2caeba78c16c3fe2eba77787481d58827d7c70"
+        },
+        {
+          "path": "reference/crates/cem-ml-cli/index.html.map",
+          "requestPath": "reference/crates/cem-ml-cli/index.html.map",
+          "status": 200,
+          "bytes": 1477690,
+          "sha256": "29646669cf5d96a45e125236d34b9911a45b7fae605fb526196f1137df7aba44"
+        },
+        {
+          "path": "reference/crates/cem-ml-transform-cem-ql/index.html",
+          "requestPath": "/reference/crates/cem-ml-transform-cem-ql/",
+          "status": 200,
+          "bytes": 64670,
+          "sha256": "ed59508603a0a7a5404a658b5bdf7696dc1f322fb7c07b157581fb18ee69f479"
+        },
+        {
+          "path": "reference/crates/cem-ml-transform-cem-ql/index.html.map",
+          "requestPath": "reference/crates/cem-ml-transform-cem-ql/index.html.map",
+          "status": 200,
+          "bytes": 4936295,
+          "sha256": "bce69106f6dfa1b5cf36e1178e2238057b74769ec195600591ad2f660b3ad0a1"
+        },
+        {
+          "path": "reference/crates/cem-ml/index.html",
+          "requestPath": "/reference/crates/cem-ml/",
+          "status": 200,
+          "bytes": 79215,
+          "sha256": "774669ad5c730dffb1235940ab4aa8c6810e3e63519fcf4c31c5983bc119e4c4"
+        },
+        {
+          "path": "reference/crates/cem-ml/index.html.map",
+          "requestPath": "reference/crates/cem-ml/index.html.map",
+          "status": 200,
+          "bytes": 5413443,
+          "sha256": "19d17638ef6cd5336c7f25e005df5c5d78eac67188967453a2819b20d9312de9"
+        },
+        {
+          "path": "reference/crates/cem-ql/index.html",
+          "requestPath": "/reference/crates/cem-ql/",
+          "status": 200,
+          "bytes": 257140,
+          "sha256": "7fb458c17ab1805d8271a57a4e8e3bc2fb15f7e9837ccd07f7eddf66d8d3bcd7"
+        },
+        {
+          "path": "reference/crates/cem-ql/index.html.map",
+          "requestPath": "reference/crates/cem-ql/index.html.map",
+          "status": 200,
+          "bytes": 20734953,
+          "sha256": "5cacc5ec18081301365dcd71c07da733b0f08f79118c5295c4e058a76d1a9bc4"
+        },
+        {
+          "path": "reference/custom-element/index.html",
+          "requestPath": "/reference/custom-element/",
+          "status": 200,
+          "bytes": 60668,
+          "sha256": "ca88721237f694b965cce539706154540da1055be57b801e3c9d48cfd11efae5"
+        },
+        {
+          "path": "reference/custom-element/index.html.map",
+          "requestPath": "reference/custom-element/index.html.map",
+          "status": 200,
+          "bytes": 5756824,
+          "sha256": "624ab6cc2a42f4a784602def9ba99df3c3beaf97d1d92be8a98b2d8e5bbc78b6"
+        },
+        {
+          "path": "reference/trang-native/index.html",
+          "requestPath": "/reference/trang-native/",
+          "status": 200,
+          "bytes": 32127,
+          "sha256": "7662edd6e6fb5edc8b38a487f8551b3ded0d64aedf40026853c63e41da292d3d"
+        },
+        {
+          "path": "reference/trang-native/index.html.map",
+          "requestPath": "reference/trang-native/index.html.map",
+          "status": 200,
+          "bytes": 3198298,
+          "sha256": "be109695bdc52d981dad257e1eb26f588990a915e07d625e8a8c2d58eb23e39b"
+        },
+        {
+          "path": "releases/cem-components/index.html",
+          "requestPath": "/releases/cem-components/",
+          "status": 200,
+          "bytes": 12430,
+          "sha256": "7c91f93a834d757c81a2ea833f4b83a45b6c1325dbce7de3bd2fe9504d63cd0a"
+        },
+        {
+          "path": "releases/cem-components/index.html.map",
+          "requestPath": "releases/cem-components/index.html.map",
+          "status": 200,
+          "bytes": 1288448,
+          "sha256": "c006fc530a01806415c30d187211d8f0ba3e023685c614dbff555931e7b29162"
+        },
+        {
+          "path": "releases/cem-elements/index.html",
+          "requestPath": "/releases/cem-elements/",
+          "status": 200,
+          "bytes": 4659,
+          "sha256": "d639640b0e48b57d0800daa2c183240fb17574840f71ab778c82102c06453f8b"
+        },
+        {
+          "path": "releases/cem-elements/index.html.map",
+          "requestPath": "releases/cem-elements/index.html.map",
+          "status": 200,
+          "bytes": 489451,
+          "sha256": "ba6d3a72949ba79541fb3f07f4145ce1f294a859ad7f213ef6cc35fe3423b1db"
+        },
+        {
+          "path": "releases/cem-theme/index.html",
+          "requestPath": "/releases/cem-theme/",
+          "status": 200,
+          "bytes": 17319,
+          "sha256": "4ba1292c184b98ae54200dec574535dfdb986124c0a40ea279785c355938f0fa"
+        },
+        {
+          "path": "releases/cem-theme/index.html.map",
+          "requestPath": "releases/cem-theme/index.html.map",
+          "status": 200,
+          "bytes": 1917843,
+          "sha256": "c1b9db15a09b1c0578f9f06aa0d8b6cf0b34b0731b58435c2a66a6dd1551d8e6"
+        },
+        {
+          "path": "releases/custom-element/index.html",
+          "requestPath": "/releases/custom-element/",
+          "status": 200,
+          "bytes": 3938,
+          "sha256": "81f00788d2cf9d6a683bcd48c42db0bd544f24ad48cb90a90d19fb9674dc77f7"
+        },
+        {
+          "path": "releases/custom-element/index.html.map",
+          "requestPath": "releases/custom-element/index.html.map",
+          "status": 200,
+          "bytes": 411101,
+          "sha256": "55d1e0dd96bdd5d1d284dc55e70791ae312cbe2aff77d78cd94e64520076d163"
+        },
+        {
+          "path": "releases/index.html",
+          "requestPath": "/releases/",
+          "status": 200,
+          "bytes": 145538,
+          "sha256": "a29137da423b368ed3977e04993775c5873d592b0b73a8113798484b1fe849b7"
+        },
+        {
+          "path": "releases/index.html.map",
+          "requestPath": "releases/index.html.map",
+          "status": 200,
+          "bytes": 15724998,
+          "sha256": "580b54454ece0892d1fea158f98212c48bd239d64fdd9601f2881e66abfce932"
+        },
+        {
+          "path": "search/assets/cem-components/cem-action.xhtml",
+          "requestPath": "search/assets/cem-components/cem-action.xhtml",
+          "status": 200,
+          "bytes": 19487,
+          "sha256": "86ec1aae87c85b97f4419f92da082d7cf904f8a0c3b6d0007efe4e2895377c48"
+        },
+        {
+          "path": "search/assets/cem-components/cem-field.xhtml",
+          "requestPath": "search/assets/cem-components/cem-field.xhtml",
+          "status": 200,
+          "bytes": 7896,
+          "sha256": "8de9b6faeb9dc9358d44e9063a7faf94951c3ab4a0b52b5c14d0b8097b398bf9"
+        },
+        {
+          "path": "search/assets/cem-components/cem-media-preview.xhtml",
+          "requestPath": "search/assets/cem-components/cem-media-preview.xhtml",
+          "status": 200,
+          "bytes": 4634,
+          "sha256": "951580887d17559740abb3265843c7b317702ebb0e5e523bbac241cfc96fc603"
+        },
+        {
+          "path": "search/assets/cem-components/cem-select.xhtml",
+          "requestPath": "search/assets/cem-components/cem-select.xhtml",
+          "status": 200,
+          "bytes": 14775,
+          "sha256": "dcff7b636875704c1aab28fd18cf54e44ed61fb97341ad3c535ffeb927110bcf"
+        },
+        {
+          "path": "search/assets/cem-components/cem-surface.xhtml",
+          "requestPath": "search/assets/cem-components/cem-surface.xhtml",
+          "status": 200,
+          "bytes": 2305,
+          "sha256": "4fb1e4a4b63b7e33b28b8c3c4c47df109f36d72ea8e50913d107b16e43b79a6f"
+        },
+        {
+          "path": "search/assets/cem-components/styles.css",
+          "requestPath": "search/assets/cem-components/styles.css",
+          "status": 200,
+          "bytes": 75,
+          "sha256": "105c3e81d9365fdedb871f47c23fbd33519ae40c5d24414318f9e98f1cd476f7"
+        },
+        {
+          "path": "search/assets/cem-elements/index.js",
+          "requestPath": "search/assets/cem-elements/index.js",
+          "status": 200,
+          "bytes": 2674,
+          "sha256": "015c64b69a85daaffa624947f76979846a46e4d1cd3710d2a5980d60e911ea0d"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/action-command-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/action-command-capability.js",
+          "status": 200,
+          "bytes": 14390,
+          "sha256": "b76679861af0487596b9ca1b205738eec454de7fa2a1b5e2740627f9267d8f77"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/action-control-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/action-control-capability.js",
+          "status": 200,
+          "bytes": 3372,
+          "sha256": "bbfe63c00434825b3e2b56fb8a925ab5d021afcea100c0b4b127d4cee4d6e945"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/aria-reference-profile.js",
+          "requestPath": "search/assets/cem-elements/lib/aria-reference-profile.js",
+          "status": 200,
+          "bytes": 1074,
+          "sha256": "15cf987f3ffd049d80f90200ccb7e10d36e8f2860f6a0c574b942269bf3e9be1"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/artifact-preview.js",
+          "requestPath": "search/assets/cem-elements/lib/artifact-preview.js",
+          "status": 200,
+          "bytes": 21994,
+          "sha256": "3338d4e0c9741bbd43d989a6fc8c62a87ab8bbb3af7fd7c6839c730fa3224117"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/calendar-input-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/calendar-input-capability.js",
+          "status": 200,
+          "bytes": 28088,
+          "sha256": "a9d446d83eecf042ca90def3e002a96f2377fe9eb384161a448c99521805011d"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/cem-elements.js",
+          "requestPath": "search/assets/cem-elements/lib/cem-elements.js",
+          "status": 200,
+          "bytes": 489147,
+          "sha256": "71023ebc1172324405930ac97c3dffee0d9be40987b1eb5229a8d84bb635a524"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkable-control.js",
+          "requestPath": "search/assets/cem-elements/lib/checkable-control.js",
+          "status": 200,
+          "bytes": 1474,
+          "sha256": "ac556e4f471b1f34766a9bd8f271d9b30902249b098747581993596756a9efd9"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-controls.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-controls.js",
+          "status": 200,
+          "bytes": 5735,
+          "sha256": "6074b6b16c3e5989c24f2362d8e088607aa7208a8d0a277b7254797c0cea52f9"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-form-resume.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-form-resume.js",
+          "status": 200,
+          "bytes": 3084,
+          "sha256": "88465e2ae7db2df89c1f885e127503cd299dd971a871c338497bb342148dd080"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-interactions.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-interactions.js",
+          "status": 200,
+          "bytes": 8065,
+          "sha256": "6873af6b8c8cca99f9ca6cfc5c70b060bcfd7734974cd0e504832ce6e776cef9"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-processing.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-processing.js",
+          "status": 200,
+          "bytes": 7170,
+          "sha256": "db9b25fc3b054be8aa4d63149ba3ea783aa0caca03676bfb8c5a944f191b59e5"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-provider-handoff.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-provider-handoff.js",
+          "status": 200,
+          "bytes": 1201,
+          "sha256": "908e170f2b8a42ac87f2f900891c6c6bf88d0a5482a1f06a018b4a78d87d7c57"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-publication.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-publication.js",
+          "status": 200,
+          "bytes": 37993,
+          "sha256": "242096236e3481d2314c26cedf66f2a00b38a60b33b5177f3791d6228d33c3be"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-reference-resume.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-reference-resume.js",
+          "status": 200,
+          "bytes": 1595,
+          "sha256": "ee5554e077573612bc9a5df76eb2d052ebbac89af8a68b1c75303c6b1ca392ae"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/checkpoint-resume.js",
+          "requestPath": "search/assets/cem-elements/lib/checkpoint-resume.js",
+          "status": 200,
+          "bytes": 16810,
+          "sha256": "6ee1691953d90a1dfff66bd000ab4a9ac74aa8f3d6855e982042f3ee12cc225d"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/choice-options.js",
+          "requestPath": "search/assets/cem-elements/lib/choice-options.js",
+          "status": 200,
+          "bytes": 4087,
+          "sha256": "c1b8fa2632cca42b36ddc4159cd75b15eee921c5ae79c718157d25d537019918"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/choice-select-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/choice-select-capability.js",
+          "status": 200,
+          "bytes": 28149,
+          "sha256": "7cd99386ad1ec12033bae1b6151b253a32bee5b8fd48db7b3efb14bdd12a7f7b"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/committed-checkpoint.js",
+          "requestPath": "search/assets/cem-elements/lib/committed-checkpoint.js",
+          "status": 200,
+          "bytes": 5309,
+          "sha256": "9e7b2f86e18be199fcd0261f4454cbed54e8cce9663caab7121eaba928580a48"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/compiled-declaration-assets.js",
+          "requestPath": "search/assets/cem-elements/lib/compiled-declaration-assets.js",
+          "status": 200,
+          "bytes": 3393,
+          "sha256": "ef2abc72f3429e4dec84c8258ec085ec74c950f48313a412bb7646648c017801"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/composite-menu-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/composite-menu-capability.js",
+          "status": 200,
+          "bytes": 24332,
+          "sha256": "be095538e4db1a024c6d9204b115100c521ff2a7461edec95e1eb0adaab760d6"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/composite-navigation.js",
+          "requestPath": "search/assets/cem-elements/lib/composite-navigation.js",
+          "status": 200,
+          "bytes": 1841,
+          "sha256": "c64dc09742d7f844cb52fbfe2ac7d48cb5e7562dac4750b00429d1c5d85e24a0"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/declaration-scope.js",
+          "requestPath": "search/assets/cem-elements/lib/declaration-scope.js",
+          "status": 200,
+          "bytes": 9116,
+          "sha256": "53759690446c514dfb0cadd006dea25f434f136b99aa658785e87f3e9a46507f"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/declaration-style-markup.js",
+          "requestPath": "search/assets/cem-elements/lib/declaration-style-markup.js",
+          "status": 200,
+          "bytes": 1736,
+          "sha256": "8aaf68f29aac0a3226e7375434b829763519eb548d4bc2c7ce90471cd75aeb08"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/declaration-style-ownership.js",
+          "requestPath": "search/assets/cem-elements/lib/declaration-style-ownership.js",
+          "status": 200,
+          "bytes": 25244,
+          "sha256": "564c07ec1fc5719dd6df64647f16dbea131ae1d2975e0afdf0e295a9420513fa"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/disclosure-panel-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/disclosure-panel-capability.js",
+          "status": 200,
+          "bytes": 5551,
+          "sha256": "1c9bd8ea25a2f6b5c7c460be7519ebcddef335e980f269461b1348b4a95e65a3"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/disposition.js",
+          "requestPath": "search/assets/cem-elements/lib/disposition.js",
+          "status": 200,
+          "bytes": 7096,
+          "sha256": "6ff512dfa8a393e8f4f6157ba1b73f6bb2a2761fe53406935a57073c325ae6b1"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/dom-realm.js",
+          "requestPath": "search/assets/cem-elements/lib/dom-realm.js",
+          "status": 200,
+          "bytes": 351,
+          "sha256": "21ee04cf2925f3bec1ff869bfc23b0f565fb14dcc26b6938c9699e13eeb7cb65"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/edge-css-publication.js",
+          "requestPath": "search/assets/cem-elements/lib/edge-css-publication.js",
+          "status": 200,
+          "bytes": 4961,
+          "sha256": "a3e177a75f5e94cbc4251331d39fad33c736b93bdf16b60dfdc391e28b2077b7"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/edge-ssr-host.js",
+          "requestPath": "search/assets/cem-elements/lib/edge-ssr-host.js",
+          "status": 200,
+          "bytes": 5432,
+          "sha256": "c349fb52650dc0cfbb33eb20291ed4c737589fbabd5e4d745859e5f52d59d37f"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/editable-choice-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/editable-choice-capability.js",
+          "status": 200,
+          "bytes": 23420,
+          "sha256": "a6051239128ec446f91be0236b9b3028de6803b33ad13609188de43df1f63860"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/editor-attributes.js",
+          "requestPath": "search/assets/cem-elements/lib/editor-attributes.js",
+          "status": 200,
+          "bytes": 7494,
+          "sha256": "5af0acfa7310d0f07b365bfe92cc2d600561615ca1c69b89185c06be905a0ece"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/editor-datalist.js",
+          "requestPath": "search/assets/cem-elements/lib/editor-datalist.js",
+          "status": 200,
+          "bytes": 4049,
+          "sha256": "db678897053430fa6c61e9b7ccb5384bb1b6115753f2a08a91a1582ef830fc69"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/element-placement-authority.js",
+          "requestPath": "search/assets/cem-elements/lib/element-placement-authority.js",
+          "status": 200,
+          "bytes": 19837,
+          "sha256": "200de21581407b642d4f1b7a1c9b41f66d183a9bb502bae588e5e8358e50eb56"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/element-placement-coordinator.js",
+          "requestPath": "search/assets/cem-elements/lib/element-placement-coordinator.js",
+          "status": 200,
+          "bytes": 19332,
+          "sha256": "8c19232cc82b694ed669030157845adc69e06316b5deac41f6259f8a63694f75"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/element-placement-plans.js",
+          "requestPath": "search/assets/cem-elements/lib/element-placement-plans.js",
+          "status": 200,
+          "bytes": 2723,
+          "sha256": "2f4fd7e6b19409a6d4de523adfb58e076ce485d72e945801c39a481fe98126cd"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/element-placement-ssr.js",
+          "requestPath": "search/assets/cem-elements/lib/element-placement-ssr.js",
+          "status": 200,
+          "bytes": 6171,
+          "sha256": "1f274a7b0d575c42945cc2f73e9217f51694a76ef1f0ea0646a1917531500f09"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/element-reference-inputs.js",
+          "requestPath": "search/assets/cem-elements/lib/element-reference-inputs.js",
+          "status": 200,
+          "bytes": 2032,
+          "sha256": "a541804c9ac0fcd984078f73ae5a28c428844e13f6f7642c863eb191b8f1e0c0"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/external-declaration-source.js",
+          "requestPath": "search/assets/cem-elements/lib/external-declaration-source.js",
+          "status": 200,
+          "bytes": 1741,
+          "sha256": "4754aba4f56a8990affab632c26ee65aad8c6d8edee298e0792fffba1688e98c"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/form-control-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/form-control-capability.js",
+          "status": 200,
+          "bytes": 31378,
+          "sha256": "bb34051807ef62d9d3d93ed2f863eddd2cf4bad3431463667fbcdc9eedf07035"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/host-view.js",
+          "requestPath": "search/assets/cem-elements/lib/host-view.js",
+          "status": 200,
+          "bytes": 11697,
+          "sha256": "f1e49b4a119fe2a3b02c9f246bbdf81b43bbc127b894abbe44cad18068d76d65"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/http-resource-transport.js",
+          "requestPath": "search/assets/cem-elements/lib/http-resource-transport.js",
+          "status": 200,
+          "bytes": 2460,
+          "sha256": "b01e363795a323cc71321e29cc3d0b785d74b857e5a66ef45ec03f78e8f388cc"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/interaction-reference.js",
+          "requestPath": "search/assets/cem-elements/lib/interaction-reference.js",
+          "status": 200,
+          "bytes": 3762,
+          "sha256": "718692bab49929e2fda62ff94c179289a1a5a4fe04ca5ca6519b8696c2f94b75"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/cem-ql-render.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/cem-ql-render.js",
+          "status": 200,
+          "bytes": 66059,
+          "sha256": "fec460da8ad95763e139f20b502f105432d17b48628010f5a11f092dbffb86f8"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/checkpoint-domain.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/checkpoint-domain.js",
+          "status": 200,
+          "bytes": 29753,
+          "sha256": "bd9151d726e86c9768ede8723ac54ea1c84d71cfbd6ac731a58ac8486c24f431"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/css-dom-publication-queue.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/css-dom-publication-queue.js",
+          "status": 200,
+          "bytes": 3629,
+          "sha256": "6336fcbccae386830dc855a0d12e98cd6c3b92b5c7a4674c262cfb26a2dfaf18"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/instance-stylesheet-installation.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/instance-stylesheet-installation.js",
+          "status": 200,
+          "bytes": 11572,
+          "sha256": "321067f11e85e4322734070ab2c65a15f31dd8a193c6652123da2fc031d4380b"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/location-write-trigger.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/location-write-trigger.js",
+          "status": 200,
+          "bytes": 345,
+          "sha256": "9142167d96c6e683e5b46df6380e2ce25876d2d59444c178eb1b0dfb41f46b39"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/module-url-resolution.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/module-url-resolution.js",
+          "status": 200,
+          "bytes": 9642,
+          "sha256": "c276024b3a3ec8a04f41a486d1fcb505fa317560931561bab96ae37d56688009"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/native-generation.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/native-generation.js",
+          "status": 200,
+          "bytes": 177,
+          "sha256": "2c157124ca296079ba5ff5fb772b888f6a522fc1fe9dc890a5379d987cbc3f5d"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/native-runtime.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/native-runtime.js",
+          "status": 200,
+          "bytes": 22626,
+          "sha256": "2458a35ca1c039c25041a3e64f6f0f800fc6eebac6bfe572cbef96c74dcefc8a"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/processing-cache.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/processing-cache.js",
+          "status": 200,
+          "bytes": 1179,
+          "sha256": "59b74b700008c3ce880f3769e8330735b0fe131c351ff56d3a75f9ef2e835abd"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/processing-engine.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/processing-engine.js",
+          "status": 200,
+          "bytes": 53558,
+          "sha256": "5077e56d6c8a65e8051ebb0f78d3924e50830f44b917b299ed739abaa3c99f43"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/processing-host-runtime.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/processing-host-runtime.js",
+          "status": 200,
+          "bytes": 74544,
+          "sha256": "51f2a4c55d0d5655a7d7200a20e8ab3d79b90466894f81e284521dad3543c977"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/processing-host.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/processing-host.js",
+          "status": 200,
+          "bytes": 14269,
+          "sha256": "dfd92e5bc55a57dac7f947600bd2cdf6779ef568c46322172f8a358272a3701d"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/processing-scheduler.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/processing-scheduler.js",
+          "status": 200,
+          "bytes": 4612,
+          "sha256": "313fc44fd67f3ab3993c78dc18928722fc6996f7d0fa6b184cc25ad9137d55ab"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/processing-worker.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/processing-worker.js",
+          "status": 200,
+          "bytes": 13287,
+          "sha256": "abbbe2bb3d6e674fb81b82554e2cee9491d60c6009166fb62c4cccf9710fc80e"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/schema-asset-protocol.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/schema-asset-protocol.js",
+          "status": 200,
+          "bytes": 164,
+          "sha256": "3d7076bd036bc326737de4c4d5a23fdcc0a2ef94500494c7e9b3437ac534e62b"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-dom-order.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-dom-order.js",
+          "status": 200,
+          "bytes": 950,
+          "sha256": "ddd8b54f072b6d39691cad97eee127bd41cf3a7a5947114aceb8c74e5b9883db"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-installation.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-installation.js",
+          "status": 200,
+          "bytes": 9674,
+          "sha256": "8016087808a10df7f25f6673a460b72329e2694d1033f0cbc2d8fc1d42c38ab2"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-notifications.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-notifications.js",
+          "status": 200,
+          "bytes": 1564,
+          "sha256": "cd0c8cd4e4be5c1f836293d754d3ba61dbf148b306b2b2efab05f515dbccecb5"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-reader.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-reader.js",
+          "status": 200,
+          "bytes": 2139,
+          "sha256": "afaaf79d9638f453ac122d7305a7445748bd4f4a29149a942bded95444fb1f3c"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-registry.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/stylesheet-registry.js",
+          "status": 200,
+          "bytes": 20186,
+          "sha256": "76b7b3807c8a91f84ec81682d24b3890d513cc8acd3f6302690590a2cd9e5292"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "status": 200,
+          "bytes": 24140410,
+          "sha256": "3856b98560281753dffb49b807b1bb4a76f76f4f088a5ce179a2a03c577037b5"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_factory.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_factory.js",
+          "status": 200,
+          "bytes": 130643,
+          "sha256": "4b85f7274b6d6c2d6471352ca4ab89e8ed37fd691d851e4e8882fcbf953e8516"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql.js",
+          "status": 200,
+          "bytes": 121414,
+          "sha256": "3360d940036dc8d36191723b4bd180ad78ef5b1b3c30bf20b1763d62e12cb712"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/vendor/native-generation.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/vendor/native-generation.js",
+          "status": 200,
+          "bytes": 28361,
+          "sha256": "9d43450f2c1c789b1bbd1cc8f14edb089b63ae43ce589a833f597f0a80952209"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/vendor/schema-asset-protocol.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/vendor/schema-asset-protocol.js",
+          "status": 200,
+          "bytes": 2367,
+          "sha256": "de75c0f1495a7da742a86d66b6d1e1d2965d3b3bf83f655a16b5e583aceee083"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/internal/runtime-support/xpath-function-library.js",
+          "requestPath": "search/assets/cem-elements/lib/internal/runtime-support/xpath-function-library.js",
+          "status": 200,
+          "bytes": 6424,
+          "sha256": "fa205da2b3237bd2b8ce16fceee740287c3f40c1a5dba94d35a2d95f1f352093"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/legacy-xslt/contract.js",
+          "requestPath": "search/assets/cem-elements/lib/legacy-xslt/contract.js",
+          "status": 200,
+          "bytes": 2292,
+          "sha256": "a46120509cf8f075855e661519235845a27a8645403140ba1bb7a5fe2ee882a3"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/legacy-xslt/template-language.js",
+          "requestPath": "search/assets/cem-elements/lib/legacy-xslt/template-language.js",
+          "status": 200,
+          "bytes": 720,
+          "sha256": "44ca04370d86a8dad8044d35c00259d441fceb2a9266052690586a752a134c20"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/live-preview-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/live-preview-capability.js",
+          "status": 200,
+          "bytes": 8229,
+          "sha256": "92b03bda111c5e5319643e0b7fb825682350dba3fc563461aae1c16a95f9573e"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/live-preview-policy.js",
+          "requestPath": "search/assets/cem-elements/lib/live-preview-policy.js",
+          "status": 200,
+          "bytes": 1942,
+          "sha256": "ca855c8a30ef971e740e18c2fe8b5f1b7c41f4d5819de7c040abc8cc25c584d0"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/live-preview.js",
+          "requestPath": "search/assets/cem-elements/lib/live-preview.js",
+          "status": 200,
+          "bytes": 10806,
+          "sha256": "db2d20c58c5b7260fc547bfdadd5dd4e0e7cafcea9d5e23e06b83c8019a5d308"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/local-suggestions-capture.js",
+          "requestPath": "search/assets/cem-elements/lib/local-suggestions-capture.js",
+          "status": 200,
+          "bytes": 4713,
+          "sha256": "61e28bdd1e46780c7b3af458be6a4bc526138887770d24acff713409dd758269"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/manual-listbox.js",
+          "requestPath": "search/assets/cem-elements/lib/manual-listbox.js",
+          "status": 200,
+          "bytes": 13620,
+          "sha256": "0edffa99426a5dff9f8851d39ea7ae04fa25e00f04102764eb61daaeba1b9c58"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/menu-task-relay.js",
+          "requestPath": "search/assets/cem-elements/lib/menu-task-relay.js",
+          "status": 200,
+          "bytes": 3290,
+          "sha256": "bcc4e12cb0a11c7169b382bc5feaf19d2bb1d7ebf0a78dd10d64a1228afb2295"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/native-capability-session.js",
+          "requestPath": "search/assets/cem-elements/lib/native-capability-session.js",
+          "status": 200,
+          "bytes": 12970,
+          "sha256": "eae9ce302e8716da7a9ef36e5e1c1a4a70735e7c3555320a2e3ef40fa43d1bf3"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/native-datalist-attachment.js",
+          "requestPath": "search/assets/cem-elements/lib/native-datalist-attachment.js",
+          "status": 200,
+          "bytes": 15478,
+          "sha256": "43104d4eef8bca31b0f1f0b68f804e4802ddb9da91df1e502f96cf1f16ae7e13"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/native-list-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/native-list-capability.js",
+          "status": 200,
+          "bytes": 2480,
+          "sha256": "495b6bd8d164b5fd284977b13cba3f27720b43f872bfa45267ef53863fa019ad"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/native-suggestions-publication.js",
+          "requestPath": "search/assets/cem-elements/lib/native-suggestions-publication.js",
+          "status": 200,
+          "bytes": 12164,
+          "sha256": "b61643c6fd5e182e9d6f48ef2bec39da487aa6e1b447543794a219199bafb7af"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/native-surface.js",
+          "requestPath": "search/assets/cem-elements/lib/native-surface.js",
+          "status": 200,
+          "bytes": 45881,
+          "sha256": "396b9bb6b69842fd7eeafa58067c37adf473e8788a4985f744b42718f75e3e4b"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/native-values.js",
+          "requestPath": "search/assets/cem-elements/lib/native-values.js",
+          "status": 200,
+          "bytes": 4599,
+          "sha256": "427a39dcf46e3800592d49b92851a40f7366bb0400f29c7286535c068593875c"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/navigation-landmark-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/navigation-landmark-capability.js",
+          "status": 200,
+          "bytes": 3081,
+          "sha256": "3389fcd23e10ef1d440049385f9163a6aad2aadd8e0798afd0eaee38f362fd37"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/pagination-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/pagination-capability.js",
+          "status": 200,
+          "bytes": 7389,
+          "sha256": "2c34364b513f647e1b47272366c9efcb52571d39fdfb021d7c362a4e25ed233a"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/plaintext-editor-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/plaintext-editor-capability.js",
+          "status": 200,
+          "bytes": 20621,
+          "sha256": "768e58de7ee87798785ccf77545b57bdb3d392a7609b8faf7a31bc01f1ced0d0"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/platform-close.js",
+          "requestPath": "search/assets/cem-elements/lib/platform-close.js",
+          "status": 200,
+          "bytes": 5105,
+          "sha256": "72d45ae13799d068badfd439a464441999155efdc7cc4a9591e839f1bcfab01c"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/popup-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/popup-capability.js",
+          "status": 200,
+          "bytes": 18313,
+          "sha256": "447a77eaad016ff5d71c426883ca70ef2fc5f5c880d97e3e0bf53065e07c5069"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/popup-controller.js",
+          "requestPath": "search/assets/cem-elements/lib/popup-controller.js",
+          "status": 200,
+          "bytes": 15108,
+          "sha256": "23fe5ab302d33ce496b9e369f4a4550cc88643b5e9bd6fa4044ea86d217c4139"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/progress-status-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/progress-status-capability.js",
+          "status": 200,
+          "bytes": 1154,
+          "sha256": "e7c7704ec82c86094f9aaae91026411d672fc4ad8850151486dbad78d0efd55c"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/projection.js",
+          "requestPath": "search/assets/cem-elements/lib/projection.js",
+          "status": 200,
+          "bytes": 138884,
+          "sha256": "d4c3601b320484a81af9dafa1518b19dcc7f28962093a5e5f1ca7df56aae199e"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/range-input-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/range-input-capability.js",
+          "status": 200,
+          "bytes": 8372,
+          "sha256": "7be79c87053c47dcac306e98073c526068eef9145aa7f36baf3f5aecc41ec185"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/recovery-status.js",
+          "requestPath": "search/assets/cem-elements/lib/recovery-status.js",
+          "status": 200,
+          "bytes": 5947,
+          "sha256": "8b79f8d26791ebf1b7a31e240fdd357e738e34b72e60ef772fa9e7a3bae850ef"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/repository.js",
+          "requestPath": "search/assets/cem-elements/lib/repository.js",
+          "status": 200,
+          "bytes": 5461,
+          "sha256": "02301d389e7cb5699999fff97008aad28056284e713a0791bd1359059a78b702"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/schema-asset-pack.js",
+          "requestPath": "search/assets/cem-elements/lib/schema-asset-pack.js",
+          "status": 200,
+          "bytes": 43743,
+          "sha256": "7046e7e2016efd66a431a8de9eba6128103f2d5d5a94f5cd8e8587f83a3113d7"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/sort-action-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/sort-action-capability.js",
+          "status": 200,
+          "bytes": 3316,
+          "sha256": "daaa701ea34321340499829ead6c01d4d520faa8f1f946e69bae92d631a4fcb7"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/standalone-datalist.js",
+          "requestPath": "search/assets/cem-elements/lib/standalone-datalist.js",
+          "status": 200,
+          "bytes": 8968,
+          "sha256": "8c08bfe79fe381e6129962d09e9eebc99629a12872117b5066d73f3ac6f5908a"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/suggestions-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/suggestions-capability.js",
+          "status": 200,
+          "bytes": 34418,
+          "sha256": "a506f37c436081c643932863718b9feab1022fbdbfa40d6309e6643046c7eda0"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/suggestions-controller.js",
+          "requestPath": "search/assets/cem-elements/lib/suggestions-controller.js",
+          "status": 200,
+          "bytes": 28301,
+          "sha256": "768206202ada8ad7f4219ba909f2ff1d82c0d3e34283a1f44ba39baa852d5104"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/suggestions-editor.js",
+          "requestPath": "search/assets/cem-elements/lib/suggestions-editor.js",
+          "status": 200,
+          "bytes": 2003,
+          "sha256": "8d421529c5fd86fd029a09a985816c2099ffb0d851b4eefe6b19b107b8a2ad86"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/suggestions-placements.js",
+          "requestPath": "search/assets/cem-elements/lib/suggestions-placements.js",
+          "status": 200,
+          "bytes": 15573,
+          "sha256": "507e48a900df422d0c9a52a6560533c72476751abafb51c99972cc5542fb8dc4"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/surface-body.js",
+          "requestPath": "search/assets/cem-elements/lib/surface-body.js",
+          "status": 200,
+          "bytes": 8428,
+          "sha256": "36b7e46ef31572f5e0141bc6b3428fc5d705d1235b2196e96f33cfef8edb18ff"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/surface-controls.js",
+          "requestPath": "search/assets/cem-elements/lib/surface-controls.js",
+          "status": 200,
+          "bytes": 11819,
+          "sha256": "dd17cc009902899c8d402f3bf97a7d9ddb2904af1adf39609e069284da4cecc5"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/surface-geometry.js",
+          "requestPath": "search/assets/cem-elements/lib/surface-geometry.js",
+          "status": 200,
+          "bytes": 7888,
+          "sha256": "a283e1dc4f37922094d7be57f02b9aefacfc4640b350d3add6f270e585396af2"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/surface-invocation.js",
+          "requestPath": "search/assets/cem-elements/lib/surface-invocation.js",
+          "status": 200,
+          "bytes": 1870,
+          "sha256": "34e15fd883489f2467fa7c4b7292d08df251570cec08a84ba5ee3c82dfd49ae1"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/surface-position.js",
+          "requestPath": "search/assets/cem-elements/lib/surface-position.js",
+          "status": 200,
+          "bytes": 2968,
+          "sha256": "7e3001f9309101fa8287f031d500eadaed1b2a746ed6392a9981e9fbaa068416"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/surface-references.js",
+          "requestPath": "search/assets/cem-elements/lib/surface-references.js",
+          "status": 200,
+          "bytes": 3086,
+          "sha256": "79c8847593a23fc48f761fe384c5d9c3c8bebb2887bfa26152f0eb4803eaaddb"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/surface-session.js",
+          "requestPath": "search/assets/cem-elements/lib/surface-session.js",
+          "status": 200,
+          "bytes": 10864,
+          "sha256": "0118316b94c37f7327312041f476518108e64bac5d5ce389ae45526103e41a29"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/tab-panels-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/tab-panels-capability.js",
+          "status": 200,
+          "bytes": 12974,
+          "sha256": "1304ea5ac6f9a610b8059fda81c97bac2aac66e746d4c9db75ecc0c4852029d0"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/time-input-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/time-input-capability.js",
+          "status": 200,
+          "bytes": 24891,
+          "sha256": "159897fc18c5085730e63a376af990c48db0bac3eb4589f16f0834f521b182d4"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/tree-view-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/tree-view-capability.js",
+          "status": 200,
+          "bytes": 20393,
+          "sha256": "d786f02fd9d602be101d091efe6201a4bde7976bca4925651cadfb245dea7d9b"
+        },
+        {
+          "path": "search/assets/cem-elements/lib/workflow-panels-capability.js",
+          "requestPath": "search/assets/cem-elements/lib/workflow-panels-capability.js",
+          "status": 200,
+          "bytes": 12452,
+          "sha256": "5a72f38a4603f7e9ef9eefcdf733d024dec4536b7836c8fef68f005c27e22c5d"
+        },
+        {
+          "path": "search/assets/cem-site/components-runtime.js",
+          "requestPath": "search/assets/cem-site/components-runtime.js",
+          "status": 200,
+          "bytes": 2400,
+          "sha256": "2667ce757a9ad543823dc047219dcd2489029dfda269038e40239b773f11af9f"
+        },
+        {
+          "path": "search/assets/cem-site/examples-view.xhtml",
+          "requestPath": "search/assets/cem-site/examples-view.xhtml",
+          "status": 200,
+          "bytes": 2629,
+          "sha256": "bc06f2fa1d49552600ffcbe1d99e4748ae98ee73fd3cf5e9314475fa363a4c40"
+        },
+        {
+          "path": "search/assets/cem-site/search-runtime.js",
+          "requestPath": "search/assets/cem-site/search-runtime.js",
+          "status": 200,
+          "bytes": 3304,
+          "sha256": "719cba147e2ab6d4560d118d2a1a28620099f4330a629fbc7d97567d4785f86c"
+        },
+        {
+          "path": "search/assets/cem-site/search-view.xhtml",
+          "requestPath": "search/assets/cem-site/search-view.xhtml",
+          "status": 200,
+          "bytes": 1788,
+          "sha256": "1def971f98630b68d31050f049bf3934945bb037d1d20a32fccd9f42bceb060e"
+        },
+        {
+          "path": "search/assets/cem-site/site-runtime.js",
+          "requestPath": "search/assets/cem-site/site-runtime.js",
+          "status": 200,
+          "bytes": 1952,
+          "sha256": "9eb6d3afabf8986642487994b787d837b6f135b74f434ad99216e446b8789586"
+        },
+        {
+          "path": "search/assets/theme/cem-combined.css",
+          "requestPath": "search/assets/theme/cem-combined.css",
+          "status": 200,
+          "bytes": 102037,
+          "sha256": "45a317babd0d779cdd03728d9678c8bf7addf2a785e76435e940c8a7ddf27bec"
+        },
+        {
+          "path": "search/index.html",
+          "requestPath": "/search/",
+          "status": 200,
+          "bytes": 22359,
+          "sha256": "884c50a5cf663209e60e2729f6bc3e4675787df3aa459e47ab027ad361b60ce8"
+        },
+        {
+          "path": "search/index.html.map",
+          "requestPath": "search/index.html.map",
+          "status": 200,
+          "bytes": 1428526,
+          "sha256": "3b8b0f32fcbd9ef7da6537afa763226f6a3e0d731f0ac907e96a6aa78c4126ae"
+        },
+        {
+          "path": "site.report.json",
+          "requestPath": "site.report.json",
+          "status": 200,
+          "bytes": 612367,
+          "sha256": "30f8b24422f356cd364fe076cadd37f016b55ffe73fe750ea05209d030b6491e"
+        },
+        {
+          "path": "tokens/index.html",
+          "requestPath": "/tokens/",
+          "status": 200,
+          "bytes": 597086,
+          "sha256": "b5718e9cde0d594a962a99bd71680a806de52ab11baa219d5a6be0fc491f35e5"
+        },
+        {
+          "path": "tokens/index.html.map",
+          "requestPath": "tokens/index.html.map",
+          "status": 200,
+          "bytes": 45614987,
+          "sha256": "21c3cff568e37e7888d9e9a760267d77d42f88269cee8dcb0da7cad1dff755b0"
+        }
+      ]
+    },
+    "finishedAt": "2026-11-04T05:31:17.653Z"
+  },
+  "sourceMapAndParticipantLinks": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-04T05:25:40.385Z",
+    "root": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+    "ownerReportedVersionId": "431d2a65-f8b6-4f5f-86f1-cdf552c8fb7f",
+    "sourceMap": {
+      "headStatus": 200,
+      "contentType": "application/json; charset=utf-8",
+      "contentEncoding": "gzip",
+      "etag": "\"3ea69a5c5c90a2f6bfce5bd72474ee38\"",
+      "conditionalStatus": 304
+    },
+    "participantLinks": [
+      {
+        "url": "https://github.com/EPA-WG/cem/blob/712ff2e45b89d159abba7b8447ab53e5efb8ae68/docs/declarative-amsterdam-2026/participant-setup.md",
+        "status": 200,
+        "finalUrl": "https://github.com/EPA-WG/cem/blob/712ff2e45b89d159abba7b8447ab53e5efb8ae68/docs/declarative-amsterdam-2026/participant-setup.md"
+      },
+      {
+        "url": "https://github.com/EPA-WG/cem/blob/712ff2e45b89d159abba7b8447ab53e5efb8ae68/docs/declarative-amsterdam-2026/login-presenter/README.md",
+        "status": 200,
+        "finalUrl": "https://github.com/EPA-WG/cem/blob/712ff2e45b89d159abba7b8447ab53e5efb8ae68/docs/declarative-amsterdam-2026/login-presenter/README.md"
+      },
+      {
+        "url": "https://github.com/EPA-WG/cem/blob/712ff2e45b89d159abba7b8447ab53e5efb8ae68/docs/declarative-amsterdam-2026/supplier-presenter/README.md",
+        "status": 200,
+        "finalUrl": "https://github.com/EPA-WG/cem/blob/712ff2e45b89d159abba7b8447ab53e5efb8ae68/docs/declarative-amsterdam-2026/supplier-presenter/README.md"
+      }
+    ]
+  },
+  "existingDemo": {
+    "checkedAt": "2026-11-04T05:33:50.594Z",
+    "status": 200,
+    "inventorySha256": "4d21f9cd63ddb3c7c989b9bc9c123040e7472612274f3be1cb56c97d532a0770",
+    "scope": "Inventory preservation only; prior Studio functionality acceptance retained"
+  },
+  "preparationReadback": "site-cloudflare-preparation-readback.json",
+  "orchestrationCorrection": {
+    "initialAttempt": "Entered a redundant upstream WASM optimization before the public verifier started; cancelled before public byte/browser checks",
+    "change": "Public target consumes the verified prepared release, checks its preparation/clean-build identity and all local and public bytes, then runs the same browser assertions sequentially",
+    "publicAssertionsAndDeadlines": "unchanged",
+    "newProductDeploymentRequired": false
+  },
+  "localStaticChecks": {
+    "hostingGuards": "15 passed",
+    "canonicalPublicationRegressions": "5 passed",
+    "siteWorkerLint": "passed",
+    "presentationResourceGuards": "65 passed"
+  },
+  "coverageLimits": [
+    "Chromium acceptance; no new physical-device or spoken assistive-technology claim",
+    "Public Site acceptance does not establish CLI registry installation or a measured full-session rehearsal",
+    "Prior Studio functionality acceptance is retained; its inventory was rechecked, not its full suite",
+    "Owner reported the Cloudflare version ID; public verification independently establishes the served artifact bytes and behavior"
+  ],
+  "next": [
+    "Timed full-session rehearsal including slide readability and fallback",
+    "Finalize supporting files and final handoff",
+    "Archive completed presentation actions"
+  ],
+  "localRuntimeRecovery": {
+    "status": "restored",
+    "mlCache": "9086835867649531464",
+    "qlCache": "3967141443445963067",
+    "mlIntegrityRecords": 658,
+    "schemaSourceFilesMatched": 481,
+    "qlAncillarySourceFilesMatched": 6,
+    "browserRuntimeFactoryAndWasmMatchPreviouslyVerifiedDeployment": true,
+    "sourceFilesModified": false,
+    "browserNodeAbiAndPackageIntegrityVerification": "passed",
+    "presentationResourceGuardsAfterRestoration": "65 passed"
+  }
+}

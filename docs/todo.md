@@ -523,7 +523,7 @@ channels; private agreements remain unverified. This file owns execution order.
       unit checks, lint and Wrangler 4.157.0 dry-run pass; `ASSETS` binding exists.
       [Verification](declarative-amsterdam-2026/hosting-upgrade-verification.md).
 
-- [ ] Fixture: publish the existing native CEM Site artifact with a reproducible
+- [x] Fixture: publish the existing native CEM Site artifact with a reproducible
       static inventory and verify the actual public host against those bytes.
       Crawl every allowed route, check Amsterdam guide/search fragments and
       interactive examples, preserve the existing Studio deployment and native
@@ -540,8 +540,14 @@ channels; private agreements remain unverified. This file owns execution order.
       actual local Worker HTTP checks match all original bytes, including the
       large source map. Public URL/version and remote acceptance remain pending.
       [Deployment steps and receipt](declarative-amsterdam-2026/site-cloudflare-publication.md).
+      Completed publicly 2026-11-03: owner deployed version `431d2a65…`.
+      All 303 native files match; 27 public routes/86 fragments, interactive
+      examples and search pass, with zero runtime errors. Source-map HEAD/304
+      semantics and all participant destinations pass. The public target checks
+      the prepared release identity and bytes without rebuilding that candidate.
+      [Public verification and receipt](declarative-amsterdam-2026/site-public-verification.md).
 
-- [ ] Publish the reviewed Amsterdam presentation site and related demo pages
+- [x] Publish the reviewed Amsterdam presentation site and related demo pages
       after their functionality checks pass. Verify the actual public routes,
       deployed assets, cache freshness and presentation resource links. Record
       the deployment identity; a successful local build is not publication.
@@ -561,6 +567,13 @@ channels; private agreements remain unverified. This file owns execution order.
       Subsequent upload `4d21f9cd…` now passes public demo functionality and
       all 14 destinations. The separately reviewed presentation Site publication
       remains open; timed rehearsal is a separate delivery task.
+      Completed 2026-11-03: the presentation Site is publicly deployed and
+      accepted at https://cem-amsterdam-2026.trans-acf.workers.dev/ (owner version
+      `431d2a65-f8b6-4f5f-86f1-cdf552c8fb7f`), including the Amsterdam guide.
+      Exact native bytes, all routes/fragments, interactive examples, search and
+      participant-resource links pass. The earlier demo acceptance and published
+      discussion remain intact. See the public verification above; timed rehearsal
+      and final handoff are still separate open tasks.
 
 - [x] Fixture: validate all discussion #24 slide/demo draft rows against frozen
       project/resource/configuration identities and recorded native slide IDs.

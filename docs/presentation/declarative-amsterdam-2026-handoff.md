@@ -1,5 +1,16 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+CEM Site public publication complete (2026-11-03): the [presentation guide](https://cem-amsterdam-2026.trans-acf.workers.dev/guides/declarative-amsterdam-2026/)
+and complete Site are live on `cem-amsterdam-2026.trans-acf.workers.dev`, owner-
+reported version `431d2a65-f8b6-4f5f-86f1-cdf552c8fb7f`. Public checks match all
+303 native files (`741d9f3c…`) and pass all 27 routes/86 fragments, interactive
+examples and search with zero runtime errors. The source map retains its original
+URL/bytes and cache semantics; all three participant links return 200. The
+[verification and receipt](../declarative-amsterdam-2026/site-public-verification.md)
+record exact scope. The existing demo/Studio inventory remains unchanged.
+Timed rehearsal and final handoff/archive are next. Earlier pending-publication
+notices below record their original preparation stages.
+
 CEM Site Cloudflare handoff prepared (2026-11-03): the owner chose deployment
 from their signed-in machine. The [deployment guide](../declarative-amsterdam-2026/site-cloudflare-publication.md)
 and [receipt](../declarative-amsterdam-2026/site-cloudflare-preparation-readback.json)
