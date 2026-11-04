@@ -106,7 +106,7 @@
         "verify": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["build", "test:canonical-links", "verify:determinism", "verify:interactive", "verify:production", "verify:search"],
+            "dependsOn": ["build", "test:canonical-links", "verify:determinism", "verify:interactive", "verify:production", "verify:search", "test:publication-host"],
             "options": {
                 "command": "node apps/cem-site/scripts/verify.mjs",
                 "cwd": "{workspaceRoot}"
@@ -140,6 +140,7 @@
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
+                "{projectRoot}/scripts/publication-host.mjs",
                 "{projectRoot}/site.routes.json",
                 "{projectRoot}/scripts/verify-interactive.mjs",
                 "{projectRoot}/scripts/verify-xhtml.mjs",
@@ -160,6 +161,7 @@
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
+                "{projectRoot}/scripts/publication-host.mjs",
                 "{projectRoot}/site.routes.json",
                 "{projectRoot}/scripts/verify-search.mjs",
                 "{projectRoot}/scripts/verify-xhtml.mjs",
@@ -180,6 +182,7 @@
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
+                "{projectRoot}/scripts/publication-host.mjs",
                 "{projectRoot}/site.routes.json",
                 "{projectRoot}/scripts/verify-production.mjs",
                 {
@@ -208,6 +211,61 @@
                 }
             ],
             "outputs": ["{workspaceRoot}/dist/reports/cem-site/determinism.json"]
+        },
+        "test:publication-host": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node --test apps/cem-site/scripts/publication-host.test.mjs apps/cem-site/scripts/cloudflare-host.test.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/publication-host*.mjs",
+                "{projectRoot}/scripts/cloudflare-host.test.mjs",
+                "{workspaceRoot}/tools/cloudflare/*.mjs"
+            ],
+            "outputs": []
+        },
+        "verify:public": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:determinism",
+                "test:publication-host"
+            ],
+            "options": {
+                "command": "node apps/cem-site/scripts/verify-publication.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/*.mjs",
+                "{projectRoot}/site.routes.json"
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-site/public-*.json"
+            ]
+        },
+        "prepare:cloudflare": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify"
+            ],
+            "options": {
+                "command": "node apps/cem-site/scripts/prepare-cloudflare.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/prepare-cloudflare.mjs",
+                "{workspaceRoot}/wrangler.site.jsonc",
+                "{workspaceRoot}/tools/cloudflare/*.mjs"
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/hosting/cem-site",
+                "{workspaceRoot}/dist/releases/cem-site-cloudflare",
+                "{workspaceRoot}/dist/releases/cem-site-cloudflare.tgz",
+                "{workspaceRoot}/dist/reports/cem-site/cloudflare-preparation.json"
+            ]
         }
     },
     "tags": ["scope:cem-site", "type:application", "lang:cem"]

@@ -1,5 +1,16 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+CEM Site Cloudflare handoff prepared (2026-11-03): the owner chose deployment
+from their signed-in machine. The [deployment guide](../declarative-amsterdam-2026/site-cloudflare-publication.md)
+and [receipt](../declarative-amsterdam-2026/site-cloudflare-preparation-readback.json)
+identify the separate `cem-amsterdam-2026` Worker and verified deploy-only bundle.
+Native output is 303 files, aggregate `741d9f3c…`; local 27-route/86-fragment,
+interactive/search, Amsterdam guide, 15 hosting guards and lint pass. Lossless
+gzip transport preserves the otherwise oversized token source map at its original
+URL. Wrangler dry run and real local Worker HTTP checks pass for all 303 original
+files. The existing demo/Studio deployment is unchanged. Actual public URL/version
+and the uncached public verifier remain pending; publication is not complete.
+
 Discussion resource delivery complete (2026-11-03): the [existing discussion #24 comment](https://github.com/EPA-WG/cem/discussions/24#discussioncomment-18867103)
 is updated with all 30 physical slides, including 14 Studio links and the
 original published examples. A separate GitHub read confirms exact body bytes,

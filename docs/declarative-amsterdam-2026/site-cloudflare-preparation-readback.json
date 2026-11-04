@@ -1,0 +1,611 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-04T05:21:17.163590+00:00",
+  "checkedOn": "2026-11-03",
+  "timeZone": "America/Chicago",
+  "status": "prepared; owner deployment/public verification pending",
+  "hostingChoice": "User chose Cloudflare and will deploy from their signed-in machine",
+  "workerName": "cem-amsterdam-2026",
+  "config": "wrangler.site.jsonc",
+  "prepared": {
+    "schemaVersion": 1,
+    "preparedAt": "2026-11-04T05:16:53.402Z",
+    "status": "prepared; not publicly verified",
+    "nativeAggregateSha256": "741d9f3c06f15ed8c3f131b3bfdff8e2a0344c4e35cb80f6ddbec5ffe76f19d2",
+    "nativeFileCount": 303,
+    "hostedFileCount": 303,
+    "compressed": [
+      {
+        "path": "tokens/index.html.map.gz",
+        "bytes": 780110,
+        "sha256": "b8c8645fa8d56b8d0da5d10da8d7d4e9676d621f9c6e2fc8d53676ed5f666fbd",
+        "nativePath": "tokens/index.html.map",
+        "compressed": true
+      }
+    ],
+    "hostedAggregateSha256": "9d7189b3fd980d29d7e35022efaafb7b6064044afcc149a6e5d9531adf54d29f",
+    "sources": [
+      {
+        "path": "wrangler.site.jsonc",
+        "bytes": 283,
+        "sha256": "f880b676def3c755dcd9d8e3b98472f0dc6581ebd0dea26f1671da9f92f0af44"
+      },
+      {
+        "path": "tools/cloudflare/site-worker.mjs",
+        "bytes": 2225,
+        "sha256": "f92d0af68a34f593fcc9ea838534097b4984edfa1d7a5b37e59f4fafcf6adcf8"
+      },
+      {
+        "path": "tools/cloudflare/demo-worker.mjs",
+        "bytes": 398,
+        "sha256": "b322a9618d3fd32429a806f08fc7bcc79c853e508485f7422aed79dc7e6b676f"
+      }
+    ],
+    "archive": {
+      "path": "/home/suns/cem/dist/releases/cem-site-cloudflare.tgz",
+      "bytes": 19253366,
+      "sha256": "9dfb3a2aeaed63260f81a232dd60addf48d80227e8065906570eb1d6685e93a0"
+    },
+    "output": "/home/suns/cem/dist/hosting/cem-site",
+    "release": "/home/suns/cem/dist/releases/cem-site-cloudflare",
+    "publicAcceptance": "pending owner deployment and public checks"
+  },
+  "nativeOversizeMap": {
+    "path": "tokens/index.html.map",
+    "bytes": 45614987,
+    "sha256": "21c3cff568e37e7888d9e9a760267d77d42f88269cee8dcb0da7cad1dff755b0"
+  },
+  "originalDryRun": {
+    "status": "failed",
+    "reason": "Direct native token source map exceeds Cloudflare 25 MiB per-asset limit"
+  },
+  "packagedDryRun": {
+    "status": "passed",
+    "wranglerVersion": "4.157.0",
+    "binding": "ASSETS",
+    "workerUpload": "2.40 KiB (Wrangler display)"
+  },
+  "localProduction": {
+    "origin": "http://127.0.0.1:54655",
+    "hostingProfile": "local",
+    "version": 1,
+    "routeCount": 27,
+    "responseCount": 27,
+    "headingCount": 369,
+    "focusableCount": 1109,
+    "fragmentLinkCount": 86,
+    "cleanOutputFiles": 303,
+    "aggregateSha256": "741d9f3c06f15ed8c3f131b3bfdff8e2a0344c4e35cb80f6ddbec5ffe76f19d2",
+    "routes": [
+      {
+        "route": "/guides/declarative-amsterdam-2026/",
+        "status": 200,
+        "title": "One document, reusable capabilities",
+        "headingCount": 7,
+        "focusableCount": 19,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/",
+        "status": 200,
+        "title": "CEM Site",
+        "headingCount": 2,
+        "focusableCount": 21,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/guides/",
+        "status": 200,
+        "title": "CEM Site Guides",
+        "headingCount": 2,
+        "focusableCount": 19,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/packages/",
+        "status": 200,
+        "title": "Public packages and crates",
+        "headingCount": 3,
+        "focusableCount": 23,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/guides/cem-ml/cli/",
+        "status": 200,
+        "title": "CEM-ML Browser and Node CLI Guide",
+        "headingCount": 6,
+        "focusableCount": 16,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/reference/cem-ml/transform-config/",
+        "status": 200,
+        "title": "CEM-ML Transform Graph Reference",
+        "headingCount": 6,
+        "focusableCount": 11,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/reference/cem-ml/wasm-runtime/",
+        "status": 200,
+        "title": "CEM-ML WASM Runtime Reference",
+        "headingCount": 13,
+        "focusableCount": 15,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/reference/cem-elements/",
+        "status": 200,
+        "title": "CEM Elements Package Reference",
+        "headingCount": 25,
+        "focusableCount": 81,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/reference/custom-element/",
+        "status": 200,
+        "title": "Custom Element Package Reference",
+        "headingCount": 33,
+        "focusableCount": 44,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/reference/trang-native/",
+        "status": 200,
+        "title": "Trang Native Package Reference",
+        "headingCount": 13,
+        "focusableCount": 17,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/reference/crates/cem-ml/",
+        "status": 200,
+        "title": "cem-ml Rust Crate Reference",
+        "headingCount": 16,
+        "focusableCount": 19,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/reference/crates/cem-ml-cli/",
+        "status": 200,
+        "title": "cem-ml-cli Rust Crate Reference",
+        "headingCount": 7,
+        "focusableCount": 15,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/reference/crates/cem-ml-transform-cem-ql/",
+        "status": 200,
+        "title": "cem-ml-transform-cem-ql Rust Crate Reference",
+        "headingCount": 17,
+        "focusableCount": 29,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/reference/crates/cem-ql/",
+        "status": 200,
+        "title": "cem-ql Rust Crate Reference",
+        "headingCount": 38,
+        "focusableCount": 75,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/tokens/",
+        "status": 200,
+        "title": "CEM token browser",
+        "headingCount": 1,
+        "focusableCount": 10,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/components/",
+        "status": 200,
+        "title": "CEM component gallery",
+        "headingCount": 4,
+        "focusableCount": 78,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/components/angular-material/",
+        "status": 200,
+        "title": "Angular Material coverage comparison",
+        "headingCount": 41,
+        "focusableCount": 14,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/examples/cem-ml/",
+        "status": 200,
+        "title": "Canonical CEM-ML Examples",
+        "headingCount": 1,
+        "focusableCount": 12,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/examples/components/",
+        "status": 200,
+        "title": "CEM Component Examples",
+        "headingCount": 1,
+        "focusableCount": 18,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/examples/interactive/",
+        "status": 200,
+        "title": "Interactive CEM examples",
+        "headingCount": 6,
+        "focusableCount": 15,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/reference/components/",
+        "status": 200,
+        "title": "CEM Component Authored Reference",
+        "headingCount": 16,
+        "focusableCount": 73,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/releases/",
+        "status": 200,
+        "title": "CEM Workspace Release Notes",
+        "headingCount": 51,
+        "focusableCount": 316,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/releases/cem-components/",
+        "status": 200,
+        "title": "CEM Components Release Notes",
+        "headingCount": 20,
+        "focusableCount": 18,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/releases/cem-elements/",
+        "status": 200,
+        "title": "CEM Elements Release Notes",
+        "headingCount": 5,
+        "focusableCount": 14,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/releases/cem-theme/",
+        "status": 200,
+        "title": "CEM Theme Release Notes",
+        "headingCount": 29,
+        "focusableCount": 27,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/releases/custom-element/",
+        "status": 200,
+        "title": "Custom Element Release Notes",
+        "headingCount": 5,
+        "focusableCount": 12,
+        "fragmentLinkCount": 0,
+        "runtimeErrors": []
+      },
+      {
+        "route": "/search/",
+        "status": 200,
+        "title": "Search CEM Site",
+        "headingCount": 1,
+        "focusableCount": 98,
+        "fragmentLinkCount": 86,
+        "runtimeErrors": []
+      }
+    ],
+    "runtimeErrors": []
+  },
+  "localInteractive": {
+    "origin": "http://127.0.0.1:52963",
+    "hostingProfile": "local",
+    "themes": {
+      "themes": [
+        {
+          "mode": "light",
+          "background": "color(srgb 0.742353 0.553333 0.815294)",
+          "color": "rgb(0, 16, 16)",
+          "fieldIndicator": "color(srgb 0 0.0627451 0.0627451 / 0.62) 0px 1px 0px 0px, rgb(0, 47, 101) 0px 3px 0px 0px, rgb(106, 27, 154) 0px 3px 0px 0px",
+          "radius": 17,
+          "coupling": 4,
+          "previewFont": "17px",
+          "previewInset": "19px"
+        },
+        {
+          "mode": "dark",
+          "background": "color(srgb 0.555686 0.297647 0.69451)",
+          "color": "rgb(241, 254, 254)",
+          "fieldIndicator": "color(srgb 0.945098 0.996078 0.996078 / 0.62) 0px 1px 0px 0px, rgb(241, 254, 254) 0px 3px 0px 0px, rgb(225, 190, 231) 0px 3px 0px 0px",
+          "radius": 17,
+          "coupling": 4,
+          "previewFont": "17px",
+          "previewInset": "19px"
+        },
+        {
+          "mode": "contrast-light",
+          "background": "rgb(241, 254, 254)",
+          "color": "rgb(0, 16, 16)",
+          "fieldIndicator": "color(srgb 0 0.0627451 0.0627451 / 0.62) 0px 1px 0px 0px, rgb(0, 47, 101) 0px 3px 0px 0px, rgb(106, 27, 154) 0px 3px 0px 0px",
+          "radius": 17,
+          "coupling": 4,
+          "previewFont": "17px",
+          "previewInset": "19px"
+        },
+        {
+          "mode": "contrast-dark",
+          "background": "rgb(0, 16, 16)",
+          "color": "rgb(241, 254, 254)",
+          "fieldIndicator": "color(srgb 0.945098 0.996078 0.996078 / 0.62) 0px 1px 0px 0px, rgb(241, 254, 254) 0px 3px 0px 0px, rgb(225, 190, 231) 0px 3px 0px 0px",
+          "radius": 17,
+          "coupling": 4,
+          "previewFont": "17px",
+          "previewInset": "19px"
+        },
+        {
+          "mode": "native",
+          "background": "rgb(239, 239, 239)",
+          "color": "rgb(0, 0, 0)",
+          "fieldIndicator": "color(srgb 0 0 0 / 0.62) 0px 1px 0px 0px, rgb(0, 0, 0) 0px 3px 0px 0px, color(srgb 0.351373 0 0.351373) 0px 3px 0px 0px",
+          "radius": 17,
+          "coupling": 4,
+          "previewFont": "17px",
+          "previewInset": "19px"
+        }
+      ],
+      "forcedColors": [
+        {
+          "tag": "input",
+          "color": "rgb(0, 0, 0)",
+          "background": "rgb(255, 255, 255)",
+          "adjust": "auto",
+          "border": "none",
+          "outline": "solid",
+          "outlineWidth": 3
+        },
+        {
+          "tag": "section",
+          "color": "rgb(0, 0, 0)",
+          "background": "rgb(255, 255, 255)",
+          "adjust": "auto",
+          "border": "solid",
+          "outline": "none",
+          "outlineWidth": 3
+        },
+        {
+          "tag": "button",
+          "color": "rgb(0, 0, 0)",
+          "background": "rgb(255, 255, 255)",
+          "adjust": "auto",
+          "border": "solid",
+          "outline": "none",
+          "outlineWidth": 3
+        },
+        {
+          "tag": "input",
+          "color": "rgb(0, 0, 0)",
+          "background": "rgb(255, 255, 255)",
+          "adjust": "auto",
+          "border": "none",
+          "outline": "solid",
+          "outlineWidth": 1
+        },
+        {
+          "tag": "figure",
+          "color": "rgb(0, 0, 0)",
+          "background": "rgb(255, 255, 255)",
+          "adjust": "auto",
+          "border": "solid",
+          "outline": "none",
+          "outlineWidth": 3
+        },
+        {
+          "tag": "figure",
+          "color": "rgb(0, 0, 0)",
+          "background": "rgb(255, 255, 255)",
+          "adjust": "auto",
+          "border": "solid",
+          "outline": "none",
+          "outlineWidth": 3
+        }
+      ]
+    },
+    "version": 1,
+    "xhtml": {
+      "resource": "./assets/cem-components/cem-select.xhtml",
+      "namedTemplate": "cem-select",
+      "value": "second",
+      "display": "grid",
+      "scoped": true,
+      "shadow": false
+    },
+    "route": "/examples/interactive/",
+    "tokenFilterVisibleCount": 1,
+    "actionCount": 2,
+    "lightDom": {
+      "action": true,
+      "field": true,
+      "cemFixture": true
+    },
+    "importSpecifiers": [
+      "@epa-wg/cem-elements",
+      "@epa-wg/cem-site/components-runtime",
+      "@epa-wg/cem-site/runtime",
+      "@epa-wg/cem-site/search"
+    ],
+    "stylesheetCount": 2,
+    "runtimeErrors": []
+  },
+  "localSearch": {
+    "origin": "http://127.0.0.1:54619",
+    "hostingProfile": "local",
+    "themes": {
+      "themes": [
+        {
+          "mode": "light",
+          "background": "color(srgb 0.742353 0.553333 0.815294)",
+          "color": "rgb(0, 16, 16)",
+          "fieldIndicator": "color(srgb 0 0.0627451 0.0627451 / 0.62) 0px 1px 0px 0px, rgb(0, 47, 101) 0px 3px 0px 0px, rgb(106, 27, 154) 0px 3px 0px 0px",
+          "radius": 17,
+          "coupling": 4
+        },
+        {
+          "mode": "dark",
+          "background": "color(srgb 0.555686 0.297647 0.69451)",
+          "color": "rgb(241, 254, 254)",
+          "fieldIndicator": "color(srgb 0.945098 0.996078 0.996078 / 0.62) 0px 1px 0px 0px, rgb(241, 254, 254) 0px 3px 0px 0px, rgb(225, 190, 231) 0px 3px 0px 0px",
+          "radius": 17,
+          "coupling": 4
+        },
+        {
+          "mode": "contrast-light",
+          "background": "rgb(241, 254, 254)",
+          "color": "rgb(0, 16, 16)",
+          "fieldIndicator": "color(srgb 0 0.0627451 0.0627451 / 0.62) 0px 1px 0px 0px, rgb(0, 47, 101) 0px 3px 0px 0px, rgb(106, 27, 154) 0px 3px 0px 0px",
+          "radius": 17,
+          "coupling": 4
+        },
+        {
+          "mode": "contrast-dark",
+          "background": "rgb(0, 16, 16)",
+          "color": "rgb(241, 254, 254)",
+          "fieldIndicator": "color(srgb 0.945098 0.996078 0.996078 / 0.62) 0px 1px 0px 0px, rgb(241, 254, 254) 0px 3px 0px 0px, rgb(225, 190, 231) 0px 3px 0px 0px",
+          "radius": 17,
+          "coupling": 4
+        },
+        {
+          "mode": "native",
+          "background": "color(srgb 0.76149 0.656078 0.76149)",
+          "color": "rgb(0, 0, 0)",
+          "fieldIndicator": "color(srgb 0 0 0 / 0.62) 0px 1px 0px 0px, rgb(0, 0, 0) 0px 3px 0px 0px, color(srgb 0.351373 0 0.351373) 0px 3px 0px 0px",
+          "radius": 17,
+          "coupling": 4
+        }
+      ],
+      "forcedColors": [
+        {
+          "tag": "input",
+          "color": "rgb(0, 0, 0)",
+          "background": "rgb(255, 255, 255)",
+          "adjust": "auto",
+          "border": "none",
+          "outline": "solid",
+          "outlineWidth": 3
+        },
+        {
+          "tag": "button",
+          "color": "rgb(0, 0, 0)",
+          "background": "rgb(255, 255, 255)",
+          "adjust": "auto",
+          "border": "solid",
+          "outline": "none",
+          "outlineWidth": 3
+        }
+      ]
+    },
+    "version": 1,
+    "xhtml": {
+      "resource": "./assets/cem-components/cem-select.xhtml",
+      "namedTemplate": "cem-select",
+      "value": "second",
+      "display": "grid",
+      "scoped": true,
+      "shadow": false
+    },
+    "route": "/search/",
+    "documentCount": 26,
+    "graphSemanticsResults": 1,
+    "liveNativeOutputResults": 1,
+    "deepLink": "/reference/cem-ml/transform-config/#heading-13",
+    "componentLightDom": {
+      "field": true,
+      "action": true
+    },
+    "importSpecifiers": [
+      "@epa-wg/cem-elements",
+      "@epa-wg/cem-site/components-runtime",
+      "@epa-wg/cem-site/runtime",
+      "@epa-wg/cem-site/search"
+    ],
+    "stylesheetCount": 2,
+    "runtimeErrors": []
+  },
+  "localAmsterdamGuide": {
+    "principles": 14,
+    "pitchSections": 7,
+    "blocks": 6,
+    "plannedMinutes": 60,
+    "route": "/guides/declarative-amsterdam-2026/",
+    "platformTableRows": 8,
+    "codeExcerpts": 2,
+    "pinnedResourceLinks": 3,
+    "scripts": 0,
+    "pageErrors": 0,
+    "publication": "repository-build-only; public host not verified",
+    "measuredRehearsal": false
+  },
+  "localCloudflareHttp": {
+    "status": "passed",
+    "isPublicAcceptance": false,
+    "fixture": "Actual Wrangler/workerd local asset binding and Site Worker",
+    "nativeFilesMatched": 303,
+    "aggregateSha256": "741d9f3c06f15ed8c3f131b3bfdff8e2a0344c4e35cb80f6ddbec5ffe76f19d2",
+    "sourceMap": {
+      "originalBytes": 45614987,
+      "originalSha256": "21c3cff568e37e7888d9e9a760267d77d42f88269cee8dcb0da7cad1dff755b0",
+      "gzipHttpDecodingMatches": true,
+      "identityStreamMatches": true,
+      "headStatus": 200,
+      "conditionalStatus": 304
+    }
+  },
+  "checks": {
+    "hostingTests": "15 passed",
+    "canonicalPublicationRegressions": "5 passed",
+    "siteAndWorkerEslint": "passed",
+    "twoCleanNativeBuilds": "303 files identical"
+  },
+  "preserved": [
+    "Native CEM-ML publication graph and all decoded bytes",
+    "Original source-map URL and cache validators",
+    "Existing green-morning-fd6e demo/Studio Worker and config",
+    "Declarative UI and component ownership",
+    "Credential recovery refusal, automatic-recovery policy and existing deadlines"
+  ],
+  "publicAcceptance": {
+    "status": "pending",
+    "url": null,
+    "versionId": null,
+    "required": "Actual owner-deployed URL; all 303 bytes followed by existing production, interactive and search suites"
+  },
+  "cloudflareDocumentation": [
+    "https://developers.cloudflare.com/workers/platform/limits/",
+    "https://developers.cloudflare.com/workers/runtime-apis/response/#the-encodebody-option"
+  ]
+}

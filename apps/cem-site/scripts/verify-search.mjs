@@ -1,3 +1,4 @@
+import { publicationOrigin } from './publication-host.mjs';
 import assert from 'node:assert/strict';
 import { verifySiteThemes } from './verify-themes.mjs';
 import { verifyDeployedXhtml } from './verify-xhtml.mjs';
@@ -40,6 +41,7 @@ const server = createServer(async (request, response) => {
 await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
 const address = server.address();
 const port = typeof address === 'object' && address ? address.port : 0;
+const origin = publicationOrigin(process.env.CEM_SITE_ACCEPTANCE_URL) ?? `http://127.0.0.1:${port}`;
 const browser = await chromium.launch({ headless: true });
 
 try {
@@ -55,7 +57,7 @@ try {
         browserErrors.push(`${request.url()}: ${request.failure()?.errorText ?? 'request failed'}`);
     });
 
-    await page.goto(`http://127.0.0.1:${port}${searchPath}?q=Graph%20Semantics`, {
+    await page.goto(`${origin}${searchPath}?q=Graph%20Semantics`, {
         waitUntil: 'networkidle',
         timeout: 120_000,
     });
@@ -98,7 +100,7 @@ try {
         throw new Error(`stable deep link contract drifted: ${JSON.stringify(deepLinkContract)}`);
     }
 
-    await page.goto(`http://127.0.0.1:${port}${searchPath}`, { waitUntil: 'networkidle' });
+    await page.goto(`${origin}${searchPath}`, { waitUntil: 'networkidle' });
     await page.waitForFunction(() => globalThis.__cemSiteSearch?.done === true);
     await page.locator('[data-search-field] input').fill('native output');
     await page.waitForFunction(() => globalThis.__cemSiteSearch?.query === 'native output');
@@ -177,7 +179,7 @@ try {
     assert.equal(await page.locator('[data-search-results] > li > a').getAttribute('href'), deepLink);
 
     const staticPage = await browser.newPage({ javaScriptEnabled: false });
-    await staticPage.goto(`http://127.0.0.1:${port}${searchPath}?q=Graph%20Semantics`);
+    await staticPage.goto(`${origin}${searchPath}?q=Graph%20Semantics`);
     assert.equal(await staticPage.locator('[data-search-results] > li').count(), expectedDocumentCount);
     assert.equal(await staticPage.locator('[data-search-results] > li > a').count(), expectedDocumentCount);
     await staticPage.close();
@@ -186,6 +188,7 @@ try {
     assert.deepEqual(browserErrors, []);
 
     const report = {
+        origin, hostingProfile: process.env.CEM_SITE_ACCEPTANCE_URL ? 'public' : 'local',
         themes,
         version: 1,
         xhtml,
@@ -200,7 +203,7 @@ try {
         runtimeErrors: [],
     };
     await mkdir(reportRoot, { recursive: true });
-    const reportPath = join(reportRoot, 'search.json');
+    const reportPath = join(reportRoot, process.env.CEM_SITE_ACCEPTANCE_URL ? 'public-search.json' : 'search.json');
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
     console.log(`CEM Site search verification passed: ${relative(workspaceRoot, reportPath)}`);
 } finally {

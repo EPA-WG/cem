@@ -1,3 +1,4 @@
+import { publicationOrigin } from './publication-host.mjs';
 import assert from 'node:assert/strict';
 import { verifySiteThemes } from './verify-themes.mjs';
 import { verifyDeployedXhtml } from './verify-xhtml.mjs';
@@ -38,6 +39,7 @@ const server = createServer(async (request, response) => {
 await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
 const address = server.address();
 const port = typeof address === 'object' && address ? address.port : 0;
+const origin = publicationOrigin(process.env.CEM_SITE_ACCEPTANCE_URL) ?? `http://127.0.0.1:${port}`;
 const browser = await chromium.launch({ headless: true });
 
 try {
@@ -53,7 +55,7 @@ try {
         browserErrors.push(`${request.url()}: ${request.failure()?.errorText ?? 'request failed'}`);
     });
 
-    await page.goto(`http://127.0.0.1:${port}${fixturePath}`, {
+    await page.goto(`${origin}${fixturePath}`, {
         waitUntil: 'networkidle',
         timeout: 120_000,
     });
@@ -169,6 +171,7 @@ try {
     assert.deepEqual(browserErrors, []);
 
     const report = {
+        origin, hostingProfile: process.env.CEM_SITE_ACCEPTANCE_URL ? 'public' : 'local',
         themes,
         version: 1,
         xhtml,
@@ -185,7 +188,7 @@ try {
         runtimeErrors: [],
     };
     await mkdir(reportRoot, { recursive: true });
-    const reportPath = join(reportRoot, 'interactive.json');
+    const reportPath = join(reportRoot, process.env.CEM_SITE_ACCEPTANCE_URL ? 'public-interactive.json' : 'interactive.json');
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
     console.log(`CEM Site interactive verification passed: ${relative(workspaceRoot, reportPath)}`);
 } finally {

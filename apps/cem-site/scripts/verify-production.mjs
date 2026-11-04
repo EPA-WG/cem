@@ -1,3 +1,4 @@
+import { publicationOrigin } from './publication-host.mjs';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
@@ -71,7 +72,7 @@ const server = createServer(async (request, response) => {
 await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
 const address = server.address();
 const port = typeof address === 'object' && address ? address.port : 0;
-const origin = `http://127.0.0.1:${port}`;
+const origin = publicationOrigin(process.env.CEM_SITE_ACCEPTANCE_URL) ?? `http://127.0.0.1:${port}`;
 let browser;
 
 try {
@@ -349,6 +350,7 @@ try {
     }
 
     const report = {
+        origin, hostingProfile: process.env.CEM_SITE_ACCEPTANCE_URL ? 'public' : 'local',
         version: 1,
         routeCount: routeReports.length,
         responseCount: routeReports.length,
@@ -361,7 +363,7 @@ try {
         runtimeErrors: [],
     };
     await mkdir(reportRoot, { recursive: true });
-    const reportPath = join(reportRoot, 'production.json');
+    const reportPath = join(reportRoot, process.env.CEM_SITE_ACCEPTANCE_URL ? 'public-production.json' : 'production.json');
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
     console.log(`CEM Site production verification passed: ${relative(workspaceRoot, reportPath)}`);
 } finally {

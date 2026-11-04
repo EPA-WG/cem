@@ -1,0 +1,79 @@
+# CEM Site: Cloudflare publication
+
+Prepared 2026-11-03. The owner selected Cloudflare and will deploy from their
+existing signed-in machine. This publishes the native CEM Site as a separate
+Worker, `cem-amsterdam-2026`. The existing demo/Studio Worker remains
+`green-morning-fd6e`; its configuration and deployment are separate.
+
+The [preparation receipt](site-cloudflare-preparation-readback.json) records a
+303-file native publication with aggregate SHA-256
+`741d9f3c06f15ed8c3f131b3bfdff8e2a0344c4e35cb80f6ddbec5ffe76f19d2`.
+Two clean builds match. Local browser acceptance passes all 27 routes and 86
+fragment links, interactive examples, search and the focused Amsterdam guide.
+The guide has six sections, the native platform-role table, both source excerpts,
+three pinned participant links and the existing privacy boundaries.
+
+## Deploy the verified bundle
+
+The deploy-only archive is `dist/releases/cem-site-cloudflare.tgz` (19,253,366
+bytes), SHA-256
+`9dfb3a2aeaed63260f81a232dd60addf48d80227e8065906570eb1d6685e93a0`.
+Extract it into a new folder. It contains the prepared native assets, two small
+hosting adapters, the separate Wrangler config, original inventory and deployment
+instructions. No Rust build or application dependency installation is required
+on the signed-in deployment machine. From the extracted folder run:
+
+```sh
+npx wrangler@4 deploy --config wrangler.site.jsonc
+```
+
+Share the actual URL and Current Version ID printed by Wrangler. The Worker name
+is configured; no public origin or successful deployment is claimed before that
+readback. Alternatively regenerate the same publication from this repository:
+
+```sh
+yarn nx run cem-site:prepare:cloudflare --parallel=1
+npx wrangler@4 deploy --config wrangler.site.jsonc
+```
+
+The native output stays at `dist/apps/cem-site`. Wrangler uploads the separate
+`dist/hosting/cem-site` packaging output.
+
+## Lossless source-map hosting
+
+The original `tokens/index.html.map` is 45,614,987 bytes, above Cloudflare's
+[25 MiB individual asset limit](https://developers.cloudflare.com/workers/platform/limits/).
+A direct-upload dry run refuses it. Packaging retains its original native bytes
+and URL, while storing a 780,110-byte gzip representation in the asset service.
+The Site Worker serves that stream with the documented
+[manual response encoding](https://developers.cloudflare.com/workers/runtime-apis/response/#the-encodebody-option).
+HTTP decoding returns the exact original source map. Identity-only clients use
+streaming decompression; HEAD/cache/missing responses retain their semantics.
+Every other published asset remains byte-preserved. HTML, application scripts,
+styles, templates and native processing semantics are unchanged.
+
+All 15 hosting guards and five canonical-publication regressions pass, as does
+Site/Worker lint. Wrangler 4.157.0's packaged dry run passes. A real local
+Wrangler/workerd server returns all 303 native files with matching decoded
+bytes, including the 43.5 MiB map. Gzip and identity responses match its original
+hash; HEAD returns 200 and conditional revalidation returns 304. These are local
+hosting checks, not public acceptance.
+
+## Verify the actual public host
+
+After assigning the origin printed by Wrangler to `CEM_SITE_DEPLOYED_URL`, run:
+
+```sh
+CEM_SITE_ACCEPTANCE_URL="$CEM_SITE_DEPLOYED_URL" yarn nx run cem-site:verify:public --parallel=1
+```
+
+The target is uncached. It verifies every original native file before launching
+the existing production, interactive and search browser suites sequentially.
+HTML is fetched at the canonical routes declared by the native manifest.
+Credentials, non-HTTPS URLs, non-root paths, queries, fragments and custom ports
+are refused. Browser assertions and deadlines are unchanged. Public receipts
+use `public-*.json` names and do not overwrite local acceptance evidence; a
+failure records its stage and does not become a public pass.
+
+The publication TODO remains open until the actual public host passes. Timed
+rehearsal and final handoff are separate remaining work.

@@ -523,6 +523,24 @@ channels; private agreements remain unverified. This file owns execution order.
       unit checks, lint and Wrangler 4.157.0 dry-run pass; `ASSETS` binding exists.
       [Verification](declarative-amsterdam-2026/hosting-upgrade-verification.md).
 
+- [ ] Fixture: publish the existing native CEM Site artifact with a reproducible
+      static inventory and verify the actual public host against those bytes.
+      Crawl every allowed route, check Amsterdam guide/search fragments and
+      interactive examples, preserve the existing Studio deployment and native
+      UI/source ownership, and record the deployment identity and remaining limits.
+      Include a deploy-only Cloudflare bundle. Cover the 43.5 MiB token source
+      map with a lossless compressed transport at its unchanged public URL;
+      verify HTTP decoding returns the exact native bytes, plus HEAD, cache and
+      missing-asset handling. Do not drop source maps or weaken byte checks.
+      Prepared 2026-11-03: separate `cem-amsterdam-2026` Wrangler config and
+      deploy-only bundle; the owner will deploy from their signed-in machine.
+      Two native builds match (303 files), all 27 local routes/86 fragments,
+      interactive/search and focused Amsterdam checks pass. All 15 hosting guards,
+      five canonical regressions and lint pass. Packaged Wrangler dry run and
+      actual local Worker HTTP checks match all original bytes, including the
+      large source map. Public URL/version and remote acceptance remain pending.
+      [Deployment steps and receipt](declarative-amsterdam-2026/site-cloudflare-publication.md).
+
 - [ ] Publish the reviewed Amsterdam presentation site and related demo pages
       after their functionality checks pass. Verify the actual public routes,
       deployed assets, cache freshness and presentation resource links. Record
