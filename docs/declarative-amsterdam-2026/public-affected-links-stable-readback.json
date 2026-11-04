@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-04T22:19:30.843Z",
+  "sourceRevision": "40d07f2cddb2e732350652ebecdec4bd88bf5767",
+  "status": "affected-links-passed",
+  "scope": "Fresh-context navigation, selected resource/configuration, no saved projects; full workflows recorded separately.",
+  "browserTransport": "http2",
+  "applicationReadinessTimeoutMs": 30000,
+  "lateDiagnosticWaitUsed": false,
+  "monotonicTimings": true,
+  "acceptedSiteVersion": "928c385e-79cb-4ef9-844a-ce64967a6243",
+  "previousFailedAttempts": "technical-rehearsal-2026-11-04-readback.json",
+  "priorFailuresRetained": true,
+  "singleFourteenLinkBatchPassClaimed": false,
+  "discussion": {
+    "url": "https://github.com/EPA-WG/cem/discussions/24#discussioncomment-18867103",
+    "updatedAt": "2026-11-04T11:32:35Z",
+    "bodySha256": "b3ed5770f1cb82135ed551410edd59970ef6e48468922bd87788c68f84c86aa8",
+    "oldHostPresent": false,
+    "testedLinksMatchPublishedBody": true
+  },
+  "run": {
+    "schemaVersion": 1,
+    "checkedAt": "2026-11-04T22:17:54.728Z",
+    "browserFlags": [
+      "--disable-quic"
+    ],
+    "status": "passed",
+    "navigationOnly": true,
+    "fullWorkflowAcceptance": "recorded separately",
+    "discussionPosted": false,
+    "results": [
+      {
+        "slide": 18,
+        "slideId": "p17",
+        "cue": "source provenance",
+        "project": "login",
+        "resource": "login-view-template",
+        "configuration": "render-graph",
+        "configurationInput": "login-view-graph",
+        "configurations": [
+          "render-graph"
+        ],
+        "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-template&build=render-graph",
+        "status": "passed",
+        "errors": [],
+        "networkFailures": [],
+        "oldHostRequests": [],
+        "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-template&build=render-graph",
+        "readyMs": 27480,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "login",
+            "file": "login-view-template",
+            "key": "collection=amsterdam-2026&sample=login&file=login-view-template",
+            "kind": "file"
+          },
+          "configuration": "render-graph",
+          "structure": "collection=amsterdam-2026&sample=login&file=login-view-template",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 27495
+      },
+      {
+        "slide": 30,
+        "slideId": "p24",
+        "cue": "supplier",
+        "project": "supplier-pipeline",
+        "resource": "supplier-stock",
+        "configuration": "stock-source",
+        "configurationInput": "supplier-stock",
+        "configurations": [
+          "stock-source",
+          "availability"
+        ],
+        "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock&build=stock-source",
+        "status": "passed",
+        "errors": [],
+        "networkFailures": [],
+        "oldHostRequests": [],
+        "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock&build=stock-source",
+        "readyMs": 25873,
+        "actual": {
+          "selection": {
+            "collection": "amsterdam-2026",
+            "sample": "supplier-pipeline",
+            "file": "supplier-stock",
+            "key": "collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock",
+            "kind": "file"
+          },
+          "configuration": "stock-source",
+          "structure": "collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock",
+          "sampleTextAvailable": true,
+          "projectCount": 0
+        },
+        "elapsedMs": 25893
+      }
+    ],
+    "browser": "148.0.7778.96",
+    "acceptedSiteVersion": "928c385e-79cb-4ef9-844a-ce64967a6243",
+    "finishedAt": "2026-11-04T22:18:48.224Z"
+  },
+  "criticalBytes": {
+    "checkedAt": "2026-11-04T22:18:18.746Z",
+    "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+    "results": [
+      {
+        "path": "studio/index.html",
+        "status": 200,
+        "bytes": 3032,
+        "sha256": "6a689d0aff1ed426d810dbda8d27e97841d7f4fefebcbcecf75d95cef88ad7a8",
+        "matchesPreparedRelease": true
+      },
+      {
+        "path": "studio/assets/@epa-wg/cem-studio/main.js",
+        "status": 200,
+        "bytes": 9942,
+        "sha256": "6b0f739415b7dd4baa99d5d69c27c2abb15e3ade68aab6f50a253309f35e0a4d",
+        "matchesPreparedRelease": true
+      },
+      {
+        "path": "studio/service-worker.js",
+        "status": 200,
+        "bytes": 13948,
+        "sha256": "5a19c13517a563f3202893550455611f3a2bdc3fbfee5f1ee45deac04e6496a2",
+        "matchesPreparedRelease": true
+      }
+    ]
+  },
+  "harnessSha256": "5ff331334e559d10c1ac5954898471de62fe1364abbfc2787a2dfd3fe6234b69",
+  "presenterRehearsal": {
+    "reportedCompleted": true,
+    "source": "User reply: Completed; I’ll provide the results",
+    "actualTiming": null,
+    "projectorReadability": null,
+    "presenterControls": null,
+    "offlineFallback": null,
+    "acceptanceDetailsPending": true
+  }
+}

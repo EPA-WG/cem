@@ -1,8 +1,16 @@
 # Technical rehearsal — 2026-11-04
 
-The technical checks below prepare the existing 60-minute run. A spoken delivery
-and physical projector/presenter controls still need the presenter. Automated
-execution time does not measure explanations, audience edits or questions.
+Current update: the affected public links on slides 18/30 now pass in fresh
+HTTP/2 browser contexts at **27.480 / 25.873 seconds**, under the original
+30-second gate. The [stable-connection readback](public-affected-links-stable-readback.json)
+retains the exact selections, zero network/page errors and unchanged critical
+release bytes. Earlier failed runs below remain historical evidence; this is
+not a fresh single-batch pass of all 14 links.
+
+The presenter reports the spoken/projector rehearsal completed and will provide
+results. Actual timing, readability/controls and offline-fallback outcomes remain
+pending in the acceptance record. Automated execution time does not measure
+explanations, audience edits or questions.
 
 ## Delivery set
 
@@ -17,7 +25,7 @@ execution time does not measure explanations, audience edits or questions.
 | Speaker run sheet | [Presenter notes](presenter-notes.md), 30 physical slides / 26 timed / four optional; 3,600 planned seconds |
 | Native notes readback | [Receipt](native-deck-notes-readback.json), revision `DuWnTfroxCPn2A` |
 | Current static fallback PDF | `dist/reports/cem-studio/rehearsal-2026-11-04/render/presentation.pdf`, 906,565 bytes, SHA-256 `ca903c3e4076ee4285dd3be7640b167ef5f6602d670af5d1beee12d520b23140` |
-| Rehearsal transfer | `dist/releases/cem-amsterdam-2026-rehearsal.tgz`; PDF, offline kit, run sheet and evidence, with a companion `.sha256` file |
+| Rehearsal transfer | `dist/releases/cem-amsterdam-2026-rehearsal-public-recheck.tgz`; PDF, offline kit, run sheet and current evidence, with a companion `.sha256` file |
 | Local transfer fallback | `dist/packages/cem-studio-login-kit.tgz`; exact bytes and fresh extracted-consumer result in the rehearsal receipt |
 | Frozen commands/results | [Login 2.8.1](login-presenter/README.md) and [Supplier 1.1.1](supplier-presenter/README.md), manifests/checkpoint argv/diagnostics |
 
@@ -92,11 +100,11 @@ still timed out. The original 14-link run and the retry remain failed overall.
 Three critical Studio startup files (index, main module and service worker)
 remain byte-identical to the accepted prepared release. Cold public startup
 remains a delivery limitation; prewarm and retain the verified offline kit.
-The final provenance trace records `ERR_NETWORK_CHANGED` on the main module and
+The earlier provenance trace records `ERR_NETWORK_CHANGED` on the main module and
 both stylesheets; the document itself returned 200, with no JavaScript page
 errors. A separate extra 30-second diagnostic wait also failed and is not an
-acceptance pass. Repeat slides 18/30 on a stable connection before closing that
-public-link gate; this trace does not establish an application regression.
+acceptance pass. The subsequent stable-connection recheck above closes the
+affected-link gate; the earlier trace does not establish an application regression.
 
 ## Readability and live-versus-saved cues
 

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "archive": {
+    "path": "dist/releases/cem-amsterdam-2026-rehearsal-public-recheck.tgz",
+    "bytes": 17307049,
+    "sha256": "ea618f9437cbba0018fd5993af2152e708a933aaa3d09773aa52b1967512684d"
+  },
+  "previousTransfer": "technical-rehearsal-transfer.json",
+  "extractedOutsideWorkspace": true,
+  "verifiedFiles": 161,
+  "missingFiles": 0,
+  "unexpectedFiles": 0,
+  "unchangedFrozenAssets": [
+    "cem-studio-login-kit.tgz",
+    "presentation.pdf"
+  ],
+  "affectedPublicLinkAcceptance": "public-affected-links-stable-readback.json",
+  "presenterReportedCompleted": true,
+  "presenterAcceptanceResultsPending": true,
+  "finalFreeze": false
+}

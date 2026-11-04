@@ -740,19 +740,20 @@ channels; private agreements remain unverified. This file owns execution order.
       limits; prepare a transfer bundle and handoff inventory. All 66 guards
       and lint pass; public cold-start exceptions remain the next item.
 
-- [ ] Repeat affected public Studio deep links (slides 18/30) on a stable
-      connection under the original 30-second readiness gate. The technical
-      rehearsal preserves the failed run/retries; its provenance trace shows
-      `ERR_NETWORK_CHANGED` loading the main module and both stylesheets.
-      Critical release bytes match. Retain the verified prewarmed offline kit;
-      do not convert diagnostic waits or transport failures into passes.
+- [x] Repeat affected public Studio deep links (slides 18/30) on a stable
+      connection under the original 30-second readiness gate. Provenance passes
+      at 27.480 seconds; Supplier at 25.873 seconds in fresh HTTP/2 contexts,
+      with no page/network errors, no old-host requests and unchanged critical
+      release bytes. Prior failures remain recorded. This is the affected-link
+      recheck, not a new single-batch pass of all 14 links.
+      [Readback](declarative-amsterdam-2026/public-affected-links-stable-readback.json).
 
-- [ ] Complete the spoken 60-minute walkthrough on the presenter machine and
-      physical display. Record actual transitions, room-distance readability,
-      presenter controls and fallback handoff; protect the final six minutes.
-      [Technical rehearsal](declarative-amsterdam-2026/technical-rehearsal-2026-11-04.md)
-      records native commands, demo paths, current slide renders and extracted
-      fallback checks separately; automated duration does not close this gate.
+- [ ] Record the presenter's completed spoken/projector rehearsal results:
+      actual timing/transitions, room-distance readability, presenter controls
+      and offline fallback. The owner reports the rehearsal completed and will
+      supply results; acceptance details remain pending. Protect the final six
+      minutes and retain the [technical rehearsal](declarative-amsterdam-2026/technical-rehearsal-2026-11-04.md)
+      as separate software evidence.
 
 - [ ] After spoken/projector acceptance, freeze the presentation and supporting
       files, record final acceptance in the handoff, and archive completed

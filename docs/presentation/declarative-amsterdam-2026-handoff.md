@@ -8,7 +8,12 @@ remaining presenter checks. The accepted Site is version
 Tokens on the same host. All 30 operational speaker-note blocks now identify
 this public route; original notes and visible slide content passed exact
 readback. Dated entries below are historical preparation/acceptance records.
-The full spoken run and physical projector/presenter controls remain open.
+The affected public links on slides 18/30 now pass at 27.480 / 25.873 seconds
+under the original 30-second HTTP/2 readiness gate; the
+[readback](../declarative-amsterdam-2026/public-affected-links-stable-readback.json)
+preserves the earlier failures separately. Critical release bytes remain exact.
+The owner reports the spoken/projector rehearsal completed; actual timing,
+readability/controls and offline-fallback results are pending before final freeze.
 
 CEM Site public publication complete (2026-11-03): the [presentation guide](https://cem-amsterdam-2026.trans-acf.workers.dev/guides/declarative-amsterdam-2026/)
 and complete Site are live on `cem-amsterdam-2026.trans-acf.workers.dev`, owner-
