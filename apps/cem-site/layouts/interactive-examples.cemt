@@ -39,58 +39,69 @@
     }}
     {element @name=body @namespace=http://www.w3.org/1999/xhtml |
      {element @name=header @namespace=http://www.w3.org/1999/xhtml |
-      {element @name=nav @namespace=http://www.w3.org/1999/xhtml |
-       {attribute @name=aria-label @value=Primary}
-       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
-        {attribute @name=href @value=/}
-        ```CEM Site
-              ```
-       }
-       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
-        {attribute @name=href @value=/guides/}
-        ```Guides
-              ```
-       }
-       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
-        {attribute @name=href @value=/packages/}
-        ```Packages
-              ```
-       }
-       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
-        {attribute @name=href @value=/guides/cem-ml/cli/}
-        ```CLI guide
-              ```
-       }
-       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
-        {attribute @name=href @value=/reference/cem-ml/transform-config/}
-        ```CEM-ML reference
-              ```
-       }
-       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
-        {attribute @name=href @value=/tokens/}
-        ```Tokens
-              ```
-       }
-       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
-        {attribute @name=href @value=/components/}
-        ```Components
-              ```
-       }
-       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
-        {attribute @name=href @value=/components/angular-material/}
-        ```Material comparison
-              ```
-       }
-       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
-        {attribute @name=href @value=/examples/interactive/}
-        ```Interactive examples
-              ```
-       }
-       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
-        {attribute @name=href @value=/search/}
-        ```Search
-              ```
-     }}}
+      {element @name="nav" @namespace="http://www.w3.org/1999/xhtml" |
+        {attribute @name="aria-label" @value="Primary"}
+        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+          {attribute @name="href" @value="/"}
+          CEM Site
+        }
+        {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
+        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+          {attribute @name="href" @value="/guides/"}
+          Guides
+        }
+        {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
+        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+          {attribute @name="href" @value="/packages/"}
+          Packages
+        }
+        {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
+        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+          {attribute @name="href" @value="/guides/cem-ml/cli/"}
+          CLI guide
+        }
+        {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
+        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+          {attribute @name="href" @value="/reference/cem-ml/transform-config/"}
+          CEM-ML reference
+        }
+        {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
+        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+          {attribute @name="href" @value="/tokens/"}
+          Tokens
+        }
+        {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
+        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+          {attribute @name="href" @value="https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/"}
+          CEM Components
+        }
+        {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
+        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+          {attribute @name="href" @value="/components/angular-material/"}
+          Material comparison
+        }
+        {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
+        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+          {attribute @name="href" @value="/examples/interactive/"}
+          Interactive examples
+        }
+        {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
+        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+          {attribute @name="href" @value="/search/"}
+          Search
+        }
+        {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
+        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+          {attribute @name="href" @value="https://green-morning-fd6e.trans-acf.workers.dev/studio/"}
+          Studio
+        }
+        {element @name="span" @namespace="http://www.w3.org/1999/xhtml" | {attribute @name="aria-hidden" @value="true"} {$ " • "}}
+        {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
+          {attribute @name="href" @value="https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground"}
+          Playground
+        }
+      }}
+
      {element @name=cem-element @namespace=http://www.w3.org/1999/xhtml |
       {attribute @name=tag
        @value='{seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "tag").children.children.value}'}

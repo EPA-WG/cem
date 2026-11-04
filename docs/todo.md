@@ -632,6 +632,18 @@ channels; private agreements remain unverified. This file owns execution order.
       [Published comment](https://github.com/EPA-WG/cem/discussions/24#discussioncomment-18867103)
       and [delivery receipt](declarative-amsterdam-2026/discussion-resource-comment-delivery.json).
 
+- [ ] Verify every component gallery has a visible, content-specific shared header
+      and functioning theme switch; reproduce and fix the missing icon-button header
+      and ensure the Projector page canvas is white. Extend shared gallery checks
+      for header visibility, Projector selection/restoration and nested themes.
+
+- [ ] Add Studio and Playground links to every Site header and point CEM Components
+      at the live package gallery, with a decorative fat-dot separator between links. Verify the native output and keyboard
+      navigation, prepare the Cloudflare update, and check it after owner deploy.
+      Local verification passed 2026-11-04: all 27 headers, 303 deterministic files,
+      27 browser routes, 86 fragments, 1,163 focus stops and Wrangler dry run.
+      The prepared header-update bundle awaits owner deployment.
+
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,
       output and demo path. Check slide readability and the fallback flow;
       record the tested versions and remaining limitations with the materials.

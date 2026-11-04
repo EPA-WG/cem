@@ -85,3 +85,25 @@ failure records its stage and does not become a public pass.
 
 The actual public host has now passed and the publication TODO is complete.
 Timed rehearsal and final handoff remain separate work.
+
+## Header navigation update — 2026-11-04
+
+All seven native layouts now include Studio and Playground. The component link
+is labeled **CEM Components** and opens the live package gallery at
+`https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-components/`.
+Every header has 12 links separated by 11 decorative `•` spans with
+`aria-hidden="true"`. The static component reference remains available through
+ordinary Site content links.
+
+Two clean native builds agree on 303 files. Site source verification and the
+production browser checks pass: 27 routes, 86 fragment destinations and 1,163
+keyboard focus stops. An additional inspection checks all 27 generated headers
+for labels, destinations and separators. The three external destinations return
+HTTP 200. Wrangler's deployment dry run passes.
+
+Prepared native aggregate: `bce339c3ea8da49b16129ece65683f4504bb4912dc45abbddd662f1ad13497d6`.
+Deploy-only archive SHA-256: `240e7934ecfc9d3dcae8dd20c5b2dee494ef192c218a17c452f0c0937a8923e4`.
+The local alias is `dist/releases/cem-site-header-update.tgz`.
+Extract and deploy with `npx wrangler@4 deploy --config wrangler.site.jsonc`.
+Public acceptance of this header update is pending the owner's deployment;
+the previous version's successful receipt remains historical evidence.
