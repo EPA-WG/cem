@@ -356,7 +356,7 @@ not a new build, release, or end-to-end test report.
 | Native CLI | [cem_ml_cli README](../../packages/cem_ml_cli/README.md) | The command host uses common engine services. Public distribution and clean installation need separate evidence. |
 | Node/browser hosts | [Universal CLI README](../../packages/cem-ml-cli-npm/README.md) | Both use a generated command grammar and the shared WASM runtime. Verify the specific commands against runtime capabilities. |
 | CEM-QL and components | [CEM-QL](../../packages/cem_ql/README.md), [cem-elements](../../packages/cem-elements/README.md), [UI principle](../declarative-ui-principle.md) | Explain query/template ownership and declarative light-DOM composition. Demonstrate only selected verified behavior. |
-| Studio | [Studio README](../../packages/cem-studio/README.md); [local participant setup](participant-setup.md) | Login navigation, independent copies, live preview and offline drafts have deployed acceptance. The local kit has its own extracted-distribution check; public hosting and published installation routes remain unverified. |
+| Studio | [Studio README](../../packages/cem-studio/README.md); [local participant setup](participant-setup.md) | Login navigation, independent copies, live preview and offline drafts have deployed acceptance. The local kit has its own extracted-distribution check. The presentation Site has complete public HTTP/2 acceptance at version `928c385e-79cb-4ef9-844a-ce64967a6243`; public CLI installation remains separately limited. |
 | Theme, Components, Site | [Preparation handoff](../presentation/declarative-amsterdam-2026-handoff.md), [active tasks](../todo.md) | Use as wider platform context. Component and application UI migration is still open; avoid presenting the entire platform as finished. |
 
 The older [CLI feature summary](../cem-ml-cli-contract.md) explicitly contains
@@ -374,8 +374,9 @@ Setup audit (2026-11-03): the [Node/Linux preparation guide](node-linux-setup.md
 pins the tested Node download and the selected local Studio kit. The public
 0.1.0-rc.2 CLI assets download and run, but both hosts differ at the first frozen
 Login AST checkpoint; the two expected npm registry packages return 404. Keep
-CLI installation outside the participant exercise. Public demo functionality
-and timed rehearsal remain their own delivery gates.
+CLI installation outside the participant exercise. Public Site functionality is accepted in the
+[publication record](site-public-verification.md); spoken timed rehearsal remains
+a separate delivery gate.
 
 Use [discussion #24](https://github.com/EPA-WG/cem/discussions/24) as the single
 resource destination in slides, QR codes, handouts, and the presentation website.
@@ -386,13 +387,15 @@ The ordinary Login project has a frozen presenter baseline and deployed Studio
 acceptance. The [local participant kit](participant-setup.md) supplies the static
 application and references without installing application dependencies; its
 extracted-distribution verifier records the tested host and offline workflow.
-Public Studio hosting remains unverified. Keep the saved presenter fallback;
-participant CLI installation still requires a pinned release and tested
-Node.js/Linux instructions.
+Public Studio is available at https://cem-amsterdam-2026.trans-acf.workers.dev/studio/.
+The [publication record](site-public-verification.md) identifies the accepted
+version, HTTP/2 browser profile and verified same-origin workflows. Keep the saved
+presenter fallback; the tested release CLI differs from the frozen exercise
+and is excluded from the participant route.
 
 | Route | Evidence required before advertising it |
 | --- | --- |
-| Public Studio — future route | Add a link to discussion #24 after verifying the URL, deployed version, browser requirements, exercise import, reset/recovery, and complete run through rendering. |
+| Public Studio | Follow the published discussion #24 links on the presentation Site. See the public acceptance and [technical rehearsal](technical-rehearsal-2026-11-04.md); prewarm before the clock and retain the offline kit. |
 | Node.js CLI | Exact package/version, registry availability, clean installation, supported Node version, and successful exercise on each advertised OS. |
 | Linux native CLI | Exact release asset/version, architecture, installation/unpacking steps, and the complete exercise on a clean compatible host. |
 | Native macOS or Windows | Separate host installation and exercise results before inclusion in participant instructions. |
@@ -437,7 +440,7 @@ the concrete deliverables for those existing actions.
 6. **Finalize the handoff.** Add the final artifact paths and verification
    evidence to the existing handoff before completing the presentation task set.
 
-Current update (2026-11-01): [participant resources](participant-resources.md),
+Historical update (2026-11-01): [participant resources](participant-resources.md),
 [prepared discussion entry](discussion-24-resources.md) and
 [presenter notes](presenter-notes.md) now identify the verified local kit and
 frozen Login/Supplier results. Public source links were read at pinned revision

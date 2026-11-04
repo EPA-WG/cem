@@ -1,9 +1,9 @@
 # Current presenter notes
 
-Operational cues for the frozen Login/Supplier route, prepared 2026-11-01.
+Operational cues for the frozen Login/Supplier route, refreshed 2026-11-04.
 Use these with the [slide story](slide-story.md) and the
 [recorded native slide order](native-slide-order.md). Stable IDs below identify
-the live deck read back on 2026-11-01. Operational blocks were inserted into all
+the live deck read back on 2026-11-04. Operational blocks were refreshed in all
 30 speaker-note fields by stable ID, above the preserved original notes. The
 canonical palette and automatic opening playback are verified. A rehearsal
 has not yet measured the full-session timings.
@@ -20,7 +20,9 @@ projects, drafts or site data. Keep the kit's hostname, port and browser profile
 Prepare an editor and preview side by side. Baseline heading is `Sign in`; the
 template instruction is `Use your email and password.`; the local action is
 `Sign in locally`. After each experiment, restore and save the original value
-before comparing a baseline result. Keep unsaved changes visibly distinct from
+before comparing a baseline result. Slide 8 illustrates the English edit
+`Welcome back`; the live exercise deliberately uses `Bienvenue 🍒` to check
+Unicode input. Explain that variation before editing. Keep unsaved changes visibly distinct from
 persisted execution inputs. The project, resource and configuration IDs in
 [presenter-resources.json](presenter-resources.json) are checked against the
 ordinary catalog and frozen outputs.
@@ -61,7 +63,7 @@ The resource IDs named as cues refer to the checked JSON run sheet below.
 | 18 | `p17` | 39:00–41:00 | Follow one generated HTML range to `templates/view.cemt`. Computed output identifies authored rules; it does not promise universal per-character data lineage. |
 | 19 | `p18` | 41:00–44:00 | Cue `live`: edit the local action label, save and rerun the script-free light-DOM view. Its data input is HTML, independently of the CEM graph. |
 | 20 | `p19` | 44:00–47:00 | Inspect ordinary DOM and explain declarative data/events/templates plus the shared runtime. Light DOM is not an arbitrary-script security boundary. |
-| 21 | `p20` | 47:00–49:00 | Map engine, schema packages, CEM-QL, hosts, theme/components, Studio and Site to the demonstrated route. Local kit is verified; public hosting is unverified. |
+| 21 | `p20` | 47:00–49:00 | Map engine, schema packages, CEM-QL, hosts, theme/components, Studio and Site to the demonstrated route. Local kit and the public presentation Site are verified; use the saved kit if the network fails. |
 | 22 | `p21` | 49:00–50:00 | Explain native/WASM and terminal/browser/worker ownership. Public CLI installation and other OS claims require separate evidence. |
 | 23 | `h209a9db50e1b8a77_0_0` | 50:00–50:30 | Preserve Sasha's DCE security image. State the scoped promises and their current limits. |
 | 24 | `p22` | 50:30–52:30 | Explain vendor/scope boundaries as the architectural direction with the recorded enforcement profile. |
@@ -118,8 +120,12 @@ and the final six-minute question period. Keep installation outside the clock.
 Say: “Resources and updates are at discussion #24. The handout identifies the
 tested local kit, exact inputs and results. Choose one bounded integration and
 tell us which contract you want to preserve.” Keep the stable hub/QR visible.
-The [resource block](discussion-24-resources.md) is prepared for review, not posted.
-No public kit download, public Studio URL or untested installer is promised.
+The [published resource comment](https://github.com/EPA-WG/cem/discussions/24#discussioncomment-18867103) links the current presentation Site and all slide examples.
+Public Studio is at https://cem-amsterdam-2026.trans-acf.workers.dev/studio/.
+The accepted Site version is `928c385e-79cb-4ef9-844a-ce64967a6243`; its
+[public acceptance](site-public-verification.md) used the explicit HTTP/2 browser
+profile. Keep the local transfer kit as the offline fallback. No public kit
+download or untested CLI installer is promised.
 
 ## Verification record
 
@@ -157,3 +163,10 @@ changed, and no browser projects, drafts or credential fields were accessed.
 The subsequent [palette readback](native-deck-palette-readback.json) preserves all
 30 speaker notes while applying canonical CEM colors. The subsequent
 [opening check](opening-animation.md) verifies the existing automatic sequence. Measured full-session rehearsal remains open.
+
+## Technical rehearsal — 2026-11-04
+
+The [technical rehearsal record](technical-rehearsal-2026-11-04.md) gives current
+versions, measured checks, the refreshed native notes receipt, PDF fallback and
+remaining spoken-delivery/projector checks. Planned intervals above still total
+60 minutes; software verification duration is not a spoken rehearsal.

@@ -170,7 +170,9 @@ export async function verifyPresenterResources(data, notes) {
         assert.equal(presenterHash(bytes), resource.sha256, 'Pinned public source bytes changed');
         for (const doc of publicDocs) assert.ok(doc.includes(resource.url), 'Participant link missing from resource draft');
     }
-    const allowedPublicLinks = new Set([data.resourceHub, ...data.publicResources.map(item => item.url)]);
+    const allowedPublicLinks = new Set([data.resourceHub,
+        data.resourceHub + '#discussioncomment-18867103',
+        ...data.publicResources.map(item => item.url)]);
     for (const doc of [...publicDocs, notes]) {
         for (const [, target] of doc.matchAll(/\]\(([^)]+)\)/g)) {
             if (target.startsWith('https:') || target.startsWith('http:')) {

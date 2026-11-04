@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "archive": {
+    "path": "dist/releases/cem-amsterdam-2026-rehearsal.tgz",
+    "bytes": 17299110,
+    "sha256": "6bb63dfdcc55fb47b3583b1d00c12ebc19854f041666c009202a5db22cc28c99"
+  },
+  "extractedOutsideWorkspace": true,
+  "verifiedFiles": 156,
+  "missingFiles": 0,
+  "unexpectedFiles": 0,
+  "contains": [
+    "current 30-page PDF",
+    "unchanged verified offline kit",
+    "operational run sheet",
+    "frozen inputs and outputs",
+    "public attempt/retry/trace evidence"
+  ],
+  "spokenAndProjectorAcceptance": false
+}

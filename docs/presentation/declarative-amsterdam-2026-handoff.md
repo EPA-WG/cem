@@ -1,5 +1,15 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+
+Current technical handoff (2026-11-04): the [rehearsal record](../declarative-amsterdam-2026/technical-rehearsal-2026-11-04.md)
+identifies the current native deck/PDF, offline kit, measured command checks and
+remaining presenter checks. The accepted Site is version
+`928c385e-79cb-4ef9-844a-ce64967a6243`, with Studio, Playground, components and
+Tokens on the same host. All 30 operational speaker-note blocks now identify
+this public route; original notes and visible slide content passed exact
+readback. Dated entries below are historical preparation/acceptance records.
+The full spoken run and physical projector/presenter controls remain open.
+
 CEM Site public publication complete (2026-11-03): the [presentation guide](https://cem-amsterdam-2026.trans-acf.workers.dev/guides/declarative-amsterdam-2026/)
 and complete Site are live on `cem-amsterdam-2026.trans-acf.workers.dev`, owner-
 reported version `431d2a65-f8b6-4f5f-86f1-cdf552c8fb7f`. Public checks match all

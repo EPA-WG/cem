@@ -14,7 +14,7 @@ const table = notes => notes.split('\n').filter(line => /^\| \d{2} \|/.test(line
     .map(line => line.split('|').slice(1, -1).map(cell => cell.trim()));
 
 /** Notes-only tooling; never renders app UI or changes a slide's visible content. */
-export function planDeckNotes(raw, data, notes) {
+export function planDeckNotes(raw, data, notes, reviewedBlocks) {
     const deck = unwrap(raw), rows = table(notes);
     assert.equal(deck.presentationId, presentationId);
     assert.ok(deck.revisionId, 'Missing revision guard');
@@ -30,10 +30,15 @@ export function planDeckNotes(raw, data, notes) {
         const original = text(elements[0]);
         const cues = data.cues.filter(cue => cue.slideId === slide.objectId);
         const detail = cues.map(cue => `Cue ${cue.id}: project=${cue.project}; resource=${cue.resource}; configurations=${cue.configurations.join(', ')}. Saved fallback: ${cue.fallback.path}.${cue.fallbackMeaning ? ' ' + cue.fallbackMeaning : ''}`).join('\n');
-        const block = `${marker}\nElapsed: ${rows[index][2]}. ${rows[index][3].replaceAll('`', '')}\n\nCurrent execution guidance supersedes older preparation/status claims below; original narrative notes are preserved. Use the verified local kit and independent saved copies. Save before executing; preserve unsaved drafts. Frozen output is a reference, never proof that a new execution succeeded.\n${detail ? '\n' + detail + '\n' : ''}\nUse disposable inputs only. Entered passwords/OTP block recovery until explicitly cleared. Never export credentials. Automatic whole-Studio recovery stays disabled; 4 MiB aggregate budget and five-second handoff deadline remain.\n\nResources and updates: ${data.resourceHub}\n${data.publicResources.map(resource => resource.label + ': ' + resource.url).join('\n')}\nLocal transfer kit only; no public kit download, public Studio host or untested installation is promised. Times are planned, not a measured rehearsal.\n${endMarker}`;
+        const block = `${marker}\nElapsed: ${rows[index][2]}. ${rows[index][3].replaceAll('`', '')}\n\nCurrent execution guidance supersedes older preparation/status claims below; original narrative notes are preserved. Use the verified local kit and independent saved copies. Save before executing; preserve unsaved drafts. Frozen output is a reference, never proof that a new execution succeeded.\n${detail ? '\n' + detail + '\n' : ''}\nUse disposable inputs only. Entered passwords/OTP block recovery until explicitly cleared. Never export credentials. Automatic whole-Studio recovery stays disabled; 4 MiB aggregate budget and five-second handoff deadline remain.\n\nResources and updates: ${data.resourceHub}\n${data.publicResources.map(resource => resource.label + ': ' + resource.url).join('\n')}\nPublic Studio: https://cem-amsterdam-2026.trans-acf.workers.dev/studio/ (accepted Site version 928c385e-79cb-4ef9-844a-ce64967a6243; HTTP/2 browser acceptance). Keep the verified local transfer kit as the offline fallback. No public kit download or untested CLI installation is promised. Times are planned, not a measured rehearsal.\n${endMarker}`;
         if (original.startsWith(marker)) {
-            assert.ok(original.startsWith(block), 'Existing operational block differs; review before updating');
-            return { slideId: slide.objectId, owner, block, original, insert: false };
+            if (original.startsWith(block)) return { slideId: slide.objectId, owner, block, original, insert: false };
+            const end = original.indexOf(endMarker);
+            assert.ok(end >= 0, 'Missing operational block end marker');
+            const previous = original.slice(0, end + endMarker.length);
+            const reviewed = reviewedBlocks?.find(entry => entry.slideId === slide.objectId && entry.owner === owner);
+            assert.equal(reviewed?.sha256, presenterHash(previous), 'Existing operational block differs; review before updating');
+            return { slideId: slide.objectId, owner, block, original, insert: false, replaceLength: previous.length };
         }
         assert.ok(!original.includes(marker), 'Unexpected operational marker location');
         return { slideId: slide.objectId, owner, block, original, insert: true };
@@ -41,7 +46,10 @@ export function planDeckNotes(raw, data, notes) {
     return { presentationId, revisionId: deck.revisionId,
         cueTableSha256: presenterHash(JSON.stringify(rows)),
         resourceBindingsSha256: presenterHash(JSON.stringify({ privacy: data.privacy, publicResources: data.publicResources, cues: data.cues })), entries,
-        requests: entries.filter(entry => entry.insert).map(entry => ({ insertText: { objectId: entry.owner, insertionIndex: 0, text: entry.block } })) };
+        requests: entries.flatMap(entry => entry.replaceLength ? [
+            { deleteText: { objectId: entry.owner, textRange: { type: 'FIXED_RANGE', startIndex: 0, endIndex: entry.replaceLength } } },
+            { insertText: { objectId: entry.owner, insertionIndex: 0, text: entry.block } },
+        ] : entry.insert ? [{ insertText: { objectId: entry.owner, insertionIndex: 0, text: entry.block } }] : []) };
 }
 
 export function verifyDeckNotes(before, after, plan) {
@@ -64,14 +72,15 @@ export function verifyDeckNotes(before, after, plan) {
         const page = slide.slideProperties.notesPage;
         assert.equal(page.notesProperties.speakerNotesObjectId, entry.owner);
         const element = page.pageElements.find(item => item.objectId === entry.owner);
-        assert.equal(text(element), (entry.insert ? entry.block : '') + entry.original, 'Notes or resource links failed exact readback');
+        assert.equal(text(element), entry.replaceLength ? entry.block + entry.original.slice(entry.replaceLength) : (entry.insert ? entry.block : '') + entry.original, 'Notes or resource links failed exact readback');
         const oldPage = before.slides.find(item => item.objectId === entry.slideId).slideProperties.notesPage;
         assert.deepEqual(page.pageElements.filter(item => item.objectId !== entry.owner), oldPage.pageElements.filter(item => item.objectId !== entry.owner), 'Other notes elements changed');
     }
-    return { schemaVersion: 1, presentationId, checkedDate: '2026-11-01', slides: plan.entries.length,
+    return { schemaVersion: 1, presentationId, checkedDate: new Date().toISOString().slice(0, 10), slides: plan.entries.length,
         beforeRevision: before.revisionId, afterRevision: after.revisionId,
         cueTableSha256: plan.cueTableSha256, resourceBindingsSha256: plan.resourceBindingsSha256,
-        insertedBlocks: plan.requests.length, originalNotesPreserved: true, visibleContentUnchanged: true,
+        insertedBlocks: plan.entries.filter(entry => entry.insert).length,
+        refreshedBlocks: plan.entries.filter(entry => entry.replaceLength).length, originalNotesPreserved: true, visibleContentUnchanged: true,
         exactResourceLinkReadback: true, measuredRehearsal: false,
         blocks: plan.entries.map(entry => ({ slideId: entry.slideId, owner: entry.owner, sha256: presenterHash(entry.block) })) };
 }

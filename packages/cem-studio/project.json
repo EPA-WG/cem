@@ -1795,7 +1795,7 @@
                 "{workspaceRoot}/apps/cem-site/content/**/*.md",
                 "{workspaceRoot}/apps/cem-site/site.cem",
                 "{workspaceRoot}/apps/cem-site/site.routes.json",
-                "{workspaceRoot}/dist/apps/cem-site/**/*.html"
+                "{workspaceRoot}/dist/hosting/cem-site/**/*"
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/presentation-story.json"

@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { planDeckNotes, verifyDeckNotes, presentationId } from './presentation-deck-notes.mjs';
 import { loadPresenterResources } from './presentation-resources.mjs';
-import { workspaceRoot } from './presenter-project.mjs';
+import { workspaceRoot, presenterHash } from './presenter-project.mjs';
 
 const notes = await readFile(resolve(workspaceRoot, 'docs/declarative-amsterdam-2026/presenter-notes.md'), 'utf8');
 const data = await loadPresenterResources();
@@ -16,8 +16,10 @@ const makeDeck = () => ({ presentationId, revisionId: 'fresh-revision', title: '
 })) });
 function apply(deck, plan) {
     const result = structuredClone(deck); result.revisionId = 'renewed-revision';
-    for (const entry of plan.entries.filter(entry => entry.insert)) {
-        result.slides.find(slide => slide.objectId === entry.slideId).slideProperties.notesPage.pageElements[0].shape.text.textElements.unshift({ textRun: { content: entry.block } });
+    for (const entry of plan.entries.filter(entry => entry.insert || entry.replaceLength)) {
+        const target = result.slides.find(slide => slide.objectId === entry.slideId).slideProperties.notesPage.pageElements[0].shape.text;
+        const original = target.textElements.map(element => element.textRun?.content ?? '').join('');
+        target.textElements = [{ textRun: { content: entry.block + original.slice(entry.replaceLength ?? 0) } }];
     }
     return result;
 }
@@ -50,7 +52,7 @@ test('allows renewed image download URLs but refuses a changed image source', ()
 });
 test('refuses lost original notes or altered public links', () => {
     const before = makeDeck(), plan = planDeckNotes(before, data, notes), after = apply(before, plan);
-    after.slides[0].slideProperties.notesPage.pageElements[0].shape.text.textElements.pop();
+    after.slides[0].slideProperties.notesPage.pageElements[0].shape.text.textElements[0].textRun.content = plan.entries[0].block;
     assert.throws(() => verifyDeckNotes(before, after, plan), /exact readback/);
     const changed = apply(before, plan);
     changed.slides[0].slideProperties.notesPage.pageElements[0].shape.text.textElements[0].textRun.content += 'Unreviewed';
@@ -59,4 +61,22 @@ test('refuses lost original notes or altered public links', () => {
 test('refuses silently replacing a previously inserted operational block', () => {
     const before = makeDeck(), plan = planDeckNotes(before, data, notes), after = apply(before, plan);
     assert.throws(() => planDeckNotes(after, data, notes.replace('DNA metaphor', 'different metaphor')), /review before updating/);
+});
+
+test('refresh requires exact reviewed prior blocks and preserves original note tails', () => {
+    const first = planDeckNotes(makeDeck(), data, notes);
+    const before = apply(makeDeck(), first);
+    const reviewed = first.entries.map(entry => ({ slideId: entry.slideId, owner: entry.owner, sha256: presenterHash(entry.block) }));
+    const changed = notes.replace('DNA metaphor', 'DNA example');
+    const plan = planDeckNotes(before, data, changed, reviewed);
+    assert.equal(plan.requests.length, 2);
+    assert.equal(plan.requests[0].deleteText.textRange.endIndex, first.entries[0].block.length);
+    const after = apply(before, plan);
+    assert.equal(verifyDeckNotes(before, after, plan).refreshedBlocks, 1);
+    assert.equal(planDeckNotes(after, data, changed).requests.length, 0);
+    const unreviewed = structuredClone(before);
+    unreviewed.slides[0].slideProperties.notesPage.pageElements[0].shape.text.textElements[0].textRun.content = 'Unexpected user change\n' + first.entries[0].block;
+    assert.throws(() => planDeckNotes(unreviewed, data, changed, reviewed), /marker location/);
+    reviewed[0].sha256 = 'wrong';
+    assert.throws(() => planDeckNotes(before, data, changed, reviewed), /review before updating/);
 });

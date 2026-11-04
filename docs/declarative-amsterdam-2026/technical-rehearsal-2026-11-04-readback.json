@@ -1,0 +1,903 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-04T22:15:35.530Z",
+  "sourceRevision": "82daec226b42f30b403ca54b40ef4933de0c52b4",
+  "status": "technical-rehearsal-complete-with-public-network-exceptions",
+  "spokenRehearsal": false,
+  "physicalProjectorAcceptance": false,
+  "site": {
+    "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+    "acceptedVersion": "928c385e-79cb-4ef9-844a-ce64967a6243",
+    "priorFullAcceptance": "site-public-928c385e-readback.json",
+    "browserTransport": "http2"
+  },
+  "nativeReplay": {
+    "loginCheckpoints": 21,
+    "supplierCheckpoints": 10,
+    "cues": 12,
+    "slideIds": 30,
+    "plannedSeconds": 3600,
+    "reportedWallSeconds": 55.7,
+    "status": "passed",
+    "frozenBytesRewritten": false
+  },
+  "participantKit": {
+    "path": "dist/packages/cem-studio-login-kit.tgz",
+    "bytes": 16126594,
+    "sha256": "2b8cec8f3cebe74c3a705313f9fc8b815056e614a1bd707a336c9b550ccfdf53",
+    "status": "passed",
+    "receipt": {
+      "schemaVersion": 1,
+      "sourceRevision": "ee3731757e2864334ef2bb18f67c92ea4ed37a3b",
+      "frozenSourceRevision": "c5e5b89274175997387a4d0e160a7e6f6262147f",
+      "supplierVersion": "1.1.1",
+      "frozenSupplierRevision": "ee3731757e2864334ef2bb18f67c92ea4ed37a3b",
+      "archiveSha256": "2b8cec8f3cebe74c3a705313f9fc8b815056e614a1bd707a336c9b550ccfdf53",
+      "node": "v24.16.0",
+      "platform": "linux",
+      "arch": "x64",
+      "browser": "148.0.7778.96",
+      "extractedOutsideWorkspace": true,
+      "launcher": "node-builtins",
+      "installedApplicationDependencies": false,
+      "originalProductionIndex": true,
+      "fileCount": 417,
+      "loginConfigurations": 20,
+      "supplierConfigurations": 3,
+      "offline": true,
+      "draftPreservation": true,
+      "independentCopies": true,
+      "advertisedAmsterdamRoutes": [
+        "login",
+        "supplier-pipeline"
+      ],
+      "credentialPolicy": {
+        "enteredCredentials": "block-until-explicitly-cleared",
+        "automaticRecovery": false,
+        "aggregateCheckpointBytes": 4194304,
+        "handoffTimeoutMs": 5000,
+        "inputs": "checked-in-project-only",
+        "browserStorage": "never-read"
+      },
+      "publicAvailability": "unverified"
+    },
+    "reportedWallSeconds": 29295.84,
+    "wallDurationAccepted": false,
+    "reason": "Host clock advanced approximately eight hours during the run; not a rehearsal duration."
+  },
+  "checks": {
+    "presentationGuards": 66,
+    "guardsStatus": "passed",
+    "studioLint": "passed",
+    "builtGuide": {
+      "principles": 14,
+      "pitchSections": 7,
+      "blocks": 6,
+      "plannedMinutes": 60,
+      "route": "/guides/declarative-amsterdam-2026/",
+      "platformTableRows": 8,
+      "codeExcerpts": 2,
+      "pinnedResourceLinks": 3,
+      "scripts": 2,
+      "sourceOnlyViewers": 2,
+      "pageErrors": 0,
+      "publication": "repository-build-only; public host not verified",
+      "measuredRehearsal": false
+    }
+  },
+  "nativeDeck": {
+    "notes": {
+      "schemaVersion": 1,
+      "presentationId": "1v5JEclFycuXuYk5Mnpwb0alxdKIi30J6XgvLBmawxI4",
+      "checkedDate": "2026-11-04",
+      "slides": 30,
+      "beforeRevision": "Eq03wuK7FUhGiQ",
+      "afterRevision": "DuWnTfroxCPn2A",
+      "cueTableSha256": "234e75970cfc11f19e778996e48eb3fb5fff2fd4986cf32baa35e2e26f8b0db0",
+      "resourceBindingsSha256": "50d7b15837b191b41dc00adecd1362167bc9c97c642edd293f4c9b39f728faea",
+      "insertedBlocks": 0,
+      "refreshedBlocks": 30,
+      "originalNotesPreserved": true,
+      "visibleContentUnchanged": true,
+      "exactResourceLinkReadback": true,
+      "measuredRehearsal": false,
+      "blocks": [
+        {
+          "slideId": "p1",
+          "owner": "p1:notes_i3",
+          "sha256": "d85486b85287d00fed630b07de963dd69b1dd57390e9d92ea047dc3fd2f961f3"
+        },
+        {
+          "slideId": "h36c7c826c4eee100_0_0",
+          "owner": "h36c7c826c4eee100_0_26",
+          "sha256": "2172462efb9832b18f95e603c30af31b59ffa96001454fdc70940f3990f10f6e"
+        },
+        {
+          "slideId": "p2",
+          "owner": "p2:notes_i3",
+          "sha256": "188d9850c6529e13e3914da655843aa41952b69a6d752bf5571a365fec13d24c"
+        },
+        {
+          "slideId": "p3",
+          "owner": "p3:notes_i3",
+          "sha256": "fc52dfa8b76679e31710e9a9ae1f7297272c463cc303810de22699728e79bb61"
+        },
+        {
+          "slideId": "p4",
+          "owner": "p4:notes_i3",
+          "sha256": "ea45fef134325ba3f46e0e16d40333ca4bbf37fd2f9f62065c426ccd452c48cb"
+        },
+        {
+          "slideId": "p5",
+          "owner": "p5:notes_i3",
+          "sha256": "318f0b17fb820cfb206dd1172e1713f37ce520d9c35f5a35d0c7830659925a0b"
+        },
+        {
+          "slideId": "p6",
+          "owner": "p6:notes_i3",
+          "sha256": "b59057739fe3256a7f3698163f35a664c6f2ec9caae5099b09dd66951f475002"
+        },
+        {
+          "slideId": "p7",
+          "owner": "p7:notes_i3",
+          "sha256": "d4a1ceb1a03be3fb33eb1a5330e2d449dbdf29d7aa631a46194d2c407b74421a"
+        },
+        {
+          "slideId": "p8",
+          "owner": "p8:notes_i3",
+          "sha256": "0b2c907473fc27e4b53b4b978d0e60b9908c4b74237cc554bfd1fbda7ab7347b"
+        },
+        {
+          "slideId": "p9",
+          "owner": "p9:notes_i3",
+          "sha256": "261478226121cbff2eedf03130bd5050413da73c7131364ba8428760cdbf9a10"
+        },
+        {
+          "slideId": "p10",
+          "owner": "p10:notes_i3",
+          "sha256": "7a218c3115c0aecb04ba47653971b86219dbecd28e3449c1dab4d4d417f2aeee"
+        },
+        {
+          "slideId": "p11",
+          "owner": "p11:notes_i3",
+          "sha256": "7a58b68f80a995f25d33f9ba82eb573f209e99b00bc16d78f0ec44877aa01ad7"
+        },
+        {
+          "slideId": "p12",
+          "owner": "p12:notes_i3",
+          "sha256": "b0abae16d12904aea10505c789240c7792439a87aebd0092a6c24e6c487012e9"
+        },
+        {
+          "slideId": "p13",
+          "owner": "p13:notes_i3",
+          "sha256": "e140f7c56232d50ab8c9bcf3d8762112ad6d9bde65b84d9178e6a39fe7bc3d22"
+        },
+        {
+          "slideId": "p14",
+          "owner": "p14:notes_i3",
+          "sha256": "3e1021ecf9cf173c0c0d6f1210a668823c429aafa24d81c9f50e433b56c6b75e"
+        },
+        {
+          "slideId": "p15",
+          "owner": "p15:notes_i3",
+          "sha256": "0c72887452b3c84d8f75865de9cb7f2324099a7845700a8dff001380b20710cc"
+        },
+        {
+          "slideId": "p16",
+          "owner": "p16:notes_i3",
+          "sha256": "c4c74d55d437af4d409ce434fbac34c1d5253e30812c3fd2b8750b68bf1ec1d7"
+        },
+        {
+          "slideId": "p17",
+          "owner": "p17:notes_i3",
+          "sha256": "3b472c72f403993ae968d2a73f05c537ad482f82a4ad4a801293bb2b0c25eeee"
+        },
+        {
+          "slideId": "p18",
+          "owner": "p18:notes_i3",
+          "sha256": "1901edc418358bc6f2987f5e42e48b93d287509c3a9b6245964e812446705ee8"
+        },
+        {
+          "slideId": "p19",
+          "owner": "p19:notes_i3",
+          "sha256": "d558df9cb288f089575094251424bfd77f510654a0867778c43583c3b45faca5"
+        },
+        {
+          "slideId": "p20",
+          "owner": "p20:notes_i3",
+          "sha256": "f55164ba92a57f2bc003530847ebe4032d5f87a44a96655d34dbe4e6894f3fe3"
+        },
+        {
+          "slideId": "p21",
+          "owner": "p21:notes_i3",
+          "sha256": "868dd10db3b544ac96d34239e4932cc44f6d92de9bf39f6411c952566868a4d9"
+        },
+        {
+          "slideId": "h209a9db50e1b8a77_0_0",
+          "owner": "h209a9db50e1b8a77_0_2",
+          "sha256": "524925956e981b1eb470c06d4fe2d367c4cdb1d4b4b038dca9616d1758218d32"
+        },
+        {
+          "slideId": "p22",
+          "owner": "p22:notes_i3",
+          "sha256": "7ba9f197f7b24feab3070d7aeb1fab6f299b522f7e247b12c2a7b96754bbc29d"
+        },
+        {
+          "slideId": "p27",
+          "owner": "p27:notes_i3",
+          "sha256": "d43aa432e618e5376df8d7322112039b870d2926ab50d97d9c0bde7d62fbef85"
+        },
+        {
+          "slideId": "p23",
+          "owner": "p23:notes_i3",
+          "sha256": "f42e2926ab53dd8e2203b49da619de1e1c3b09ffd387b11f5c0199ed2e8cf207"
+        },
+        {
+          "slideId": "p28",
+          "owner": "p28:notes_i3",
+          "sha256": "21e0aa0b270c16340629f952962aab541fab7e255ca1963a9ac26b240414d16b"
+        },
+        {
+          "slideId": "p25",
+          "owner": "p25:notes_i3",
+          "sha256": "b90fd66b1b8789b8bf2eaaabf77af6f5f8743cfab3f05f6619d977caf7de7204"
+        },
+        {
+          "slideId": "p26",
+          "owner": "p26:notes_i3",
+          "sha256": "6d9d39b755cede77e5845f6dbb2c1033ad67c3ef6c6abe1e50a50a2df599be56"
+        },
+        {
+          "slideId": "p24",
+          "owner": "p24:notes_i3",
+          "sha256": "047896537dbcdb80c8109582d194cb829ef9ea73e89db909065a7f21a50947b2"
+        }
+      ]
+    },
+    "before": {
+      "path": "dist/reports/cem-studio/rehearsal-2026-11-04/native-deck.json",
+      "bytes": 3619182,
+      "sha256": "ede4282f501945b5de5959cbbe64b42386da030ffef9f35442d09eab3ab5479e"
+    },
+    "after": {
+      "path": "dist/reports/cem-studio/rehearsal-2026-11-04/native-deck-after.json",
+      "bytes": 3624690,
+      "sha256": "1a0a02259dcc9259f73848a72939240a6bbfa3f4ae0991532a40913f5d5e1a9c"
+    },
+    "idempotentPlanRequests": 0
+  },
+  "staticFallback": {
+    "path": "dist/reports/cem-studio/rehearsal-2026-11-04/render/presentation.pdf",
+    "bytes": 906565,
+    "sha256": "ca903c3e4076ee4285dd3be7640b167ef5f6602d670af5d1beee12d520b23140",
+    "pages": 30,
+    "includesOpeningAnimation": false,
+    "reviewedPages": 30,
+    "fullSizeReview": [
+      8,
+      12,
+      16,
+      23
+    ],
+    "blockingLayoutFindings": 0,
+    "structuralIssues": {
+      "totalIssues": 1,
+      "reportedIssues": 1,
+      "truncated": false,
+      "bySeverity": {
+        "warning": 1
+      },
+      "byCode": {
+        "LITERAL_BULLET_CHARACTER": 1
+      }
+    }
+  },
+  "discussionReadback": {
+    "url": "https://github.com/EPA-WG/cem/discussions/24#discussioncomment-18867103",
+    "updatedAt": "2026-11-04T11:32:35Z",
+    "bodySha256": "b3ed5770f1cb82135ed551410edd59970ef6e48468922bd87788c68f84c86aa8",
+    "oldHostPresent": false,
+    "everyTestedLinkInBody": true
+  },
+  "publicLinks": {
+    "initial": {
+      "schemaVersion": 1,
+      "checkedAt": "2026-11-04T14:08:39.139Z",
+      "browserFlags": [
+        "--disable-quic"
+      ],
+      "status": "failed",
+      "navigationOnly": true,
+      "fullWorkflowAcceptance": "recorded separately",
+      "discussionPosted": false,
+      "results": [
+        {
+          "slide": 3,
+          "slideId": "p2",
+          "cue": "read",
+          "project": "login",
+          "resource": "readme",
+          "configuration": "read-edit",
+          "configurationInput": "login-cem",
+          "configurations": [
+            "read-edit"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=readme&build=read-edit",
+          "status": "passed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=readme&build=read-edit",
+          "readyMs": 25950,
+          "actual": {
+            "selection": {
+              "collection": "amsterdam-2026",
+              "sample": "login",
+              "file": "readme",
+              "key": "collection=amsterdam-2026&sample=login&file=readme",
+              "kind": "file"
+            },
+            "configuration": "read-edit",
+            "structure": "collection=amsterdam-2026&sample=login&file=readme",
+            "sampleTextAvailable": true,
+            "projectCount": 0
+          },
+          "elapsedMs": 25969
+        },
+        {
+          "slide": 8,
+          "slideId": "p7",
+          "cue": "edit",
+          "project": "login",
+          "resource": "login-cem",
+          "configuration": "validate",
+          "configurationInput": "login-cem",
+          "configurations": [
+            "validate"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=validate",
+          "status": "passed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=validate",
+          "readyMs": 25622,
+          "actual": {
+            "selection": {
+              "collection": "amsterdam-2026",
+              "sample": "login",
+              "file": "login-cem",
+              "key": "collection=amsterdam-2026&sample=login&file=login-cem",
+              "kind": "file"
+            },
+            "configuration": "validate",
+            "structure": "collection=amsterdam-2026&sample=login&file=login-cem",
+            "sampleTextAvailable": true,
+            "projectCount": 0
+          },
+          "elapsedMs": 25637
+        },
+        {
+          "slide": 10,
+          "slideId": "p9",
+          "cue": "fail",
+          "project": "login",
+          "resource": "login-invalid",
+          "configuration": "validation-repair",
+          "configurationInput": "login-invalid",
+          "configurations": [
+            "validation-repair"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-invalid&build=validation-repair",
+          "status": "passed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-invalid&build=validation-repair",
+          "readyMs": 25925,
+          "actual": {
+            "selection": {
+              "collection": "amsterdam-2026",
+              "sample": "login",
+              "file": "login-invalid",
+              "key": "collection=amsterdam-2026&sample=login&file=login-invalid",
+              "kind": "file"
+            },
+            "configuration": "validation-repair",
+            "structure": "collection=amsterdam-2026&sample=login&file=login-invalid",
+            "sampleTextAvailable": true,
+            "projectCount": 0
+          },
+          "elapsedMs": 26014
+        },
+        {
+          "slide": 11,
+          "slideId": "p10",
+          "cue": "repair",
+          "project": "login",
+          "resource": "login-invalid",
+          "configuration": "validation-repair",
+          "configurationInput": "login-invalid",
+          "configurations": [
+            "validation-repair"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-invalid&build=validation-repair",
+          "status": "passed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-invalid&build=validation-repair",
+          "readyMs": 26441,
+          "actual": {
+            "selection": {
+              "collection": "amsterdam-2026",
+              "sample": "login",
+              "file": "login-invalid",
+              "key": "collection=amsterdam-2026&sample=login&file=login-invalid",
+              "kind": "file"
+            },
+            "configuration": "validation-repair",
+            "structure": "collection=amsterdam-2026&sample=login&file=login-invalid",
+            "sampleTextAvailable": true,
+            "projectCount": 0
+          },
+          "elapsedMs": 26459
+        },
+        {
+          "slide": 12,
+          "slideId": "p11",
+          "cue": "inspect",
+          "project": "login",
+          "resource": "login-cem",
+          "configuration": "inspect",
+          "configurationInput": "login-cem",
+          "configurations": [
+            "inspect"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=inspect",
+          "status": "passed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=inspect",
+          "readyMs": 25309,
+          "actual": {
+            "selection": {
+              "collection": "amsterdam-2026",
+              "sample": "login",
+              "file": "login-cem",
+              "key": "collection=amsterdam-2026&sample=login&file=login-cem",
+              "kind": "file"
+            },
+            "configuration": "inspect",
+            "structure": "collection=amsterdam-2026&sample=login&file=login-cem",
+            "sampleTextAvailable": true,
+            "projectCount": 0
+          },
+          "elapsedMs": 25322
+        },
+        {
+          "slide": 13,
+          "slideId": "p12",
+          "cue": "format",
+          "project": "login",
+          "resource": "login-cem",
+          "configuration": "format-pretty",
+          "configurationInput": "login-cem",
+          "configurations": [
+            "format-pretty",
+            "format-tabular",
+            "source-colors"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=format-pretty",
+          "status": "passed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=format-pretty",
+          "readyMs": 27184,
+          "actual": {
+            "selection": {
+              "collection": "amsterdam-2026",
+              "sample": "login",
+              "file": "login-cem",
+              "key": "collection=amsterdam-2026&sample=login&file=login-cem",
+              "kind": "file"
+            },
+            "configuration": "format-pretty",
+            "structure": "collection=amsterdam-2026&sample=login&file=login-cem",
+            "sampleTextAvailable": true,
+            "projectCount": 0
+          },
+          "elapsedMs": 27201
+        },
+        {
+          "slide": 14,
+          "slideId": "p13",
+          "cue": "compare",
+          "project": "login",
+          "resource": "login-html",
+          "configuration": "semantics-html",
+          "configurationInput": "login-html",
+          "configurations": [
+            "semantics-html",
+            "semantics-cem",
+            "html-conversion"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-html&build=semantics-html",
+          "status": "passed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-html&build=semantics-html",
+          "readyMs": 26255,
+          "actual": {
+            "selection": {
+              "collection": "amsterdam-2026",
+              "sample": "login",
+              "file": "login-html",
+              "key": "collection=amsterdam-2026&sample=login&file=login-html",
+              "kind": "file"
+            },
+            "configuration": "semantics-html",
+            "structure": "collection=amsterdam-2026&sample=login&file=login-html",
+            "sampleTextAvailable": true,
+            "projectCount": 0
+          },
+          "elapsedMs": 26275
+        },
+        {
+          "slide": 15,
+          "slideId": "p14",
+          "cue": "companion pipeline overview",
+          "project": "supplier-pipeline",
+          "resource": "supplier-graph",
+          "configuration": "availability",
+          "configurationInput": "supplier-graph",
+          "configurations": [
+            "availability"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-graph&build=availability",
+          "status": "passed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-graph&build=availability",
+          "readyMs": 28480,
+          "actual": {
+            "selection": {
+              "collection": "amsterdam-2026",
+              "sample": "supplier-pipeline",
+              "file": "supplier-graph",
+              "key": "collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-graph",
+              "kind": "file"
+            },
+            "configuration": "availability",
+            "structure": "collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-graph",
+            "sampleTextAvailable": true,
+            "projectCount": 0
+          },
+          "elapsedMs": 28500
+        },
+        {
+          "slide": 16,
+          "slideId": "p15",
+          "cue": "query",
+          "project": "login",
+          "resource": "login-cem",
+          "configuration": "semantics-html-cemql",
+          "configurationInput": "login-html",
+          "configurations": [
+            "semantics-html-cemql",
+            "semantics-cem-cemql"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=semantics-html-cemql",
+          "status": "passed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-cem&build=semantics-html-cemql",
+          "readyMs": 26178,
+          "actual": {
+            "selection": {
+              "collection": "amsterdam-2026",
+              "sample": "login",
+              "file": "login-cem",
+              "key": "collection=amsterdam-2026&sample=login&file=login-cem",
+              "kind": "file"
+            },
+            "configuration": "semantics-html-cemql",
+            "structure": "collection=amsterdam-2026&sample=login&file=login-cem",
+            "sampleTextAvailable": true,
+            "projectCount": 0
+          },
+          "elapsedMs": 26191
+        },
+        {
+          "slide": 16,
+          "slideId": "p15",
+          "cue": "expression",
+          "project": "login",
+          "resource": "login-expression",
+          "configuration": "expression-html",
+          "configurationInput": "login-html",
+          "configurations": [
+            "expression-html",
+            "expression-cem"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-expression&build=expression-html",
+          "status": "passed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-expression&build=expression-html",
+          "readyMs": 26395,
+          "actual": {
+            "selection": {
+              "collection": "amsterdam-2026",
+              "sample": "login",
+              "file": "login-expression",
+              "key": "collection=amsterdam-2026&sample=login&file=login-expression",
+              "kind": "file"
+            },
+            "configuration": "expression-html",
+            "structure": "collection=amsterdam-2026&sample=login&file=login-expression",
+            "sampleTextAvailable": true,
+            "projectCount": 0
+          },
+          "elapsedMs": 26411
+        },
+        {
+          "slide": 17,
+          "slideId": "p16",
+          "cue": "transform",
+          "project": "login",
+          "resource": "login-view-graph",
+          "configuration": "render-graph",
+          "configurationInput": "login-view-graph",
+          "configurations": [
+            "render-graph",
+            "render-html",
+            "render-cem"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-graph&build=render-graph",
+          "status": "passed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-graph&build=render-graph",
+          "readyMs": 26168,
+          "actual": {
+            "selection": {
+              "collection": "amsterdam-2026",
+              "sample": "login",
+              "file": "login-view-graph",
+              "key": "collection=amsterdam-2026&sample=login&file=login-view-graph",
+              "kind": "file"
+            },
+            "configuration": "render-graph",
+            "structure": "collection=amsterdam-2026&sample=login&file=login-view-graph",
+            "sampleTextAvailable": true,
+            "projectCount": 0
+          },
+          "elapsedMs": 26192
+        },
+        {
+          "slide": 18,
+          "slideId": "p17",
+          "cue": "source provenance",
+          "project": "login",
+          "resource": "login-view-template",
+          "configuration": "render-graph",
+          "configurationInput": "login-view-graph",
+          "configurations": [
+            "render-graph"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-template&build=render-graph",
+          "status": "failed",
+          "errors": [
+            "CEM Studio component installation failed: invalid source base for `https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/dist/components.xhtml#cem-icon`: TypeError: WebAssembly compilation aborted: Network error: Response body loading was aborted"
+          ],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-template&build=render-graph",
+          "error": "page.waitForFunction: Timeout 30000ms exceeded.",
+          "elapsedMs": 28615014
+        },
+        {
+          "slide": 19,
+          "slideId": "p18",
+          "cue": "live",
+          "project": "login",
+          "resource": "login-live-view",
+          "configuration": "live-view",
+          "configurationInput": "login-live-view",
+          "configurations": [
+            "live-view"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-live-view&build=live-view",
+          "status": "failed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-live-view&build=live-view",
+          "error": "page.waitForFunction: Timeout 30000ms exceeded.",
+          "elapsedMs": 36350
+        },
+        {
+          "slide": 30,
+          "slideId": "p24",
+          "cue": "supplier",
+          "project": "supplier-pipeline",
+          "resource": "supplier-stock",
+          "configuration": "stock-source",
+          "configurationInput": "supplier-stock",
+          "configurations": [
+            "stock-source",
+            "availability"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock&build=stock-source",
+          "status": "failed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock&build=stock-source",
+          "error": "page.waitForFunction: Timeout 30000ms exceeded.",
+          "elapsedMs": 32631
+        }
+      ],
+      "browser": "148.0.7778.96",
+      "acceptedSiteVersion": "928c385e-79cb-4ef9-844a-ce64967a6243",
+      "error": "Every public demo link must pass\n\n3 !== 0\n",
+      "finishedAt": "2026-11-04T22:11:33.628Z"
+    },
+    "retry": {
+      "schemaVersion": 1,
+      "checkedAt": "2026-11-04T22:11:59.087Z",
+      "browserFlags": [
+        "--disable-quic"
+      ],
+      "status": "failed",
+      "navigationOnly": true,
+      "fullWorkflowAcceptance": "recorded separately",
+      "discussionPosted": false,
+      "results": [
+        {
+          "slide": 18,
+          "slideId": "p17",
+          "cue": "source provenance",
+          "project": "login",
+          "resource": "login-view-template",
+          "configuration": "render-graph",
+          "configurationInput": "login-view-graph",
+          "configurations": [
+            "render-graph"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-template&build=render-graph",
+          "status": "failed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-template&build=render-graph",
+          "error": "page.waitForFunction: Timeout 30000ms exceeded.",
+          "elapsedMs": 31076
+        },
+        {
+          "slide": 19,
+          "slideId": "p18",
+          "cue": "live",
+          "project": "login",
+          "resource": "login-live-view",
+          "configuration": "live-view",
+          "configurationInput": "login-live-view",
+          "configurations": [
+            "live-view"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-live-view&build=live-view",
+          "status": "passed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-live-view&build=live-view",
+          "readyMs": 28977,
+          "actual": {
+            "selection": {
+              "collection": "amsterdam-2026",
+              "sample": "login",
+              "file": "login-live-view",
+              "key": "collection=amsterdam-2026&sample=login&file=login-live-view",
+              "kind": "file"
+            },
+            "configuration": "live-view",
+            "structure": "collection=amsterdam-2026&sample=login&file=login-live-view",
+            "sampleTextAvailable": true,
+            "projectCount": 0
+          },
+          "elapsedMs": 28992
+        },
+        {
+          "slide": 30,
+          "slideId": "p24",
+          "cue": "supplier",
+          "project": "supplier-pipeline",
+          "resource": "supplier-stock",
+          "configuration": "stock-source",
+          "configurationInput": "supplier-stock",
+          "configurations": [
+            "stock-source",
+            "availability"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock&build=stock-source",
+          "status": "failed",
+          "errors": [],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=supplier-pipeline&file=supplier-stock&build=stock-source",
+          "error": "page.waitForFunction: Timeout 30000ms exceeded.",
+          "elapsedMs": 38913
+        }
+      ],
+      "browser": "148.0.7778.96",
+      "acceptedSiteVersion": "928c385e-79cb-4ef9-844a-ce64967a6243",
+      "error": "Every public demo link must pass\n\n2 !== 0\n",
+      "finishedAt": "2026-11-04T22:13:38.211Z"
+    },
+    "diagnostic": {
+      "schemaVersion": 1,
+      "checkedAt": "2026-11-04T22:13:31.467Z",
+      "browserFlags": [
+        "--disable-quic"
+      ],
+      "status": "failed",
+      "navigationOnly": true,
+      "fullWorkflowAcceptance": "recorded separately",
+      "discussionPosted": false,
+      "results": [
+        {
+          "slide": 18,
+          "slideId": "p17",
+          "cue": "source provenance",
+          "project": "login",
+          "resource": "login-view-template",
+          "configuration": "render-graph",
+          "configurationInput": "login-view-graph",
+          "configurations": [
+            "render-graph"
+          ],
+          "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-template&build=render-graph",
+          "status": "failed",
+          "errors": [],
+          "networkFailures": [
+            {
+              "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-theme/dist/lib/css/cem-combined.css",
+              "failure": "net::ERR_NETWORK_CHANGED"
+            },
+            {
+              "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-components/dist/styles.css",
+              "failure": "net::ERR_NETWORK_CHANGED"
+            },
+            {
+              "url": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/assets/@epa-wg/cem-studio/main.js",
+              "failure": "net::ERR_NETWORK_CHANGED"
+            }
+          ],
+          "actualUrl": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/?collection=amsterdam-2026&sample=login&file=login-view-template&build=render-graph",
+          "error": "page.waitForFunction: Timeout 30000ms exceeded.",
+          "diagnosticError": "page.waitForFunction: Timeout 30000ms exceeded.",
+          "diagnosticOnly": true,
+          "elapsedMs": 61501
+        }
+      ],
+      "browser": "148.0.7778.96",
+      "acceptedSiteVersion": "928c385e-79cb-4ef9-844a-ce64967a6243",
+      "error": "Every public demo link must pass\n\n1 !== 0\n",
+      "finishedAt": "2026-11-04T22:14:33.096Z"
+    },
+    "criticalBytes": [
+      {
+        "path": "studio/index.html",
+        "status": 200,
+        "equal": true,
+        "sha256": "6a689d0aff1ed426d810dbda8d27e97841d7f4fefebcbcecf75d95cef88ad7a8"
+      },
+      {
+        "path": "studio/assets/@epa-wg/cem-studio/main.js",
+        "status": 200,
+        "equal": true,
+        "sha256": "6b0f739415b7dd4baa99d5d69c27c2abb15e3ade68aab6f50a253309f35e0a4d"
+      },
+      {
+        "path": "studio/service-worker.js",
+        "status": 200,
+        "equal": true,
+        "sha256": "5a19c13517a563f3202893550455611f3a2bdc3fbfee5f1ee45deac04e6496a2"
+      }
+    ],
+    "trace": {
+      "path": "dist/reports/cem-studio/rehearsal-2026-11-04/public-provenance-trace.zip",
+      "bytes": 8826,
+      "sha256": "557c8ff04124a0fb9ed5784c064ee521093ac159626ae53fb449e957d10d3041"
+    },
+    "acceptedAllLinks": false,
+    "remainingSlides": [
+      18,
+      30
+    ],
+    "initialDurationsCrossingClockJumpExcluded": true
+  },
+  "remaining": [
+    "Repeat public slide 18/30 links on a stable connection with the original 30-second gate.",
+    "Spoken 60-minute delivery and physical projector/presenter controls.",
+    "Final delivery freeze and archive after those gates."
+  ],
+  "transfer": {
+    "path": "dist/releases/cem-amsterdam-2026-rehearsal.tgz",
+    "archiveChecksum": "External companion .sha256 file (avoids a circular self-hash)."
+  }
+}

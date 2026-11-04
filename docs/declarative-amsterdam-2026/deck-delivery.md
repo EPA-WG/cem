@@ -1,5 +1,10 @@
 # Google Slides delivery
 
+
+Current delivery status (2026-11-04): use the [technical rehearsal record](technical-rehearsal-2026-11-04.md)
+for the latest native deck readback, fresh PDF, tested demos and accepted
+presentation Site. Dated preparation notes below retain their original status.
+
 Created 2026-10-11 from the presentation, pitch, manifesto and evidence docs.
 
 [Open the Google Slides presentation](https://docs.google.com/presentation/d/1v5JEclFycuXuYk5Mnpwb0alxdKIi30J6XgvLBmawxI4/edit)

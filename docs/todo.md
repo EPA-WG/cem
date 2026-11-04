@@ -728,12 +728,36 @@ channels; private agreements remain unverified. This file owns execution order.
       Studio/Playground online/offline workflows. Original assertions/deadlines
       retained. [Public readback](declarative-amsterdam-2026/site-public-928c385e-readback.json).
 
-- [ ] Rehearse the timed walkthrough and verify every shown command, example,
-      output and demo path. Check slide readability and the fallback flow;
-      record the tested versions and remaining limitations with the materials.
+- [x] Refresh native speaker-note operational blocks against the accepted Site,
+      preserving original notes and visuals. Add guarded refresh fixtures that
+      refuse unreviewed block changes and lost original notes. All 30 blocks
+      refreshed with an exact prior-hash/revision guard; readback preserves
+      original note tails and visible content. Ten notes guards pass.
 
-- [ ] Finalize the presentation and supporting files, record their locations
-      and verification in the handoff, and archive completed presentation actions.
+- [x] Run the technical presentation rehearsal: native checkpoint replay,
+      current 30-slide render review, updated guide/browser checks and extracted
+      offline Login/Supplier kit. Record actual versions, failures and fallback
+      limits; prepare a transfer bundle and handoff inventory. All 66 guards
+      and lint pass; public cold-start exceptions remain the next item.
+
+- [ ] Repeat affected public Studio deep links (slides 18/30) on a stable
+      connection under the original 30-second readiness gate. The technical
+      rehearsal preserves the failed run/retries; its provenance trace shows
+      `ERR_NETWORK_CHANGED` loading the main module and both stylesheets.
+      Critical release bytes match. Retain the verified prewarmed offline kit;
+      do not convert diagnostic waits or transport failures into passes.
+
+- [ ] Complete the spoken 60-minute walkthrough on the presenter machine and
+      physical display. Record actual transitions, room-distance readability,
+      presenter controls and fallback handoff; protect the final six minutes.
+      [Technical rehearsal](declarative-amsterdam-2026/technical-rehearsal-2026-11-04.md)
+      records native commands, demo paths, current slide renders and extracted
+      fallback checks separately; automated duration does not close this gate.
+
+- [ ] After spoken/projector acceptance, freeze the presentation and supporting
+      files, record final acceptance in the handoff, and archive completed
+      presentation actions. The current technical delivery set and limitations
+      are recorded in the linked rehearsal/handoff; retain the final gate.
       Return to the next open presentation item above. An outline alone does not
       complete this set.
 
