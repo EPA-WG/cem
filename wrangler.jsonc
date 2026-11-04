@@ -2,6 +2,7 @@
     // npx wrangler@4 login
     //npx wrangler@4 deploy --dry-run
     //npx wrangler@4 deploy
+    // npx wrangler@4 deploy --config wrangler.site.jsonc
     "name": "green-morning-fd6e",
     "main": "tools/cloudflare/demo-worker.mjs",
     "compatibility_date": "2026-11-02",
