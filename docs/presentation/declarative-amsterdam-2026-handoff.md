@@ -1,5 +1,16 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
+Discussion resource delivery complete (2026-11-03): the [existing discussion #24 comment](https://github.com/EPA-WG/cem/discussions/24#discussioncomment-18867103)
+is updated with all 30 physical slides, including 14 Studio links and the
+original published examples. A separate GitHub read confirms exact body bytes,
+31 rendered rows and every prepared link. The
+[delivery receipt](../declarative-amsterdam-2026/discussion-resource-comment-delivery.json)
+and [published copy](../declarative-amsterdam-2026/discussion-resource-comment-published.md)
+record the same comment ID/URL and before/after identities. The public demo
+inventory remains at accepted `4d21f9cd…`; native slides and product assets did
+not change. Presentation Site publication, timed rehearsal and final handoff
+remain open. Earlier pending-comment notices below are historical evidence.
+
 Discussion draft review complete (2026-11-03): the [full slide-resource map](../declarative-amsterdam-2026/discussion-resource-comment-draft.md)
 covers all 30 physical slides (31 rows, including both slide-16 demos). All 14
 accepted Studio URLs are retained; 17 other slides have relevant pinned

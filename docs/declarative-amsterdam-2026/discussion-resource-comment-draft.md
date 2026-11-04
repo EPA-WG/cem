@@ -1,5 +1,11 @@
 # Discussion #24 resource comment — draft
 
+Archived review copy from `3bdd9942`. The existing discussion comment was
+subsequently updated on 2026-11-03. The exact published body is in
+`discussion-resource-comment-published.md`; its separate readback is recorded in
+`discussion-resource-comment-delivery.json`. The notices below describe the
+prepublication review stage and remain as the guarded draft fixture.
+
 Do not post yet. Review copy for the existing resource comment; no update has
 been sent. The public `4d21f9cd…` deployment passes general acceptance, all 23
 selected offline Login/Supplier configurations and the 14 Studio destinations.

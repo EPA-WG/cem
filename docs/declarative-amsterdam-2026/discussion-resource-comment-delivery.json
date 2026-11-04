@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-04T05:01:05.825285+00:00",
+  "checkedOn": "2026-11-03",
+  "timeZone": "America/Chicago",
+  "status": "published-and-read-back",
+  "authorization": "User continued after completed draft review and next-step list beginning with publication of the completed comment.",
+  "action": "update-existing-discussion-comment",
+  "discussion": "https://github.com/EPA-WG/cem/discussions/24",
+  "commentId": "DC_kwDOQzI4bM4BH-Of",
+  "url": "https://github.com/EPA-WG/cem/discussions/24#discussioncomment-18867103",
+  "updatedAt": "2026-11-04T04:59:31Z",
+  "reviewedSourceCommit": "3bdd994244f45e019f620ea7697b566c64ee03d3",
+  "bodyFile": "discussion-resource-comment-published.md",
+  "bodyBytes": 12426,
+  "bodySha256": "83b369cf623d926ba2d2a9817bf4e2936cf2a67c982c34137acd028a0f4090f7",
+  "previous": {
+    "commentId": "DC_kwDOQzI4bM4BH-Of",
+    "url": "https://github.com/EPA-WG/cem/discussions/24#discussioncomment-18867103",
+    "author": "sashafirsov",
+    "viewerCanUpdate": true,
+    "bodySha256": "c563ea5c98b4ba301b2b19464a65b9f952cede0f43d5002e7b0922070db8fe02",
+    "matchesReviewedBeforeHash": true,
+    "body": "[CEM demo site](https://green-morning-fd6e.trans-acf.workers.dev/)\r\n\r\n[Declarative Amsterdam presentation slides](https://docs.google.com/presentation/d/1v5JEclFycuXuYk5Mnpwb0alxdKIi30J6XgvLBmawxI4/edit?usp=sharing)\r\n\r\n[CEM formats playground](https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground)\r\n\r\n# Slides links\r\n1. [CEM demo site](https://green-morning-fd6e.trans-acf.workers.dev/)\r\n2. -\r\n3. [Login form CEM-ML](https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground?title=Login+form+CEM-ML&description=A+sign-in+form+with+labeled+email+and+password+fields.&source=%40doc+cem-ml+1%0A%40ns+cem+%3D+%22https%3A%2F%2Fcem.dev%2Fns%2Fcore%2F1%22%0A%40ns+html+%3D+%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxhtml%22%0A%40default+html%0A%7Bmain+%40aria-labelledby%3Dlogin-title+%40cem%3Ascreen%3Dlogin+%7C%0A++++%7Bh1+%40id%3Dlogin-title+%7C+Sign+in%7D%0A++++%7Bform+%40action%3D%22%23session%22+%40method%3Dpost+%40cem%3Aform%3Dsign-in+%7C%0A++++++++%7Blabel+%40for%3Demail+%7C+Email%7D%0A++++++++%7Binput+%40autocomplete%3Demail+%40id%3Demail+%40name%3Demail+%40required+%40type%3Demail%7D%0A++++++++%7Blabel+%40for%3Dpassword+%7C+Password%7D%0A++++++++%7Binput+%40autocomplete%3Dcurrent-password+%40id%3Dpassword+%40name%3Dpassword+%40required+%40type%3Dpassword%7D%0A++++++++%7Bbutton+%40type%3Dsubmit+%40cem%3Aaction%3Dprimary+%7C+Sign+in%7D%0A%7D+++%7D%0A&input=cem&output=html)\r\n4. [7e. Embedded XSLT fragment](https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-elements/demo/external-template), [XSLT template fragment](view-source:https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-elements/demo/html-template.xhtml#embedded-xslt)\r\n5. [schema packages](https://github.com/EPA-WG/cem/tree/develop/packages/cem_ml/schema-packages)\r\n6. -\r\n7. -\r\n8. [Hello, CEM-ML](https://green-morning-fd6e.trans-acf.workers.dev/packages/cem-demo-element/demo/playground?title=Hello%2C+CEM-ML&description=The+same+greeting+written+in+CEM-ML+and+rendered+as+HTML.&source=%7Barticle+%7C%0A++++%7Bh2+%7C+Hello%2C+CEM-ML%7D%0A++++%7Bp+%7C+Edit+this+CEM-ML%2C+then+choose+another+output+format.%7D%0A++++%7Bbutton+%40type%3Dbutton+%7C+A+live+HTML+button%7D%0A%7D%0A&input=cem&output=html)\r\n9. \r\n"
+  },
+  "readback": {
+    "separateGraphQLRead": true,
+    "sameCommentIdAndUrl": true,
+    "exactBodyMatch": true,
+    "bodySha256": "83b369cf623d926ba2d2a9817bf4e2936cf2a67c982c34137acd028a0f4090f7",
+    "renderedHtmlSha256": "d8d7bfc61da57880dd4bfe58d8277202f29597113912184a1ce0d62d7cd8b602",
+    "renderedTableRows": 31,
+    "physicalSlides": 30,
+    "studioLinkRows": 14,
+    "allRenderedLinksMatchPreparedBody": true,
+    "draftNoticeAbsent": true,
+    "credentialPrivacyTextPreserved": true
+  },
+  "prePublication": {
+    "presentationResourceGuards": "65 passed",
+    "inventory": {
+      "checkedAt": "2026-11-04T04:59:24.281Z",
+      "status": 200,
+      "inventorySha256": "4d21f9cd63ddb3c7c989b9bc9c123040e7472612274f3be1cb56c97d532a0770"
+    },
+    "priorFunctionalAcceptance": "public-demo-4d21f9cd-readback.json",
+    "fullSlideReview": "discussion-all-slides-readback.json"
+  },
+  "boundaries": {
+    "newCommentCreated": false,
+    "discussionMainPostEdited": false,
+    "nativeDeckEdited": false,
+    "productAssetsChanged": false,
+    "fullBrowserSuitesRerun": false,
+    "existingUserProjectsOrDraftsTouched": false
+  },
+  "next": [
+    "Presentation Site public-host publication and verification",
+    "Timed full-session rehearsal including fallback",
+    "Final presentation handoff and archival"
+  ]
+}

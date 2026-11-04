@@ -573,7 +573,7 @@ channels; private agreements remain unverified. This file owns execution order.
       original HTTP destinations return 200, and lint/all 65 guards pass.
       [Review and receipt](declarative-amsterdam-2026/discussion-all-slides-verification.md).
 
-- [ ] Append a resource comment to [GitHub discussion #24](https://github.com/EPA-WG/cem/discussions/24)
+- [x] Append a resource comment to [GitHub discussion #24](https://github.com/EPA-WG/cem/discussions/24)
       mapping each demo-related slide number to its verified public demo-page
       link. Keep the stable native slide ID beside the current physical slide
       number in the preparation map, and use projects/resources/configurations
@@ -593,6 +593,13 @@ channels; private agreements remain unverified. This file owns execution order.
       Full draft review is now complete for all 30 slides, with original published
       examples preserved and current verification footer pins. The existing
       comment was read but not updated; explicit delivery remains this open item.
+      Delivered 2026-11-03 after the owner continued: updated the existing
+      resource comment in place at `discussioncomment-18867103`, retaining the
+      original examples and comment URL. Separate GitHub readback matches the
+      published body exactly, with all 30 slides, 31 rendered rows and every
+      prepared link. All 65 guards pass; public inventory remains `4d21f9cd…`.
+      [Published comment](https://github.com/EPA-WG/cem/discussions/24#discussioncomment-18867103)
+      and [delivery receipt](declarative-amsterdam-2026/discussion-resource-comment-delivery.json).
 
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,
       output and demo path. Check slide readability and the fallback flow;

@@ -53,3 +53,15 @@ yarn nx run @epa-wg/cem-studio:lint
 The draft is complete for review. Updating the existing GitHub comment is a
 separate explicit delivery action. Presentation Site publication, timed rehearsal
 and final handoff remain open.
+
+## Publication follow-up — 2026-11-03
+
+The owner continued after review. The [existing resource comment](https://github.com/EPA-WG/cem/discussions/24#discussioncomment-18867103)
+is now updated in place with the completed 30-slide map. The
+[published body](discussion-resource-comment-published.md) matches GitHub's
+separate readback exactly; all 31 rendered rows and every rendered link match.
+The [delivery receipt](discussion-resource-comment-delivery.json) records the
+same comment ID/URL, before/after hashes, update time and preserved boundaries.
+The public inventory still matches the accepted `4d21f9cd…` deployment. No new
+comment, product deployment or native-deck change was made. Statements above
+about pending delivery describe the earlier review stage.
