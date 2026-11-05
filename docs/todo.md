@@ -135,7 +135,16 @@ editor-provider cohort and lint pass. An earlier 103/104 invocation exposed a se
 remain preserved. Bounded allocation tracing now also covers this driver.
 Runtime/declarations, token ownership and frozen presentation bytes are unchanged.
 
-- [ ] Repair standalone runtime typecheck preparation for the transitive CLI generated schema: retain or restore the exact native-generated TypeScript input through the CLI build/cache contract, so `tsc --build --emitDeclarationOnly` works without explicit schema preparation. Keep this separate from semantic editor/widget recovery.
+Completed follow-up: [retained CLI schema typecheck inputs](archive/todo-completed-cli-typecheck-inputs-2026-11-05.md).
+The CLI build retains its exact native-generated TypeScript source and restores
+it with `dist/` from cache, without hashing derived source as authored input.
+Standalone runtime typechecking now prepares the CLI dependency automatically.
+The real forced typecheck and a 5/5-task cache replay pass after deleting that
+source. Full CLI verification passes all 61 Node tests, Chromium acceptance,
+cold/cache/version checks and strict publication types. Its in-memory consumer
+compile preserves all 373 packaged runtime files; lint passes with its existing
+warning. Native schema ownership, runtime/UI/recovery policy and frozen materials
+remain unchanged.
 
 - [ ] Stabilize concurrent release-verifier scheduling around the existing 30-second cold Login source-paint case; retain its assertions and deadline. The unchanged complete release passes with `--parallel=1`. The 283-case Studio source invocation overlapping deployed browser gates passes 276 cases with seven deadline failures; all seven pass in an isolated Nx rerun, including complete live Login recovery on worker/fallback. Pending-build cancellation then passes three isolated runs after public navigation-readiness ordering is repaired. Keep the original five-second resume deadline, test bounds, privacy assertions and 4 MiB checkpoint budget; do not treat overlapping execution as a green full-cohort invocation. The typed control-source acceptance adds a concurrent fallback `cem.checkpoint.resume.timeout` at resume 0 (worker passes); its unchanged worker/fallback rerun passes 2/2 in isolation. Preserve this separate scheduling evidence; see the [control-source verification](archive/todo-completed-control-source-adapters-2026-10-27.md#verification).
 

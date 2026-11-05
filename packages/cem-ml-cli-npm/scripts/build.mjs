@@ -34,24 +34,21 @@ if (commandSchema.schemaVersion !== 1 || commandSchema.commonVersion !== cargoVe
 const generatedRoot = resolve(projectRoot, 'src/generated');
 const generatedModule = resolve(generatedRoot, 'command-schema.ts');
 rmSync(resolve(projectRoot, 'dist'), { recursive: true, force: true });
+rmSync(generatedRoot, { recursive: true, force: true });
 mkdirSync(generatedRoot, { recursive: true });
 writeFileSync(
     generatedModule,
     `import type { SharedCommandSchema } from '../command.js';\n\nexport const generatedCommandSchema = ${JSON.stringify(commandSchema, null, 2)} as const satisfies SharedCommandSchema;\n`,
 );
-try {
-    const result = spawnSync(
-        process.platform === 'win32' ? 'yarn.cmd' : 'yarn',
-        ['tsc', '--build', 'tsconfig.lib.json', '--pretty', 'false'],
-        {
-            cwd: projectRoot,
-            stdio: 'inherit',
-        },
-    );
-    if (result.status !== 0) throw new Error(`TypeScript build failed with status ${result.status}`);
-} finally {
-    rmSync(generatedRoot, { recursive: true, force: true });
-}
+// Project-reference typechecks consume this exact native-generated source later.
+// It is a retained build output, restored together with dist on an Nx cache hit.
+const result = spawnSync(
+    process.platform === 'win32' ? 'yarn.cmd' : 'yarn',
+    ['tsc', '--build', 'tsconfig.lib.json', '--pretty', 'false'],
+    { cwd: projectRoot, stdio: 'inherit' },
+);
+if (result.error) throw result.error;
+if (result.status !== 0) throw new Error(`TypeScript build failed with status ${result.status}`);
 chmodSync(resolve(projectRoot, 'dist/bin.js'), 0o755);
 for (const file of ['native-generation.js', 'native-generation.d.ts', 'schema-asset-protocol.js', 'schema-asset-protocol.d.ts', 'query-source-resource.js', 'query-source-resource.d.ts']) {
     writeFileSync(resolve(projectRoot, 'dist', file), readFileSync(resolve(workspaceRoot, 'packages/cem_ql/runtime', file.replace('.d.ts', '.d.mts').replace('.js', '.mjs')), 'utf8').replaceAll('./native-generation.mjs', './native-generation.js'));

@@ -9,6 +9,8 @@ dist
 dist-stripped
 /packages/cem-ml-npm/dist-schema-assets/
 /packages/cem-ml-npm/dist-schema-assets-wasm/
+# Native-generated CLI input retained for project-reference typechecks.
+/packages/cem-ml-cli-npm/src/generated/
 tmp
 out-tsc
 storybook-static

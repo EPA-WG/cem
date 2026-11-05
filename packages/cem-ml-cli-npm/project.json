@@ -26,6 +26,7 @@
                 "{projectRoot}/package.json",
                 "{projectRoot}/tsconfig.lib.json",
                 "{projectRoot}/src/**/*.ts",
+                "!{projectRoot}/src/generated/**/*",
                 "{projectRoot}/scripts/build.mjs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/packages/cem_ql/runtime/**",
@@ -34,7 +35,21 @@
                     "transitive": false
                 }
             ],
-            "outputs": ["{projectRoot}/dist"]
+            "outputs": ["{projectRoot}/dist", "{projectRoot}/src/generated"]
+        },
+        "verify:typecheck-input": {
+            "cache": false,
+            "parallelism": false,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "build",
+                { "projects": ["cem_ql"], "target": "build:wasm" }
+            ],
+            "options": {
+                "command": "node scripts/verify-typecheck-input.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "outputs": []
         },
         "lint": {
             "cache": true,
@@ -115,7 +130,7 @@
         "verify": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["build", "test", "test:browser"],
+            "dependsOn": ["build", "test", "test:browser", "verify:typecheck-input"],
             "options": {
                 "command": "node scripts/verify-dist.mjs",
                 "cwd": "{projectRoot}"

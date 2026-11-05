@@ -94,7 +94,10 @@
             }
         },
         "typecheck": {
-            "dependsOn": [{ "projects": ["cem_ql"], "target": "build:wasm" }]
+            "dependsOn": [
+                { "projects": ["cem_ql"], "target": "build:wasm" },
+                { "projects": ["@epa-wg/cem-ml-cli"], "target": "build" }
+            ]
         },
         "storybook": {
             "executor": "nx:run-commands",

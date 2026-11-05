@@ -34,6 +34,27 @@ required groups, conflicts, and runtime availability are therefore not copied
 into a separate TypeScript flag table. The same parser and serializer are
 exported from `./browser` and `./node`.
 
+For workspace development, the CLI build retains the native-generated
+`src/generated/command-schema.ts` input for later TypeScript project-reference
+checks. The directory is ignored by Git and excluded from authored build inputs;
+it is restored together with `dist/` from the CLI's Nx cache. It is not published
+as authored source. `cem-elements:typecheck` depends on the CLI build so a clean
+checkout prepares the exact schema before compiling its transitive references.
+The native emitter remains the schema owner; there is no separate flag table or
+manual temporary schema preparation.
+
+```sh
+yarn nx run cem-elements:typecheck
+yarn nx run @epa-wg/cem-ml-cli:verify:typecheck-input
+```
+
+The uncached, serial verification target checks a cold build, exact source/cache
+restoration, native version refusal and a forced runtime declaration check. It
+uses a private Nx artifact cache and metadata database, restores the native schema
+and CLI outputs, and participates in CLI `verify`. Its forced consumer compile
+uses TypeScript's solution builder with in-memory outputs, preserving other
+packages' processed declarations and build receipts.
+
 The authored-resource helpers use
 `application/vnd.cem.cli-command+json` with schema
 `https://cem.dev/ns/cli/command/1`. The resource stores generated
