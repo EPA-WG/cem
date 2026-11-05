@@ -238,6 +238,30 @@ yarn nx run @epa-wg/cem-studio:test:preview
 yarn nx run @epa-wg/cem-studio:check
 ```
 
+Studio browser verification and deployment-output writers use Nx
+`parallelism: false`. This includes whole-source tests, inferred per-file CI
+tasks, deployed/browser verifiers and clean deployment regeneration. A protected
+workload runs alone within the Nx invocation; unrelated work keeps Nx's normal
+parallelism. Existing internal test/profile concurrency, assertions and action
+deadlines are unchanged.
+
+Run release work in one Nx invocation. For prepared dependencies, the focused
+source/deployed gate combination is:
+
+```sh
+yarn nx run-many --targets=test:workbench,verify:login-navigation --projects=@epa-wg/cem-studio --parallel=3 --excludeTaskDependencies --skip-nx-cache
+yarn nx run @epa-wg/cem-studio:test:release-scheduling
+```
+
+The scheduler regression copies resolved task metadata into a temporary Nx
+workspace, exercises protected workloads at parallelism four, and requires two
+unrelated build probes to overlap. It participates in Studio `verify`.
+This policy coordinates one Nx invocation, not separate Nx processes, raw
+Vitest/Node commands or distributed agents. Keep independent browser workloads
+out of comparative deadline measurements. The original 30-second source-paint,
+five-second resume and 4 MiB checkpoint limits remain in effect; earlier failing
+invocations retain their own evidence.
+
 The source/destination module-map pair declares every JavaScript, CSS, worker,
 and WASM byte copied into the static deployment. JSON manifests and the SVG icon
 are explicit typed graph imports/exports. There is no post-graph production-copy

@@ -146,7 +146,34 @@ compile preserves all 373 packaged runtime files; lint passes with its existing
 warning. Native schema ownership, runtime/UI/recovery policy and frozen materials
 remain unchanged.
 
-- [ ] Stabilize concurrent release-verifier scheduling around the existing 30-second cold Login source-paint case; retain its assertions and deadline. The unchanged complete release passes with `--parallel=1`. The 283-case Studio source invocation overlapping deployed browser gates passes 276 cases with seven deadline failures; all seven pass in an isolated Nx rerun, including complete live Login recovery on worker/fallback. Pending-build cancellation then passes three isolated runs after public navigation-readiness ordering is repaired. Keep the original five-second resume deadline, test bounds, privacy assertions and 4 MiB checkpoint budget; do not treat overlapping execution as a green full-cohort invocation. The typed control-source acceptance adds a concurrent fallback `cem.checkpoint.resume.timeout` at resume 0 (worker passes); its unchanged worker/fallback rerun passes 2/2 in isolation. Preserve this separate scheduling evidence; see the [control-source verification](archive/todo-completed-control-source-adapters-2026-10-27.md#verification).
+Completed follow-up: [Studio release-verifier scheduling](archive/todo-completed-release-scheduling-2026-11-05.md).
+Nx now runs protected Studio browser tasks and deployment writers alone within
+one invocation while preserving unrelated concurrency. The real scheduler
+regression rejects the old overlap and passes for 50 protected workloads at
+parallelism four, requiring unrelated probes to overlap. At parallelism three,
+source/deployed task intervals do not overlap: all five cold-source-paint cases
+and deployed Login/Supplier workflows pass. Source tests pass 243/245, with both
+complete live Login cases refusing checkpoint capture at the existing node cap;
+both also fail unchanged in isolation. This is not a green full release. Original
+30-second/five-second bounds, privacy assertions and 4 MiB budget remain intact;
+historical overlapping 276/283 and isolated rerun evidence stays in the archive.
+Independent Nx processes/raw commands are outside this scheduling boundary.
+
+- [x] Add a real Nx scheduler regression using resolved Studio browser/writer
+      metadata: reject protected-workload overlap at parallelism four while
+      requiring unrelated build probes to overlap. Completed with the
+      [scheduling repair](archive/todo-completed-release-scheduling-2026-11-05.md).
+
+- [ ] Repair the complete live Login checkpoint host-witness node overflow in
+      worker and fallback. Both fail at capture 1 with `cem.checkpoint.limit`
+      in the non-overlapping 243/245 source invocation and an unchanged isolated
+      2/2 rerun. The shell contains 32,840 visited nodes versus the 32,768 cap
+      (depth 44 versus 64). Attribute retained DOM growth/ownership and remove
+      unnecessary retention without raising limits, dropping integrity-witness
+      coverage or changing privacy/refusal assertions. Keep the 4 MiB budget,
+      original deadlines and all three recoveries/twelve edits; rerun both
+      focused cases and the complete source cohort. See the
+      [scheduling evidence](archive/todo-completed-release-scheduling-2026-11-05.md#checkpoint-blocker-and-retained-timing-evidence).
 
 - [ ] Repair the existing native conversion baseline independently of recovery: `cross_surface_conversion_rules::cem_fixture_preserves_anonymous_scope_expression_avt_comments_and_rich_content` loses the expected `{.busy}` value in both default and stripped tests. Preserve the intended native semantics and assertion when resolving the mismatch. The separate CEMT profile/writer mismatch is completed above.
 

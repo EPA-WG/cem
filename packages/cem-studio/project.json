@@ -12,6 +12,34 @@
         "cem_ml_cli"
     ],
     "targets": {
+        "test": { "parallelism": false },
+        "test-ci--src/feature-tour.browser.spec.js": { "parallelism": false },
+        "test-ci--src/file-system-provider.browser.spec.js": { "parallelism": false },
+        "test-ci--src/navigation.browser.spec.js": { "parallelism": false },
+        "test-ci--src/preview.browser.spec.js": { "parallelism": false },
+        "test-ci--src/recovery.browser.spec.js": { "parallelism": false },
+        "test-ci--src/repository.browser.spec.js": { "parallelism": false },
+        "test-ci--src/shell.browser.spec.js": { "parallelism": false },
+        "test-ci--src/startup.browser.spec.js": { "parallelism": false },
+        "test-ci--src/workbench.browser.spec.js": { "parallelism": false },
+        "test:release-scheduling": {
+            "cache": true,
+            "parallelism": false,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/verify-release-scheduling.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/project.json",
+                "{projectRoot}/vitest.config.mts",
+                "{projectRoot}/scripts/**/*.mjs",
+                "{workspaceRoot}/nx.json",
+                "{workspaceRoot}/tools/scripts/**/*.mjs",
+                "{workspaceRoot}/yarn.lock"
+            ],
+            "outputs": []
+        },
         "lint": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -48,6 +76,7 @@
             "outputs": []
         },
         "test:repository": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -86,6 +115,7 @@
             "outputs": []
         },
         "test:file-system-provider": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -125,6 +155,7 @@
             "outputs": []
         },
         "test:shell": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -176,6 +207,7 @@
             "outputs": []
         },
         "verify:startup-latency": {
+            "parallelism": false,
             "cache": false,
             "executor": "nx:run-commands",
             "dependsOn": ["build", "test:shell"],
@@ -193,6 +225,7 @@
             "outputs": ["{workspaceRoot}/dist/reports/cem-studio/startup-latency.json"]
         },
         "verify:deployment-upgrade": {
+            "parallelism": false,
             "cache": false,
             "executor": "nx:run-commands",
             "dependsOn": ["build"],
@@ -218,6 +251,7 @@
             "outputs": []
         },
         "verify:hosting-module-identity": {
+            "parallelism": false,
             "cache": false,
             "executor": "nx:run-commands",
             "dependsOn": ["build"],
@@ -234,6 +268,7 @@
             "outputs": ["{workspaceRoot}/dist/reports/demo-site/module-identity.json"]
         },
         "verify:public-demo-links": {
+            "parallelism": false,
             "cache": false,
             "executor": "nx:run-commands",
             "dependsOn": ["verify:presentation-resources"],
@@ -245,6 +280,7 @@
             "outputs": ["{workspaceRoot}/dist/reports/cem-studio/public-discussion-demo-links.json"]
         },
         "verify:startup-prefetch": {
+            "parallelism": false,
             "cache": false,
             "executor": "nx:run-commands",
             "dependsOn": ["build"],
@@ -256,6 +292,7 @@
             "outputs": ["{workspaceRoot}/dist/reports/cem-studio/startup-prefetch.json"]
         },
         "test:feature-tour": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -294,6 +331,7 @@
             "outputs": []
         },
         "test:workbench": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -360,6 +398,7 @@
             "outputs": []
         },
         "test:preview": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "options": {
@@ -394,6 +433,7 @@
             ]
         },
         "generate:feature-tour": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -447,6 +487,7 @@
             ]
         },
         "build": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -641,6 +682,7 @@
             ]
         },
         "verify:static-worker": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -667,6 +709,7 @@
             ]
         },
         "verify:determinism": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -697,6 +740,7 @@
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
+                "test:release-scheduling",
                 "lint",
                 "typecheck",
                 "test:repository",
@@ -863,6 +907,7 @@
             }
         },
         "verify:shell-delivery": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -889,6 +934,7 @@
             ]
         },
         "verify:workspace-delivery": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -915,6 +961,7 @@
             ]
         },
         "verify:navigation": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -959,6 +1006,7 @@
             ]
         },
         "verify:csv-schema-assets": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -993,6 +1041,7 @@
             }
         },
         "verify:preview-reload": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1015,6 +1064,7 @@
             "outputs": []
         },
         "build:schema-assets": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1105,6 +1155,7 @@
             ]
         },
         "verify:schema-assets": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1127,6 +1178,7 @@
             ]
         },
         "verify:xml-xhtml": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1152,6 +1204,7 @@
             ]
         },
         "verify:markdown-site": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1176,6 +1229,7 @@
             ]
         },
         "verify:html-cem-card": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1200,6 +1254,7 @@
             ]
         },
         "verify:svg-mathml": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1225,6 +1280,7 @@
             ]
         },
         "verify:stylesheets": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1252,6 +1308,7 @@
             ]
         },
         "verify:data-queries": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1279,6 +1336,7 @@
             ]
         },
         "verify:transformations-schemas": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1308,6 +1366,7 @@
             ]
         },
         "verify:module-configs": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1334,6 +1393,7 @@
             ]
         },
         "verify:native-projections": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1397,6 +1457,7 @@
             ]
         },
         "verify:catalog-readmes": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1448,6 +1509,7 @@
             ]
         },
         "verify:catalog-acceptance": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1481,6 +1543,7 @@
             ]
         },
         "verify:login-navigation": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1615,6 +1678,7 @@
             ]
         },
         "verify:participant-kit": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1695,6 +1759,7 @@
             "outputs": []
         },
         "prepare:projector-assets": {
+            "parallelism": false,
             "executor": "nx:run-commands",
             "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:css" }],
             "options": { "command": "node scripts/presentation-projector-assets.mjs", "cwd": "{projectRoot}" }
@@ -1786,6 +1851,7 @@
             "outputs": []
         },
         "verify:opening-playback": {
+            "parallelism": false,
             "cache": false,
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -1805,6 +1871,7 @@
             ]
         },
         "verify:presentation-story": {
+            "parallelism": false,
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
