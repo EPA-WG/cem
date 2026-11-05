@@ -2851,10 +2851,16 @@ function workbenchListingNavigation(navigation, project) {
 }
 function workbenchNavigationState(state, actionsOnly = false) {
     const navigation = state.navigation;
+    // The tree declaration consumes presentation and stable route keys only.
+    // Full descriptors remain in the service for selection, source/export and
+    // project listings; copying them into every retained tree island wastes
+    // checkpoint headroom, especially when a build adds another output tree.
+    const tree = item => item && { key: item.key, name: item.name, kind: item.kind,
+        children: item.children.map(tree) };
     return { ...(actionsOnly ? {} : { transition: state.transition, navigationError: state.navigationError }),
         navigation: navigation && {
-            ...(actionsOnly ? {} : { samples: navigation.samples, saved: navigation.saved, files: navigation.files, output: navigation.output,
-                sections: navigation.sections, trees: navigation.trees, selection: navigation.selection, expanded: navigation.expanded }),
+            ...(actionsOnly ? {} : { samples: tree(navigation.samples), saved: tree(navigation.saved), files: tree(navigation.files), output: tree(navigation.output),
+                sections: navigation.sections, trees: navigation.trees, selection: { project: navigation.selection.project } }),
             count: navigation.count, countKind: navigation.countKind, busy: navigation.busy,
             canCreate: navigation.canCreate, canClone: navigation.canClone, canDelete: navigation.canDelete } };
 }

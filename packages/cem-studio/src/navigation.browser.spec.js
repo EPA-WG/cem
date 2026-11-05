@@ -2,7 +2,7 @@ import { mountCemArtifactPreview } from '@epa-wg/cem-elements';
 import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createCemStudioNavigation, createCemStudioProjectPreview, createCemStudioSourcePreview } from './navigation.js';
 import { mountCemStudioFeatureTourWorkbench } from './workbench.js';
-import { mountCemStudioApplicationShell } from './shell.js';
+import { installCemStudioShellComponents, mountCemStudioApplicationShell } from './shell.js';
 
 beforeAll(() => {
     const map = document.createElement('script'); map.type = 'importmap';
@@ -897,6 +897,19 @@ describe('Studio compact declarative layout', () => {
             const trees = [...root.querySelectorAll('cem-studio-workbench-navigation cem-tree')];
             expect(trees).toHaveLength(3);
             trees.forEach(expectCondensedTree);
+            // Retain service metadata once. Tree views need route keys and
+            // accessible labels, not another copy of every source descriptor.
+            const { runtime } = await installCemStudioShellComponents();
+            const navigation = root.querySelector('cem-studio-workbench-navigation:not([section="actions"])');
+            const retained = runtime.readInstanceSnapshot(navigation).slices.state.navigation;
+            const treePresentation = item => item && ({ key: item.key, name: item.name, kind: item.kind,
+                children: item.children.map(treePresentation) });
+            const model = service.snapshot().navigation;
+            for (const field of ['samples', 'saved', 'files', 'output']) expect(retained[field]).toEqual(treePresentation(model[field]));
+            const source = model.files.children.find(item => item.name === 'content').children.find(item => item.name === 'article.md');
+            expect(source).toMatchObject({ resourceId: 'article', path: 'content/article.md', contentType: 'text/markdown' });
+            expect(model.expanded).toBeTruthy();
+            expect(retained).not.toHaveProperty('expanded');
             const invalid = service.snapshot().navigation.output.children[0].children.find(item => item.path === 'generated/invalid.json');
             await service.openEntity(invalid.key); await view.whenSettled();
             expect(service.snapshot().projectPreview.preview.kind).toBe('download');

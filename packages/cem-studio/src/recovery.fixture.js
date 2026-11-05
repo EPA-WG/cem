@@ -37,7 +37,21 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
     const repository = createCemStudioProjectRepository({ databaseName, validateProject: validator.validateProject });
     const request = (operation, parameters = {}) => ({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation, parameters });
     let session, workbench, view, shell, releaseStatus, stage = 'install';
-    const setStage = value => { stage = value; progress(value); };
+    // Fixture-only bounded counts; never retain source, attributes or control values.
+    const nodeCensus = [];
+    const recordCensus = phase => {
+        if (!privacy) return;
+        const root = document.querySelector('cem-studio-shell');
+        if (!root) return;
+        const pending = [[root, 0]]; let units = 0, depth = 0;
+        while (pending.length && units < 32769) {
+            const [node, level] = pending.pop(); units++; depth = Math.max(depth, level);
+            for (const child of node.childNodes) pending.push([child, level + 1]);
+            if (node instanceof HTMLTemplateElement) pending.push([node.content, level + 1]);
+        }
+        if (nodeCensus.length < 16) nodeCensus.push({ phase, units, depth, capped: pending.length > 0 });
+    };
+    const setStage = value => { stage = value; progress(value); if (value.startsWith('capture ')) recordCensus(value); };
     try {
         setStage('install'); await installCemStudioShellComponents({ runtime });
         check((await installCemStudioShellComponents()).runtime === runtime, 'Studio did not retain the supplied runtime');
@@ -260,6 +274,7 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
                 if (mode === 'fallback' && peers.length > 1) combined = CemCheckpointPublicationCoordinator.combine(peers);
                 const coordinators = combined ? [combined] : peers;
                 setStage(`capture ${cycle}`); for (const c of coordinators) await capture(c);
+                recordCensus(`sealed ${cycle}`);
                 const consent = mode === 'fallback' ? heap.retirementConsent([embedding]) : undefined;
                 const proofs = []; for (const c of coordinators) proofs.push(await c.closeRenderingGeneration(5000, consent));
                 for (const c of coordinators) await capture(c);
@@ -281,6 +296,7 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
                 check(admission.generations.length === retired.length && admission.generations.every(generation => generation.runtimeId !== generation.previousRuntimeId), 'partial or reused runtime generation admitted');
                 setStage(`resume ${cycle}`); const resumed = await resumeCemCheckpointOwners(admission, tickets, 5000, native.bindings);
                 for (const owner of resumed.owners) await owner.owner.resume(); previous?.revoke();
+                recordCensus(`resumed ${cycle}`);
                 if (mode === 'fallback') { heap = admission.generations[0].runtime; embedding = heap.claimOwnership(); }
                 combined?.dispose(); combined = undefined;
             } else {
@@ -303,10 +319,12 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
             check(paint(editor).length > 0 && [...records.values()].some(value => value.includes(JSON.stringify(draft).slice(1, -1))), 'handoff lost paint or draft journal');
             check(styles.every(style => style.isConnected), 'handoff replaced stylesheet installation');
             setStage(`save ${cycle}`); await workbench.saveSource(); await view.whenSettled();
+            recordCensus(`saved ${cycle}`);
             const exported = (await repository.query(request('export-project', { projectId: project }))).value;
             check(new TextDecoder().decode(exported.contents[sourceId]) === draft, 'Save after handoff did not persist exact bytes');
             setStage(`build ${cycle}`);
             await workbench.buildProjectPreview(); await view.whenSettled();
+            recordCensus(`built ${cycle}`);
             check(workbench.snapshot().projectPreview?.attempt?.status === 'succeeded', `native build after handoff failed: ${JSON.stringify(workbench.snapshot().projectPreview?.attempt)}`);
             releaseStatus(); await shell.whenSettled(); shell.recovery.refresh(); await shell.whenSettled();
             const status = shell.recovery.snapshot();
@@ -327,7 +345,7 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
         check(refused && coordinator.inspectRecovery().unknownOperations === 1, 'refusal consumed an unknown operation');
         operation.acknowledge();
         check(coordinator.inspectRecovery().unknownOperations === 0, 'explicit acknowledgment was lost');
-        return { ...(privacy ? { privacyRefusals: 2, checkpointBytes, groupBytes } : {}), recoveries: complete ? 3 : 0, refusedRecoveries: complete ? 0 : 3, edits, unknownRefused: true, unavailable: [...new Set(blockers().map(owner => owner.tag))].sort() };
+        return { ...(privacy ? { privacyRefusals: 2, checkpointBytes, groupBytes, nodeCensus } : {}), recoveries: complete ? 3 : 0, refusedRecoveries: complete ? 0 : 3, edits, unknownRefused: true, unavailable: [...new Set(blockers().map(owner => owner.tag))].sort() };
     } catch (error) {
         const counts = new Map(), visit = node => {
             if (counts.has(node)) return counts.get(node);
@@ -340,7 +358,7 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
         visit(document.body);
         const inventory = [...document.body.querySelectorAll('*')].filter(node => node.localName.includes('-'))
             .map(node => ({ tag: node.localName, ...counts.get(node) })).sort((a,b) => b.units - a.units).slice(0, 12);
-        throw Error(`${mode}/${stage}: ${error.stack || error} DOM ${JSON.stringify(inventory)}`, { cause: error });
+        throw Error(`${mode}/${stage}: ${error.stack || error} DOM ${JSON.stringify(inventory)} phases ${JSON.stringify(nodeCensus)}`, { cause: error });
     }
     finally {
         shell?.recovery.dispose(); releaseStatus?.(); view?.dispose(); shell?.dispose(); workbench?.dispose(); session?.dispose(); await validator?.close(); repository.close();

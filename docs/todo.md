@@ -164,16 +164,21 @@ Independent Nx processes/raw commands are outside this scheduling boundary.
       requiring unrelated build probes to overlap. Completed with the
       [scheduling repair](archive/todo-completed-release-scheduling-2026-11-05.md).
 
-- [ ] Repair the complete live Login checkpoint host-witness node overflow in
-      worker and fallback. Both fail at capture 1 with `cem.checkpoint.limit`
-      in the non-overlapping 243/245 source invocation and an unchanged isolated
-      2/2 rerun. The shell contains 32,840 visited nodes versus the 32,768 cap
-      (depth 44 versus 64). Attribute retained DOM growth/ownership and remove
-      unnecessary retention without raising limits, dropping integrity-witness
-      coverage or changing privacy/refusal assertions. Keep the 4 MiB budget,
-      original deadlines and all three recoveries/twelve edits; rerun both
-      focused cases and the complete source cohort. See the
-      [scheduling evidence](archive/todo-completed-release-scheduling-2026-11-05.md#checkpoint-blocker-and-retained-timing-evidence).
+Completed follow-up: [Login checkpoint DOM headroom](archive/todo-completed-login-checkpoint-headroom-2026-11-05.md).
+The navigation view now retains only consumed tree fields and stable route keys;
+complete descriptors remain in the service for selection, listings and export.
+The failing-first navigation retention regression and worker/fallback live Login
+acceptance pass, retaining two privacy refusals, three recoveries and twelve edits
+each. The complete source suite passes all 368 tests across nine files; lint,
+typecheck and 336-file production determinism also pass. Existing witness coverage,
+32,768-node/depth-64 caps, 4 MiB budget and original deadlines remain unchanged.
+The earlier 243/245 and isolated 2/2 failures are preserved in the archives.
+Frozen presentation delivery bytes remain unchanged.
+
+- [x] Add bounded Login recovery phase node counts and a navigation view-retention
+      regression preserving full service descriptors, public routes and retained
+      editor/preview identity. See the
+      [completed repair](archive/todo-completed-login-checkpoint-headroom-2026-11-05.md).
 
 - [ ] Repair the existing native conversion baseline independently of recovery: `cross_surface_conversion_rules::cem_fixture_preserves_anonymous_scope_expression_avt_comments_and_rich_content` loses the expected `{.busy}` value in both default and stripped tests. Preserve the intended native semantics and assertion when resolving the mismatch. The separate CEMT profile/writer mismatch is completed above.
 

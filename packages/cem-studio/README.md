@@ -52,6 +52,13 @@ Entered passwords or one-time codes continue to block recovery until the user
 clears them. Automatic whole-Studio recovery remains disabled, and portable
 workspace checkpoints retain the existing aggregate 4 MiB budget.
 
+Retained navigation view state contains tree route keys, names, kinds and
+children, plus the active section/selection controls. Full resource descriptors
+stay in the navigation service for source selection, project listings and
+export. Keep view state limited to fields consumed by its declaration: copying
+service-only metadata into data islands consumes the same bounded DOM witness
+budget needed for subsequent builds and recovery.
+
 ## Package surfaces
 
 - `@epa-wg/cem-studio` exports `mountCemStudio`, the explicit browser-command

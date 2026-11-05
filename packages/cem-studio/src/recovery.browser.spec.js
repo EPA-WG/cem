@@ -112,6 +112,6 @@ it.each(['worker', 'fallback'])('recovers the complete live Login workspace with
         expect(observed.checkpointBytes).toBeLessThanOrEqual(4 * 1024 * 1024);
         expect(observed.groupBytes).toBeGreaterThan(observed.checkpointBytes);
         expect(observed.groupBytes).toBeLessThanOrEqual(4 * 1024 * 1024);
-        console.info(`[studio-live-recovery:${mode}] checkpoint=${observed.checkpointBytes} group=${observed.groupBytes} recoveries=${observed.recoveries}`);
+        console.info(`[studio-live-recovery:${mode}] checkpoint=${observed.checkpointBytes} group=${observed.groupBytes} recoveries=${observed.recoveries} nodes=${JSON.stringify(observed.nodeCensus)}`);
     } finally { stop?.(); frame.remove(); }
 }, 120_000);
