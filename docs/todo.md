@@ -100,7 +100,14 @@ WASM/CLI builds and lint pass. Refused CSV preserves prior output; repair
 publishes. Forged destinations still reject before callbacks and invalid commit
 URIs roll back. Frozen presentation delivery bytes remain unchanged.
 
-- [ ] Diagnose the three existing linked package preparation source-map failures at `schema_package_lifecycle/attribute_datatypes.rs:473`: pretyped handoff, callback context/publication guards and checked preparation replacement retain an additional `SourceBoundary` frame. All three reproduce on unchanged `eca54d20`; preserve source provenance and intended assertions when resolving the mismatch. The broader cohort passes 46/49 cases; see the [CSV contract verification](archive/todo-completed-csv-parser-contracts-2026-10-24.md#verification). The current focused pretyped case still reproduces at that assertion (2026-11-04): candidate map has an extra `SourceBoundary { uri: "library.cem" }`. Trace `attribute_activation/pretyped.rs` raw lexical source versus `RetainedCemTree::source_node_map` URI enrichment; retain both original source ownership and exact provenance while diagnosing the mismatch.
+Completed follow-up: [linked preparation source provenance](archive/todo-completed-linked-preparation-provenance-2026-11-04.md).
+The fixture now distinguishes original lexical evidence from the URI-enriched
+retained query view, requiring exact original frames/spans and the correct owner
+boundary. Existing boundaries retain priority. All 51 linked lifecycle tests,
+11 evidence checks and seven retained-provenance checks pass. The three previous
+failures were a fixture expectation mismatch; native runtime, evidence-forgery
+refusals, context/publication guards and budgets remain unchanged. The original
+46/49 baseline remains in the [CSV verification archive](archive/todo-completed-csv-parser-contracts-2026-10-24.md#verification).
 
 - [ ] Isolate the optional Studio sample graph from the ordinary Feature Tour generated directory. `build-schema-assets-profile.mjs` leaves `generated/feature-tour/feature-tour.schema-assets.cem`, causing the subsequent strict default `generate-feature-tour.mjs --check` file-set assertion to fail. Add default → optional → default verification fixtures, move the optional build input into its own generated domain with correct relative resource bases, and retain exact default file-set checking. Removing only that untracked build scratch file permits default verification; saved projects/drafts are unrelated.
 

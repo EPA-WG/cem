@@ -646,3 +646,90 @@ fn core_context_and_source_metadata_bounds_precede_callbacks_and_cloning() {
     assert!(result.diagnostics.iter().all(|d| d.source_map.is_none()));
     assert_eq!(calls.load(Ordering::SeqCst), 0);
 }
+
+#[test]
+fn pretyped_candidate_preserves_original_frames_and_projects_its_owner_uri() {
+    use cem_ml::source_map::{SourceMapFrame, TransformKind};
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let model = compiled_kind_with_counter(1, true, false, true, Some(calls.clone()))
+        .compile(&request(&authored("integer", "")))
+        .unwrap();
+    let contract = &model.attribute_datatypes["count"];
+    for uri in ["memory:copy-one/input.cem", "memory:copy-two/input.cem"] {
+        let parsed = tree("{sample @count=003}");
+        let source = RetainedCemTree::from_shared(
+            parsed.ast_owner().clone(), uri, "", Default::default(), None,
+        ).unwrap();
+        let CemAstNode::Attribute { node_id, source: lexical, .. } = attribute(&source) else {
+            panic!("literal attribute required");
+        };
+        let lexical = lexical.clone();
+        let candidate = RetainedCemNode::new(source.clone(), *node_id).unwrap().query_item();
+        let last = lexical.current().unwrap();
+        let mut projected = lexical.clone();
+        projected.frames.push(SourceMapFrame {
+            source_id: last.source_id,
+            span: last.span.clone(),
+            transform: TransformKind::SourceBoundary { uri: uri.into() },
+        });
+        assert_ne!(projected, lexical);
+        assert_eq!(candidate.source_map(), Some(projected.clone()));
+        assert_eq!(candidate.view().unwrap().provenance().unwrap().source_uri.as_deref(), Some(uri));
+        let context = AttributeDatatypeContext::default();
+        let control = OperationControl::default();
+        let values = BTreeMap::new();
+        let before = calls.load(Ordering::SeqCst);
+        let issued = contract.prepare(args(
+            &source, AttributeDatatypeValue::Lexical("003"), &context, &control, &values,
+        ));
+        let handle = issued.handle.expect("original lexical map admits evidence with a URI-enriched candidate");
+        assert_eq!(calls.load(Ordering::SeqCst), before + 1);
+        assert_eq!(contract.validate(args(
+            &source, AttributeDatatypeValue::Prepared(&handle), &context, &control, &values,
+        )).accepted, Some(true));
+        assert_eq!(calls.load(Ordering::SeqCst), before + 1);
+        let CemAstNode::Attribute { source: retained, .. } = attribute(&source) else { panic!() };
+        assert_eq!(retained, &lexical, "preparation must not rewrite the parser map");
+        assert_eq!(candidate.source_map(), Some(projected));
+    }
+}
+
+#[test]
+fn pretyped_candidate_does_not_replace_or_duplicate_an_existing_source_boundary() {
+    use cem_ml::source_map::{SourceMapFrame, TransformKind};
+
+    let mut document = CemAstBuilder::new(CemEventNormalizer::new(CemTokenizer::from_source(
+        BytesSource::new(SourceId(1), b"{sample @count=003}".to_vec()),
+    ))).build();
+    let node = document.nodes.iter_mut().find(|node|
+        matches!(node, CemAstNode::Attribute { expanded_name, .. } if expanded_name.local_name == "count")
+    ).unwrap();
+    let CemAstNode::Attribute { source: lexical, .. } = node else { panic!() };
+    let last = lexical.current().unwrap();
+    lexical.frames.push(SourceMapFrame {
+        source_id: last.source_id,
+        span: last.span.clone(),
+        transform: TransformKind::SourceBoundary { uri: "memory:authored/original.cem".into() },
+    });
+    let lexical = lexical.clone();
+    let source = RetainedCemTree::new(document, "memory:wrapper/other.cem", "", Default::default(), None).unwrap();
+    let CemAstNode::Attribute { node_id, .. } = attribute(&source) else { panic!() };
+    let candidate = RetainedCemNode::new(source.clone(), *node_id).unwrap().query_item();
+    assert_eq!(candidate.source_map(), Some(lexical.clone()));
+    let model = compiled_kind(1, true, false, true)
+        .compile(&request(&authored("integer", ""))).unwrap();
+    let contract = &model.attribute_datatypes["count"];
+    let context = AttributeDatatypeContext::default();
+    let control = OperationControl::default();
+    let values = BTreeMap::new();
+    let handle = contract.prepare(args(
+        &source, AttributeDatatypeValue::Lexical("003"), &context, &control, &values,
+    )).handle.expect("an original boundary remains exact evidence");
+    assert_eq!(contract.validate(args(
+        &source, AttributeDatatypeValue::Prepared(&handle), &context, &control, &values,
+    )).accepted, Some(true));
+    let CemAstNode::Attribute { source: retained, .. } = attribute(&source) else { panic!() };
+    assert_eq!(retained, &lexical);
+    assert_eq!(candidate.source_map(), Some(lexical));
+}

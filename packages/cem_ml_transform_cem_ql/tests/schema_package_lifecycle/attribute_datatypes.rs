@@ -470,7 +470,27 @@ impl cem_ql::datatype_preparation::NativeLexicalPreparer for CheckCandidate {
         };
         let name = candidate.view().unwrap().field("name").unwrap()[0].atom();
         assert!(matches!(&name, Some(AtomValue::String(name)) if name == "count" || name == "default"));
-        assert_eq!(candidate.source_map(), Some(call.original.source.clone()));
+        // Lexical evidence retains the exact parser map. The retained query
+        // view additionally names its owner URI when no origin boundary exists.
+        // Require every original frame unchanged and exactly that one boundary;
+        // never discard boundaries or substitute the projected map as evidence.
+        use cem_ml::source_map::TransformKind;
+        let projected = candidate.source_map().expect("retained candidate source map");
+        let original = &call.original.source;
+        let uri = candidate.view().unwrap().provenance()
+            .and_then(|provenance| provenance.source_uri).filter(|uri| !uri.is_empty());
+        if original.frames.is_empty() || uri.is_none() || original.frames.iter().any(|frame|
+            matches!(frame.transform, TransformKind::SourceBoundary { .. })) {
+            assert_eq!(&projected, original);
+        } else {
+            assert_eq!(projected.frames.len(), original.frames.len() + 1);
+            assert_eq!(&projected.frames[..original.frames.len()], original.frames.as_slice());
+            let boundary = projected.current().unwrap();
+            let source = original.current().unwrap();
+            assert_eq!(boundary.source_id, source.source_id);
+            assert_eq!(boundary.span, source.span);
+            assert_eq!(boundary.transform, TransformKind::SourceBoundary { uri: uri.unwrap() });
+        }
         // Declaration-time defaults use the original authorized schema view;
         // runtime attributes receive the restricted native candidate adapter.
         if name == Some(AtomValue::String("count".into())) {
