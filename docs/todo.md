@@ -473,13 +473,31 @@ Preserve meaningful assertions and existing story/global deadlines. Capture
 failing lifecycle state before changing readiness or runtime behavior; passing
 repeats alone do not attribute a historical failure.
 
-- [ ] Fixture: attribute the historical aggregate-only data-table/set-URL and
+- [ ] On recurrence, attribute the historical aggregate-only data-table/set-URL and
       native suggestions pointer-tap deadlines recorded on 2026-10-08. Establish
       isolated controls, then capture the failing step under load. The separate
       pan-opening readiness defect and provider story split are complete; the
       final aggregate passed 487/487. Retain every tap, pan-cancellation and
       outside-focus assertion. See the
       [archived investigation](archive/todo-snapshot-2026-10-10.md#browser-failures-observed-during-placement-verification).
+      Follow-up 2026-11-05: unchanged related cohort passes 20/20 and all three
+      critical journeys pass in isolation. Both later traced ten-file cohorts
+      pass 35/35. Passive phase/failure capture now survives the original runner
+      deadline, verified by a deliberately held 30-second control. No historical
+      cause is inferred from these passing controls; use the actual failed
+      phase/state on recurrence. [Audit](archive/todo-completed-placement-journey-audit-2026-11-05.md).
+
+- [x] Audit the unchanged data-table/set-URL journeys and native pointer-tap
+      case, then add bounded, passive phase/failure capture that survives the
+      original story timeout. Verify it with a controlled failure and run the
+      related cohort under load; keep all assertions and deadlines unchanged,
+      and retain historical attribution separately if no failure recurs.
+      Completed 2026-11-05: 3/3 capture units; controlled original runner timeout
+      retains the last 32 records, discarded count and live fixture state. The
+      control is removed; original assertion/readiness/native-action calls are
+      unchanged. Final 35/35 browser plays, both lint targets (zero errors), and
+      strict declarative verification pass. Frozen delivery remains unchanged.
+      [Archive](archive/todo-completed-placement-journey-audit-2026-11-05.md).
 
 - [ ] Investigate runtime aggregate instability on recurrence. The historical
       action-cutover run passed 311/312 stories: `Payload Css Readiness And

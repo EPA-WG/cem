@@ -3,6 +3,7 @@
 import { installCemElementRuntime, createCemDeclarationScope, CemElementRuntime } from '../src/index.js';
 export { getCemActionInvocation, mountCemView } from '../src/index.js';
 export { nativeTap, nativeInputPoint, nativeTouchGesture, nativePenDrag, nativeWheel } from './native-input.js';
+export { captureJourneyFailure } from './journey-diagnostics.js';
 import '@epa-wg/cem-demo-element';
 import '@epa-wg/cem-theme/styles.css';
 import { themeMode } from './theme.js';

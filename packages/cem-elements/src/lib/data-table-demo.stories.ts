@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { storyTiming } from '../../.storybook/story-timing.js';
+import { captureJourneyFailure } from '../../.storybook/journey-diagnostics.js';
 import { expect, waitFor, within } from 'storybook/test';
 import { cemDiagnosticCodes, traceCemReadiness, whenCemRendered, whenCemSourceRendered } from '../../.storybook/preview.js';
 import {
@@ -48,38 +49,54 @@ async function expectTable(viewer: HTMLElement, selector: string, cells: Cells, 
     }, { timeout: 10000 });
 }
 
-async function verifyTable(viewer: HTMLElement, selector: string, column: string, headings: string[], cells: Cells): Promise<void> {
+async function verifyTable(viewer: HTMLElement, selector: string, column: string, headings: string[], cells: Cells, mark: (phase: string) => void = () => undefined): Promise<void> {
     const controls = within(viewer);
     const input = controls.getByRole('textbox', { name: 'Source' }) as HTMLTextAreaElement;
     const original = input.value;
+    mark('initial rows');
     await expectTable(viewer, selector, cells);
     expect(Array.from(viewer.querySelectorAll(`${selector} > thead th`), th => th.textContent)).toEqual(['✓', ...headings]);
+    mark('select row/render');
     viewer.querySelector<HTMLButtonElement>(`${selector} > tbody > tr:nth-child(2) > th > button`)?.click();
     await whenCemRendered(viewer);
+    mark('select row/rows');
     await expectTable(viewer, selector, cells, [1]);
+    mark('sort column/render');
     await select(controls.getByRole('combobox', { name: 'Sort column' }), column, viewer);
+    mark('sort column/rows');
     await expectTable(viewer, selector, cells, [1]);
+    mark('numeric comparison/render');
     await select(controls.getByRole('combobox', { name: 'Compare' }), 'number', viewer);
+    mark('numeric comparison/rows');
     await expectTable(viewer, selector, [cells[1], cells[2], cells[0]], [0]);
+    mark('descending/render');
     await select(controls.getByRole('combobox', { name: 'Direction' }), 'descending', viewer);
+    mark('descending/rows');
     await expectTable(viewer, selector, [cells[0], cells[2], cells[1]], [2]);
+    mark('source edit/render');
     input.value = original.replace('10', '11');
     input.dispatchEvent(new Event('change', { bubbles: true }));
     await whenCemRendered(viewer);
+    mark('source edit/rows');
     await expectTable(viewer, selector, [['11', ...cells[0].slice(1)], cells[2], cells[1]]);
+    mark('reset/render');
     controls.getByRole('button', { name: 'Reset source' }).click();
     await whenCemRendered(viewer);
+    mark('reset/rows');
     await expectTable(viewer, selector, [cells[0], cells[2], cells[1]], [2]);
     expect(input.value).toBe(original);
+    mark('clear sort/render');
     await select(controls.getByRole('combobox', { name: 'Sort column' }), '', viewer);
+    mark('clear sort/rows');
     await expectTable(viewer, selector, cells, [1]);
 }
 
-async function verifyAspects(viewer: HTMLElement): Promise<void> {
+async function verifyAspects(viewer: HTMLElement, mark: (phase: string) => void = () => undefined): Promise<void> {
     const controls = within(viewer);
     const source = controls.getByRole('textbox', { name: 'Source' }) as HTMLTextAreaElement;
     const original = source.value;
     const visits: Cells = [['192.0.2.1', '10'], ['192.0.2.2', '2']];
+    mark('aspects/initial rows');
     await expectTable(viewer, 'table[aria-label="visits"]', visits);
     expect(viewer.querySelector('table[aria-label="notes"]')).toBeNull();
     const notes = Array.from(viewer.querySelectorAll('details')).find(detail =>
@@ -89,21 +106,26 @@ async function verifyAspects(viewer: HTMLElement): Promise<void> {
     expect(viewer.querySelector('form output')?.textContent).toBe('allow: 192.0.2.0/24');
     const address = controls.getByRole('textbox', { name: 'Address / CIDR' }) as HTMLInputElement;
     expect(address.value).toBe('192.0.2.0/24');
+    mark('aspects/edit address');
     address.value = '198.51.100.0/24';
     address.dispatchEvent(new Event('input', { bubbles: true }));
     await whenCemRendered(viewer);
+    mark('aspects/select action');
     await select(controls.getByRole('combobox', { name: 'Action' }), 'deny', viewer);
     await waitFor(() => expect(viewer.querySelector('form output')?.textContent).toBe('deny: 198.51.100.0/24'));
+    mark('aspects/show notes');
     controls.getByRole('checkbox', { name: 'Presentation aspects' }).click();
     await whenCemRendered(viewer);
     await expectTable(viewer, 'table[aria-label="notes"]', [['🍒 ready'], ['🍋 review']]);
     expect(viewer.querySelector('form')).toBeNull();
     await expectTable(viewer, 'table[aria-label="visits"]', visits);
+    mark('aspects/restore form');
     controls.getByRole('checkbox', { name: 'Presentation aspects' }).click();
     await whenCemRendered(viewer);
     await waitFor(() => expect(viewer.querySelector('form output')?.textContent).toBe('deny: 198.51.100.0/24'));
     const restored = controls.getByRole('textbox', { name: 'Address / CIDR' }) as HTMLInputElement;
     expect(restored.value).toBe('198.51.100.0/24');
+    mark('aspects/clear address');
     restored.value = '';
     restored.dispatchEvent(new Event('input', { bubbles: true }));
     await whenCemRendered(viewer);
@@ -118,58 +140,81 @@ export const EveryAuthoredSample: Story = {
     render: renderDocument,
     play: async ({ canvasElement, step }) => {
         const mark = storyTiming('table/EveryAuthoredSample');
-        await whenCemSourceRendered(canvasElement.querySelector(SOURCE_TAG) as HTMLElement);
-        const samples = Array.from(canvasElement.querySelectorAll<HTMLElement>('cem-demo-element'));
-        expect(samples).toHaveLength(10);
-        for (const [index, sample] of samples.entries()) {
-            await step(sample.getAttribute('legend') ?? '', async () => {
-                if (index >= 7) {
-                    const expected = [cemtSource, xsltSource, aspectsSource][index - 7];
-                    await waitFor(() => expect(sample.querySelector('[slot=text] code')?.textContent).toBe(expected));
-                    expect(sample).toHaveAttribute('data-state', 'ready');
-                    expect(sample.querySelector('[slot=demo]')?.innerHTML).toBe('');
-                    return;
-                }
-                const viewer = sample.querySelector('article')?.parentElement;
-                if (!viewer) throw new Error('Table viewer missing');
-                if (index === 4 || index === 6) {
-                    await verifyAspects(viewer);
-                } else {
-                    const cells: Cells = index === 0
-                        ? [['10', 'caterpie', '∅', '∅'], ['2', 'ivysaur', '🌱', '∅'], ['3', 'venusaur', '""', null]]
-                        : index === 1 ? [['10', '🍒', 'sweet, red'], ['2', '🍋', 'say "zest"'], ['3', '🍌', '""']]
-                        : index === 2 ? [['10', '🍒', null, '∅'], ['2', '🍋', '∅', 'true'], ['3', '🍌', '∅', 'false']]
-                        : jsonCells;
-                    const table = index === 0 ? 'table[aria-label$="/row"]' : 'table[aria-label="document"]';
-                    const headings = index === 0 ? ['@id', '#text', '@mood', 'evolutions']
-                        : index === 2 ? ['qty', 'fruit', 'tags', 'fresh'] : ['qty', 'fruit', 'note'];
-                    if (index === 0) {
-                        await expectTable(viewer, 'table[aria-label$="/name"]', [['🌿'], ['🌸']]);
+        let sampleIndex = -1;
+        const capture = await captureJourneyFailure('table/EveryAuthoredSample', () => ({
+            connected: canvasElement.isConnected, sampleIndex,
+            samples: Array.from(canvasElement.querySelectorAll('cem-demo-element')).slice(0, 10).map(sample => ({
+                connected: sample.isConnected, state: sample.getAttribute('data-state'),
+                tables: sample.querySelectorAll('table').length, rows: sample.querySelectorAll('tbody > tr').length,
+                selectedRows: sample.querySelectorAll('tr[aria-selected=true]').length,
+                textareas: sample.querySelectorAll('textarea').length, alerts: sample.querySelectorAll('[role=alert]').length,
+                codes: cemDiagnosticCodes(sample as HTMLElement).slice(0, 10),
+            })),
+        }));
+        try {
+            capture.mark('source render');
+            await whenCemSourceRendered(canvasElement.querySelector(SOURCE_TAG) as HTMLElement);
+            const samples = Array.from(canvasElement.querySelectorAll<HTMLElement>('cem-demo-element'));
+            expect(samples).toHaveLength(10);
+            for (const [index, sample] of samples.entries()) {
+                sampleIndex = index;
+                const phase = (label: string) => capture.mark(`sample:${index}/${label}`);
+                phase('start');
+                await step(sample.getAttribute('legend') ?? '', async () => {
+                    if (index >= 7) {
+                        phase('source viewer');
+                        const expected = [cemtSource, xsltSource, aspectsSource][index - 7];
+                        await waitFor(() => expect(sample.querySelector('[slot=text] code')?.textContent).toBe(expected));
+                        expect(sample).toHaveAttribute('data-state', 'ready');
+                        expect(sample.querySelector('[slot=demo]')?.innerHTML).toBe('');
+                        return;
                     }
-                    if (index === 2) {
-                        await expectTable(viewer, 'table[aria-label="tags"]', [['red'], ['sweet']]);
+                    const viewer = sample.querySelector('article')?.parentElement;
+                    if (!viewer) throw new Error('Table viewer missing');
+                    if (index === 4 || index === 6) {
+                        await verifyAspects(viewer, phase);
+                    } else {
+                        const cells: Cells = index === 0
+                            ? [['10', 'caterpie', '∅', '∅'], ['2', 'ivysaur', '🌱', '∅'], ['3', 'venusaur', '""', null]]
+                            : index === 1 ? [['10', '🍒', 'sweet, red'], ['2', '🍋', 'say "zest"'], ['3', '🍌', '""']]
+                            : index === 2 ? [['10', '🍒', null, '∅'], ['2', '🍋', '∅', 'true'], ['3', '🍌', '∅', 'false']]
+                            : jsonCells;
+                        const table = index === 0 ? 'table[aria-label$="/row"]' : 'table[aria-label="document"]';
+                        const headings = index === 0 ? ['@id', '#text', '@mood', 'evolutions']
+                            : index === 2 ? ['qty', 'fruit', 'tags', 'fresh'] : ['qty', 'fruit', 'note'];
+                        if (index === 0) {
+                            await expectTable(viewer, 'table[aria-label$="/name"]', [['🌿'], ['🌸']]);
+                        }
+                        if (index === 2) {
+                            await expectTable(viewer, 'table[aria-label="tags"]', [['red'], ['sweet']]);
+                        }
+                        expect(viewer.querySelectorAll('table')).toHaveLength(index === 0 || index === 2 ? 2 : 1);
+                        await verifyTable(viewer, table, index === 0 ? '@id' : 'qty', headings, cells, phase);
+                        if (index === 3 || index === 5) {
+                            phase('invalid source/render');
+                            const input = viewer.querySelector('textarea') as HTMLTextAreaElement;
+                            const original = input.value;
+                            input.value = '[oops]';
+                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                            await whenCemRendered(viewer);
+                            phase('invalid source/alert');
+                            await waitFor(() => expect(viewer.querySelector('[role=alert]')).toHaveTextContent('⚠'));
+                            expect(viewer.querySelector('table')).toBeNull();
+                            phase('invalid source/reset');
+                            within(viewer).getByRole('button', { name: 'Reset source' }).click();
+                            await whenCemRendered(viewer);
+                            await expectTable(viewer, table, cells, [1]);
+                            expect(input.value).toBe(original);
+                            expect(viewer.querySelector('[role=alert]')).toBeNull();
+                        }
                     }
-                    expect(viewer.querySelectorAll('table')).toHaveLength(index === 0 || index === 2 ? 2 : 1);
-                    await verifyTable(viewer, table, index === 0 ? '@id' : 'qty', headings, cells);
-                    if (index === 3 || index === 5) {
-                        const input = viewer.querySelector('textarea') as HTMLTextAreaElement;
-                        const original = input.value;
-                        input.value = '[oops]';
-                        input.dispatchEvent(new Event('change', { bubbles: true }));
-                        await whenCemRendered(viewer);
-                        await waitFor(() => expect(viewer.querySelector('[role=alert]')).toHaveTextContent('⚠'));
-                        expect(viewer.querySelector('table')).toBeNull();
-                        within(viewer).getByRole('button', { name: 'Reset source' }).click();
-                        await whenCemRendered(viewer);
-                        await expectTable(viewer, table, cells, [1]);
-                        expect(input.value).toBe(original);
-                        expect(viewer.querySelector('[role=alert]')).toBeNull();
-                    }
-                }
-                expect(cemDiagnosticCodes(viewer)).toEqual([]);
-            });
-        }
-        mark('complete');
+                    expect(cemDiagnosticCodes(viewer)).toEqual([]);
+                });
+                phase('complete');
+            }
+            mark('complete');
+            capture.mark('complete');
+        } finally { capture.freeze(); }
     },
 };
 

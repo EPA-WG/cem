@@ -451,6 +451,7 @@
             "inputs": [
                 "{projectRoot}/docs/demo-storybook-coverage.json",
                 "{projectRoot}/.storybook/demo-coverage.ts",
+                "{projectRoot}/.storybook/journey-diagnostics.ts",
                 "{projectRoot}/src/**/*.ts",
                 "{workspaceRoot}/packages/cem-demo-element/demo/index.html",
                 "{workspaceRoot}/packages/cem-demo-element/demo/dwarfs.json",

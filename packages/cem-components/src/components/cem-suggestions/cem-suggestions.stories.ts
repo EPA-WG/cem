@@ -1,5 +1,5 @@
 import { expect, waitFor, userEvent } from 'storybook/test';
-import preview, { loadCemDeclaration, loadCemComponent, whenCemRendered, storybookCemRuntime, nativeTap, nativeTouchGesture, nativePenDrag, nativeWheel } from '../../../../cem-elements/.storybook/preview.js';
+import preview, { loadCemDeclaration, loadCemComponent, whenCemRendered, storybookCemRuntime, nativeTap, nativeTouchGesture, nativePenDrag, nativeWheel, captureJourneyFailure } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-suggestions.xhtml?raw';
 
 const meta = preview.meta({
@@ -97,29 +97,56 @@ export const NativePointerTapsKeepBothEditorsFocused = meta.story({
     play: async ({ canvasElement }) => {
         if (import.meta.env.MODE !== 'test') return; // Chromium native-input evidence is browser-runner-only.
         const { cdp } = await import('vitest/browser');
-        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-suggestions')) {
-            const { input } = await ready(host), form = host.closest('form') as HTMLFormElement;
-            for (const pointerType of ['mouse', 'touch', 'pen'] as const) {
-                form.querySelector<HTMLButtonElement>('button')?.focus(); form.reset(); await ready(host); input.focus();
-                await waitFor(() => expect(input.getAttribute('aria-expanded')).toBe('true'));
-                const row = host.querySelector<HTMLElement>('[part=option]') as HTMLElement;
-                const events: string[] = [], pointers: PointerEvent[] = [];
-                const changes = (event: Event) => events.push(event.type);
-                const down = (event: PointerEvent) => pointers.push(event);
-                input.addEventListener('input', changes); input.addEventListener('change', changes); row.addEventListener('pointerdown', down);
-                try {
-                    await nativeTap(cdp(), row, pointerType);
-                    await waitFor(() => expect(pointers.map(event => ({ type: event.pointerType, trusted: event.isTrusted, cancelled: event.defaultPrevented })))
-                        .toEqual([{ type: pointerType, trusted: true, cancelled: pointerType === 'mouse' }]));
-                    await waitFor(() => expect(input.value).toBe('a'));
-                    expect(input.ownerDocument.activeElement).toBe(input);
-                    expect(events).toEqual(['input', 'change']);
-                    expect(new FormData(form).getAll('choice')).toEqual(['a']);
-                    expect(host.querySelector('input')).toBe(input);
-                    await waitFor(() => expect(input.getAttribute('aria-expanded')).toBe('false'));
-                } finally { input.removeEventListener('input', changes); input.removeEventListener('change', changes); row.removeEventListener('pointerdown', down); }
+        let active: { host: HTMLElement; input?: HTMLInputElement; pointer?: string; events?: string[]; pointers?: PointerEvent[] } | undefined;
+        const capture = await captureJourneyFailure('suggestions/NativePointerTapsKeepBothEditorsFocused', () => ({
+            connected: canvasElement.isConnected, pointer: active?.pointer,
+            inputConnected: active?.input?.isConnected, inputFocused: !!active?.input && active.input.ownerDocument.activeElement === active.input,
+            expanded: active?.input?.getAttribute('aria-expanded'), inputLength: active?.input?.value.length,
+            rows: active?.host.querySelectorAll('[part=option]').length,
+            surfaceOpen: active?.host.querySelector('[part=surface]')?.matches(':popover-open'),
+            events: active?.events?.slice(-8),
+            pointers: active?.pointers?.slice(-4).map(event => ({ type: event.pointerType, trusted: event.isTrusted, cancelled: event.defaultPrevented })),
+            codes: active ? storybookCemRuntime().diagnosticsFor(active.host).slice(0, 10).map(item => item.code) : [],
+        }));
+        try {
+            for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-suggestions')) {
+                active = { host };
+                const provider = host.closest('form')?.getAttribute('aria-label');
+                capture.mark(`${provider}/ready`);
+                const { input } = await ready(host), form = host.closest('form') as HTMLFormElement;
+                active.input = input;
+                for (const pointerType of ['mouse', 'touch', 'pen'] as const) {
+                    active.pointer = pointerType;
+                    active.events = []; active.pointers = [];
+                    capture.mark(`${provider}/${pointerType}/reset`);
+                    form.querySelector<HTMLButtonElement>('button')?.focus(); form.reset(); await ready(host); input.focus();
+                    capture.mark(`${provider}/${pointerType}/open`);
+                    await waitFor(() => expect(input.getAttribute('aria-expanded')).toBe('true'));
+                    const row = host.querySelector<HTMLElement>('[part=option]') as HTMLElement;
+                    const events: string[] = [], pointers: PointerEvent[] = [];
+                    active.events = events; active.pointers = pointers;
+                    const changes = (event: Event) => events.push(event.type);
+                    const down = (event: PointerEvent) => pointers.push(event);
+                    input.addEventListener('input', changes); input.addEventListener('change', changes); row.addEventListener('pointerdown', down);
+                    try {
+                        capture.mark(`${provider}/${pointerType}/tap`);
+                        await nativeTap(cdp(), row, pointerType);
+                        capture.mark(`${provider}/${pointerType}/pointer publication`);
+                        await waitFor(() => expect(pointers.map(event => ({ type: event.pointerType, trusted: event.isTrusted, cancelled: event.defaultPrevented })))
+                            .toEqual([{ type: pointerType, trusted: true, cancelled: pointerType === 'mouse' }]));
+                        capture.mark(`${provider}/${pointerType}/value publication`);
+                        await waitFor(() => expect(input.value).toBe('a'));
+                        expect(input.ownerDocument.activeElement).toBe(input);
+                        expect(events).toEqual(['input', 'change']);
+                        expect(new FormData(form).getAll('choice')).toEqual(['a']);
+                        expect(host.querySelector('input')).toBe(input);
+                        capture.mark(`${provider}/${pointerType}/closed`);
+                        await waitFor(() => expect(input.getAttribute('aria-expanded')).toBe('false'));
+                    } finally { input.removeEventListener('input', changes); input.removeEventListener('change', changes); row.removeEventListener('pointerdown', down); }
+                }
             }
-        }
+            capture.mark('complete');
+        } finally { capture.freeze(); }
     },
 });
 

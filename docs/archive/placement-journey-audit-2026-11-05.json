@@ -1,0 +1,970 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-05",
+  "scope": "Focused historical journey audit and passive fixture diagnostics, not a full workspace or physical-device acceptance",
+  "baselineCommit": "a3accb4cedc97e22b5c597ea177efc8522778ee1",
+  "environment": {
+    "browser": "Google Chrome for Testing 148.0.7778.96",
+    "platform": "linux",
+    "kernel": "6.18.54.1-microsoft-standard-WSL2",
+    "node": "v24.16.0",
+    "headless": true
+  },
+  "originalTimeoutMs": 30000,
+  "baselineSourcePins": [
+    {
+      "path": "packages/cem-elements/src/lib/data-table-demo.stories.ts",
+      "sha256": "dacdd11cff0ad0069e755e08080666a90d60eadb412ec71e3a193082fabbf179"
+    },
+    {
+      "path": "packages/cem-elements/src/lib/set-url-demo.stories.ts",
+      "sha256": "d7a7707869202311cdd9de6dbc5d503ba9f0c576807e89b4618c3c1fd5461d50"
+    },
+    {
+      "path": "packages/cem-components/src/components/cem-suggestions/cem-suggestions.stories.ts",
+      "sha256": "243cf3697d81e6930943e0a16c1e68162e5234f4ce33352984e5feddad489c36"
+    }
+  ],
+  "unchangedCohort": {
+    "files": 3,
+    "passed": 20,
+    "failed": 0,
+    "localLog": "/tmp/cem-placement-audit-baseline.log"
+  },
+  "unchangedIsolatedControls": [
+    {
+      "case": "table",
+      "passed": 1,
+      "skipped": 5,
+      "tests": [
+        {
+          "name": "Every Authored Sample",
+          "durationMs": 11204.5
+        }
+      ]
+    },
+    {
+      "case": "url",
+      "passed": 1,
+      "skipped": 0,
+      "tests": [
+        {
+          "name": "Every Authored Sample",
+          "durationMs": 9465.2
+        }
+      ]
+    },
+    {
+      "case": "pointer",
+      "passed": 1,
+      "skipped": 12,
+      "tests": [
+        {
+          "name": "Native Pointer Taps Keep Both Editors Focused",
+          "durationMs": 5207.9
+        }
+      ]
+    }
+  ],
+  "controlledTimeout": {
+    "expectedFailure": true,
+    "temporaryStoryRemoved": true,
+    "durationMs": 30010.6,
+    "originalFailureMessageCount": 2,
+    "originalFailureStackFirstLine": "Error: STACK_TRACE_ERROR",
+    "capture": {
+      "story": "controlled-journey-timeout",
+      "elapsedMs": 29988.9,
+      "records": [
+        {
+          "phase": "control:9",
+          "elapsedMs": 1.8
+        },
+        {
+          "phase": "control:10",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:11",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:12",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:13",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:14",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:15",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:16",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:17",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:18",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:19",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:20",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:21",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:22",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:23",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:24",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:25",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:26",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:27",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:28",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:29",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:30",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:31",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:32",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:33",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:34",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:35",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:36",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:37",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:38",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "control:39",
+          "elapsedMs": 1.9
+        },
+        {
+          "phase": "held at original runner deadline",
+          "elapsedMs": 1.9
+        }
+      ],
+      "dropped": 9,
+      "state": {
+        "connected": true,
+        "control": true
+      }
+    }
+  },
+  "unitCapture": {
+    "passed": 3,
+    "failed": 0,
+    "scope": "Bounded monotonic phases, pre-cleanup copied state, late-update refusal and unavailable-inspection fallback"
+  },
+  "assertionAudit": "AST comparison retains every original expect, waitFor, whenCemRendered, whenCemSourceRendered, nativeTap, userEvent and history-restoration call",
+  "historicalAttribution": "Unattributed; current controls pass. The held runner test proves capture, not a historical cause.",
+  "frozenPresentation": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864",
+    "unchanged": true
+  },
+  "initialInstrumentedCohort": {
+    "passed": 35,
+    "failed": 0,
+    "files": [
+      {
+        "path": "packages/cem-elements/src/lib/data-table-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Every Authored Sample",
+            "status": "passed",
+            "durationMs": 21894.3
+          },
+          {
+            "name": "Xml Namespaces And Inert Text",
+            "status": "passed",
+            "durationMs": 1003.3
+          },
+          {
+            "name": "Matching Presentation Aspects",
+            "status": "passed",
+            "durationMs": 1502.2
+          },
+          {
+            "name": "Text Patch Identity And Dirty Textarea",
+            "status": "passed",
+            "durationMs": 44.8
+          },
+          {
+            "name": "Native Xslt Viewer",
+            "status": "passed",
+            "durationMs": 1631.7
+          },
+          {
+            "name": "Imported Xslt Presentation Aspects",
+            "status": "passed",
+            "durationMs": 2168.2
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/data-tree-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Dirty Checkbox Patches",
+            "status": "passed",
+            "durationMs": 106.2
+          },
+          {
+            "name": "Editing Selection And Disclosure",
+            "status": "passed",
+            "durationMs": 13488.2
+          },
+          {
+            "name": "Malformed Source Recovery",
+            "status": "passed",
+            "durationMs": 976.8
+          },
+          {
+            "name": "Source Relative Requests",
+            "status": "passed",
+            "durationMs": 1652.2
+          },
+          {
+            "name": "External Source Previews",
+            "status": "passed",
+            "durationMs": 203.6
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/http-request-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Every Authored Sample",
+            "status": "passed",
+            "durationMs": 10770.7
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/local-storage-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Every Authored Sample",
+            "status": "passed",
+            "durationMs": 13585.1
+          },
+          {
+            "name": "Native Json Root Transitions",
+            "status": "passed",
+            "durationMs": 157.8
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/location-element-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Every Authored Sample",
+            "status": "passed",
+            "durationMs": 1600.4
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/module-url-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Every Authored Sample",
+            "status": "passed",
+            "durationMs": 3411.5
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/module-url-referrer-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Every Authored Sample",
+            "status": "passed",
+            "durationMs": 1312.3
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/set-url-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Every Authored Sample",
+            "status": "passed",
+            "durationMs": 22830
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/table-inspector-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Rebound Dirty Checkbox",
+            "status": "passed",
+            "durationMs": 72.4
+          },
+          {
+            "name": "Columns And Text",
+            "status": "passed",
+            "durationMs": 9103.4
+          },
+          {
+            "name": "Multiple Selection And Recovery",
+            "status": "passed",
+            "durationMs": 2857.6
+          },
+          {
+            "name": "Independent Nested Tables",
+            "status": "passed",
+            "durationMs": 1796.8
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-components/src/components/cem-suggestions/cem-suggestions.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Both Field Providers Keep Submission Ownership",
+            "status": "passed",
+            "durationMs": 10741.2
+          },
+          {
+            "name": "Grouped Captured Labels",
+            "status": "passed",
+            "durationMs": 1674.7
+          },
+          {
+            "name": "Localized Feedback And Explicit Input Conflict",
+            "status": "passed",
+            "durationMs": 967.8
+          },
+          {
+            "name": "Native Pointer Taps Keep Both Editors Focused",
+            "status": "passed",
+            "durationMs": 7397.1
+          },
+          {
+            "name": "Independent Filtering Availability And Source Replacement",
+            "status": "passed",
+            "durationMs": 5058.2
+          },
+          {
+            "name": "Commit Veto And Raw Public Event Coherence",
+            "status": "passed",
+            "durationMs": 3313.1
+          },
+          {
+            "name": "Browser Composition Settles Without Terminal Commit Or Submit",
+            "status": "passed",
+            "durationMs": 2069.3
+          },
+          {
+            "name": "Native Pan Cancellation Drag And Outside Focus",
+            "status": "passed",
+            "durationMs": 2397
+          },
+          {
+            "name": "Native Pan Cancellation Drag And Outside Focus Text Field",
+            "status": "passed",
+            "durationMs": 2089.3
+          },
+          {
+            "name": "Unsupported Editors And Input Conflicts Suspend Then Recover",
+            "status": "passed",
+            "durationMs": 3415.8
+          },
+          {
+            "name": "Native Datalist Keeps Original Fields And Values",
+            "status": "passed",
+            "durationMs": 1325.9
+          },
+          {
+            "name": "Native Profile Changes Release The Previous Route",
+            "status": "passed",
+            "durationMs": 311.3
+          },
+          {
+            "name": "Native Datalist Browser Editing Evidence",
+            "status": "passed",
+            "durationMs": 334.4
+          }
+        ]
+      }
+    ],
+    "phaseTraces": [
+      {
+        "story": "set-url/EveryAuthoredSample",
+        "totalPhaseCount": 91,
+        "tail": [
+          {
+            "phase": "readers/render",
+            "elapsedMs": 22337.6
+          },
+          {
+            "phase": "readers/hash wait",
+            "elapsedMs": 22365.5
+          },
+          {
+            "phase": "readers/render",
+            "elapsedMs": 22494.5
+          },
+          {
+            "phase": "readers/hash wait",
+            "elapsedMs": 22495.8
+          },
+          {
+            "phase": "readers/render",
+            "elapsedMs": 22637.9
+          },
+          {
+            "phase": "readers/hash wait",
+            "elapsedMs": 22640.4
+          },
+          {
+            "phase": "readers/render",
+            "elapsedMs": 22765.5
+          },
+          {
+            "phase": "complete",
+            "elapsedMs": 22781.3
+          }
+        ]
+      },
+      {
+        "story": "table/EveryAuthoredSample",
+        "totalPhaseCount": 118,
+        "tail": [
+          {
+            "phase": "sample:7/complete",
+            "elapsedMs": 21838.6
+          },
+          {
+            "phase": "sample:8/start",
+            "elapsedMs": 21838.9
+          },
+          {
+            "phase": "sample:8/source viewer",
+            "elapsedMs": 21839.9
+          },
+          {
+            "phase": "sample:8/complete",
+            "elapsedMs": 21842.7
+          },
+          {
+            "phase": "sample:9/start",
+            "elapsedMs": 21842.9
+          },
+          {
+            "phase": "sample:9/source viewer",
+            "elapsedMs": 21843.8
+          },
+          {
+            "phase": "sample:9/complete",
+            "elapsedMs": 21846.8
+          },
+          {
+            "phase": "complete",
+            "elapsedMs": 21848.2
+          }
+        ]
+      },
+      {
+        "story": "suggestions/NativePointerTapsKeepBothEditorsFocused",
+        "totalPhaseCount": 39,
+        "tail": [
+          {
+            "phase": "cem-text-field/touch/closed",
+            "elapsedMs": 6242
+          },
+          {
+            "phase": "cem-text-field/pen/reset",
+            "elapsedMs": 6370.5
+          },
+          {
+            "phase": "cem-text-field/pen/open",
+            "elapsedMs": 6668.1
+          },
+          {
+            "phase": "cem-text-field/pen/tap",
+            "elapsedMs": 6765.3
+          },
+          {
+            "phase": "cem-text-field/pen/pointer publication",
+            "elapsedMs": 7093.3
+          },
+          {
+            "phase": "cem-text-field/pen/value publication",
+            "elapsedMs": 7096.6
+          },
+          {
+            "phase": "cem-text-field/pen/closed",
+            "elapsedMs": 7102.2
+          },
+          {
+            "phase": "complete",
+            "elapsedMs": 7225
+          }
+        ]
+      }
+    ],
+    "defaultFileParallelism": true,
+    "storyTimingEnabled": true,
+    "deepTreeMutationTracing": false,
+    "fullWorkspaceGate": false,
+    "committedPassingTraceTailLimit": 8
+  },
+  "finalCohort": {
+    "passed": 35,
+    "failed": 0,
+    "files": [
+      {
+        "path": "packages/cem-elements/src/lib/data-table-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Every Authored Sample",
+            "status": "passed",
+            "durationMs": 17197.2
+          },
+          {
+            "name": "Xml Namespaces And Inert Text",
+            "status": "passed",
+            "durationMs": 823
+          },
+          {
+            "name": "Matching Presentation Aspects",
+            "status": "passed",
+            "durationMs": 1388.4
+          },
+          {
+            "name": "Text Patch Identity And Dirty Textarea",
+            "status": "passed",
+            "durationMs": 43.4
+          },
+          {
+            "name": "Native Xslt Viewer",
+            "status": "passed",
+            "durationMs": 1588.9
+          },
+          {
+            "name": "Imported Xslt Presentation Aspects",
+            "status": "passed",
+            "durationMs": 2164
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/data-tree-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Dirty Checkbox Patches",
+            "status": "passed",
+            "durationMs": 67
+          },
+          {
+            "name": "Editing Selection And Disclosure",
+            "status": "passed",
+            "durationMs": 9613.9
+          },
+          {
+            "name": "Malformed Source Recovery",
+            "status": "passed",
+            "durationMs": 1032.2
+          },
+          {
+            "name": "Source Relative Requests",
+            "status": "passed",
+            "durationMs": 1524.8
+          },
+          {
+            "name": "External Source Previews",
+            "status": "passed",
+            "durationMs": 197.1
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/http-request-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Every Authored Sample",
+            "status": "passed",
+            "durationMs": 7851.5
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/local-storage-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Every Authored Sample",
+            "status": "passed",
+            "durationMs": 9736.3
+          },
+          {
+            "name": "Native Json Root Transitions",
+            "status": "passed",
+            "durationMs": 196.3
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/location-element-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Every Authored Sample",
+            "status": "passed",
+            "durationMs": 1579
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/module-url-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Every Authored Sample",
+            "status": "passed",
+            "durationMs": 3011.1
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/module-url-referrer-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Every Authored Sample",
+            "status": "passed",
+            "durationMs": 1252.2
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/set-url-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Every Authored Sample",
+            "status": "passed",
+            "durationMs": 18600
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-elements/src/lib/table-inspector-demo.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Rebound Dirty Checkbox",
+            "status": "passed",
+            "durationMs": 96.7
+          },
+          {
+            "name": "Columns And Text",
+            "status": "passed",
+            "durationMs": 6236.9
+          },
+          {
+            "name": "Multiple Selection And Recovery",
+            "status": "passed",
+            "durationMs": 2665.5
+          },
+          {
+            "name": "Independent Nested Tables",
+            "status": "passed",
+            "durationMs": 1278.2
+          }
+        ]
+      },
+      {
+        "path": "packages/cem-components/src/components/cem-suggestions/cem-suggestions.stories.ts",
+        "status": "passed",
+        "tests": [
+          {
+            "name": "Both Field Providers Keep Submission Ownership",
+            "status": "passed",
+            "durationMs": 7938.3
+          },
+          {
+            "name": "Grouped Captured Labels",
+            "status": "passed",
+            "durationMs": 1657.3
+          },
+          {
+            "name": "Localized Feedback And Explicit Input Conflict",
+            "status": "passed",
+            "durationMs": 746.8
+          },
+          {
+            "name": "Native Pointer Taps Keep Both Editors Focused",
+            "status": "passed",
+            "durationMs": 5988.3
+          },
+          {
+            "name": "Independent Filtering Availability And Source Replacement",
+            "status": "passed",
+            "durationMs": 4807.9
+          },
+          {
+            "name": "Commit Veto And Raw Public Event Coherence",
+            "status": "passed",
+            "durationMs": 3254.6
+          },
+          {
+            "name": "Browser Composition Settles Without Terminal Commit Or Submit",
+            "status": "passed",
+            "durationMs": 2054.1
+          },
+          {
+            "name": "Native Pan Cancellation Drag And Outside Focus",
+            "status": "passed",
+            "durationMs": 2395.4
+          },
+          {
+            "name": "Native Pan Cancellation Drag And Outside Focus Text Field",
+            "status": "passed",
+            "durationMs": 1936.7
+          },
+          {
+            "name": "Unsupported Editors And Input Conflicts Suspend Then Recover",
+            "status": "passed",
+            "durationMs": 2779.2
+          },
+          {
+            "name": "Native Datalist Keeps Original Fields And Values",
+            "status": "passed",
+            "durationMs": 1160.7
+          },
+          {
+            "name": "Native Profile Changes Release The Previous Route",
+            "status": "passed",
+            "durationMs": 282.7
+          },
+          {
+            "name": "Native Datalist Browser Editing Evidence",
+            "status": "passed",
+            "durationMs": 294.4
+          }
+        ]
+      }
+    ],
+    "phaseTraces": [
+      {
+        "story": "set-url/EveryAuthoredSample",
+        "totalPhaseCount": 91,
+        "tail": [
+          {
+            "phase": "readers/render",
+            "elapsedMs": 18185
+          },
+          {
+            "phase": "readers/hash wait",
+            "elapsedMs": 18210.5
+          },
+          {
+            "phase": "readers/render",
+            "elapsedMs": 18310.5
+          },
+          {
+            "phase": "readers/hash wait",
+            "elapsedMs": 18312.5
+          },
+          {
+            "phase": "readers/render",
+            "elapsedMs": 18410.4
+          },
+          {
+            "phase": "readers/hash wait",
+            "elapsedMs": 18412.6
+          },
+          {
+            "phase": "readers/render",
+            "elapsedMs": 18525
+          },
+          {
+            "phase": "complete",
+            "elapsedMs": 18536.8
+          }
+        ]
+      },
+      {
+        "story": "table/EveryAuthoredSample",
+        "totalPhaseCount": 118,
+        "tail": [
+          {
+            "phase": "sample:7/complete",
+            "elapsedMs": 17142.6
+          },
+          {
+            "phase": "sample:8/start",
+            "elapsedMs": 17143.8
+          },
+          {
+            "phase": "sample:8/source viewer",
+            "elapsedMs": 17145.1
+          },
+          {
+            "phase": "sample:8/complete",
+            "elapsedMs": 17148.6
+          },
+          {
+            "phase": "sample:9/start",
+            "elapsedMs": 17148.9
+          },
+          {
+            "phase": "sample:9/source viewer",
+            "elapsedMs": 17149.8
+          },
+          {
+            "phase": "sample:9/complete",
+            "elapsedMs": 17151.8
+          },
+          {
+            "phase": "complete",
+            "elapsedMs": 17152.4
+          }
+        ]
+      },
+      {
+        "story": "suggestions/NativePointerTapsKeepBothEditorsFocused",
+        "totalPhaseCount": 39,
+        "tail": [
+          {
+            "phase": "cem-text-field/touch/closed",
+            "elapsedMs": 5062.3
+          },
+          {
+            "phase": "cem-text-field/pen/reset",
+            "elapsedMs": 5161
+          },
+          {
+            "phase": "cem-text-field/pen/open",
+            "elapsedMs": 5422.7
+          },
+          {
+            "phase": "cem-text-field/pen/tap",
+            "elapsedMs": 5499
+          },
+          {
+            "phase": "cem-text-field/pen/pointer publication",
+            "elapsedMs": 5753.9
+          },
+          {
+            "phase": "cem-text-field/pen/value publication",
+            "elapsedMs": 5755
+          },
+          {
+            "phase": "cem-text-field/pen/closed",
+            "elapsedMs": 5758.3
+          },
+          {
+            "phase": "complete",
+            "elapsedMs": 5869.4
+          }
+        ]
+      }
+    ],
+    "defaultFileParallelism": true,
+    "storyTimingEnabled": true,
+    "deepTreeMutationTracing": false,
+    "fullWorkspaceGate": false,
+    "committedPassingTraceTailLimit": 8
+  },
+  "checks": {
+    "elementsLint": {
+      "errors": 0,
+      "existingWarnings": 818
+    },
+    "componentsLint": {
+      "errors": 0,
+      "warnings": 171
+    },
+    "declarativeArchitecture": {
+      "components": 59,
+      "legacyComponents": 0,
+      "legacyAuthoredJsTsFiles": 0
+    },
+    "approvedSetupImport": true,
+    "architectureGuardUnchanged": true
+  },
+  "failureCaptureLimit": 32
+}

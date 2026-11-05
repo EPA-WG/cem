@@ -1,4 +1,5 @@
 import { readinessCheckpoint, readinessWait } from '../../.storybook/readiness-timing.js';
+import { captureJourneyFailure } from '../../.storybook/journey-diagnostics.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, userEvent } from 'storybook/test';
 import { cemDiagnosticCodes, traceCemReadiness, whenCemSourceRendered } from '../../.storybook/preview.js';
@@ -24,30 +25,48 @@ export const EveryAuthoredSample: Story = {
         const originalUrl = location.href;
         const originalState = history.state;
         const host = requiredElement(canvasElement, SOURCE_TAG);
+        const initialHistoryLength = history.length;
+        let expectedHash: string | undefined;
+        const capture = await captureJourneyFailure('set-url/EveryAuthoredSample', () => ({
+            connected: host.isConnected, historyDelta: history.length - initialHistoryLength,
+            hashMatchesExpected: expectedHash === undefined ? null : location.hash === expectedHash,
+            samples: Array.from(host.querySelectorAll('cem-demo-element[legend]')).slice(0, 4).map(sample => ({
+                buttons: sample.querySelectorAll('button').length, outputs: sample.querySelectorAll('output').length,
+                inputs: sample.querySelectorAll('input').length,
+                readerMatchesExpected: expectedHash === undefined ? null : Array.from(sample.querySelectorAll('output')).at(-1)?.textContent === expectedHash,
+            })), codes: cemDiagnosticCodes(host).slice(0, 10),
+        }));
         const readHash = async (hash: string): Promise<void> => {
+            expectedHash = hash;
+            capture.mark('readers/hash wait');
             await waitForCondition(() => location.hash === hash
                 && Array.from(host.querySelectorAll('cem-demo-element[legend]')).every(sample =>
                     Array.from(sample.querySelectorAll('output')).at(-1)?.textContent === hash),
             `all four live readers show ${hash}`);
+            capture.mark('readers/render');
             await whenCemSourceRendered(host);
             expect(location.hash).toBe(hash);
         };
         const command = async (button: HTMLButtonElement, method: string, hash: string): Promise<void> => {
+            capture.mark(`command:${method}/first click`);
             const before = history.length;
             const sameTarget = location.hash === hash;
             await userEvent.click(button);
             await readHash(hash);
             expect(history.length).toBe(before + (sameTarget || method === 'history.replaceState' || method === 'location.replace' ? 0 : 1));
             const after = history.length;
+            capture.mark(`command:${method}/repeat click`);
             await userEvent.click(button);
             await whenCemSourceRendered(host);
             expect(location.hash).toBe(hash);
             expect(history.length).toBe(after);
         };
         try {
+            capture.mark('source cards');
             await waitForCondition(() => host.querySelectorAll('cem-demo-element[legend]').length === 4,
                 'all four set-url samples render from the HTML source');
             await whenCemSourceRendered(host);
+            capture.mark('source settled');
             const samples = EXPECTED_LEGENDS.map(legend => sampleByLegend(host, legend));
             expect(samples.map(sample => sample.getAttribute('legend'))).toEqual([...EXPECTED_LEGENDS]);
             readinessCheckpoint('set-url-initial-settled', {
@@ -64,6 +83,7 @@ export const EveryAuthoredSample: Story = {
             expect(outputs(samples[3])).toEqual(['history.pushState', '#form-driven', initialHash]);
 
             await step(EXPECTED_LEGENDS[0], async () => {
+                capture.mark('sample:0/start');
                 const sample = samples[0];
                 expect(Array.from(sample.querySelectorAll('button'), button => button.value)).toEqual(['#hash-one', '#hash-two']);
                 for (const hash of ['#hash-one', '#hash-two']) {
@@ -72,6 +92,7 @@ export const EveryAuthoredSample: Story = {
                 }
             });
             await step(EXPECTED_LEGENDS[1], async () => {
+                capture.mark('sample:1/start');
                 const sample = samples[1];
                 expect(Array.from(sample.querySelectorAll('button'), button => button.value)).toEqual([...METHODS]);
                 for (const method of METHODS) {
@@ -80,6 +101,7 @@ export const EveryAuthoredSample: Story = {
                 }
             });
             await step(EXPECTED_LEGENDS[2], async () => {
+                capture.mark('sample:2/keyboard command');
                 const button = buttonByName(samples[2], 'Set');
                 expect(button.type).toBe('button');
                 expect(button.title).toBe('Set');
@@ -89,6 +111,7 @@ export const EveryAuthoredSample: Story = {
                 expect(requiredElement(samples[2], 'button')).toBe(button);
             });
             await step(EXPECTED_LEGENDS[3], async () => {
+                capture.mark('sample:3/start');
                 const sample = samples[3];
                 const input = requiredElement(sample, 'input[type="text"]') as HTMLInputElement;
                 expect(input.value).toBe('#form-driven');
@@ -96,6 +119,7 @@ export const EveryAuthoredSample: Story = {
                 expect((requiredElement(sample, 'input:checked') as HTMLInputElement).value).toBe('history.pushState');
                 const button = buttonByName(sample, 'Set');
                 for (const method of METHODS) {
+                    capture.mark(`form:${method}/edit draft`);
                     const previousHash = location.hash;
                     const previousLength = history.length;
                     const radio = requiredElement(sample, `input[value="${method}"]`) as HTMLInputElement;
@@ -105,6 +129,7 @@ export const EveryAuthoredSample: Story = {
                     await waitForCondition(() => outputs(sample)[0] === method && outputs(sample)[1] === input.value,
                         `the ${method} draft is visible`);
                     await whenCemSourceRendered(host);
+                    capture.mark(`form:${method}/draft settled`);
                     expect(outputs(sample)).toEqual([method, `#form-${method}`, previousHash]);
                     expect(location.hash).toBe(previousHash);
                     expect(history.length).toBe(previousLength);
@@ -148,10 +173,12 @@ export const EveryAuthoredSample: Story = {
                 }
             }
             readinessCheckpoint('set-url-journey-verified');
+            capture.mark('complete');
         } catch (error) {
             readinessCheckpoint('set-url-assertion-failed');
             throw error;
         } finally {
+            capture.freeze();
             history.replaceState(originalState, '', originalUrl);
         }
     },
