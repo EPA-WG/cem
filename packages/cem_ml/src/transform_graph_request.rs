@@ -2211,15 +2211,32 @@ fn resource_bindings(uri: &str, binding_uri: &str, index: usize) -> BTreeMap<Str
         .map(|value| value.to_string_lossy().into_owned())
         .unwrap_or_default();
     let dir = path.parent().map(path_display_slash).unwrap_or_default();
+    let page = page_binding(&file).to_owned();
     BTreeMap::from([
         ("src".to_owned(), uri.to_owned()),
         ("path".to_owned(), path_display_slash(path)),
         ("dir".to_owned(), dir),
         ("file".to_owned(), file),
+        ("page".to_owned(), page),
         ("stem".to_owned(), stem),
         ("ext".to_owned(), ext),
         ("index".to_owned(), index.to_string()),
     ])
+}
+
+/// A routing name, not format inference or permission to execute page content.
+/// Preserve unknown suffixes and require a nonempty name before stripping one
+/// registered page suffix. Compound suffixes never use repeated stem removal.
+fn page_binding(file: &str) -> &str {
+    let lower = file.to_ascii_lowercase();
+    for suffix in [".cem.md", ".html", ".cem"] {
+        if let Some(prefix) = lower.strip_suffix(suffix) {
+            if !prefix.is_empty() {
+                return &file[..prefix.len()];
+            }
+        }
+    }
+    file
 }
 
 fn required_field<'a>(
@@ -3269,6 +3286,92 @@ mod tests {
 
     use super::*;
     use crate::transform_config::{parse_transform_graph_config, TransformGraphParseRequest};
+
+    #[test]
+    fn page_binding_strips_one_registered_suffix_and_preserves_legacy_bindings() {
+        for (file, page, stem, ext) in [
+            ("guide.cem.md", "guide", "guide.cem", "md"),
+            ("guide.html", "guide", "guide", "html"),
+            ("guide.cem", "guide", "guide", "cem"),
+            ("Guide.CEM.MD", "Guide", "Guide.CEM", "MD"),
+            ("release.v2.html", "release.v2", "release.v2", "html"),
+            ("release.cem.cem.md", "release.cem", "release.cem.cem", "md"),
+            ("caf\u{e9}.cem.md", "caf\u{e9}", "caf\u{e9}.cem", "md"),
+            ("guide.md", "guide.md", "guide", "md"),
+            ("guide.xhtml", "guide.xhtml", "guide", "xhtml"),
+            ("guide.html.txt", "guide.html.txt", "guide.html", "txt"),
+            (".cem.md", ".cem.md", ".cem", "md"),
+            (".html", ".html", ".html", ""),
+        ] {
+            let uri = format!("memory:/source/{file}");
+            let path = format!("content/{file}");
+            let bindings = resource_bindings(&uri, &path, 7);
+            assert_eq!(bindings.get("page").map(String::as_str), Some(page), "{file}");
+            for (name, expected) in [("src", uri.as_str()), ("path", path.as_str()),
+                ("dir", "content"), ("file", file), ("stem", stem), ("ext", ext), ("index", "7")] {
+                assert_eq!(bindings[name], expected, "legacy {name} for {file}");
+            }
+        }
+    }
+
+    #[test]
+    fn page_binding_is_shared_by_file_uri_and_manifest_graph_lowering() {
+        let fixture = FixtureDir::new();
+        let source = br#"{run | {import @id=pages @src="inputs/*" @content-type="text/cem-ml" |
+          {transform @id=route @src="templates/{page}.cem" @template-content-type="text/cem-ml" @template-schema="https://cem.dev/ns/template/cem-native/1" |
+            {param @name=pageName @value="{page}"}{param @name=legacyStem @value="{stem}"}
+            {param @name=pageUrl @value="https://docs.example.test/{page}/"}
+            {export @id=html @out="public/{page}/index.html" @content-type="text/html"}
+          }
+        }}"#;
+        let config = fixture.write("graph.cem", source);
+        let config_uri = url::Url::from_file_path(&config).unwrap().to_string();
+        let mut resources = BTreeMap::new();
+        for (file, page) in [("guide.cem.md", "guide"), ("news.html", "news"), ("plain.md", "plain.md")] {
+            for path in [format!("inputs/{file}"), format!("templates/{page}.cem")] {
+                let local = fixture.write(&path, b"{fixture}");
+                resources.insert(url::Url::from_file_path(local).unwrap().to_string(), VirtualResourceV1 {
+                    bytes: b"{fixture}".to_vec(), identity: None,
+                });
+            }
+        }
+        let graph = graph(&config_uri, source);
+        let context = EngineContext::default();
+        let filesystem = FilesystemTransformGraphResourceProvider::new(&context, &config_uri);
+        let manifest = ManifestTransformGraphResourceProvider::new(&config_uri, &resources);
+        let actual = lower_transform_graph_request(&context, &graph, &filesystem, &config_uri, true).unwrap();
+        let portable = lower_transform_graph_request(&context, &graph, &manifest, &config_uri, true).unwrap();
+        assert_request_parts_equal(&actual, &portable);
+        assert_eq!(actual.stages.len(), 3);
+        assert_eq!(actual.exports.len(), 3);
+        for (stage, output) in actual.stages.iter().zip(&actual.exports) {
+            let page = stage.params["pageName"].as_str().unwrap();
+            assert_eq!(stage.params["pageUrl"], format!("https://docs.example.test/{page}/"));
+            assert!(stage.template.uri.ends_with(&format!("/templates/{page}.cem")));
+            assert!(output.destination.as_ref().unwrap().ends_with(&format!("/public/{page}/index.html")));
+        }
+        for input in &actual.imports {
+            assert_eq!(input.input.identity.as_ref().unwrap().content_type.as_deref(), Some("text/cem-ml"));
+            assert!(input.input.uri.starts_with("file:///"));
+        }
+        assert!(actual.imports.iter().any(|input| input.input.uri.ends_with("guide.cem.md")));
+    }
+
+    #[test]
+    fn page_binding_keeps_duplicate_destinations_subject_to_runtime_preflight() {
+        let fixture = FixtureDir::new();
+        let source = br#"{run | {import @id=pages @src="inputs/*" @content-type="text/cem-ml" |
+          {export @id=page @out="public/{page}/index.cem" @content-type="text/cem-ml"}
+        }}"#;
+        let config = fixture.write("graph.cem", source);
+        fixture.write("inputs/guide.html", b"{a}");
+        fixture.write("inputs/guide.cem.md", b"{b}");
+        let context = EngineContext::default();
+        let provider = FilesystemTransformGraphResourceProvider::new(&context, &config);
+        let request = lower_transform_graph_request(&context, &graph(&config, source), &provider, &config, true).unwrap();
+        assert!(engine::validate_transform_graph_runtime_contract(&request).iter()
+            .any(|diagnostic| diagnostic.code == "cem.transform_runtime.duplicate_destination"));
+    }
 
     static FIXTURE_ID: AtomicU64 = AtomicU64::new(0);
 

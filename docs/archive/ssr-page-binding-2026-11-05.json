@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-05",
+  "baseCommit": "84f09bedaa25506140d983ccb8bf1ba20db98e2e",
+  "scope": "Shared native graph filename binding, ordinary CEMT graph fan-out and output publication; SSR page rendering/adoption remains unimplemented",
+  "failingFirst": {
+    "nativeLibrary": {
+      "failed": 3,
+      "reason": "missing page binding"
+    },
+    "nativeExecutable": {
+      "failed": 2,
+      "reason": "missing page binding"
+    },
+    "oldPackagedNode": {
+      "passed": 61,
+      "failed": 2,
+      "reason": "new route/collision cases reject unknown page binding"
+    }
+  },
+  "validation": {
+    "nativeGraphRequests": {
+      "passed": 19,
+      "failed": 0
+    },
+    "requestedNoDefaultFeaturesNewCases": {
+      "passed": 3,
+      "failed": 0
+    },
+    "nativeExecutablePageRoutes": {
+      "passed": 2,
+      "failed": 0
+    },
+    "nativeExecutableModuleConformance": {
+      "passed": 8,
+      "failed": 0
+    },
+    "nativeCliTransformConfig": {
+      "passed": 34,
+      "failed": 0
+    },
+    "wasmRuntime": {
+      "passed": 30,
+      "failed": 0,
+      "completeXsltContracts": "passed"
+    },
+    "nodeServiceAndExecutable": {
+      "passed": 63,
+      "failed": 0
+    },
+    "browserCommandService": "passed, including original ownership/startup/cancellation checks",
+    "lowLevelLint": "passed",
+    "cliLint": {
+      "errors": 0,
+      "existingWarnings": 1
+    },
+    "fullWorkspaceGate": false
+  },
+  "bindingRules": {
+    "suffixes": [
+      ".cem.md",
+      ".html",
+      ".cem"
+    ],
+    "asciiCaseInsensitive": true,
+    "singleSuffixOnly": true,
+    "emptyPrefixPreservesFilename": true,
+    "unknownSuffixPreservesFilename": true,
+    "legacyBindingsUnchanged": true,
+    "sourceIdentityUnchanged": true,
+    "contentTypeInferenceUnchanged": true,
+    "addsSsrCommand": false,
+    "addsCemMarkdownAdmission": false
+  },
+  "negativeControls": {
+    "unknownBindingCode": "cem.transform_config.output_binding_unknown",
+    "nativeCliUnknownBindingExit": 2,
+    "nodeCliCurrentUnknownBindingExit": 7,
+    "collisionCode": "cem.transform_runtime.duplicate_destination",
+    "collisionExit": 1,
+    "legacyStemCollisionControl": "passed",
+    "priorOutputsPreserved": true
+  },
+  "wasm": [
+    {
+      "path": "packages/cem-ml-npm/dist/wasm/browser/cem_ml_bg.wasm",
+      "bytes": 24898879,
+      "sha256": "0f365148f9c3e49d7c3a98bc60c1e98394c1f77f303a7a62e227e46bc8575ad3"
+    },
+    {
+      "path": "packages/cem-ml-npm/dist/wasm/node/cem_ml_bg.wasm",
+      "bytes": 24898879,
+      "sha256": "0f365148f9c3e49d7c3a98bc60c1e98394c1f77f303a7a62e227e46bc8575ad3"
+    }
+  ],
+  "cliRuntimeIntegrityPin": "a54ae0b5a163fa221c67a9b7f9decf76835142113d4ba7ccfbaf98937ec66a18",
+  "commandSchemaVersion": 1,
+  "browserPageBinding": {
+    "status": "succeeded",
+    "exitCode": 0,
+    "diagnostics": 0,
+    "outputs": [
+      {
+        "page": "guide",
+        "text": "<p>guide</p><p>guide.cem</p><a href=\"https://docs.example.test/guide/\">Route</a>"
+      },
+      {
+        "page": "news",
+        "text": "<p>news</p><p>news</p><a href=\"https://docs.example.test/news/\">Route</a>"
+      },
+      {
+        "page": "plain.md",
+        "text": "<p>plain.md</p><p>plain</p><a href=\"https://docs.example.test/plain.md/\">Route</a>"
+      }
+    ]
+  },
+  "frozenPresentation": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864",
+    "unchanged": true
+  },
+  "next": [
+    "Native source/page/base/output route identity and preflight",
+    "Retained typed SSR artifact contract",
+    "Shared page lifecycle, then inline declaration/instance hydration slice"
+  ]
+}

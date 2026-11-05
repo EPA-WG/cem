@@ -32,6 +32,7 @@ globalThis.runCemMlBrowserFixture = async (scenario) => {
     if (scenario === 'command-native-pressure') return runNativePressureFixture();
     if (scenario === 'command-service') return runCommandServiceFixture();
     if (scenario === 'command-all-operations') return runCommandAllOperationsFixture();
+    if (scenario === 'command-page-binding') return runPageBindingFixture();
     if (scenario === 'command-cancellation') return runCommandCancellationFixture();
     if (scenario === 'command-close') return runCommandCloseFixture();
     if (scenario === 'command-worker-failure') return runCommandWorkerFailureFixture();
@@ -172,6 +173,60 @@ async function runCodeDeadlineFixture() {
         await new Promise(resolve => setTimeout(resolve, 0));
         return { failure, requested, posted, terminated };
     } finally { release(); globalThis.Worker = NativeWorker; globalThis.fetch = originalFetch; }
+}
+
+async function runPageBindingFixture() {
+    const routes = [['guide.cem.md', 'guide', 'guide.cem'], ['news.html', 'news', 'news'], ['plain.md', 'plain.md', 'plain']];
+    const sources = {
+        'graph.cem': `{run | {import @id=pages @src="inputs/*" @content-type="text/cem-ml" |
+          {transform @id=route @src="templates/{page}.cem" @template-content-type="text/cem-ml" @template-schema="https://cem.dev/ns/template/cem-native/1" @entrypoint=page |
+            {param @name=pageName @value="{page}"}{param @name=legacyStem @value="{stem}"}
+            {param @name=pageUrl @value="https://docs.example.test/{page}/"}
+            {export @id=html @out="out/{page}/index.html" @content-type="text/html"}
+          }
+        }}`,
+    };
+    for (const [file, page] of routes) {
+        sources[`inputs/${file}`] = '{article | Input}';
+        sources[`templates/${page}.cem`] = `{@doc cem-ml 1}
+          {module | {template @name=page @visibility=public |
+            {param @name=pageName @required=true}{param @name=legacyStem @required=true}{param @name=pageUrl @required=true}
+            {body | {p | {$pageName}}{p | {$legacyStem}}{a @href="{$pageUrl}" | Route}}
+          }}`;
+    }
+    const resources = new Map(Object.entries(sources).map(([path, source]) => [`file://${fixtureDirectory}/${path}`, new TextEncoder().encode(source)]));
+    let ledger;
+    const writes = new Map();
+    const client = await createBrowserCommandServiceClient({ host: {
+        currentRevision: async () => ledger,
+        readResource: async request => { throw new Error(`unexpected non-inline read ${request.uri}`); },
+        prepareWrite: async (request, bytes) => {
+            const token = String(writes.size);
+            writes.set(token, { uri: request.uri, bytes: new Uint8Array(bytes), committed: false });
+            return { token };
+        },
+        commitWrite: async token => { const write = writes.get(token); write.committed = true; return { uri: write.uri }; },
+        rollbackWrite: async token => { writes.delete(token); },
+    } });
+    try {
+        const invocation = await buildBrowserCommandInvocation(parseCemMlCommand(['transform', '--config', 'graph.cem'], { runtime: 'wasm-browser-worker' }),
+            async requirement => requirement.kind === 'read'
+                ? [{ uri: requirement.uri, bytes: resources.get(requirement.uri) }]
+                : [...resources].map(([uri, bytes]) => ({ uri, bytes })),
+            { requestId: 'browser-page-binding', projectId: 'browser-page-binding', projectRevision: 1, resourceRevision: 1, cwd: fixtureDirectory });
+        ledger = { project: invocation.request.project, resourceVersions: invocation.request.resourceVersions };
+        const handle = client.execute(invocation.request);
+        try {
+            const result = await handle;
+            const decoder = new TextDecoder();
+            return { status: result.status, exitCode: result.exitCode, diagnostics: result.diagnostics.originalCount,
+                outputs: routes.map(([, page]) => {
+                    const uri = `file://${fixtureDirectory}/out/${page}/index.html`;
+                    const write = [...writes.values()].find(write => write.uri === uri && write.committed);
+                    return { page, text: write ? decoder.decode(write.bytes) : null };
+                }) };
+        } finally { await handle.dispose(); }
+    } finally { await client.close(); }
 }
 
 async function runCommandAllOperationsFixture() {

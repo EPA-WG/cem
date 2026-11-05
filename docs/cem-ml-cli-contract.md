@@ -162,12 +162,19 @@ Source-derived binding names:
 - `{path}` is the matched path relative to the config document directory when possible.
 - `{dir}` is the directory portion of `{path}`.
 - `{file}` is the file name with extension.
+- `{page}` is the logical page name: strip exactly one nonempty page suffix
+  (`.cem.md`, `.html` or `.cem`, ASCII case-insensitive). For example,
+  `guide.cem.md` becomes `guide`, while `{stem}` remains `guide.cem`.
+  Unknown suffixes remain part of the name (`guide.md` stays `guide.md`), and
+  a suffix-only filename such as `.html` remains intact. This is routing
+  metadata; it does not infer a content type/schema or activate CEM-enabled Markdown.
 - `{stem}` is the file name without its final extension.
 - `{ext}` is the final extension without the dot.
 - `{index}` is the stable zero-based index of the match within a sorted import match list.
 
 Bindings are attached to imported artifacts, preserved by one-to-one transform stages,
-and consumed by export `@out` templates. Missing bindings are hard config errors.
+and consumed by template `@src`, parameter `@value` and export `@out` templates.
+These string bindings do not supply URL validation or escaping. Missing bindings are hard config errors.
 Duplicate resolved output destinations are hard runtime errors before writes begin.
 
 Cross-input joins are allowed through explicit references, not inference. A transform

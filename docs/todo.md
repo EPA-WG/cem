@@ -565,6 +565,33 @@ through Phase 9 release governance.
       refusals and source/client parity, without executing arbitrary page
       JavaScript. Keep this behind the current Studio sample priorities.
 
+- [x] SSR Phase A routing increment: add normalized `{page}` bindings to the
+      shared native graph lowerer for `.html`, `.cem` and compound `.cem.md`
+      filenames. Strip exactly one registered suffix, preserve legacy bindings
+      and explicit source/content-type identities, and retain unknown-binding
+      and duplicate-output refusals. Add failing native/provider and actual CLI
+      fan-out/collision fixtures before implementation, plus Node/WASM service
+      and executable regressions against the old packaged runtime, and a browser
+      worker graph/publication fixture; do not claim SSR rendering
+      or CEM-enabled Markdown admission from this routing-only increment.
+      Completed 2026-11-05: native failing-first vectors/provider/preflight tests
+      pass in both requested feature profiles; 19 graph-request, 34 CLI config,
+      eight template-conformance and two new executable tests pass. Rebuilt WASM
+      passes 30 runtime tests plus native XSLT contracts; Node passes 63/63 and
+      browser workers commit all three exact routed exports. Both lint targets
+      pass. Legacy bindings, refusal codes, budgets and frozen delivery remain.
+      [Archive](archive/todo-completed-ssr-page-binding-2026-11-05.md).
+
+- [ ] SSR Phase A route preflight: retain distinct source URI, deployed page URL,
+      effective document base and output URI. Validate page URLs and duplicate
+      normalized routes before execution; keep output paths out of render identity
+      and preserve explicit resolver/read-map authority and source-map ownership.
+
+- [ ] SSR artifact contract: retain the existing native DOM projection owner in
+      a typed SSR envelope with explicit lifecycle/adoption identity and bounded
+      policy. Add native artifact/report/cache fixtures before wiring the shared
+      page lifecycle; unrendered or partial output must not claim hydration readiness.
+
 
 ## Component gallery source-link maintenance (after Studio presentation work)
 

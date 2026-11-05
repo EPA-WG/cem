@@ -289,6 +289,13 @@ try {
     assert.ok(allOperations.summaries.some(({ presentationTargets }) => presentationTargets.length > 0));
     assert.ok(allOperations.committedWrites > 0);
 
+    const pageBinding = await runFixture(page, 'command-page-binding');
+    assert.equal(pageBinding.status, 'succeeded'); assert.equal(pageBinding.exitCode, 0); assert.equal(pageBinding.diagnostics, 0);
+    assert.deepEqual(pageBinding.outputs, [['guide', 'guide.cem'], ['news', 'news'], ['plain.md', 'plain']].map(([page, stem]) => ({
+        page, text: `<p>${page}</p><p>${stem}</p><a href="https://docs.example.test/${page}/">Route</a>`,
+    })));
+    console.log('Verified command-page-binding: three native graph exports preserve page, stem and deployed URL values.');
+
     const cancellation = await runFixture(page, 'command-cancellation');
     assert.equal(cancellation.acknowledgement.requestId, 'browser-command-cancel');
     assert.equal(cancellation.acknowledgement.disposition, 'accepted');
@@ -365,6 +372,7 @@ try {
                 identity: command.resultIdentity,
                 successProgress: command.progress,
                 operations: allOperations.summaries,
+                pageBinding,
                 cancellation,
                 codeStartup,
             },

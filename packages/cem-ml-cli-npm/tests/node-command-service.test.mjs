@@ -17,6 +17,73 @@ import {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
+const PAGE_ROUTE_TEMPLATE = `{@doc cem-ml 1}
+{module | {template @name=page @visibility=public |
+  {param @name=pageName @required=true}{param @name=legacyStem @required=true}{param @name=pageUrl @required=true}
+  {body | {p | {$pageName}}{p | {$legacyStem}}{a @href="{$pageUrl}" | Route}}
+}}`;
+const PAGE_ROUTES = [['guide.cem.md', 'guide', 'guide.cem'], ['news.html', 'news', 'news'], ['plain.md', 'plain.md', 'plain']];
+const pageRouteGraph = directory => `{run | {import @id=pages @src="inputs/*" @content-type="text/cem-ml" |
+  {transform @id=route @src="templates/{page}.cem" @template-content-type="text/cem-ml" @template-schema="https://cem.dev/ns/template/cem-native/1" @entrypoint=page |
+    {param @name=pageName @value="{page}"}{param @name=legacyStem @value="{stem}"}
+    {param @name=pageUrl @value="https://docs.example.test/{page}/"}
+    {export @id=html @out="${directory}/{page}/index.html" @content-type="text/html"}
+  }
+}}`;
+
+test('Node/WASM and executable page bindings preserve compound names, legacy stem and output-root independence', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'cem-page-route-É #%-'));
+    let service;
+    try {
+        await mkdir(join(directory, 'inputs')); await mkdir(join(directory, 'templates'));
+        for (const [file, page] of PAGE_ROUTES) {
+            await writeFile(join(directory, 'inputs', file), '{article | Input}');
+            await writeFile(join(directory, 'templates', `${page}.cem`), PAGE_ROUTE_TEMPLATE);
+        }
+        await writeFile(join(directory, 'graph.cem'), pageRouteGraph('out'));
+        service = await createNodeCommandService({ cwd: directory, stdout: new FixtureWritable(), stderr: new FixtureWritable() });
+        const execution = await service.run(parseCemMlCommand(['transform', '--config', 'graph.cem', '--no-color'], { runtime: 'wasm-node' }));
+        try {
+            const result = await execution.handle;
+            assert.equal(result.exitCode, 0, JSON.stringify(result.diagnostics));
+            assert.equal(result.diagnostics.originalCount, 0);
+            await service.publish(execution.invocation, result);
+        } finally { await execution.handle.dispose(); }
+        await writeFile(join(directory, 'graph.cem'), pageRouteGraph('another-output-root'));
+        const output = spawnSync(process.execPath, [fileURLToPath(new URL('../dist/bin.js', import.meta.url)),
+            'transform', '--config', 'graph.cem', '--no-color'], { cwd: directory, encoding: 'utf8', timeout: 30_000 });
+        assert.equal(output.error, undefined); assert.equal(output.status, 0, output.stderr);
+        assert.equal(output.stdout, ''); assert.equal(output.stderr, '');
+        for (const [, page, stem] of PAGE_ROUTES) {
+            const expected = `<p>${page}</p><p>${stem}</p><a href="https://docs.example.test/${page}/">Route</a>`;
+            assert.equal(await readFile(join(directory, 'out', page, 'index.html'), 'utf8'), expected);
+            assert.equal(await readFile(join(directory, 'another-output-root', page, 'index.html'), 'utf8'), expected);
+        }
+    } finally { await service?.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('Node/WASM executable page collisions and unknown bindings preserve prior output', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'cem-page-refusal-'));
+    try {
+        await mkdir(join(directory, 'inputs')); await mkdir(join(directory, 'out/guide'), { recursive: true });
+        await writeFile(join(directory, 'inputs/guide.html'), '{p | First}');
+        await writeFile(join(directory, 'inputs/guide.cem.md'), '{p | Second}');
+        await writeFile(join(directory, 'inputs/guide.cem'), '{p | Legacy collision control}');
+        await writeFile(join(directory, 'out/guide/index.cem'), 'prior publication');
+        // Preserve the Node host's current lowering-refusal exit as well as its code.
+        for (const [binding, code, exit] of [['pages', 'output_binding_unknown', 7], ['stem', 'duplicate_destination', 1], ['page', 'duplicate_destination', 1]]) {
+            await writeFile(join(directory, 'graph.cem'), `{run | {import @id=pages @src="inputs/*" @content-type="text/cem-ml" |
+              {export @id=page @out="out/{${binding}}/index.cem" @content-type="text/cem-ml"}
+            }}`);
+            const output = spawnSync(process.execPath, [fileURLToPath(new URL('../dist/bin.js', import.meta.url)),
+                'transform', '--config', 'graph.cem', '--no-color'], { cwd: directory, encoding: 'utf8', timeout: 30_000 });
+            assert.equal(output.error, undefined); assert.equal(output.status, exit, output.stderr);
+            assert.ok(output.stderr.includes(code), output.stderr);
+            assert.equal(await readFile(join(directory, 'out/guide/index.cem'), 'utf8'), 'prior publication');
+        }
+    } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
 test('Node folder discovery includes root and nested files and bounds deep traversal', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'cem-node-folder-& [space]-'));
     try {

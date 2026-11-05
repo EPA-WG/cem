@@ -1,7 +1,8 @@
 # CEM-ML CLI Whole-Page SSR Proposal
 
-**Status:** Proposal; the command and page compiler described here are not yet
-implemented.
+**Status:** The normalized `{page}` graph binding from Phase A is implemented.
+The SSR command, page artifact/coordinator and page compiler described here
+remain proposed and are not yet implemented.
 
 **Applies to:** `cem-ml`, CEMT transform graphs, `cem-elements`, Edge/SSR
 hosts, browser hydration, HTML/CEM-ML/Markdown page sources, and repository demo
@@ -596,10 +597,13 @@ required pages succeed.
 
 ### 8.3 `.cem.md` to clean route and `index.html`
 
-For a source named `guide.cem.md`, the logical page name should be `guide`, not
-`guide.cem`. Add a normalized `{page}` binding which strips one registered page
-suffix (`.html`, `.cem`, or `.cem.md`) without applying arbitrary repeated
-extension removal.
+For a source named `guide.cem.md`, the logical page name is `guide`, while the
+legacy `{stem}` remains `guide.cem`. The shared graph lowerer now provides
+`{page}` by stripping one nonempty registered suffix (`.html`, `.cem`, or
+`.cem.md`, ASCII case-insensitive), without repeated extension removal. Unknown
+suffixes remain intact. This binding is available in ordinary template paths,
+parameters and output destinations; the SSR stages and CEM-enabled Markdown
+adapter in this example still require implementation.
 
 ```cem
 {run |
@@ -851,7 +855,9 @@ schema, scope stack, resolver/policy stamps, and a source-map frame.
 
 - Add `SsrPageRoute` with distinct source URI, page URL, document base URL, and
   output URI.
-- Add normalized `{page}` binding and direct-command lowering rules.
+- Normalized `{page}` graph binding implemented; see the
+  [routing increment](archive/todo-completed-ssr-page-binding-2026-11-05.md).
+- Add direct-command SSR lowering rules.
 - Add binary-first SSR page artifact and schema identities.
 - Extend reports and cache identities before adding output writes.
 
