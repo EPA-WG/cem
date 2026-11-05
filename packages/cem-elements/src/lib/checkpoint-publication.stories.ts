@@ -1,7 +1,7 @@
 import { prepareCemRetainedWidgetResume } from './checkpoint-form-resume.js';
 import { captureCheckpointControls } from './checkpoint-controls.js';
 import { isolatedOwnerReplacement } from './checkpoint-owner-replacement.fixtures.js';
-import { isolatedMediaResume } from './retained-media.fixtures.js';
+import { isolatedMediaResume, createWorkerAllocationDiagnostics } from './retained-media.fixtures.js';
 import { retainCemMlTemplateSource, disposeRetainedCemMlTemplate } from './internal/runtime-support/cem-ql-render.js';
 import { connectCemNativeSurface } from './native-surface.js';
 import type { NativeCemValue } from './native-values.js';
@@ -4166,18 +4166,26 @@ async function mediaResumeStory(canvasElement: HTMLElement, scenarios: string[],
     const root = canvasElement.querySelector('section')!, base = new URL('../../dist/', import.meta.url).href;
     for (const scenario of scenarios) {
         const frame = document.createElement('iframe'), id = crypto.randomUUID(); root.append(frame); let stop = () => undefined;
+        let allocation: unknown;
         try {
             const result = new Promise<string>((resolve, reject) => {
-                let stage = 'load'; const timer = setTimeout(() => reject(Error(`${scenario}/${stage}: retained media timed out`)), 25000);
+                let stage = 'load'; const timer = setTimeout(() => reject(Error(`${scenario}/${stage}: retained media timed out; allocation=${JSON.stringify(allocation)}`)), 25000);
                 const receive = (event: MessageEvent) => { if (event.source !== frame.contentWindow) return;
-                    if (event.data?.progress) { stage = event.data.progress; return; } if (event.data?.id !== id) return;
+                    if (event.data?.progress) { stage = event.data.progress; allocation = event.data.allocation; return; } if (event.data?.id !== id) return;
+                    if (event.data.allocation) allocation = event.data.allocation;
                     if (event.data.error) reject(Error(event.data.error)); else resolve(event.data.result); };
                 window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
             });
             const hook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
-            frame.srcdoc = `<script type="module">${hook}(${driver.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)}, ${JSON.stringify(mediaPreviewDeclaration)})
-                .then(result => parent.postMessage({id:${JSON.stringify(id)},result},'*'), error => parent.postMessage({id:${JSON.stringify(id)},error:error.stack||String(error)},'*'));</script>`;
+            frame.srcdoc = `<script type="module">${hook}const allocation = (${createWorkerAllocationDiagnostics.toString()})();
+                (${driver.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)}, ${JSON.stringify(mediaPreviewDeclaration)}, undefined, allocation)
+                .then(result => parent.postMessage({id:${JSON.stringify(id)},result,allocation:allocation.snapshot()},'*'), error => parent.postMessage({id:${JSON.stringify(id)},error:error.stack||String(error)},'*'));</script>`;
             expect(await result).toBe(`${scenario} media passed`);
+            if (scenario === 'worker-static-change') {
+                const trace = allocation as ReturnType<ReturnType<typeof createWorkerAllocationDiagnostics>['snapshot']>;
+                expect(trace.workers.some(worker => worker.fresh && worker.events.some(event => event.phase === 'headroom-ready'))).toBe(true);
+                console.warn('cem.worker-allocation', JSON.stringify(trace));
+            }
         } finally { stop(); frame.remove(); }
     }
 }

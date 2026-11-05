@@ -1,5 +1,42 @@
 /** Isolated browser acceptance driver; never included by the runtime. */
-export async function isolatedMediaResume(base: string, load: (url: string) => Promise<any>, scenario: string, source: string, createServices?: (scope: any) => Promise<any>): Promise<string> {
+export function createWorkerAllocationDiagnostics(now = () => performance.now()) {
+    const start = now(), workers: { fresh: boolean; events: { phase: string; atMs: number }[] }[] = [];
+    const allocations: { phase: string; atMs: number }[] = [];
+    let dropped = 0;
+    return {
+        phase(phase: 'allocation-start' | 'allocation-admitted' | 'allocation-refused') {
+            if (allocations.length < 16) allocations.push({ phase, atMs: Math.round(now() - start) }); else dropped++;
+        },
+        observe(worker: Worker, fresh: boolean) {
+            if (workers.length >= 16) { dropped++; return; }
+            const record = { fresh, events: [] as { phase: string; atMs: number }[] }; workers.push(record);
+            const mark = (phase: string) => {
+                if (record.events.length < 16) record.events.push({ phase, atMs: Math.round(now() - start) });
+                else dropped++;
+            };
+            mark('created');
+            worker.addEventListener('message', event => {
+                const message = event.data;
+                if (message?.direction === 'ready') mark('transport-ready');
+                if (message?.protocol === 'cem-rendering-retirement-v2' && message.direction === 'response' && message.action === 'inspect')
+                    mark(message.ok === true ? 'headroom-ready' : 'headroom-refused');
+            });
+            worker.addEventListener('error', () => mark('worker-error'));
+            worker.addEventListener('messageerror', () => mark('message-error'));
+            const post = worker.postMessage, terminate = worker.terminate;
+            worker.postMessage = function(this: Worker, ...args: [unknown, (Transferable[] | StructuredSerializeOptions)?]) {
+                const message = args[0] as Record<string, unknown> | null;
+                if (message?.protocol === 'cem-rendering-retirement-v2' && message.direction === 'request' && message.action === 'inspect') mark('headroom-request');
+                return Reflect.apply(post, this, args);
+            };
+            worker.terminate = function(this: Worker) { mark('terminated'); return Reflect.apply(terminate, this, []); };
+        },
+        snapshot: () => ({ elapsedMs: Math.round(now() - start), dropped, allocations: allocations.map(event => ({ ...event })),
+            workers: workers.map(worker => ({ fresh: worker.fresh, events: worker.events.map(event => ({ ...event })) })) }),
+    };
+}
+
+export async function isolatedMediaResume(base: string, load: (url: string) => Promise<any>, scenario: string, source: string, createServices?: (scope: any) => Promise<any>, allocation?: ReturnType<typeof createWorkerAllocationDiagnostics>): Promise<string> {
     const support = new URL('lib/internal/runtime-support/', base).href;
     const binding = await load(`${support}native-runtime.js`), initial = binding.isolateCemFallbackGeneration(); await initial.ready();
     const [{ CemElementRuntime }, { createCemDeclarationScope }, { CemCheckpointPublicationCoordinator }, { resumeCemCheckpointOwners }, { CemNativeRecoveryScope }, artifacts] = await Promise.all([
@@ -13,8 +50,10 @@ export async function isolatedMediaResume(base: string, load: (url: string) => P
         allowOwner: () => true, seal: (candidate: string, receipt: string) => binding.sealCommittedCheckpoint(candidate, receipt) });
     const eventTrace: string[] = [];
     const runtime = new CemElementRuntime({ declarationScope: scope, checkpointPublication: coordinator, recoveryScope,
-        declarationTag: `media-declaration-${crypto.randomUUID()}`, processingWorkerFactory: () => {
-            if (fallback) throw Error('owned fallback'); return new Worker(`${support}processing-worker.js`, { type: 'module' });
+        declarationTag: `media-declaration-${crypto.randomUUID()}`, processingWorkerFactory: (request: { name: string }) => {
+            if (fallback) throw Error('owned fallback');
+            const worker = new Worker(`${support}processing-worker.js`, { type: 'module' });
+            allocation?.observe(worker, request.name.endsWith('-fresh')); return worker;
         } });
     runtime.install(window);
     const services = await createServices?.(recoveryScope);
@@ -29,7 +68,7 @@ export async function isolatedMediaResume(base: string, load: (url: string) => P
     };
     const tree = artifacts.registerCemArtifactTree([{ path: 'index.html', contentType: 'text/html', bytes: new TextEncoder().encode('<input value="Artifact"><a href="#section">Next</a><h2 id="section">Section</h2>') }]);
     let heap = initial, embedding = initial.claimOwnership(), admission: any, combined: any, stage = 'mount';
-    const progress = setInterval(() => parent.postMessage({ progress: stage }, '*'), 250);
+    const progress = setInterval(() => parent.postMessage({ progress: stage, allocation: allocation?.snapshot() }, '*'), 250);
     const nativeSrcdoc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'srcdoc')!;
     let previousLoad: Promise<void> | undefined, releaseNavigation: (() => void) | undefined;
     if (scenario.endsWith('-load')) Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', { ...nativeSrcdoc,
@@ -172,6 +211,7 @@ export async function isolatedMediaResume(base: string, load: (url: string) => P
                 current: plan.current, retain: () => new TextEncoder().encode('terminal command ledger; no outstanding handles or effects'),
             }));
             stage = `allocate ${cycle}`; const previous = admission;
+            allocation?.phase('allocation-start');
             const allocating = group.allocate(retired);
             if (scenario.includes('-select') && cycle === 0) {
                 check(heldSelect.length > 0, 'trusted native select notification was not intercepted');
@@ -185,7 +225,8 @@ export async function isolatedMediaResume(base: string, load: (url: string) => P
                     return `${scenario} media passed`;
                 }
             }
-            admission = await allocating;
+            try { admission = await allocating; allocation?.phase('allocation-admitted'); }
+            catch (error) { allocation?.phase('allocation-refused'); throw error; }
             if (scenario.endsWith('release')) tree.dispose();
             if (scenario === 'worker-frame') artifactFrame.srcdoc = '<p>Changed document</p>';
             if (scenario.endsWith('static-change')) statics[0].root.append(document.createTextNode('changed'));
@@ -221,6 +262,6 @@ export async function isolatedMediaResume(base: string, load: (url: string) => P
         check(navigations === 1 && artifact.textContent!.includes('Artifact view ready') && artifactFrame.contentDocument === artifactDocument, 'fresh callback lost or remounted document');
         check(!services || commandRuns === 3, 'command work replayed during handoff');
         return `${scenario} media passed`;
-    } catch (error) { throw Error(`${scenario}/${stage}: ${error instanceof Error ? error.stack : String(error)} events=${JSON.stringify(eventTrace.slice(-16))} peers=${JSON.stringify([coordinator, ...coordinator.previewCoordinators()].map(c => c.inspectRecovery()))}`, { cause: error }); }
+    } catch (error) { throw Error(`${scenario}/${stage}: ${error instanceof Error ? error.stack : String(error)} allocation=${JSON.stringify(allocation?.snapshot())} events=${JSON.stringify(eventTrace.slice(-16))} peers=${JSON.stringify([coordinator, ...coordinator.previewCoordinators()].map(c => c.inspectRecovery()))}`, { cause: error }); }
     finally { Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', nativeSrcdoc); clearInterval(progress); await services?.close(); admission?.revoke(); combined?.dispose(); document.body.replaceChildren(); scope.dispose(); coordinator.dispose(); tree.dispose(); recoveryScope.dispose(); for (const restore of restoreSelect) restore(); }
 }

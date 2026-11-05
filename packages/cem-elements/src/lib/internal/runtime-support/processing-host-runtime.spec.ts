@@ -975,6 +975,68 @@ it.each(['revoke', 'worker-loss'])('fences generation-bound fresh roots without 
 });
 
 
+it.each(['readiness', 'inspection'])('diagnoses held fresh-worker %s at the original group deadline', async held => {
+    const { createWorkerAllocationDiagnostics } = await import('../../retained-media.fixtures.js');
+    const { nativeGenerationParticipant } = await import('./checkpoint-domain.js');
+    const { CemNativeGenerationGroup, registerNativeGeneration, completeNativeRetirement } = await import('./native-generation.js');
+    class HeldWorker extends ControlledProcessingWorker {
+        release = () => undefined;
+        constructor(readonly fresh: boolean) { super(); }
+        protected override emit(type: string, data: CemProcessingResponseEnvelope | ReturnType<typeof createCemProcessingReadyEnvelope> | CemRenderingRetirementControl) {
+            if (this.fresh && held === 'readiness' && data.direction === 'ready') {
+                this.release = () => super.emit(type, data); return;
+            }
+            super.emit(type, data);
+        }
+        override postMessage(request: CemProcessingRequestEnvelope | CemRenderingRetirementControl): void {
+            if (!isCemRenderingRetirementControl(request)) { super.postMessage(request); return; }
+            const reply = () => this.emit('message', { protocol: CEM_RENDERING_RETIREMENT_PROTOCOL,
+                direction: 'response', id: request.id, action: request.action, ok: true,
+                ...(request.action === 'inspect' ? { confirmation: { softPressure: false, hardPressure: false } } : {}),
+                ...(request.action === 'prepare' ? { confirmation: { schemaVersion: 1, profile: 'cem-ml-cem-ql-generation-v2', frozen: true,
+                    inventoryRevision: 3, frozenRevision: 4, replacementAllowed: false } } : {}) });
+            if (this.fresh && held === 'inspection' && request.action === 'inspect') this.release = reply;
+            else queueMicrotask(reply);
+        }
+    }
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+    const diagnostics = createWorkerAllocationDiagnostics(), workers: HeldWorker[] = [];
+    const scope = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(scope, { workerScriptUrl: 'https://example.test/held.js', workerFactory: () => {
+        const worker = new HeldWorker(workers.length > 0); workers.push(worker);
+        diagnostics.observe(worker as unknown as Worker, worker.fresh); return worker as unknown as Worker;
+    } });
+    let gate = () => false, discarded = 0;
+    const peer = registerNativeGeneration({}, crypto.randomUUID(), async admitted => {
+        gate = admitted;
+        return { identity: {}, runtimeId: crypto.randomUUID(), runtime: {}, current: () => discarded === 0, discard: () => { discarded++; } };
+    });
+    try {
+        await host.ready;
+        const client = host.checkpointClient;
+        if (!client) throw Error('missing held-worker checkpoint client');
+        const group = new CemNativeGenerationGroup([peer, nativeGenerationParticipant(client)]);
+        const proof = await closeNativeRenderingGeneration(client);
+        const retired = await retireNativeRenderingGeneration(new Map([[client, ['editor']]]), [], proof,
+            { current: () => true, retain: () => new Uint8Array([1]) });
+        const pending = group.allocate([completeNativeRetirement(peer, new Uint8Array([1])), retired]);
+        let settled = false; void pending.then(() => { settled = true; }, () => { settled = true; });
+        const rejected = expect(pending).rejects.toThrow('cem.runtime.allocation.timeout');
+        await vi.advanceTimersByTimeAsync(4999);
+        expect(settled).toBe(false); expect(gate()).toBe(false);
+        const fresh = diagnostics.snapshot().workers.find(worker => worker.fresh);
+        if (!fresh) throw Error('missing fresh-worker diagnostic');
+        expect(fresh.events.map(event => event.phase)).toEqual(held === 'readiness'
+            ? ['created'] : ['created', 'transport-ready', 'headroom-request']);
+        await vi.advanceTimersByTimeAsync(1); await rejected;
+        expect(workers[1].terminated).toBe(true); expect(discarded).toBe(1); expect(gate()).toBe(false);
+        workers[1].release(); await flushMicrotasks();
+        expect(gate()).toBe(false); expect(discarded).toBe(1);
+        expect(diagnostics.snapshot().workers[1].events.some(event => event.phase === 'terminated')).toBe(true);
+        await expect(group.allocate([retired])).rejects.toThrow('state');
+    } finally { vi.useRealTimers(); scope.dispose(); }
+});
+
 describe('read-only recovery controls', () => {
     class RecoveryWorker extends ControlledProcessingWorker {
         controls: CemRenderingRetirementControl[] = [];
