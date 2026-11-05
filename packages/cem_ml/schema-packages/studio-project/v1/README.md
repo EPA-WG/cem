@@ -58,6 +58,16 @@ The target validates the schema package, checks built-in registry and JSON
 Schema artifact ownership, and exercises CEM/JSON normalization, deterministic
 round trips, logical URI derivation, and rejection fixtures.
 
+The native gate also requires the authored schema to compile without definition
+diagnostics. Stable `id` values use `schema:string` with the same lowercase
+stable-ID pattern (1–64 characters), allowing a leading digit as required by the
+portable codec.
+The `cemml:path` datatype rejects absolute and parent-traversal paths;
+`pathForbiddenDirectoryNames` additionally reserves `.cem-studio`. Invalid
+prefixes such as `/` and `../` must not be declared as scoped-prefix facets.
+The typed project codec remains responsible for the complete portable manifest
+contract, including reference integrity and deterministic CEM/JSON projections.
+
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the

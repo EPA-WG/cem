@@ -254,7 +254,20 @@ separate from this native cohort.
       changes fixture code only; production runtime and frozen delivery remain
       unchanged. The conditional fresh-allocation follow-up stays separate.
 
-- [ ] Audit the five pre-existing strict schema-definition diagnostics in the Studio project package (`id` pattern datatype and `path`/`reference-path` prefix facets); preserve its native portable project contract. The explicit-entry work verifies the same baseline diagnostics before/after and introduces no additional one.
+- [x] Audit and correct the five Studio project schema-definition errors.
+      `id` now uses a string with its unchanged stable-ID regex; both path
+      attributes retain `cemml:path` and the reserved-directory facet without
+      invalid `/` and `../` prefix declarations. Native regressions compile the
+      schema without diagnostics and preserve ID/path refusals and projections.
+      All **18/18** native cases pass in both feature profiles; the package gate
+      passes. See the [audit and evidence](archive/todo-completed-studio-strict-schema-audit-2026-11-05.md).
+
+- [ ] Audit the existing generic ARIA warning on schema namespace metadata
+      `role="schema"`. Fresh strict CLI probes report the same
+      `cem.a11y.aria_incompatible` warning before/after the five-error correction
+      (now zero errors / one warning, still exit 1 in strict mode). Add a native
+      regression distinguishing schema metadata from actual HTML ARIA roles;
+      preserve genuine accessibility diagnostics and namespace metadata.
 
 
 ## Declarative UI Architecture Correction

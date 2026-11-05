@@ -30,7 +30,7 @@
 
     {attributes |
         {attribute @name="schema-version" @type="cemml:integer" @minInclusive=1 @maxInclusive=1}
-        {attribute @name="id" @type="schema:identifier" @pattern="^[a-z0-9][a-z0-9-]{0,63}$"}
+        {attribute @name="id" @type="schema:string" @pattern="^[a-z0-9][a-z0-9-]{0,63}$"}
         {attribute @name="name" @type="schema:string" @minLength=1}
         {attribute @name="description" @type="schema:string" @minLength=1}
         {attribute @name="root-uri" @type="schema:uri" @uriSchemes="studio"}
@@ -45,8 +45,8 @@
         {attribute @name="tags" @type="cemml:name-list"}
         {attribute @name="role" @type="schema:identifier" @values="data schema query template transform-config graph run-config expected"}
         {attribute @name="source-kind" @type="schema:identifier" @values="project-file url"}
-        {attribute @name="reference-path" @type="cemml:path" @pathForbiddenPrefixes="/ ../" @pathForbiddenDirectoryNames=".cem-studio"}
-        {attribute @name="path" @type="cemml:path" @pathForbiddenPrefixes="/ ../" @pathForbiddenDirectoryNames=".cem-studio"}
+        {attribute @name="reference-path" @type="cemml:path" @pathForbiddenDirectoryNames=".cem-studio"}
+        {attribute @name="path" @type="cemml:path" @pathForbiddenDirectoryNames=".cem-studio"}
         {attribute @name="url" @type="schema:uri" @uriSchemes="http https"}
         {attribute @name="content-type" @type="schema:media-type"}
         {attribute @name="schema" @type="schema:uri"}
