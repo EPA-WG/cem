@@ -180,9 +180,31 @@ Frozen presentation delivery bytes remain unchanged.
       editor/preview identity. See the
       [completed repair](archive/todo-completed-login-checkpoint-headroom-2026-11-05.md).
 
-- [ ] Repair the existing native conversion baseline independently of recovery: `cross_surface_conversion_rules::cem_fixture_preserves_anonymous_scope_expression_avt_comments_and_rich_content` loses the expected `{.busy}` value in both default and stripped tests. Preserve the intended native semantics and assertion when resolving the mismatch. The separate CEMT profile/writer mismatch is completed above.
+Completed follow-up: [native conversion fixture intent](archive/todo-completed-native-conversion-fixture-2026-11-05.md).
+The `.busy` expression was already retained through a native owning value node;
+the fixture incorrectly required a literal compatibility value. It now requires
+the exact owning expression, original body/source span and braced normalized
+event, while quoted CEM/XML/HTML values remain literal through canonical round
+trips. All six conversion cases pass in both native feature profiles. The eight
+related integration suites pass 36/37 per profile; the unchanged legacy-binary
+fixture below remains a separate failure. Parser/runtime/codec, example bytes,
+recovery contracts and frozen presentation delivery bytes remain unchanged.
+
+- [x] Strengthen the cross-surface fixture's native ownership, exact `.busy`
+      source/event evidence and quoted CEM/XML/HTML literal round trips, and
+      reconcile conversion documentation with the native-slot contract. See the
+      [completed correction](archive/todo-completed-native-conversion-fixture-2026-11-05.md).
 
 - [ ] Investigate the existing stripped WASM binary-size gate: current stripped output is 27,264,508 bytes versus 27,033,499 default bytes, despite the stripped capability contract rejecting debug control. Establish actual debugger-code omission and the correct size baseline without weakening the gate to hide retention.
+
+- [ ] Repair the stale version-3 binary compatibility fixture
+      `version_three_literal_attributes_decode_with_empty_native_slots`.
+      Both native feature profiles report `UnexpectedEof` after the unchanged
+      fixture rewrites a current version-5 binary header to version 3 while
+      retaining its version-5 body. Use genuine version-3 bytes or an independent
+      version-specific fixture writer to verify literal attributes decode with
+      empty native slots; preserve strict decoder/integrity refusals. See the
+      [native conversion verification](archive/todo-completed-native-conversion-fixture-2026-11-05.md#verification-and-separate-baseline).
 
 
 ### Historical presentation-adjacent diagnostics

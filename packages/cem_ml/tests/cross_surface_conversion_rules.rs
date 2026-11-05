@@ -9,14 +9,14 @@
 
 use cem_ml::engine::InputFormat;
 use cem_ml::events::cem::CemEventNormalizer;
-use cem_ml::events::{EventNormalizer, NormalizedEvent, TriviaKind};
+use cem_ml::events::{EventNormalizer, NormalizedEvent, ScalarValue, TriviaKind};
 use cem_ml::formatter;
 use cem_ml::interpreter::light_dom::render_html;
 use cem_ml::parser::builder::CemAstBuilder;
 use cem_ml::parser::document::CemDocument;
 use cem_ml::parser::CemAstNode;
 use cem_ml::source::{BytesSource, SourceId};
-use cem_ml::source_map::TransformKind;
+use cem_ml::source_map::{FrameSpan, TransformKind};
 use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::html::HtmlTokenizer;
 use cem_ml::tokenizer::xml::XmlTokenizer;
@@ -114,6 +114,82 @@ fn has_attr_value(doc: &CemDocument, expected: &str) -> bool {
     })
 }
 
+fn button_attribute<'a>(doc: &'a CemDocument, name: &str) -> &'a CemAstNode {
+    let attributes = doc
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Element {
+                expanded_name,
+                attributes,
+                ..
+            } if expanded_name.local_name == "button" => Some(attributes),
+            _ => None,
+        })
+        .expect("fixture button missing");
+    let matching: Vec<_> = attributes
+        .iter()
+        .filter_map(|id| doc.get(*id))
+        .filter(|node| matches!(node, CemAstNode::Attribute { expanded_name, .. } if expanded_name.local_name == name))
+        .collect();
+    assert_eq!(matching.len(), 1, "expected one button @{name}");
+    matching[0]
+}
+
+fn assert_literal_button_attribute(doc: &CemDocument, name: &str, expected: &str) {
+    let CemAstNode::Attribute {
+        value, value_nodes, ..
+    } = button_attribute(doc, name)
+    else {
+        unreachable!()
+    };
+    assert_eq!(value.as_deref(), Some(expected));
+    assert!(
+        value_nodes.is_empty(),
+        "literal @{name} became a native slot"
+    );
+}
+
+fn assert_native_disabled_expression(doc: &CemDocument, input: &str) {
+    let CemAstNode::Attribute {
+        value, value_nodes, ..
+    } = button_attribute(doc, "disabled")
+    else {
+        unreachable!()
+    };
+    assert!(value.is_none(), "native expression became a literal value");
+    let [expression_id] = value_nodes.as_slice() else {
+        panic!("disabled must own exactly one native expression: {value_nodes:?}")
+    };
+    let Some(CemAstNode::Element {
+        expanded_name,
+        attributes,
+        children,
+        source,
+        ..
+    }) = doc.get(*expression_id)
+    else {
+        panic!("disabled lost its native expression node")
+    };
+    assert_eq!(expanded_name.local_name, "$");
+    assert!(attributes.is_empty());
+    let [body_id] = children.as_slice() else {
+        panic!("disabled expression must own exactly one body")
+    };
+    assert!(matches!(doc.get(*body_id), Some(CemAstNode::Text { data, .. }) if data == ".busy"));
+    assert!(doc.iter().all(|node| !matches!(node, CemAstNode::Element { children, .. } if children.contains(expression_id))),
+        "attribute expression leaked into element content");
+    let frame = source.current().expect("expression source frame missing");
+    assert_eq!(frame.source_id, SourceId(1));
+    assert!(matches!(
+        frame.transform,
+        TransformKind::ExpressionEmbedding { .. }
+    ));
+    let FrameSpan::Single(range) = frame.span else {
+        panic!("expression source must retain its original byte range")
+    };
+    assert_eq!(&input[range.start as usize..range.end() as usize], ".busy");
+}
+
 fn has_transform(
     out: &cem_ml::interpreter::TransformOutput,
     predicate: impl Fn(&TransformKind) -> bool,
@@ -146,10 +222,15 @@ fn cem_fixture_preserves_anonymous_scope_expression_avt_comments_and_rich_conten
     assert!(text_values(&doc)
         .iter()
         .any(|text| text.contains(r#"{"name":"{$.user}","ok":true}"#)));
-    assert!(has_attr_value(&doc, "{.busy}"));
-    assert!(has_attr_value(&doc, "Hello {.name}"));
+    assert_native_disabled_expression(&doc, &input);
+    assert_literal_button_attribute(&doc, "aria-label", "Hello {.name}");
 
     let events = events_as(&input, InputFormat::Cem);
+    assert!(events.windows(2).any(|pair| matches!(pair,
+        [NormalizedEvent::Name { name, .. }, NormalizedEvent::Value { value: ScalarValue::Expression(value), byte_range }]
+            if name.lexical_name == "disabled" && value == "{.busy}"
+                && &input[byte_range.start as usize..byte_range.end() as usize] == "{.busy}"
+    )), "disabled event lost its exact braced expression");
     assert!(events.iter().any(|event| matches!(
         event,
         NormalizedEvent::ModeSwitch { content_type, .. } if content_type == "application/json"
@@ -162,6 +243,19 @@ fn cem_fixture_preserves_anonymous_scope_expression_avt_comments_and_rich_conten
             ..
         } if data.contains("conversion fixture")
     )));
+}
+
+#[test]
+fn quoted_cem_attribute_braces_remain_literal_through_canonical_conversion() {
+    let input =
+        fixture("conversion-rules.cem").replace("@disabled={.busy}", r#"@disabled="{.busy}""#);
+    let doc = parse_as(&input, InputFormat::Cem);
+    assert_literal_button_attribute(&doc, "disabled", "{.busy}");
+    let formatted = formatter::format_source_as(&input, InputFormat::Cem);
+    let reparsed = parse_as(&formatted.rendered, InputFormat::Cem);
+    assert_literal_button_attribute(&reparsed, "disabled", "{.busy}");
+    assert_literal_button_attribute(&reparsed, "aria-label", "Hello {.name}");
+    assert_eq!(formatter::format(&reparsed), formatted.rendered);
 }
 
 #[test]
@@ -195,7 +289,7 @@ fn xml_fixture_preserves_doctype_pi_cdata_namespace_rebinding_and_parity_wrapper
         .iter()
         .any(|text| text.contains(r#"{"name":"{$.user}","ok":true}"#)));
     assert!(has_attr_value(&doc, "http://www.w3.org/2000/svg"));
-    assert!(has_attr_value(&doc, "{.busy}"));
+    assert_literal_button_attribute(&doc, "disabled", "{.busy}");
 }
 
 #[test]
@@ -221,8 +315,8 @@ fn html_fixture_preserves_doctype_comments_parity_wrappers_and_attribute_spans()
     assert!(comment_values(&doc)
         .iter()
         .any(|c| c.contains("conversion fixture")));
-    assert!(has_attr_value(&doc, "{.busy}"));
-    assert!(has_attr_value(&doc, "Hello {.name}"));
+    assert_literal_button_attribute(&doc, "disabled", "{.busy}");
+    assert_literal_button_attribute(&doc, "aria-label", "Hello {.name}");
 }
 
 #[test]
@@ -250,6 +344,13 @@ fn reverse_conversion_outputs_are_byte_stable_and_source_mapped() {
         let input = fixture(name);
         let once = formatter::format_source_as(&input, format);
         let twice = formatter::format_source_as(&once.rendered, InputFormat::Cem);
+        let reparsed = parse_as(&once.rendered, InputFormat::Cem);
+        if matches!(format, InputFormat::Cem) {
+            assert_native_disabled_expression(&reparsed, &once.rendered);
+        } else {
+            assert_literal_button_attribute(&reparsed, "disabled", "{.busy}");
+        }
+        assert_literal_button_attribute(&reparsed, "aria-label", "Hello {.name}");
         assert_eq!(
             once.rendered, twice.rendered,
             "not byte-stable after canonicalization: {name}"

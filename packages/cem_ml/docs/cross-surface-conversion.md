@@ -7,8 +7,9 @@ today; reverse serialization uses the canonical formatter and records a
 `ContentTypeTransform` source-map boundary.
 
 This document fixes the *exact* per-construct conversion rules so all
-three surfaces lower into the same schema event stream and AST, with
-source-map traceability preserved through the boundary.
+three surfaces lower into the shared schema event model and typed AST, with
+source-map traceability preserved through the boundary. Native expression slots
+and literal attribute strings retain distinct intent, as specified in §8.
 
 ## 1. Namespaces
 
@@ -121,17 +122,40 @@ stays inside the same namespace as the rest of the CEM annotations.
 
 ## 8. Attribute cem-ql Spans
 
-| CEM-ML                                | XML / HTML parity                       |
-| ------------------------------------- | --------------------------------------- |
-| `{button @disabled={.busy} \| Save}`   | `<button disabled="{.busy}">Save</button>` |
-| `{button @label="Hello {.name}" \| Save}` | `<button label="Hello {.name}">Save</button>` |
+| Authored value | Native AST contract |
+| -------------- | ------------------- |
+| CEM-ML `@disabled={.busy}` | One owning native expression in the attribute's `value_nodes`; literal compatibility `value` is absent. |
+| CEM-ML `@disabled="{.busy}"` | Exact literal `{.busy}`, with no native value nodes. |
+| Unmarked XML/HTML `disabled="{.busy}"` | Exact literal `{.busy}`, with no native value nodes. |
+| CEM-ML `@label="Hello {.name}"` / XML or HTML `label="Hello {.name}"` | Exact literal text; AVT evaluation requires an explicit template-aware consumer. |
 
-**Conversion rule:** attribute-value `{...}` cem-ql spans are
-identifiable lexically on both surfaces. The tokenizer/normalizer
-records the span as the attribute's value, wrapped in literal `{...}`
-braces so the cem-ql layer can identify and parse it without
-re-scanning. Literal `{` / `}` characters in a non-template attribute
-value are escaped as `{{` / `}}` on both surfaces.
+**Conversion rule:** an unquoted whole-braced CEM-ML attribute retains its exact
+`{.busy}` lexeme and byte range in the normalized `ScalarValue::Expression`
+event. The builder owns a native `$` expression under that attribute, with body
+`.busy` and an `ExpressionEmbedding` source frame covering the original body.
+It is not an element content child and is not evaluated during import. The
+canonical writer must preserve the unquoted expression and its native owning
+edge through reparse; filling the literal compatibility field would erase that
+distinction.
+
+Quoted brace-looking strings remain literal through canonical conversion.
+Ordinary XML/HTML attribute syntax does not itself authorize native expressions.
+XML import opts in with the core namespace control on the same element:
+
+```xml
+<button xmlns:c="https://cem.dev/ns/core/1"
+        c:expression-attributes="disabled" disabled="{.busy}">Save</button>
+```
+
+Only listed attributes become native slots; unlisted strings stay literal. The
+complete control, namespace and refusal contract is in
+[Native attribute expression slots](../../../docs/cem-ml-syntax.md#native-attribute-expression-slots).
+The existing unmarked XML/HTML conversion fixtures intentionally exercise the
+literal boundary, while the CEM fixture exercises an owning native expression.
+
+Template-aware AVT handling is a separate consumer capability and does not
+change this AST distinction. Within such an AVT, literal braces escape as `{{`
+and `}}`; ordinary literal attributes preserve their authored braces.
 
 ## 9. Source Maps
 
