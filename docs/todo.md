@@ -195,7 +195,18 @@ recovery contracts and frozen presentation delivery bytes remain unchanged.
       reconcile conversion documentation with the native-slot contract. See the
       [completed correction](archive/todo-completed-native-conversion-fixture-2026-11-05.md).
 
-- [ ] Investigate the existing stripped WASM binary-size gate: current stripped output is 27,264,508 bytes versus 27,033,499 default bytes, despite the stripped capability contract rejecting debug control. Establish actual debugger-code omission and the correct size baseline without weakening the gate to hide retention.
+Completed follow-up: [stripped WASM size investigation](archive/todo-completed-stripped-wasm-size-2026-11-05.md).
+Fresh matched artifacts pass the unchanged strict artifact verifier: browser and
+Node WASM are 24,544,191 stripped versus 24,860,843 default bytes, saving 316,652
+bytes per target. Native CLI saves 18,290,384 bytes. Cargo features, linked named
+functions, four omitted debugger exports, capability refusal, native symbols and
+negative Rust imports independently verify omission while core controls remain.
+The initial installed pair had mismatched command declarations and only default's
+current optimization report. Historical 27,264,508/27,033,499-byte evidence remains
+unattributed; no source/runtime/optimizer change or weaker assertion is claimed.
+The [measurement receipt](stripped-wasm-profile-measurements.json) records hashes,
+producer freshness and the tested source cohort. Full native verification retains
+the separate legacy-binary fixture failure below; frozen delivery bytes remain unchanged.
 
 - [ ] Repair the stale version-3 binary compatibility fixture
       `version_three_literal_attributes_decode_with_empty_native_slots`.

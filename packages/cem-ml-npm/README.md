@@ -5,6 +5,36 @@ engine and its composed native CEM-QL adapters. One linked WASM binary retains
 shared native owners across both query languages. This package intentionally owns no command parser, filesystem policy,
 npm executable, or UI state.
 
+## Debug-control and stripped profiles
+
+`build` publishes the `debug-control` profile to `dist/`; `build:stripped` uses
+`--no-default-features` and publishes to `dist-stripped/`. Both retain the core
+operation, cancellation and subscription APIs. The stripped profile omits the
+debugger bindings and implementations and refuses requests to activate them.
+Each profile has its own ABI identity, factory pins and complete integrity list.
+
+Both builds apply the same pinned Binaryen `-Oz` pass after wasm-bindgen and
+before computing integrity. Optimization reports live in
+`dist/reports/wasm-optimization/cem-ml-{default,stripped}.json` at the workspace
+root. Compare matched source/toolchain cohorts at that same final stage. A
+missing report, mismatched command declarations or old profile output requires
+rebuilding the producers before drawing size conclusions.
+
+For an artifact comparison after preparing both WASM packages and native CLIs:
+
+```sh
+yarn nx run-many --targets=build,build:stripped --projects=@epa-wg/cem-ml,cem_ml_cli --parallel=1 --skip-nx-cache
+yarn nx run @epa-wg/cem-ml:verify:stripped --excludeTaskDependencies --skip-nx-cache
+```
+
+The leaf verifier retains its strict smaller-WASM/CLI assertions and checks
+capabilities, public binding absence, command types, integrity, native symbols,
+CLI refusal, Cargo features and unavailable Rust imports. The configured
+`verify:stripped` dependency graph additionally runs native tests; its separate
+legacy-binary fixture failure remains tracked in [the TODO](../../docs/todo.md).
+The [matched-profile investigation](../../docs/archive/todo-completed-stripped-wasm-size-2026-11-05.md)
+records the measured stages and independent debugger-omission evidence.
+
 Browser code imports the generated web loader:
 
 ```js

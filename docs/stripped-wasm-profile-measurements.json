@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "measuredOn": "2026-11-05",
+  "platform": "linux-x64",
+  "sourceInputs": {
+    "sourceRevision": "2da78b23ba133605eb4318477a5923a79f948741",
+    "roots": [
+      "Cargo.toml",
+      "Cargo.lock",
+      "rust-toolchain.toml",
+      ".cargo",
+      "packages/cem_ml",
+      "packages/cem_ql",
+      "packages/cem_ml_transform_cem_ql",
+      "packages/cem_ml_cli",
+      "vendor/url",
+      "packages/cem-ml-npm/scripts/build.mjs",
+      "packages/cem-ml-npm/package.json",
+      "tools/scripts/wasm-opt.mjs",
+      "tools/scripts/cem-ql-wasm-factory.mjs",
+      "package.json",
+      "yarn.lock"
+    ],
+    "trackedFiles": 2093,
+    "sha256": "ecd9c075b00664bda6a443a7c77523853154ba1d3c806f3cf0df248550e11290",
+    "method": "SHA-256 of sorted UTF-8 path + NUL + content SHA-256 hex + LF for each tracked file"
+  },
+  "toolchain": {
+    "node": "24.16.0",
+    "rustc": "1.96.0 (ac68faa20 2026-05-25)",
+    "wasmBindgen": "0.2.122",
+    "binaryen": "132.0.0",
+    "optimizationMode": "Oz",
+    "workspaceReleaseLto": true
+  },
+  "profiles": {
+    "default": {
+      "abiIdentity": "wasm-bindgen@0.2.122;profile=debug-control",
+      "rootFeatures": [
+        "debug-control",
+        "default"
+      ],
+      "cargoReleaseProfile": {
+        "opt_level": "3",
+        "debuginfo": 0,
+        "debug_assertions": false,
+        "overflow_checks": false,
+        "test": false
+      },
+      "cargoProducerFresh": true,
+      "linkedWasm": {
+        "path": "dist/target/cem_ml_npm/wasm32-unknown-unknown/release/cem_ml_transform_cem_ql.wasm",
+        "bytes": 32858089,
+        "sha256": "146c2be4b6630e889f91c3f55c6d1cc0a19977debc2a0fe790138d4b3b3842e1",
+        "namedFunctions": 24430,
+        "debugFunctionCounts": {
+          "cem_ml::dap::": 0,
+          "cem_ml::debug_control::": 17,
+          "cem_ql::debug_control::": 0
+        }
+      },
+      "optimizedWasm": {
+        "browser": {
+          "inputBytes": 28239585,
+          "inputSha256": "b0a2dbb638164a4f486994042601e9a8df73904d038a1eadab75c00ede6b6a31",
+          "outputBytes": 24860843,
+          "outputSha256": "2b3cd1318545f57c6802a77886fe25c54ffb7f4c5b37cf327741c37d304d8e2f",
+          "imports": 28,
+          "exports": 172
+        },
+        "node": {
+          "inputBytes": 28239585,
+          "inputSha256": "b0a2dbb638164a4f486994042601e9a8df73904d038a1eadab75c00ede6b6a31",
+          "outputBytes": 24860843,
+          "outputSha256": "2b3cd1318545f57c6802a77886fe25c54ffb7f4c5b37cf327741c37d304d8e2f",
+          "imports": 28,
+          "exports": 172
+        }
+      },
+      "debugControl": {
+        "compiled": true,
+        "active": false,
+        "dapAdapterVersion": 1,
+        "cemDebugRequestVersion": 1
+      },
+      "nativeCli": {
+        "path": "dist/target/cem_ml_cli/debug/cem-ml",
+        "bytes": 531644632,
+        "sha256": "11a0813d52103903dd041e3e22e449ef134cb78e6c09c7ed09afdf978d948737"
+      },
+      "integrity": {
+        "records": 658,
+        "sha256": "2d0f5d2e0f65c782a6acfe43ac1ba642d5eb87b60c4abf3710fe44713f9847c1",
+        "manifestSha256": "a763638d3169588e7a1049ce335b94419b4896b0f9a043369ca290834dc2ee0b"
+      }
+    },
+    "stripped": {
+      "abiIdentity": "wasm-bindgen@0.2.122;profile=stripped",
+      "rootFeatures": [],
+      "cargoReleaseProfile": {
+        "opt_level": "3",
+        "debuginfo": 0,
+        "debug_assertions": false,
+        "overflow_checks": false,
+        "test": false
+      },
+      "cargoProducerFresh": true,
+      "linkedWasm": {
+        "path": "dist/target/cem_ml_npm_stripped/wasm32-unknown-unknown/release/cem_ml_transform_cem_ql.wasm",
+        "bytes": 32555500,
+        "sha256": "17b916cc0ba8b2ef888ba0fa56607a3aedbeb02994552eaa4d466c08ddd38714",
+        "namedFunctions": 24329,
+        "debugFunctionCounts": {
+          "cem_ml::dap::": 0,
+          "cem_ml::debug_control::": 0,
+          "cem_ql::debug_control::": 0
+        }
+      },
+      "optimizedWasm": {
+        "browser": {
+          "inputBytes": 27955980,
+          "inputSha256": "c3764da48d1b353056754b11fa870564f73ed9cc402ad91ad008d4bb8207ad63",
+          "outputBytes": 24544191,
+          "outputSha256": "c9d8878f781a0a3b9379ff266c7d92525098cd1a0b5ddc3e58201de0065aa22f",
+          "imports": 28,
+          "exports": 168
+        },
+        "node": {
+          "inputBytes": 27955980,
+          "inputSha256": "c3764da48d1b353056754b11fa870564f73ed9cc402ad91ad008d4bb8207ad63",
+          "outputBytes": 24544191,
+          "outputSha256": "c9d8878f781a0a3b9379ff266c7d92525098cd1a0b5ddc3e58201de0065aa22f",
+          "imports": 28,
+          "exports": 168
+        }
+      },
+      "debugControl": {
+        "compiled": false,
+        "active": false
+      },
+      "nativeCli": {
+        "path": "dist/target/cem_ml_cli_stripped/debug/cem-ml",
+        "bytes": 513354248,
+        "sha256": "36819ac16c9ce4e10f06ae83c17fc7d0a72910ee186fbf3cd761db668e96c5a6"
+      },
+      "integrity": {
+        "records": 658,
+        "sha256": "ba942bb8d86d5e20726d5519f10d81b1efc5fe24a91faf51d1463730347ba45c",
+        "manifestSha256": "d77aafd37972f0b93888e870dca97d32faf51354c3d67924e7d0c972f1cc32fd"
+      }
+    }
+  },
+  "exportComparison": {
+    "defaultExports": 172,
+    "strippedExports": 168,
+    "omitted": [
+      "acknowledgeResumableOperationStop",
+      "continueResumableOperation",
+      "pauseResumableOperation",
+      "stepResumableOperation"
+    ],
+    "added": []
+  },
+  "byteSavings": {
+    "wasmPerTarget": 316652,
+    "nativeCli": 18290384
+  },
+  "verification": {
+    "target": "@epa-wg/cem-ml:verify:stripped",
+    "preparedDependencies": true,
+    "skipNxCache": true,
+    "result": "passed",
+    "assertionsChanged": false,
+    "fullNativeTestGraphClaimed": false,
+    "knownNativeBaseline": "version_three_literal_attributes_decode_with_empty_native_slots: UnexpectedEof",
+    "nxFlakyLabel": "Reported after failed leaf verification against old prepared artifacts and successful verification after producer refresh; these were different artifact cohorts."
+  },
+  "historicalFailure": {
+    "defaultWasmBytes": 27033499,
+    "strippedWasmBytes": 27264508,
+    "completeBuildReceiptsAvailable": false,
+    "causeAssigned": false
+  },
+  "initialInstalledArtifacts": {
+    "defaultWasmBytes": 24860843,
+    "defaultWasmSha256": "2b3cd1318545f57c6802a77886fe25c54ffb7f4c5b37cf327741c37d304d8e2f",
+    "strippedWasmBytes": 27264508,
+    "strippedWasmSha256": "107a441aca18c9af2629668495385a5ab95b371970478761c873abb59ff8efb2",
+    "defaultOptimizationReportPresent": true,
+    "strippedOptimizationReportPresent": false,
+    "leafFailure": "default and stripped profiles must publish the same Rust-owned command types"
+  }
+}
