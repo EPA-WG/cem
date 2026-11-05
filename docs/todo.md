@@ -341,12 +341,39 @@ the [declarative UI principle](declarative-ui-principle.md) and
 
 ### Native-surface delivery follow-ups
 
+- [x] Add a repeatable Chromium accessibility-tree probe for both pinned ARIA
+      profiles through actual worker/fallback native export. Compare single,
+      ordered/repeated and reversed targets to literal HTML controls; retain DOM
+      sequences and observe invalid-state relation exposure without inferring
+      spoken announcements or OS accessibility mappings from CDP evidence.
+      Provide persistent fixture URLs for actual manual browser/AT runs and
+      verify that serve mode without recording unperformed AT acceptance.
+      Completed 2026-11-05: six worker/fallback export cases and all twelve
+      invalid-state AX comparisons pass in Chromium 148.0.7778.96 on Ubuntu
+      26.04/WSL2. Native DOM retains all ordered/repeated targets; CDP matches
+      literal HTML, exposing error-message targets only while invalid. Manual
+      serve mode advertises twelve URLs; two complementary pages pass browser
+      smoke checks without overwriting acceptance. Lint passes with zero errors
+      and the existing 818 warnings. Frozen delivery remains unchanged.
+      [Audit](archive/todo-completed-aria-browser-relations-2026-11-05.md).
+
+- [ ] On recurrence of the ARIA probe's draft-worker initialization timeout,
+      use its failed-request path and initialization phase/counters to attribute
+      the loading boundary before changing the runtime. One follow-up run
+      recorded `ERR_NETWORK_CHANGED` but no failed path; retain that
+      [failure](archive/aria-browser-relations-network-failure-2026-11-05.json)
+      separately from the passing six-case matrix. Preserve the 30-second
+      deadline and every DOM/AX assertion; passing repeats are not attribution.
+
 - [ ] Verify both pinned [ARIA profiles](cem-element-aria-reference-profile.md)
       in the documented browser/assistive-technology matrix. Record actual
       browser/OS/AT versions, accessibility relation exposure, ordered/repeated
       details targets and error-message announcements. Keep untested combinations
       explicit and the draft profile opt-in. Single-relation accessibility APIs
       may expose only the first target; exported DOM sequences must stay intact.
+      The repeatable browser probe and persistent manual fixtures above are
+      ready. CDP evidence does not establish OS API mappings or spoken output;
+      the documented Windows/macOS/Linux AT rows remain pending actual runs.
 
 
 ## Autocomplete and suggestions design for CEM inputs

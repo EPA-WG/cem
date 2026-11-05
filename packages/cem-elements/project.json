@@ -4,6 +4,25 @@
     "sourceRoot": "packages/cem-elements/src",
     "projectType": "library",
     "targets": {
+        "verify:aria-relations": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node packages/cem-elements/scripts/verify-aria-relations.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": ["{workspaceRoot}/dist/reports/cem-elements/aria-relations.json"]
+        },
+        "serve:aria-relations": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node packages/cem-elements/scripts/verify-aria-relations.mjs --serve",
+                "cwd": "{workspaceRoot}"
+            }
+        },
         "verify:theme-switcher": {
             "executor": "nx:run-commands",
             "cache": false,

@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-05T22:06:55.294Z",
+  "status": "failed",
+  "environment": {
+    "platform": "linux",
+    "kernel": "6.18.54.1-microsoft-standard-WSL2",
+    "node": "v24.16.0",
+    "headless": true,
+    "assistiveTechnology": null,
+    "osRelease": "PRETTY_NAME=\"Ubuntu 26.04 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"26.04\"\nVERSION=\"26.04 (Resolute Raccoon)\"\nVERSION_CODENAME=resolute\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=resolute\nLOGO=ubuntu-logo\n",
+    "chromium": "148.0.7778.96"
+  },
+  "scope": "Chromium CDP accessibility tree; not OS accessibility mappings, announcements or physical AT acceptance",
+  "results": [
+    {
+      "mode": "worker",
+      "profile": "wai-aria-1.2-rec-20230606",
+      "targets": [
+        "first"
+      ],
+      "status": "passed",
+      "states": [
+        {
+          "invalid": "true",
+          "dom": {
+            "aria-details": [
+              "first"
+            ],
+            "aria-errormessage": [
+              "first"
+            ]
+          },
+          "produced": {
+            "role": "textbox",
+            "name": "Profile field",
+            "invalid": "true",
+            "details": {
+              "type": "idrefList",
+              "targets": [
+                "first"
+              ]
+            },
+            "errorMessage": {
+              "type": "idrefList",
+              "targets": [
+                "first"
+              ]
+            }
+          },
+          "literal": {
+            "role": "textbox",
+            "name": "Profile field",
+            "invalid": "true",
+            "details": {
+              "type": "idrefList",
+              "targets": [
+                "first"
+              ]
+            },
+            "errorMessage": {
+              "type": "idrefList",
+              "targets": [
+                "first"
+              ]
+            }
+          }
+        },
+        {
+          "invalid": "false",
+          "dom": {
+            "aria-details": [
+              "first"
+            ],
+            "aria-errormessage": [
+              "first"
+            ]
+          },
+          "produced": {
+            "role": "textbox",
+            "name": "Profile field",
+            "invalid": "false",
+            "details": {
+              "type": "idrefList",
+              "targets": [
+                "first"
+              ]
+            },
+            "errorMessage": null
+          },
+          "literal": {
+            "role": "textbox",
+            "name": "Profile field",
+            "invalid": "false",
+            "details": {
+              "type": "idrefList",
+              "targets": [
+                "first"
+              ]
+            },
+            "errorMessage": null
+          }
+        }
+      ],
+      "initialInvalid": "true",
+      "counters": {
+        "created": 1,
+        "ready": 1,
+        "succeeded": 3,
+        "failed": 0,
+        "fallbackRequests": 0
+      },
+      "diagnostics": [],
+      "browserErrors": [],
+      "failedRequests": [],
+      "httpFailures": []
+    },
+    {
+      "mode": "worker",
+      "profile": "wai-aria-1.3-wd-20260604",
+      "targets": [
+        "first",
+        "second",
+        "first"
+      ],
+      "status": "failed",
+      "states": [],
+      "error": "page.waitForFunction: Timeout 30000ms exceeded.",
+      "browserErrors": [],
+      "failedRequests": [
+        "net::ERR_NETWORK_CHANGED"
+      ],
+      "httpFailures": []
+    }
+  ],
+  "identity": [
+    {
+      "path": "packages/cem-elements/dist/index.js",
+      "bytes": 2674,
+      "sha256": "015c64b69a85daaffa624947f76979846a46e4d1cd3710d2a5980d60e911ea0d"
+    },
+    {
+      "path": "packages/cem-elements/dist/lib/cem-elements.js",
+      "bytes": 489147,
+      "sha256": "71023ebc1172324405930ac97c3dffee0d9be40987b1eb5229a8d84bb635a524"
+    },
+    {
+      "path": "packages/cem-elements/dist/lib/aria-reference-profile.js",
+      "bytes": 1074,
+      "sha256": "15cf987f3ffd049d80f90200ccb7e10d36e8f2860f6a0c574b942269bf3e9be1"
+    },
+    {
+      "path": "packages/cem-elements/dist/lib/internal/runtime-support/cem-ql-render.js",
+      "bytes": 66059,
+      "sha256": "fec460da8ad95763e139f20b502f105432d17b48628010f5a11f092dbffb86f8"
+    },
+    {
+      "path": "packages/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+      "bytes": 13287,
+      "sha256": "abbbe2bb3d6e674fb81b82554e2cee9491d60c6009166fb62c4cccf9710fc80e"
+    },
+    {
+      "path": "packages/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+      "bytes": 24140826,
+      "sha256": "5e56d424c74db59e9a44e393759341c3ff973b3f49349e37b815d6c1446e3431"
+    }
+  ],
+  "error": "page.waitForFunction: Timeout 30000ms exceeded.",
+  "finishedAt": "2026-11-05T22:07:26.864Z"
+}
