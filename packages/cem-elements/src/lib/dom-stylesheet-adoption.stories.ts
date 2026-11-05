@@ -3,35 +3,64 @@ import { expect, waitFor } from 'storybook/test';
 import { CemElementRuntime, writeDataIslandHydrationData } from './cem-elements.js';
 import { nativeCssStoryHost, nativeCssStoryContext } from './native-css-story-fixture.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
-import { createCemProcessingFailureEnvelope, type CemProcessingRequestEnvelope } from './internal/runtime-support/processing-host.js';
+import { createCemProcessingFailureEnvelope, type CemProcessingRequestEnvelope, type CemProcessingResponseEnvelope, type CemProcessingReadyEnvelope } from './internal/runtime-support/processing-host.js';
 
 export default { title: 'CEM Elements/DOM Stylesheet Adoption', tags: ['test'] } satisfies Meta;
 type Story = StoryObj;
 let sequence = 0;
 
-/** Delay the real worker's CSS request; native adoption still runs in WASM. */
+/** Hold initial CSS adoption until release, then permit native stylesheet preflights. */
 class HeldCssWorker extends EventTarget {
     requests: CemProcessingRequestEnvelope<'compile'>[] = [];
     terminated = false;
+    private released = false;
+    cssReplays = 0;
+    cssReplaysMatch = true;
+    private readonly trace: { kind: string; operation?: CemProcessingRequestEnvelope['operation']; outcome?: string }[] = [];
+    private record(kind: string, operation?: CemProcessingRequestEnvelope['operation'], outcome?: string): void {
+        if (this.trace.length < 32) this.trace.push({ kind, operation, outcome });
+    }
+    inspect() { return { held: this.requests.length, released: this.released, cssReplays: this.cssReplays,
+        cssReplaysMatch: this.cssReplaysMatch, terminated: this.terminated, trace: [...this.trace] }; }
     constructor(private worker: Worker) {
         super();
         for (const type of ['message', 'error', 'messageerror']) worker.addEventListener(type, event => {
+            if (type === 'message') {
+                const data = (event as MessageEvent<CemProcessingResponseEnvelope | CemProcessingReadyEnvelope>).data;
+                if (data.direction === 'response') this.record('reply', data.operation, data.outcome);
+                else if (data.direction === 'ready') this.record('ready');
+            }
             this.dispatchEvent(type === 'message' ? new MessageEvent(type, { data: (event as MessageEvent).data })
                 : new Event(type));
         });
     }
     postMessage(request: CemProcessingRequestEnvelope): void {
-        if (request.operation === 'compile' && request.payload.language === 'css') this.requests.push(request);
-        else this.worker.postMessage(request);
+        if (request.operation === 'compile' && request.payload.language === 'css') {
+            if (!this.released) {
+                this.record('hold CSS', request.operation);
+                this.requests.push(request);
+                return;
+            }
+            this.cssReplays++;
+            // Compare transport inputs only; never parse CSS or expose source in diagnostics.
+            this.cssReplaysMatch &&= this.requests.some(held =>
+                JSON.stringify(held.payload) === JSON.stringify(request.payload));
+            this.record('replay CSS', request.operation);
+        } else this.record('send', request.operation);
+        this.worker.postMessage(request);
     }
     release(fail = false): void {
+        if (this.released) return;
+        // Open before forwarding: successful adoption can immediately schedule preflights.
+        this.released = true;
+        this.record(fail ? 'fail' : 'release');
         for (const request of this.requests) {
             if (fail) this.dispatchEvent(new MessageEvent('message', { data: createCemProcessingFailureEnvelope(request, 'failure',
                 [{ code: 'fixture.css.failure', severity: 'error', message: 'native adoption fixture failure' }]) }));
             else this.worker.postMessage(request);
         }
     }
-    terminate(): void { this.terminated = true; this.worker.terminate(); }
+    terminate(): void { this.record('terminate'); this.terminated = true; this.worker.terminate(); }
 }
 
 function fixture(root: HTMLElement, markup: string) {
@@ -60,6 +89,18 @@ export const ReadinessAndNativeDiagnostics: Story = {
         if (!root) throw new Error('stylesheet fixture root is missing');
         const f = fixture(root, '<style>:scope { --adopted: yes; }</style><style>a { color: red</style>'
             + '<style type="text/less">a { color:red; }</style><style type="{$type}">a {color:red;}</style><p>Ready</p>');
+        let phase = 'setup';
+        let hydrationSettled = false; let declarationSettled = false; let renderSettled = false;
+        if (import.meta.env.MODE === 'test') {
+            const { onTestFailed, onTestFinished } = await import('vitest');
+            onTestFailed(() => { throw new Error(`held CSS readiness: ${JSON.stringify({ phase,
+                hydrationSettled, declarationSettled, renderSettled,
+                rendered: !!f.instance.querySelector('p'),
+                styles: f.declaration.querySelectorAll('style[data-cem-declaration-style]').length,
+                workers: f.workers.slice(0, 4).map(worker => worker.inspect()),
+            })}`); });
+            onTestFinished(() => f.scope.dispose());
+        }
         try {
             const second = document.createElement(f.tag); root.append(second);
             const hydrated = document.createElement(f.tag);
@@ -73,11 +114,10 @@ export const ReadinessAndNativeDiagnostics: Story = {
             serverContent.setAttribute('data-cem-source-fidelity', 'dom-canonical');
             hydrated.append(island, document.createComment('cem-render-start'), serverContent, document.createComment('cem-render-end'));
             root.append(hydrated);
-            let hydrationSettled = false;
             const hydration = f.runtime.whenRenderSettled(hydrated).then(() => { hydrationSettled = true; });
-            let declarationSettled = false; let renderSettled = false;
             const declaration = f.runtime.whenDeclarationSettled(f.declaration).then(() => { declarationSettled = true; });
             const render = f.runtime.whenRenderSettled(f.instance).then(() => { renderSettled = true; });
+            phase = 'held CSS';
             await waitFor(() => expect(f.workers[0]?.requests.length).toBe(1), { timeout: 15000 });
             expect(declarationSettled).toBe(false); expect(renderSettled).toBe(false);
             expect(hydrationSettled).toBe(false); expect(hydrated.querySelector('p')).toBe(serverContent);
@@ -85,8 +125,11 @@ export const ReadinessAndNativeDiagnostics: Story = {
             expect(f.declaration.querySelector('style[data-cem-declaration-style]')).toBeNull();
             f.instance.remove(); root.append(f.instance);
             f.workers[0].release();
+            phase = 'released CSS';
             await Promise.all([declaration, render, hydration, f.runtime.whenRenderSettled(f.instance), f.runtime.whenRenderSettled(second)]);
             expect(f.workers[0].requests).toHaveLength(1);
+            expect(f.workers[0].cssReplays).toBeGreaterThan(0);
+            expect(f.workers[0].cssReplaysMatch).toBe(true);
             expect(hydrated.querySelector('p')).toBe(serverContent);
             expect(f.instance.querySelector('p')?.textContent).toBe('Ready');
             expect(second.querySelector('p')?.textContent).toBe('Ready');
@@ -117,7 +160,11 @@ export const FailureDisposalAndNoStyle: Story = {
             expect(f.declaration.querySelector('style[data-cem-declaration-style]')).toBeNull();
             if (dispose) {
                 expect(f.instance.querySelector('p')).toBeNull();
-                expect(f.workers[0].terminated).toBe(true);
+                // Readiness cancels on disposal; physical termination drains admitted native work.
+                f.workers[0].release();
+                await waitFor(() => expect(f.workers[0].terminated).toBe(true));
+                expect(f.instance.querySelector('p')).toBeNull();
+                expect(f.declaration.querySelector('style[data-cem-declaration-style]')).toBeNull();
             } else {
                 expect(f.instance.querySelector('p')?.textContent).toBe('Settled');
                 expect(f.runtime.diagnosticsFor(f.declaration).some(d => d.code === 'cem-element.stylesheet_adoption_failed')).toBe(true);

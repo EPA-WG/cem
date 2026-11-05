@@ -240,7 +240,19 @@ separate from this native cohort.
       [diagnostic capture](archive/todo-completed-worker-allocation-diagnostics-2026-11-04.md)
       and [theme fixture verification](archive/todo-completed-theme-control-fixtures-2026-11-05.md#verification-and-allocation-follow-up).
 
-- [ ] Diagnose the existing `DOM Stylesheet Adoption / Readiness And Native Diagnostics` held-worker timeout without weakening readiness assertions. The stylesheet ownership work reproduces the 30-second timeout with the unchanged `6f1c8dca` registry as well as the repair, both alone and in the sequential browser group; the other two DOM-adoption cases pass. Keep this separate from completed replacement/collection ownership checks.
+- [x] Diagnose and repair the held-worker DOM stylesheet readiness timeout.
+      The fixture held the host's later artifact-reacquisition preflight after
+      releasing initial adoption. Release now opens the gate, with exact replay
+      input assertions and bounded, payload-free failure capture. All original
+      readiness/hydration/reconnect/style/diagnostic checks and the 30-second
+      deadline remain. See the [diagnosis and evidence](archive/todo-completed-held-css-worker-timeout-2026-11-05.md).
+
+- [x] Verify disposal readiness before the held CSS reply, then drain that late
+      native reply, require worker termination and retain empty render/style
+      assertions. Final sequential stylesheet cohort passes **44/44** across six
+      files; lint passes with zero errors and the existing 818 warnings. This
+      changes fixture code only; production runtime and frozen delivery remain
+      unchanged. The conditional fresh-allocation follow-up stays separate.
 
 - [ ] Audit the five pre-existing strict schema-definition diagnostics in the Studio project package (`id` pattern datatype and `path`/`reference-path` prefix facets); preserve its native portable project contract. The explicit-entry work verifies the same baseline diagnostics before/after and introduces no additional one.
 
