@@ -121,17 +121,19 @@ Completed diagnostic capture: [worker allocation phase investigation](archive/to
 The timeout did not recur: the broader run's allocation completed in 279 ms and
 static refusal passed. Bounded payload-free traces now distinguish readiness,
 headroom and group admission; all 48 host/diagnostic units, 23 generation tests,
-build and lint pass. The broader browser invocation passes 94/104, with ten
-unchanged theme-control count failures. Historical timeout attribution remains
-conditional below; no timing repair or green full cohort is claimed.
+build and lint pass. At that checkpoint, the broader browser invocation passed
+94/104, with ten theme-control count failures repaired in the follow-up below.
+Historical timeout attribution remains conditional; no timing repair is claimed.
 
-- [ ] Repair the stale theme-storage/popup fixture control inventory: ten browser
-      cases expect 13 nodes but the canonical Presentation choice makes 15.
-      The unchanged `ad4bcb50` fixture reproduces the mismatch. Add an actionable
-      regression for the exact canonical choices/triggers and retained node
-      identities, then preserve all storage, popup, source-policy and refusal
-      assertions through repeated worker/fallback handoff. See the
-      [diagnostic baseline](archive/todo-completed-worker-allocation-diagnostics-2026-11-04.md#verification-and-remaining-baseline).
+Completed follow-up: [canonical theme recovery control inventory](archive/todo-completed-theme-control-fixtures-2026-11-05.md).
+The fixture now checks six exact choices plus one trigger per switch, accessible
+labels/roles and original control/editor identities after handoff. Fresh
+Presentation selection preserves independent storage and the edited draft.
+All ten targeted theme stories, the final 104-case checkpoint/source-paint/
+editor-provider cohort and lint pass. An earlier 103/104 invocation exposed a separate
+`worker-method` allocation timeout; its original deadline and failed receipt
+remain preserved. Bounded allocation tracing now also covers this driver.
+Runtime/declarations, token ownership and frozen presentation bytes are unchanged.
 
 - [ ] Repair standalone runtime typecheck preparation for the transitive CLI generated schema: retain or restore the exact native-generated TypeScript input through the CLI build/cache contract, so `tsc --build --emitDeclarationOnly` works without explicit schema preparation. Keep this separate from semantic editor/widget recovery.
 
@@ -144,13 +146,17 @@ conditional below; no timing repair or green full cohort is claimed.
 
 ### Historical presentation-adjacent diagnostics
 
-- [ ] Conditional allocation follow-up: if `worker-static-change` times out again,
+- [ ] Conditional allocation follow-up: if `worker-static-change`, `worker-method`
+      or another rendering fresh allocation times out again,
       retain the new per-worker/group phase trace and identify the stalled
       boundary before changing runtime behavior. The historical frozen 110/111
-      result remains unattributed; the current isolated case and its broader-run
-      allocation pass. Preserve the original five-second deadline, complete-group
+      result and the later `worker-method` 103/104 invocation remain unattributed.
+      The isolated cases and final 104/104 invocation pass; a passing repeat is
+      not a timing repair. Both media and text-storage/popup drivers now carry
+      bounded phase capture. Preserve the original five-second deadline, complete-group
       revocation and static-preview refusal assertions. See the
-      [diagnostic capture](archive/todo-completed-worker-allocation-diagnostics-2026-11-04.md).
+      [diagnostic capture](archive/todo-completed-worker-allocation-diagnostics-2026-11-04.md)
+      and [theme fixture verification](archive/todo-completed-theme-control-fixtures-2026-11-05.md#verification-and-allocation-follow-up).
 
 - [ ] Diagnose the existing `DOM Stylesheet Adoption / Readiness And Native Diagnostics` held-worker timeout without weakening readiness assertions. The stylesheet ownership work reproduces the 30-second timeout with the unchanged `6f1c8dca` registry as well as the repair, both alone and in the sequential browser group; the other two DOM-adoption cases pass. Keep this separate from completed replacement/collection ownership checks.
 

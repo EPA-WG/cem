@@ -3933,7 +3933,7 @@ export const RetainedActionRelationshipRefusals: Story = { render: () => '<secti
 export const RetainedActionControlAndDisclosureRefusals: Story = { render: () => '<section aria-label="Retained link controller and disclosure node refusals"></section>',
     play: async ({ canvasElement }) => retainedGuardResumeStory(canvasElement, ['worker-link', 'fallback-late-link', 'worker-control', 'fallback-late-panel']) };
 
-async function isolatedTextStorageResume(base: string, load: (url: string) => Promise<any>, scenario: string, sources: string[]): Promise<string> {
+async function isolatedTextStorageResume(base: string, load: (url: string) => Promise<any>, scenario: string, sources: string[], allocation: ReturnType<typeof createWorkerAllocationDiagnostics>): Promise<string> {
     const support = new URL('lib/internal/runtime-support/', base).href;
     const binding = await load(`${support}native-runtime.js`), initial = binding.isolateCemFallbackGeneration();
     await initial.ready(); let heap = initial, embedding = initial.claimOwnership(), admission: any;
@@ -3946,7 +3946,11 @@ async function isolatedTextStorageResume(base: string, load: (url: string) => Pr
     const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1,
         policyStamp: 'text-storage', allowOwner: () => true, seal: (candidate: string, receipt: string) => binding.sealCommittedCheckpoint(candidate, receipt) });
     const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: `storage-declaration-${crypto.randomUUID()}`, checkpointPublication: coordinator,
-        processingWorkerFactory: () => { if (fallback) throw Error('owned fallback'); return new Worker(`${support}processing-worker.js`, { type: 'module' }); } });
+        processingWorkerFactory: (request: { name: string }) => {
+            if (fallback) throw Error('owned fallback');
+            const worker = new Worker(`${support}processing-worker.js`, { type: 'module' });
+            allocation.observe(worker, request.name.endsWith('-fresh')); return worker;
+        } });
     const prefix = `cem-storage-resume-${crypto.randomUUID()}`, keys = [prefix, `${prefix}-example`, `${prefix}-write`, `${prefix}-next`];
     const originalSet = Storage.prototype.setItem, originalGet = Storage.prototype.getItem, storage = localStorage,
         storageProperty = Object.getOwnPropertyDescriptor(window, 'localStorage')!;
@@ -3958,7 +3962,7 @@ async function isolatedTextStorageResume(base: string, load: (url: string) => Pr
         if (type === 'storage') subscriptions.delete(listener); remove.call(this, type, listener, options);
     };
     let writes = 0, stage = 'create';
-    const progress = setInterval(() => parent.postMessage({ progress: stage }, '*'), 250);
+    const progress = setInterval(() => parent.postMessage({ progress: stage, allocation: allocation.snapshot() }, '*'), 250);
     const capture = async () => { for (let n = 0; ; n++) { try { await coordinator.capture(); return; }
         catch (error) { if (n >= 100) throw Error(`${String(error)}: ${JSON.stringify(coordinator.inspectRecovery())}`, { cause: error }); await new Promise(resolve => setTimeout(resolve, 10)); } } };
     const settle = async () => {
@@ -3991,8 +3995,33 @@ async function isolatedTextStorageResume(base: string, load: (url: string) => Pr
         const input = writer.querySelector('input')!; input.value = 'Edited é😀'; input.dispatchEvent(new InputEvent('input', { bubbles: true }));
         await settle(); input.focus(); input.setSelectionRange(2, 7, 'backward'); await settle();
         check(localStorage.getItem(keys[2]) === 'Edited é😀', 'initial storage edit not persisted');
-        const nodes = [...theme.querySelectorAll('button'), ...example.querySelectorAll('button'), input];
-        check(nodes.length === 13, `production theme controls not rendered: ${nodes.length}`);
+        // The public inventory has six choices, including Presentation, plus
+        // one trigger. Retain every original control through owner handoff.
+        const choices = [
+            ['light', 'Light'], ['dark', 'Dark'], ['contrast-light', 'Contrast light'],
+            ['contrast-dark', 'Contrast dark'], ['projector', 'Presentation'], ['native', 'System'],
+        ] as const;
+        const themeControls = (host: HTMLElement) => {
+            const triggers = [...host.querySelectorAll<HTMLButtonElement>('cem-icon-button[part=trigger] button')];
+            const items = [...host.querySelectorAll<HTMLButtonElement>('cem-menu cem-icon-button button')];
+            check(triggers.length === 1 && triggers[0].getAttribute('aria-label') === 'Change theme', 'theme trigger inventory changed');
+            check(items.length === choices.length, `theme choice inventory changed: ${items.length}`);
+            for (const [index, [mode, label]] of choices.entries()) {
+                const button = items[index];
+                check(button.value === `cem-theme-${mode}` && button.closest('cem-icon-button')?.getAttribute('value') === button.value
+                    && button.getAttribute('aria-label') === label && button.getAttribute('role') === 'menuitemradio', `theme choice changed: ${mode}`);
+            }
+            const controls = [...triggers, ...items], buttons = [...host.querySelectorAll('button')];
+            check(buttons.length === controls.length && buttons.every((button, index) => button === controls[index]), 'unexpected theme control');
+            return controls;
+        };
+        const currentNodes = () => {
+            const editor = writer.querySelector('input');
+            if (!editor) throw Error('storage editor input missing');
+            return [...themeControls(theme), ...themeControls(example), editor];
+        };
+        const nodes = currentNodes();
+        check(nodes.at(-1) === input, 'storage editor input replaced');
         const popupModule = scenario.includes('-popup') ? await load(new URL('lib/popup-capability.js', base).href) : undefined;
         const popup = scenario.includes('-popup') ? theme.querySelector<HTMLElement>('cem-dropdown') : null, trigger = theme.querySelector<HTMLButtonElement>('cem-icon-button[part=trigger] button');
         let panel: HTMLElement | null = null;
@@ -4025,7 +4054,9 @@ async function isolatedTextStorageResume(base: string, load: (url: string) => Pr
             const proof = await coordinator.closeRenderingGeneration(5000, consent); await capture(); const ticket = coordinator.prepareResume();
             check(subscriptions.size === 0, 'old storage listeners not parked');
             const retired = await coordinator.retireRenderingGeneration(proof, 5000, consent), previous = admission;
-            admission = await group.allocate([retired]);
+            stage = `allocate ${cycle}`; allocation.phase('allocation-start');
+            try { admission = await group.allocate([retired]); allocation.phase('allocation-admitted'); }
+            catch (error) { allocation.phase('allocation-refused'); throw error; }
             const mutate = () => {
                 if (scenario.endsWith('raw')) {
                     originalSet.call(localStorage, keys[0], 'cem-theme-native');
@@ -4066,7 +4097,10 @@ async function isolatedTextStorageResume(base: string, load: (url: string) => Pr
             }
             check(writes === 0 && input.value === 'Edited é😀' && input.selectionStart === 2 && input.selectionEnd === 7
                 && input.selectionDirection === 'backward' && document.activeElement === retainedFocus, 'storage replay or lost draft/focus/selection');
-            if (!scenario.endsWith('trigger')) check(nodes.every(node => node.isConnected), 'theme/editor nodes replaced');
+            if (!scenario.endsWith('trigger')) {
+                check(nodes.every(node => node.isConnected), 'theme/editor nodes replaced');
+                check(currentNodes().every((node, index) => node === nodes[index]), 'theme/editor control identities changed');
+            }
             if (negative) return `${scenario} text storage passed`;
             if (popup && cycle === 0) {
                 trigger!.style.marginLeft = '12px'; window.dispatchEvent(new Event('resize')); await settle(); await capture();
@@ -4079,13 +4113,25 @@ async function isolatedTextStorageResume(base: string, load: (url: string) => Pr
         check(theme.getAttribute('data-theme') === 'cem-theme-native' && example.getAttribute('data-theme') === 'cem-theme-contrast-light', 'fresh independent live subscription failed');
         theme.querySelector<HTMLButtonElement>('cem-icon-button[value=cem-theme-light] button')!.click(); await settle();
         check(localStorage.getItem(keys[0]) === 'cem-theme-light' && localStorage.getItem(keys[1]) === 'cem-theme-contrast-light', 'new theme selection not persisted independently');
+        if (popup && panel?.hidden) {
+            if (!trigger) throw Error('fresh theme trigger missing');
+            trigger.click(); await settle();
+            check(!panel.hidden && trigger.getAttribute('aria-expanded') === 'true', 'fresh theme trigger did not reopen its menu');
+        }
+        const presentation = theme.querySelector<HTMLButtonElement>('cem-icon-button[value=cem-theme-projector] button');
+        if (!presentation) throw Error('Presentation control missing after repeated handoff');
+        presentation.click(); await settle();
+        check(theme.getAttribute('data-theme') === 'cem-theme-projector' && presentation.getAttribute('aria-checked') === 'true'
+            && localStorage.getItem(keys[0]) === 'cem-theme-projector' && localStorage.getItem(keys[1]) === 'cem-theme-contrast-light'
+            && example.getAttribute('data-theme') === 'cem-theme-contrast-light', 'Presentation selection not persisted independently');
+        check(currentNodes().every((node, index) => node === nodes[index]) && input.value === 'Edited é😀', 'Presentation selection replaced controls or draft');
         input.value = 'Fresh é😀'; input.dispatchEvent(new InputEvent('input', { bubbles: true })); await settle();
         check(localStorage.getItem(keys[2]) === 'Fresh é😀' && writes > 0, 'new explicit storage edit blocked');
         stage = 'new key'; theme.setAttribute('storage-key', keys[3]); await settle();
         originalSet.call(localStorage, keys[3], 'cem-theme-dark'); window.dispatchEvent(new StorageEvent('storage', { key: keys[3], storageArea: localStorage })); await settle();
         check(theme.getAttribute('data-theme') === 'cem-theme-dark', 'new key subscription not installed');
         return `${scenario} text storage passed`;
-    } catch (error) { throw Error(`${scenario}/${stage}: ${error instanceof Error ? error.stack : String(error)}`, { cause: error }); }
+    } catch (error) { throw Error(`${scenario}/${stage}: ${error instanceof Error ? error.stack : String(error)} allocation=${JSON.stringify(allocation.snapshot())}`, { cause: error }); }
     finally { clearInterval(progress); Object.defineProperty(window, 'localStorage', storageProperty); Storage.prototype.getItem = originalGet; admission?.revoke(); coordinator.dispose(); scope.dispose();
         window.addEventListener = add; window.removeEventListener = remove;
         for (const key of keys) localStorage.removeItem(key); document.body.replaceChildren(); }
@@ -4094,16 +4140,17 @@ async function textStorageResumeStory(canvasElement: HTMLElement, scenarios: str
     const root = canvasElement.querySelector('section')!, base = new URL('../../dist/', import.meta.url).href;
     for (const scenario of scenarios) {
         const frame = document.createElement('iframe'), id = crypto.randomUUID(); root.append(frame); let stop = () => undefined;
+        let allocation: unknown;
         try {
             const result = new Promise<string>((resolve, reject) => {
-                let stage = 'load'; const timer = setTimeout(() => reject(Error(`${scenario}/${stage}: text storage timed out`)), 25000);
+                let stage = 'load'; const timer = setTimeout(() => reject(Error(`${scenario}/${stage}: text storage timed out; allocation=${JSON.stringify(allocation)}`)), 25000);
                 const receive = (event: MessageEvent) => { if (event.source !== frame.contentWindow) return;
-                    if (event.data?.progress) { stage = event.data.progress; return; } if (event.data?.id !== id) return;
+                    if (event.data?.progress) { stage = event.data.progress; allocation = event.data.allocation; return; } if (event.data?.id !== id) return;
                     if (event.data.error) reject(Error(event.data.error)); else resolve(event.data.result); };
                 window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
             });
             const hook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
-            frame.srcdoc = `<script type="module">${hook}(${isolatedTextStorageResume.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)}, ${JSON.stringify([iconDeclaration, iconButtonDeclaration, actionDeclaration, menuItemDeclaration, menuDeclaration, dropdownDeclaration, themeSwitchDeclaration])})
+            frame.srcdoc = `<script type="module">${hook}(${isolatedTextStorageResume.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)}, ${JSON.stringify([iconDeclaration, iconButtonDeclaration, actionDeclaration, menuItemDeclaration, menuDeclaration, dropdownDeclaration, themeSwitchDeclaration])}, (${createWorkerAllocationDiagnostics.toString()})())
                 .then(result => parent.postMessage({id:${JSON.stringify(id)},result},'*'), error => parent.postMessage({id:${JSON.stringify(id)},error:error.stack||String(error)},'*'));</script>`;
             expect(await result).toBe(`${scenario} text storage passed`);
         } finally { stop(); frame.remove(); }
