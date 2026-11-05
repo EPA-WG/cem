@@ -101,10 +101,12 @@ graph = graph.trimEnd();
 if (!graph.endsWith('}')) throw Error('Canonical Studio graph must contain one run declaration');
 graph = graph.slice(0, -1) + `\n  {import @id=schema-asset-pack @src="../cem-ml-npm/dist-schema-assets/**/*"\n      @root="../cem-ml-npm/dist-schema-assets" @opaque=true |\n    {export @id=schema-asset-delivery @out="dist/schema-assets/schema-assets/{path}"}\n  }\n}\n`;
 const graphPath = resolve(project, 'studio.schema-assets.generated.cem');
-const samplesPath = resolve(project, 'generated/feature-tour/feature-tour.schema-assets.cem');
+const samplesPath = resolve(generated, 'feature-tour.cem');
 await writeFile(graphPath, graph);
-await writeFile(samplesPath, (await readFile(resolve(project, 'generated/feature-tour/feature-tour.cem'), 'utf8'))
-    .replaceAll('../../dist/static/', '../../dist/schema-assets/'));
+const samples = spawnSync(process.execPath, [resolve(project, 'scripts/generate-feature-tour.mjs'), '--schema-assets-graph'],
+    { cwd: workspace, stdio: 'inherit' });
+if (samples.error) throw samples.error;
+if (samples.status !== 0) throw Error(`Optional Studio sample generation failed: ${samples.status}`);
 for (const [config, report] of [[samplesPath, 'schema-assets-samples'], [graphPath, 'schema-assets-build']]) {
     const run = spawnSync(resolve(workspace, 'dist/target/cem_ml_cli/debug/cem-ml'),
         ['transform', '--config', config, '--report-json', resolve(workspace, `dist/reports/cem-studio/${report}.json`)],

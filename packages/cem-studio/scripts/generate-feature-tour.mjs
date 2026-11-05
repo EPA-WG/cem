@@ -11,6 +11,9 @@ const runtimeMetadataPath = resolve(workspaceRoot, 'packages/cem-ml-npm/dist/cem
 const generatedRoot = resolve(projectRoot, 'generated/feature-tour');
 const operationFixturesRoot = resolve(projectRoot, 'fixtures/portable-operations');
 const check = process.argv.includes('--check');
+const schemaAssetsGraph = process.argv.includes('--schema-assets-graph');
+if (check && schemaAssetsGraph) throw new Error('Check the default Feature Tour separately from optional graph emission');
+const graphRoot = schemaAssetsGraph ? resolve(projectRoot, 'generated/schema-assets') : generatedRoot;
 const seed = Object.freeze({
     id: 'cem-ml-feature-tour-seed',
     name: 'CEM-ML Feature Tour',
@@ -567,14 +570,18 @@ const graph = `{run |\n${[
         '../../dist/static/samples/feature-tour/feature-tour.project.json',
         'application/vnd.cem.studio-project+json',
     ),
-    '  {import @id=feature-tour-run-configs @src="run-configs/*.json" @content-type="application/json" @opaque=true |\n'
-        + '    {export @id=feature-tour-run-config-output @out="../../dist/static/samples/feature-tour/run-configs/{file}" @content-type="application/json"}\n'
+    `  {import @id=feature-tour-run-configs @src="${graphSource('run-configs/*.json')}" @content-type="application/json" @opaque=true |\n`
+        + `    {export @id=feature-tour-run-config-output @out="${graphDestination('../../dist/static/samples/feature-tour/run-configs/{file}')}" @content-type="application/json"}\n`
         + '  }',
     ...graphNodes,
 ].join('\n\n')}\n}\n`;
 generated.set('feature-tour.cem', Buffer.from(graph));
 
-if (check) {
+if (schemaAssetsGraph) {
+    await mkdir(graphRoot, { recursive: true });
+    await writeFile(resolve(graphRoot, 'feature-tour.cem'), graph);
+    console.log('Generated optional Feature Tour graph; default generated inputs unchanged.');
+} else if (check) {
     await verifyGeneratedFiles(generated);
     console.log(`Verified generated Feature Tour: ${selected.length} schema packages and ${examples.length} examples.`);
 } else {
@@ -717,9 +724,21 @@ function parseBlockHeaderAttributes(block) {
 }
 
 function graphCopyNode(id, source, output, contentType) {
-    return `  {import @id=${cemAttribute(id)} @src=${cemAttribute(source)} @content-type=${cemAttribute(contentType)} @opaque=true |\n`
-        + `    {export @id=${cemAttribute(`${id}-output`)} @out=${cemAttribute(output)} @content-type=${cemAttribute(contentType)}}\n`
+    return `  {import @id=${cemAttribute(id)} @src=${cemAttribute(graphSource(source))} @content-type=${cemAttribute(contentType)} @opaque=true |\n`
+        + `    {export @id=${cemAttribute(`${id}-output`)} @out=${cemAttribute(graphDestination(output))} @content-type=${cemAttribute(contentType)}}\n`
         + '  }';
+}
+
+// Build input paths, not parsed application source. Both profiles use the same
+// sample inventory; resolve each literal from the graph that actually owns it.
+function graphSource(path) {
+    return schemaAssetsGraph ? workspacePath(resolve(generatedRoot, path), graphRoot) : path;
+}
+
+function graphDestination(path) {
+    if (!schemaAssetsGraph) return path;
+    const withinDeployment = relative(resolve(projectRoot, 'dist/static'), resolve(generatedRoot, path));
+    return workspacePath(resolve(projectRoot, 'dist/schema-assets', withinDeployment), graphRoot);
 }
 
 function cemAttribute(value) {

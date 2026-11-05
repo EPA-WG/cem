@@ -256,6 +256,7 @@ complete pinned source pack:
 
 ```sh
 yarn nx run @epa-wg/cem-studio:build:schema-assets
+yarn nx run @epa-wg/cem-studio:test:sample-profile-isolation
 yarn nx run @epa-wg/cem-studio:verify:schema-assets
 yarn nx run @epa-wg/cem-studio:verify:csv-schema-assets
 ```
@@ -266,6 +267,19 @@ package retain their complete embedded catalogs. Both command and rendering
 factories select the optional binary. Profile caches include the deployment
 input digest and registration scope, so installing either profile preserves the
 other profile's caches. The verifier uses isolated browser storage.
+The optional sample graph is emitted by the canonical sample generator into
+`generated/schema-assets/feature-tour.cem`, resolving its imports against the
+ordinary generated samples and its exports into `dist/schema-assets/samples/`.
+It adds no files to `generated/feature-tour/`; the default generator's exact
+file-set and byte checks remain unchanged. The isolation test runs default →
+optional → default through the native CLI, compares both sample deployments
+byte-for-byte and verifies that unexpected default generated files still fail.
+It is included in `verify:schema-assets` and runs serially because it exercises
+both build directories. A checkout retaining the former
+`generated/feature-tour/feature-tour.schema-assets.cem` scratch input can regenerate
+the default inputs once with `yarn nx run @epa-wg/cem-studio:generate:feature-tour
+--skip-nx-cache` before strict verification.
+
 The focused CSV target verifies shared previews, saved header-policy repair and
 offline rebuilding against the optional deployment. It hashes that deployment
 and writes its own report independently of the full default navigation gate.

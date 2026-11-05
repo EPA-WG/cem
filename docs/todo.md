@@ -109,7 +109,13 @@ failures were a fixture expectation mismatch; native runtime, evidence-forgery
 refusals, context/publication guards and budgets remain unchanged. The original
 46/49 baseline remains in the [CSV verification archive](archive/todo-completed-csv-parser-contracts-2026-10-24.md#verification).
 
-- [ ] Isolate the optional Studio sample graph from the ordinary Feature Tour generated directory. `build-schema-assets-profile.mjs` leaves `generated/feature-tour/feature-tour.schema-assets.cem`, causing the subsequent strict default `generate-feature-tour.mjs --check` file-set assertion to fail. Add default → optional → default verification fixtures, move the optional build input into its own generated domain with correct relative resource bases, and retain exact default file-set checking. Removing only that untracked build scratch file permits default verification; saved projects/drafts are unrelated.
+Completed follow-up: [optional Studio sample generation](archive/todo-completed-studio-sample-isolation-2026-11-04.md).
+The canonical generator emits the optional graph into `generated/schema-assets/`
+with correct input/output bases. Nx outputs no longer overlap the strict default
+sample directory. Both native-CLI regressions and Studio lint pass: all 65 default
+generated files remain unchanged, all 107 sample outputs match between profiles,
+and unexpected generated files still fail. Default → optional → default preserves
+both deployments. Frozen presentation delivery bytes remain unchanged.
 
 - [ ] Diagnose the intermittent worker-static-change fresh-allocation timeout in StaticPreviewRefusals observed in the frozen 111-case credential-policy cohort (110 pass); the unchanged isolated case passes. Preserve the original five-second allocation deadline and static-presentation refusal assertions.
 

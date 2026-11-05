@@ -1036,6 +1036,8 @@
                 "{projectRoot}/src/**/*",
                 "{projectRoot}/generated/feature-tour/**/*",
                 "{projectRoot}/scripts/build-schema-assets-profile.mjs",
+                "{projectRoot}/scripts/generate-feature-tour.mjs",
+                "{projectRoot}/scripts/example-projects.mjs",
                 "{projectRoot}/scripts/deployment-revision.mjs",
                 "{workspaceRoot}/tools/scripts/cem-ql-wasm-factory.mjs",
                 {
@@ -1047,9 +1049,32 @@
                 "{projectRoot}/dist/schema-assets",
                 "{projectRoot}/generated/schema-assets",
                 "{projectRoot}/studio.schema-assets.generated.cem",
-                "{projectRoot}/generated/feature-tour/feature-tour.schema-assets.cem",
                 "{workspaceRoot}/dist/reports/cem-studio/schema-assets-{samples,build}.json"
             ]
+        },
+        "test:sample-profile-isolation": {
+            "cache": true,
+            "parallelism": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build:schema-assets"],
+            "options": {
+                "command": "node --test scripts/sample-profile-isolation.test.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/sample-profile-isolation.test.mjs",
+                "{workspaceRoot}/dist/target/cem_ml_cli/debug/cem-ml",
+                "{projectRoot}/scripts/build-schema-assets-profile.mjs",
+                "{projectRoot}/scripts/generate-feature-tour.mjs",
+                "{projectRoot}/scripts/example-projects.mjs",
+                "{projectRoot}/scripts/deployment-revision.mjs",
+                "{projectRoot}/studio.cem",
+                "{projectRoot}/runtime/**/*",
+                "{projectRoot}/src/**/*",
+                "{projectRoot}/generated/feature-tour/**/*",
+                { "dependentTasksOutputFiles": "**/*", "transitive": false }
+            ],
+            "outputs": []
         },
         "test:schema-measurements": {
             "cache": true,
@@ -1083,7 +1108,8 @@
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
-                "build:schema-assets"
+                "build:schema-assets",
+                "test:sample-profile-isolation"
             ],
             "options": {
                 "command": "node scripts/verify-schema-assets-profile.mjs",
