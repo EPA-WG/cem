@@ -6,6 +6,8 @@ use cem_ml::{
     source::{BytesSource, SourceId},
     tokenizer::cem::CemTokenizer,
 };
+#[path = "support/legacy_cemb.rs"]
+mod legacy_cemb;
 
 fn parse(source: &str) -> cem_ml::parser::document::CemDocument {
     let tokenizer =
@@ -188,22 +190,27 @@ fn version_two_reads_ordinary_nodes_but_rejects_reference_tags() {
         decode::DecodeError,
         format::{fnv1a64, NodeKindTag},
     };
-    for (source, has_reference) in [("{section | {target}}", false), ("{#nodes}", true)] {
-        let doc = parse(source);
-        // Ordinary-node layout is unchanged by v3. Relabel that layout as v2
-        // and recompute integrity; reference tags must remain a v3 extension.
-        let mut bytes = DebugBinaryEncoder::new().encode(&doc).bytes;
+    let ordinary = legacy_cemb::decode(2, "ordinary");
+    assert_eq!(
+        ordinary.nodes.len(),
+        parse("{section | {target}}").nodes.len()
+    );
+    for version in [3, 4] {
+        let reference = legacy_cemb::decode(version, "reference");
+        assert!(matches!(reference.get(1), Some(CemAstNode::Reference {
+            expression, context: 0, targets: None, ..
+        }) if expression == "#nodes"));
+        // A genuine reference record remains invalid in the v2 vocabulary.
+        // Only this deliberately invalid negative input has its header relabelled.
+        let mut bytes = legacy_cemb::bytes(version, "reference");
         bytes[4..6].copy_from_slice(&2u16.to_le_bytes());
-        let hash_start = bytes.len() - 8;
-        let hash = fnv1a64(&bytes[..hash_start]);
-        bytes[hash_start..].copy_from_slice(&hash.to_le_bytes());
-        let result = DebugBinaryDecoder::new().decode(&bytes);
-        if has_reference {
-            assert!(matches!(result, Err(DecodeError::UnknownKindTag(tag))
-                if tag == NodeKindTag::Reference as u8));
-        } else {
-            assert_eq!(result.unwrap().nodes.len(), doc.nodes.len());
-        }
+        let end = bytes.len() - 8;
+        let hash = fnv1a64(&bytes[..end]);
+        bytes[end..].copy_from_slice(&hash.to_le_bytes());
+        assert!(
+            matches!(DebugBinaryDecoder::new().decode(&bytes), Err(DecodeError::UnknownKindTag(tag))
+            if tag == NodeKindTag::Reference as u8)
+        );
     }
 }
 
@@ -359,15 +366,13 @@ fn cyclic_graph_roundtrip_and_inspection_preserve_edges_without_source_export_ex
     }
     let original_format = cem_ml::formatter::format(&document);
     let bytes = DebugBinaryEncoder::new().encode(&document).bytes;
-    // The reference layout is shared by versions 3 and 4; v2 rejection and
-    // ordinary-node compatibility are covered by the version fixture above.
-    for version in [3u16, 4u16] {
-        let mut payload = bytes.clone();
-        payload[4..6].copy_from_slice(&version.to_le_bytes());
-        let hash_offset = payload.len() - 8;
-        let hash = cem_ml::ast::format::fnv1a64(&payload[..hash_offset]);
-        payload[hash_offset..].copy_from_slice(&hash.to_le_bytes());
-        let restored = DebugBinaryDecoder::new().decode(&payload).unwrap();
+    // Historical producers pin their exact graph/source observations separately;
+    // current encoding must preserve the same non-owning graph contract as well.
+    for (current, restored) in [
+        (false, legacy_cemb::decode(3, "reference-graph")),
+        (false, legacy_cemb::decode(4, "reference-graph")),
+        (true, DebugBinaryDecoder::new().decode(&bytes).unwrap()),
+    ] {
         assert_eq!(restored.nodes.len(), document.nodes.len());
         for &id in &references {
             match (document.get(id).unwrap(), restored.get(id).unwrap()) {
@@ -386,7 +391,15 @@ fn cyclic_graph_roundtrip_and_inspection_preserve_edges_without_source_export_ex
                         source: h,
                         ..
                     },
-                ) => assert_eq!((a, b, c, d), (e, f, g, h)),
+                ) => {
+                    assert_eq!((a, b, c), (e, f, g));
+                    // Legacy stacks are checked exactly against their historical
+                    // producer observations by legacy_cemb::decode. Do not add
+                    // today's expression-embedding frames to those old sources.
+                    if current {
+                        assert_eq!(d, h);
+                    }
+                }
                 _ => panic!("reference identity lost"),
             }
         }

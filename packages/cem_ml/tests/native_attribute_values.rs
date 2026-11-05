@@ -10,6 +10,8 @@ use cem_ml::{
     source::{BytesSource, SourceId},
     tokenizer::cem::CemTokenizer,
 };
+#[path = "support/legacy_cemb.rs"]
+mod legacy_cemb;
 fn parse(source: &str) -> CemDocument {
     CemAstBuilder::new(CemEventNormalizer::new(CemTokenizer::from_source(
         BytesSource::new(SourceId(1), source.as_bytes().to_vec()),
@@ -139,14 +141,54 @@ fn native_value_owning_edges_cannot_be_dangling_shared_or_cyclic() {
 }
 #[test]
 fn version_three_literal_attributes_decode_with_empty_native_slots() {
-    let document = parse("{item @id=authored}");
-    let mut bytes = DebugBinaryEncoder::new().encode(&document).bytes;
-    bytes[4..6].copy_from_slice(&3u16.to_le_bytes());
-    let end = bytes.len() - 8;
-    let hash = cem_ml::ast::format::fnv1a64(&bytes[..end]);
-    bytes[end..].copy_from_slice(&hash.to_le_bytes());
-    let decoded = DebugBinaryDecoder::new().decode(&bytes).unwrap();
-    assert!(
-        matches!(decoded.get(2), Some(CemAstNode::Attribute { value: Some(value), value_nodes, .. }) if value == "authored" && value_nodes.is_empty())
-    );
+    for version in [2, 3, 4] {
+        let decoded = legacy_cemb::decode(version, "literal");
+        assert!(
+            matches!(decoded.get(2), Some(CemAstNode::Attribute { value: Some(value), value_nodes, .. }) if value == "authored" && value_nodes.is_empty())
+        );
+        assert_eq!(decoded.id_table.get("authored"), Some(&1));
+    }
+}
+
+#[test]
+fn legacy_literal_compatibility_preserves_integrity_truncation_and_count_refusals() {
+    use cem_ml::ast::{decode::DecodeError, format::fnv1a64};
+    let decoder = DebugBinaryDecoder::new();
+    for version in [2, 3, 4] {
+        let bytes = legacy_cemb::bytes(version, "literal");
+        let mut corrupt = bytes.clone();
+        corrupt[0] ^= 1;
+        assert!(matches!(
+            decoder.decode(&corrupt),
+            Err(DecodeError::IntegrityMismatch { .. })
+        ));
+        // Re-seal a structurally truncated body: the hash must not hide missing fields.
+        let mut truncated = bytes[..bytes.len() - 9].to_vec();
+        let hash = fnv1a64(&truncated);
+        truncated.extend_from_slice(&hash.to_le_bytes());
+        assert!(matches!(
+            decoder.decode(&truncated),
+            Err(DecodeError::UnexpectedEof)
+        ));
+        assert!(matches!(
+            decoder.decode_bounded(&bytes, 0),
+            Err(DecodeError::CountLimitExceeded)
+        ));
+    }
+}
+
+#[test]
+fn current_metadata_cannot_be_relabelled_as_a_legacy_body() {
+    let bytes = DebugBinaryEncoder::new()
+        .encode(&parse("{item @id=authored}"))
+        .bytes;
+    assert!(u16::from_le_bytes(bytes[4..6].try_into().unwrap()) >= 5);
+    for version in [2u16, 3, 4] {
+        let mut relabelled = bytes.clone();
+        relabelled[4..6].copy_from_slice(&version.to_le_bytes());
+        let end = relabelled.len() - 8;
+        let hash = cem_ml::ast::format::fnv1a64(&relabelled[..end]);
+        relabelled[end..].copy_from_slice(&hash.to_le_bytes());
+        assert!(DebugBinaryDecoder::new().decode(&relabelled).is_err());
+    }
 }

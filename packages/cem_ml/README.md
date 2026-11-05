@@ -304,8 +304,12 @@ ingress. Existing `run_query` retains its ordinary loading path, and namespace
 property activation remains an explicit consumer task.
 
 Binary AST reload currently preserves source expressions, source-map frames and
-supported single-arena reference graphs through the debug CEMB codec. Captured
-lexical metadata is a separate, allocation-bound input. The
+supported single-arena reference graphs through the debug CEMB codec. The
+[frozen v2/v3/v4 corpus](tests/fixtures/cemb-legacy/README.md) uses original native
+encoders and exact historical source observations to verify older wire bodies,
+literal slots and cyclic/non-owning reference graphs. Integrity, structural
+truncation, count limits and unsupported-version relabeling retain refusal checks.
+Captured lexical metadata is a separate, allocation-bound input. The
 [adopted reload contract](../../docs/cem-ql-cem-ml-node-references-design.md#binary-reload-and-lexical-handoff-adopted-2026-10-06)
 is implemented by `ast::reload::ReferenceReloadBundle`: a versioned MessagePack
 source manifest/passive lexical sidecar tied to the exact payload through SHA-256,

@@ -30,8 +30,9 @@ yarn nx run @epa-wg/cem-ml:verify:stripped --excludeTaskDependencies --skip-nx-c
 The leaf verifier retains its strict smaller-WASM/CLI assertions and checks
 capabilities, public binding absence, command types, integrity, native symbols,
 CLI refusal, Cargo features and unavailable Rust imports. The configured
-`verify:stripped` dependency graph additionally runs native tests; its separate
-legacy-binary fixture failure remains tracked in [the TODO](../../docs/todo.md).
+`verify:stripped` dependency graph additionally runs native tests. Frozen
+[historical CEMB fixtures](../cem_ml/tests/fixtures/cemb-legacy/README.md) pin
+legacy compatibility and strict malformed-body refusals.
 The [matched-profile investigation](../../docs/archive/todo-completed-stripped-wasm-size-2026-11-05.md)
 records the measured stages and independent debugger-omission evidence.
 

@@ -139,3 +139,7 @@ native test graph still has the separately recorded version-3 binary fixture
 failure; this investigation does not claim a green complete native release.
 The original size ordering, file ceiling, capability refusals and recovery
 contracts are preserved. No new public deployment is made.
+
+The later [legacy CEMB fixture repair](todo-completed-legacy-cemb-fixtures-2026-11-05.md)
+closes the native compatibility baseline recorded at this artifact checkpoint.
+The measurement receipt and its source revision retain their original evidence.

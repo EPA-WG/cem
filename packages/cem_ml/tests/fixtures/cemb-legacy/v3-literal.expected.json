@@ -1,0 +1,68 @@
+{
+  "attributes": {
+    "2": {
+      "name": "id",
+      "source": {
+        "frames": [
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 19,
+                "start": 0
+              }
+            },
+            "transform": {
+              "kind": "CemTokenizer"
+            }
+          },
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 5,
+                "start": 0
+              }
+            },
+            "transform": {
+              "kind": "CemAstBuilder"
+            }
+          },
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 2,
+                "start": 7
+              }
+            },
+            "transform": {
+              "kind": "CemAstBuilder"
+            }
+          },
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 2,
+                "start": 7
+              }
+            },
+            "transform": {
+              "kind": "CemAstBuilder"
+            }
+          }
+        ]
+      },
+      "value": "authored"
+    }
+  },
+  "canonicalSource": "{item @id=authored}\n",
+  "nodeCount": 3,
+  "references": {},
+  "wireVersion": 3
+}

@@ -1,0 +1,99 @@
+{
+  "attributes": {},
+  "canonicalSource": "{#nodes}\n",
+  "nodeCount": 2,
+  "references": {
+    "1": {
+      "context": 0,
+      "expression": "#nodes",
+      "source": {
+        "frames": [
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 8,
+                "start": 0
+              }
+            },
+            "transform": {
+              "kind": "CemTokenizer"
+            }
+          },
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 2,
+                "start": 0
+              }
+            },
+            "transform": {
+              "kind": "CemAstBuilder"
+            }
+          },
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 8,
+                "start": 0
+              }
+            },
+            "transform": {
+              "kind": "CemTokenizer"
+            }
+          },
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 2,
+                "start": 0
+              }
+            },
+            "transform": {
+              "kind": "CemAstBuilder"
+            }
+          },
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 6,
+                "start": 1
+              }
+            },
+            "transform": {
+              "kind": "CemAstBuilder"
+            }
+          },
+          {
+            "source_id": 1,
+            "span": {
+              "kind": "Single",
+              "ranges": {
+                "len": 6,
+                "start": 1
+              }
+            },
+            "transform": {
+              "expression": {
+                "len": 6,
+                "start": 0
+              },
+              "kind": "ExpressionEmbedding"
+            }
+          }
+        ]
+      },
+      "targets": null
+    }
+  },
+  "wireVersion": 4
+}

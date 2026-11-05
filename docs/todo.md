@@ -186,8 +186,8 @@ the fixture incorrectly required a literal compatibility value. It now requires
 the exact owning expression, original body/source span and braced normalized
 event, while quoted CEM/XML/HTML values remain literal through canonical round
 trips. All six conversion cases pass in both native feature profiles. The eight
-related integration suites pass 36/37 per profile; the unchanged legacy-binary
-fixture below remains a separate failure. Parser/runtime/codec, example bytes,
+related integration suites then passed 36/37 per profile; the legacy-binary
+fixture follow-up below closes that separate baseline. Parser/runtime/codec, example bytes,
 recovery contracts and frozen presentation delivery bytes remain unchanged.
 
 - [x] Strengthen the cross-surface fixture's native ownership, exact `.busy`
@@ -205,17 +205,25 @@ The initial installed pair had mismatched command declarations and only default'
 current optimization report. Historical 27,264,508/27,033,499-byte evidence remains
 unattributed; no source/runtime/optimizer change or weaker assertion is claimed.
 The [measurement receipt](stripped-wasm-profile-measurements.json) records hashes,
-producer freshness and the tested source cohort. Full native verification retains
-the separate legacy-binary fixture failure below; frozen delivery bytes remain unchanged.
+producer freshness and the tested source cohort. Its historical native-test
+failure is resolved by the compatibility follow-up below; frozen delivery bytes remain unchanged.
 
-- [ ] Repair the stale version-3 binary compatibility fixture
-      `version_three_literal_attributes_decode_with_empty_native_slots`.
-      Both native feature profiles report `UnexpectedEof` after the unchanged
-      fixture rewrites a current version-5 binary header to version 3 while
-      retaining its version-5 body. Use genuine version-3 bytes or an independent
-      version-specific fixture writer to verify literal attributes decode with
-      empty native slots; preserve strict decoder/integrity refusals. See the
-      [native conversion verification](archive/todo-completed-native-conversion-fixture-2026-11-05.md#verification-and-separate-baseline).
+Completed follow-up: [genuine legacy CEMB fixtures](archive/todo-completed-legacy-cemb-fixtures-2026-11-05.md).
+Eight frozen binaries come from unchanged historical v2/v3/v4 native encoders,
+with source/producer hashes and exact original field/source observations. Legacy
+literals retain their values, ID bindings and empty native slots; references
+retain pending/empty targets, duplicates, self/cyclic edges and original frames.
+The stale modern-header relabeling positives are replaced by genuine bytes;
+intentional malformed-version, integrity, structural-truncation and count-limit
+refusals remain strict. All 58 cases across ten related suites pass in each native
+feature profile. Decoder/runtime code, wire formats, budgets, published runtimes
+and frozen delivery bytes remain unchanged. Full release-graph verification is
+separate from this native cohort.
+
+- [x] Generate a historical native v2/v3/v4 CEMB compatibility corpus, pin exact
+      source/producer/hash evidence and replace relabeled-modern positive fixtures;
+      retain complete source/graph and malformed-body refusal checks. See the
+      [fixture documentation](../packages/cem_ml/tests/fixtures/cemb-legacy/README.md).
 
 
 ### Historical presentation-adjacent diagnostics

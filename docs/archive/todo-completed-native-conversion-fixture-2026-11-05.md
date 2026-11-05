@@ -93,3 +93,8 @@ The first two commands reproduced the original baseline before the repair; the
 default focused run and both complete cohorts verified the corrected fixture.
 The separate stripped-WASM size gate and historical runtime deadlines remain
 open; native test feature profiles are not WASM size verification.
+
+Later follow-ups completed the [matched size investigation](todo-completed-stripped-wasm-size-2026-11-05.md)
+and [genuine legacy CEMB corpus](todo-completed-legacy-cemb-fixtures-2026-11-05.md).
+The compatibility fixture's historical 36/37 checkpoint above remains preserved;
+the later ten-suite cohort passes 58/58 in each native feature profile.
