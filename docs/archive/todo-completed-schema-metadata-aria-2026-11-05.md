@@ -96,3 +96,7 @@ behavior or CSS/token changes. Portable project parsing, storage, source schema
 metadata, role tables, severity policy and budgets remain unchanged. Packaged
 runtime outputs are rebuilt locally; no public deployment or full Studio release
 graph is claimed. Frozen presentation bytes remain unchanged.
+
+Follow-up: the separately reproduced Markdown projection assertion is corrected
+by the [typed projection fixture audit](todo-completed-markdown-projection-fixture-2026-11-05.md).
+The 342/343 result above remains the original ARIA verification evidence.

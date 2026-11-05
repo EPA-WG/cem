@@ -278,14 +278,15 @@ separate from this native cohort.
       native project cases and package structure gate also pass. The broader
       **342/343** native validation result remains separate below.
 
-- [ ] Audit the Markdown events-projection assertion in
-      `validation::markdown::parser_contract::tests::admitted_markdown_originals_drive_native_parse_validation_and_color_pipeline`
-      (`parser_contract/tests.rs:313`). The 342/343 native validation cohort and
-      an isolated clean `b86b4033` run both fail its legacy JSON `byteRange` check.
-      Verify complete source ranges through the typed projection; repair a stale
-      fixture or missing provenance at the owning native layer without restoring
-      implicit JSON AST handoffs. See the
-      [baseline evidence](archive/todo-completed-schema-metadata-aria-2026-11-05.md).
+- [x] Audit and correct the Markdown events-projection fixture's stale JSON
+      `byteRange` assertion. Both typed CEM projections now require every native
+      event's exact source URI/range, order, kind, tag and text, plus original
+      hash-bound writer provenance. Unicode/CRLF, nested markup and inert CEM-like
+      text are covered; original package admission, unsafe-source refusal and
+      coloring/owner checks remain. The full native validation cohort passes
+      **343/343**, and all **16/16** Markdown cases pass without default features.
+      Production parser/projection/provenance code and frozen delivery remain
+      unchanged. See the [fixture audit and evidence](archive/todo-completed-markdown-projection-fixture-2026-11-05.md).
 
 
 ## Declarative UI Architecture Correction

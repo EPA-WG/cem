@@ -39,6 +39,173 @@ fn input(bytes: &[u8], content_type: &str) -> EngineInput {
     }
 }
 
+fn assert_markdown_projection(
+    artifact: &crate::engine::PrimaryBytes,
+    input: &EngineInput,
+    original: &MarkdownDocumentAst,
+    projection: ParseProjection,
+) {
+    use crate::{
+        events::cem::CemEventNormalizer,
+        parser::{builder::CemAstBuilder, CemAstNode},
+        source::BytesSource,
+        source_map::{FrameSpan, TransformKind},
+        tokenizer::cem::CemTokenizer,
+    };
+    use std::collections::BTreeMap;
+
+    let ast = projection == ParseProjection::Ast;
+    assert_eq!(
+        artifact.content_type,
+        crate::schema::registry::CEM_ML_CONTENT_TYPE
+    );
+    assert_eq!(
+        artifact.schema.as_deref(),
+        Some(if ast {
+            crate::schema::registry::CEM_AST_PROJECTION_SCHEMA_URI
+        } else {
+            crate::schema::registry::CEM_EVENTS_PROJECTION_SCHEMA_URI
+        })
+    );
+    let document = CemAstBuilder::new(CemEventNormalizer::new(CemTokenizer::from_source(
+        BytesSource::new(SourceId(7), artifact.bytes.clone()),
+    )))
+    .build();
+    assert!(
+        document.diagnostics.is_empty(),
+        "{:?}",
+        document.diagnostics
+    );
+    let fields = |ids: &[crate::parser::AstNodeId]| {
+        let mut fields = BTreeMap::new();
+        for id in ids {
+            let Some(CemAstNode::Attribute {
+                expanded_name,
+                value: Some(value),
+                value_nodes,
+                ..
+            }) = document.get(*id)
+            else {
+                panic!("projection attribute must be a literal")
+            };
+            assert!(
+                value_nodes.is_empty(),
+                "projection values must not become CEM expressions"
+            );
+            assert!(
+                fields
+                    .insert(expanded_name.local_name.clone(), value.clone())
+                    .is_none(),
+                "duplicate projection attribute"
+            );
+        }
+        fields
+    };
+    let roots = document
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Element {
+                expanded_name,
+                attributes,
+                children,
+                ..
+            } if expanded_name.local_name == if ast { "ast" } else { "event-stream" } => {
+                Some((attributes, children))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(roots.len(), 1);
+    let root_fields = fields(roots[0].0);
+    assert_eq!(root_fields["schema"], MARKDOWN_SCHEMA_URI);
+    assert_eq!(root_fields["content-type"], original.source.content_type);
+    assert_eq!(root_fields["source-id"], input.uri);
+    // Formatter whitespace is presentation trivia, not a native Markdown event.
+    let projected = roots[0]
+        .1
+        .iter()
+        .filter_map(|id| match document.get(*id) {
+            Some(node @ CemAstNode::Element { .. }) => Some(node),
+            Some(CemAstNode::Text { data, .. } | CemAstNode::Whitespace { data, .. })
+                if data.trim().is_empty() =>
+            {
+                None
+            }
+            other => panic!("unexpected projection content: {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        projected.len(),
+        original.events.len(),
+        "every native event must be projected once"
+    );
+
+    let proof = artifact
+        .provenance
+        .as_ref()
+        .expect("native writer provenance");
+    assert_eq!(proof.source_uri(), input.uri);
+    let spans = proof.admitted_spans(&input.bytes, &artifact.bytes);
+    let source_text = std::str::from_utf8(&input.bytes).unwrap();
+    for (node, event) in projected.into_iter().zip(&original.events) {
+        let CemAstNode::Element {
+            expanded_name,
+            attributes,
+            children,
+            ..
+        } = node
+        else {
+            panic!("projected event must be an element")
+        };
+        assert_eq!(expanded_name.local_name, if ast { "node" } else { "event" });
+        assert!(children.is_empty());
+        let values = fields(attributes);
+        assert_eq!(values["source-id"], input.uri);
+        assert_eq!(
+            values["byte-offset"],
+            event.source_range.start.byte_offset.to_string()
+        );
+        assert_eq!(
+            values["byte-length"],
+            event.source_range.byte_length.to_string()
+        );
+        assert_eq!(values["native-kind"], event.kind);
+        assert_eq!(
+            values[if ast { "order" } else { "sequence" }],
+            event.index.to_string()
+        );
+        if let Some(text) = &event.text {
+            assert_eq!(&values["value"], text);
+        }
+        if let Some(tag) = &event.tag {
+            assert_eq!(&values["tag"], tag);
+        }
+        if !ast {
+            assert_eq!(
+                values["kind"],
+                match event.kind.as_str() {
+                    "start" => "open",
+                    "end" => "close",
+                    _ => "value",
+                }
+            );
+        }
+        let start = event.source_range.start.byte_offset;
+        let length = event.source_range.byte_length;
+        assert!(source_text.is_char_boundary(start as usize));
+        assert!(source_text.is_char_boundary((start + length) as usize));
+        assert!(
+            spans.iter().any(|span| span.origin.frames.iter().any(
+                |frame| matches!((&frame.transform, &frame.span),
+                (TransformKind::SourceBoundary { uri }, FrameSpan::Single(range))
+                if uri == &input.uri && range.start == start && u64::from(range.len) == length)
+            )),
+            "{projection:?} event {} lost its exact original writer source range",
+            event.index
+        );
+    }
+}
+
 #[test]
 fn owned_markdown_contract_defaults_to_gfm_without_rewriting_declared_identity() {
     let owner = SchemaPackageSourceRegistry::default()
@@ -217,7 +384,7 @@ fn admitted_markdown_originals_drive_native_parse_validation_and_color_pipeline(
     .unwrap();
     let mut context = EngineContext::default();
     let source = input(
-        b"# Native article\n\n**Ready**\n",
+        "# Native article\r\n\r\n**Ready** Café 🧬 {#never} {$never()}.\r\n".as_bytes(),
         "text/markdown; charset=utf-8; variant=CommonMark",
     );
     #[cfg(feature = "external-schema-assets")]
@@ -273,6 +440,19 @@ fn admitted_markdown_originals_drive_native_parse_validation_and_color_pipeline(
         .events
         .iter()
         .all(|event| event.source_range.byte_length > 0));
+    let literal = " Café 🧬 {#never} {$never()}.";
+    let literal_start = source
+        .bytes
+        .windows(literal.len())
+        .position(|bytes| bytes == literal.as_bytes())
+        .unwrap();
+    let event = document
+        .events
+        .iter()
+        .find(|event| event.text.as_deref() == Some(literal))
+        .expect("original Unicode/literal text event");
+    assert_eq!(event.source_range.start.byte_offset, literal_start as u64);
+    assert_eq!(event.source_range.byte_length, literal.len() as u64);
     for projection in [ParseProjection::Ast, ParseProjection::Events] {
         let parsed = crate::real::RealCemMlEngine
             .parse(ParseRequest {
@@ -296,25 +476,15 @@ fn admitted_markdown_originals_drive_native_parse_validation_and_color_pipeline(
             "{projection:?}: {:?}",
             parsed.diagnostics
         );
-        let serialized = serde_json::to_string(&parsed.primary).unwrap();
-        assert!(serialized.contains("Native article"), "{serialized}");
-        let presentation = std::str::from_utf8(
-            &parsed
+        assert_markdown_projection(
+            parsed
                 .primary_bytes
                 .as_ref()
-                .expect("source presentation")
-                .bytes,
-        )
-        .unwrap();
-        assert!(presentation.contains(&source.uri), "{presentation}");
-        if projection == ParseProjection::Ast {
-            assert!(serialized.contains("\"frames\":[{"), "{serialized}");
-        } else {
-            assert!(
-                serialized.contains("\"byteRange\":{\"len\":"),
-                "{serialized}"
-            );
-        }
+                .expect("native CEM-ML projection"),
+            &source,
+            &document,
+            projection,
+        );
     }
     let invalid = input(
         b"<script>private()</script>\n",
