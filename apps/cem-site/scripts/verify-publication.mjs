@@ -63,5 +63,10 @@ try {
     const security = JSON.parse(await readFile(resolve(prepared.output, 'studio/security-headers.json'), 'utf8'));
     report.localApps = await verifyLocalApps(origin, security.headers);
     report.status = 'passed';
-} catch (error) { report.status = 'failed'; report.error = error.message; if (error.cause?.files) report.assetFailures = error.cause.files; throw error; }
+} catch (error) {
+    report.status = 'failed'; report.error = error.message;
+    if (error.cause?.files) report.assetFailures = error.cause.files;
+    if (error.startupCapture) report.studioStartup = error.startupCapture;
+    throw error;
+}
 finally { report.finishedAt = new Date().toISOString(); await save(); }

@@ -403,7 +403,7 @@ physical-device or spoken assistive-technology coverage.
       suites. This establishes that profile's acceptance, not default transport
       reliability. [Readback](declarative-amsterdam-2026/site-public-c0833c4c-readback.json).
 
-- [ ] Attribute the public presentation Site Studio startup variance observed on
+- [ ] On recurrence, attribute the public presentation Site Studio startup variance observed on
       version `c0833c4c-6820-4014-a44a-65aba2901282`: the first combined public
       gate exceeded the unchanged 30-second startup deadline with no reported
       page/HTTP/worker errors. A separate fresh direct startup settled in
@@ -412,6 +412,22 @@ physical-device or spoken assistive-technology coverage.
       and full navigation/offline acceptance assertions.
       The complete HTTP/2 public gate passes; retain the separate default search
       QUIC/network-change failures when investigating default-transport behavior.
+      Follow-up 2026-11-05: bounded monotonic request/worker capture now retains
+      the initial startup boundary in public reports. Fresh complete application
+      workflows pass with default and HTTP/2 transport (9,017 / 6,883 ms initial
+      view settlement); these repeats do not establish the old timeout's cause.
+      [Capture audit](archive/todo-completed-studio-startup-capture-2026-11-05.md).
+
+- [x] Add bounded, monotonic Studio startup/network/dedicated-worker capture
+      to public application verification; preserve the 30-second readiness limit,
+      transport defaults, TLS validation and full navigation/offline assertions.
+      Verify capture on a controlled delayed response and compare fresh public
+      default/HTTP2 startups against frozen publication identities.
+      Completed 2026-11-05: 26/26 host/capture tests, including a real unchanged
+      30-second held-worker response; Site lint passes. Both fresh full application
+      workflows pass with normal public TLS and five accepted startup-file pins;
+      frozen presentation bytes unchanged. No runtime or deployment change.
+      [Archive](archive/todo-completed-studio-startup-capture-2026-11-05.md).
 
 - [ ] On recurrence, attribute the historical aggregate fallback entry-module
       fetch failure before changing the loader or test lifecycle. The old cohort

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { launchPublicationBrowser } from './publication-browser.mjs';
+import { captureStudioStartup, summarizeStartup } from './studio-startup-capture.mjs';
 
 // The same assertions run on local workerd and the owner's deployed Site.
 export async function verifyLocalApps(origin, securityHeaders) {
@@ -14,6 +15,7 @@ export async function verifyLocalApps(origin, securityHeaders) {
     const errors = [], failures = [], legacyRequests = [], workerErrors = [];
     let stage = 'navigation';
     let page;
+    let startup;
     try {
         const context = await browser.newContext({ serviceWorkers: 'allow', ignoreHTTPSErrors: localTls });
         page = await context.newPage();
@@ -36,17 +38,26 @@ export async function verifyLocalApps(origin, securityHeaders) {
         const playground = navigation.getByRole('link', { name: 'Playground', exact: true });
         assert.equal(await studio.getAttribute('href'), '/studio/');
         assert.equal(await playground.getAttribute('href'), '/packages/cem-demo-element/demo/playground');
+        startup = captureStudioStartup(context, page, { origin });
+        startup.mark('Studio navigation');
         await studio.click();
+        startup.mark('Studio navigation complete');
         stage = 'Studio startup';
         assert.equal(new URL(page.url()).origin, origin);
         assert.equal(new URL(page.url()).pathname, '/studio/');
         const response = await context.request.get(origin + '/studio/');
         for (const [name, value] of Object.entries(securityHeaders)) assert.equal(response.headers()[name.toLowerCase()], value, `Studio header ${name}`);
+        startup.mark('Security headers checked');
         const ready = async () => {
             await page.waitForFunction(() => globalThis.__cemStudioApplication?.workbenchView);
             await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
         };
-        await ready();
+        startup.mark('Studio readiness wait');
+        await page.waitForFunction(() => globalThis.__cemStudioApplication?.workbenchView);
+        startup.mark('Studio application ready');
+        await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
+        startup.mark('Studio view settled');
+        report.studioStartup = startup.finish('ready');
         console.info('Local applications: Studio ready');
         stage = 'Studio service worker activation';
         await page.waitForFunction(() => navigator.serviceWorker.controller);
@@ -111,9 +122,12 @@ export async function verifyLocalApps(origin, securityHeaders) {
         await context.close();
         return report;
     } catch (error) {
+        const startupCapture = startup?.finish('failed');
         const workers = await page?.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).map(registration => ({
             scope: registration.scope, installing: registration.installing?.state, waiting: registration.waiting?.state, active: registration.active?.state,
         }))).catch(() => undefined);
-        throw new Error(`${stage}: ${error.message}\n${JSON.stringify({ errors, failures, workerErrors, legacyRequests, workers })}`, { cause: error });
-    } finally { await browser.close(); }
+        const failure = new Error(`${stage}: ${error.message}\n${JSON.stringify({ errors, failures, workerErrors, legacyRequests, workers, startup: startupCapture && summarizeStartup(startupCapture) })}`, { cause: error });
+        if (startupCapture) failure.startupCapture = startupCapture;
+        throw failure;
+    } finally { startup?.finish('failed'); await browser.close(); }
 }

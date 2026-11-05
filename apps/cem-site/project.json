@@ -253,12 +253,15 @@
             "cache": true,
             "executor": "nx:run-commands",
             "options": {
-                "command": "node --test apps/cem-site/scripts/publication-host.test.mjs apps/cem-site/scripts/cloudflare-host.test.mjs",
+                "command": "node --test apps/cem-site/scripts/publication-host.test.mjs apps/cem-site/scripts/cloudflare-host.test.mjs apps/cem-site/scripts/studio-startup-capture.test.mjs",
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
                 "{projectRoot}/scripts/publication-host*.mjs",
                 "{projectRoot}/scripts/cloudflare-host.test.mjs",
+                "{projectRoot}/scripts/studio-startup-capture*.mjs",
+                "{projectRoot}/scripts/publication-browser.mjs",
+                { "env": "CEM_SITE_BROWSER_TRANSPORT" },
                 "{workspaceRoot}/tools/cloudflare/*.mjs"
             ],
             "outputs": []

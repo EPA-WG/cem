@@ -1,0 +1,681 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-05",
+  "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+  "ownerReportedVersionId": "928c385e-79cb-4ef9-844a-ce64967a6243",
+  "scope": "Focused public application workflows and five startup identity pins; not a new full 1206-asset Site acceptance or deployment.",
+  "startupDeadlineMs": 30000,
+  "publicTlsValidation": true,
+  "runtimeChanges": false,
+  "historicalTimeoutCause": "unattributed; original failed attempt has no request-level capture",
+  "controlledCapture": {
+    "target": "cem-site:test:publication-host",
+    "testsPassed": 26,
+    "testsFailed": 0,
+    "heldDedicatedWorkerFetch": "/runtime.wasm",
+    "deadlineMs": 30000,
+    "timeoutObserved": true,
+    "pendingFetchAndDedicatedWorkerCaptured": true,
+    "lateReleaseAndCleanupCannotRewriteFailure": true
+  },
+  "workflows": [
+    {
+      "transport": "default",
+      "checkedAt": "2026-11-05T21:42:34.767Z",
+      "finishedAt": "2026-11-05T21:43:02.871Z",
+      "status": "passed",
+      "totalElapsedMs": 28103,
+      "identity": [
+        {
+          "path": "studio/index.html",
+          "bytes": 3032,
+          "sha256": "6a689d0aff1ed426d810dbda8d27e97841d7f4fefebcbcecf75d95cef88ad7a8",
+          "matchesAccepted": true
+        },
+        {
+          "path": "studio/build.json",
+          "bytes": 415,
+          "sha256": "c3587535b25126a022d2be5466fe52754d2d3fef68ea4e7abb2518ddeeaa8bb9",
+          "matchesAccepted": true
+        },
+        {
+          "path": "studio/service-worker.js",
+          "bytes": 13948,
+          "sha256": "5a19c13517a563f3202893550455611f3a2bdc3fbfee5f1ee45deac04e6496a2",
+          "matchesAccepted": true
+        },
+        {
+          "path": "studio/assets/@epa-wg/cem-studio/main.js",
+          "bytes": 9942,
+          "sha256": "6b0f739415b7dd4baa99d5d69c27c2abb15e3ade68aab6f50a253309f35e0a4d",
+          "matchesAccepted": true
+        },
+        {
+          "path": "studio/security-headers.json",
+          "bytes": 803,
+          "sha256": "9b2c2b8f896b720fbd3005a4e4923d8a96bcc6753fba40410ffbee9a11665ace",
+          "matchesAccepted": true
+        }
+      ],
+      "studio": {
+        "route": "/studio/",
+        "scope": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/",
+        "securityHeaders": "matched",
+        "savedCopy": true,
+        "nativeBuild": true,
+        "offlineRebuild": true
+      },
+      "playground": {
+        "route": "/packages/cem-demo-element/demo/playground",
+        "editedSourceRender": true
+      },
+      "legacyRequests": [],
+      "startup": {
+        "outcome": "ready",
+        "elapsedMs": 9017.04,
+        "requestCount": 533,
+        "pendingCount": 108,
+        "failedCount": 0,
+        "dropped": {
+          "requests": 0,
+          "workers": 0,
+          "marks": 0
+        },
+        "marks": [
+          {
+            "name": "Studio navigation",
+            "elapsedMs": 1.12
+          },
+          {
+            "name": "Studio navigation complete",
+            "elapsedMs": 152.05
+          },
+          {
+            "name": "Security headers checked",
+            "elapsedMs": 403.96
+          },
+          {
+            "name": "Studio readiness wait",
+            "elapsedMs": 403.97
+          },
+          {
+            "name": "Studio application ready",
+            "elapsedMs": 8999.42
+          },
+          {
+            "name": "Studio view settled",
+            "elapsedMs": 9016.55
+          }
+        ],
+        "workers": [
+          {
+            "kind": "dedicated",
+            "path": "/studio/assets/@epa-wg/cem-ml-cli/dist/browser-worker.js",
+            "observedMs": 2104.16,
+            "existing": false
+          },
+          {
+            "kind": "dedicated",
+            "path": "/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+            "observedMs": 2139.4,
+            "existing": false
+          },
+          {
+            "kind": "service-worker",
+            "path": "/studio/service-worker.js",
+            "observedMs": 4945.44,
+            "existing": false
+          }
+        ],
+        "wasmRequests": [
+          {
+            "path": "/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "resourceType": "fetch",
+            "startMs": 871.66,
+            "owner": "page-or-dedicated-worker",
+            "responseMs": 1171.95,
+            "status": 200,
+            "fromServiceWorker": false,
+            "timing": {
+              "domainLookupStart": -1,
+              "domainLookupEnd": -1,
+              "connectStart": -1,
+              "secureConnectionStart": -1,
+              "connectEnd": -1,
+              "requestStart": 0.144,
+              "responseStart": 298.666,
+              "responseEnd": 1009.908
+            },
+            "endMs": 1914.56
+          },
+          {
+            "path": "/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "resourceType": "fetch",
+            "startMs": 934.48,
+            "owner": "page-or-dedicated-worker",
+            "responseMs": 1269.23,
+            "status": 200,
+            "fromServiceWorker": false,
+            "timing": {
+              "domainLookupStart": -1,
+              "domainLookupEnd": -1,
+              "connectStart": -1,
+              "secureConnectionStart": -1,
+              "connectEnd": -1,
+              "requestStart": 0.178,
+              "responseStart": 333.157,
+              "responseEnd": 986.262
+            },
+            "endMs": 2101.28
+          },
+          {
+            "path": "/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "resourceType": "fetch",
+            "startMs": 2299.73,
+            "owner": "page-or-dedicated-worker",
+            "responseMs": 2502.39,
+            "status": 200,
+            "fromServiceWorker": false,
+            "timing": {
+              "domainLookupStart": -1,
+              "domainLookupEnd": -1,
+              "connectStart": -1,
+              "secureConnectionStart": -1,
+              "connectEnd": -1,
+              "requestStart": 0.189,
+              "responseStart": 201.112,
+              "responseEnd": 513.28
+            },
+            "endMs": 2830.99
+          },
+          {
+            "path": "/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "resourceType": "fetch",
+            "startMs": 5343.37,
+            "owner": "service-worker",
+            "responseMs": 6115.06,
+            "status": 200,
+            "fromServiceWorker": false,
+            "timing": {
+              "domainLookupStart": -1,
+              "domainLookupEnd": -1,
+              "connectStart": -1,
+              "secureConnectionStart": -1,
+              "connectEnd": -1,
+              "requestStart": 0.293,
+              "responseStart": 280.716,
+              "responseEnd": 1074.049
+            },
+            "endMs": 6389.23
+          },
+          {
+            "path": "/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "resourceType": "fetch",
+            "startMs": 5353.05,
+            "owner": "service-worker",
+            "responseMs": 6553.08,
+            "status": 200,
+            "fromServiceWorker": false,
+            "timing": {
+              "domainLookupStart": -1,
+              "domainLookupEnd": -1,
+              "connectStart": -1,
+              "secureConnectionStart": -1,
+              "connectEnd": -1,
+              "requestStart": 0.669,
+              "responseStart": 254.064,
+              "responseEnd": 1487.946
+            },
+            "endMs": 6805.13
+          }
+        ],
+        "failedRequests": []
+      },
+      "fullTraceLocalPath": "dist/reports/cem-site/startup-audit-default-2026-11-05.json"
+    },
+    {
+      "transport": "http2",
+      "checkedAt": "2026-11-05T21:43:17.657Z",
+      "finishedAt": "2026-11-05T21:43:44.952Z",
+      "status": "passed",
+      "totalElapsedMs": 27294,
+      "identity": [
+        {
+          "path": "studio/index.html",
+          "bytes": 3032,
+          "sha256": "6a689d0aff1ed426d810dbda8d27e97841d7f4fefebcbcecf75d95cef88ad7a8",
+          "matchesAccepted": true
+        },
+        {
+          "path": "studio/build.json",
+          "bytes": 415,
+          "sha256": "c3587535b25126a022d2be5466fe52754d2d3fef68ea4e7abb2518ddeeaa8bb9",
+          "matchesAccepted": true
+        },
+        {
+          "path": "studio/service-worker.js",
+          "bytes": 13948,
+          "sha256": "5a19c13517a563f3202893550455611f3a2bdc3fbfee5f1ee45deac04e6496a2",
+          "matchesAccepted": true
+        },
+        {
+          "path": "studio/assets/@epa-wg/cem-studio/main.js",
+          "bytes": 9942,
+          "sha256": "6b0f739415b7dd4baa99d5d69c27c2abb15e3ade68aab6f50a253309f35e0a4d",
+          "matchesAccepted": true
+        },
+        {
+          "path": "studio/security-headers.json",
+          "bytes": 803,
+          "sha256": "9b2c2b8f896b720fbd3005a4e4923d8a96bcc6753fba40410ffbee9a11665ace",
+          "matchesAccepted": true
+        }
+      ],
+      "studio": {
+        "route": "/studio/",
+        "scope": "https://cem-amsterdam-2026.trans-acf.workers.dev/studio/",
+        "securityHeaders": "matched",
+        "savedCopy": true,
+        "nativeBuild": true,
+        "offlineRebuild": true
+      },
+      "playground": {
+        "route": "/packages/cem-demo-element/demo/playground",
+        "editedSourceRender": true
+      },
+      "legacyRequests": [],
+      "startup": {
+        "outcome": "ready",
+        "elapsedMs": 6883.47,
+        "requestCount": 533,
+        "pendingCount": 163,
+        "failedCount": 0,
+        "dropped": {
+          "requests": 0,
+          "workers": 0,
+          "marks": 0
+        },
+        "marks": [
+          {
+            "name": "Studio navigation",
+            "elapsedMs": 0.6
+          },
+          {
+            "name": "Studio navigation complete",
+            "elapsedMs": 91.23
+          },
+          {
+            "name": "Security headers checked",
+            "elapsedMs": 411.83
+          },
+          {
+            "name": "Studio readiness wait",
+            "elapsedMs": 411.83
+          },
+          {
+            "name": "Studio application ready",
+            "elapsedMs": 6875.42
+          },
+          {
+            "name": "Studio view settled",
+            "elapsedMs": 6883.08
+          }
+        ],
+        "workers": [
+          {
+            "kind": "dedicated",
+            "path": "/studio/assets/@epa-wg/cem-ml-cli/dist/browser-worker.js",
+            "observedMs": 1378.15,
+            "existing": false
+          },
+          {
+            "kind": "dedicated",
+            "path": "/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+            "observedMs": 1419.15,
+            "existing": false
+          },
+          {
+            "kind": "service-worker",
+            "path": "/studio/service-worker.js",
+            "observedMs": 3615.45,
+            "existing": false
+          }
+        ],
+        "wasmRequests": [
+          {
+            "path": "/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "resourceType": "fetch",
+            "startMs": 621.57,
+            "owner": "page-or-dedicated-worker",
+            "responseMs": 878.45,
+            "status": 200,
+            "fromServiceWorker": false,
+            "timing": {
+              "domainLookupStart": -1,
+              "domainLookupEnd": -1,
+              "connectStart": -1,
+              "secureConnectionStart": -1,
+              "connectEnd": -1,
+              "requestStart": 0.105,
+              "responseStart": 251.396,
+              "responseEnd": 590.037
+            },
+            "endMs": 1241.95
+          },
+          {
+            "path": "/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "resourceType": "fetch",
+            "startMs": 693.81,
+            "owner": "page-or-dedicated-worker",
+            "responseMs": 899.89,
+            "status": 200,
+            "fromServiceWorker": false,
+            "timing": {
+              "domainLookupStart": -1,
+              "domainLookupEnd": -1,
+              "connectStart": -1,
+              "secureConnectionStart": -1,
+              "connectEnd": -1,
+              "requestStart": 0.362,
+              "responseStart": 204.455,
+              "responseEnd": 556.088
+            },
+            "endMs": 1377.8
+          },
+          {
+            "path": "/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "resourceType": "fetch",
+            "startMs": 1574.05,
+            "owner": "page-or-dedicated-worker",
+            "responseMs": 1769.05,
+            "status": 200,
+            "fromServiceWorker": false,
+            "timing": {
+              "domainLookupStart": -1,
+              "domainLookupEnd": -1,
+              "connectStart": -1,
+              "secureConnectionStart": -1,
+              "connectEnd": -1,
+              "requestStart": 0.125,
+              "responseStart": 193.756,
+              "responseEnd": 402.189
+            },
+            "endMs": 1988.67
+          },
+          {
+            "path": "/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+            "resourceType": "fetch",
+            "startMs": 4200.42,
+            "owner": "service-worker",
+            "responseMs": 4915.49,
+            "status": 200,
+            "fromServiceWorker": false,
+            "timing": {
+              "domainLookupStart": -1,
+              "domainLookupEnd": -1,
+              "connectStart": -1,
+              "secureConnectionStart": -1,
+              "connectEnd": -1,
+              "requestStart": 0.163,
+              "responseStart": 220.198,
+              "responseEnd": 1022.942
+            },
+            "endMs": 5205.15
+          },
+          {
+            "path": "/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+            "resourceType": "fetch",
+            "startMs": 4203.22,
+            "owner": "service-worker",
+            "responseMs": 5412.27,
+            "status": 200,
+            "fromServiceWorker": false,
+            "timing": {
+              "domainLookupStart": -1,
+              "domainLookupEnd": -1,
+              "connectStart": -1,
+              "secureConnectionStart": -1,
+              "connectEnd": -1,
+              "requestStart": 0.113,
+              "responseStart": 209.919,
+              "responseEnd": 1444.548
+            },
+            "endMs": 5628.19
+          }
+        ],
+        "failedRequests": []
+      },
+      "fullTraceLocalPath": "dist/reports/cem-site/startup-audit-http2-2026-11-05.json"
+    }
+  ],
+  "earlierDirectProbes": [
+    {
+      "transport": "default",
+      "scope": "Separate direct startup probe, not full application acceptance; truncate events after capture before summarizing.",
+      "deadlineMs": 30000,
+      "applicationReadyMs": 11786,
+      "settledMs": 11799,
+      "capturedMs": 11799,
+      "waitStartedMs": 1375,
+      "requestCount": 534,
+      "failureCounts": {
+        "net::ERR_QUIC_PROTOCOL_ERROR": 1,
+        "net::ERR_ABORTED": 166
+      },
+      "wasmRequests": [
+        {
+          "path": "/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "type": "fetch",
+          "startMs": 1436,
+          "status": 200,
+          "responseMs": 1785,
+          "fromServiceWorker": false,
+          "endMs": 2430,
+          "timing": {
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": 0.12,
+            "responseStart": 348.555,
+            "responseEnd": 963.751
+          }
+        },
+        {
+          "path": "/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "type": "fetch",
+          "startMs": 1674,
+          "status": 200,
+          "responseMs": 2762,
+          "fromServiceWorker": false,
+          "endMs": 3400,
+          "timing": {
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": 0.16,
+            "responseStart": 1082.709,
+            "responseEnd": 1468.335
+          }
+        },
+        {
+          "path": "/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "type": "fetch",
+          "startMs": 3688,
+          "status": 200,
+          "responseMs": 3898,
+          "fromServiceWorker": false,
+          "endMs": 4250,
+          "timing": {
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": 0.267,
+            "responseStart": 206.252,
+            "responseEnd": 546.006
+          }
+        },
+        {
+          "path": "/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "type": "fetch",
+          "startMs": 8159,
+          "status": 200,
+          "responseMs": 9319,
+          "fromServiceWorker": false,
+          "endMs": 9648,
+          "timing": {
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": 0.134,
+            "responseStart": 316.804,
+            "responseEnd": 1515.312
+          }
+        },
+        {
+          "path": "/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "type": "fetch",
+          "startMs": 8160,
+          "status": 200,
+          "responseMs": 10126,
+          "fromServiceWorker": false,
+          "failedMs": 10306,
+          "failure": "net::ERR_QUIC_PROTOCOL_ERROR"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "transport": "http2",
+      "scope": "Separate direct startup probe, not full application acceptance; truncate events after capture before summarizing.",
+      "deadlineMs": 30000,
+      "applicationReadyMs": 8624,
+      "settledMs": 8636,
+      "capturedMs": 8636,
+      "waitStartedMs": 898,
+      "requestCount": 533,
+      "failureCounts": {},
+      "wasmRequests": [
+        {
+          "path": "/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "type": "fetch",
+          "startMs": 949,
+          "status": 200,
+          "responseMs": 1200,
+          "fromServiceWorker": false,
+          "endMs": 1562,
+          "timing": {
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": 0.351,
+            "responseStart": 243.043,
+            "responseEnd": 583.767
+          }
+        },
+        {
+          "path": "/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "type": "fetch",
+          "startMs": 1000,
+          "status": 200,
+          "responseMs": 1218,
+          "fromServiceWorker": false,
+          "endMs": 1845,
+          "timing": {
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": 0.253,
+            "responseStart": 210.829,
+            "responseEnd": 633.883
+          }
+        },
+        {
+          "path": "/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "type": "fetch",
+          "startMs": 2043,
+          "status": 200,
+          "responseMs": 2329,
+          "fromServiceWorker": false,
+          "endMs": 2506,
+          "timing": {
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": 0.152,
+            "responseStart": 278.837,
+            "responseEnd": 448.654
+          }
+        },
+        {
+          "path": "/studio/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm",
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "type": "fetch",
+          "startMs": 5035,
+          "status": 200,
+          "responseMs": 5765,
+          "fromServiceWorker": false,
+          "endMs": 6015,
+          "timing": {
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": 0.094,
+            "responseStart": 207.953,
+            "responseEnd": 1003.272
+          }
+        },
+        {
+          "path": "/studio/assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+          "origin": "https://cem-amsterdam-2026.trans-acf.workers.dev",
+          "type": "fetch",
+          "startMs": 5037,
+          "status": 200,
+          "responseMs": 6275,
+          "fromServiceWorker": false,
+          "endMs": 6521,
+          "timing": {
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": 0.108,
+            "responseStart": 207.015,
+            "responseEnd": 1507.48
+          }
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "frozenPresentation": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864",
+    "unchanged": true
+  }
+}

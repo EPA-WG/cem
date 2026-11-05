@@ -208,6 +208,19 @@ validation, behavior assertions and deadlines are unchanged; retain default-run
 failures separately instead of treating this profile as default-browser proof.
 Cached browser targets include the profile and shared launcher in their inputs.
 
+The application verifier passively captures initial Studio startup with monotonic
+durations, stage marks, same-origin request paths, transfer timing, failed requests
+and dedicated/service-worker lifetimes. It distinguishes service-worker requests;
+Playwright groups page and dedicated-worker requests together. Capture stops at
+initial view readiness or failure, before browser cleanup, and never includes
+request bodies, headers or URL queries. Limits are 1,024 requests, 16 workers and
+32 marks, with dropped-record counts. A successful application report stores
+`localApps.studioStartup`; a failed public verification stores `studioStartup`
+alongside the original error. The host-test target includes a controlled held
+worker response checked at the unchanged 30-second readiness deadline. Later
+online/offline assertions still run in full; a successful repeat cannot explain
+a historical timeout that lacked this capture.
+
 Markdown block examples use source-only `cem-demo-element` viewers. The native
 page transform trims outer source whitespace while preserving inner indentation
 and escaped markup. The shared viewer colors supported languages without
