@@ -21,7 +21,8 @@ import * as wasm from '../../../cem_ql/dist/wasm/cem_ql.js';
 export default { title: 'CEM Elements/Suggestions Controller', tags: ['test'] } satisfies Meta;
 type Story = StoryObj;
 const workerScriptUrl = new URL('./internal/runtime-support/processing-worker.ts', import.meta.url);
-async function fixture(root: HTMLElement, fallback: boolean, declarative = false, productionField?: string, platformClose?: CemPlatformCloseCoordinator) {
+async function fixture(root: HTMLElement, fallback: boolean, declarative = false, productionField?: string, platformClose?: CemPlatformCloseCoordinator,
+    initialPreparation?: { wait: Promise<void>; complete(): void }) {
     await wasm.default({ module_or_path: new URL('../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url) });
     if (productionField) await loadCemComponent(productionField);
     const suffix = crypto.randomUUID(), declarationTag = `controller-declaration-${suffix}`, tag = productionField ?? `controller-field-${suffix}`;
@@ -84,37 +85,56 @@ async function fixture(root: HTMLElement, fallback: boolean, declarative = false
     const panelPlacement = placements.register({ producer: 'listbox', revision: '1', current: () => panel.isConnected, kind: 'listbox', element: panel });
     placements.grant('listbox', editorPlacement, ['editor-for']); placements.grant('field', panelPlacement, ['aria-controls']);
     let publication: CemNativeSuggestionsPublication | undefined, binding: CemNativeSuggestionsBinding | undefined, rowPlacements: CemSuggestionsPlacementLease[] = [];
-    let latest = 0, delay: Promise<void> | undefined;
+    let preparationSequence = 0, delay: Promise<void> | undefined;
     const errors: unknown[] = [], feedbacks: CemSuggestionsFeedback[] = [];
     let failed = false;
+    const trace: { phase: string; queryRevision?: number; rows?: number; attempt?: number }[] = [];
+    const record = (phase: string, queryRevision?: number, rows?: number, attempt?: number) => {
+        if (trace.length === 32) trace.shift();
+        trace.push({ phase, queryRevision, rows, attempt });
+    };
     const controllerOptions: CemSuggestionsControllerOptions = { editorHost: field, listbox: panel, platformClose, onError: error => errors.push(error),
         onFeedback: feedback => feedbacks.push(feedback),
         async prepare(query, queryRevision) {
-            latest = queryRevision;
-            if (delay) await delay;
-            if (failed) throw new Error('Fixture source unavailable');
-            const next = await session.publishSuggestions({ query, queryRevision }, () => latest === queryRevision);
-            let nextBinding: CemNativeSuggestionsBinding | undefined;
+            // Query revisions restart when the capability admits a replacement controller.
+            // Keep host preparation ownership unique across those lifetimes.
+            const attempt = ++preparationSequence;
+            const mark = (phase: string, rows?: number) => record(phase, queryRevision, rows, attempt);
             try {
-                let mapped: ReturnType<CemElementRuntime['renderedSuggestionsFor']>;
-                if (declarative) {
-                    renderPublication = next; runtime.refreshElementReferences(host); await runtime.whenRenderSettled(host);
-                    mapped = runtime.renderedSuggestionsFor(host);
-                    if (!mapped) throw new Error(`Missing committed native row map: ${runtime.diagnosticsFor(host).map(d => d.message).join('; ')}`);
-                    nextBinding = mapped.binding; rowElements = mapped.rows.map(row => row.element);
-                } else nextBinding = next.bind({ instanceId: 'listbox', scopePolicyStamp: 'listbox', revision: String(queryRevision), current: () => latest === queryRevision });
-                const rows = mapped ? mapped.rows.map(row => row.native) : await nextBinding.rows();
-                if (latest !== queryRevision) throw new Error('Fixture preparation superseded');
-                for (const lease of rowPlacements) lease.dispose(); binding?.release(); await publication?.release();
-                publication = next; binding = nextBinding;
-                rowPlacements = rows.map((row, i) => {
-                    if (!declarative) rowElements[i].hidden = !row.eligible;
-                    const registered = placements.register({ producer: 'listbox', revision: String(queryRevision), current: () => latest === queryRevision && (!mapped || mapped.current()),
-                        kind: 'row', element: rowElements[i], row });
-                    placements.grant('field', registered, ['aria-activedescendant']); return registered;
-                });
-                return placements.prepare(nextBinding, editorPlacement, panelPlacement, rowPlacements);
-            } catch (error) { nextBinding?.release(); await next.release(); throw error; }
+                mark('prepare');
+                if (attempt === 1 && initialPreparation) await initialPreparation.wait;
+                if (delay) await delay;
+                if (failed) throw new Error('Fixture source unavailable');
+                const next = await session.publishSuggestions({ query, queryRevision }, () => preparationSequence === attempt);
+                mark('published');
+                let nextBinding: CemNativeSuggestionsBinding | undefined;
+                try {
+                    let mapped: ReturnType<CemElementRuntime['renderedSuggestionsFor']>;
+                    if (declarative) {
+                        renderPublication = next;
+                        mark('render-requested');
+                        runtime.refreshElementReferences(host); await runtime.whenRenderSettled(host);
+                        mark('render-settled');
+                        mapped = runtime.renderedSuggestionsFor(host);
+                        mark(mapped ? 'row-map' : 'row-map-missing', mapped?.rows.length);
+                        if (!mapped) throw new Error(`Missing committed native row map: ${runtime.diagnosticsFor(host).map(d => d.message).join('; ')}`);
+                        nextBinding = mapped.binding; rowElements = mapped.rows.map(row => row.element);
+                    } else nextBinding = next.bind({ instanceId: 'listbox', scopePolicyStamp: 'listbox', revision: String(queryRevision), current: () => preparationSequence === attempt });
+                    const rows = mapped ? mapped.rows.map(row => row.native) : await nextBinding.rows();
+                    if (preparationSequence !== attempt) throw new Error('Fixture preparation superseded');
+                    for (const lease of rowPlacements) lease.dispose(); binding?.release(); await publication?.release();
+                    publication = next; binding = nextBinding;
+                    rowPlacements = rows.map((row, i) => {
+                        if (!declarative) rowElements[i].hidden = !row.eligible;
+                        const registered = placements.register({ producer: 'listbox', revision: String(queryRevision), current: () => preparationSequence === attempt && (!mapped || mapped.current()),
+                            kind: 'row', element: rowElements[i], row });
+                        placements.grant('field', registered, ['aria-activedescendant']); return registered;
+                    });
+                    const prepared = placements.prepare(nextBinding, editorPlacement, panelPlacement, rowPlacements);
+                    mark('placements-ready', rows.length);
+                    return prepared;
+                } catch (error) { mark('prepare-failed'); nextBinding?.release(); await next.release(); throw error; }
+            } finally { if (attempt === 1) initialPreparation?.complete(); }
         },
     };
     if (declarative) { capabilityOptions = controllerOptions; runtime.setInstanceSlices(host, { fixtureTick: 1 });
@@ -124,7 +144,20 @@ async function fixture(root: HTMLElement, fallback: boolean, declarative = false
     const settled = () => waitFor(() => { expect(controller.pending).toBe(false); expect(errors).toEqual([]); });
     const key = (name: string, extra: KeyboardEventInit = {}) => { const event = new KeyboardEvent('keydown', { key: name, code: name, bubbles: true, cancelable: true, ...extra }); editor.dispatchEvent(event); return event; };
     const up = (name: string) => editor.dispatchEvent(new KeyboardEvent('keyup', { key: name, code: name, bubbles: true }));
-    return { host, field, form, panel, editor, provider, controller, feedbacks, errors, get rowElements() { return rowElements; }, outside, settled, key, up,
+    const inspectLive = () => {
+        const active = declarative ? cemSuggestionsControllerFor(host) : controller;
+        // Read stored observations and DOM only; visible/feedback getters can reconcile authority.
+        return { controllerPresent: !!active, pending: active?.pending,
+            feedbackState: feedbacks.at(-1)?.state, activeClaimPresent: editor.hasAttribute('aria-activedescendant'),
+            editorConnected: editor.isConnected, editorFocused: document.activeElement === editor,
+            panelConnected: panel.isConnected, panelOpen: panel.matches(':popover-open'),
+            errors: errors.length, diagnosticCodes: runtime.diagnosticsFor(host).slice(0, 8).map(d => d.code),
+            trace: [...trace] };
+    };
+    let finalInspection: ReturnType<typeof inspectLive> | undefined;
+    const freezeInspection = () => { finalInspection ??= inspectLive(); };
+    return { runtime, host, field, form, panel, editor, provider, controller, feedbacks, errors,
+        inspect: () => finalInspection ?? inspectLive(), freezeInspection, get rowElements() { return rowElements; }, outside, settled, key, up,
         async admitAncestors(ancestors: readonly CemSurfaceLifetime[]) {
             capabilityOptions = { ...controllerOptions, ancestors }; runtime.setInstanceSlices(host, { fixtureTick: crypto.randomUUID() });
             await runtime.whenRenderSettled(host);
@@ -136,10 +169,17 @@ async function fixture(root: HTMLElement, fallback: boolean, declarative = false
         fail(value: boolean) { failed = value; },
         releaseSource: () => session.release(),
         block() { let finish!: () => void; delay = new Promise(resolve => { finish = resolve; }); return () => { delay = undefined; finish(); }; },
-        async cleanup() { controller.disconnect(); binding?.release(); await publication?.release(); placements.dispose(); await session.release();
+        async cleanup() { freezeInspection(); controller.disconnect(); binding?.release(); await publication?.release(); placements.dispose(); await session.release();
             await owner.dispose({ reason: 'runtime-disposed' }).result; scope.dispose(); form.remove(); declaration.remove(); parentDeclaration?.remove(); },
     };
 }
+/** Add context to the original runner failure; never race or extend its deadline. */
+async function captureControllerFailure(inspect: () => object): Promise<void> {
+    if (import.meta.env.MODE !== 'test') return;
+    const { onTestFailed } = await import('vitest');
+    onTestFailed(() => { throw new Error(`suggestions controller: ${JSON.stringify(inspect())}`); });
+}
+
 export const KeyboardCommitsPreserveNativeOwnershipAndProvenance: Story = {
     render: () => '<section></section>',
     play: async ({ canvasElement }) => {
@@ -559,27 +599,39 @@ export const NativeTouchPenRowsPreserveFocusAndScrolling: Story = {
 export const ProductionFieldsExternalSourcesAndTrustedAncestorResume: Story = {
     render: () => '<section></section>',
     play: async ({ canvasElement }) => {
+        let phase = 'setup', currentField = '', fallbackMode = false;
+        let inspect: (() => object) | undefined, inspectAncestor: (() => object) | undefined;
+        let finalAncestor: object | undefined;
+        await captureControllerFailure(() => ({ phase, field: currentField, fallback: fallbackMode,
+            ancestor: finalAncestor ?? inspectAncestor?.(), fixture: inspect?.() }));
         for (const field of ['cem-field', 'cem-text-field']) for (const fallback of [false, true]) {
+            currentField = field; fallbackMode = fallback; phase = 'fixture'; inspect = undefined; inspectAncestor = undefined; finalAncestor = undefined;
             const dialog = document.createElement('dialog'); dialog.setAttribute('mode', 'modal');
             dialog.setAttribute('aria-label', 'Host task'); canvasElement.append(dialog);
+            inspectAncestor = () => ({ connected: dialog.isConnected, open: dialog.open, modal: dialog.matches(':modal') });
             const parent = connectCemNativeSurface(dialog);
             expect(parent.open()).toBe(true);
             const f = await fixture(dialog, fallback, true, field);
+            inspect = f.inspect;
             let child = f.controller;
             try {
                 const lifetime = captureCemSurfaceLifetime(dialog);
                 if (!lifetime) throw new Error('Missing trusted parent lifetime');
+                phase = 'ancestor admission';
                 child = await f.admitAncestors([lifetime]);
+                phase = 'initial visibility';
                 f.editor.focus();
                 await waitFor(() => expect(child.visible).toBe(true));
                 expect(dialog.matches(':modal')).toBe(true);
                 expect(f.host.contains(f.panel)).toBe(true);
+                phase = 'commit';
                 f.key('ArrowDown');
                 expect(f.editor.getAttribute('aria-activedescendant')).toBe(f.rowElements[0].id);
                 f.key('Enter'); f.up('Enter');
                 await waitFor(() => expect(f.field.value).toBe('same'));
                 expect(new FormData(f.form).get('choice')).toBe('same');
                 expect(f.field.querySelector('input')).toBe(f.editor);
+                phase = 'reopen after input';
                 f.editor.value = ''; f.editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
                 await waitFor(() => expect(child.visible).toBe(true));
                 expect(f.key('Escape').defaultPrevented).toBe(true);
@@ -587,30 +639,84 @@ export const ProductionFieldsExternalSourcesAndTrustedAncestorResume: Story = {
                 expect(f.key('Escape', { repeat: true }).defaultPrevented).toBe(true);
                 expect(dialog.open).toBe(true); f.up('Escape');
                 f.key('ArrowDown'); await waitFor(() => expect(child.visible).toBe(true)); f.up('ArrowDown');
+                phase = 'parent close';
                 dialog.close(); await waitFor(() => expect(child.visible).toBe(false));
                 expect(lifetime.current()).toBe(false);
                 expect(parent.open()).toBe(true); f.editor.focus(); f.key('ArrowDown'); f.up('ArrowDown');
                 await Promise.resolve(); expect(child.visible).toBe(false);
                 const resumed = captureCemSurfaceLifetime(dialog);
                 if (!resumed) throw new Error('Missing resumed parent lifetime');
+                phase = 'resumed admission';
                 const previous = child; child = await f.admitAncestors([resumed]);
                 expect(child).not.toBe(previous);
                 await waitFor(() => expect(child.pending).toBe(false));
+                phase = 'resumed visibility';
                 f.editor.focus(); f.key('ArrowDown'); f.up('ArrowDown');
                 await waitFor(() => { if (f.errors.length) throw new Error(f.errors.map(String).join('; ')); expect(child.visible).toBe(true); });
+                phase = 'parent disconnect';
                 parent.disconnect(); await waitFor(() => expect(child.visible).toBe(false));
                 expect(resumed.current()).toBe(false);
                 expect(f.editor.hasAttribute('aria-activedescendant')).toBe(false);
-            } finally { child.disconnect(); await f.cleanup(); parent.disconnect(); dialog.remove(); }
+            } finally { finalAncestor = inspectAncestor?.(); f.freezeInspection(); child.disconnect(); await f.cleanup(); parent.disconnect(); dialog.remove(); }
         }
     },
 };
 
 
+export const ReplacedControllerCannotPublishLateInitialRows: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        let phase = 'setup', field = '', fallbackMode = false;
+        let inspect: (() => object) | undefined;
+        await captureControllerFailure(() => ({ phase, field, fallback: fallbackMode, fixture: inspect?.() }));
+        for (const tag of ['cem-field', 'cem-text-field']) for (const fallback of [false, true]) {
+            field = tag; fallbackMode = fallback; phase = 'held initial preparation'; inspect = undefined;
+            let release!: () => void, complete!: () => void;
+            const wait = new Promise<void>(resolve => { release = resolve; });
+            const completed = new Promise<void>(resolve => { complete = resolve; });
+            const dialog = document.createElement('dialog'); dialog.setAttribute('mode', 'modal'); dialog.setAttribute('aria-label', 'Replacement task');
+            canvasElement.append(dialog);
+            const parent = connectCemNativeSurface(dialog); expect(parent.open()).toBe(true);
+            expect(dialog.matches(':modal')).toBe(true);
+            const f = await fixture(dialog, fallback, true, tag, undefined, { wait, complete });
+            inspect = f.inspect;
+            let child = f.controller;
+            try {
+                expect(child.pending).toBe(true);
+                const lifetime = captureCemSurfaceLifetime(dialog);
+                if (!lifetime) throw new Error('Missing replacement parent lifetime');
+                phase = 'replacement admission';
+                child = await f.admitAncestors([lifetime]);
+                expect(child).not.toBe(f.controller);
+                await waitFor(() => expect(child.pending).toBe(false));
+                const before = f.runtime.renderedSuggestionsFor(f.host);
+                expect(before).toBeDefined();
+                expect(before?.rows).toHaveLength(3);
+                expect(before?.binding.config.queryRevision).toBe(1);
+                expect(f.inspect().trace.find(event => event.phase === 'prepare' && event.attempt === 1)?.queryRevision).toBe(1);
+                phase = 'late initial reply';
+                release(); await completed; await f.runtime.whenRenderSettled(f.host);
+                expect(f.runtime.renderedSuggestionsFor(f.host)?.binding).toBe(before?.binding);
+                expect(before?.current()).toBe(true);
+                phase = 'replacement opens';
+                f.editor.focus(); f.key('ArrowDown'); f.up('ArrowDown');
+                await waitFor(() => expect(child.visible).toBe(true));
+                expect(f.errors).toEqual([]);
+            } finally {
+                release(); await completed; f.freezeInspection(); child.disconnect();
+                await f.cleanup(); parent.disconnect(); dialog.remove();
+            }
+        }
+    },
+};
+
 export const PlatformCloseCancelsPendingAndPreservesEditorRouting: Story = {
     render: () => '<section></section>',
     play: async ({ canvasElement }) => {
         if (import.meta.env.MODE !== 'test') return;
+        let phase = 'setup', field = '';
+        let inspect: (() => object) | undefined;
+        await captureControllerFailure(() => ({ phase, field, fixture: inspect?.() }));
         const { cdp } = await import('vitest/browser'), driver = cdp();
         type Watcher = EventTarget & { requestClose(): void; destroy(): void };
         const view = window as unknown as { CloseWatcher: new () => Watcher }, Native = view.CloseWatcher;
@@ -626,12 +732,16 @@ export const PlatformCloseCancelsPendingAndPreservesEditorRouting: Story = {
         };
         try {
             for (const tag of ['cem-field', 'cem-text-field']) {
+                field = tag; phase = 'fixture'; inspect = undefined;
                 const f = await fixture(canvasElement, true, true, tag, coordinator);
+                inspect = f.inspect;
                 let resume: (() => void) | undefined;
                 try {
+                    phase = 'initial focus';
                     f.editor.focus(); await f.settled(); f.controller.dismiss();
                     immediateRevoke = true; await press('ArrowDown');
                     expect(f.controller.visible).toBe(false); expect(revokers.size).toBe(0); immediateRevoke = false;
+                    phase = 'initial visibility';
                     const before = watchers.length;
                     await press('ArrowDown'); await waitFor(() => expect(f.controller.visible).toBe(true));
                     expect(watchers.length).toBe(before + 1);
@@ -644,16 +754,20 @@ export const PlatformCloseCancelsPendingAndPreservesEditorRouting: Story = {
                     watchers.at(-1)?.requestClose(); expect(f.controller.visible).toBe(false);
                     expect(f.editor.value).toBe(''); expect(new FormData(f.form).get('choice')).toBe('');
                     expect(document.activeElement).toBe(f.editor); expect(f.controller.active).toBeUndefined();
+                    phase = 'pending close';
                     resume = f.block(); const refresh = f.controller.refresh(); f.controller.dismiss();
                     const pendingBefore = watchers.length; await press('ArrowDown');
                     expect(f.controller.pending).toBe(true); expect(watchers.length).toBe(pendingBefore + 1);
                     watchers.at(-1)?.requestClose(); expect(f.controller.feedback.qualifying).toBe(false);
+                    phase = 'late reply after close';
                     resume(); resume = undefined; await refresh; await f.settled();
                     expect(f.controller.visible).toBe(false); expect(f.controller.active).toBeUndefined();
                     await press('ArrowDown'); await waitFor(() => expect(f.controller.visible).toBe(true));
+                    phase = 'revoke opening';
                     for (const revoke of [...revokers]) revoke();
                     expect(f.controller.visible).toBe(false); expect(revokers.size).toBe(0);
                     expect(f.field.querySelector('input')).toBe(f.editor);
+                    phase = 'reopen after revoke';
                     await press('ArrowDown'); await waitFor(() => expect(f.controller.visible).toBe(true));
                 } finally { resume?.(); await f.cleanup(); expect(revokers.size).toBe(0); }
             }

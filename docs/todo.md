@@ -304,7 +304,30 @@ the [declarative UI principle](declarative-ui-principle.md) and
       source/packed gate, 20 reloads under load and final full gate pass. Passing
       repeats do not establish a cause or a specific slider fix.
 
-- [ ] Diagnose the isolated suggestions-controller baseline failures reproduced on 2026-10-20 against committed HEAD: ProductionFieldsExternalSourcesAndTrustedAncestorResume (child visibility) and PlatformCloseCancelsPendingAndPreservesEditorRouting (missing committed native row map). Keep assertions and deadlines intact; distinguish these from checkpoint capture acceptance.
+- [x] Audit the two historical suggestions-controller cases with unchanged
+      assertions/deadlines: both pass in the fresh focused run, and the unchanged
+      controller suite passes 15/15. A controlled late-initial-preparation case
+      reproduces a fixture ownership race: replacement controllers both use query
+      revision `1`, allowing an old preparation to replace the admitted row map.
+      Monotonic fixture preparation tokens now preserve the admitted binding
+      while keeping native query revisions unchanged. Added bounded, payload-free
+      failure capture and verified it with a temporary missing-map control.
+      Final related browser cohort passes **38/38**; lint has zero errors and the
+      existing 818 warnings. See the
+      [audit and evidence](archive/todo-completed-suggestions-controller-audit-2026-11-05.md).
+
+- [x] Add a controlled late-initial-preparation regression across trusted
+      controller replacement. The native revision-`1` collision fails before the
+      fixture correction, then preserves the exact admitted row map and opens
+      normally for both production field providers in worker/fallback modes.
+
+- [ ] Conditional suggestions-controller follow-up: if
+      `ProductionFieldsExternalSourcesAndTrustedAncestorResume` or
+      `PlatformCloseCancelsPendingAndPreservesEditorRouting` fails again, retain
+      the new story/preparation/row-map trace and attribute the actual boundary.
+      Their October failures remain historically unattributed; the controlled
+      fixture race above is not claimed as proof of their cause. Preserve all
+      assertions, native authority checks and original deadlines.
 
 - [ ] Conditional diagnostic follow-up: if datepicker/suggestions failures
       recur during concurrent browser runs, capture their focus, dialog and
@@ -313,6 +336,8 @@ the [declarative UI principle](declarative-ui-principle.md) and
       following focus/open failures (262/266); the standalone cohort passes
       266/266 with unchanged deadlines and assertions. No runtime cause is
       attributed. Preserve this distinction in subsequent acceptance reports.
+
+
 
 ### Native-surface delivery follow-ups
 
