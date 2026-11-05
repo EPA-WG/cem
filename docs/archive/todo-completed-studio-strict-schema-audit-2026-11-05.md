@@ -89,3 +89,7 @@ validation code, browser UI, themes/tokens, stored projects and drafts, schema
 identity/version, JSON interchange format and budgets are unchanged. No public
 runtime deployment or full Studio release-graph acceptance is claimed. The frozen
 presentation archive is unchanged.
+
+Follow-up: the remaining namespace-metadata ARIA warning is resolved by the
+[native ARIA ownership correction](todo-completed-schema-metadata-aria-2026-11-05.md).
+The before/after strict results above remain the historical schema-facet evidence.

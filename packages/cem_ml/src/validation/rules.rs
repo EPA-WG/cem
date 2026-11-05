@@ -631,10 +631,36 @@ impl SemanticRule for AriaCompatibilityRule {
 
     fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         let mut out = Vec::new();
+        let captured = ctx
+            .lexical_scopes
+            .filter(|captured| std::ptr::eq(ctx.document, captured.document().as_ref()));
         for node in ctx.document.iter() {
-            let Some(local) = element_local_name(node) else {
+            let CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } = node
+            else {
                 continue;
             };
+            let resolved = captured.and_then(|c| c.expanded_name(c.document(), *node_id));
+            let namespace = resolved.unwrap_or(expanded_name).namespace_uri.as_str();
+            // Metadata roles belong to their vocabulary, not ARIA. Use only
+            // this source owner's resolved namespace (or an importer-expanded
+            // URI); a lexical prefix or document schema is not a namespace.
+            // Missing/unbound captures preserve the existing conservative checks.
+            if !namespace.is_empty()
+                && (resolved.is_some() || has_uri_scheme(namespace))
+                && !matches!(
+                    namespace,
+                    crate::schema::registry::HTML_NAMESPACE_URI
+                        | crate::schema::registry::SVG_NAMESPACE_URI
+                        | crate::schema::registry::MATHML_NAMESPACE_URI
+                )
+            {
+                continue;
+            }
+            let local = expanded_name.local_name.as_str();
             let role = attr_value(ctx.document, node, "role");
             if let Some(role) = role {
                 if !KNOWN_ROLES.contains(&role) {
@@ -3845,6 +3871,134 @@ mod tests {
     fn aria_role_attribute_compatibility_accepts_matching_role() {
         let diags = run_rules(r#"{div @role=checkbox @aria-checked=true | Toggle}"#);
         assert!(diags.iter().all(|d| d.code != "cem.a11y.aria_incompatible"));
+    }
+
+    fn aria_diagnostics_with_capture(
+        captured: &crate::schema::machine::LexicallyScopedDocument,
+    ) -> Vec<Diagnostic> {
+        AriaCompatibilityRule.run(&RuleContext {
+            lexical_scopes: Some(captured),
+            document: captured.document(),
+            schema_uri: Some(CEM_SCHEMA_URI),
+            content_type: Some(CEM_SCHEMA_CONTENT_TYPE),
+            source_uri: None,
+            resource_reader: None,
+            schema_registry: None,
+            schema_document_models: None,
+            upstream_diagnostics: &[],
+            schema_behavior_evaluator: None,
+        })
+    }
+
+    fn captured_aria_source(source: &str) -> crate::schema::machine::LexicallyScopedDocument {
+        parse_example_cem_document(source.as_bytes(), CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_URI)
+    }
+
+    #[test]
+    fn aria_compatibility_ignores_resolved_metadata_namespaces() {
+        for uri in [
+            CEM_SCHEMA_URI,
+            CEM_SCHEMA_PACKAGE_URI,
+            "https://example.test/data/1",
+        ] {
+            let captured = captured_aria_source(&format!(
+                "@ns metadata = \"{uri}\"\n@default metadata\n{{namespace @role=\"schema\" @aria-checked=true}}"
+            ));
+            let diagnostics = aria_diagnostics_with_capture(&captured);
+            assert!(diagnostics.is_empty(), "{uri}: {diagnostics:?}");
+        }
+    }
+
+    #[test]
+    fn aria_compatibility_checks_embedded_dom_in_metadata_documents() {
+        let captured = captured_aria_source(
+            r#"@ns metadata = "https://cem.dev/ns/schema/1"
+@ns view = "http://www.w3.org/1999/xhtml"
+@default metadata
+{schema |
+    {namespace @role="schema"}
+    {view:div @role="schema"}
+    {view:div @aria-checked=true}
+    {view:div @role=checkbox @aria-checked=true}
+}"#,
+        );
+        let diagnostics = aria_diagnostics_with_capture(&captured);
+        assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
+        assert!(diagnostics
+            .iter()
+            .all(|d| d.code == "cem.a11y.aria_incompatible"
+                && d.severity == Severity::Warning
+                && d.source_map.is_some()));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("ARIA role `schema`")));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("`aria-checked`")));
+    }
+
+    #[test]
+    fn aria_compatibility_uses_namespace_uri_not_prefix_or_local_name() {
+        let captured = captured_aria_source(
+            r#"@ns html = "https://cem.dev/ns/schema/1"
+@ns schema = "http://www.w3.org/1999/xhtml"
+@default html
+{namespace @role="schema"}
+{schema:namespace @role="schema"}
+"#,
+        );
+        let diagnostics = aria_diagnostics_with_capture(&captured);
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        let expected = captured.document().iter().find(|node| matches!(node,
+            CemAstNode::Element { expanded_name, .. } if expanded_name.namespace_uri == "schema"
+        )).unwrap();
+        assert_eq!(
+            diagnostics[0].source_map.as_ref(),
+            Some(source_stack_for_node(expected))
+        );
+    }
+
+    #[test]
+    fn aria_compatibility_retains_html_svg_and_mathml_checks() {
+        for uri in [
+            crate::schema::registry::HTML_NAMESPACE_URI,
+            crate::schema::registry::SVG_NAMESPACE_URI,
+            crate::schema::registry::MATHML_NAMESPACE_URI,
+        ] {
+            let captured = captured_aria_source(&format!(
+                "@ns view = \"{uri}\"\n@default view\n{{div @role=\"schema\"}} {{div @aria-checked=true}} {{div @role=checkbox @aria-checked=true}}"
+            ));
+            let diagnostics = aria_diagnostics_with_capture(&captured);
+            assert_eq!(diagnostics.len(), 2, "{uri}: {diagnostics:?}");
+        }
+    }
+
+    #[test]
+    fn aria_compatibility_rejects_foreign_capture_ownership() {
+        let original = captured_aria_source(
+            r#"@ns view = "http://www.w3.org/1999/xhtml"
+@default view
+{div @role="schema"}"#,
+        );
+        let foreign = captured_aria_source(
+            r#"@ns view = "https://cem.dev/ns/schema/1"
+@default view
+{div @role="schema"}"#,
+        );
+        let diagnostics = AriaCompatibilityRule.run(&RuleContext {
+            lexical_scopes: Some(&foreign),
+            document: original.document(),
+            schema_uri: Some(CEM_SCHEMA_URI),
+            content_type: Some(CEM_SCHEMA_CONTENT_TYPE),
+            source_uri: None,
+            resource_reader: None,
+            schema_registry: None,
+            schema_document_models: None,
+            upstream_diagnostics: &[],
+            schema_behavior_evaluator: None,
+        });
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert!(diagnostics[0].message.contains("ARIA role `schema`"));
     }
 
     #[test]

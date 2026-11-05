@@ -1026,6 +1026,52 @@ for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
 }
 
 for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
+  test(`schema metadata ARIA ownership in ${runtimeKind}`, async () => {
+    const runtime = runtimeKind === 'wasm-node'
+      ? await import('@epa-wg/cem-ml/wasm') : await import('../dist/wasm/browser/cem_ml.js');
+    if (runtimeKind !== 'wasm-node') await runtime.default({ module_or_path: await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url)) });
+    const metadata = await readFile(new URL('../../cem_ml/schema-packages/studio-project/v1/schema/studio-project.cem', import.meta.url), 'utf8');
+    for (const [name, source, contentType, schema] of [
+      ['metadata', metadata, 'application/vnd.cem.schema+cem', 'https://cem.dev/ns/schema/1'],
+      ['html', '@ns view = "http://www.w3.org/1999/xhtml"\n@default view\n{div @role="schema"}', 'application/cem', 'https://cem.dev/ns/cem-ml/1'],
+    ]) {
+      const uri = `studio://schema-aria/${name}.cem`, bytes = new TextEncoder().encode(source);
+      const request = {
+        protocolVersion: 1, requestId: `schema-aria:${runtimeKind}:${name}`,
+        project: { projectId: 'schema-aria', revision: 1 },
+        resourceVersions: { [uri]: { revision: 1, sha256: createHash('sha256').update(bytes).digest('hex') } },
+        operation: { kind: 'validate', inputIds: ['input:0'], projection: 'json' },
+        runPlan: JSON.parse(runtime.normalizeCommandRunPlanV1(JSON.stringify({ configBytes: [
+          ...new TextEncoder().encode(JSON.stringify({ inputs: [{ uri, rootScope: { defaultContentType: contentType, schema } }], outputs: [] })),
+        ] }))),
+        resources: { [uri]: { bytes: [...bytes], identity: { contentType, schema } } },
+        policyStamp: { resolver: 'schema-aria-resolver', safety: 'schema-aria-safety', budget: 'schema-aria-budget' },
+      };
+      try {
+        const result = JSON.parse(await runtime.executeCommandServiceV1(JSON.stringify(request),
+          JSON.stringify({ runtime: runtimeKind, targetIdentity: 'runtime-test:schema-aria', abiIdentity: 'runtime-test-v1', debugControlActive: false }),
+          async () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
+          async () => assert.fail('inline validation must not read external resources'),
+          async () => assert.fail('validation must not write'), async () => assert.fail('validation must not commit writes'),
+          async () => assert.fail('validation must not roll back writes'),
+        ));
+        assert.equal(result.exitCode, 0, JSON.stringify(result));
+        if (name === 'metadata') assert.deepEqual(result.diagnostics.items, []);
+        else {
+          assert.equal(result.diagnostics.items.length, 1, JSON.stringify(result));
+          const diagnostic = result.diagnostics.items[0];
+          assert.equal(diagnostic.code, 'cem.a11y.aria_incompatible');
+          assert.equal(diagnostic.severity, 'warning');
+          assert.equal(diagnostic.uri, uri);
+          assert.ok(diagnostic.message.includes('ARIA role `schema`'));
+          assert.ok(diagnostic.sourceMap.frames.length > 0);
+        }
+      } finally { runtime.disposeCommandArtifactsV1(request.requestId); }
+    }
+  });
+}
+
+for (const runtimeKind of ['wasm-node', 'wasm-browser-worker']) {
   test(`Login element-template validation parity in ${runtimeKind}`, async () => {
     const runtime = runtimeKind === 'wasm-node'
       ? await import('@epa-wg/cem-ml/wasm') : await import('../dist/wasm/browser/cem_ml.js');

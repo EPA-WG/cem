@@ -262,12 +262,30 @@ separate from this native cohort.
       All **18/18** native cases pass in both feature profiles; the package gate
       passes. See the [audit and evidence](archive/todo-completed-studio-strict-schema-audit-2026-11-05.md).
 
-- [ ] Audit the existing generic ARIA warning on schema namespace metadata
-      `role="schema"`. Fresh strict CLI probes report the same
-      `cem.a11y.aria_incompatible` warning before/after the five-error correction
-      (now zero errors / one warning, still exit 1 in strict mode). Add a native
-      regression distinguishing schema metadata from actual HTML ARIA roles;
-      preserve genuine accessibility diagnostics and namespace metadata.
+- [x] Fix the schema metadata ARIA warning using original-owner expanded
+      namespaces. Metadata retains its vocabulary semantics; embedded HTML, SVG
+      and MathML keep ARIA checks, and foreign/missing captures grant no exemption.
+      Studio schema strict CLI validation now exits **0** with zero diagnostics;
+      an invalid HTML role still exits **1** with its exact ARIA warning.
+      All five new native cases pass in both feature profiles. See the
+      [correction and evidence](archive/todo-completed-schema-metadata-aria-2026-11-05.md).
+
+- [x] Add Node/browser WASM command-service regressions for the actual Studio
+      schema and invalid HTML role control, then rebuild and verify the package.
+      Both cases fail against the original runtime; the rebuilt full runtime
+      suite passes **30/30**, complete XSLT checks pass, and package ABI/types,
+      658 integrity records and 32 schema packages verify. Studio's **18/18**
+      native project cases and package structure gate also pass. The broader
+      **342/343** native validation result remains separate below.
+
+- [ ] Audit the Markdown events-projection assertion in
+      `validation::markdown::parser_contract::tests::admitted_markdown_originals_drive_native_parse_validation_and_color_pipeline`
+      (`parser_contract/tests.rs:313`). The 342/343 native validation cohort and
+      an isolated clean `b86b4033` run both fail its legacy JSON `byteRange` check.
+      Verify complete source ranges through the typed projection; repair a stale
+      fixture or missing provenance at the owning native layer without restoring
+      implicit JSON AST handoffs. See the
+      [baseline evidence](archive/todo-completed-schema-metadata-aria-2026-11-05.md).
 
 
 ## Declarative UI Architecture Correction
