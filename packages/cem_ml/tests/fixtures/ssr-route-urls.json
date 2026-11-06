@@ -1,0 +1,17 @@
+[
+  {"name":"no base","html":"<!doctype html><html><head></head><body></body></html>","base":"https://ssr.example.test/guide/page.html?edition=2"},
+  {"name":"relative with fragment","html":"<html><head><base href='../assets/?x=1#part'></head></html>","base":"https://ssr.example.test/assets/?x=1#part"},
+  {"name":"empty href","html":"<html><head><base href></head></html>","base":"https://ssr.example.test/guide/page.html?edition=2"},
+  {"name":"invalid first base refused (Chromium about:blank divergence)","html":"<html><head><base href='http://['><base href='/later/'></head></html>","base":"about:blank","nativeError":"cem.ssr.base_url_invalid"},
+  {"name":"javascript fallback","html":"<html><head><base href='javascript:alert(1)'><base href='/later/'></head></html>","base":"https://ssr.example.test/guide/page.html?edition=2"},
+  {"name":"data fallback","html":"<html><head><base href='data:text/plain,base'><base href='/later/'></head></html>","base":"https://ssr.example.test/guide/page.html?edition=2"},
+  {"name":"target only skipped","html":"<html><head><base target='_blank'><base href='./assets/'></head></html>","base":"https://ssr.example.test/guide/assets/"},
+  {"name":"nested templates inert","html":"<html><head><template><template><base href='/inert/'></template><base href='/also-inert/'></template><base href='/live/'></head></html>","base":"https://ssr.example.test/live/"},
+  {"name":"SVG base ignored","html":"<html><body><svg><base href='/svg/'/></svg><base href='/html/'></body></html>","base":"https://ssr.example.test/html/"},
+  {"name":"foreignObject HTML base","html":"<html><body><svg><foreignObject><base href='/integrated/'></foreignObject></svg></body></html>","base":"https://ssr.example.test/integrated/"},
+  {"name":"script and comment text ignored","html":"<html><head><!-- <base href='/comment/'> --><script>throw Error('never execute'); const s=\"<base href='/script/'>\";</script><base href='/actual/'></head></html>","base":"https://ssr.example.test/actual/"},
+  {"name":"decoded entity and duplicate href","html":"<html><head><BASE HREF='/assets/?x=1&amp;y=2' href='/ignored/'></head></html>","base":"https://ssr.example.test/assets/?x=1&y=2"},
+  {"name":"scheme relative normalization","html":"<html><head><base href='//CDN.EXAMPLE.TEST:443/a/../assets/'></head></html>","base":"https://cdn.example.test/assets/"},
+  {"name":"opaque base retained","html":"<html><head><base href='mailto:contact@example.test'></head></html>","base":"mailto:contact@example.test"},
+  {"name":"only first base wins","html":"<html><head><base href='/first/'><base href='/second/'></head></html>","base":"https://ssr.example.test/first/"}
+]

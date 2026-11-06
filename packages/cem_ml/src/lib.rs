@@ -76,6 +76,7 @@ pub mod scheduler;
 pub mod schema;
 pub mod source;
 pub mod source_map;
+pub mod ssr_route;
 pub mod studio_project;
 pub mod syntax;
 pub mod tokenizer;

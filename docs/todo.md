@@ -582,10 +582,22 @@ through Phase 9 release governance.
       pass. Legacy bindings, refusal codes, budgets and frozen delivery remain.
       [Archive](archive/todo-completed-ssr-page-binding-2026-11-05.md).
 
-- [ ] SSR Phase A route preflight: retain distinct source URI, deployed page URL,
+- [x] SSR Phase A route preflight: retain distinct source URI, deployed page URL,
       effective document base and output URI. Validate page URLs and duplicate
       normalized routes before execution; keep output paths out of render identity
       and preserve explicit resolver/read-map authority and source-map ownership.
+      Add failing native HTML-owner/base-selection, URL normalization/refusal,
+      batch-collision and render-identity fixtures before implementation; compare
+      static base URL results with Chromium without executing authored scripts.
+      Cover resolver denial/read-map ownership, mapped/generated base provenance,
+      URL identity changes and explicit refusal of unsupported HTML page profiles.
+      Completed 2026-11-05: 14 native cases pass in default and actual stripped
+      profiles; 16 HTML-owner, 19 graph and three XML Base regressions pass.
+      Chromium 148 and Chrome 155 each pass 16 static URL observations, including
+      explicit invalid-base refusal and a CSP-blocking control. WASM and lint
+      checks pass; resolver/source-map ownership and frozen delivery remain.
+      The route contract does not add an SSR command, artifact or hydration claim.
+      [Archive](archive/todo-completed-ssr-route-preflight-2026-11-05.md).
 
 - [ ] SSR artifact contract: retain the existing native DOM projection owner in
       a typed SSR envelope with explicit lifecycle/adoption identity and bounded

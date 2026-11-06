@@ -44,6 +44,26 @@ failure levels are unchanged, and strict source examples select `validate`.
 
 ## Native document I/O
 
+### Whole-page SSR URL preflight
+
+`ssr_route::preflight_ssr_page_routes` validates an atomic batch of routes
+borrowing native HTML owners. It keeps source URI, deployed HTTP(S) page URL,
+effective document base and optional output URI separate, checks canonical
+page/output collisions, and retains source/config/base provenance. Its request
+helpers preserve the existing resolver policy and explicit read-map boundary;
+preflight performs no I/O or execution. The output destination is excluded from
+the URL portion of render identity.
+
+The initial supported static HTML profile, base-policy decisions and invalid-base
+browser divergence are specified in the
+[SSR proposal](../../docs/cem-ml-cli-ssr-proposal.md#311-implemented-native-url-preflight).
+This is a native contract; the SSR command, rendering artifact and lifecycle
+coordinator are still pending. Run `yarn nx run cem_ml:test --lib --args=ssr_route`
+and `yarn nx run cem_ml:test:ssr-routes:browser` for the focused native and
+Chromium URL fixtures; these do not execute authored page JavaScript.
+For the actual no-default-features profile, use
+`yarn nx run cem_ml:test:stripped --args='--lib ssr_route'`.
+
 ### Optional immutable schema assets
 
 `schema::asset_pack` provides a native-generated catalog and a per-consumer

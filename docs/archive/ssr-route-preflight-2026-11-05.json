@@ -1,0 +1,253 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-05",
+  "baseCommit": "51a00ea644db456704f68b1e9d448c85bee8a9a1",
+  "scope": "Shared native source/page/base/output URL preflight; no SSR command, coordinator, artifact or hydration claim",
+  "failingFirst": {
+    "stubNativeCases": 10,
+    "unsupportedProfileGuardCases": 1
+  },
+  "validation": {
+    "defaultNativeRoutes": {
+      "passed": 14,
+      "failed": 0
+    },
+    "actualNoDefaultFeaturesNativeRoutes": {
+      "passed": 14,
+      "failed": 0
+    },
+    "nativeHtmlOwner": {
+      "passed": 16,
+      "failed": 0
+    },
+    "nativeGraphRequests": {
+      "passed": 19,
+      "failed": 0
+    },
+    "nativeXmlBase": {
+      "passed": 3,
+      "failed": 0
+    },
+    "wasmLibraryBuild": "passed",
+    "focusedLint": "passed",
+    "nativeClippy": "passed",
+    "nativeClippyWarnings": "Existing warnings in other modules; none in ssr_route.rs",
+    "fullWorkspaceGate": false
+  },
+  "featureVerification": {
+    "actualCargoCommand": "cargo test --locked --package cem-ml --no-default-features --target-dir dist/target/cem_ml_stripped --lib ssr_route",
+    "note": "The ordinary Rust executor drops its unsupported no-default-features option; that earlier run is not counted as stripped verification."
+  },
+  "contract": {
+    "batchLimit": 1024,
+    "atomicPreflight": true,
+    "pageSchemes": [
+      "http",
+      "https"
+    ],
+    "outputIsOptionalPreparedAbsoluteUri": true,
+    "outputExcludedFromRenderUrlIdentity": true,
+    "nativeHtmlOwnerAndSourceFramesRetained": true,
+    "resolverReadMapAndDenialAuthorityRetained": true,
+    "unmappedGeneratedBytesStayUnmapped": true,
+    "doesIo": false,
+    "executesAuthoredScripts": false,
+    "changesOrdinaryTransformPageUrlParameters": false,
+    "changesNpmCommandAbi": false,
+    "repackagesNpmRuntime": false,
+    "claimsHydrationReadiness": false,
+    "unsupportedProfiles": [
+      "fragment owner",
+      "non-UTF-8 encoding metadata",
+      "parser recovery",
+      "self-closing non-void HTML",
+      "noscript"
+    ],
+    "basePolicy": "Host evaluates effective CSP; Unspecified asserts no effective header CSP. Meta CSP with a selectable base requires an explicit decision.",
+    "invalidFirstBase": "cem.ssr.base_url_invalid; later bases cannot replace it; browser about:blank divergence is retained below"
+  },
+  "browserObservations": [
+    {
+      "browser": "148.0.7778.96",
+      "authoredJavaScript": false,
+      "externalRequests": [],
+      "results": [
+        {
+          "name": "no base",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/guide/page.html?edition=2"
+        },
+        {
+          "name": "relative with fragment",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/assets/?x=1#part"
+        },
+        {
+          "name": "empty href",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/guide/page.html?edition=2"
+        },
+        {
+          "name": "invalid first base refused (Chromium about:blank divergence)",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "about:blank",
+          "nativeError": "cem.ssr.base_url_invalid"
+        },
+        {
+          "name": "javascript fallback",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/guide/page.html?edition=2"
+        },
+        {
+          "name": "data fallback",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/guide/page.html?edition=2"
+        },
+        {
+          "name": "target only skipped",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/guide/assets/"
+        },
+        {
+          "name": "nested templates inert",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/live/"
+        },
+        {
+          "name": "SVG base ignored",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/html/"
+        },
+        {
+          "name": "foreignObject HTML base",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/integrated/"
+        },
+        {
+          "name": "script and comment text ignored",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/actual/"
+        },
+        {
+          "name": "decoded entity and duplicate href",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/assets/?x=1&y=2"
+        },
+        {
+          "name": "scheme relative normalization",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://cdn.example.test/assets/"
+        },
+        {
+          "name": "opaque base retained",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "mailto:contact@example.test"
+        },
+        {
+          "name": "only first base wins",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/first/"
+        },
+        {
+          "name": "CSP blocks selected base",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/guide/page.html?edition=2"
+        }
+      ]
+    },
+    {
+      "browser": "155.0.8059.39",
+      "authoredJavaScript": false,
+      "externalRequests": [],
+      "results": [
+        {
+          "name": "no base",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/guide/page.html?edition=2"
+        },
+        {
+          "name": "relative with fragment",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/assets/?x=1#part"
+        },
+        {
+          "name": "empty href",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/guide/page.html?edition=2"
+        },
+        {
+          "name": "invalid first base refused (Chromium about:blank divergence)",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "about:blank",
+          "nativeError": "cem.ssr.base_url_invalid"
+        },
+        {
+          "name": "javascript fallback",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/guide/page.html?edition=2"
+        },
+        {
+          "name": "data fallback",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/guide/page.html?edition=2"
+        },
+        {
+          "name": "target only skipped",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/guide/assets/"
+        },
+        {
+          "name": "nested templates inert",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/live/"
+        },
+        {
+          "name": "SVG base ignored",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/html/"
+        },
+        {
+          "name": "foreignObject HTML base",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/integrated/"
+        },
+        {
+          "name": "script and comment text ignored",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/actual/"
+        },
+        {
+          "name": "decoded entity and duplicate href",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/assets/?x=1&y=2"
+        },
+        {
+          "name": "scheme relative normalization",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://cdn.example.test/assets/"
+        },
+        {
+          "name": "opaque base retained",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "mailto:contact@example.test"
+        },
+        {
+          "name": "only first base wins",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/first/"
+        },
+        {
+          "name": "CSP blocks selected base",
+          "pageUrl": "https://ssr.example.test/guide/page.html?edition=2",
+          "base": "https://ssr.example.test/guide/page.html?edition=2"
+        }
+      ]
+    }
+  ],
+  "frozenPresentation": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864"
+  },
+  "next": "Retained native SSR artifact with explicit lifecycle/adoption identity and bounded policy; unrendered/partial output cannot claim hydration readiness"
+}
