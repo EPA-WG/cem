@@ -1,4 +1,5 @@
 //! First-connection canonical island preparation over retained CEM owners.
+use crate::instance_island::construct::{add_child, attribute, element, PREFIXES};
 use crate::{
     eval::{Item, RetainedCemNode},
     render::TemplateData,
@@ -301,18 +302,6 @@ pub fn prepare_inline_island(
     })
 }
 const HTML: &str = cem_ml::schema::registry::HTML_NAMESPACE_URI;
-const PREFIXES: &[&str] = &[
-    "cem-island",
-    "cem-hydration",
-    "cem-attributes",
-    "cem-dataset",
-    "cem-payload",
-    "cem-slices",
-    "cem-resources",
-    "cem-form",
-    "cem-validation",
-    "cem-events",
-];
 fn is_html(tree: &cem_ml::parser::tree::RetainedCemTree, id: u32, name: &str) -> bool {
     tree.node(id)
         .and_then(|node| node.name.as_ref())
@@ -322,43 +311,4 @@ fn is_html(tree: &cem_ml::parser::tree::RetainedCemTree, id: u32, name: &str) ->
 // and NBSP; U+0085 is meaningful and must not be removed by Rust's broader trim.
 fn payload_space(c: char) -> bool {
     matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
-}
-fn attribute(
-    name: &str,
-    value: &str,
-    source: &cem_ml::source_map::SourceMapStack,
-) -> crate::render::RenderPlanAttribute {
-    crate::render::RenderPlanAttribute {
-        name: name.into(),
-        namespace: None,
-        qualified_name: None,
-        value: value.into(),
-        value_stream: crate::eval::ItemStream::once(Item::Atomic(crate::eval::AtomValue::String(
-            value.into(),
-        ))),
-        contract: None,
-        source_map: source.clone(),
-    }
-}
-fn element(
-    name: &str,
-    ns: &str,
-    prefix: Option<&str>,
-    attributes: Vec<crate::render::RenderPlanAttribute>,
-    children: Vec<crate::render::RenderPlanNode>,
-    source: &cem_ml::source_map::SourceMapStack,
-) -> crate::render::RenderPlanNode {
-    crate::render::RenderPlanNode::Element {
-        tag: name.into(),
-        namespace: Some(ns.into()),
-        qualified_name: prefix.map(|prefix| format!("{prefix}:{name}")),
-        attributes,
-        children,
-        source_map: source.clone(),
-    }
-}
-fn add_child(parent: &mut crate::render::RenderPlanNode, child: crate::render::RenderPlanNode) {
-    if let crate::render::RenderPlanNode::Element { children, .. } = parent {
-        children.push(child)
-    }
 }

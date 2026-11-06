@@ -15,7 +15,7 @@ const MAX_DEPTH: usize = 64;
 #[derive(Serialize, Deserialize)]
 struct OwnedPlan {
     nodes: Vec<Node>,
-    updates: Vec<(String, String)>,
+    updates: Vec<(String, String, SourceMapStack)>,
 }
 #[derive(Serialize, Deserialize)]
 enum Node {
@@ -108,8 +108,12 @@ pub(super) fn encode(
         .collect::<Option<Vec<_>>>()?;
     let mut updates = Vec::new();
     for update in &plan.host_attribute_updates {
-        budget.metadata(&(&update.name, &update.value), 0)?;
-        updates.push((update.name.clone(), update.value.clone()));
+        budget.metadata(&(&update.name, &update.value, update.source_map()), 0)?;
+        updates.push((
+            update.name.clone(),
+            update.value.clone(),
+            update.source_map().clone(),
+        ));
     }
     binary(&OwnedPlan { nodes, updates }, control, scope)
 }
@@ -225,9 +229,9 @@ pub(super) fn decode(
         .map(|n| restore(n, &mut budget, 0))
         .collect::<Option<Vec<_>>>()?;
     let mut updates = Vec::new();
-    for (name, value) in plan.updates {
-        budget.charge(name.len() + value.len(), 0)?;
-        updates.push(HostAttributeUpdate::new(name, value));
+    for (name, value, source_map) in plan.updates {
+        budget.metadata(&(&name, &value, &source_map), 0)?;
+        updates.push(HostAttributeUpdate::new(name, value).with_source_map(source_map));
     }
     control.check_scope(scope).ok()?;
     Some(RenderPlan {
@@ -294,6 +298,45 @@ fn restore(node: Node, budget: &mut Budget<'_>, depth: usize) -> Option<RenderPl
 mod tests {
     use super::*;
     use cem_ml::{operation_control::ROOT_EXECUTION_SCOPE_ID, value::CemReference};
+    #[test]
+    fn host_write_provenance_survives_native_output_cache() {
+        let control = OperationControl::default();
+        let artifact = crate::render::compile_template(
+            "{attribute @name=label | Default}{p | Hello}",
+            &Default::default(),
+        );
+        let plan = crate::render::render_compiled_template(&artifact, &Default::default());
+        assert!(!plan.host_attribute_updates[0]
+            .source_map()
+            .frames
+            .is_empty());
+        let encoded = encode(&plan, &control, ROOT_EXECUTION_SCOPE_ID).unwrap();
+        let decoded = decode(&encoded, &control, ROOT_EXECUTION_SCOPE_ID).unwrap();
+        assert_eq!(
+            decoded.host_attribute_updates[0].source_map(),
+            plan.host_attribute_updates[0].source_map()
+        );
+    }
+    #[test]
+    fn older_host_write_cache_records_without_provenance_are_misses() {
+        #[derive(Serialize)]
+        struct PreviousPlan {
+            nodes: Vec<Node>,
+            updates: Vec<(String, String)>,
+        }
+        let control = OperationControl::default();
+        let scope = ROOT_EXECUTION_SCOPE_ID;
+        let bytes = binary(
+            &PreviousPlan {
+                nodes: vec![],
+                updates: vec![("label".into(), "Default".into())],
+            },
+            &control,
+            scope,
+        )
+        .unwrap();
+        assert!(decode(&bytes, &control, scope).is_none());
+    }
     #[test]
     fn reference_values_and_output_bounds_refuse_without_lossy_projection() {
         let control = OperationControl::default();

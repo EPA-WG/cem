@@ -1,0 +1,413 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-06",
+  "baseCommit": "5919def55ba5be54c002f0ecd9023392ea7d7993",
+  "scope": "One native atomic host-attribute/canonical-island/rendered-children commit; partial, non-adoptable; browser bridge gaps explicit",
+  "failingFirst": {
+    "red": [
+      {
+        "passed": 2,
+        "failed": 6
+      }
+    ],
+    "ast-red": [
+      {
+        "passed": 4,
+        "failed": 3
+      }
+    ],
+    "cache-red": [
+      {
+        "passed": 2,
+        "failed": 2
+      }
+    ],
+    "owner-red": [
+      {
+        "passed": 0,
+        "failed": 1
+      }
+    ]
+  },
+  "validation": {
+    "green": [
+      {
+        "passed": 11,
+        "failed": 0
+      }
+    ],
+    "ast-green": [
+      {
+        "passed": 7,
+        "failed": 0
+      }
+    ],
+    "ast-stripped": [
+      {
+        "passed": 7,
+        "failed": 0
+      }
+    ],
+    "stripped": [
+      {
+        "passed": 11,
+        "failed": 0
+      },
+      {
+        "passed": 15,
+        "failed": 0
+      },
+      {
+        "passed": 13,
+        "failed": 0
+      },
+      {
+        "passed": 17,
+        "failed": 0
+      }
+    ],
+    "cache-green": [
+      {
+        "passed": 4,
+        "failed": 0
+      }
+    ],
+    "render-regression": [
+      {
+        "passed": 17,
+        "failed": 0
+      }
+    ],
+    "defaults-regression": [
+      {
+        "passed": 6,
+        "failed": 0
+      }
+    ],
+    "template-regression": [
+      {
+        "passed": 55,
+        "failed": 0
+      }
+    ],
+    "component": [
+      {
+        "passed": 17,
+        "failed": 0
+      }
+    ],
+    "focusedFormattingAndJavaScriptLint": "passed",
+    "cemQlClippy": "passed; existing warnings elsewhere",
+    "cemMlClippy": "passed; existing warnings elsewhere",
+    "optimizedBrowserObservations": {
+      "browser": "148.0.7778.96",
+      "authoredJavaScript": false,
+      "trustedRuntime": true,
+      "ignoresEmptyTextPlaceholders": true,
+      "externalRequests": [],
+      "results": [
+        {
+          "name": "literal and original payload",
+          "rendered": [
+            {
+              "tag": "p",
+              "attributes": {},
+              "children": [
+                "Hello"
+              ]
+            }
+          ],
+          "payload": [
+            {
+              "tag": "b",
+              "attributes": {},
+              "children": [
+                "Original & kept"
+              ]
+            },
+            {
+              "comment": "payload"
+            }
+          ],
+          "divergence": null
+        },
+        {
+          "name": "decoded bound attribute and text",
+          "rendered": [
+            {
+              "tag": "span",
+              "attributes": {
+                "title": "A & B"
+              },
+              "children": [
+                "A & B"
+              ]
+            }
+          ],
+          "payload": [],
+          "divergence": null
+        },
+        {
+          "name": "named slot from explicit envelope",
+          "rendered": [],
+          "payload": [
+            {
+              "tag": "b",
+              "attributes": {
+                "slot": "heading"
+              },
+              "children": [
+                "Title & text"
+              ]
+            }
+          ],
+          "divergence": "Browser metadata-record slots do not supply the native retained-node slot ingress."
+        },
+        {
+          "name": "empty render retains original payload",
+          "rendered": [],
+          "payload": [
+            "Original"
+          ],
+          "divergence": null
+        },
+        {
+          "name": "null child",
+          "rendered": [
+            {
+              "tag": "div",
+              "attributes": {},
+              "children": []
+            }
+          ],
+          "payload": [],
+          "divergence": null
+        },
+        {
+          "name": "void element attribute",
+          "rendered": [
+            {
+              "tag": "input",
+              "attributes": {
+                "value": "Value"
+              },
+              "children": []
+            }
+          ],
+          "payload": [],
+          "divergence": null
+        },
+        {
+          "name": "textarea text",
+          "rendered": [
+            {
+              "tag": "textarea",
+              "attributes": {},
+              "children": [
+                "A & B"
+              ]
+            }
+          ],
+          "payload": [],
+          "divergence": null
+        },
+        {
+          "name": "host default commit",
+          "rendered": [
+            {
+              "tag": "p",
+              "attributes": {},
+              "children": [
+                "Default"
+              ]
+            }
+          ],
+          "payload": [],
+          "hostAttributes": {
+            "label": "Default"
+          },
+          "islandAttributes": {},
+          "islandDataset": {},
+          "divergence": "Existing browser bridge reflects host writes after its canonical snapshot; native state commits atomically."
+        },
+        {
+          "name": "host empty value beats default",
+          "rendered": [
+            {
+              "tag": "p",
+              "attributes": {},
+              "children": []
+            }
+          ],
+          "payload": [],
+          "hostAttributes": {
+            "label": ""
+          },
+          "islandAttributes": {
+            "label": ""
+          },
+          "islandDataset": {},
+          "divergence": null
+        },
+        {
+          "name": "host selected write",
+          "rendered": [
+            {
+              "tag": "p",
+              "attributes": {},
+              "children": [
+                "Selected"
+              ]
+            }
+          ],
+          "payload": [],
+          "hostAttributes": {
+            "label": "Selected"
+          },
+          "islandAttributes": {
+            "label": "old"
+          },
+          "islandDataset": {},
+          "divergence": "Existing browser bridge reflects host writes after its canonical snapshot; native state commits atomically."
+        },
+        {
+          "name": "host dataset default",
+          "rendered": [
+            {
+              "tag": "p",
+              "attributes": {},
+              "children": [
+                "native"
+              ]
+            }
+          ],
+          "payload": [],
+          "hostAttributes": {
+            "data-theme": "native"
+          },
+          "islandAttributes": {},
+          "islandDataset": {},
+          "divergence": "Existing browser bridge reflects host writes after its canonical snapshot; native state commits atomically."
+        },
+        {
+          "name": "host repeated dataset write",
+          "rendered": [
+            {
+              "tag": "p",
+              "attributes": {},
+              "children": [
+                "selected"
+              ]
+            }
+          ],
+          "payload": [],
+          "hostAttributes": {
+            "data-mode": "selected"
+          },
+          "islandAttributes": {},
+          "islandDataset": {},
+          "divergence": "Existing browser bridge reflects host writes after its canonical snapshot; native state commits atomically."
+        }
+      ]
+    },
+    "optimizedWasmTemplateCacheAndRetainedStylesheets": "passed"
+  },
+  "semantics": {
+    "originalSourceImmutable": true,
+    "originalPayloadReferencesPreserved": true,
+    "exactNativeHostOwnerRequired": true,
+    "canonicalAttributesAuthoritative": true,
+    "datasetDerivedFromFinalAttributes": true,
+    "samePassDatasetReads": true,
+    "duplicatePlanWritesCoalesceLastValue": true,
+    "existingAttributeOrderPreserved": true,
+    "newAttributeFirstEncounterOrder": true,
+    "sourceMapsRetainedOnWritesAndPrivateCache": true,
+    "legacyHostWriteCacheWithoutMaps": "miss",
+    "lateFailureRollsBackBothHalves": true,
+    "originalOperationAndDeadlinePreserved": true,
+    "astSerializationOrReparse": false,
+    "removalWrites": false
+  },
+  "lifecycle": {
+    "state": "Partial(Incomplete)",
+    "renderPasses": 1,
+    "hydrationReady": false,
+    "completeRevisionedCoordinator": false,
+    "browserBridgeImplemented": false,
+    "productionHtmlCodec": false,
+    "publicWireFieldsChanged": false,
+    "defaultFeaturesChanged": false
+  },
+  "browser": {
+    "vectors": 12,
+    "slotIngressDifference": 1,
+    "hostCanonicalSnapshotDifferences": 4,
+    "fullParityClaimed": false,
+    "authoredJavaScript": false,
+    "externalRequests": [],
+    "matchingRenderedCases": 11,
+    "matchingPayloadCases": 12,
+    "matchingCompleteObservationCases": 7
+  },
+  "wasm": {
+    "path": "packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+    "bytes": 24209768,
+    "sha256": "89b773240f53c3d6fe279a125ceaa0e2669974fa3c89746857c23c99a7a9e03f",
+    "maximumBytes": 26214400,
+    "previousBytes": 24220012,
+    "previousSha256": "5236de4ec19180c945730112e9be4811a569f22a35b94b6fd6bf8e664a7d8ea7",
+    "deltaBytes": -10244,
+    "imports": 28,
+    "exports": 171,
+    "namedDescriptorsMatch": true,
+    "importOrderChanged": false,
+    "optimization": {
+      "binaryen": "132.0.0",
+      "mode": "Oz",
+      "inputBytes": 27530047,
+      "outputBytes": 24209768,
+      "inputSha256": "27954aa527ceafe31bd2cd22d68b1128df7f2bc85d4c87e4910ae83b6e00fb9a",
+      "outputSha256": "89b773240f53c3d6fe279a125ceaa0e2669974fa3c89746857c23c99a7a9e03f",
+      "imports": 28,
+      "exports": 171,
+      "milliseconds": 431489
+    }
+  },
+  "sourceSha256": {
+    "packages/cem_ml/src/parser/tree_apply.rs": "b8c3a50b46213ba3d0c87ec9989bfd2b76cdf27556fbee203b34357871a6b3d3",
+    "packages/cem_ml/src/validation/html.rs": "fd95cda32592b0c62d8177980002fe901ba6d988fd581df5a209f837c89d1bba",
+    "packages/cem_ql/project.json": "0befac1710d60f024312b4b54bfba4f338ec36e0252a1eed1cc6df46de6e5d98",
+    "packages/cem_ql/src/eval/output.rs": "6ff1e5a77f2ce80a2da920b21f4066bed1be39e012a88d3763af4b21f36fc3fb",
+    "packages/cem_ql/src/instance_island/mod.rs": "cec6c48178812bf8bc256913d5f84a865220a427576455b4df260a23b8719923",
+    "packages/cem_ql/src/render.rs": "2a69be449380a26031b2df390544c78e9bde1507202b62d1cbf197a771621e18",
+    "packages/cem_ql/src/render_cache/output.rs": "070c1d0dd1378fd52e42b05c66657e4476b820121e358218d01b6ea8974588ea",
+    "packages/cem_ql/src/ssr_island.rs": "749c2f3e061398f2544c84b221695cac19c1e030bf02d4b7253b7c50dd2f3824",
+    "packages/cem_ql/src/ssr_render.rs": "d9123d6abfabd200558e99f700b0fd1b5d428041f2c3053b79efe3ea01690a81",
+    "packages/cem_ql/tests/fixtures/ssr-render-observations.json": "ad4a457ca1b590bd5980ebe3311c3f931456af85eb5358602620a3bd10903b8f",
+    "packages/cem_ql/tests/ssr_render.rs": "c55c0a3eec9b5cac2bf6700bfdea8ccb69733854f7dacf5bcc47acade276684d",
+    "packages/cem_ql/tests/verify-ssr-render-browser.mjs": "653dd4135ddd8e1f5026d3c988f22edaf6274fe9074cc6f8bc1a4dcbb28365e5",
+    "packages/cem_ql/src/instance_island/construct.rs": "d34afad6fd2df270ca705c914598506720660a565c4686837dcc14193a0a5982",
+    "packages/cem_ql/src/instance_island/host_commit.rs": "ff4f2ec72533c26108e97afff99ae1492259ad200b3cfeae2c6997c687948de7",
+    "packages/cem_ql/tests/ssr_host_commit.rs": "326f05b8690032b9603e472a8dcf5d3f7d627183622cd54966ef82858192a940"
+  },
+  "fullWorkspaceGate": false,
+  "next": [
+    "browser host/island transaction with revision and rollback checks",
+    "shared native browser retained-slot ingress",
+    "broader payload/CSS/resource admission",
+    "bounded nested settling and completion proof before export/adoption"
+  ],
+  "frozenPresentation": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864",
+    "changed": false
+  },
+  "buildStorage": {
+    "cargoIncremental": false,
+    "developmentAndTestDebugSymbols": false,
+    "cargoBuildJobs": 2,
+    "nxCacheSkipped": true
+  }
+}

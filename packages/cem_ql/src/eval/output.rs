@@ -64,6 +64,10 @@ pub fn output_attribute(attribute: RenderPlanAttribute) -> Item {
 }
 
 impl OutputView {
+    pub(crate) fn derivation_source(&self) -> Option<&super::RetainedCemNode> {
+        self.source.as_deref()
+    }
+
     pub(crate) fn xpath_cache(&self) -> &super::xpath_values::ProjectionCache {
         &self.xpath
     }

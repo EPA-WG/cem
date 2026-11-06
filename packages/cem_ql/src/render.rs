@@ -501,18 +501,35 @@ pub struct RenderPlan {
     pub diagnostics: Vec<Diagnostic>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct HostAttributeUpdate {
     pub name: String,
     pub value: String,
+    source_map: SourceMapStack,
 }
+// Write-effect equality remains name/value equality; provenance is retained
+// separately and does not change the existing host transport/control contract.
+impl PartialEq for HostAttributeUpdate {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.value == other.value
+    }
+}
+impl Eq for HostAttributeUpdate {}
 
 impl HostAttributeUpdate {
     pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
         Self {
             name: name.into(),
             value: value.into(),
+            source_map: SourceMapStack::default(),
         }
+    }
+    pub fn source_map(&self) -> &SourceMapStack {
+        &self.source_map
+    }
+    pub(crate) fn with_source_map(mut self, source_map: SourceMapStack) -> Self {
+        self.source_map = source_map;
+        self
     }
 }
 
@@ -1518,6 +1535,24 @@ fn set_current_data_document_attribute(
                 name.to_owned(),
                 vec![Item::Atomic(AtomValue::String(value.to_owned()))],
             );
+        }
+        // Dataset is the DOMStringMap index of canonical data-* attributes.
+        // Preserve retained native values for untouched entries; this is only
+        // the evaluator's semantic control view, never an AST replacement.
+        if let Some(suffix) = name.strip_prefix("data-") {
+            let key = crate::instance_island::dataset_key(suffix);
+            let entries = fields.entry("dataset".into()).or_insert_with(Vec::new);
+            let mut projected = match entries.as_slice() {
+                [Item::Record(values)] => values.clone(),
+                [value] => value
+                    .view()
+                    .and_then(|view| view.fields())
+                    .map(|fields| fields.into_iter().collect())
+                    .unwrap_or_default(),
+                _ => BTreeMap::new(),
+            };
+            projected.insert(key, vec![Item::Atomic(AtomValue::String(value.into()))]);
+            *entries = vec![Item::Record(projected)];
         }
     }
 }
@@ -3158,7 +3193,9 @@ impl PlanRenderer<'_> {
                 &name,
                 &value,
             );
-            host_attribute_updates.push(HostAttributeUpdate::new(name, value));
+            host_attribute_updates.push(
+                HostAttributeUpdate::new(name, value).with_source_map(select.source_map.clone()),
+            );
         }
     }
 
@@ -4404,6 +4441,7 @@ fn seed_declaration_defaults(
             tag,
             attributes,
             children,
+            source_map,
             ..
         } = node
         else {
@@ -4444,7 +4482,9 @@ fn seed_declaration_defaults(
         bindings.insert(name.clone(), ItemStream::once(value.clone()));
         if let Some(default) = reflected_default {
             set_current_data_document_attribute(bindings, &name, &default);
-            host_attribute_updates.push(HostAttributeUpdate::new(name, default));
+            host_attribute_updates.push(
+                HostAttributeUpdate::new(name, default).with_source_map(source_map.clone()),
+            );
         } else if declaration_kind == "slice" {
             set_current_data_document_slice(bindings, &name, &value);
         }

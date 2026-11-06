@@ -12,8 +12,13 @@ pub struct AppliedInlineDce {
     plan: Arc<RenderPlan>,
     projected: Arc<RenderPlan>,
     application: CemTreeApplication,
+    committed: Arc<crate::instance_island::host_commit::CommittedHostIsland>,
 }
 impl AppliedInlineDce {
+    pub fn committed_island(&self) -> &crate::instance_island::host_commit::CommittedHostIsland {
+        &self.committed
+    }
+
     pub fn input(&self) -> &Arc<PreparedInlineIsland> {
         &self.input
     }
@@ -41,7 +46,7 @@ pub fn render_and_apply_inline_dce(
     };
     use cem_ml::{
         operation_control::ROOT_EXECUTION_SCOPE_ID,
-        parser::tree_apply::apply_children,
+        parser::tree_apply::{apply_element, CemElementEdit},
         value::{CemReference, CemValueNode},
     };
     let page = input.prepared().page();
@@ -92,12 +97,28 @@ pub fn render_and_apply_inline_dce(
         );
         return Err(errors);
     }
-    if !plan.host_attribute_updates.is_empty() {
-        return Err(fail(
-            "cem.ssr.host_updates_unavailable",
-            "Host writes require a shared canonical island commit",
-        ));
-    }
+    let anchor = crate::eval::RetainedCemNode::new(source.clone(), instance).unwrap();
+    let committed = match crate::instance_island::host_commit::prepare_host_commit(
+        input.template(),
+        anchor.clone(),
+        input.instance_id(),
+        &plan.host_attribute_updates,
+        control,
+    ) {
+        Ok(state) => Arc::new(state),
+        Err(error) => {
+            check(page, control)?;
+            return Err(fail(
+                if error == crate::instance_island::BOUNDS {
+                    "cem.ssr.host_commit_bounds"
+                } else {
+                    "cem.ssr.host_commit_refused"
+                },
+                "Shared canonical host/island commit refused",
+            ));
+        }
+    };
+    check(page, control)?;
     let limits = crate::instance_island::LIMITS;
     let plan_with_ids = render::project_element_reference_ids(
         &plan,
@@ -134,7 +155,7 @@ pub fn render_and_apply_inline_dce(
     let boundary_source = source.node_source_map(instance).unwrap_or_default();
     let island = render::RenderPlan {
         nodes: vec![CemValueNode::Reference {
-            reference: CemReference::new(vec![input.template().clone()]),
+            reference: CemReference::new(vec![committed.template().clone()]),
             source_map: boundary_source.clone(),
         }],
         host_attribute_updates: vec![],
@@ -168,12 +189,19 @@ pub fn render_and_apply_inline_dce(
     let source = source.clone();
     let input = Arc::new(input);
     let projected = Arc::new(projected);
-    let retained: Arc<dyn std::any::Any + Send + Sync> =
-        Arc::new((input.clone(), plan.clone(), projected.clone()));
-    let application = apply_children(
+    let retained: Arc<dyn std::any::Any + Send + Sync> = Arc::new((
+        input.clone(),
+        plan.clone(),
+        projected.clone(),
+        committed.clone(),
+    ));
+    let application = apply_element(
         source,
         instance,
-        Arc::new(children),
+        CemElementEdit {
+            children: Arc::new(children),
+            attributes: committed.writes().clone(),
+        },
         retained,
         cem_ml::value::artifact::CemValueArtifactLimits {
             max_bytes: 16 * 1024 * 1024,
@@ -209,6 +237,7 @@ pub fn render_and_apply_inline_dce(
         plan,
         projected,
         application,
+        committed,
     })
 }
 fn admit_output(nodes: &mut [crate::render::RenderPlanNode]) -> Result<(), ()> {

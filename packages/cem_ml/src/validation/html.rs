@@ -1720,6 +1720,14 @@ pub fn validate_passive_html_projection(
     {
         return Err(HtmlFactKind::ForeignContentUnregistered);
     }
+    validate_passive_html_attributes(name, attributes)
+}
+
+/// Passive semantic attribute policy, also applicable to an admitted custom host.
+pub fn validate_passive_html_attributes(
+    name: &str,
+    attributes: &[(&str, &str)],
+) -> Result<(), HtmlFactKind> {
     for &(attr, value) in attributes {
         if attr.is_empty()
             || attr != attr.to_ascii_lowercase()

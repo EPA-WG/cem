@@ -200,15 +200,15 @@ fn physical_output_uri_does_not_change_applied_dom_or_instance_identity() {
 }
 
 #[test]
-fn host_defaults_require_a_shared_island_commit_before_application() {
+fn host_defaults_publish_through_the_shared_island_commit() {
     let p = prepared(
         "{attribute @name=label | Default}{p | Hello}",
         "<x-inline></x-inline>",
     );
-    assert_eq!(
-        code(render_and_apply_inline_dce(p, &control())),
-        "cem.ssr.host_updates_unavailable"
-    );
+    let r = render_and_apply_inline_dce(p, &control()).unwrap();
+    assert_eq!(r.committed_island().writes()[0].name, "label");
+    assert_eq!(r.committed_island().writes()[0].value, "Default");
+    assert_eq!(r.page().usage().render_passes, 1);
 }
 
 #[test]
@@ -375,7 +375,45 @@ fn shared_render_observations_match_native_application() {
         assert_eq!(json!(payload), vector["payload"], "{}", vector["name"]);
         assert_eq!(r.page().usage().render_passes, 1);
         assert!(!r.page().adoption_identity().hydration_ready());
-        observations.push(json!({"name":vector["name"],"rendered":rendered,"payload":payload}));
+        let mut observation = json!({"name":vector["name"],"rendered":rendered,"payload":payload});
+        if vector.get("hostAttributes").is_some() {
+            let read_attributes = |id: u32| {
+                tree.node(id)
+                    .unwrap()
+                    .attributes
+                    .iter()
+                    .map(|id| {
+                        let a = tree.node(*id).unwrap();
+                        (a.name.as_ref().unwrap().local_name.clone(), json!(a.value))
+                    })
+                    .collect::<serde_json::Map<String, Value>>()
+            };
+            let host_attributes = read_attributes(r.application().output_target());
+            let root = tree.node(ids[0]).unwrap().children[0];
+            let parts = &tree.node(root).unwrap().children;
+            let entries = |id: u32, key: &str| {
+                tree.node(id)
+                    .unwrap()
+                    .children
+                    .iter()
+                    .map(|id| {
+                        let a = read_attributes(*id);
+                        (a[key].as_str().unwrap().to_owned(), a["value"].clone())
+                    })
+                    .collect::<serde_json::Map<String, Value>>()
+            };
+            observation["hostAttributes"] = json!(host_attributes);
+            observation["islandAttributes"] = json!(entries(parts[1], "name"));
+            observation["islandDataset"] = json!(entries(parts[2], "key"));
+            for name in ["hostAttributes", "islandAttributes", "islandDataset"] {
+                assert_eq!(
+                    observation[name], vector[name],
+                    "{}: {name}",
+                    vector["name"]
+                );
+            }
+        }
+        observations.push(observation);
     }
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../dist/reports/cem-ssr-render-native.json");

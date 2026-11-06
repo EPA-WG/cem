@@ -684,10 +684,36 @@ through Phase 9 release governance.
       import/export descriptors. Frozen presentation checksum remains unchanged.
       [Archive](archive/todo-completed-ssr-render-application-2026-11-06.md).
 
-- [ ] SSR shared host/island commit: apply generated host defaults and selected
+- [x] SSR shared host/island commit: apply generated host defaults and selected
       attribute writes in one native transaction with canonical attributes and
       dataset updates. Add failing shared transaction fixtures before extending
       `cem.ssr.host_updates_unavailable`; preserve source authority and rollback.
+      Add failing native host-commit fixtures for missing defaults versus supplied
+      empty values, selected/repeated writes, same-pass dataset reads, ordered
+      attributes, source maps, payload reference identity, atomic attribute/child
+      replacement, sensitive/reserved/active names, bounds and original control.
+      Extend explicit browser observations for supported host/island commits;
+      keep non-adoptable state and expose existing browser divergences. Add a
+      failing native pure-cache fixture retaining host-write source maps and
+      rejecting older host-write cache records without that provenance.
+      Completed 2026-11-06: 11 host-commit cases and seven generic AST transaction
+      tests pass in default and actual stripped profiles; four native output-cache
+      cases pass. Existing module defaults (6), template rendering (55), capture,
+      preparation and isolated component receiver (17) pass. Source-owned mapped
+      writes, canonical attributes/dataset and children publish atomically in one
+      pass; original payload references and partial/non-adoptable status remain.
+      Browser snapshot and slot ingress gaps remain explicitly tracked below.
+      Focused lint, both native Clippy targets and optimized WASM consumers pass;
+      default core is 24,209,768 bytes under the unchanged 25 MiB budget, with
+      matching named descriptors. All 12 browser observation contracts pass with
+      the five documented bridge differences. Frozen delivery is unchanged.
+      [Archive](archive/todo-completed-ssr-host-island-commit-2026-11-06.md).
+
+- [ ] Browser host/island commit bridge: stage renderer host writes and canonical
+      attribute/dataset updates through the shared native transaction before
+      browser publication; retain processing revision and rollback guards without
+      scheduling recursive rendering. Extend failing native/browser commit
+      fixtures; current browser snapshots can retain pre-write attributes.
 
 - [ ] SSR browser retained-slot parity: replace the current browser slot metadata
       ingress with shared native retained-node input before claiming direct slot

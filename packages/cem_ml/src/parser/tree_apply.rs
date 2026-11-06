@@ -45,6 +45,7 @@ impl CemTreeApplication {
 struct ApplicationOwner {
     _source: Arc<RetainedCemTree>,
     _nodes: Arc<dyn Any + Send + Sync>,
+    _attributes: Arc<dyn Any + Send + Sync>,
     _retained: Arc<dyn Any + Send + Sync>,
     _permits: Vec<crate::operation_control::MemoryPermit>,
     qualified_names: Arc<BTreeMap<AstNodeId, String>>,
@@ -58,14 +59,42 @@ pub fn applied_qualified_name(tree: &RetainedCemTree, id: AstNodeId) -> Option<&
         .map(String::as_str)
 }
 
+/// One immutable element transaction: ordered attribute writes and owned children.
+pub struct CemElementEdit<T, S> {
+    pub children: Arc<Vec<CemValueNode<T, S>>>,
+    pub attributes: Arc<Vec<crate::value::CemValueAttribute<S>>>,
+}
+
 pub fn apply_children<T: Send + Sync + 'static, S: Send + Sync + 'static>(
     source: Arc<RetainedCemTree>,
     target: AstNodeId,
     nodes: Arc<Vec<CemValueNode<T, S>>>,
     retained: Arc<dyn Any + Send + Sync>,
+    limits: CemValueArtifactLimits,
+    control: &OperationControl,
+) -> Result<CemTreeApplication, CemTreeApplyError> {
+    apply_element(
+        source,
+        target,
+        CemElementEdit {
+            children: nodes,
+            attributes: Arc::new(vec![]),
+        },
+        retained,
+        limits,
+        control,
+    )
+}
+pub fn apply_element<T: Send + Sync + 'static, S: Send + Sync + 'static>(
+    source: Arc<RetainedCemTree>,
+    target: AstNodeId,
+    edit: CemElementEdit<T, S>,
+    retained: Arc<dyn Any + Send + Sync>,
     mut limits: CemValueArtifactLimits,
     control: &OperationControl,
 ) -> Result<CemTreeApplication, CemTreeApplyError> {
+    let nodes = edit.children;
+    let attributes = edit.attributes;
     use crate::{operation_control::ROOT_EXECUTION_SCOPE_ID, parser::tree::CemTreeNodeKind};
     control
         .check_scope(ROOT_EXECUTION_SCOPE_ID)
@@ -85,10 +114,26 @@ pub fn apply_children<T: Send + Sync + 'static, S: Send + Sync + 'static>(
     limits.max_bytes = limits
         .max_bytes
         .min(policy.memory_bytes.try_into().unwrap_or(usize::MAX));
+    let mut names = std::collections::BTreeSet::new();
+    if attributes.len() > limits.max_values {
+        return Err(error("cem.ast.apply_bounds"));
+    }
+    for a in attributes.iter() {
+        control
+            .check_scope(ROOT_EXECUTION_SCOPE_ID)
+            .map_err(control_error)?;
+        if a.name.is_empty()
+            || a.contract.is_some()
+            || !names.insert((a.namespace.as_deref().unwrap_or_default(), a.name.as_str()))
+        {
+            return Err(error("cem.ast.apply_attributes"));
+        }
+    }
     let mut builder = Builder {
         source: source.clone(),
         target,
         nodes: &nodes,
+        attributes: &attributes,
         limits,
         control,
         ast: super::document::CemDocument::default(),
@@ -122,6 +167,7 @@ pub fn apply_children<T: Send + Sync + 'static, S: Send + Sync + 'static>(
     let owner: Arc<dyn Any + Send + Sync> = Arc::new(ApplicationOwner {
         _source: source.clone(),
         _nodes: nodes,
+        _attributes: attributes,
         _retained: retained,
         _permits: permits,
         qualified_names: qualified_names.clone(),
@@ -151,6 +197,7 @@ struct Builder<'a, T, S> {
     source: Arc<RetainedCemTree>,
     target: AstNodeId,
     nodes: &'a [CemValueNode<T, S>],
+    attributes: &'a [crate::value::CemValueAttribute<S>],
     limits: CemValueArtifactLimits,
     control: &'a OperationControl,
     ast: super::document::CemDocument,
@@ -242,8 +289,42 @@ impl<T, S> Builder<'_, T, S> {
             self.semantics.base_uris.insert(id, base);
         }
         let mut output_attrs = vec![];
-        for attr in attrs {
-            output_attrs.push(self.copy_source(attr, depth + 1)?);
+        for attr in &attrs {
+            let current = self
+                .source
+                .node(*attr)
+                .and_then(|n| n.name.as_ref())
+                .ok_or_else(|| error("cem.ast.apply_tree"))?;
+            let replacement = (old == self.target)
+                .then(|| {
+                    self.attributes.iter().find(|a| {
+                        a.name == current.local_name
+                            && a.namespace.as_deref().unwrap_or_default() == current.namespace_uri
+                    })
+                })
+                .flatten();
+            if let Some(a) = replacement {
+                let id = self.insert_attribute(a, depth + 1)?;
+                self.source_ids.insert(*attr, id);
+                output_attrs.push(id);
+            } else {
+                output_attrs.push(self.copy_source(*attr, depth + 1)?);
+            }
+        }
+        if old == self.target {
+            for a in self.attributes {
+                if !attrs.iter().any(|id| {
+                    self.source
+                        .node(*id)
+                        .and_then(|n| n.name.as_ref())
+                        .is_some_and(|n| {
+                            n.local_name == a.name
+                                && n.namespace_uri == a.namespace.as_deref().unwrap_or_default()
+                        })
+                }) {
+                    output_attrs.push(self.insert_attribute(a, depth + 1)?);
+                }
+            }
         }
         let mut output_children = vec![];
         if old == self.target {
@@ -313,6 +394,37 @@ impl<T, S> Builder<'_, T, S> {
         };
         Ok(id)
     }
+    fn insert_attribute(
+        &mut self,
+        attr: &crate::value::CemValueAttribute<S>,
+        depth: usize,
+    ) -> Result<AstNodeId, CemTreeApplyError> {
+        let aid = self.allocate(
+            attr.name.len()
+                + attr.value.len()
+                + attr.namespace.as_ref().map_or(0, String::len)
+                + attr.qualified_name.as_ref().map_or(0, String::len)
+                + attr.source_map.frames.len()
+                    * std::mem::size_of::<crate::source_map::SourceMapFrame>(),
+            depth,
+        )?;
+        self.semantics.unknown_source_lines.insert(aid);
+        if let Some(name) = &attr.qualified_name {
+            self.qualified_names.insert(aid, name.clone());
+        }
+        self.ast.nodes[aid as usize] = super::CemAstNode::Attribute {
+            node_id: aid,
+            expanded_name: super::ExpandedName {
+                namespace_uri: attr.namespace.clone().unwrap_or_default(),
+                local_name: attr.name.clone(),
+                schema_id: None,
+            },
+            value: Some(attr.value.clone()),
+            value_nodes: vec![],
+            source: attr.source_map.clone(),
+        };
+        Ok(aid)
+    }
     fn insert(
         &mut self,
         node: &CemValueNode<T, S>,
@@ -363,27 +475,7 @@ impl<T, S> Builder<'_, T, S> {
                 }
                 let mut attrs = vec![];
                 for attr in attributes {
-                    let aid = self.allocate(
-                        attr.name.len()
-                            + attr.value.len()
-                            + attr.namespace.as_ref().map_or(0, String::len),
-                        depth + 1,
-                    )?;
-                    self.semantics.unknown_source_lines.insert(aid);
-                    if let Some(name) = &attr.qualified_name {
-                        self.qualified_names.insert(aid, name.clone());
-                    }
-                    self.ast.nodes[aid as usize] = N::Attribute {
-                        node_id: aid,
-                        expanded_name: ExpandedName {
-                            namespace_uri: attr.namespace.clone().unwrap_or_default(),
-                            local_name: attr.name.clone(),
-                            schema_id: None,
-                        },
-                        value: Some(attr.value.clone()),
-                        value_nodes: vec![],
-                        source: attr.source_map.clone(),
-                    };
+                    let aid = self.insert_attribute(attr, depth + 1)?;
                     attrs.push(aid);
                 }
                 let mut kids = vec![];
@@ -641,5 +733,165 @@ mod tests {
         );
         assert_eq!(r.qualified_name(id), Some("cem-island:context-root"));
         assert_eq!(r.tree().source_line_number(id), None);
+    }
+}
+
+#[cfg(test)]
+mod attribute_tests {
+    use super::*;
+    use crate::{
+        import::element_tree::retain_html_elements,
+        parser::tree::CemDocumentMetadata,
+        scheduler::AbortSignal,
+        validation::html::{html_document_ast_from_source_bytes, HtmlSourceValidationRequest},
+        value::CemValueAttribute,
+    };
+    fn source() -> Arc<RetainedCemTree> {
+        let doc = html_document_ast_from_source_bytes(HtmlSourceValidationRequest {
+            bytes: b"<div id='kept' label='old'><b>Old</b></div>",
+            source_uri: "file:///source.html",
+            content_type: Some("text/html"),
+        })
+        .0
+        .unwrap();
+        retain_html_elements(Arc::new(doc), CemDocumentMetadata::default())
+            .unwrap()
+            .tree
+    }
+    fn attr(name: &str, value: &str) -> CemValueAttribute<()> {
+        CemValueAttribute {
+            name: name.into(),
+            namespace: None,
+            qualified_name: None,
+            value: value.into(),
+            value_stream: (),
+            contract: None,
+            source_map: Default::default(),
+        }
+    }
+    fn target(tree: &RetainedCemTree) -> u32 {
+        (0..tree.ast().nodes.len())
+            .find(|id| {
+                tree.node(*id as u32)
+                    .and_then(|n| n.name.as_ref())
+                    .is_some_and(|n| n.local_name == "div")
+            })
+            .unwrap() as u32
+    }
+    fn edit() -> CemElementEdit<(), ()> {
+        CemElementEdit {
+            children: Arc::new(vec![CemValueNode::Text {
+                text: "New".into(),
+                source_map: Default::default(),
+            }]),
+            attributes: Arc::new(vec![attr("label", "new"), attr("data-theme", "native")]),
+        }
+    }
+    #[test]
+    fn attributes_and_children_are_one_derived_transaction() {
+        let source = source();
+        let t = target(&source);
+        let old = source.node(t).unwrap().attributes.clone();
+        let c = OperationControl::new(AbortSignal::new());
+        let r = apply_element(
+            source.clone(),
+            t,
+            edit(),
+            Arc::new(()),
+            Default::default(),
+            &c,
+        )
+        .unwrap();
+        let attrs = r
+            .tree()
+            .node(r.output_target())
+            .unwrap()
+            .attributes
+            .iter()
+            .map(|id| {
+                let n = r.tree().node(*id).unwrap();
+                (
+                    n.name.as_ref().unwrap().local_name.as_str(),
+                    n.value.as_str(),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            attrs,
+            vec![("id", "kept"), ("label", "new"), ("data-theme", "native")]
+        );
+        assert_eq!(
+            r.tree()
+                .text_fragments(r.output_target())
+                .unwrap()
+                .collect::<String>(),
+            "New"
+        );
+        assert_eq!(source.text_fragments(t).unwrap().collect::<String>(), "Old");
+        assert_eq!(source.node(old[1]).unwrap().value, "old");
+        assert!(r.output_for_source(old[0]).is_some());
+        assert!(r.output_for_source(old[1]).is_some());
+        assert_eq!(
+            r.tree()
+                .source_line_number(r.output_for_source(old[1]).unwrap()),
+            None
+        );
+    }
+    #[test]
+    fn duplicate_writes_refuse_atomically_and_release_accounting() {
+        let source = source();
+        let t = target(&source);
+        let mut edit = edit();
+        edit.attributes = Arc::new(vec![attr("label", "first"), attr("label", "second")]);
+        let c = OperationControl::new(AbortSignal::new());
+        assert_eq!(
+            apply_element(
+                source.clone(),
+                t,
+                edit,
+                Arc::new(()),
+                Default::default(),
+                &c
+            )
+            .unwrap_err()
+            .code,
+            "cem.ast.apply_attributes"
+        );
+        assert_eq!(
+            c.memory_charged(crate::operation_control::ROOT_EXECUTION_SCOPE_ID)
+                .unwrap(),
+            0
+        );
+        assert_eq!(source.text_fragments(t).unwrap().collect::<String>(), "Old");
+    }
+    #[test]
+    fn late_child_failure_never_publishes_prepared_attributes() {
+        let source = source();
+        let t = target(&source);
+        let c = OperationControl::new(AbortSignal::new());
+        let mut edit = edit();
+        edit.children = Arc::new(vec![CemValueNode::Reference {
+            reference: crate::value::CemReference::new(vec![()]),
+            source_map: Default::default(),
+        }]);
+        assert_eq!(
+            apply_element(
+                source.clone(),
+                t,
+                edit,
+                Arc::new(()),
+                Default::default(),
+                &c
+            )
+            .unwrap_err()
+            .code,
+            "cem.ast.apply_reference"
+        );
+        assert_eq!(
+            c.memory_charged(crate::operation_control::ROOT_EXECUTION_SCOPE_ID)
+                .unwrap(),
+            0
+        );
+        assert_eq!(source.text_fragments(t).unwrap().collect::<String>(), "Old");
     }
 }

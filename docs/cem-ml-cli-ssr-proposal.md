@@ -4,7 +4,8 @@
 source/page/base/output URL preflight are implemented. The initial retained
 unrendered/partial SSR artifact contract, one-inline-DCE preparation and canonical
 first-connection HTML island preparation and one-pass native render-plan
-application are implemented; see §5.1, §6.1.1, §6.2.1 and §6.2.2.
+application with shared host/island commits are implemented; see §5.1, §6.1.1
+and §6.2.1–§6.2.3.
 The SSR command, settled/adoptable artifact, lifecycle coordinator and page
 compiler described here remain proposed and are not yet implemented.
 
@@ -626,9 +627,8 @@ The first output profile accepts passive HTML elements, text and comments.
 Foreign/custom participants, script/style/document nodes, active event handlers,
 resource-policy requirements, structured attribute contracts, unexpanded
 references and invalid void children fail before application. Existing native
-payload source/sensitive-input admission is reused. Host attribute updates fail
-with `cem.ssr.host_updates_unavailable`: a shared transaction must synchronize
-canonical attributes/dataset with host writes before these can be applied.
+payload source/sensitive-input admission is reused. Host attribute updates now pass through the shared
+canonical transaction in §6.2.3; unsupported writes fail before page application.
 
 Whole-page source materialization additionally checks the native HTML decoder's
 text profile at the import boundary. Unsupported named references, HTML numeric
@@ -646,9 +646,9 @@ total-heap measurements of already-retained source owners or complete settling.
 
 Native fixtures cover original ownership, decoded text, slots, maps, empty
 ranges, native extension handoff, invalid progress, admission, cancellation and
-bounds. Seven named observation vectors compare payload topology with the existing
-browser lifecycle: six render cases match, and one records the existing direct
-slot-node ingress difference explicitly. They use trusted runtime code,
+bounds. Named observation vectors compare payload topology and rendered output
+with the existing browser lifecycle, including explicit slot-ingress and host
+snapshot differences (§6.2.3). They use trusted runtime code,
 without authored scripts or external requests. Semantic output observations omit
 browser-only zero-length text placeholders and internal render stamps; they do
 not equate runtime node identity. The browser bridge currently
@@ -656,6 +656,67 @@ exposes slot metadata records, while this native path retains nodes. Direct
 node-slot insertion is covered natively; shared browser ingress and full island
 stamps/hydration remain later work. Test observation JSON is an explicit sidecar,
 never a production AST transport.
+
+### 6.2.3 Implemented shared host/island commit
+
+The single-pass native path now stages host writes and canonical state together
+through `cem_ql::instance_island::host_commit::prepare_host_commit`. The input
+must be the shared constructor's source-owned native template; a different host
+owner or node is refused even when names and attribute strings are identical.
+Shared builders construct only the changed attribute/dataset sections. Other
+canonical parts retain their native values, and payload references retain their
+original reference and source-node identity. The whole candidate is rebound
+through the existing canonical topology, dataset equality, source, reserved-alias
+and sensitive-input admission before it can reach the page applier.
+
+The existing renderer remains responsible for defaults and selected writes.
+Missing defaults become writes; supplied empty strings win over defaults.
+Repeated writes coalesce to the final value. Existing names retain encounter
+positions; new names append in first encounter order. `data-*` writes also update
+the renderer's same-pass DOMStringMap control view, preserving untouched native
+values. Canonical dataset is rebuilt from final canonical attributes, never
+accepted as a separate authority. No recursive render is scheduled.
+
+Native `HostAttributeUpdate` retains declaration/query source maps. Existing
+name/value effect equality and browser transport fields are unchanged. The
+private native output-cache codec retains those maps and treats older host-write
+records without provenance as misses. It does not invent source maps on decode.
+
+`cem_ml::parser::tree_apply::apply_element` accepts one `CemElementEdit` for
+attribute writes and child replacement. It checks unique expanded write names,
+retains source/producer inputs and charges the same original operation. Changed
+attributes carry write-origin maps and no invented physical lines; untouched
+attributes retain original source identity/maps and relative order. A late child,
+bound or control failure releases staging without publishing either half.
+`apply_children` remains a compatible wrapper with no attribute writes.
+
+The SSR result retains the original captured input, raw/projected plan and the
+committed native island. The derived page contains the same final attribute and
+dataset strings as that island. Input source text and payload owners remain
+immutable. `AppliedInlineDce::committed_island()` exposes current native bindings;
+`input()` deliberately retains the original first-connection capture. The page
+remains `Partial(Incomplete)` at one render pass. A general revisioned settle
+coordinator, complete hydration stamps, removal writes and ready proof remain
+pending.
+
+The current profile accepts mapped passive lower-case HTML attribute writes.
+Unmapped writes, namespace changes, internal `data-cem-*` marker writes, active
+handlers, resource-policy requirements, reserved aliases and sensitive controls
+fail before AST application. Existing 64-host-attribute, 1 MiB island lexical/work
+and 16,384-value ceilings remain, reduced by caller memory and stack policy.
+These checks do not claim total-heap accounting of retained source owners.
+
+Native fixtures establish host/island equality, same-pass dataset reads, empty
+and selected values, repeated writes, ordering, maps, payload identity, exact
+source ownership, cache provenance, rollback, bounds and original control. Five
+additional browser vectors inspect both public host attributes and canonical
+attributes/dataset. The existing browser bridge reflects generated host writes
+after its processing snapshot, leaving pre-write canonical attributes in four
+cases. The native transaction resolves this gap for SSR; browser integration
+must preserve processing revision and publication/rollback guards and is a
+separate tracked task. These browser differences and the earlier slot-record
+bridge difference remain explicit assertions in the observation report, not
+successful full-parity or hydration claims.
 
 ### 6.3 Bounded settling
 
@@ -1195,7 +1256,8 @@ schema, scope stack, resolver/policy stamps, and a source-map frame.
 ### Phase C: DOM-free page applier
 
 - One inline passive-HTML render plan and canonical island apply to the native
-  page AST (§6.2.2). Extend admission and host/island commits before generalizing.
+  page AST (§6.2.2), with shared host/island commits (§6.2.3). Extend admission
+  and browser bridge integration before generalizing.
 - Add bounded nested-instance settling and deterministic resource snapshots.
 - Replace the Node evidence serializer with a production HTML converter; do not
   promote fixture-only serialization as the canonical writer.

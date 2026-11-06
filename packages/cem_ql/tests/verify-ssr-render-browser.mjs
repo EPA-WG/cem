@@ -96,7 +96,15 @@ try {
             const context = island.content.firstElementChild;
             const parts = Array.from(context.children).map(node => node.localName.split(':').at(-1));
             const payload = Array.from(context.children).find(node => node.localName.endsWith(':payload'));
+            const hostState = {};
+            if (vector.hostAttributes) {
+                hostState.hostAttributes = Object.fromEntries(Array.from(host.attributes).filter(a => !internal.has(a.name)).map(a => [a.name, a.value]));
+                const section = name => Array.from(context.children).find(node => node.localName.endsWith(`:${name}`));
+                hostState.islandAttributes = Object.fromEntries(Array.from(section('attributes').children).filter(node => !internal.has(node.getAttribute('name'))).map(node => [node.getAttribute('name'), node.getAttribute('value')]));
+                hostState.islandDataset = Object.fromEntries(Array.from(section('dataset').children).filter(node => node.getAttribute('key') !== 'cemRenderScope').map(node => [node.getAttribute('key'), node.getAttribute('value')]));
+            }
             return {
+                ...hostState,
                 name: vector.name,
                 rendered: children.slice(start + 1, end).map(exportObservation),
                 payload: Array.from(payload.childNodes).map(exportObservation),
@@ -107,11 +115,16 @@ try {
         assert.deepEqual(observation.parts, ['data', 'attributes', 'dataset', 'payload', 'slices', 'resources', 'form-state', 'validation-state', 'event-state']);
         assert.deepEqual(observation.diagnostics.map(entry => entry.code), vector.browserDiagnostics || [], vector.name);
         const result = { name: observation.name, rendered: observation.rendered, payload: observation.payload };
-        assert.deepEqual(result, { name: vector.name, rendered: vector.browserRendered || vector.rendered, payload: vector.payload }, vector.name);
+        const expected = { name: vector.name, rendered: vector.browserRendered || vector.rendered, payload: vector.payload };
+        const nativeExpected = { name: vector.name, rendered: vector.rendered, payload: vector.payload };
+        if (vector.hostAttributes) for (const field of ['hostAttributes', 'islandAttributes', 'islandDataset']) {
+            result[field] = observation[field]; expected[field] = vector[`browser${field[0].toUpperCase()}${field.slice(1)}`] || vector[field]; nativeExpected[field] = vector[field];
+        }
+        assert.deepEqual(result, expected, vector.name);
         const nativeResult = native.find(entry => entry.name === vector.name);
-        assert.deepEqual(nativeResult, { name: vector.name, rendered: vector.rendered, payload: vector.payload }, vector.name);
+        assert.deepEqual(nativeResult, nativeExpected, vector.name);
         if (vector.divergence) {
-            assert.notDeepEqual(result.rendered, nativeResult.rendered, vector.name);
+            assert.notDeepEqual(result, nativeResult, vector.name);
             assert.deepEqual(result.payload, nativeResult.payload, vector.name);
         } else assert.deepEqual(result, nativeResult, vector.name);
         results.push({ ...result, divergence: vector.divergence || null });
@@ -122,7 +135,7 @@ try {
     const report = path.join(root, 'dist/reports/cem-ssr-render-browser.json');
     mkdirSync(path.dirname(report), { recursive: true });
     writeFileSync(report, `${JSON.stringify({ browser: browser.version(), authoredJavaScript: false, trustedRuntime: true, ignoresEmptyTextPlaceholders: true, externalRequests, results }, null, 2)}\n`);
-    console.log(`Native/browser observations: ${results.length}; matching render cases: ${results.filter(entry => !entry.divergence).length}; documented slot-ingress divergence: ${results.filter(entry => entry.divergence).length}`);
+    console.log(`Native/browser observations: ${results.length}; matching full observations: ${results.filter(entry => !entry.divergence).length}; documented divergences: ${results.filter(entry => entry.divergence).length}`);
 } finally {
     await browser?.close();
     await new Promise(resolve => server.close(resolve));

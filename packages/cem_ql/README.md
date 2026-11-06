@@ -92,21 +92,48 @@ Original source, payload and declaration owners remain retained and immutable.
 The envelope records one render pass and remains `Partial(Incomplete)` without
 hydration readiness.
 
-This first application profile admits passive HTML generated output. Host writes,
-nested participants, resource capabilities, foreign output, structured attribute
+This first application profile admits passive HTML generated output. Nested
+participants, resource capabilities, foreign output, structured attribute
 contracts and unsupported source decoding fail explicitly before application.
 It supplies neither a settled page nor a production HTML serializer. See the
 [application contract](../../docs/cem-ml-cli-ssr-proposal.md#622-implemented-single-render-plan-application).
 
 Run `cem_ql:test --test=ssr_render`, `cem_ql:test:ssr-render:stripped` and
 `cem_ql:lint:ssr-render` through `yarn nx run`. After the native observation
-export and default WASM build, `cem_ql:test:ssr-render:browser` checks six matching
-render cases and one documented direct-slot difference, including payload
-topology, against the existing browser runtime. Named
-JSON observation sidecars are test controls, not native AST handoffs. The current
-browser slot bridge still supplies metadata records; direct native slot-node
-insertion has separate Rust coverage and needs shared browser ingress before
-full parity/adoption.
+export and default WASM build, `cem_ql:test:ssr-render:browser` compares rendered
+output, payload topology and public host/island state, with documented browser
+differences asserted explicitly. Named JSON observation sidecars
+are test controls, not native AST handoffs. Browser retained-slot ingress and its
+host/island snapshot bridge still differ from the native path; these are recorded
+explicitly in the observation vectors rather than claimed as full parity.
+
+## Shared host attributes and canonical island commit
+
+`instance_island::host_commit::prepare_host_commit` stages an immutable canonical
+island and host writes from a source-owned constructed template. It verifies the
+exact native host owner, preserves payload references and rebuilds canonical
+attributes plus their DOMStringMap dataset index through shared construction and
+admission. `ssr_render` publishes that state and the rendered range in one
+`cem_ml::parser::tree_apply::apply_element` transaction. Original capture owners
+remain available through `input()`; `committed_island()` exposes the committed
+native template, context, bindings and effective ordered writes.
+
+Defaults respect supplied empty values. Selected/repeated writes have a final
+value per name; existing names keep their position and new names append in first
+encounter order. Same-pass `data-*` reads use the updated dataset view without a
+second render. Host writes retain declaration/query source maps, including through
+the private native pure-output cache; older cached host-write records lacking
+that provenance become misses. Name/value write equality and the browser wire
+shape remain unchanged.
+
+The first profile admits mapped passive lower-case HTML attribute writes under
+the existing native alias, sensitive-input, resource and caller-budget gates.
+Internal `data-cem-*` markers and namespace changes are refused. No removal API,
+nested settling, hydration stamp or ready proof is added. The page still records
+one pass as `Partial(Incomplete)`. Run `cem_ql:test --test=ssr_host_commit` plus the
+render, stripped, lint and browser targets above. Browser host writes currently
+follow its pre-write island snapshot; the explicit observation report records
+that separate bridge gap. See the [shared transaction contract](../../docs/cem-ml-cli-ssr-proposal.md#623-implemented-shared-hostisland-commit).
 
 ## String helpers
 

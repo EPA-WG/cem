@@ -131,5 +131,129 @@
       }
     ],
     "payload": []
+  },
+  {
+    "name": "host default commit",
+    "template": "{attribute @name=label | Default}{p | {$ label}}",
+    "body": "<x-inline></x-inline>",
+    "rendered": [
+      {
+        "tag": "p",
+        "attributes": {},
+        "children": [
+          "Default"
+        ]
+      }
+    ],
+    "payload": [],
+    "hostAttributes": {
+      "label": "Default"
+    },
+    "islandAttributes": {
+      "label": "Default"
+    },
+    "islandDataset": {},
+    "browserIslandAttributes": {},
+    "divergence": "Existing browser bridge reflects host writes after its canonical snapshot; native state commits atomically."
+  },
+  {
+    "name": "host empty value beats default",
+    "template": "{attribute @name=label | Default}{p | {$ label}}",
+    "body": "<x-inline label=''></x-inline>",
+    "rendered": [
+      {
+        "tag": "p",
+        "attributes": {},
+        "children": []
+      }
+    ],
+    "payload": [],
+    "hostAttributes": {
+      "label": ""
+    },
+    "islandAttributes": {
+      "label": ""
+    },
+    "islandDataset": {}
+  },
+  {
+    "name": "host selected write",
+    "template": "{attribute @name=label @select='\"Selected\"'}{p | {$ label}}",
+    "body": "<x-inline label='old'></x-inline>",
+    "rendered": [
+      {
+        "tag": "p",
+        "attributes": {},
+        "children": [
+          "Selected"
+        ]
+      }
+    ],
+    "payload": [],
+    "hostAttributes": {
+      "label": "Selected"
+    },
+    "islandAttributes": {
+      "label": "Selected"
+    },
+    "islandDataset": {},
+    "browserIslandAttributes": {
+      "label": "old"
+    },
+    "divergence": "Existing browser bridge reflects host writes after its canonical snapshot; native state commits atomically."
+  },
+  {
+    "name": "host dataset default",
+    "template": "{attribute @name=data-theme | native}{p | {$ datadom.dataset.theme}}",
+    "body": "<x-inline></x-inline>",
+    "rendered": [
+      {
+        "tag": "p",
+        "attributes": {},
+        "children": [
+          "native"
+        ]
+      }
+    ],
+    "payload": [],
+    "hostAttributes": {
+      "data-theme": "native"
+    },
+    "islandAttributes": {
+      "data-theme": "native"
+    },
+    "islandDataset": {
+      "theme": "native"
+    },
+    "browserIslandAttributes": {},
+    "browserIslandDataset": {},
+    "divergence": "Existing browser bridge reflects host writes after its canonical snapshot; native state commits atomically."
+  },
+  {
+    "name": "host repeated dataset write",
+    "template": "{attribute @name=data-mode | default}{attribute @name=data-mode @select='\"selected\"'}{p | {$ datadom.dataset.mode}}",
+    "body": "<x-inline></x-inline>",
+    "rendered": [
+      {
+        "tag": "p",
+        "attributes": {},
+        "children": [
+          "selected"
+        ]
+      }
+    ],
+    "payload": [],
+    "hostAttributes": {
+      "data-mode": "selected"
+    },
+    "islandAttributes": {
+      "data-mode": "selected"
+    },
+    "islandDataset": {
+      "mode": "selected"
+    },
+    "browserIslandAttributes": {},
+    "browserIslandDataset": {},
+    "divergence": "Existing browser bridge reflects host writes after its canonical snapshot; native state commits atomically."
   }
 ]

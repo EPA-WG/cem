@@ -31,7 +31,7 @@
             ],
             "outputs": [],
             "options": {
-                "command": "cargo test --locked --package cem-ql --no-default-features --test ssr_render --test ssr_island --test ssr_preparation --target-dir dist/target/cem_ql_stripped",
+                "command": "cargo test --locked --package cem-ql --no-default-features --test ssr_host_commit --test ssr_render --test ssr_island --test ssr_preparation --target-dir dist/target/cem_ql_stripped",
                 "cwd": ""
             }
         },
@@ -55,7 +55,7 @@
             "outputs": [],
             "options": {
                 "commands": [
-                    "rustfmt --edition 2021 --check packages/cem_ml/src/parser/tree_apply.rs packages/cem_ml/src/import/element_tree.rs packages/cem_ql/src/ssr_render.rs packages/cem_ql/tests/ssr_render.rs",
+                    "rustfmt --edition 2021 --check packages/cem_ml/src/parser/tree_apply.rs packages/cem_ml/src/import/element_tree.rs packages/cem_ql/src/ssr_render.rs packages/cem_ql/src/ssr_island.rs packages/cem_ql/src/instance_island/construct.rs packages/cem_ql/src/instance_island/host_commit.rs packages/cem_ql/tests/ssr_host_commit.rs packages/cem_ql/tests/ssr_render.rs",
                     "node --check packages/cem_ql/tests/verify-ssr-render-browser.mjs",
                     "yarn eslint packages/cem_ql/tests/verify-ssr-render-browser.mjs"
                 ],

@@ -1,5 +1,7 @@
 //! Native island admission with explicit domain and live-state gates.
+pub(crate) mod construct;
 mod domains;
+pub mod host_commit;
 mod payload;
 use crate::{
     eval::{AtomValue, Item, ItemStream},

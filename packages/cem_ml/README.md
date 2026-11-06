@@ -110,6 +110,12 @@ one element's children with already projected common `CemValueNode` output.
 It preserves original source ownership, decoded untouched values, namespaces,
 source maps, source-node mapping and deployed document/base metadata. The native
 owner retains producer inputs, qualified names and operation memory permits.
+`apply_element` additionally accepts a `CemElementEdit` with mapped attribute
+writes and children. Existing expanded names keep their position, new names
+append, and duplicate write names are refused. Both halves publish together;
+failed validation or late child projection drops staged allocations and permits.
+Changed attributes keep write-origin maps without claiming physical author lines.
+`apply_children` remains the compatible empty-attribute-edit entrypoint.
 Unexpanded references and structured source attribute nodes require a separate
 projection and are refused here. No source text or JSON AST is re-parsed.
 
