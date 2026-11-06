@@ -1,3 +1,4 @@
+import { hostAttributeCommitControl, prepareHostAttributePublication, type NativeHostAttributeCommit, type PreparedHostAttributePublication } from './internal/runtime-support/host-attribute-publication.js';
 import { compiledDeclarationWork, readCompiledDeclarationAsset } from './compiled-declaration-assets.js';
 import { openCemHttpResource as defaultLoadHttpResource, streamCemHttpResponseBody as responseBody } from './http-resource-transport.js';
 import { CemRecoveryStatusObserver } from './recovery-status.js';
@@ -29,6 +30,8 @@ import {
     applyPatchFramesToRange,
     diffRenderPlansToPatchFrames,
     preparePatchFramesForRange,
+    renderPlanIdentity,
+    type RenderRevision,
     retainCapturedPayloadEnvelope,
     captureNativeCheckedEdits,
     isRenderOrderMove,
@@ -4075,38 +4078,78 @@ export class CemElementRuntime {
         this.renderInstance(instance, compiled);
     }
 
-    private applyHostAttributeUpdates(
-        instance: HTMLElement,
-        compiled: CompiledDeclaration,
-        updates: readonly { name: string; value: string }[],
-        token: number,
-    ): void {
-        if (this.renderTokens.get(instance) !== token || updates.length === 0) {
-            return;
+    private prepareHostAttributeCommit(
+        instance: HTMLElement, compiled: CompiledDeclaration, island: HTMLTemplateElement,
+        snapshot: DataIslandSnapshot, token: number, updates: readonly {name: string; value: string}[],
+        metadata: NativeHostAttributeCommit | undefined, revision: RenderRevision = snapshot,
+    ): PreparedHostAttributePublication | undefined {
+        if (!updates.length) return undefined;
+        const control = hostAttributeCommitControl(metadata);
+        if (!control.writes.length) throw Error('cem.host_commit.control');
+        const nextAttributes = Object.fromEntries(Object.entries(snapshot.hostAttributes));
+        const nextDataset = Object.fromEntries(Object.entries(snapshot.dataset));
+        const previousValues = new Map(control.writes.map(write => [write.name, instance.getAttribute(write.name)]));
+        const writeNames = new Set(control.writes.map(write => write.name));
+        for (const write of control.writes) {
+            instance.ownerDocument.createAttribute(write.name); // Native DOM name admission, before writes.
+            Object.defineProperty(nextAttributes, write.name, { value: write.value, enumerable: true, configurable: true, writable: true });
+            if (write.datasetKey !== null) Object.defineProperty(nextDataset, write.datasetKey, { value: write.value, enumerable: true, configurable: true, writable: true });
         }
-        const diagnostics: CemElementDiagnostic[] = [];
-        for (const update of updates) {
-            if (instance.getAttribute(update.name) === update.value) {
-                continue;
-            }
-            try {
-                instance.setAttribute(update.name, update.value);
-            } catch (error) {
-                diagnostics.push(
-                    renderDiagnostic(
-                        'cem-element.host_attribute_update_failed',
-                        `could not reflect declaration attribute \`${update.name}\`: ${
-                            error instanceof Error ? error.message : String(error)
-                        }`,
-                        compiled.producedTag,
-                    ),
-                );
-            }
-        }
-        this.instanceStates.get(instance)?.observer?.takeRecords();
-        if (diagnostics.length > 0) {
-            this.recordDiagnostics(instance, diagnostics);
-        }
+        const previousNative = renderedNativeAttributeBindings(instance);
+        const nextNative = previousNative.filter(binding => !writeNames.has(binding.name));
+        const nextSnapshot = { ...snapshot, ...revision, hostAttributes: nextAttributes, dataset: nextDataset, nativeAttributes: nextNative };
+        const stage = instance.ownerDocument.createElement('template');
+        replaceIslandRecordSection(stage, DATA_ISLAND_SECTIONS.hydration, dataIslandHydrationFields(nextSnapshot));
+        replaceIslandRecordSection(stage, DATA_ISLAND_SECTIONS.attributes, nextAttributes);
+        replaceIslandRecordSection(stage, DATA_ISLAND_SECTIONS.dataset, nextDataset);
+        const sectionNames = [DATA_ISLAND_SECTIONS.hydration, DATA_ISLAND_SECTIONS.attributes, DATA_ISLAND_SECTIONS.dataset];
+        const sections = (template: HTMLTemplateElement) => sectionNames.map(name => {
+            const section = directIslandSection(template, name);
+            if (!section) throw Error('cem.host_commit.island');
+            return section;
+        });
+        const oldSections = sections(island);
+        const newSections = sections(stage);
+        const originalFields = sectionNames.map(name => readIslandRecordSection(island, name));
+        const nextFields = sectionNames.map(name => readIslandRecordSection(stage, name));
+        const observer = this.instanceStates.get(instance)?.observer;
+        const live = () => this.renderTokens.get(instance) === token && instance.isConnected && directDataIsland(instance) === island;
+        return prepareHostAttributePublication({
+            current: applied => {
+                if (!live()) return false;
+                const pending = observer?.takeRecords() ?? [];
+                if (pending.some(record => !(this.retainedStylesheets && record.target === instance && record.type === 'attributes' && record.attributeName === STYLE_CONTEXT_ATTR)
+                    && mutationInvalidatesInstance(record, instance, island))) {
+                    const state = this.instanceStates.get(instance);
+                    if (state) this.handleInstanceMutations(instance, compiled, island, state, pending);
+                    return false;
+                }
+                const expected = applied ? nextAttributes : snapshot.hostAttributes;
+                if (!resourceValuesEqual(hostAttributes(instance), expected)) return false;
+                return sectionNames.every((name, index) => directIslandSection(island, name) === (applied ? newSections[index] : oldSections[index])
+                    && resourceValuesEqual(readIslandRecordSection(island, name), (applied ? nextFields : originalFields)[index]));
+            },
+            apply: () => {
+                for (const write of control.writes) instance.setAttribute(write.name, write.value);
+                restoreNativeAttributeBindings(instance, nextNative);
+                oldSections.forEach((section, index) => section.replaceWith(newSections[index]));
+                observer?.takeRecords();
+            },
+            rollback: () => {
+                for (const [name, value] of previousValues) {
+                    if (value === null) instance.removeAttribute(name); else instance.setAttribute(name, value);
+                }
+                restoreNativeAttributeBindings(instance, previousNative);
+                newSections.forEach((section, index) => { if (section.parentNode) section.replaceWith(oldSections[index]); });
+                observer?.takeRecords();
+            },
+            published: () => {
+                // Refresh the existing named browser snapshot boundary before publishing fields.
+                const dataIsland = serializeDataIsland(island);
+                Object.assign(snapshot, { hostAttributes: nextAttributes, dataset: nextDataset, nativeAttributes: nextNative, renderAttempt: revision.renderAttempt, dataIsland });
+                observer?.takeRecords();
+            },
+        });
     }
 
     private renderInstance(instance: HTMLElement, compiled: CompiledDeclaration, formRefreshPass = 0): void {
@@ -4380,7 +4423,6 @@ export class CemElementRuntime {
                 compiled.moduleClosureReady = true;
                 this.installDeclarationStylesheets(compiled);
             }
-            this.applyHostAttributeUpdates(instance, compiled, result.hostAttributeUpdates, token);
             const scoped = scopeRenderPlan(result.renderPlan, this.currentScopeUid(instance, compiled), {
                 payload: snapshot.payload,
                 payloadStylesInstalled: !!this.retainedStylesheets,
@@ -4391,7 +4433,8 @@ export class CemElementRuntime {
             );
             this.recordGeneratedRenderPlanDiagnostics(instance, scoped.renderPlan, compiled.producedTag);
             const island = this.ensureDataIsland(instance);
-            await this.commitRenderPlan(instance, compiled, island, scoped.renderPlan, token, result.elementPlacementUses);
+            await this.commitRenderPlan(instance, compiled, island, scoped.renderPlan, token, result.elementPlacementUses,
+                this.prepareHostAttributeCommit(instance, compiled, island, snapshot, token, result.hostAttributeUpdates, result.hostAttributeCommit));
         } catch (error) {
             if (this.renderTokens.get(instance) !== token) {
                 return;
@@ -4918,7 +4961,6 @@ export class CemElementRuntime {
             let committedRevision = revision;
             let resourcesSettled: Promise<void>;
             try {
-                this.applyHostAttributeUpdates(instance, compiled, result.hostAttributeUpdates, token);
                 resourcesSettled = this.commitProcessingFrames(
                     instance,
                     compiled,
@@ -4928,6 +4970,7 @@ export class CemElementRuntime {
                     committedRevision,
                     token,
                     result.elementPlacementUses,
+                    this.prepareHostAttributeCommit(instance, compiled, island, snapshot, token, result.hostAttributeUpdates, result.hostAttributeCommit, committedRevision),
                 );
             } catch (error) {
                 if (!(error instanceof CemPatchCommitError) || error.status !== 'aborted') {
@@ -4965,7 +5008,6 @@ export class CemElementRuntime {
                         ),
                     );
                 }
-                this.applyHostAttributeUpdates(instance, compiled, result.hostAttributeUpdates, token);
                 resourcesSettled = this.commitProcessingFrames(
                     instance,
                     compiled,
@@ -4975,6 +5017,7 @@ export class CemElementRuntime {
                     committedRevision,
                     token,
                     result.elementPlacementUses,
+                    this.prepareHostAttributeCommit(instance, compiled, island, snapshot, token, result.hostAttributeUpdates, result.hostAttributeCommit, committedRevision),
                 );
             }
             this.publishSuggestionRows(instance, result, token);
@@ -5072,8 +5115,11 @@ export class CemElementRuntime {
                     if (this.restrictedPreview) validateLivePreviewFrames(result.frames);
                     const patch = preparePatchFramesForRange(bounds, result.frames, revision, instance.ownerDocument,
                         this.processingPatchOptions(instance, compiled));
+                    const hostPublication = this.prepareHostAttributeCommit(instance, compiled, this.ensureDataIsland(instance), snapshot, token,
+                        result.hostAttributeUpdates, 'hostAttributeCommit' in result ? result.hostAttributeCommit : undefined, revision);
                     return { entries, registryConnection: registry, instanceStyles: styles, patch,
-                        publish: commit => this.publishElementPlacements(instance, token, 'elementPlacementUses' in result ? result.elementPlacementUses ?? [] : [], commit),
+                        publish: commit => this.publishElementPlacements(instance, token, 'elementPlacementUses' in result ? result.elementPlacementUses ?? [] : [],
+                            () => hostPublication ? hostPublication.publish(commit, result => result.status === 'applied') : commit()),
                         signal: controller.signal, currentRevision: () => revision,
                         onPublished: connection => {
                             if (!connection || !current()) throw new Error('superseded runtime publication');
@@ -5087,7 +5133,6 @@ export class CemElementRuntime {
                             }
                             if (domPlan) this.committedRenderPlans.set(instance, domPlan);
                             resources = result.resourceControls;
-                            this.applyHostAttributeUpdates(instance, compiled, result.hostAttributeUpdates, token);
                         },
                     };
                 } catch (error) {
@@ -5287,6 +5332,7 @@ export class CemElementRuntime {
         revision: Parameters<typeof applyPatchFramesToRange>[2],
         token: number,
         uses: readonly CemElementPlacementUse[] = [],
+        hostPublication?: PreparedHostAttributePublication,
     ): Promise<void> {
         if (this.restrictedPreview) validateLivePreviewFrames(frames);
         const marker = (node: SerializedNode): boolean => node.kind === 'element'
@@ -5296,18 +5342,18 @@ export class CemElementRuntime {
                 : (op.op === 'reconcileChildren' || op.op === 'reconcileRoots') ? op.children.some(child => marker(child.node))
                     : 'node' in op && marker(op.node.node)));
         if (!uses.length && addsPlacement) throw new Error('Foreign placement patch needs fresh native admission');
-        return this.publishElementPlacements(instance, token, uses, () => this.commitProcessingFramesUnchecked(instance, compiled, island, frames, resourceControls, revision, token)).then(() => {
+        return this.publishElementPlacements(instance, token, uses, () => this.commitProcessingFramesUnchecked(instance, compiled, island, frames, resourceControls, revision, token, hostPublication)).then(() => {
             if (this.checkpointPublication && this.renderTokens.get(instance) === token) this.checkpointPublishedTokens.set(instance, token);
         });
     }
     private commitProcessingFramesUnchecked(
         instance: HTMLElement, compiled: CompiledDeclaration, island: HTMLTemplateElement,
         frames: Parameters<typeof applyPatchFramesToRange>[1], resourceControls: readonly CemProcessingResourceControl[],
-        revision: Parameters<typeof applyPatchFramesToRange>[2], token: number,
+        revision: Parameters<typeof applyPatchFramesToRange>[2], token: number, hostPublication?: PreparedHostAttributePublication,
     ): Promise<void> {
         const bounds = this.ensureRenderBounds(instance, island);
-        const result = applyPatchFramesToRange(bounds, frames, revision, instance.ownerDocument,
-            this.processingPatchOptions(instance, compiled));
+        const patch = preparePatchFramesForRange(bounds, frames, revision, instance.ownerDocument, this.processingPatchOptions(instance, compiled));
+        const result = hostPublication ? hostPublication.publish(() => patch.commit(revision), result => result.status === 'applied') : patch.commit(revision);
         if (result.status !== 'applied') {
             this.recordDiagnostics(
                 instance,
@@ -8155,17 +8201,31 @@ export class CemElementRuntime {
         renderPlan: RenderPlan,
         token: number,
         uses: readonly CemElementPlacementUse[] = [],
+        hostPublication?: PreparedHostAttributePublication,
     ): Promise<void> {
         if (this.restrictedPreview) validateLivePreviewNodes(renderPlan.nodes);
         if (!uses.length && placementRoutes(renderPlan).length) throw new Error('Foreign placement plan needs fresh native admission');
-        return this.publishElementPlacements(instance, token, uses, () => this.commitRenderPlanUnchecked(instance, compiled, island, renderPlan, token)).then(() => {
+        return this.publishElementPlacements(instance, token, uses, () => this.commitRenderPlanUnchecked(instance, compiled, island, renderPlan, token, hostPublication)).then(() => {
             if (this.checkpointPublication && this.renderTokens.get(instance) === token) this.checkpointPublishedTokens.set(instance, token);
         });
     }
     private commitRenderPlanUnchecked(
-        instance: HTMLElement, compiled: CompiledDeclaration, island: HTMLTemplateElement, renderPlan: RenderPlan, token: number,
+        instance: HTMLElement, compiled: CompiledDeclaration, island: HTMLTemplateElement, renderPlan: RenderPlan, token: number, hostPublication?: PreparedHostAttributePublication,
     ): Promise<void> {
         const previous = this.committedRenderPlans.get(instance) ?? null;
+        if (hostPublication) {
+            const bounds = this.ensureRenderBounds(instance, island);
+            const revision = renderPlanIdentity(renderPlan);
+            const patch = preparePatchFramesForRange(bounds, diffRenderPlansToPatchFrames(previous, renderPlan), revision, instance.ownerDocument, this.processingPatchOptions(instance, compiled));
+            const result = hostPublication.publish(() => patch.commit(revision), result => result.status === 'applied');
+            if (result.status !== 'applied') throw new CemPatchCommitError(result.status);
+            this.committedRenderPlans.set(instance, renderPlan);
+            this.bindRenderedSliceEventsInRange(instance, compiled, bounds);
+            this.bindRenderedCustomValidityInRange(bounds);
+            this.bindRenderedFormEventsInRange(instance, compiled, bounds);
+            return this.bindRenderedResourceSlicesInRange(instance, compiled, bounds, token);
+        }
+
         if (
             previous &&
             !renderPlansHaveDomChanges(previous, renderPlan) &&
@@ -10756,7 +10816,7 @@ function templateValues(
     snapshot: DataIslandSnapshot,
     declarations: AttributeDeclaration[],
 ): Record<string, TemplateValue> {
-    const values: Record<string, TemplateValue> = {};
+    const values: Record<string, TemplateValue> = Object.create(null);
     for (const declaration of declarations) {
         values[declaration.name] = declaration.defaultValue;
     }
@@ -11645,12 +11705,9 @@ function resourceRevisionsFromSnapshot(snapshot: DataIslandSnapshot | undefined)
 }
 
 function hostAttributes(instance: HTMLElement): Record<string, string> {
-    const attributes: Record<string, string> = {};
-    for (const attribute of Array.from(instance.attributes)) {
-        if (attribute.name === STYLE_CONTEXT_ATTR) continue;
-        attributes[attribute.name] = attribute.value;
-    }
-    return attributes;
+    return Object.assign(Object.create(null), Object.fromEntries(Array.from(instance.attributes)
+        .filter(attribute => attribute.name !== STYLE_CONTEXT_ATTR)
+        .map(attribute => [attribute.name, attribute.value])));
 }
 
 function reconcileHostAttributesFromIsland(
@@ -11673,14 +11730,8 @@ function reconcileHostAttributesFromIsland(
 }
 
 function datasetEntries(instance: HTMLElement): Record<string, string> {
-    const dataset: Record<string, string> = {};
-    for (const [key, value] of Object.entries(instance.dataset)) {
-        if (key === 'cemCssContext') continue;
-        if (value !== undefined) {
-            dataset[key] = value;
-        }
-    }
-    return dataset;
+    return Object.assign(Object.create(null), Object.fromEntries(Object.entries(instance.dataset)
+        .filter((entry): entry is [string, string] => entry[0] !== 'cemCssContext' && entry[1] !== undefined)));
 }
 
 function directIslandContextRoot(island: HTMLTemplateElement): HTMLElement | undefined {
@@ -11877,13 +11928,8 @@ function readIslandValue(element: Element, valueTag: string): unknown {
     }
 }
 
-export function writeDataIslandHydrationData(
-    island: HTMLTemplateElement,
-    snapshot: DataIslandSnapshot,
-): void {
-    ensureDataIslandStructure(island);
-    ensureIslandContextRoot(island).setAttribute('version', snapshot.version ?? SNAPSHOT_SCHEMA_VERSION);
-    replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.hydration, {
+function dataIslandHydrationFields(snapshot: DataIslandSnapshot): Record<string, unknown> {
+    return {
         version: snapshot.version ?? SNAPSHOT_SCHEMA_VERSION,
         instanceId: snapshot.instanceId,
         producedTag: snapshot.producedTag,
@@ -11901,7 +11947,16 @@ export function writeDataIslandHydrationData(
         ...(snapshot.checkpointRuntime ? { checkpointRuntime: snapshot.checkpointRuntime.version } : {}),
         ...(snapshot.nativeSlices?.length ? { nativeSlices: exportNativeCemSlices(snapshot.nativeSlices) } : {}),
         ...(snapshot.nativeAttributes?.length ? { nativeAttributes: exportNativeCemAttributes(snapshot.nativeAttributes) } : {}),
-    });
+    };
+}
+
+export function writeDataIslandHydrationData(
+    island: HTMLTemplateElement,
+    snapshot: DataIslandSnapshot,
+): void {
+    ensureDataIslandStructure(island);
+    ensureIslandContextRoot(island).setAttribute('version', snapshot.version ?? SNAPSHOT_SCHEMA_VERSION);
+    replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.hydration, dataIslandHydrationFields(snapshot));
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.attributes, snapshot.hostAttributes);
     replaceIslandRecordSection(
         island,

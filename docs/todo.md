@@ -709,11 +709,26 @@ through Phase 9 release governance.
       the five documented bridge differences. Frozen delivery is unchanged.
       [Archive](archive/todo-completed-ssr-host-island-commit-2026-11-06.md).
 
-- [ ] Browser host/island commit bridge: stage renderer host writes and canonical
+- [x] Browser host/island commit bridge: stage renderer host writes and canonical
       attribute/dataset updates through the shared native transaction before
       browser publication; retain processing revision and rollback guards without
       scheduling recursive rendering. Extend failing native/browser commit
       fixtures; current browser snapshots can retain pre-write attributes.
+      Add failing native coalesced write-control fixtures and real-browser cases
+      for equal host/island values, unchanged processing revision, original payload
+      identity, empty/default/selected writes, rejected/stale patches, rollback,
+      worker recovery, literal prototype-like keys and retained CSS publication.
+      Keep native planned deltas as
+      control metadata and use existing canonical DOM writers and patch ownership.
+      Completed 2026-11-06: native write controls pass 4/4 in default and actual
+      stripped profiles; publication/CSS queue/processing units pass 54/54. All
+      four browser publication modes prove rollback, bounded recovery, current
+      revision, stale-input refusal and payload identity. Shared observations
+      pass 13/13 with 12 full matches and only the retained-slot difference.
+      Build, focused lint, native regressions and optimized WASM consumers pass;
+      the core is 24,193,342 bytes with matching named descriptors. Original
+      processing revision and frozen delivery remain; SSR stays partial.
+      [Archive](archive/todo-completed-browser-host-island-publication-2026-11-06.md).
 
 - [ ] SSR browser retained-slot parity: replace the current browser slot metadata
       ingress with shared native retained-node input before claiming direct slot

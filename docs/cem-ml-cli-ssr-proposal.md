@@ -5,7 +5,7 @@ source/page/base/output URL preflight are implemented. The initial retained
 unrendered/partial SSR artifact contract, one-inline-DCE preparation and canonical
 first-connection HTML island preparation and one-pass native render-plan
 application with shared host/island commits are implemented; see §5.1, §6.1.1
-and §6.2.1–§6.2.3.
+and §6.2.1–§6.2.4.
 The SSR command, settled/adoptable artifact, lifecycle coordinator and page
 compiler described here remain proposed and are not yet implemented.
 
@@ -708,15 +708,57 @@ These checks do not claim total-heap accounting of retained source owners.
 
 Native fixtures establish host/island equality, same-pass dataset reads, empty
 and selected values, repeated writes, ordering, maps, payload identity, exact
-source ownership, cache provenance, rollback, bounds and original control. Five
-additional browser vectors inspect both public host attributes and canonical
-attributes/dataset. The existing browser bridge reflects generated host writes
-after its processing snapshot, leaving pre-write canonical attributes in four
-cases. The native transaction resolves this gap for SSR; browser integration
-must preserve processing revision and publication/rollback guards and is a
-separate tracked task. These browser differences and the earlier slot-record
-bridge difference remain explicit assertions in the observation report, not
-successful full-parity or hydration claims.
+source ownership, cache provenance, rollback, bounds and original control. Browser host/island publication now uses native write control (§6.2.4). The
+earlier browser slot-record/native-node bridge difference remains explicit; no
+full-parity or hydration claim follows from matching host state.
+
+### 6.2.4 Implemented browser host/island publication bridge
+
+The shared native coalescer produces bounded `hostAttributeCommit` version `1`
+control metadata alongside the existing name/value updates. It folds HTML ASCII
+case, preserves first encounter order, selects final values and computes dataset
+keys with the shared DOMStringMap rule. This narrow command boundary contains no
+AST, source owner, native callback or adoption permission. SSR uses the same
+coalescing while retaining its stricter mapped-source/domain admission. The
+existing renderer's same-pass dataset view also handles folded HTML names.
+
+The browser stages canonical hydration/attribute/dataset sections through the
+existing canonical writer, preserving payload, template and context-root owners.
+It publishes host writes and those sections with the existing full-plan or worker
+patch transaction, including patch recovery and retained CSS/DOM publication.
+A successful commit refreshes the existing named browser snapshot boundary with
+current fields. It preserves `dataRevision`; a recovery attempt changes only the
+existing `renderAttempt`. Overwritten native attribute bindings are retired only
+with the write, and are restored on rollback. Literal prototype-like keys remain
+own record entries across attribute/dataset snapshot boundaries.
+
+Publication validates the current token, connection, source attributes, canonical
+section owners and fields. Pending external source mutations invalidate the frame
+before writes; runtime-owned CSS-context changes do not trigger another render.
+A rejected patch or synchronous publication exception restores original host
+values, canonical section nodes and native bindings. Resource/event work stays
+after patch admission. Retained CSS uses its existing serialized publication and
+authoritative recovery queue; failed outer publication cancels unused patch/style
+preparations, attempts all cleanup and retains recovery-required status if cleanup
+fails. This does not promise arbitrary script reactions or external side effects
+can be undone; existing dirty DOM/CSS recovery rules remain authoritative.
+
+The paired browser/core build exports additive versioned control metadata with
+unchanged named WASM descriptors. Missing controls on a host-writing result fail
+rather than reflecting an incomplete frame. No new source acquisition, AST
+JSON handoff or independent JavaScript island model is added. The existing
+explicit browser snapshot codec remains; replacing browser slot metadata with
+retained native nodes is still separate work.
+
+Native failing-first cases cover coalescing, case-folded same-pass dataset reads,
+limits and original cancellation. Browser units cover single consumption, stale
+frames, rejected patches, rollback and CSS cleanup. End-to-end scenarios cover the
+full-plan fallback, fallback patches, retained CSS fallback and actual worker
+publication, including bounded recovery, source churn, revision stability and
+original payload identity. Named observation exports now match host/island state;
+only the earlier slot-ingress difference remains. These are explicit test-control
+JSON sidecars; prototype-like keys use a JSON string across the browser test
+transport to avoid its object-key normalization.
 
 ### 6.3 Bounded settling
 

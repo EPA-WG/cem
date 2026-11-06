@@ -7,7 +7,7 @@ afterEach(() => vi.restoreAllMocks());
 function fixture() {
     const element = { isConnected: true } as HTMLElement;
     const queue = CemCssDomPublicationQueue.forElement(element);
-    const request = { entries: [], patch: { container: element }, currentRevision: () => ({}) } as PreparedCssDomPublication;
+    const request = { entries: [], patch: { container: element, cancel: vi.fn() }, currentRevision: () => ({}) } as PreparedCssDomPublication;
     const commit = vi.spyOn(DeclarationStyleOwnership, 'commitGroupWithPatch').mockReturnValue({ status: 'applied', diagnostics: [], errors: [] });
     return { element, queue, request, commit };
 }
@@ -61,6 +61,27 @@ describe('CSS and DOM publication queue', () => {
         const f = fixture();
         await f.queue.publish(() => ({ ...f.request, patch: { ...f.request.patch, container: {} as Node } }));
         expect(f.commit.mock.calls[0][3]?.aborted).toBe(true);
+    });
+
+    it('cancels preparations when an outer host publication fails before delegation', async () => {
+        const f = fixture(); const cancel = vi.fn(); const cancelRegistry = vi.fn();
+        const result = await f.queue.publish(() => ({ ...f.request,
+            patch: { ...f.request.patch, cancel },
+            registryConnection: { cancelPreparation: cancelRegistry } as unknown as NonNullable<typeof f.request.registryConnection>,
+            publish: () => { throw Error('host publication'); },
+        }));
+        expect(result.status).toBe('recovery-required'); expect(cancel).toHaveBeenCalledOnce(); expect(cancelRegistry).toHaveBeenCalledOnce();
+    });
+
+    it('keeps recovery required and attempts remaining cleanup when cancellation throws', async () => {
+        const f = fixture(); const cancelRegistry = vi.fn();
+        const result = await f.queue.publish(() => ({ ...f.request,
+            patch: { ...f.request.patch, cancel: () => { throw Error('cleanup'); } },
+            registryConnection: { cancelPreparation: cancelRegistry } as unknown as NonNullable<typeof f.request.registryConnection>,
+            publish: () => { throw Error('host publication'); },
+        }));
+        expect(result.status).toBe('recovery-required'); expect(result.errors).toHaveLength(2);
+        expect(cancelRegistry).toHaveBeenCalledOnce(); expect(f.queue.recoveryRequired).toBe(true);
     });
 
     it('requires recovery after unexpected publication exceptions and rejects disconnected recovery', async () => {

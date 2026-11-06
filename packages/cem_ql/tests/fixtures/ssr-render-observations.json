@@ -152,9 +152,7 @@
     "islandAttributes": {
       "label": "Default"
     },
-    "islandDataset": {},
-    "browserIslandAttributes": {},
-    "divergence": "Existing browser bridge reflects host writes after its canonical snapshot; native state commits atomically."
+    "islandDataset": {}
   },
   {
     "name": "host empty value beats default",
@@ -196,11 +194,7 @@
     "islandAttributes": {
       "label": "Selected"
     },
-    "islandDataset": {},
-    "browserIslandAttributes": {
-      "label": "old"
-    },
-    "divergence": "Existing browser bridge reflects host writes after its canonical snapshot; native state commits atomically."
+    "islandDataset": {}
   },
   {
     "name": "host dataset default",
@@ -224,10 +218,7 @@
     },
     "islandDataset": {
       "theme": "native"
-    },
-    "browserIslandAttributes": {},
-    "browserIslandDataset": {},
-    "divergence": "Existing browser bridge reflects host writes after its canonical snapshot; native state commits atomically."
+    }
   },
   {
     "name": "host repeated dataset write",
@@ -251,9 +242,32 @@
     },
     "islandDataset": {
       "mode": "selected"
+    }
+  },
+  {
+    "name": "literal prototype-like attribute and dataset keys",
+    "template": "{attribute @name=__proto__ | literal}{attribute @name=data-__proto__ | native}{p | {$ datadom.dataset.__proto__}}",
+    "body": "<x-inline></x-inline>",
+    "rendered": [
+      {
+        "tag": "p",
+        "attributes": {},
+        "children": [
+          "native"
+        ]
+      }
+    ],
+    "payload": [],
+    "hostAttributes": {
+      "__proto__": "literal",
+      "data-__proto__": "native"
     },
-    "browserIslandAttributes": {},
-    "browserIslandDataset": {},
-    "divergence": "Existing browser bridge reflects host writes after its canonical snapshot; native state commits atomically."
+    "islandAttributes": {
+      "__proto__": "literal",
+      "data-__proto__": "native"
+    },
+    "islandDataset": {
+      "__proto__": "native"
+    }
   }
 ]

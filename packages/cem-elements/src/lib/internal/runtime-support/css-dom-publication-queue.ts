@@ -67,8 +67,12 @@ export class CemCssDomPublicationQueue {
                 request.currentRevision, invalidHost ? rejected.signal : request.signal, request.instanceStyles, request.registryConnection, request.onPublished);
             result = request.publish ? request.publish(commit) : commit();
         } catch (error) {
+            const errors = [error];
+            for (const cancel of [() => request.patch.cancel(), () => request.instanceStyles?.cancelPreparation(), () => request.registryConnection?.cancelPreparation()]) {
+                try { cancel(); } catch (cleanup) { errors.push(cleanup); }
+            }
             // An unexpected exception cannot establish that publication never began.
-            result = { status: 'recovery-required', diagnostics: [], errors: [error] };
+            result = { status: 'recovery-required', diagnostics: [], errors };
         }
         if (result.status === 'recovery-required') this.blocked = true;
         return result;

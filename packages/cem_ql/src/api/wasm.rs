@@ -564,6 +564,10 @@ fn plan_json_with_suggestions(plan: &RenderPlan, limits: &cem_ml::value::artifac
             "referenceProjectionCode": error.code, "referenceProjectionMessage": error.message,
             "diagnostics": [{ "code": error.code, "severity": "error", "message": error.message, "sourceMap": source_map_json(&error.source) }] }); }
     };
+    let host_commit = match crate::instance_island::host_commit::prepare_host_write_control(&plan.host_attribute_updates,&control) {
+        Ok(commit)=>commit,
+        Err(error)=>return json!({"nodes":[],"hostAttributeUpdates":[],"referenceProjectionComplete":false,"referenceProjectionCode":"cem.host_commit.refused","referenceProjectionMessage":error,"diagnostics":[]}),
+    };
     let mut values = crate::eval::ItemStream::empty();
     let nodes = nodes_json(&plan.nodes, &mut values);
     let artifact = match values::publish(&values, limits, &control, scope) {
@@ -575,6 +579,7 @@ fn plan_json_with_suggestions(plan: &RenderPlan, limits: &cem_ml::value::artifac
         "suggestionPlacements": placements,
         "nativeValueArtifactId": artifact.as_ref().map(|a| a.0),
         "nativeValueContentHash": artifact.as_ref().map(|a| &a.1),
+        "hostAttributeCommit": host_commit,
         "hostAttributeUpdates": plan.host_attribute_updates.iter().map(|update| json!({
             "name": update.name,
             "value": update.value,

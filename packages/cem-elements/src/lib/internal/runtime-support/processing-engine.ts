@@ -567,6 +567,7 @@ export class CemProcessingEngine {
                 suggestionPlacements: processed.suggestionPlacements,
                 elementPlacementUses: processed.elementPlacementUses,
                 hostAttributeUpdates: processed.hostAttributeUpdates,
+                hostAttributeCommit: processed.hostAttributeCommit,
                 resourceControls: lowered.resourceControls,
                 diagnostics: [
                     ...processed.diagnostics,

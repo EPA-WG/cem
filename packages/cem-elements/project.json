@@ -4,6 +4,34 @@
     "sourceRoot": "packages/cem-elements/src",
     "projectType": "library",
     "targets": {
+        "test:host-island-publication": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "dependsOn": [
+                "build"
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-browser-host-publication.json",
+                "{workspaceRoot}/dist/reports/cem-ssr-render-browser.json"
+            ],
+            "options": {
+                "commands": [
+                    "cargo test --locked --package cem-ql --test ssr_render --target-dir dist/target/cem_ql",
+                    "cargo test --locked --package cem-ql --no-default-features --lib --target-dir dist/target/cem_ql_stripped -- write_control_tests",
+                    "yarn vitest --config packages/cem-elements/vitest.unit.config.mts --run packages/cem-elements/src/lib/internal/runtime-support/host-attribute-publication.spec.ts packages/cem-elements/src/lib/internal/runtime-support/css-dom-publication-queue.spec.ts packages/cem-elements/src/lib/internal/runtime-support/processing-engine.spec.ts",
+                    "node packages/cem_ql/tests/verify-browser-host-commit.mjs",
+                    "node packages/cem_ql/tests/verify-ssr-render-browser.mjs"
+                ],
+                "parallel": false,
+                "cwd": "",
+                "env": {
+                    "CARGO_INCREMENTAL": "0",
+                    "CARGO_PROFILE_DEV_DEBUG": "0",
+                    "CARGO_PROFILE_TEST_DEBUG": "0",
+                    "CARGO_BUILD_JOBS": "2"
+                }
+            }
+        },
         "verify:aria-relations": {
             "executor": "nx:run-commands",
             "cache": false,

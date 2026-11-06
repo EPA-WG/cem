@@ -1,3 +1,4 @@
+import { hostAttributeCommitControl, type NativeHostAttributeCommit } from './host-attribute-publication.js';
 import { cemMainThreadCheckpointDomain, nativeCheckpointWorkInDomain, type CemCheckpointNativeClient } from './checkpoint-domain.js';
 import { resolveAriaReferenceProfile, type CemAriaReferenceProfile } from '../../aria-reference-profile.js';
 import { assertElementReferenceInputs, type CemElementReferenceInputs, type CemElementPlacementUse } from '../../element-reference-inputs.js';
@@ -40,6 +41,7 @@ export interface CemQlRenderResult {
     elementPlacementUses?: CemElementPlacementUse[];
     nodes: RenderPlanNode[];
     hostAttributeUpdates: CemQlHostAttributeUpdate[];
+    hostAttributeCommit?: NativeHostAttributeCommit;
     diagnostics: RuntimeSupportDiagnostic[];
 }
 
@@ -190,6 +192,7 @@ export interface CemMlTemplateProcessingResult {
     elementPlacementUses?: CemElementPlacementUse[];
     renderPlan: RenderPlan;
     hostAttributeUpdates: CemQlHostAttributeUpdate[];
+    hostAttributeCommit?: NativeHostAttributeCommit;
     diagnostics: RuntimeSupportDiagnostic[];
     patchFrames?: PatchFrame[];
     stylesheets?: CemQlStylesheetArtifact[];
@@ -213,6 +216,7 @@ interface WasmRenderPlan {
     nativeValueContentHash?: string;
     nodes?: WasmRenderNode[];
     hostAttributeUpdates?: CemQlHostAttributeUpdate[];
+    hostAttributeCommit?: NativeHostAttributeCommit;
     diagnostics?: WasmDiagnostic[];
 }
 
@@ -1262,6 +1266,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
             nodes,
             suggestionPlacements,
             elementPlacementUses: uses,
+            ...(plan.hostAttributeCommit ? { hostAttributeCommit: hostAttributeCommitControl(plan.hostAttributeCommit) } : {}),
             hostAttributeUpdates: (plan.hostAttributeUpdates ?? []).map((update) => ({
                 name: update.name,
                 value: update.value,
@@ -1318,6 +1323,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
             renderPlan,
             renderReuse: rendered.renderReuse,
             hostAttributeUpdates: rendered.hostAttributeUpdates,
+            hostAttributeCommit: rendered.hostAttributeCommit,
             suggestionPlacements: rendered.suggestionPlacements,
             elementPlacementUses: rendered.elementPlacementUses,
             diagnostics: [...declaration.diagnostics, ...rendered.diagnostics],
@@ -1372,6 +1378,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
             renderPlan,
             renderReuse: rendered.renderReuse,
             hostAttributeUpdates: rendered.hostAttributeUpdates,
+            hostAttributeCommit: rendered.hostAttributeCommit,
             suggestionPlacements: rendered.suggestionPlacements,
             elementPlacementUses: rendered.elementPlacementUses,
             diagnostics: rendered.diagnostics,

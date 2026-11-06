@@ -1,0 +1,464 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-06",
+  "baseCommit": "e7e05f9b57b60aea42b09c338f9e74d21ebe4e0e",
+  "scope": "Browser host/island publication under existing revision, patch, placement and CSS recovery guards; primitive native write controls, no adoption proof",
+  "failingFirst": {
+    "nativeWriteControl": [
+      {
+        "passed": 0,
+        "failed": 3
+      }
+    ],
+    "htmlCaseFoldedSamePassDataset": [
+      {
+        "passed": 3,
+        "failed": 1
+      }
+    ],
+    "hostPublicationUnits": {
+      "passed": 1,
+      "failed": 5
+    },
+    "cssOuterPublicationCleanup": "new cancellation assertion failed before cleanup implementation",
+    "browserHostState": "old browser failed host default canonical-attribute equality"
+  },
+  "validation": {
+    "nativeDefaultControls": [
+      {
+        "passed": 4,
+        "failed": 0
+      }
+    ],
+    "nativeHostCommitRegression": [
+      {
+        "passed": 11,
+        "failed": 0
+      }
+    ],
+    "actualStrippedSsrRegressions": [
+      {
+        "passed": 11,
+        "failed": 0
+      },
+      {
+        "passed": 15,
+        "failed": 0
+      },
+      {
+        "passed": 13,
+        "failed": 0
+      },
+      {
+        "passed": 17,
+        "failed": 0
+      }
+    ],
+    "privateNativeOutputCache": [
+      {
+        "passed": 4,
+        "failed": 0
+      }
+    ],
+    "finalFocusedGateNative": [
+      {
+        "passed": 17,
+        "failed": 0
+      },
+      {
+        "passed": 4,
+        "failed": 0
+      }
+    ],
+    "focusedPublicationProcessingCssUnits": {
+      "passed": 54,
+      "failed": 0
+    },
+    "productionPackageBuild": "passed; paired core assets packaged",
+    "typeChecks": "passed via production build",
+    "focusedEslint": "passed; 18 existing non-null assertion warnings, no errors",
+    "nativeClippy": "passed; existing warnings",
+    "optimizedWasmTemplateCache": "passed",
+    "optimizedWasmRetainedStylesheets": "passed",
+    "browserPublicationProfiles": {
+      "browser": "148.0.7778.96",
+      "authoredJavaScript": false,
+      "trustedRuntime": true,
+      "externalRequests": [],
+      "results": [
+        {
+          "profile": "fallback-plan",
+          "workerFallback": false,
+          "rollbackAttempts": 1,
+          "revisionStable": true,
+          "payloadIdentityRetained": true,
+          "canonicalStateMatches": true,
+          "staleInputRefused": true
+        },
+        {
+          "profile": "fallback-legacy",
+          "workerFallback": true,
+          "rollbackAttempts": 1,
+          "revisionStable": true,
+          "payloadIdentityRetained": true,
+          "canonicalStateMatches": true,
+          "staleInputRefused": true
+        },
+        {
+          "profile": "fallback-retained",
+          "workerFallback": true,
+          "rollbackAttempts": 2,
+          "revisionStable": true,
+          "payloadIdentityRetained": true,
+          "canonicalStateMatches": true,
+          "staleInputRefused": true
+        },
+        {
+          "profile": "worker-retained",
+          "workerFallback": false,
+          "rollbackAttempts": 2,
+          "revisionStable": true,
+          "payloadIdentityRetained": true,
+          "canonicalStateMatches": true,
+          "staleInputRefused": true
+        }
+      ]
+    },
+    "nativeBrowserObservations": {
+      "browser": "148.0.7778.96",
+      "authoredJavaScript": false,
+      "trustedRuntime": true,
+      "ignoresEmptyTextPlaceholders": true,
+      "externalRequests": [],
+      "results": [
+        {
+          "name": "literal and original payload",
+          "rendered": [
+            {
+              "tag": "p",
+              "attributes": {},
+              "children": [
+                "Hello"
+              ]
+            }
+          ],
+          "payload": [
+            {
+              "tag": "b",
+              "attributes": {},
+              "children": [
+                "Original & kept"
+              ]
+            },
+            {
+              "comment": "payload"
+            }
+          ],
+          "divergence": null
+        },
+        {
+          "name": "decoded bound attribute and text",
+          "rendered": [
+            {
+              "tag": "span",
+              "attributes": {
+                "title": "A & B"
+              },
+              "children": [
+                "A & B"
+              ]
+            }
+          ],
+          "payload": [],
+          "divergence": null
+        },
+        {
+          "name": "named slot from explicit envelope",
+          "rendered": [],
+          "payload": [
+            {
+              "tag": "b",
+              "attributes": {
+                "slot": "heading"
+              },
+              "children": [
+                "Title & text"
+              ]
+            }
+          ],
+          "divergence": "Browser metadata-record slots do not supply the native retained-node slot ingress."
+        },
+        {
+          "name": "empty render retains original payload",
+          "rendered": [],
+          "payload": [
+            "Original"
+          ],
+          "divergence": null
+        },
+        {
+          "name": "null child",
+          "rendered": [
+            {
+              "tag": "div",
+              "attributes": {},
+              "children": []
+            }
+          ],
+          "payload": [],
+          "divergence": null
+        },
+        {
+          "name": "void element attribute",
+          "rendered": [
+            {
+              "tag": "input",
+              "attributes": {
+                "value": "Value"
+              },
+              "children": []
+            }
+          ],
+          "payload": [],
+          "divergence": null
+        },
+        {
+          "name": "textarea text",
+          "rendered": [
+            {
+              "tag": "textarea",
+              "attributes": {},
+              "children": [
+                "A & B"
+              ]
+            }
+          ],
+          "payload": [],
+          "divergence": null
+        },
+        {
+          "name": "host default commit",
+          "rendered": [
+            {
+              "tag": "p",
+              "attributes": {},
+              "children": [
+                "Default"
+              ]
+            }
+          ],
+          "payload": [],
+          "hostAttributes": {
+            "label": "Default"
+          },
+          "islandAttributes": {
+            "label": "Default"
+          },
+          "islandDataset": {},
+          "divergence": null
+        },
+        {
+          "name": "host empty value beats default",
+          "rendered": [
+            {
+              "tag": "p",
+              "attributes": {},
+              "children": []
+            }
+          ],
+          "payload": [],
+          "hostAttributes": {
+            "label": ""
+          },
+          "islandAttributes": {
+            "label": ""
+          },
+          "islandDataset": {},
+          "divergence": null
+        },
+        {
+          "name": "host selected write",
+          "rendered": [
+            {
+              "tag": "p",
+              "attributes": {},
+              "children": [
+                "Selected"
+              ]
+            }
+          ],
+          "payload": [],
+          "hostAttributes": {
+            "label": "Selected"
+          },
+          "islandAttributes": {
+            "label": "Selected"
+          },
+          "islandDataset": {},
+          "divergence": null
+        },
+        {
+          "name": "host dataset default",
+          "rendered": [
+            {
+              "tag": "p",
+              "attributes": {},
+              "children": [
+                "native"
+              ]
+            }
+          ],
+          "payload": [],
+          "hostAttributes": {
+            "data-theme": "native"
+          },
+          "islandAttributes": {
+            "data-theme": "native"
+          },
+          "islandDataset": {
+            "theme": "native"
+          },
+          "divergence": null
+        },
+        {
+          "name": "host repeated dataset write",
+          "rendered": [
+            {
+              "tag": "p",
+              "attributes": {},
+              "children": [
+                "selected"
+              ]
+            }
+          ],
+          "payload": [],
+          "hostAttributes": {
+            "data-mode": "selected"
+          },
+          "islandAttributes": {
+            "data-mode": "selected"
+          },
+          "islandDataset": {
+            "mode": "selected"
+          },
+          "divergence": null
+        },
+        {
+          "name": "literal prototype-like attribute and dataset keys",
+          "rendered": [
+            {
+              "tag": "p",
+              "attributes": {},
+              "children": [
+                "native"
+              ]
+            }
+          ],
+          "payload": [],
+          "hostAttributes": {
+            "__proto__": "literal",
+            "data-__proto__": "native"
+          },
+          "islandAttributes": {
+            "__proto__": "literal",
+            "data-__proto__": "native"
+          },
+          "islandDataset": {
+            "__proto__": "native"
+          },
+          "divergence": null
+        }
+      ]
+    }
+  },
+  "browserParity": {
+    "vectors": 13,
+    "matchingCompleteObservations": 12,
+    "matchingRenderedCases": 12,
+    "matchingPayloadCases": 13,
+    "remainingDifference": "Existing browser slot metadata versus native retained-node ingress",
+    "fullHydrationParityClaimed": false
+  },
+  "publication": {
+    "nativeControlVersion": 1,
+    "controlIsAstOrAuthorityGrant": false,
+    "sharedNativeCoalescingAndDatasetKeys": true,
+    "currentTokenConnectionSourceAndCanonicalOwnersRequired": true,
+    "originalProcessingDataRevisionPreserved": true,
+    "recoveryChangesOnlyRenderAttempt": true,
+    "originalPayloadIdentityRetained": true,
+    "rollbackRestoresMetadataNodeIdentity": true,
+    "overwrittenNativeBindingsRetiredAndRestoredOnRollback": true,
+    "runtimeSynchronizationTriggersRecursiveRender": false,
+    "cssFailureCancelsUnusedPreparations": true,
+    "cleanupErrorsRetainRecoveryRequired": true,
+    "existingSnapshotCodecRetained": true,
+    "arbitraryExternalSideEffectsReversible": false,
+    "ssrReadyProof": false
+  },
+  "interface": {
+    "namedWasmDescriptorsMatch": true,
+    "newWasmFunctions": false,
+    "defaultFeaturesChanged": false,
+    "existingNameValueUpdateFieldsRetained": true,
+    "additiveVersionedWriteControl": true,
+    "pairedBrowserCoreRequired": true
+  },
+  "bounds": {
+    "rawWriteVisits": 16384,
+    "distinctWrites": 64,
+    "lexicalBytes": 1048576,
+    "callerMemoryMayReduce": true,
+    "originalControlPreserved": true
+  },
+  "wasm": {
+    "path": "packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+    "bytes": 24193342,
+    "sha256": "d4965a4b5d41bd9a9a25694c9a8e4cd1994a8877d54b8fde9a07b94f6c585fec",
+    "maximumBytes": 26214400,
+    "previousBytes": 24209768,
+    "previousSha256": "89b773240f53c3d6fe279a125ceaa0e2669974fa3c89746857c23c99a7a9e03f",
+    "imports": 28,
+    "exports": 171,
+    "optimization": {
+      "binaryen": "132.0.0",
+      "mode": "Oz",
+      "inputBytes": 27512673,
+      "outputBytes": 24193342,
+      "inputSha256": "a7751b636fbd969f5f2be211cf49be8f6cd3327f119956a04b3695c422a1f174",
+      "outputSha256": "d4965a4b5d41bd9a9a25694c9a8e4cd1994a8877d54b8fde9a07b94f6c585fec",
+      "imports": 28,
+      "exports": 171,
+      "milliseconds": 415737
+    }
+  },
+  "sourceSha256": {
+    "packages/cem-elements/project.json": "5c2fcf35f7fa82f99b7f342fd50bb94b12c0b7426464d6871e000ab285aa0506",
+    "packages/cem-elements/src/lib/cem-elements.ts": "af94637fa04162b8b21e12328b431039dff5de654d8820f5fd6e4639033d1cb0",
+    "packages/cem-elements/src/lib/internal/runtime-support/cem-ql-render.ts": "f777ac808f4e24d91308bf4cb67704840322aacdb12de374c9873ce58d0706bb",
+    "packages/cem-elements/src/lib/internal/runtime-support/css-dom-publication-queue.spec.ts": "858ae1b14c0ca2b7be9d8c515c3fd1154311bf69ff9cb209b4d46e716b751a7e",
+    "packages/cem-elements/src/lib/internal/runtime-support/css-dom-publication-queue.ts": "1e63a50b7fe80171c382ce72c5fbd0fdf86c9674a38d52503227f8b88c30e425",
+    "packages/cem-elements/src/lib/internal/runtime-support/processing-engine.ts": "29d91f3a349af102ad1aa4af344b75d3734566bc521ee0919b3f72c83dbb2718",
+    "packages/cem-elements/src/lib/internal/runtime-support/processing-host.ts": "6e9947fee4391bc1b6dc18703c2d54706a76790856f2c37a2ef1877f984f6a79",
+    "packages/cem_ql/src/api/wasm.rs": "0c7ddbb71aa5d924de2ed16acb8f631eff93eafdf4597133370b9fbdd9c65dda",
+    "packages/cem_ql/src/instance_island/host_commit.rs": "9f56dd53f0b475468483603e3ee19f7304585e5b1fe903fa37f28fd08d6b9f19",
+    "packages/cem_ql/src/render.rs": "932dfe56994498875e90e93b22b9e64661d2447d3f9eb470fa4467083d8de11c",
+    "packages/cem_ql/tests/fixtures/ssr-render-observations.json": "9ca84c3db5e555216bc5a228ef801825e229bc79d5656cd7fb2bcf1a3a2bcf7d",
+    "packages/cem_ql/tests/verify-ssr-render-browser.mjs": "d427c095e822107e706081b891f901e1f5a9b1c3ea00bf063426816ce13f7e93",
+    "packages/cem-elements/src/lib/internal/runtime-support/host-attribute-publication.ts": "c43f157050e96c9116106d56a6984017786cbe1458026642e5bfc32031cda373",
+    "packages/cem-elements/src/lib/internal/runtime-support/host-attribute-publication.spec.ts": "b71c0b6940eacaa5d0c9861e4c1882ff964c393c94a36e2c653b92762d775376",
+    "packages/cem_ql/tests/verify-browser-host-commit.mjs": "f0ec986903f13d8a82c213d36091ae122cf5ba0dc4f4ab0020a007e7ee822c81"
+  },
+  "frozenPresentation": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864",
+    "changed": false
+  },
+  "fullWorkspaceGate": false,
+  "next": [
+    "shared retained-node browser slot ingress",
+    "additional payload/CSS/resource admission",
+    "bounded nested settling and native completion proof before export/adoption"
+  ]
+}

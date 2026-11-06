@@ -1689,6 +1689,39 @@ clears on template disposal/runtime reset, and retains no DOM, native owners or
 previous connection. Optional processing `renderReuse` counters are diagnostic;
 they never authorize publication. See the [native contract](../cem_ql/README.md#shared-retained-wasm-processing).
 
+### Host attributes and canonical island publication
+
+Generated host writes now publish with canonical attributes/dataset and the owned
+render transaction. Native `hostAttributeCommit` control version `1` supplies
+coalesced HTML names, final values and DOMStringMap keys. The browser validates
+that bounded primitive control and uses the existing canonical writers; it does
+not construct a second island model or infer ASTs from command metadata.
+
+Fallback plans, worker patches, patch recovery and retained CSS publication use
+the same host publication guard. Stale render tokens, source mutations, detached
+hosts and changed canonical owners refuse publication. Failed patches restore
+host values and original metadata-section nodes. CSS publication errors cancel
+unused preparation leases, and dirty CSS/DOM state keeps its existing recovery
+requirement. The processing data revision stays unchanged; recovery may advance
+only `renderAttempt`. Payload, island/context owners and the owned render range
+remain under their existing lifetime rules. Runtime synchronization drains its
+own mutations and schedules no recursive render.
+
+Explicit writes retire overwritten native attribute bindings; rollback restores
+them. Snapshot attribute/dataset dictionaries preserve literal prototype-like
+keys. The existing named browser snapshot codec remains in use; full retained
+native slot ingress is the next separate task. SSR remains partial and gains no
+hydration/adoption proof from this browser bridge.
+
+The core exports additive versioned commit metadata alongside the existing
+name/value update fields. Build the browser package with its matching WASM core;
+missing or incompatible write controls are refused. Run
+`yarn nx run cem-elements:test:host-island-publication` after preparing build
+dependencies. This focused gate covers native observations and stripped write
+controls, publication/processing unit cases, four browser publication modes and
+native/browser host-state parity. It writes explicit JSON test-observation
+sidecars under `dist/reports`, not production AST handoffs.
+
 ### Credential controls during explicit checkpoint recovery
 
 Entered passwords and password/one-time-code autocomplete controls block recovery

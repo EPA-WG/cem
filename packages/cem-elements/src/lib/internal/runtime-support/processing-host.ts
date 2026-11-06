@@ -1,3 +1,4 @@
+import type { NativeHostAttributeCommit } from './host-attribute-publication.js';
 import type { CemNativeSessionHandle, CemNativeSessionSources, CemNativeSessionImport, CemNativeSuggestionsConfig } from '../../native-capability-session.js';
 import { CemNativeAdmissionClosedError, type CemNativePressureReason } from './checkpoint-domain.js';
 import type { CemElementReferenceInputs, CemElementPlacementUse } from '../../element-reference-inputs.js';
@@ -364,6 +365,7 @@ export interface CemProcessingRenderDiffResult {
     nextRenderPlan: CemProcessingRenderPlanHandle;
     frames: PatchFrame[];
     hostAttributeUpdates: CemProcessingHostAttributeUpdate[];
+    hostAttributeCommit?: NativeHostAttributeCommit;
     resourceControls: CemProcessingResourceControl[];
     diagnostics: CemProcessingDiagnostic[];
 }

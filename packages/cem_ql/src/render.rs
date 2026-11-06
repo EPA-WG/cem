@@ -1539,7 +1539,7 @@ fn set_current_data_document_attribute(
         // Dataset is the DOMStringMap index of canonical data-* attributes.
         // Preserve retained native values for untouched entries; this is only
         // the evaluator's semantic control view, never an AST replacement.
-        if let Some(suffix) = name.strip_prefix("data-") {
+        if let Some(suffix) = name.to_ascii_lowercase().strip_prefix("data-") {
             let key = crate::instance_island::dataset_key(suffix);
             let entries = fields.entry("dataset".into()).or_insert_with(Vec::new);
             let mut projected = match entries.as_slice() {

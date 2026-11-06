@@ -61,7 +61,8 @@ try {
             }
         });
         await page.goto(`${origin}/fixture`);
-        const observation = await boundedObservation(page.evaluate(async vector => {
+        // Explicit JSON observation export preserves literal __proto__ keys across the browser test transport.
+        const observation = JSON.parse(await boundedObservation(page.evaluate(async vector => {
             const { CemElementRuntime } = await import('/packages/cem-elements/dist/lib/cem-elements.js');
             const runtime = new CemElementRuntime({
                 declarationTag: 'test-declaration',
@@ -103,15 +104,15 @@ try {
                 hostState.islandAttributes = Object.fromEntries(Array.from(section('attributes').children).filter(node => !internal.has(node.getAttribute('name'))).map(node => [node.getAttribute('name'), node.getAttribute('value')]));
                 hostState.islandDataset = Object.fromEntries(Array.from(section('dataset').children).filter(node => node.getAttribute('key') !== 'cemRenderScope').map(node => [node.getAttribute('key'), node.getAttribute('value')]));
             }
-            return {
+            return JSON.stringify({
                 ...hostState,
                 name: vector.name,
                 rendered: children.slice(start + 1, end).map(exportObservation),
                 payload: Array.from(payload.childNodes).map(exportObservation),
                 parts,
                 diagnostics: runtime.diagnosticsFor(host),
-            };
-        }, vector));
+            });
+        }, vector)));
         assert.deepEqual(observation.parts, ['data', 'attributes', 'dataset', 'payload', 'slices', 'resources', 'form-state', 'validation-state', 'event-state']);
         assert.deepEqual(observation.diagnostics.map(entry => entry.code), vector.browserDiagnostics || [], vector.name);
         const result = { name: observation.name, rendered: observation.rendered, payload: observation.payload };

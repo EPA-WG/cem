@@ -103,9 +103,9 @@ Run `cem_ql:test --test=ssr_render`, `cem_ql:test:ssr-render:stripped` and
 export and default WASM build, `cem_ql:test:ssr-render:browser` compares rendered
 output, payload topology and public host/island state, with documented browser
 differences asserted explicitly. Named JSON observation sidecars
-are test controls, not native AST handoffs. Browser retained-slot ingress and its
-host/island snapshot bridge still differ from the native path; these are recorded
-explicitly in the observation vectors rather than claimed as full parity.
+are test controls, not native AST handoffs. Browser retained-slot ingress still differs from the native path; that gap is
+recorded explicitly rather than claimed as full parity. The host/island snapshot
+bridge now uses the native write control described below.
 
 ## Shared host attributes and canonical island commit
 
@@ -123,17 +123,19 @@ value per name; existing names keep their position and new names append in first
 encounter order. Same-pass `data-*` reads use the updated dataset view without a
 second render. Host writes retain declaration/query source maps, including through
 the private native pure-output cache; older cached host-write records lacking
-that provenance become misses. Name/value write equality and the browser wire
-shape remain unchanged.
+that provenance become misses. Name/value write equality and existing update fields remain unchanged; the
+browser publication control is additive and versioned.
 
 The first profile admits mapped passive lower-case HTML attribute writes under
 the existing native alias, sensitive-input, resource and caller-budget gates.
 Internal `data-cem-*` markers and namespace changes are refused. No removal API,
 nested settling, hydration stamp or ready proof is added. The page still records
 one pass as `Partial(Incomplete)`. Run `cem_ql:test --test=ssr_host_commit` plus the
-render, stripped, lint and browser targets above. Browser host writes currently
-follow its pre-write island snapshot; the explicit observation report records
-that separate bridge gap. See the [shared transaction contract](../../docs/cem-ml-cli-ssr-proposal.md#623-implemented-shared-hostisland-commit).
+render, stripped, lint and browser targets above. `prepare_host_write_control`
+reuses native coalescing for versioned primitive browser-publication metadata;
+canonical DOM writers publish it with the existing patch/CSS transaction, preserving
+revision and rollback guards. Same-pass dataset projection folds HTML ASCII case.
+The control is a write intent, not a source-owner or adoption grant. See the [shared transaction contract](../../docs/cem-ml-cli-ssr-proposal.md#623-implemented-shared-hostisland-commit).
 
 ## String helpers
 

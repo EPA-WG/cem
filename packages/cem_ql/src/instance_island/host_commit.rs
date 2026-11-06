@@ -127,7 +127,8 @@ pub fn prepare_host_commit(
         .min(policy.memory_bytes.try_into().unwrap_or(usize::MAX));
     let mut bytes = 0usize;
     let mut names = vec![];
-    for update in updates {
+    for index in coalesced_host_writes(updates, control)? {
+        let update = &updates[index];
         control
             .check_scope(ROOT_EXECUTION_SCOPE_ID)
             .map_err(|e| e.code().to_string())?;
@@ -239,4 +240,145 @@ pub fn prepare_host_commit(
         bindings,
         writes: Arc::new(writes),
     })
+}
+
+/// Named host-publication control metadata; never an AST or source-owner grant.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostAttributeCommit {
+    pub version: u8,
+    pub writes: Vec<HostAttributeWrite>,
+}
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostAttributeWrite {
+    pub name: String,
+    pub value: String,
+    pub dataset_key: Option<String>,
+}
+pub fn prepare_host_write_control(
+    updates: &[HostAttributeUpdate],
+    control: &OperationControl,
+) -> Result<HostAttributeCommit, String> {
+    let indices = coalesced_host_writes(updates, control)?;
+    Ok(HostAttributeCommit {
+        version: 1,
+        writes: indices
+            .into_iter()
+            .map(|index| {
+                let update = &updates[index];
+                let name = update.name.to_ascii_lowercase();
+                let dataset_key = name.strip_prefix("data-").map(super::dataset_key);
+                HostAttributeWrite {
+                    name,
+                    value: update.value.clone(),
+                    dataset_key,
+                }
+            })
+            .collect(),
+    })
+}
+fn coalesced_host_writes(
+    updates: &[HostAttributeUpdate],
+    control: &OperationControl,
+) -> Result<Vec<usize>, String> {
+    control
+        .check_scope(ROOT_EXECUTION_SCOPE_ID)
+        .map_err(|e| e.code().to_string())?;
+    if updates.len() > LIMITS.max_values {
+        return Err(BOUNDS.into());
+    }
+    let policy = control
+        .scope_tree()
+        .scope(ROOT_EXECUTION_SCOPE_ID)
+        .ok_or(REFUSED)?
+        .effective_policy;
+    let ceiling = LIMITS
+        .max_bytes
+        .min(policy.memory_bytes.try_into().unwrap_or(usize::MAX));
+    let mut bytes = 0usize;
+    let mut indices = Vec::<usize>::new();
+    for (index, update) in updates.iter().enumerate() {
+        control
+            .check_scope(ROOT_EXECUTION_SCOPE_ID)
+            .map_err(|e| e.code().to_string())?;
+        bytes = bytes
+            .saturating_add(update.name.len())
+            .saturating_add(update.value.len());
+        if bytes > ceiling {
+            return Err(BOUNDS.into());
+        }
+        let name = update.name.to_ascii_lowercase();
+        if name.is_empty() || name.starts_with("data-cem-") || name == "xmlns" {
+            return Err(REFUSED.into());
+        }
+        if let Some(position) = indices
+            .iter()
+            .position(|previous| updates[*previous].name.eq_ignore_ascii_case(&name))
+        {
+            indices[position] = index;
+        } else {
+            indices.push(index);
+        }
+        if indices.len() > 64 {
+            return Err(BOUNDS.into());
+        }
+    }
+    Ok(indices)
+}
+
+#[cfg(test)]
+mod write_control_tests {
+    use super::*;
+    #[test]
+    fn html_case_folded_data_writes_feed_the_same_pass_dataset() {
+        let result = crate::render::render_template(
+            "{attribute @name=DATA-mode | native}{p | {$ datadom.dataset.mode}}",
+            &Default::default(),
+        );
+        assert_eq!(result.rendered, "<p>native</p>");
+    }
+
+    #[test]
+    fn coalesces_html_names_in_first_encounter_order_with_native_dataset_keys() {
+        let c = OperationControl::default();
+        let updates = vec![
+            HostAttributeUpdate::new("DATA-user--id", "first"),
+            HostAttributeUpdate::new("label", ""),
+            HostAttributeUpdate::new("data-user--id", "last"),
+        ];
+        let p = prepare_host_write_control(&updates, &c).unwrap();
+        assert_eq!(p.version, 1);
+        assert_eq!(p.writes.len(), 2);
+        assert_eq!(p.writes[0].name, "data-user--id");
+        assert_eq!(p.writes[0].value, "last");
+        assert_eq!(p.writes[0].dataset_key.as_deref(), Some("user-Id"));
+        assert_eq!(p.writes[1].dataset_key, None);
+        assert_eq!(p.writes[1].value, "");
+    }
+    #[test]
+    fn bounds_and_original_control_are_preserved() {
+        let c = OperationControl::default();
+        assert!(prepare_host_write_control(
+            &[HostAttributeUpdate::new(
+                "label",
+                "x".repeat(LIMITS.max_bytes + 1)
+            )],
+            &c
+        )
+        .is_err());
+        let c = OperationControl::default();
+        c.abort_signal().abort();
+        assert_eq!(
+            prepare_host_write_control(&[], &c).unwrap_err(),
+            "host-cancellation"
+        );
+    }
+    #[test]
+    fn empty_commit_is_explicit_and_roundtrips_as_named_control() {
+        let c = OperationControl::default();
+        let p = prepare_host_write_control(&[], &c).unwrap();
+        let s = serde_json::to_string(&p).unwrap();
+        assert_eq!(s, "{\"version\":1,\"writes\":[]}");
+    }
 }
