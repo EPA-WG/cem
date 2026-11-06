@@ -2,7 +2,7 @@
 pub(crate) mod construct;
 mod domains;
 pub mod host_commit;
-mod payload;
+pub(crate) mod payload;
 use crate::{
     eval::{AtomValue, Item, ItemStream},
     render::TemplateData,

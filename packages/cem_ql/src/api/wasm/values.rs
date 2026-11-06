@@ -16,6 +16,7 @@ struct RetainedInput {
 }
 
 thread_local! {
+    static DOM_CAPTURES: RefCell<BTreeMap<u32, (cem_ml::import::dom::DomCapture, Option<cem_ml::runtime_memory::RuntimeMemoryPermit>, usize)>> = const { RefCell::new(BTreeMap::new()) };
     static INPUTS: RefCell<BTreeMap<u32, RetainedInput>> = const { RefCell::new(BTreeMap::new()) };
     static SOURCES: RefCell<BTreeMap<u32, RetainedReferenceSource>> = const { RefCell::new(BTreeMap::new()) };
     // Only the immediately preceding render can be taken. Ignored results never
@@ -121,6 +122,7 @@ pub(super) fn bind(data: &mut TemplateData, bindings_json: &str) -> Result<(), S
             })
             .ok_or("Unknown native value artifact or root index")?;
         match binding.target.as_deref().unwrap_or("attribute") {
+            "payload" if binding.name == "payload" && binding.index == 0 && binding.attribute.is_none() => { data.bind_native_payload(value)?; }
             "slice" => {
                 let values = if let Some(name) = binding.attribute {
                     crate::api::native_values::attribute_values(&value, &name)?
@@ -511,9 +513,51 @@ mod capability_sessions;
 
 pub(super) fn resource_inventory_entries() -> Vec<cem_ml::runtime_inventory::RegistryInventory> {
     use cem_ml::runtime_inventory::RegistryInventory as Entry;
-    let mut entries = vec![Entry::new("native-values", INPUTS.with(|s| s.borrow().len() as u64), 0),
+    let mut entries = vec![Entry::new("native-values", INPUTS.with(|s| s.borrow().len() as u64) + DOM_CAPTURES.with(|s| s.borrow().len() as u64), 0),
  Entry::new("reference-sources", SOURCES.with(|s| s.borrow().len() as u64), 0),
  Entry::new("reference-validations", VALIDATIONS.with(|s| s.borrow().len() as u64), 0),
  Entry::new("render-output", OUTPUT.with(|s| s.borrow().is_some() as u64), 0)];
  entries.extend(lifecycle::resource_inventory_entries()); entries.extend(capability_sessions::resource_inventory_entries()); entries
+}
+
+// Native importer sessions are synchronous, bounded and explicitly disposed by
+// the DOM adapter. Each primitive observation is mapped by CEM-ML itself.
+#[wasm_bindgen(js_name = "beginDomPayloadCapture")]
+pub fn begin_dom_capture(uri: &str, document_uri: &str, base_uri: &str, limits_json: &str) -> Result<u32, JsValue> {
+    let _native = cem_ml::runtime_admission::admit(false).map_err(JsValue::from_str)?;
+    if DOM_CAPTURES.with(|s| s.borrow().len()) >= 16 { return Err(JsValue::from_str("DOM capture session limit exceeded")); }
+    let limits = limits(limits_json).map_err(|e| JsValue::from_str(&e))?;
+    let capture = cem_ml::import::dom::DomCapture::new(uri, document_uri, base_uri, limits).map_err(|e| JsValue::from_str(&e))?;
+    let id = next_id().map_err(|e| JsValue::from_str(&e))?;
+    DOM_CAPTURES.with(|s| s.borrow_mut().insert(id, (capture, None, uri.len().saturating_add(document_uri.len()).saturating_add(base_uri.len()))));
+    Ok(id)
+}
+#[wasm_bindgen(js_name = "appendDomPayloadNode")]
+pub fn append_dom_node(id: u32, parent: u32, key: &str, kind: &str, namespace: &str, name: &str, value: &str) -> Result<u32, JsValue> {
+    let _native = cem_ml::runtime_admission::admit(false).map_err(JsValue::from_str)?;
+    let (mut capture, memory, bytes) = DOM_CAPTURES.with(|s| s.borrow_mut().remove(&id)).ok_or_else(||JsValue::from_str("Unknown DOM capture"))?;
+    // Replace one workspace reservation; one permit per observed node would
+    // incorrectly exhaust the runtime's concurrent-operation admission limit.
+    drop(memory);
+    let bytes = bytes.saturating_add(key.len()).saturating_add(kind.len()).saturating_add(namespace.len()).saturating_add(name.len()).saturating_add(value.len()).saturating_add(512);
+    let memory = cem_ml::runtime_memory::admit_input(bytes).map_err(|e|JsValue::from_str(e.0))?;
+    let node = capture.push(parent, key, kind, namespace, name, value).map_err(|e|JsValue::from_str(&e))?;
+    DOM_CAPTURES.with(|s| s.borrow_mut().insert(id, (capture, Some(memory), bytes)));
+    Ok(node)
+}
+#[wasm_bindgen(js_name = "finishDomPayloadCapture")]
+pub fn finish_dom_capture(id: u32, limits_json: &str) -> Result<Vec<u8>, JsValue> {
+    let _native = cem_ml::runtime_admission::admit(false).map_err(JsValue::from_str)?;
+    let (capture, _memory, _) = DOM_CAPTURES.with(|s| s.borrow_mut().remove(&id)).ok_or_else(||JsValue::from_str("Unknown DOM capture"))?;
+    let limits = limits(limits_json).map_err(|e| JsValue::from_str(&e))?;
+    let tree = capture.finish().map_err(|e|JsValue::from_str(&e))?;
+    let children = &tree.node(0).ok_or_else(||JsValue::from_str("Missing DOM capture document"))?.children;
+    let [container] = children.as_slice() else { return Err(JsValue::from_str("DOM payload capture requires one container")); };
+    let value = crate::eval::RetainedCemNode::new(tree.clone(), *container).ok_or_else(||JsValue::from_str("Missing DOM capture container"))?.query_item();
+    crate::eval::portable::encode_values(&ItemStream::once(value), &limits).map_err(|e|JsValue::from_str(&e))
+}
+#[wasm_bindgen(js_name = "disposeDomPayloadCapture")]
+pub fn dispose_dom_capture(id: u32) -> bool {
+    let Ok(_native) = cem_ml::runtime_admission::admit(true) else { return false; };
+    DOM_CAPTURES.with(|s| s.borrow_mut().remove(&id).is_some())
 }

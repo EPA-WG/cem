@@ -279,6 +279,7 @@ export interface CemProcessingRenderDiffInput {
     payloadStylesInstalled?: boolean;
     nativeAttributes?: readonly NativeCemAttributeBinding[];
     nativeSlices?: readonly NativeCemSliceBinding[];
+    nativePayload?: import('../../native-values.js').NativeCemValue;
     nativeValueLimits?: CemValueArtifactLimits;
     documents?: CemProcessingDocumentBinding[];
     artifact: CemProcessingArtifactHandle;

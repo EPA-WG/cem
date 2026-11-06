@@ -73,12 +73,7 @@
           "Title & text"
         ]
       }
-    ],
-    "browserRendered": [],
-    "browserDiagnostics": [
-      "cem.ql.render.expression_type"
-    ],
-    "divergence": "Browser metadata-record slots do not supply the native retained-node slot ingress."
+    ]
   },
   {
     "name": "empty render retains original payload",
@@ -269,5 +264,75 @@
     "islandDataset": {
       "__proto__": "native"
     }
+  },
+  {
+    "name": "repeated named slots preserve order and decoded text",
+    "template": "{section | {$ datadom.slots.heading} {$ datadom.slots.heading}}",
+    "body": "<x-inline><template><b slot='heading'>One &amp; two</b><i slot='heading'>&lt;three&gt;</i></template></x-inline>",
+    "rendered": [
+      {
+        "tag": "section",
+        "attributes": {},
+        "children": [
+          {
+            "tag": "b",
+            "attributes": {
+              "slot": "heading"
+            },
+            "children": [
+              "One & two"
+            ]
+          },
+          {
+            "tag": "i",
+            "attributes": {
+              "slot": "heading"
+            },
+            "children": [
+              "<three>"
+            ]
+          },
+          " ",
+          {
+            "tag": "b",
+            "attributes": {
+              "slot": "heading"
+            },
+            "children": [
+              "One & two"
+            ]
+          },
+          {
+            "tag": "i",
+            "attributes": {
+              "slot": "heading"
+            },
+            "children": [
+              "<three>"
+            ]
+          }
+        ]
+      }
+    ],
+    "payload": [
+      {
+        "tag": "b",
+        "attributes": {
+          "slot": "heading"
+        },
+        "children": [
+          "One & two"
+        ]
+      },
+      {
+        "tag": "i",
+        "attributes": {
+          "slot": "heading"
+        },
+        "children": [
+          "<three>"
+        ]
+      }
+    ]
   }
 ]

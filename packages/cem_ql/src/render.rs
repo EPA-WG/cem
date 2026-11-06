@@ -127,6 +127,21 @@ impl TemplateData {
         Ok(())
     }
 
+    /// Browser DOM capture arrives as its owned native container, never records.
+    pub fn bind_native_payload(&mut self, value: Item) -> Result<(), String> {
+        let view = value.view().ok_or("Native payload requires an element container owner")?;
+        if view.field("kind").and_then(|v| v.first().and_then(Item::atom)) != Some(AtomValue::String("element".into())) {
+            return Err("Native payload requires an element container owner".into());
+        }
+        let roots = view.field("children").ok_or("Native payload container has no children")?;
+        let control = OperationControl::new(cem_ml::scheduler::AbortSignal::new());
+        let slots = crate::instance_island::payload::index_slots(&roots, &control)?;
+        let datadom = self.bindings.entry("datadom".into()).or_insert_with(|| ItemStream::once(Item::Record(BTreeMap::new())));
+        let [Item::Record(fields)] = datadom.items.as_mut_slice() else { return Err("Native payload requires a data-island control envelope".into()); };
+        fields.insert("slots".into(), vec![Item::Record(slots)]);
+        Ok(())
+    }
+
     /// Native slice values bypass the JSON control-data channel entirely.
     pub fn bind_native_slice(&mut self, name: &str, values: ItemStream) -> Result<(), String> {
         if name.is_empty() { return Err("A native slice needs a name".into()); }

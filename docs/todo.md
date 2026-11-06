@@ -730,10 +730,28 @@ through Phase 9 release governance.
       processing revision and frozen delivery remain; SSR stays partial.
       [Archive](archive/todo-completed-browser-host-island-publication-2026-11-06.md).
 
-- [ ] SSR browser retained-slot parity: replace the current browser slot metadata
+- [x] SSR browser retained-slot parity: replace the current browser slot metadata
       ingress with shared native retained-node input before claiming direct slot
       insertion parity or hydration. Add failing native/browser boundary fixtures;
       preserve the intentional refusal of ordinary record insertion.
+  - [x] Native DOM capture fixtures: decoded text/attributes, stable source keys,
+        original parents, namespace and unknown-line provenance, bounded input
+        and failed capture disposal; opaque CEMV slot transport retains owners.
+  - [x] Browser retained-slot fixtures: native/browser parity, repeated named
+        slots, payload mutation, original DOM identity and worker/fallback paths;
+        ordinary records remain invalid inserted content.
+      Completed 2026-11-06: native capture passes 4/4 and opaque slot transport
+      passes 2/2, both in default and actual stripped profiles. The stripped SSR
+      suite passes 58/58; focused processing/worker-loss units pass 87/87. All
+      four slot profiles and four host/island publication profiles pass; all
+      14 shared native/browser observations match, with no divergences.
+      Runtime DOM provenance and original payload ownership remain; styles use
+      the existing owner, transient captures are disposed and native retirement
+      counts unfinished captures. Paired build, native Clippy, focused lint and
+      optimized WASM consumers pass. Core: 24,219,668 bytes, 28 imports/175
+      exports, including four additive capture functions. Frozen presentation
+      remains unchanged; SSR stays partial and adoption remains gated.
+      [Archive](archive/todo-completed-browser-native-slots-2026-11-06.md).
 
 - [ ] SSR additional source/domain admission: support CEM-ML source payloads
       through the shared native import boundary, foreign payload domains and

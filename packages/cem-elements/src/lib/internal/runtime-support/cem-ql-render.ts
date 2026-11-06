@@ -3,7 +3,7 @@ import { cemMainThreadCheckpointDomain, nativeCheckpointWorkInDomain, type CemCh
 import { resolveAriaReferenceProfile, type CemAriaReferenceProfile } from '../../aria-reference-profile.js';
 import { assertElementReferenceInputs, type CemElementReferenceInputs, type CemElementPlacementUse } from '../../element-reference-inputs.js';
 import { CemProcessingDiagnosticError, type CemProcessingRenderReuse, type CemProcessingDiagnostic, type CemProcessingStylesheetInput, type CemProcessingStylesheetResult, type CemProcessingNativeSessionInput, type CemProcessingNativeSessionResult } from './processing-host.js';
-import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type NativeCemSliceBinding, type CemValueArtifactLimits } from "../../native-values.js";
+import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemValue, type NativeCemAttributeBinding, type NativeCemSliceBinding, type CemValueArtifactLimits } from "../../native-values.js";
 import {
     edgeContentAddress,
     assertProcessingBoundaryValue,
@@ -72,6 +72,7 @@ export interface CemQlRenderOptions {
     elementReferenceInputs?: CemElementReferenceInputs;
     nativeAttributes?: readonly NativeCemAttributeBinding[];
     nativeSlices?: readonly NativeCemSliceBinding[];
+    nativePayload?: NativeCemValue;
     nativeValueLimits?: CemValueArtifactLimits;
     /** Prefix for deterministic source/parent/occurrence render-node ids (typically the produced tag). */
     renderNodeIdPrefix?: string;
@@ -138,6 +139,7 @@ export interface CemMlTemplateProcessingInput {
     linkBaseUrl?: string;
     nativeAttributes?: readonly NativeCemAttributeBinding[];
     nativeSlices?: readonly NativeCemSliceBinding[];
+    nativePayload?: NativeCemValue;
     nativeValueLimits?: CemValueArtifactLimits;
     source: string;
     data: Record<string, unknown>;
@@ -288,6 +290,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         admitDeclarationMetadata,
         renderTemplateWithNativeValues,
         renderTemplateWithNativeValuesAndAdmission,
+        beginDomPayloadCapture, appendDomPayloadNode, finishDomPayloadCapture, disposeDomPayloadCapture,
         importCemDocumentValue,
         exportCemJsonValue,
         importNativeValueArtifact,
@@ -1011,7 +1014,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
                 disposeTemplate(retained.artifactId);
             }
         }
-        if (options.nativeAttributes?.length || options.nativeSlices?.length || options.nativeValueLimits) {
+        if (options.nativeAttributes?.length || options.nativeSlices?.length || options.nativePayload || options.nativeValueLimits) {
             const retained = await retainCemMlTemplateSource(source, Object.keys(data));
             try { return await renderRetainedCemMlTemplate(retained.artifactId, data, options); }
             finally { disposeTemplate(retained.artifactId); }
@@ -1064,7 +1067,8 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         let totalBytes = 0;
         try {
             const inputs = [...(options.nativeAttributes ?? []).map(b => ({ ...b, target: 'attribute', attribute: undefined })),
-                ...(options.nativeSlices ?? []).map(b => ({ ...b, target: 'slice' }))];
+                ...(options.nativeSlices ?? []).map(b => ({ ...b, target: 'slice' })),
+                ...(options.nativePayload ? [{ name: 'payload', value: options.nativePayload, target: 'payload', attribute: undefined }] : [])];
             const bindings = inputs.map(({ name, value, target, attribute }) => {
                 if (value.kind !== 'cem-native-value-v1' || !Number.isSafeInteger(value.index) || value.index < 0) throw new TypeError('Invalid native CEM value binding');
                 let artifactId = imported.get(value.artifact);
@@ -1285,7 +1289,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
     async function processCemMlTemplateOperation(
         input: CemMlTemplateProcessingInput
     ): Promise<CemMlTemplateProcessingResult> {
-        if (input.identity.ariaReferenceProfile !== undefined || input.elementReferenceInputs || input.moduleClosure || input.nativeAttributes?.length || input.nativeSlices?.length || input.nativeValueLimits) {
+        if (input.identity.ariaReferenceProfile !== undefined || input.elementReferenceInputs || input.moduleClosure || input.nativeAttributes?.length || input.nativeSlices?.length || input.nativePayload || input.nativeValueLimits) {
             const retained = input.moduleClosure
                 ? await retainCemMlTemplateModuleClosure(input.source, input.moduleClosure, Object.keys(input.data))
                 : await retainCemMlTemplateSource(input.source, Object.keys(input.data));
@@ -1357,7 +1361,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
             ariaReferenceProfile: resolveAriaReferenceProfile(input.identity.ariaReferenceProfile),
             elementReferenceInputs: input.elementReferenceInputs,
             nativeAttributes: input.nativeAttributes,
-            nativeSlices: input.nativeSlices,
+            nativeSlices: input.nativeSlices, nativePayload: input.nativePayload,
             nativeValueLimits: input.nativeValueLimits,
             xpathCompanionId: input.xpathCompanionId,
             documents: input.documents,
@@ -1397,15 +1401,19 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
     }
 
     function mapNode(node: WasmRenderNode, renderNodeId: string, mapChildren: (nodes: WasmRenderNode[]) => RenderPlanNode[], artifact?: { artifact: ArrayBuffer; contentHash: string }): RenderPlanNode {
+        const source = node.sourceMap as { frames?: {transform?: {kind?: string; uri?: string}}[] } | undefined;
+        const fromDom = source?.frames?.some(frame => frame.transform?.kind === 'SourceBoundary' && frame.transform.uri?.startsWith('cem-dom://')) === true;
+        if (fromDom) renderNodeId = `payload-${renderNodeId}`;
+        const sourceMapRef: SourceMapRef | undefined = fromDom ? {fidelity: 'dom-canonical', frame: `native-source:${JSON.stringify(node.sourceMap)}`} : frameFrom(node.byteOffset);
         if (node.kind === 'text') {
-            return { kind: 'text', text: node.text, renderNodeId, sourceMapRef: frameFrom(node.byteOffset) };
+            return { kind: 'text', text: node.text, renderNodeId, sourceMapRef };
         }
         if (node.kind === 'comment') {
-            return { kind: 'comment', text: node.text, renderNodeId, sourceMapRef: frameFrom(node.byteOffset) };
+            return { kind: 'comment', text: node.text, renderNodeId, sourceMapRef };
         }
         return {
             kind: 'element',
-            namespace: node.namespace ?? null,
+            namespace: fromDom && node.namespace === 'http://www.w3.org/1999/xhtml' ? null : node.namespace ?? null,
             tag: node.tag,
             attributes: (node.attributes ?? []).map((attribute) => ({
                 name: attribute.name,
@@ -1414,7 +1422,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
             })),
             renderNodeId,
             children: mapChildren(node.children ?? []),
-            sourceMapRef: frameFrom(node.byteOffset),
+            sourceMapRef,
         };
     }
 
@@ -1477,7 +1485,45 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         return { text: exportCemJsonValue(new Uint8Array(input.value.artifact), input.value.index, input.attribute ?? '', limits) ?? null };
     }
 
-    return { domain, native, processCheckpointControl,
+    const domKeys = new WeakMap<Node, string>();
+    let domSequence = 0;
+    const domSourceUri = `cem-dom://runtime/${crypto.randomUUID()}`;
+    function domKey(node: Node): string {
+        let key = domKeys.get(node);
+        if (!key) { key = `dom-${++domSequence}`; domKeys.set(node, key); }
+        return key;
+    }
+    const captureDomPayload = nativeCheckpointWork(captureDomPayloadOperation);
+    async function captureDomPayloadOperation(container: Element, limits: CemValueArtifactLimits): Promise<NativeCemValue> {
+        await ensureRuntimeReady();
+        const policy = JSON.stringify(limits);
+        const handle = beginDomPayloadCapture(domSourceUri, container.ownerDocument.documentURI, container.baseURI, policy);
+        try {
+            const documentRoot = appendDomPayloadNode(handle, 0, `capture-document:${domKey(container)}`, 'document', '', '', '');
+            const root = appendDomPayloadNode(handle, documentRoot, domKey(container), 'element', container.namespaceURI ?? '', container.localName, '');
+            for (const attribute of container.attributes) appendDomPayloadNode(handle, root, domKey(attribute), 'attribute', attribute.namespaceURI ?? '', attribute.localName, attribute.value);
+            const pending = [{ children: container.childNodes.values(), parent: root }];
+            while (pending.length) {
+                const current = pending[pending.length - 1];
+                const next = current.children.next();
+                if (next.done) { pending.pop(); continue; }
+                const node = next.value;
+                const parent = current.parent;
+                const kind = node.nodeType === 1 ? 'element' : node.nodeType === 3 ? 'text' : node.nodeType === 8 ? 'comment' : 'unsupported';
+                const element = node.nodeType === 1 ? node as Element : undefined;
+                const id = appendDomPayloadNode(handle, parent, domKey(node), kind, element?.namespaceURI ?? '', element?.localName ?? '', element ? '' : node.nodeValue ?? '');
+                if (element) {
+                    for (const attribute of element.attributes) appendDomPayloadNode(handle, id, domKey(attribute), 'attribute', attribute.namespaceURI ?? '', attribute.localName, attribute.value);
+                    const children = element.namespaceURI === 'http://www.w3.org/1999/xhtml' && element.localName === 'template' ? (element as HTMLTemplateElement).content.childNodes : element.childNodes;
+                    pending.push({children: children.values(), parent: id});
+                }
+            }
+            const artifact = finishDomPayloadCapture(handle, policy).slice().buffer as ArrayBuffer;
+            return {kind: 'cem-native-value-v1', artifact, index: 0, contentHash: edgeContentAddress('sanitized-snapshot', artifact).digest};
+        } finally { disposeDomPayloadCapture(handle); }
+    }
+
+    return { domain, native, processCheckpointControl, captureDomPayload,
         highlightSource,
         retainStylesheetSources,
         releaseRetainedTemplateStylesheets,
@@ -1533,6 +1579,7 @@ export const validatePortableCheckpointControls = defaultBindings.validatePortab
 export const validatePortableCheckpointRuntime = defaultBindings.validatePortableCheckpointRuntime;
 export const resolveDeclarationResourceBase = defaultBindings.resolveDeclarationResourceBase;
 export const resolveRenderPlanLinks = defaultBindings.resolveRenderPlanLinks;
+export const captureDomPayload = defaultBindings.captureDomPayload;
 export const ensureRuntimeReady = defaultBindings.ensureRuntimeReady;
 export const isRuntimeReady = defaultBindings.isRuntimeReady;
 export const runtimeVersion = defaultBindings.runtimeVersion;

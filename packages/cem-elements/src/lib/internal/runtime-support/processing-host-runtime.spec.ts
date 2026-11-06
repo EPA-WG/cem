@@ -430,6 +430,7 @@ it('replays retained response bytes through native import after worker loss and 
         scopePolicyStamp: 'scope-policy-v1', outputTarget: 'light-dom' as const };
     await host.renderDiff({ artifact, revision, data: {}, snapshot: { ...revision } as DataIslandSnapshot,
         nativeAttributes,
+        nativePayload: nativeAttributes[0].value,
         nativeSlices: [{ ...nativeAttributes[0], name: 'stored', attribute: 'slice-value' }],
         documents: [{ slice: 'response', handle }], scopeUid: 'scope-one' }).result;
     expect(host.mode).toBe('main-thread');
@@ -437,6 +438,7 @@ it('replays retained response bytes through native import after worker loss and 
     expect(processRetainedCemMlTemplate).toHaveBeenLastCalledWith(expect.any(Number), expect.objectContaining({
         documents: [{ slice: 'response', documentId: 201 }],
         nativeAttributes,
+        nativePayload: nativeAttributes[0].value,
         nativeSlices: [{ ...nativeAttributes[0], name: 'stored', attribute: 'slice-value' }],
     }));
     await host.document({ action: 'release', handle }).result;

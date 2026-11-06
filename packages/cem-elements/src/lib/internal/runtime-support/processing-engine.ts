@@ -520,6 +520,7 @@ export class CemProcessingEngine {
                 elementReferenceInputs: input.elementReferenceInputs,
                 nativeAttributes: input.nativeAttributes,
                 nativeSlices: input.nativeSlices,
+                nativePayload: input.nativePayload,
                 nativeSuggestions: live && owner ? { sessionId: owner.id, publication: live.publication } : undefined,
                 nativeValueLimits: effectiveLimits,
                 source: processingSourceText(artifact.input),

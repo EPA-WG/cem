@@ -406,6 +406,8 @@ export interface DataIslandSnapshot {
     hostAttributes: Record<string, string | boolean | null>;
     nativeAttributes?: NativeCemAttributeBinding[];
     nativeSlices?: NativeCemSliceBinding[];
+    /** Runtime-only native DOM capture; never persisted in hydration controls. */
+    nativePayload?: NativeCemValue;
     dataset: Record<string, string>;
     payload: SerializedPayload;
     /** Complete DOM-native island tree made available to canonical transformations. */
@@ -4382,6 +4384,8 @@ export class CemElementRuntime {
             if (compiled.xpathFunctionsRef !== null) {
                 throw new Error('XPath function libraries require the retained CEM-ML processing host');
             }
+            snapshot.nativePayload = await this.captureNativePayload(instance, compiled);
+            if (this.renderTokens.get(instance) !== token || !instance.isConnected) return;
             const source = compiled.cemMlSource ?? '';
             const data = wasmTemplateData(snapshot, compiled.declaredAttributes);
             const moduleClosure = await this.preflightDeclarationModules(compiled, Object.keys(data));
@@ -4396,6 +4400,7 @@ export class CemElementRuntime {
                 payload: snapshot.payload,
                 nativeAttributes: snapshot.nativeAttributes,
                 nativeSlices: snapshot.nativeSlices,
+                nativePayload: snapshot.nativePayload,
                 nativeValueLimits: this.nativeValueLimits,
                 identity: {
                     producedTag: compiled.producedTag,
@@ -4907,6 +4912,12 @@ export class CemElementRuntime {
         };
     }
 
+    private async captureNativePayload(instance: HTMLElement, compiled: CompiledDeclaration): Promise<NativeCemValue> {
+        const payload = directIslandSection(this.ensureDataIsland(instance), DATA_ISLAND_SECTIONS.payload);
+        if (!payload || this.invalidInstancePayloads.has(instance)) throw new Error('Missing or invalid canonical payload owner');
+        return this.renderSupport(compiled.declarationScope).captureDomPayload(payload, this.nativeValueLimits);
+    }
+
     private async renderViaProcessingHost(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
@@ -4917,6 +4928,8 @@ export class CemElementRuntime {
             return this.renderRetainedUpdate(instance, compiled, snapshot, token);
         }
         try {
+            snapshot.nativePayload = await this.captureNativePayload(instance, compiled);
+            if (this.renderTokens.get(instance) !== token || !instance.isConnected) return false;
             const data = wasmTemplateData(snapshot, compiled.declaredAttributes);
             const compile = await this.ensureProcessingArtifact(compiled, Object.keys(data));
             if (this.renderTokens.get(instance) !== token) {
@@ -4940,6 +4953,7 @@ export class CemElementRuntime {
                 documents: this.httpDocumentBindings(instance, snapshot),
                 nativeAttributes: snapshot.nativeAttributes,
                 nativeSlices: snapshot.nativeSlices,
+                nativePayload: snapshot.nativePayload,
                 nativeValueLimits: this.nativeValueLimits,
                 scopeUid: this.currentScopeUid(instance, compiled),
                 payloadStylesInstalled: !!this.retainedStylesheets,
@@ -4987,6 +5001,7 @@ export class CemElementRuntime {
                     documents: this.httpDocumentBindings(instance, recoverySnapshot),
                     nativeAttributes: recoverySnapshot.nativeAttributes,
                     nativeSlices: recoverySnapshot.nativeSlices,
+                    nativePayload: recoverySnapshot.nativePayload,
                     nativeValueLimits: this.nativeValueLimits,
                     scopeUid: this.currentScopeUid(instance, compiled),
                     payloadStylesInstalled: !!this.retainedStylesheets,
@@ -5056,6 +5071,8 @@ export class CemElementRuntime {
         const processing = this.usesProcessingHost(compiled);
         const prepare = async (full: boolean): Promise<PreparedCssDomPublication> => {
             if (!current()) throw new Error('superseded CSS/DOM render');
+            if (processing && !snapshot.nativePayload) snapshot.nativePayload = await this.captureNativePayload(instance, compiled);
+            if (!current()) throw new Error('superseded CSS/DOM render');
             const data = processing ? wasmTemplateData(snapshot, compiled.declaredAttributes) : {};
             const compile = processing ? await this.ensureProcessingArtifact(compiled, Object.keys(data)) : undefined;
             if (!current()) throw new Error('superseded CSS/DOM render');
@@ -5100,7 +5117,7 @@ export class CemElementRuntime {
                     const result = compile ? await this.submitProcessingRender(instance, this.processingHost(compiled), token, {
                         artifact: compile.artifact, revision, snapshot: { ...snapshot, renderAttempt: revision.renderAttempt }, data,
                         documents: this.httpDocumentBindings(instance, snapshot), nativeAttributes: snapshot.nativeAttributes,
-                        nativeSlices: snapshot.nativeSlices, nativeValueLimits: this.nativeValueLimits,
+                        nativeSlices: snapshot.nativeSlices, nativePayload: snapshot.nativePayload, nativeValueLimits: this.nativeValueLimits,
                         scopeUid: this.currentScopeUid(instance, compiled), payloadStylesInstalled: true,
                         previousRenderPlan: full ? null : this.processingRenderPlans.get(instance) ?? null,
                     }) : { frames: diffRenderPlansToPatchFrames(full ? null : this.committedRenderPlans.get(instance) ?? null,
@@ -10834,9 +10851,12 @@ function templateValues(
 }
 
 function wasmTemplateData(snapshot: DataIslandSnapshot, declarations: AttributeDeclaration[]): Record<string, unknown> {
+    const datadom = dataDocumentFromSnapshot(snapshot);
+    // Native slot indexing is authoritative on native render routes.
+    delete datadom.slots;
     return {
         ...templateValues(snapshot, declarations),
-        datadom: dataDocumentFromSnapshot(snapshot),
+        datadom,
         island: snapshot.dataIsland ?? emptySerializedPayload(),
     };
 }

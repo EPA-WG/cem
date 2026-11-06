@@ -285,6 +285,10 @@ export const importPinnedTemplateArtifact = bind('importPinnedTemplateArtifact')
 export const admitDeclarationMetadata = bind('admitDeclarationMetadata');
 export const renderTemplateWithNativeValues = bind('renderTemplateWithNativeValues');
 export const renderTemplateWithNativeValuesAndAdmission = bind('renderTemplateWithNativeValuesAndAdmission');
+export const beginDomPayloadCapture = bind('beginDomPayloadCapture');
+export const appendDomPayloadNode = bind('appendDomPayloadNode');
+export const finishDomPayloadCapture = bind('finishDomPayloadCapture');
+export const disposeDomPayloadCapture = bind('disposeDomPayloadCapture');
 export const importCemDocumentValue = bind('importCemDocumentValue');
 export const exportCemJsonValue = bind('exportCemJsonValue');
 export const importNativeValueArtifact = bind('importNativeValueArtifact');
@@ -333,6 +337,7 @@ const sharedEntrypoints = [
     'failTemplateStylesheet', 'releaseTemplateStylesheets', 'compileTemplateArtifact',
     'compileTemplateModuleClosure', 'convertLegacyCustomElementTemplate', 'disposeTemplate',
     'importTemplateArtifact', 'importPinnedTemplateArtifact', 'admitDeclarationMetadata', 'renderTemplateWithNativeValues', 'renderTemplateWithNativeValuesAndAdmission',
+    'beginDomPayloadCapture', 'appendDomPayloadNode', 'finishDomPayloadCapture', 'disposeDomPayloadCapture',
     'importCemDocumentValue', 'exportCemJsonValue', 'importNativeValueArtifact',
     'importReferenceReloadBundle', 'parseReferenceSource', 'prepareNativeCapabilitySession',
     'prepareNativeDatalist', 'publishNativeDatalist', 'nativeCapabilitySessionLength',
@@ -350,6 +355,7 @@ const sharedEntrypoints = [
 
 // Cleanup cannot allocate/restart native work or confer a new source grant.
 const cleanupEntrypoints = [
+    'disposeDomPayloadCapture',
     'releaseTemplateStylesheets', 'disposeTemplate', 'disposeNativeCapabilitySession',
     'releaseNativeSuggestions', 'disposeReferenceSource', 'disposeNativeValueArtifact',
     'disposeCemDocument', 'disposeXsltComponent', 'disposeCemtXPathFunctions',

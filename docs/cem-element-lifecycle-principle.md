@@ -222,6 +222,39 @@ child's rendered native owners and edited values under their existing ownership.
 The same rule applies to worker patches, full reconciliation and resumed HTML
 payloads.
 
+## Native browser slot input
+
+Native CEM-ML render routes capture the current canonical payload container through
+`cem_ml::import::dom::DomCapture`. The browser adapter visits actual DOM nodes and
+passes primitive names, namespaces, attributes, decoded text and comments to the
+native importer. Native code constructs the typed CEM tree and encodes its value
+artifact; JavaScript neither builds a parallel document record nor serializes and
+reparses HTML. The selected native artifact root is the real payload container,
+with its source children and parents retained. Nested HTML template contents stay
+under their inert template owner.
+
+Each runtime capture has a `cem-dom://` source identity and stable keys for its
+actual DOM nodes. Its source maps have no authored byte ranges or line numbers;
+final browser projection labels this provenance `dom-canonical`. The document
+and base URI remain separate metadata. A fresh capture replaces each render's
+input after payload mutation; it never moves or adopts the inert source nodes.
+
+The existing native-value transport carries opaque CEMV bytes to the original
+worker or fallback owner. Native binding replaces `datadom.slots` using the same
+ordered retained-node slot index as SSR. Ordinary JavaScript records remain
+invalid inserted content. Temporary capture/import handles are disposed on
+success and failure; unfinished captures block native retirement through the
+existing `native-values` inventory. Node, byte and depth ceilings apply before
+publication and caller limits may lower them. Payload styles keep their existing
+stylesheet owner and are removed from active projected content; styles inside
+nested templates remain inert.
+
+`DataIslandSnapshot.nativePayload` is transient processing input. Hydration data
+and explicit edge snapshot export do not persist it. Existing named legacy
+payload/snapshot codecs and DOM-template projection remain separate compatibility
+paths. This browser slot boundary does not broaden SSR source/domain admission,
+prove a complete SSR island or authorize hydration adoption.
+
 ## Declaration version and SSR compatibility
 
 A declaration may publish its template contract as an exact Semantic Version:

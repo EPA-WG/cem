@@ -66,6 +66,13 @@ pub(super) fn slots(
             _ => return Err(INVALID.into()),
         }
     }
+    index_slots(payload, control)
+}
+
+pub(crate) fn index_slots(
+    payload: &[Item],
+    control: &OperationControl,
+) -> Result<BTreeMap<String, Vec<Item>>, String> {
     // Only direct rendered roots determine slots. Preserve repetitions and
     // encounter order; nested references stay inside their source elements.
     // Original reference occurrences remain visible through datadom.payload.
@@ -79,11 +86,37 @@ pub(super) fn slots(
             continue;
         }
         let name = if field(&item, "kind").as_deref() == Some("element") {
-            attrs(&item)?.remove("slot").unwrap_or_default()
+            slot_name(&item)?
         } else {
             String::new()
         };
         slots.entry(name).or_default().push(item);
     }
     Ok(slots)
+}
+
+fn slot_name(item: &Item) -> Result<String, String> {
+    for attribute in item
+        .view()
+        .and_then(|v| v.field("attributes"))
+        .ok_or(INVALID)?
+    {
+        if field(&attribute, "name").as_deref() != Some("slot")
+            || field(&attribute, "namespace").as_deref() != Some("")
+        {
+            continue;
+        }
+        let view = attribute.view().ok_or(INVALID)?;
+        let values = view
+            .field("values")
+            .or_else(|| view.field("value"))
+            .ok_or(INVALID)?;
+        if let [value] = values.as_slice() {
+            if let Some(AtomValue::String(value)) = value.atom() {
+                return Ok(value);
+            }
+        }
+        return Err("Native slot name requires one string value".into());
+    }
+    Ok(String::new())
 }
