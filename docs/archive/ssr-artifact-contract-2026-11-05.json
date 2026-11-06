@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-05",
+  "baseCommit": "ddbc0520e6aacb69b636c726e90df5f89b2821b2",
+  "scope": "Retained native unrendered/partial SSR envelope; no lifecycle execution, settled proof, command or wire codec",
+  "failingFirst": {
+    "nativeCases": 9,
+    "reason": "unimplemented native artifact contract stub"
+  },
+  "validation": {
+    "defaultNativeArtifact": {
+      "passed": 14,
+      "failed": 0
+    },
+    "actualNoDefaultFeaturesNativeArtifact": {
+      "passed": 14,
+      "failed": 0
+    },
+    "routePreflight": {
+      "passed": 14,
+      "failed": 0
+    },
+    "sharedDependencyIdentity": {
+      "passed": 5,
+      "failed": 0
+    },
+    "nativeArtifactEvaluatorAndExporters": {
+      "passed": 32,
+      "failed": 0
+    },
+    "wasmLibraryBuild": "passed",
+    "focusedArtifactFormatting": "passed",
+    "focusedRouteFormattingAndLint": "passed",
+    "nativeClippy": "passed",
+    "nativeClippyWarnings": "Existing warnings in other modules; none in new artifact or touched route module",
+    "fullWorkspaceGate": false
+  },
+  "actualStrippedCommand": "cargo test --locked --package cem-ml --no-default-features --target-dir dist/target/cem_ml_stripped --lib ssr_artifact",
+  "artifactIdentity": {
+    "contentType": "application/vnd.cem.ssr-page+cem-bin",
+    "schema": "https://cem.dev/ns/projection/ssr-page/1",
+    "nativeRepresentation": "cem.ssr-page",
+    "wireCodecImplemented": false,
+    "schemaPackageParserAdmissionImplemented": false
+  },
+  "ownership": {
+    "exactPreflightSourceOwnerRequired": true,
+    "htmlProjectionRetainsSameArc": true,
+    "cemDomProjectionRetainsOriginalArc": true,
+    "sourceAndConfigMapsRetained": true,
+    "unmappedGeneratedBytesStayUnmapped": true,
+    "nativeExtensionHandoff": true,
+    "astSerializationOrReparse": false
+  },
+  "adoption": {
+    "constructibleStates": [
+      "unrendered",
+      "partial"
+    ],
+    "hydrationReady": false,
+    "publicReadyTransition": false,
+    "reportIsAuthority": false,
+    "inputKeyIsCacheOrAdoptionAuthority": false
+  },
+  "bounds": {
+    "positiveExplicitLimits": true,
+    "maxDeclarationDepth": 64,
+    "maxInstances": 4096,
+    "maxRenderPasses": 64,
+    "maxResources": 1024,
+    "maxAcquiredBytes": 67108864,
+    "maxWallTimeMs": 60000,
+    "maxCpuTimeMs": 60000,
+    "maxAggregateControlMetadataBytes": 1048576,
+    "maxDiagnostics": 256,
+    "maxProtocolFieldBytes": 4096,
+    "monotonicUsage": true,
+    "coordinatorEnforcesFutureExecutionBudgets": true,
+    "changesExistingHostDeadlines": false
+  },
+  "inputIdentity": {
+    "reuses": "DependencySnapshot::identity",
+    "requiresCompleteSourceAndInputClosure": true,
+    "checksOriginalRootUriMimeSchemaAndUtf8Bytes": true,
+    "includesPageBasePolicyCompilerParametersFormatterAndSettlePolicy": true,
+    "excludesPhysicalOutputAndMeasuredUsage": true,
+    "structuredDelimiterSafeEncoding": true,
+    "sourceAndDomPayloadsEnterControlSerialization": false
+  },
+  "report": {
+    "api": "export_report_json",
+    "explicitDiagnosticControlBoundary": true,
+    "bounded": true,
+    "containsDomOrOriginalSourceText": false,
+    "browserIslandOrNativeAstHandoff": false,
+    "changesDefaultCliPresentation": false
+  },
+  "code": [
+    {
+      "path": "packages/cem_ml/src/ssr_artifact.rs",
+      "sha256": "27f8c5ff9600352c459790162aa70c7eb455c65c215c76b787c66199a3db40f8"
+    },
+    {
+      "path": "packages/cem_ml/src/ssr_artifact_tests.rs",
+      "sha256": "d8678a0717451989085a24a95630be76e51ea683b8f833eb77183096f58740ca"
+    },
+    {
+      "path": "packages/cem_ml/src/ssr_route.rs",
+      "sha256": "fd97ba18f6c4cf3615640410ac1aa3792d7edcdf19361b79ac3b6518de5ba635"
+    }
+  ],
+  "frozenPresentation": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864"
+  },
+  "publicSiteDeploymentChanged": false,
+  "npmCommandAbiChanged": false,
+  "packagedRuntimeRebuilt": false,
+  "next": "First host-neutral inline-declaration lifecycle preparation/admission slice, reusing existing declaration/island/render-plan owners; no adoption claim before coordinator-owned completion proof"
+}

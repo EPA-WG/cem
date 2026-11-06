@@ -4,6 +4,15 @@
     "projectType": "library",
     "sourceRoot": "packages/cem_ml/src",
     "targets": {
+        "lint:ssr-artifacts": {
+            "executor": "nx:run-commands",
+            "cache": true,
+            "inputs": ["{projectRoot}/src/ssr_artifact*.rs"],
+            "options": {
+                "command": "rustfmt --edition 2021 --check packages/cem_ml/src/ssr_artifact.rs packages/cem_ml/src/ssr_artifact_tests.rs",
+                "cwd": ""
+            }
+        },
         "lint:ssr-routes": {
             "executor": "nx:run-commands",
             "cache": true,

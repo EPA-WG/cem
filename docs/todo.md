@@ -599,10 +599,29 @@ through Phase 9 release governance.
       The route contract does not add an SSR command, artifact or hydration claim.
       [Archive](archive/todo-completed-ssr-route-preflight-2026-11-05.md).
 
-- [ ] SSR artifact contract: retain the existing native DOM projection owner in
+- [x] SSR artifact contract: retain the existing native DOM projection owner in
       a typed SSR envelope with explicit lifecycle/adoption identity and bounded
       policy. Add native artifact/report/cache fixtures before wiring the shared
       page lifecycle; unrendered or partial output must not claim hydration readiness.
+      Add failing native owner-retention/route-binding, bounded-policy/usage,
+      partial/adoption refusal, explicit report and cache-input identity fixtures.
+      Check provenance, native extension handoff and sensitivity to source,
+      dependency/policy/version changes while excluding physical output paths.
+      Completed 2026-11-05: nine failing-first cases expanded to 14 native tests,
+      passing in default and actual stripped profiles. Fourteen route, five
+      dependency-identity and 32 native artifact/exporter regressions pass; WASM,
+      Clippy and focused formatting/lint gates pass. Native owners/provenance and
+      frozen delivery remain; only unrendered/partial states are constructible.
+      The command, coordinator, wire codec and settled adoption proof remain open.
+      [Archive](archive/todo-completed-ssr-artifact-contract-2026-11-05.md).
+
+- [ ] SSR shared lifecycle: add the first host-neutral inline-declaration page
+      preparation/admission slice using the retained route/artifact contracts.
+      Reuse existing declaration, instance, island and render-plan owners; add
+      failing native fixtures for one inline DCE and refusal/ownership cases.
+      Keep the initial envelope non-adoptable until the coordinator can prove
+      complete islands, fresh policy/identity and valid rendered boundaries.
+      Then wire command lowering and browser adoption/parity through that core.
 
 
 ## Component gallery source-link maintenance (after Studio presentation work)

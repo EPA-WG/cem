@@ -57,12 +57,32 @@ the URL portion of render identity.
 The initial supported static HTML profile, base-policy decisions and invalid-base
 browser divergence are specified in the
 [SSR proposal](../../docs/cem-ml-cli-ssr-proposal.md#311-implemented-native-url-preflight).
-This is a native contract; the SSR command, rendering artifact and lifecycle
+This is a native contract; the SSR command, settled rendering artifact and lifecycle
 coordinator are still pending. Run `yarn nx run cem_ml:test --lib --args=ssr_route`
 and `yarn nx run cem_ml:test:ssr-routes:browser` for the focused native and
 Chromium URL fixtures; these do not execute authored page JavaScript.
 For the actual no-default-features profile, use
 `yarn nx run cem_ml:test:stripped --args='--lib ssr_route'`.
+
+### Retained SSR artifact contract
+
+`ssr_artifact::CemSsrPageArtifact` wraps the existing native HTML/CEM DOM
+projection and its exact preflight source owner. The envelope retains route and
+source-map provenance, explicit compiler/dependency identity and bounded settle
+policy. It moves through the existing native extension-artifact channel without
+an AST export or reparse.
+
+Only unrendered and partial states are currently constructible. Neither can
+claim hydration readiness, including when a complete deterministic input key is
+available. The key is a conservative candidate, not cache or adoption authority.
+`export_report_json()` is an explicit bounded control sidecar without source text
+or DOM data. The SSR command, wire codec, lifecycle coordinator and settled
+adoption proof remain pending; see the
+[artifact contract](../../docs/cem-ml-cli-ssr-proposal.md#51-implemented-retained-envelope-and-admission-limits).
+
+Focused checks are `yarn nx run cem_ml:test --lib --args=ssr_artifact` and
+`yarn nx run cem_ml:test:stripped --args='--lib ssr_artifact'` with prepared
+dependencies, plus `yarn nx run cem_ml:lint:ssr-artifacts`.
 
 ### Optional immutable schema assets
 

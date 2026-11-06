@@ -10,7 +10,8 @@ use crate::validation::html::{
 use url::Url;
 
 /// A host decision for the selected base URL, not permission to read a resource.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum SsrBasePolicy {
     /// Caller asserts no effective header CSP. A CSP meta element requires a
     /// host decision. This module never parses or grants policy capabilities.
@@ -50,11 +51,14 @@ impl<'a> SsrPageRouteRequest<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SsrBaseSelection {
     PageUrl,
     HtmlBase {
+        #[serde(rename = "eventIndex")]
         event_index: usize,
+        #[serde(rename = "usedFallback")]
         used_fallback: bool,
     },
 }
@@ -89,6 +93,9 @@ impl<'a> SsrPageRoute<'a> {
     }
     pub fn base_selection(&self) -> SsrBaseSelection {
         self.base_selection
+    }
+    pub fn base_policy(&self) -> SsrBasePolicy {
+        self.request.base_policy
     }
     pub fn base_source_map(&self) -> Option<&SourceMapStack> {
         self.base_source_map.as_ref()
