@@ -68,7 +68,8 @@ cache and retained stylesheet consumers after rebuilding the default core.
 passive HTML children or one explicit inert HTML envelope. It returns a canonical
 native marked template/context and the shared native input bindings, retaining
 source payload references, original owners, maps and the envelope handle. The
-page remains unchanged and non-adoptable; evaluation and AST application follow.
+page remains unchanged and non-adoptable; the separate application API below
+consumes this preparation.
 An explicit caller instance identity is required, and the original operation
 control remains authoritative.
 
@@ -80,6 +81,32 @@ Run `cem_ql:test --test=ssr_island`, `cem_ql:test:ssr-island:stripped`,
 `cem_ql:test:ssr-island:component`, `cem_ql:test:ssr-island:browser` and
 `cem_ql:lint:ssr-island` through `yarn nx run`. Browser observations compare
 capture shapes without authored JavaScript; they do not establish SSR hydration.
+
+## One shared render-plan application
+
+`ssr_render::render_and_apply_inline_dce` evaluates the retained template with
+its prepared native bindings and original operation control. It uses the existing
+reference/element-ID projection and returns a derived CEM page AST containing the
+inert canonical island, `cem-render-start`, rendered nodes and `cem-render-end`.
+Original source, payload and declaration owners remain retained and immutable.
+The envelope records one render pass and remains `Partial(Incomplete)` without
+hydration readiness.
+
+This first application profile admits passive HTML generated output. Host writes,
+nested participants, resource capabilities, foreign output, structured attribute
+contracts and unsupported source decoding fail explicitly before application.
+It supplies neither a settled page nor a production HTML serializer. See the
+[application contract](../../docs/cem-ml-cli-ssr-proposal.md#622-implemented-single-render-plan-application).
+
+Run `cem_ql:test --test=ssr_render`, `cem_ql:test:ssr-render:stripped` and
+`cem_ql:lint:ssr-render` through `yarn nx run`. After the native observation
+export and default WASM build, `cem_ql:test:ssr-render:browser` checks six matching
+render cases and one documented direct-slot difference, including payload
+topology, against the existing browser runtime. Named
+JSON observation sidecars are test controls, not native AST handoffs. The current
+browser slot bridge still supplies metadata records; direct native slot-node
+insertion has separate Rust coverage and needs shared browser ingress before
+full parity/adoption.
 
 ## String helpers
 

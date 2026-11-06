@@ -1676,15 +1676,82 @@ pub(crate) fn html_direct_resource_slot(local_name: &str, attribute: &str) -> bo
 }
 
 fn html_attribute_requires_resource_policy(local_name: &str, attribute: &HtmlAttributeAst) -> bool {
-    let value = attribute.value.as_deref().unwrap_or_default();
-    if html_direct_resource_slot(local_name, &attribute.local_name) {
+    html_projection_attribute_requires_resource_policy(local_name, &attribute.local_name, attribute.value.as_deref().unwrap_or_default())
+}
+fn html_projection_attribute_requires_resource_policy(local_name:&str, name:&str, value:&str)->bool {
+    if html_direct_resource_slot(local_name, name) {
         return html_uri_requires_policy(value);
     }
-    match attribute.local_name.as_str() {
+    match name {
         "srcset" | "imagesrcset" => html_srcset_requires_policy(value),
         "style" => html_css_url_reference_requires_policy(value),
         _ => false,
     }
+}
+
+/// Conservative passive generated-HTML admission over semantic names/values.
+/// Uses the source import's resource policy without serializing/reparsing HTML.
+pub fn validate_passive_html_projection(
+    name: &str,
+    attributes: &[(&str, &str)],
+) -> Result<(), HtmlFactKind> {
+    if name.is_empty()
+        || !name
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        || matches!(
+            name,
+            "html"
+                | "head"
+                | "body"
+                | "svg"
+                | "math"
+                | "script"
+                | "style"
+                | "iframe"
+                | "object"
+                | "embed"
+                | "frame"
+                | "frameset"
+                | "base"
+                | "meta"
+                | "link"
+        )
+    {
+        return Err(HtmlFactKind::ForeignContentUnregistered);
+    }
+    for &(attr, value) in attributes {
+        if attr.is_empty()
+            || attr != attr.to_ascii_lowercase()
+            || attr.chars().any(|c| {
+                c.is_control() || c.is_whitespace() || matches!(c, '<' | '>' | '=' | '\'' | '"')
+            })
+            || attr == "is"
+            || attr == "srcdoc"
+        {
+            return Err(HtmlFactKind::ForeignContentUnregistered);
+        }
+        if attr.len() > 2 && attr.starts_with("on") {
+            return Err(HtmlFactKind::EventHandlerRejected);
+        }
+        if html_projection_attribute_requires_resource_policy(name, attr, value) {
+            return Err(HtmlFactKind::ExternalResourceRejected);
+        }
+        if matches!(
+            attr,
+            "href" | "src" | "action" | "formaction" | "xlink:href"
+        ) {
+            let value = value
+                .chars()
+                .filter(|c| !c.is_ascii_control() && *c != ' ')
+                .collect::<String>()
+                .to_ascii_lowercase();
+            if value.starts_with("javascript:") || value.starts_with("vbscript:") {
+                return Err(HtmlFactKind::EventHandlerRejected);
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn html_uri_requires_policy(value: &str) -> bool {

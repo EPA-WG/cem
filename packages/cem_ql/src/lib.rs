@@ -81,6 +81,7 @@ pub mod parser;
 pub mod render;
 pub mod ssr_preparation;
 pub mod ssr_island;
+pub mod ssr_render;
 pub mod instance_island;
 pub mod retained_template;
 pub mod resolve;

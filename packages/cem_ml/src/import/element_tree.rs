@@ -102,6 +102,29 @@ impl InlineCemTemplateSource {
 }
 
 impl RetainedElementImport {
+    /// Check the native decoder's materializable HTML text profile before
+    /// deriving a whole-page AST. Earlier capture/import remains lossless.
+    pub fn validate_html_text_projection(&self) -> Result<(), String> {
+        use html_parser::HtmlEventKind;
+        let owner = self
+            .tree
+            .native_owner()
+            .and_then(|owner| owner.downcast_ref::<html_parser::HtmlDocumentAst>())
+            .ok_or("Projection requires an original HTML owner")?;
+        for event in &owner.events {
+            if matches!(event.kind, HtmlEventKind::Text | HtmlEventKind::Rcdata) {
+                require_projectable_references(&event.lexeme)?;
+            }
+            for attr in &event.attributes {
+                if attr.lexeme.contains('\r') {
+                    return Err("Attribute carriage-return normalization is unsupported".into());
+                }
+                require_projectable_references(&attr.lexeme)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Explicit HTML-to-CEM source handoff; no serialization or HTML reparse.
     pub fn inline_cem_template_source(
         &self,
@@ -307,3 +330,26 @@ fn check_bytes(length: usize) -> Result<(), String> {
 #[cfg(test)]
 #[path = "ssr_element_tests.rs"]
 mod ssr_element_tests;
+
+// This belongs at the syntax import boundary. XML and HTML numeric character
+// references differ for NUL and C1 controls; never silently materialize them.
+fn require_projectable_references(text: &str) -> Result<(), String> {
+    quick_xml::escape::unescape(text)
+        .map_err(|_| "Unsupported HTML character reference".to_string())?;
+    for tail in text.split("&#").skip(1) {
+        let reference = tail.split(';').next().unwrap_or_default();
+        let value = if let Some(hex) = reference
+            .strip_prefix('x')
+            .or_else(|| reference.strip_prefix('X'))
+        {
+            u32::from_str_radix(hex, 16)
+        } else {
+            reference.parse::<u32>()
+        }
+        .map_err(|_| "Invalid HTML numeric reference".to_string())?;
+        if value == 0 || (0x80..=0x9f).contains(&value) || char::from_u32(value).is_none() {
+            return Err("HTML numeric reference requires an unsupported replacement".into());
+        }
+    }
+    Ok(())
+}

@@ -1,0 +1,325 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-06",
+  "baseCommit": "b7fbbe024d289c132ed2ca2713f87a43cc395f7d",
+  "scope": "One native retained template evaluation and bounded CEM page AST application; partial, non-adoptable, no HTML export or publication",
+  "failingFirst": {
+    "genericTransaction": {
+      "passed": 0,
+      "failed": 4,
+      "log": "/tmp/cem-ssr-render-apply-red.log"
+    },
+    "initialDceApplication": {
+      "passed": 0,
+      "failed": 8,
+      "log": "/tmp/cem-ssr-render-red.log"
+    },
+    "sourceTextGuard": {
+      "passed": 12,
+      "failed": 1,
+      "log": "/tmp/cem-ssr-render-source-red.log"
+    }
+  },
+  "validation": {
+    "defaultNativeApplication": [
+      {
+        "passed": 17,
+        "failed": 0
+      }
+    ],
+    "actualStrippedApplicationPreparationAndCapture": [
+      {
+        "passed": 15,
+        "failed": 0
+      },
+      {
+        "passed": 13,
+        "failed": 0
+      },
+      {
+        "passed": 17,
+        "failed": 0
+      }
+    ],
+    "defaultNativeTreeApplication": [
+      {
+        "passed": 4,
+        "failed": 0
+      }
+    ],
+    "actualStrippedTreeApplication": [
+      {
+        "passed": 4,
+        "failed": 0
+      }
+    ],
+    "artifactRegression": [
+      {
+        "passed": 14,
+        "failed": 0
+      }
+    ],
+    "captureRegression": [
+      {
+        "passed": 15,
+        "failed": 0
+      }
+    ],
+    "preparationRegression": [
+      {
+        "passed": 13,
+        "failed": 0
+      }
+    ],
+    "rendererRegression": [
+      {
+        "passed": 28,
+        "failed": 0
+      }
+    ],
+    "focusedFormattingAndJavaScriptLint": "passed",
+    "cemMlClippy": "passed; existing warnings elsewhere",
+    "cemQlClippy": "passed; existing warnings elsewhere",
+    "newOrTouchedCoreModuleClippyWarnings": [],
+    "importBoundaryGuard": [
+      {
+        "passed": 2,
+        "failed": 0
+      }
+    ],
+    "optimizedWasmTemplateCacheAndRetainedStylesheets": "passed",
+    "browserObservations": {
+      "browser": "148.0.7778.96",
+      "authoredJavaScript": false,
+      "trustedRuntime": true,
+      "ignoresEmptyTextPlaceholders": true,
+      "externalRequests": [],
+      "results": [
+        {
+          "name": "literal and original payload",
+          "rendered": [
+            {
+              "tag": "p",
+              "attributes": {},
+              "children": [
+                "Hello"
+              ]
+            }
+          ],
+          "payload": [
+            {
+              "tag": "b",
+              "attributes": {},
+              "children": [
+                "Original & kept"
+              ]
+            },
+            {
+              "comment": "payload"
+            }
+          ],
+          "divergence": null
+        },
+        {
+          "name": "decoded bound attribute and text",
+          "rendered": [
+            {
+              "tag": "span",
+              "attributes": {
+                "title": "A & B"
+              },
+              "children": [
+                "A & B"
+              ]
+            }
+          ],
+          "payload": [],
+          "divergence": null
+        },
+        {
+          "name": "named slot from explicit envelope",
+          "rendered": [],
+          "payload": [
+            {
+              "tag": "b",
+              "attributes": {
+                "slot": "heading"
+              },
+              "children": [
+                "Title & text"
+              ]
+            }
+          ],
+          "divergence": "Browser metadata-record slots do not supply the native retained-node slot ingress."
+        },
+        {
+          "name": "empty render retains original payload",
+          "rendered": [],
+          "payload": [
+            "Original"
+          ],
+          "divergence": null
+        },
+        {
+          "name": "null child",
+          "rendered": [
+            {
+              "tag": "div",
+              "attributes": {},
+              "children": []
+            }
+          ],
+          "payload": [],
+          "divergence": null
+        },
+        {
+          "name": "void element attribute",
+          "rendered": [
+            {
+              "tag": "input",
+              "attributes": {
+                "value": "Value"
+              },
+              "children": []
+            }
+          ],
+          "payload": [],
+          "divergence": null
+        },
+        {
+          "name": "textarea text",
+          "rendered": [
+            {
+              "tag": "textarea",
+              "attributes": {},
+              "children": [
+                "A & B"
+              ]
+            }
+          ],
+          "payload": [],
+          "divergence": null
+        }
+      ]
+    }
+  },
+  "browserObservationContract": {
+    "vectors": 7,
+    "matchingRenderCases": 6,
+    "payloadCases": 7,
+    "knownDivergence": "Browser slot metadata records do not support native retained-node slot insertion; existing cem.ql.render.expression_type refusal retained.",
+    "authoredJavaScript": false,
+    "trustedRuntime": true,
+    "externalRequests": [],
+    "semanticNormalization": [
+      "internal render stamps omitted",
+      "namespace declaration spelling omitted",
+      "zero-length browser text placeholders omitted"
+    ],
+    "nativeAstJsonHandoff": false,
+    "fullHydrationParityClaimed": false
+  },
+  "ownership": {
+    "originalSourceImmutable": true,
+    "originalPayloadRemainsAuthoritative": true,
+    "rawAndProjectedNativePlansRetained": true,
+    "derivedNativeCemDocument": true,
+    "nativeExtensionHandoff": true,
+    "qualifiedNamesRetainedByNativeOwner": true,
+    "memoryPermitsRetainedUntilLastTreeOwnerDrops": true,
+    "astSerializationOrReparse": false
+  },
+  "bounds": {
+    "expandedProjectionBytes": 1048576,
+    "expandedProjectionValues": 16384,
+    "projectionDepth": 64,
+    "derivedPageBytes": 16777216,
+    "derivedPageNodes": 65536,
+    "derivedPageDepth": 64,
+    "callerPolicyMayOnlyReduce": true,
+    "totalHeapAccountingClaimed": false,
+    "originalOperationAndDeadlinePreserved": true
+  },
+  "lifecycle": {
+    "state": "Partial(Incomplete)",
+    "renderPasses": 1,
+    "hydrationReady": false,
+    "completionProof": false,
+    "productionHtmlCodec": false,
+    "cliIntrinsic": false
+  },
+  "refusals": [
+    "host writes until shared canonical island commit",
+    "nested custom participants",
+    "script/style/document output",
+    "foreign generated output",
+    "resource-policy requirements",
+    "structured output attribute contracts",
+    "unexpanded references",
+    "invalid void children",
+    "unsupported HTML text/numeric-reference decoding and literal attribute CR normalization"
+  ],
+  "wasm": {
+    "path": "packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+    "bytes": 24220012,
+    "sha256": "5236de4ec19180c945730112e9be4811a569f22a35b94b6fd6bf8e664a7d8ea7",
+    "maximumBytes": 26214400,
+    "previousBytes": 24179963,
+    "previousSha256": "fb436c99bc56a3911523b639f84684700b3f0cd5d8aedaca13519c8cb5a5fb38",
+    "deltaBytes": 40049,
+    "imports": 28,
+    "exports": 171,
+    "namedDescriptorsMatch": true,
+    "importOrderChanged": true,
+    "descriptorComparison": "sorted module/name/kind descriptors; generated matching JS glue and consumer checks pass",
+    "optimization": {
+      "binaryen": "132.0.0",
+      "mode": "Oz",
+      "inputBytes": 27531743,
+      "outputBytes": 24220012,
+      "inputSha256": "f0c4c4454e3db55ebbe8f9588959520cff6b3688560994831aa719006ff2af3b",
+      "outputSha256": "5236de4ec19180c945730112e9be4811a569f22a35b94b6fd6bf8e664a7d8ea7",
+      "imports": 28,
+      "exports": 171,
+      "milliseconds": 464337
+    }
+  },
+  "sourceSha256": {
+    "packages/cem_ml/src/parser/tree_apply.rs": "e42fc9e340d5e88493a6b0d1c3fb9229cdd8bf1e93b8a9691fd9c7d69d46b98a",
+    "packages/cem_ml/src/import/element_tree.rs": "f9955cd92f0d6f4ac42f836f30413a16dc0f6ec99402c0992d58ba5d4a90e7e6",
+    "packages/cem_ml/src/parser.rs": "ff7b08b88e007e2b4d22fabc64b14af9f26685b5923c6298510d294d4a608620",
+    "packages/cem_ml/src/ssr_artifact.rs": "9832534af1213e307412cd5f41ead32d5bc0cf2d759207d4eb4b4ab8ca555f2e",
+    "packages/cem_ml/src/validation/html.rs": "6e4734d8ac3a72ff301cde5825f56499dbf4ff246a1fc704524ecd210dcbb414",
+    "packages/cem_ql/src/ssr_render.rs": "bab003f243566a52b604a15ac03362c1d6c4f1e832f3d9b8d4c5b145b650e7ad",
+    "packages/cem_ql/src/instance_island/mod.rs": "038c0a3671f4b90b7b507cbd401f4ec589f14724e02c0d59b8c7933be3fdbb3b",
+    "packages/cem_ql/src/lib.rs": "ae865f73551c2374a9ea8d679003768d32b2e39451750a8d465002ce48c12ad1",
+    "packages/cem_ql/tests/ssr_render.rs": "d7387aea5e9c2a17428ef8e21f00ee6d5da1f44e719b1803b9e0f0aaaf5c0635",
+    "packages/cem_ql/tests/fixtures/ssr-render-observations.json": "b90a85f45146c72a30cb1352d4eb2c7bf11483e202b9577c291db66557f56cbf",
+    "packages/cem_ql/tests/verify-ssr-render-browser.mjs": "dacab9415be4e6c9cdc9289326608be3a4f6a954ccd806098d6156f8f3d1b8bc",
+    "packages/cem_ql/project.json": "c08daa6913bc0b40b62030df4cf2c043e5facdb8393ee3f89a6544391fb877c7"
+  },
+  "frozenPresentation": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864",
+    "changed": false
+  },
+  "buildStorage": {
+    "cargoIncremental": false,
+    "developmentAndTestDebugSymbols": false,
+    "cargoBuildJobs": 2,
+    "nxCacheSkipped": true
+  },
+  "fullWorkspaceGate": false,
+  "next": [
+    "shared native host/island attribute and dataset commit",
+    "shared browser retained-node slot ingress",
+    "additional payload/CSS/resource admission",
+    "bounded nested settling and completion proof before HTML export/publication/hydration"
+  ],
+  "tools": {
+    "rustc": "1.96.0",
+    "node": "24.16.0",
+    "binaryen": "132.0.0"
+  }
+}

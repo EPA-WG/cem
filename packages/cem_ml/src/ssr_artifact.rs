@@ -128,10 +128,11 @@ pub enum SsrArtifactError {
     MetadataBounds,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CemSsrPageArtifact {
     source: Arc<HtmlDocumentAst>,
     document: TransformArtifactBody,
+    applied_tree: Option<Arc<crate::parser::tree::RetainedCemTree>>,
     route: SsrArtifactRoute,
     identity: SsrExecutionIdentity,
     policy: SsrSettlePolicy,
@@ -180,6 +181,7 @@ impl CemSsrPageArtifact {
         let artifact = Self {
             source,
             document,
+            applied_tree: None,
             identity,
             policy,
             usage,
@@ -207,6 +209,41 @@ impl CemSsrPageArtifact {
     }
     pub fn document(&self) -> &TransformArtifactBody {
         &self.document
+    }
+    /// Applied native view retains its source/producer owners. It is not a ready proof.
+    pub fn applied_tree(&self) -> Option<&Arc<crate::parser::tree::RetainedCemTree>> {
+        self.applied_tree.as_ref()
+    }
+    pub fn into_applied_dom(
+        mut self,
+        application: &crate::parser::tree_apply::CemTreeApplication,
+        usage: SsrExecutionUsage,
+        diagnostics: Vec<Diagnostic>,
+    ) -> Result<Self, SsrArtifactError> {
+        if self.lifecycle
+            != (SsrLifecycleState::Partial {
+                reason: SsrPartialReason::Incomplete,
+            })
+            || self.usage.render_passes.checked_add(1) != Some(usage.render_passes)
+        {
+            return Err(SsrArtifactError::InvalidProgress);
+        }
+        let owner = application
+            .source()
+            .native_owner()
+            .and_then(|owner| owner.downcast_ref::<HtmlDocumentAst>())
+            .ok_or(SsrArtifactError::SourceOwnerMismatch)?;
+        if !std::ptr::eq(owner, self.source.as_ref())
+            || application.source().source_uri() != self.route.source_uri
+            || application.tree().document_uri() != Some(self.route.page_url.as_str())
+            || application.tree().base_uri() != Some(self.route.document_base_url.as_str())
+        {
+            return Err(SsrArtifactError::SourceOwnerMismatch);
+        }
+        self.document =
+            TransformArtifactBody::DomProjection(application.tree().ast_owner().clone());
+        self.applied_tree = Some(application.tree().clone());
+        self.into_partial(SsrPartialReason::Incomplete, usage, diagnostics)
     }
     pub fn route(&self) -> &SsrArtifactRoute {
         &self.route

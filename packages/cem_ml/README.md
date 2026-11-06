@@ -94,13 +94,35 @@ source provenance. Explicit document/base metadata does not rename the source.
 the shared compiler without an HTML reparse or AST serialization. Existing
 script/resource policy and import limits apply. The first consumer is the
 [inline DCE preparation](../../docs/cem-ml-cli-ssr-proposal.md#611-implemented-preparation-for-one-inline-dce)
-in `cem-ql`; island initialization and rendering remain later work.
+in `cem-ql`; its separate island preparation and one-pass application APIs
+consume this owner.
 
 Native node provenance follows retained original source-boundary frames before
 falling back to document metadata. Supplying a deployed `document_uri` therefore
 does not rename an authored source; base/document URL accessors retain their
 separate resolution meaning. The native SSR island capture uses that distinction
 while retaining its original imported payload nodes.
+
+### Native CEM AST child application
+
+`parser::tree_apply::apply_children` derives a bounded CEM document by replacing
+one element's children with already projected common `CemValueNode` output.
+It preserves original source ownership, decoded untouched values, namespaces,
+source maps, source-node mapping and deployed document/base metadata. The native
+owner retains producer inputs, qualified names and operation memory permits.
+Unexpanded references and structured source attribute nodes require a separate
+projection and are refused here. No source text or JSON AST is re-parsed.
+
+`CemSsrPageArtifact::into_applied_dom` checks original HTML owner and route
+identity plus one-pass progress before retaining that native tree as a partial
+artifact. It grants no completion/adoption authority. HTML materialization uses
+`RetainedElementImport::validate_html_text_projection` to refuse unsupported
+named/numeric references or attribute carriage-return normalization at the native
+import boundary. This is a bounded text profile, not complete WHATWG tree
+construction or a production HTML export codec.
+
+Focused checks: `yarn nx run cem_ml:test --lib --args=tree_apply` and
+`yarn nx run cem_ml:test:stripped --args='--lib tree_apply'`.
 
 ### Optional immutable schema assets
 

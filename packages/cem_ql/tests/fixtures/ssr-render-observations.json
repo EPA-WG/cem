@@ -1,0 +1,135 @@
+[
+  {
+    "name": "literal and original payload",
+    "template": "{p | Hello}",
+    "body": "<x-inline><b>Original &amp; kept</b><!--payload--></x-inline>",
+    "rendered": [
+      {
+        "tag": "p",
+        "attributes": {},
+        "children": [
+          "Hello"
+        ]
+      }
+    ],
+    "payload": [
+      {
+        "tag": "b",
+        "attributes": {},
+        "children": [
+          "Original & kept"
+        ]
+      },
+      {
+        "comment": "payload"
+      }
+    ]
+  },
+  {
+    "name": "decoded bound attribute and text",
+    "template": "{span @title={datadom.attributes.label} | {$ datadom.attributes.label}}",
+    "body": "<x-inline label='A &amp; B'></x-inline>",
+    "rendered": [
+      {
+        "tag": "span",
+        "attributes": {
+          "title": "A & B"
+        },
+        "children": [
+          "A & B"
+        ]
+      }
+    ],
+    "payload": []
+  },
+  {
+    "name": "named slot from explicit envelope",
+    "template": "{section | {$ datadom.slots.heading}}",
+    "body": "<x-inline><template><b slot='heading'>Title &amp; text</b></template></x-inline>",
+    "rendered": [
+      {
+        "tag": "section",
+        "attributes": {},
+        "children": [
+          {
+            "tag": "b",
+            "attributes": {
+              "slot": "heading"
+            },
+            "children": [
+              "Title & text"
+            ]
+          }
+        ]
+      }
+    ],
+    "payload": [
+      {
+        "tag": "b",
+        "attributes": {
+          "slot": "heading"
+        },
+        "children": [
+          "Title & text"
+        ]
+      }
+    ],
+    "browserRendered": [],
+    "browserDiagnostics": [
+      "cem.ql.render.expression_type"
+    ],
+    "divergence": "Browser metadata-record slots do not supply the native retained-node slot ingress."
+  },
+  {
+    "name": "empty render retains original payload",
+    "template": "",
+    "body": "<x-inline>Original</x-inline>",
+    "rendered": [],
+    "payload": [
+      "Original"
+    ]
+  },
+  {
+    "name": "null child",
+    "template": "{div | {$ null}}",
+    "body": "<x-inline></x-inline>",
+    "rendered": [
+      {
+        "tag": "div",
+        "attributes": {},
+        "children": []
+      }
+    ],
+    "payload": []
+  },
+  {
+    "name": "void element attribute",
+    "template": "{input @value={datadom.attributes.label}}",
+    "body": "<x-inline label='Value'></x-inline>",
+    "rendered": [
+      {
+        "tag": "input",
+        "attributes": {
+          "value": "Value"
+        },
+        "children": []
+      }
+    ],
+    "payload": []
+  },
+  {
+    "name": "textarea text",
+    "template": "{textarea | {$ datadom.attributes.label}}",
+    "body": "<x-inline label='A &amp; B'></x-inline>",
+    "rendered": [
+      {
+        "tag": "textarea",
+        "attributes": {},
+        "children": [
+          "A & B"
+        ]
+      }
+    ],
+    "payload": []
+  }
+]

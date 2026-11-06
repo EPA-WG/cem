@@ -91,6 +91,13 @@ pub(crate) fn has_source(item: &Item) -> bool {
             .is_some_and(|source| !source.frames.is_empty())
 }
 
+/// Reuse the existing passive payload/source/sensitive-input checks for output roots.
+pub(crate) fn admit_payload_roots(
+    items: &[Item],
+    control: &OperationControl,
+) -> Result<(), String> {
+    payload::slots(items, control).map(|_| ())
+}
 fn field(item: &Item, name: &str) -> Option<String> {
     match item.view()?.field(name)?.as_slice() {
         [value] => match value.atom()? {

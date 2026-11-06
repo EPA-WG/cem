@@ -9,6 +9,7 @@ pub mod diagnostics;
 pub mod document;
 pub mod format;
 pub mod tree;
+pub mod tree_apply;
 
 use crate::source_map::SourceMapStack;
 

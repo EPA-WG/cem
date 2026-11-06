@@ -659,12 +659,40 @@ through Phase 9 release governance.
       declaration evaluation or adoption claim is made.
       [Archive](archive/todo-completed-ssr-island-preparation-2026-11-05.md).
 
-- [ ] SSR retained rendering and AST application: use the prepared shared native
-      island bindings and retained declaration owner to generate the existing
+- [x] SSR retained rendering and AST application (one passive HTML instance):
+      use the prepared shared native island bindings and retained declaration owner to generate the existing
       render plan and apply it outside the canonical island using common
       namespace/ownership rules. Add native
       source-map, rendered-boundary and original-owner preservation fixtures;
       compare the single-inline-DCE result with the browser lifecycle.
+      Add failing native generic AST transaction and single-DCE fixtures before
+      implementation: exact source/IR owners, decoded untouched content, inert
+      island/range order, text/attribute/slot projection, namespaces and source
+      maps, empty output, sensitive/active output and host-update refusals, cancellation and bounded
+      work. Compare supported output and payload topology with the browser runtime
+      using explicit observation fixtures; keep partial output non-adoptable.
+      Completed 2026-11-06: four generic transaction tests pass in default and
+      actual stripped profiles; 17 native application cases pass in both. Earlier
+      capture/preparation, artifact and renderer regressions pass. Seven browser
+      observations match all payloads and six rendered cases; one explicitly
+      records the existing browser slot-record/native-node ingress difference.
+      Applied native ownership, maps, namespaces and memory-permit lifetimes are
+      retained, with one render pass and `Partial(Incomplete)` only. Host writes,
+      broader domain admission, settling, HTML export and adoption remain below.
+      Clippy, focused lint and optimized WASM consumers pass. The default core is
+      24,220,012 bytes under the unchanged 25 MiB limit, with matching named
+      import/export descriptors. Frozen presentation checksum remains unchanged.
+      [Archive](archive/todo-completed-ssr-render-application-2026-11-06.md).
+
+- [ ] SSR shared host/island commit: apply generated host defaults and selected
+      attribute writes in one native transaction with canonical attributes and
+      dataset updates. Add failing shared transaction fixtures before extending
+      `cem.ssr.host_updates_unavailable`; preserve source authority and rollback.
+
+- [ ] SSR browser retained-slot parity: replace the current browser slot metadata
+      ingress with shared native retained-node input before claiming direct slot
+      insertion parity or hydration. Add failing native/browser boundary fixtures;
+      preserve the intentional refusal of ordinary record insertion.
 
 - [ ] SSR additional source/domain admission: support CEM-ML source payloads
       through the shared native import boundary, foreign payload domains and

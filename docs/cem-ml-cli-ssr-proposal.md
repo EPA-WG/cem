@@ -3,8 +3,8 @@
 **Status:** Phase A's normalized `{page}` graph binding and shared native
 source/page/base/output URL preflight are implemented. The initial retained
 unrendered/partial SSR artifact contract, one-inline-DCE preparation and canonical
-first-connection HTML island preparation are implemented; see §5.1, §6.1.1 and
-§6.2.1.
+first-connection HTML island preparation and one-pass native render-plan
+application are implemented; see §5.1, §6.1.1, §6.2.1 and §6.2.2.
 The SSR command, settled/adoptable artifact, lifecycle coordinator and page
 compiler described here remain proposed and are not yet implemented.
 
@@ -542,7 +542,7 @@ control semantics, and declaration-owned managed styles.
 explicit bounded instance identity and the caller's original `OperationControl`.
 It returns a prepared native inert template and its namespace-aware `0.2.0`
 context root, retaining the original page/declaration owners. The original page
-is unchanged; inserting the template into a derived page AST is later work.
+is unchanged by preparation; §6.2.2 applies it to a derived page AST.
 The SSR envelope stays `Partial(Incomplete)`, at zero render passes and without
 hydration readiness or a rendered-range proof.
 
@@ -595,6 +595,67 @@ later shared native admission; they are explicitly refused rather than treated
 as ordinary HTML. Script/resource policy remains the earlier strict import policy.
 The prepared native bindings can feed the existing retained template next; this
 increment neither evaluates that declaration nor applies a render plan.
+
+### 6.2.2 Implemented single render-plan application
+
+`cem_ql::ssr_render::render_and_apply_inline_dce` consumes a prepared native
+island under the original `OperationControl`. It evaluates the existing retained
+template with the shared bindings, projects native element-reference IDs and
+expands retained references at the output boundary. It does not decode external
+syntax or introduce a second evaluator, payload model or JSON DOM handoff.
+
+`cem_ml::parser::tree_apply::apply_children` materializes the admitted output into
+a derived native CEM document. The host's children become the canonical inert
+marked template, a `cem-render-start` comment, rendered body, and a
+`cem-render-end` comment. The original page, source tree, declaration and payload
+references remain unchanged and retained. Materialized output is a derived view;
+it does not replace the original payload as authoritative input. Empty render
+output still retains the island and both boundaries. Original envelope identity,
+namespace-expanded names, qualified inserted names, source maps and deployed
+base/document metadata survive. Generated nodes acquire no fabricated physical
+author lines. The original HTML owner retains source syntax including doctype;
+this CEM AST application does not provide production HTML serialization.
+
+The artifact transition checks exact source-owner and route identity and advances
+render passes by exactly one. It retains the applied tree through the existing
+native extension-artifact channel and remains `Partial(Incomplete)`. Initial
+hydration fields stay incomplete, no ready constructor is added, and neither
+range presence nor a successful render grants browser adoption.
+
+The first output profile accepts passive HTML elements, text and comments.
+Foreign/custom participants, script/style/document nodes, active event handlers,
+resource-policy requirements, structured attribute contracts, unexpanded
+references and invalid void children fail before application. Existing native
+payload source/sensitive-input admission is reused. Host attribute updates fail
+with `cem.ssr.host_updates_unavailable`: a shared transaction must synchronize
+canonical attributes/dataset with host writes before these can be applied.
+
+Whole-page source materialization additionally checks the native HTML decoder's
+text profile at the import boundary. Unsupported named references, HTML numeric
+replacement cases and literal attribute carriage returns fail with
+`cem.ssr.source_projection_unsupported`; untouched text is not silently changed.
+This conservative profile does not establish complete WHATWG tree-construction
+conformance. Existing imported source policy and ownership remain authoritative.
+
+Reference projection retains the shared 1 MiB/16,384-value/depth-64 limits. The
+whole derived page is bounded to 16 MiB, 65,536 nodes and depth 64, reduced by the
+caller's memory and logical-stack policy. Original cancellation/completed-scope
+codes propagate, memory permits remain with the native result, and no fresh
+deadline replaces the caller's control. These accounted storage limits are not
+total-heap measurements of already-retained source owners or complete settling.
+
+Native fixtures cover original ownership, decoded text, slots, maps, empty
+ranges, native extension handoff, invalid progress, admission, cancellation and
+bounds. Seven named observation vectors compare payload topology with the existing
+browser lifecycle: six render cases match, and one records the existing direct
+slot-node ingress difference explicitly. They use trusted runtime code,
+without authored scripts or external requests. Semantic output observations omit
+browser-only zero-length text placeholders and internal render stamps; they do
+not equate runtime node identity. The browser bridge currently
+exposes slot metadata records, while this native path retains nodes. Direct
+node-slot insertion is covered natively; shared browser ingress and full island
+stamps/hydration remain later work. Test observation JSON is an explicit sidecar,
+never a production AST transport.
 
 ### 6.3 Bounded settling
 
@@ -1133,8 +1194,8 @@ schema, scope stack, resolver/policy stamps, and a source-map frame.
 
 ### Phase C: DOM-free page applier
 
-- Apply render plans and island transactions directly to the namespace-aware
-  page AST.
+- One inline passive-HTML render plan and canonical island apply to the native
+  page AST (§6.2.2). Extend admission and host/island commits before generalizing.
 - Add bounded nested-instance settling and deterministic resource snapshots.
 - Replace the Node evidence serializer with a production HTML converter; do not
   promote fixture-only serialization as the canonical writer.
