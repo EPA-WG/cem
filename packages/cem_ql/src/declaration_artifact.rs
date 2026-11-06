@@ -17,6 +17,7 @@ use std::collections::BTreeMap;
 
 pub const DECLARATION_METADATA_VERSION: &str = "cem-declaration-metadata/1";
 const MAX_METADATA_BYTES: usize = 1024 * 1024;
+pub(crate) const DECLARATION_HOST_BINDINGS: &[&str] = &["datadom", "island", "instanceID", "suggestions"];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -108,7 +109,7 @@ pub fn admit_declaration_metadata(
     Ok(metadata)
 }
 
-fn valid_tag(tag: &str) -> bool {
+pub(crate) fn valid_tag(tag: &str) -> bool {
     tag.len() <= 256
         && tag.contains('-')
         && tag.starts_with(|c: char| c.is_ascii_lowercase())
@@ -206,12 +207,10 @@ pub fn build_declaration_artifact(
         base = base.join(value).map_err(|error| fail(error.to_string()))?;
     }
     let options = CompileTemplateOptions {
-        host_bindings: vec![
-            "datadom".into(),
-            "island".into(),
-            "instanceID".into(),
-            "suggestions".into(),
-        ],
+        host_bindings: DECLARATION_HOST_BINDINGS
+            .iter()
+            .map(|name| (*name).into())
+            .collect(),
         source_uri: Some(format!("{source_uri}#{declared_tag}")),
         ..Default::default()
     };
@@ -233,17 +232,7 @@ pub fn build_declaration_artifact(
             "legacy resource routing requires a source declaration",
         ));
     }
-    let parsed = cem_ml::transform_template::parse_cem_native_template_module_options(
-        cem_ml::transform_template::TransformTemplateModuleParseRequest {
-            template: cem_ml::engine::TemplateInput {
-                uri: source_uri.into(),
-                bytes: fragment.body.as_bytes().to_vec(),
-                identity: None,
-                root_scope: cem_ml::run_config::ScopeConfig::default(),
-            },
-        },
-    );
-    if !parsed.module_options.imports.is_empty() {
+    if has_external_template_imports(&fragment.body, source_uri) {
         return Err(fail("external template modules require a compiled closure"));
     }
     let scope = root.get("scope").cloned();
@@ -281,6 +270,20 @@ pub fn build_declaration_artifact(
         metadata_hash,
         template,
     })
+}
+
+pub(crate) fn has_external_template_imports(source: &str, source_uri: &str) -> bool {
+    let parsed = cem_ml::transform_template::parse_cem_native_template_module_options(
+        cem_ml::transform_template::TransformTemplateModuleParseRequest {
+            template: cem_ml::engine::TemplateInput {
+                uri: source_uri.into(),
+                bytes: source.as_bytes().to_vec(),
+                identity: None,
+                root_scope: cem_ml::run_config::ScopeConfig::default(),
+            },
+        },
+    );
+    !parsed.module_options.imports.is_empty()
 }
 
 /// Opt-in build upgrade: retain native template IR and pin every static CSS

@@ -1,0 +1,290 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-05",
+  "baseCommit": "433c6f061171070948485986f8e5b459a3c305e9",
+  "scope": "One autonomous inline DCE preparation; no island creation, render application, completion proof, command or browser adoption",
+  "failingFirst": {
+    "preInterruptionPreparationCases": 9,
+    "preInterruptionImportCases": 3,
+    "preInterruptionTemporaryLogsSurvived": false,
+    "recoveredRegressions": [
+      "character-reference carriage returns versus literal line endings",
+      "tokenizer original/unmapped origins",
+      "compiler diagnostic coordinates",
+      "unsupported entity decode refusal",
+      "customized built-in participant refusal"
+    ]
+  },
+  "validation": {
+    "defaultPreparation": {
+      "passed": 13,
+      "failed": 0
+    },
+    "actualNoDefaultFeaturesPreparation": {
+      "passed": 13,
+      "failed": 0
+    },
+    "commonNativeImportIncludingFourNewCases": {
+      "passed": 24,
+      "failed": 0
+    },
+    "ssrContractCohortIncludingSharedImportCases": {
+      "passed": 33,
+      "failed": 0
+    },
+    "nativeRenderer": {
+      "passed": 28,
+      "failed": 0
+    },
+    "nativeDeclarationArtifact": {
+      "passed": 5,
+      "failed": 0
+    },
+    "focusedImportLint": "passed",
+    "focusedPreparationFormatting": "passed",
+    "nativeClippy": "passed",
+    "nativeClippyWarnings": "Existing warnings in other modules, including an existing declaration-artifact style warning; no warnings in the new preparation module or touched import files",
+    "defaultProductionWasm": "passed",
+    "existingWasmConsumers": "passed: compiled template cache plus retained declaration/instance stylesheets",
+    "fullWorkspaceGate": false,
+    "browserTemplateText": {
+      "browser": "148.0.7778.96",
+      "authoredJavaScript": false,
+      "externalRequests": [],
+      "results": [
+        {
+          "name": "decoded ampersand",
+          "text": "{p | Hello & welcome}"
+        },
+        {
+          "name": "HTML line endings",
+          "text": "{p |\nLine 1\nLine 2}"
+        },
+        {
+          "name": "numeric and bracket entities",
+          "text": "{p | \ud83c\udf0d < >}"
+        },
+        {
+          "name": "HTML comments are not text",
+          "text": "{p | AB}"
+        },
+        {
+          "name": "character-reference carriage returns",
+          "text": "{p | A\r\nB\r}"
+        }
+      ]
+    },
+    "cohortCountsOverlap": true
+  },
+  "actualStrippedCommand": "cargo test --locked --package cem-ql --no-default-features --test ssr_preparation --target-dir dist/target/cem_ql_stripped",
+  "recoveryBuildEnvironment": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "NX_DAEMON": "false",
+    "nxCacheSkipped": true,
+    "cargoJobs": "2-4"
+  },
+  "retainedOwners": {
+    "exactOriginalHtmlArc": true,
+    "commonCemElementTree": true,
+    "nativeDeclarationTemplateAndInstanceIds": true,
+    "existingRetainedTemplate": true,
+    "originalSourceMaps": true,
+    "deployedBaseMetadataSeparateFromSource": true,
+    "astSerializationOrHtmlReparse": false,
+    "secondRendererOrIslandModel": false
+  },
+  "sourceHandoff": {
+    "nativeImportOwned": true,
+    "maxDecodedBytes": 32768,
+    "inputLineEndingsBeforeEntityDecode": true,
+    "htmlCommentsIgnored": true,
+    "namedReferences": "XML named references only; other named references and literal unescaped ampersands refused",
+    "numericReferences": "native decoder profile",
+    "transformedRunMaps": "conservative original run",
+    "generatedUnmappedBytesAcquireFrames": false,
+    "diagnosticNestedBufferCoordinatesRemoved": true
+  },
+  "control": {
+    "originalOperationScope": true,
+    "cancelAndCompletedScopeCodesPreserved": true,
+    "checksDuringDiscoveryAndAroundCompilation": true,
+    "newHostDeadline": false,
+    "synchronousCompilerInnerPhase": true,
+    "fullCoordinatorBudgetEnforcement": false
+  },
+  "preparedState": {
+    "lifecycle": "partial",
+    "reason": "incomplete",
+    "instances": 1,
+    "declarationDepth": 1,
+    "renderPasses": 0,
+    "hydrationReady": false,
+    "pageMutated": false,
+    "islandCreated": false,
+    "renderPlanProduced": false,
+    "resourcesAcquired": false
+  },
+  "admissionLimits": [
+    "exactly one active declaration and matching autonomous instance",
+    "canonical direct text/cem-ml template",
+    "no customized built-in or unknown custom-element participant",
+    "no scoped/capability declarations, stylesheets, module maps or external imports",
+    "no marked-island resume",
+    "existing strict native script/resource source policy, including base href refusal"
+  ],
+  "code": [
+    {
+      "path": "packages/cem_ql/src/ssr_preparation.rs",
+      "bytes": 12875,
+      "sha256": "6a9dce5ea49230fd52ea98ae38b0ee0e7260456574eaaf230614914ef0f1896c"
+    },
+    {
+      "path": "packages/cem_ql/tests/ssr_preparation.rs",
+      "bytes": 15943,
+      "sha256": "ff418895467662d652ca20c4aea2d3e8bcc3f4dfd582d857c7a172f7bf64c8be"
+    },
+    {
+      "path": "packages/cem_ql/src/render.rs",
+      "bytes": 242517,
+      "sha256": "a471b73ba829e0fb8a914d381506717ab3e6949136a0a739dd2e2996eb1bdf4a"
+    },
+    {
+      "path": "packages/cem_ql/src/declaration_artifact.rs",
+      "bytes": 12938,
+      "sha256": "448ac56f7433bb4700dc1622da9811e1366945d2bd8bdfbc2b0b0a4337b7d21b"
+    },
+    {
+      "path": "packages/cem_ml/src/import/element_tree.rs",
+      "bytes": 12034,
+      "sha256": "ac7b47cb80cbe83958a396502ced1274cfdcb4b77071f374225030a1e6cee747"
+    },
+    {
+      "path": "packages/cem_ml/src/import/html.rs",
+      "bytes": 11167,
+      "sha256": "fe6998534b12a804c0a9738ada9ffa1c62b816435578a63d0f15c1666843c4d7"
+    },
+    {
+      "path": "packages/cem_ml/src/validation/html.rs",
+      "bytes": 76211,
+      "sha256": "4f38fdc7938e8db040420d422fb36122c99db764fcbde87d1b46c50dd9b35791"
+    },
+    {
+      "path": "packages/cem_ml/src/import/ssr_element_tests.rs",
+      "bytes": 5040,
+      "sha256": "d1fca0985a86e00bb276c8a04b187fbcd04703ddc00bd9ba77c37ddeefc74b25"
+    },
+    {
+      "path": "packages/cem_ml/tests/fixtures/inline-cem-source.json",
+      "bytes": 1289,
+      "sha256": "19f620ae54d5ca74e0b4131ede3954700074781d17ef26e083154891b10d5bbf"
+    },
+    {
+      "path": "packages/cem_ml/tests/verify-ssr-inline-browser.mjs",
+      "bytes": 1838,
+      "sha256": "4747923aa0efd791cf0a22b007f0a3d2fe30f3edd60866e7430c1daea81af5ab"
+    },
+    {
+      "path": "packages/cem_ql/project.json",
+      "bytes": 23363,
+      "sha256": "5646430a7f03281cb333dae9dd4d16f2be5ffcc0385a628ffbf571f5c70f28f6"
+    },
+    {
+      "path": "packages/cem_ml/project.json",
+      "bytes": 30475,
+      "sha256": "e09b69f33a140c3c9e629b4f90c2fe2f8d6d7412eaf1532dab5081577cb3b3ee"
+    },
+    {
+      "path": "packages/cem_ql/src/lib.rs",
+      "bytes": 11569,
+      "sha256": "c5f6f8d9ca6d7ba37703e8c95a9b0350b292251d093dca083d5270be671beefe"
+    }
+  ],
+  "frozenPresentation": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864"
+  },
+  "publicSiteDeploymentChanged": false,
+  "npmCommandAbiChanged": false,
+  "npmPackagesRebuilt": false,
+  "defaultCoreWasmRebuilt": true,
+  "next": [
+    "First-connection author payload/attributes and canonical native island/domain preparation",
+    "Shared retained render-plan generation and namespace-aware page AST application",
+    "Bounded settling/completion proof, command lowering and browser adoption parity"
+  ],
+  "wasmOptimization": {
+    "binaryen": "132.0.0",
+    "mode": "Oz",
+    "inputBytes": 27544561,
+    "outputBytes": 24234163,
+    "inputSha256": "414ade9a98b2b3f79122e340ce4b737f01fc97dacea958994cb340e791fb57b8",
+    "outputSha256": "aefc60a2eb58a3ddd679436d5e26d07c320f576a2b407fda0366dd3815d27828",
+    "imports": 28,
+    "exports": 171,
+    "milliseconds": 510385
+  },
+  "wasmInterface": {
+    "bytes": 24234163,
+    "sha256": "aefc60a2eb58a3ddd679436d5e26d07c320f576a2b407fda0366dd3815d27828",
+    "publicInterfaceMatchesPrevious": true,
+    "imports": 28,
+    "exports": 171,
+    "previousBytes": 24140826,
+    "previousSha256": "5e56d424c74db59e9a44e393759341c3ff973b3f49349e37b815d6c1446e3431",
+    "byteDelta": 93337,
+    "budgetBytes": 26214400
+  },
+  "validationLogs": [
+    {
+      "path": "/tmp/cem-ssr-inline-native-final.log",
+      "sha256": "4a1ae4095dbf8c4adad7260867ea59bd2f1a6bc7e72f63f4a1fc5f745541b36a"
+    },
+    {
+      "path": "/tmp/cem-ssr-inline-stripped.log",
+      "sha256": "de0a239da04b457d2a85948c3cce9a4ec379409db78c746d8773a6eeb020eee7"
+    },
+    {
+      "path": "/tmp/cem-ssr-inline-import.log",
+      "sha256": "8fa0942e75776fe31f51a94f37daecf1610cb9f682bd8bdc94403a843fea8bad"
+    },
+    {
+      "path": "/tmp/cem-ssr-inline-contracts.log",
+      "sha256": "74b60397f5966877dc2a2c6e5ce6785e5d14a7d649302f582d5562c85786d557"
+    },
+    {
+      "path": "/tmp/cem-ssr-inline-render.log",
+      "sha256": "fb65bdbfb3a75a16ff527b70b08fce25ef26c722aae4664609b1c97773ae1b34"
+    },
+    {
+      "path": "/tmp/cem-ssr-inline-declaration.log",
+      "sha256": "4fe6d208b0b61f0645e7199379427dcf70c942c1e7379a8e1f5db6fa481963d4"
+    },
+    {
+      "path": "/tmp/cem-ssr-inline-clippy.log",
+      "sha256": "e1aceba2eb1b10907928cb883d029e8006567d61f9c6bda9a5058511cf55dd1f"
+    },
+    {
+      "path": "/tmp/cem-ssr-inline-import-lint.log",
+      "sha256": "11112de86568cc018dc6d5dceca819785bb62f650cceba37fa963d6621be5ddd"
+    },
+    {
+      "path": "/tmp/cem-ssr-inline-preparation-lint.log",
+      "sha256": "1235b3390bf9aa885896309ca68d137bdf2a6bb21c022337ac1f09c1ccce0316"
+    },
+    {
+      "path": "/tmp/cem-ssr-inline-browser.log",
+      "sha256": "1e6a53d5389dd3a73798715735644a2f84b02cd0153cfec091f8604e52c19092"
+    },
+    {
+      "path": "/tmp/cem-ssr-inline-wasm.log",
+      "sha256": "1ce0e48d29b49f414d72d18e46a5733c432da0d2014a9c5e46f11d6eb81187b2"
+    },
+    {
+      "path": "/tmp/cem-ssr-inline-wasm-regression.log",
+      "sha256": "44f166de2a3a920d0ba8761c527230f748914eba645e763d02a8408d16989c08"
+    }
+  ]
+}

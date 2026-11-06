@@ -84,6 +84,18 @@ Focused checks are `yarn nx run cem_ml:test --lib --args=ssr_artifact` and
 `yarn nx run cem_ml:test:stripped --args='--lib ssr_artifact'` with prepared
 dependencies, plus `yarn nx run cem_ml:lint:ssr-artifacts`.
 
+### Retained HTML element/source handoff
+
+`import::element_tree::retain_html_elements` imports an already-owned native HTML
+projection into the common CEM tree while retaining its exact original `Arc` and
+source provenance. Explicit document/base metadata does not rename the source.
+`inline_cem_template_source` is the native import boundary for an explicit
+`text/cem-ml` template; it supplies decoded CEM text and authored source maps to
+the shared compiler without an HTML reparse or AST serialization. Existing
+script/resource policy and import limits apply. The first consumer is the
+[inline DCE preparation](../../docs/cem-ml-cli-ssr-proposal.md#611-implemented-preparation-for-one-inline-dce)
+in `cem-ql`; island initialization and rendering remain later work.
+
 ### Optional immutable schema assets
 
 `schema::asset_pack` provides a native-generated catalog and a per-consumer

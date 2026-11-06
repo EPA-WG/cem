@@ -79,6 +79,7 @@ pub mod native;
 pub mod namespace_names;
 pub mod parser;
 pub mod render;
+pub mod ssr_preparation;
 pub mod retained_template;
 pub mod resolve;
 pub mod semantic;

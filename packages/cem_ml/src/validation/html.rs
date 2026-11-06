@@ -1341,7 +1341,7 @@ fn build_html_events(
     }
 }
 
-fn html_decode_character_references(value: &str) -> String {
+pub(crate) fn html_decode_character_references(value: &str) -> String {
     quick_xml::escape::unescape(value)
         .map(|value| value.into_owned())
         .unwrap_or_else(|_| value.to_owned())

@@ -615,13 +615,44 @@ through Phase 9 release governance.
       The command, coordinator, wire codec and settled adoption proof remain open.
       [Archive](archive/todo-completed-ssr-artifact-contract-2026-11-05.md).
 
-- [ ] SSR shared lifecycle: add the first host-neutral inline-declaration page
-      preparation/admission slice using the retained route/artifact contracts.
-      Reuse existing declaration, instance, island and render-plan owners; add
-      failing native fixtures for one inline DCE and refusal/ownership cases.
-      Keep the initial envelope non-adoptable until the coordinator can prove
-      complete islands, fresh policy/identity and valid rendered boundaries.
-      Then wire command lowering and browser adoption/parity through that core.
+- [x] SSR shared lifecycle preparation: prepare one inline declaration and one
+      active autonomous DCE from the retained route/artifact contracts. Add
+      failing native owner-retention, decoded-source/provenance, inert/foreign,
+      ambiguity, unsupported/resume, cancellation and bound fixtures before
+      implementation. Add browser text vectors, character-reference versus literal
+      line-ending cases, unsupported entity decode refusals, customized built-in
+      refusals and tokenizer/compiler diagnostic origin regressions. Reuse native
+      CEM trees and the existing RetainedTemplate compiler owner; keep the page
+      unchanged and return non-adoptable Partial(Incomplete).
+      Completed 2026-11-05: 13 preparation tests pass in default and actual
+      stripped profiles; 24 common-import, 33 SSR-contract, 28 renderer and five
+      declaration-artifact cases pass (cohorts overlap). Five Chromium template
+      text vectors, Clippy, focused lint and existing WASM template/CSS consumers
+      pass. The optimized default core is 24,234,163 bytes under the unchanged
+      25 MiB limit, with matching public import/export descriptors. Original
+      owners/control/provenance and frozen delivery remain. No island capture,
+      rendered output or adoption proof is claimed.
+      [Archive](archive/todo-completed-ssr-inline-preparation-2026-11-05.md).
+
+- [ ] SSR first-connection island preparation: capture the prepared instance's
+      original author payload and attributes into the canonical native data-island
+      lifecycle/domain owners. Extract reusable pieces from existing native island
+      admission where needed; do not enable the whole experimental component
+      profile or invent a parallel island/data model. Add failing native topology,
+      slot/order, ownership/source-map, cancellation and marked-island resume
+      fixtures before implementation. Keep preparation non-adoptable.
+
+- [ ] SSR retained rendering and AST application: derive the sanitized native
+      processing snapshot, generate the existing render plan and apply it outside
+      the canonical island using common namespace/ownership rules. Add native
+      source-map, rendered-boundary and original-owner preservation fixtures;
+      compare the single-inline-DCE result with the browser lifecycle.
+
+- [ ] SSR coordinator and completion: admit scoped/resource closures and multiple
+      participants, settle nested work under the original operation/budget policy,
+      then prove complete islands, fresh identity/policy and valid output ranges.
+      Only that native proof may enable adoption. Wire command lowering, exports
+      and browser hydration/parity through the same core after those gates pass.
 
 
 ## Component gallery source-link maintenance (after Studio presentation work)

@@ -4,6 +4,29 @@
     "projectType": "library",
     "sourceRoot": "packages/cem_ml/src",
     "targets": {
+        "lint:ssr-inline": {
+            "executor": "nx:run-commands",
+            "cache": true,
+            "inputs": ["{projectRoot}/src/import/element_tree.rs", "{projectRoot}/src/import/html.rs", "{projectRoot}/src/validation/html.rs", "{projectRoot}/tests/verify-ssr-inline-browser.mjs", "{workspaceRoot}/eslint.config.mjs"],
+            "options": {
+                "commands": [
+                    "rustfmt --edition 2021 --check packages/cem_ml/src/import/element_tree.rs packages/cem_ml/src/import/html.rs",
+                    "node --check packages/cem_ml/tests/verify-ssr-inline-browser.mjs",
+                    "yarn eslint packages/cem_ml/tests/verify-ssr-inline-browser.mjs"
+                ],
+                "parallel": false,
+                "cwd": ""
+            }
+        },
+        "test:ssr-inline:browser": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "options": {
+                "command": "node packages/cem_ml/tests/verify-ssr-inline-browser.mjs",
+                "cwd": ""
+            },
+            "outputs": ["{workspaceRoot}/dist/reports/cem-ssr-inline-browser.json"]
+        },
         "lint:ssr-artifacts": {
             "executor": "nx:run-commands",
             "cache": true,
@@ -405,6 +428,7 @@
                 "{projectRoot}/src/**/*.rs",
                 "{projectRoot}/tests/**/*.rs",
                 "{projectRoot}/tests/fixtures/ssr-route-urls.json",
+                "{projectRoot}/tests/fixtures/inline-cem-source.json",
                 "{projectRoot}/schema/schema-assets-bootstrap-v1.json",
                 "{projectRoot}/Cargo.toml",
                 "{projectRoot}/grammar/tree-sitter-cem/**/*",
@@ -474,6 +498,7 @@
                 "{projectRoot}/src/**/*.rs",
                 "{projectRoot}/tests/**/*.rs",
                 "{projectRoot}/tests/fixtures/ssr-route-urls.json",
+                "{projectRoot}/tests/fixtures/inline-cem-source.json",
                 "{projectRoot}/Cargo.toml",
                 "{projectRoot}/grammar/tree-sitter-cem/**/*",
                 "{workspaceRoot}/Cargo.toml",

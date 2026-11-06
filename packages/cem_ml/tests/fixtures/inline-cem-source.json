@@ -1,0 +1,27 @@
+[
+  {
+    "name": "decoded ampersand",
+    "html": "<!doctype html><html><body><cem-element tag='x-inline'><template id='x-inline' type='text/cem-ml'>{p | Hello &amp; welcome}</template></cem-element></body></html>",
+    "text": "{p | Hello & welcome}"
+  },
+  {
+    "name": "HTML line endings",
+    "html": "<!doctype html><html><body><cem-element tag='x-inline'><template id='x-inline' type='text/cem-ml'>{p |\r\nLine 1\rLine 2}</template></cem-element></body></html>",
+    "text": "{p |\nLine 1\nLine 2}"
+  },
+  {
+    "name": "numeric and bracket entities",
+    "html": "<!doctype html><html><body><cem-element tag='x-inline'><template id='x-inline' type='text/cem-ml'>{p | &#x1F30D; &lt; &gt;}</template></cem-element></body></html>",
+    "text": "{p | 🌍 < >}"
+  },
+  {
+    "name": "HTML comments are not text",
+    "html": "<!doctype html><html><body><cem-element tag='x-inline'><template id='x-inline' type='text/cem-ml'>{p | A<!-- omitted -->B}</template></cem-element></body></html>",
+    "text": "{p | AB}"
+  },
+  {
+    "name": "character-reference carriage returns",
+    "html": "<!doctype html><html><body><cem-element tag='x-inline'><template id='x-inline' type='text/cem-ml'>{p | A&#13;\r\nB&#xD;}</template></cem-element></body></html>",
+    "text": "{p | A\r\nB\r}"
+  }
+]

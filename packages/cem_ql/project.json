@@ -23,6 +23,39 @@
         ]
     },
     "targets": {
+        "test:ssr-preparation:stripped": {
+            "executor": "nx:run-commands",
+            "cache": true,
+            "inputs": ["default"],
+            "outputs": [],
+            "options": {
+                "command": "cargo test --locked --package cem-ql --no-default-features --test ssr_preparation --target-dir dist/target/cem_ql_stripped",
+                "cwd": ""
+            }
+        },
+        "test:ssr-preparation:wasm-regression": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "dependsOn": ["build:wasm"],
+            "outputs": [],
+            "options": {
+                "commands": [
+                    "node packages/cem_ql/tests/checked-template-cache-wasm.mjs",
+                    "node packages/cem_ql/tests/retained-stylesheets-wasm.mjs"
+                ],
+                "parallel": false,
+                "cwd": ""
+            }
+        },
+        "lint:ssr-preparation": {
+            "executor": "nx:run-commands",
+            "cache": true,
+            "inputs": ["default"],
+            "options": {
+                "command": "rustfmt --edition 2021 --check packages/cem_ql/src/ssr_preparation.rs packages/cem_ql/tests/ssr_preparation.rs packages/cem_ml/src/import/ssr_element_tests.rs",
+                "cwd": ""
+            }
+        },
         "test:application-resource-wasm": {
             "cache": false,
             "executor": "nx:run-commands",

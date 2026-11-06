@@ -3,8 +3,25 @@
 use super::{html_range, ImportBuilder, MAX_DEPTH};
 use crate::{
     parser::{tree::CemTreeSemantics, CemAstNode},
-    validation::html::{HtmlDocumentAst, HtmlEventKind, HtmlSchemaContractCatalog},
+    validation::html::{
+        HtmlDocumentAst, HtmlEventAst, HtmlEventKind, HtmlSchemaContractCatalog,
+        HtmlSourcePosition, HtmlSourceRange,
+    },
 };
+
+/// HTML input preprocessing precedes character-reference decoding. Normalize
+/// literal line endings without changing a CR produced by `&#13;`.
+pub(super) fn decoded_text(event: &HtmlEventAst) -> String {
+    if !event.lexeme.contains('\r') {
+        return event.value.clone().unwrap_or_default();
+    }
+    let normalized = event.lexeme.replace("\r\n", "\n").replace('\r', "\n");
+    if event.kind == HtmlEventKind::RawText {
+        normalized
+    } else {
+        crate::validation::html::html_decode_character_references(&normalized)
+    }
+}
 
 pub(super) fn validate(document: &HtmlDocumentAst, max_values: usize) -> Result<(), String> {
     let catalog = HtmlSchemaContractCatalog::from_builtin();
@@ -39,10 +56,33 @@ pub(super) fn project(
 
 pub(super) fn project_tracked(
     document: &HtmlDocumentAst,
-) -> Result<(crate::parser::document::CemDocument, CemTreeSemantics, Vec<Option<u32>>), String> {
+) -> Result<
+    (
+        crate::parser::document::CemDocument,
+        CemTreeSemantics,
+        Vec<Option<u32>>,
+    ),
+    String,
+> {
     let mut event_nodes = vec![None; document.events.len()];
     let mut builder = ImportBuilder::new();
     let mut semantics = CemTreeSemantics::default();
+    semantics.sources.insert(
+        0,
+        document
+            .source_map_for_range(HtmlSourceRange {
+                start: HtmlSourcePosition {
+                    line: 1,
+                    column: 1,
+                    byte_offset: 0,
+                },
+                byte_length: document.source_text.len() as u64,
+            })
+            .unwrap_or_default(),
+    );
+    if document.origin_spans.is_some() {
+        semantics.unknown_source_lines.insert(0);
+    }
     let mut stack = vec![0];
     for (index, event) in document.events.iter().enumerate() {
         // Native event depths already describe closing-tag recovery. Do not
@@ -52,7 +92,9 @@ pub(super) fn project_tracked(
         }
         stack.truncate(event.depth + 1);
         let parent = *stack.last().ok_or("Unbalanced HTML event stream.")?;
-        let source = event.source_range.source_map();
+        let source = document
+            .source_map_for_range(event.source_range)
+            .unwrap_or_default();
         let range = html_range(event.source_range);
         let id = match event.kind {
             HtmlEventKind::Doctype => continue,
@@ -94,9 +136,14 @@ pub(super) fn project_tracked(
                         namespace,
                         name,
                         value.clone(),
-                        attribute.source_range.source_map(),
+                        document
+                            .source_map_for_range(attribute.source_range)
+                            .unwrap_or_default(),
                     );
                     semantics.values.insert(aid, value);
+                    if document.origin_spans.is_some() {
+                        semantics.unknown_source_lines.insert(aid);
+                    }
                     semantics
                         .ranges
                         .insert(aid, html_range(attribute.source_range));
@@ -114,7 +161,7 @@ pub(super) fn project_tracked(
             }
             HtmlEventKind::Text | HtmlEventKind::Rcdata | HtmlEventKind::RawText => {
                 let id = builder.ast.nodes.len() as u32;
-                let value = event.value.clone().unwrap_or_default();
+                let value = decoded_text(event);
                 // Retain lexical text for inspection, decoded values for queries.
                 let node = if event.kind == HtmlEventKind::RawText {
                     CemAstNode::RawText {
@@ -154,6 +201,9 @@ pub(super) fn project_tracked(
         };
         event_nodes[index] = Some(id);
         semantics.sources.insert(id, source);
+        if document.origin_spans.is_some() {
+            semantics.unknown_source_lines.insert(id);
+        }
         semantics.ranges.insert(id, range);
     }
     // Imported HTML never evaluates expressions, applies styles or runs scripts.

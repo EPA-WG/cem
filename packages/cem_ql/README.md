@@ -43,6 +43,25 @@ Shared `CallDepth` accounting measures active nesting; completed and recovered
 calls release depth while `FunctionCalls` stays cumulative. The existing limits
 apply equally to named, lambda and native calls.
 
+## Shared inline DCE preparation
+
+`ssr_preparation::prepare_inline_dce` prepares one inline declaration and one
+active instance from an existing unrendered native SSR envelope. It consumes the
+common CEM element tree supplied by native HTML import, retains original owners
+and source maps, and compiles through the existing `RetainedTemplate` path.
+The caller's original operation scope remains authoritative. No page mutation,
+island capture, rendering or hydration admission occurs: the returned envelope
+is `Partial(Incomplete)` and remains non-adoptable.
+
+The initial strict static profile and refusal/size limits are documented in the
+[SSR proposal](../../docs/cem-ml-cli-ssr-proposal.md#611-implemented-preparation-for-one-inline-dce).
+Run `yarn nx run cem_ql:test --test=ssr_preparation` and the actual stripped gate
+`yarn nx run cem_ql:test:ssr-preparation:stripped`, with prepared dependencies.
+`cem_ml:test:ssr-inline:browser` compares shared template-text fixtures against
+Chromium without authored scripts; it is not an SSR or hydration execution test.
+`cem_ql:test:ssr-preparation:wasm-regression` checks the existing WASM template
+cache and retained stylesheet consumers after rebuilding the default core.
+
 ## String helpers
 
 Tier A `str:` functions include literal `split(value, separator)`,

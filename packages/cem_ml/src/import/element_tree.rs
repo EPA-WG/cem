@@ -16,6 +16,171 @@ pub struct RetainedElementImport {
     pub attribute_names_ascii_case_insensitive: bool,
 }
 
+/// Import an already-owned HTML source into the common literal element tree.
+/// Source acquisition/validation policy remains with the native importer.
+pub fn retain_html_elements(
+    owner: Arc<html_parser::HtmlDocumentAst>,
+    metadata: crate::parser::tree::CemDocumentMetadata,
+) -> Result<RetainedElementImport, String> {
+    check_bytes(owner.source.byte_length)?;
+    html::validate(&owner, MAX_DOCUMENT_VALUES)?;
+    let (ast, mut semantics, event_nodes) = html::project_tracked(&owner)?;
+    let elements = owner
+        .events
+        .iter()
+        .enumerate()
+        .filter(|(_, event)| event.kind == html_parser::HtmlEventKind::StartElement)
+        .map(|(index, event)| {
+            Ok((
+                event_nodes[index].ok_or("Missing imported HTML element")?,
+                ElementSourceHandle::Html { event_index: index },
+                event.depth,
+            ))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    semantics.source_fingerprint = Some(source_fingerprint(
+        &owner.source.uri,
+        owner.source_text.as_bytes(),
+        &["html-element-owner/1"],
+    ));
+    semantics.document_metadata = Some(metadata);
+    let tree = RetainedCemTree::new(
+        ast,
+        owner.source.uri.clone(),
+        &owner.source_text,
+        semantics,
+        Some(owner.clone()),
+    )?;
+    Ok(RetainedElementImport {
+        tree,
+        elements,
+        attribute_names_ascii_case_insensitive: true,
+    })
+}
+
+pub struct InlineCemTemplateSource {
+    owner: Arc<html_parser::HtmlDocumentAst>,
+    text: String,
+    segments: Vec<(ByteRange, html_parser::HtmlSourceRange, bool)>,
+}
+impl InlineCemTemplateSource {
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+    pub fn source_map_for_range(&self, range: ByteRange) -> Option<SourceMapStack> {
+        if range.start > self.text.len() as u64
+            || u64::from(range.len) > self.text.len() as u64 - range.start
+        {
+            return None;
+        }
+        let first = self
+            .segments
+            .partition_point(|(decoded, _, _)| decoded.end() <= range.start);
+        let mut result = SourceMapStack::default();
+        for (decoded, original, identical) in self.segments[first..]
+            .iter()
+            .take_while(|(decoded, _, _)| decoded.start < range.end())
+        {
+            let mut original = *original;
+            if *identical {
+                let start = decoded.start.max(range.start);
+                let end = decoded.end().min(range.end());
+                original.start.byte_offset += start - decoded.start;
+                original.byte_length = end - start;
+            }
+            // Entity/line-ending changes map conservatively to the authored run.
+            if let Some(map) = self.owner.source_map_for_range(original) {
+                for frame in map.frames {
+                    if !result.frames.contains(&frame) {
+                        result.frames.push(frame);
+                    }
+                }
+            }
+        }
+        (!result.frames.is_empty()).then_some(result)
+    }
+}
+
+impl RetainedElementImport {
+    /// Explicit HTML-to-CEM source handoff; no serialization or HTML reparse.
+    pub fn inline_cem_template_source(
+        &self,
+        node: AstNodeId,
+    ) -> Result<InlineCemTemplateSource, String> {
+        use html_parser::{HtmlEventKind, HtmlNamespace};
+        let owner = self
+            .tree
+            .native_owner()
+            .ok_or("Missing original HTML owner")?
+            .clone()
+            .downcast::<html_parser::HtmlDocumentAst>()
+            .map_err(|_| "Handoff requires an original HTML owner")?;
+        let start = self
+            .elements
+            .iter()
+            .find_map(|(id, source, _)| match source {
+                ElementSourceHandle::Html { event_index } if *id == node => Some(*event_index),
+                _ => None,
+            })
+            .ok_or("Missing HTML template source handle")?;
+        let template = owner
+            .events
+            .get(start)
+            .ok_or("Invalid HTML source handle")?;
+        if template.namespace != HtmlNamespace::Html
+            || template.local_name.as_deref() != Some("template")
+            || !template.attributes.iter().any(|attr| {
+                !attr.duplicate
+                    && attr.local_name == "type"
+                    && attr.value.as_deref() == Some("text/cem-ml")
+            })
+        {
+            return Err("Expected an explicit text/cem-ml template".into());
+        }
+        let mut text = String::new();
+        let mut segments = Vec::new();
+        let mut closed = false;
+        for event in owner.events.iter().skip(start + 1) {
+            if event.kind == HtmlEventKind::EndElement
+                && event.depth == template.depth
+                && event.local_name.as_deref() == Some("template")
+            {
+                closed = true;
+                break;
+            }
+            match event.kind {
+                HtmlEventKind::Text | HtmlEventKind::RawText | HtmlEventKind::Rcdata => {
+                    // The native decoder's current profile supports XML named
+                    // references and numeric references. Never compile a silent
+                    // fallback spelling where browser text would be different.
+                    if event.kind != HtmlEventKind::RawText
+                        && quick_xml::escape::unescape(&event.lexeme).is_err()
+                    {
+                        return Err("Inline CEM source uses unsupported character references; escape literal ampersands".into());
+                    }
+                    let value = html::decoded_text(event);
+                    if text.len().saturating_add(value.len()) > MAX_DOCUMENT_BYTES {
+                        return Err("Inline template source limit".into());
+                    }
+                    let decoded = ByteRange::new(text.len() as u64, value.len() as u32);
+                    segments.push((decoded, event.source_range, value == event.lexeme));
+                    text.push_str(&value);
+                }
+                HtmlEventKind::Comment => {}
+                _ => return Err("Inline CEM source cannot contain HTML child elements".into()),
+            }
+        }
+        if !closed {
+            return Err("Unclosed HTML source template".into());
+        }
+        Ok(InlineCemTemplateSource {
+            owner,
+            text,
+            segments,
+        })
+    }
+}
+
 /// Preserve the original lifecycle owner and its byte coordinates. This source
 /// view admits only HTML/XML families; it grants no loading or execution.
 pub fn retain_element_lifecycle(
@@ -138,3 +303,7 @@ fn check_bytes(length: usize) -> Result<(), String> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "ssr_element_tests.rs"]
+mod ssr_element_tests;
