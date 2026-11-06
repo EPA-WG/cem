@@ -81,12 +81,7 @@ fn qualified_topology_tracks_canonical_schema_and_lifecycle() {
 #[test]
 fn native_payload_slots_keep_reference_identity_source_and_order() {
     let bytes = capsule(SOURCE);
-    let data = bind(
-        &bytes,
-        "island-one",
-        &super::super::render_control().unwrap(),
-    )
-    .unwrap();
+    let data = bind(&bytes, "island-one", &super::test_control()).unwrap();
     let [Item::Record(fields)] = data.bindings["datadom"].items.as_slice() else {
         panic!("missing frame")
     };
@@ -148,37 +143,17 @@ fn malformed_or_unimplemented_state_refuses_without_echoing_content() {
     ];
     for source in cases {
         assert_eq!(
-            bind(
-                &capsule(&source),
-                "island-one",
-                &super::super::render_control().unwrap()
-            )
-            .unwrap_err(),
+            bind(&capsule(&source), "island-one", &super::test_control()).unwrap_err(),
             INVALID
         );
     }
     let bytes = capsule(SOURCE);
     assert_eq!(
-        bind(
-            &bytes,
-            "other-instance",
-            &super::super::render_control().unwrap()
-        )
-        .unwrap_err(),
+        bind(&bytes, "other-instance", &super::test_control()).unwrap_err(),
         INVALID
     );
-    assert!(bind(
-        b"private credential",
-        "island-one",
-        &super::super::render_control().unwrap()
-    )
-    .is_err());
-    assert!(bind(
-        &bytes,
-        "island-one",
-        &super::super::render_control().unwrap()
-    )
-    .is_ok());
+    assert!(bind(b"private credential", "island-one", &super::test_control()).is_err());
+    assert!(bind(&bytes, "island-one", &super::test_control()).is_ok());
 }
 
 #[test]
@@ -204,7 +179,7 @@ fn missing_source_metadata_and_multiple_roots_refuse_but_prefixes_do_not_define_
             bind(
                 &graph.encode(&Default::default()).unwrap(),
                 "island-one",
-                &super::super::render_control().unwrap()
+                &super::test_control()
             )
             .unwrap_err(),
             INVALID
@@ -215,25 +190,15 @@ fn missing_source_metadata_and_multiple_roots_refuse_but_prefixes_do_not_define_
     assert!(bind(
         &graph.encode(&Default::default()).unwrap(),
         "island-one",
-        &super::super::render_control().unwrap()
+        &super::test_control()
     )
     .is_err());
     let renamed = SOURCE
         .replace("i:context-root", "root:context-root")
         .replace("xmlns:i=", "xmlns:root=");
-    assert!(bind(
-        &capsule(&renamed),
-        "island-one",
-        &super::super::render_control().unwrap()
-    )
-    .is_ok());
+    assert!(bind(&capsule(&renamed), "island-one", &super::test_control()).is_ok());
     let proto = SOURCE.replacen("slot=\"heading\"", "slot=\"__proto__\"", 1);
-    let data = bind(
-        &capsule(&proto),
-        "island-one",
-        &super::super::render_control().unwrap(),
-    )
-    .unwrap();
+    let data = bind(&capsule(&proto), "island-one", &super::test_control()).unwrap();
     let [Item::Record(fields)] = data.bindings["datadom"].items.as_slice() else {
         panic!()
     };
@@ -258,12 +223,7 @@ fn frame(data: &TemplateData) -> &BTreeMap<String, Vec<Item>> {
 #[test]
 fn domains_keep_types_source_keys_dataset_identity_and_nested_values() {
     use crate::eval::QueryItemViewKind;
-    let data = bind(
-        &capsule(DOMAINS),
-        "island-one",
-        &super::super::render_control().unwrap(),
-    )
-    .unwrap();
+    let data = bind(&capsule(DOMAINS), "island-one", &super::test_control()).unwrap();
     let fields = frame(&data);
     let quantity = &data.bindings["quantity"].items[0];
     assert_eq!(quantity.atom(), Some(AtomValue::String("003".into())));
@@ -387,21 +347,11 @@ fn malformed_domains_and_credential_metadata_refuse_atomically() {
     ];
     for source in cases {
         assert_eq!(
-            bind(
-                &capsule(&source),
-                "island-one",
-                &super::super::render_control().unwrap()
-            )
-            .unwrap_err(),
+            bind(&capsule(&source), "island-one", &super::test_control()).unwrap_err(),
             INVALID
         );
     }
-    assert!(bind(
-        &capsule(DOMAINS),
-        "island-one",
-        &super::super::render_control().unwrap()
-    )
-    .is_ok());
+    assert!(bind(&capsule(DOMAINS), "island-one", &super::test_control()).is_ok());
 }
 
 #[test]
@@ -417,12 +367,7 @@ fn domstringmap_projection_handles_hyphens_punctuation_and_empty_key() {
         let source = DOMAINS
             .replace("data-fruit-name", &format!("data-{suffix}"))
             .replace("key=\"fruitName\"", &format!("key=\"{key}\""));
-        let data = bind(
-            &capsule(&source),
-            "island-one",
-            &super::super::render_control().unwrap(),
-        )
-        .unwrap();
+        let data = bind(&capsule(&source), "island-one", &super::test_control()).unwrap();
         assert_eq!(
             frame(&data)["dataset"][0]
                 .view()
@@ -454,7 +399,7 @@ fn domain_origins_and_alias_budget_remain_required() {
         assert!(bind(
             &graph.encode(&Default::default()).unwrap(),
             "island-one",
-            &super::super::render_control().unwrap()
+            &super::test_control()
         )
         .is_err());
     }
@@ -462,10 +407,5 @@ fn domain_origins_and_alias_budget_remain_required() {
         .map(|n| format!("<s:slice name=\"value{n}\" kind=\"null\"/>"))
         .collect::<String>();
     let source = SOURCE.replace("<s:slices/>", &format!("<s:slices>{extra}</s:slices>"));
-    assert!(bind(
-        &capsule(&source),
-        "island-one",
-        &super::super::render_control().unwrap()
-    )
-    .is_err());
+    assert!(bind(&capsule(&source), "island-one", &super::test_control()).is_err());
 }

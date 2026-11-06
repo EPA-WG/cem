@@ -1,12 +1,12 @@
 //! Review the rendered payload closure without rewriting its retained source.
 use super::*;
-const HTML: &str = "http://www.w3.org/1999/xhtml";
+const HTML: &str = cem_ml::schema::registry::HTML_NAMESPACE_URI;
 fn check(work: &mut usize, control: &OperationControl) -> Result<(), String> {
     control
         .check_scope(ROOT_EXECUTION_SCOPE_ID)
         .map_err(|_| INVALID)?;
     *work = work.saturating_add(1);
-    if *work > super::super::inputs::LIMITS.max_values {
+    if *work > super::LIMITS.max_values {
         return Err(INVALID.into());
     }
     Ok(())

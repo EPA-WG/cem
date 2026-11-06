@@ -96,6 +96,12 @@ script/resource policy and import limits apply. The first consumer is the
 [inline DCE preparation](../../docs/cem-ml-cli-ssr-proposal.md#611-implemented-preparation-for-one-inline-dce)
 in `cem-ql`; island initialization and rendering remain later work.
 
+Native node provenance follows retained original source-boundary frames before
+falling back to document metadata. Supplying a deployed `document_uri` therefore
+does not rename an authored source; base/document URL accessors retain their
+separate resolution meaning. The native SSR island capture uses that distinction
+while retaining its original imported payload nodes.
+
 ### Optional immutable schema assets
 
 `schema::asset_pack` provides a native-generated catalog and a per-consumer

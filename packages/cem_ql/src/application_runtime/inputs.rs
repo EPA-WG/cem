@@ -3,18 +3,11 @@ use crate::{
     eval::{portable::decode_values_with_control, Item, ItemStream},
     render::TemplateData,
 };
-use cem_ml::{
-    operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID},
-    value::artifact::CemValueArtifactLimits,
-};
+use cem_ml::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) const MAX_BINDING_BYTES: usize = 16 * 1024;
-pub(crate) const LIMITS: CemValueArtifactLimits = CemValueArtifactLimits {
-    max_bytes: super::MAX_INPUT_BYTES,
-    max_values: 16_384,
-    max_depth: 64,
-};
+pub(crate) use crate::instance_island::{dataset_key, name_allowed, LIMITS};
 const INVALID: &str = "compiled declaration native inputs refused";
 
 #[derive(serde::Deserialize)]
@@ -24,18 +17,6 @@ enum Target {
     Slice,
     Dataset,
 }
-pub(crate) fn dataset_key(name: &str) -> String {
-    let mut chars = name.chars().peekable();
-    let mut out = String::new();
-    while let Some(c) = chars.next() {
-        if c == '-' && chars.peek().is_some_and(char::is_ascii_lowercase) {
-            out.push(chars.next().unwrap().to_ascii_uppercase())
-        } else {
-            out.push(c)
-        }
-    }
-    out
-}
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Binding {
@@ -43,28 +24,6 @@ struct Binding {
     index: usize,
     target: Target,
     attribute: Option<String>,
-}
-
-pub(crate) fn name_allowed(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= 256
-        && name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
-        && name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
-        && !matches!(
-            name,
-            "datadom"
-                | "attributes"
-                | "slices"
-                | "dataset"
-                | "slots"
-                | "island"
-                | "instanceID"
-                | "suggestions"
-                | "input"
-                | "position"
-        )
 }
 
 pub(crate) fn bind(

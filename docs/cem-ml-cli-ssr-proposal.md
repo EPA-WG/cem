@@ -2,8 +2,9 @@
 
 **Status:** Phase A's normalized `{page}` graph binding and shared native
 source/page/base/output URL preflight are implemented. The initial retained
-unrendered/partial SSR artifact contract and one-inline-DCE native preparation
-slice are implemented; see §5.1 and §6.1.1.
+unrendered/partial SSR artifact contract, one-inline-DCE preparation and canonical
+first-connection HTML island preparation are implemented; see §5.1, §6.1.1 and
+§6.2.1.
 The SSR command, settled/adoptable artifact, lifecycle coordinator and page
 compiler described here remain proposed and are not yet implemented.
 
@@ -534,6 +535,66 @@ The AST applier must implement the same ownership and namespace rules as the
 browser DOM applier. It must preserve nested initialized DCE bodies, render-node
 identities, source-map fidelity, raw-text boundaries, void-element rules, form
 control semantics, and declaration-owned managed styles.
+
+### 6.2.1 Implemented canonical HTML island preparation
+
+`cem_ql::ssr_island::prepare_inline_island` consumes `PreparedInlineDce`, an
+explicit bounded instance identity and the caller's original `OperationControl`.
+It returns a prepared native inert template and its namespace-aware `0.2.0`
+context root, retaining the original page/declaration owners. The original page
+is unchanged; inserting the template into a derived page AST is later work.
+The SSR envelope stays `Partial(Incomplete)`, at zero render passes and without
+hydration readiness or a rendered-range proof.
+
+First connection captures ordinary child nodes, or the contents of one direct
+unmarked HTML template when it is the sole meaningful child. Whitespace uses
+browser `String.trim` semantics, including BOM/NBSP and excluding NEL. Ordinary
+comments are meaningful for envelope ambiguity; existing render-boundary comments
+are ignored for that shape check. A plain envelope, optionally `type="text/html"`,
+is retained as an original source handle and its contents become payload.
+The canonical payload part carries `data-cem-explicit-payload="true"` for that
+case. Mixed/multiple envelopes fail with `cem-element.instance_payload_mixed`.
+A marked island still selects resume refusal before capture, so derived siblings
+cannot become input.
+
+Payload occurrences use the existing native `CemValueNode::Reference` and retain
+original `RetainedCemNode` targets, their tree/HTML owners, IDs, source parents,
+order and maps. The generated template/context/domain structure uses the shared
+constructed CEM value owner. Its explicit derivation anchor retains the source
+instance and makes no claim to physical authored lines for generated nodes.
+There is no source serialization, HTML reparse, JSON DOM, copied payload subtree
+or SSR-specific island/slot model. Native node provenance follows original
+source boundaries even when document/base metadata names the deployed URL;
+`document_uri` and URL resolution remain deployed metadata.
+
+`cem_ql::instance_island` now owns the existing canonical topology, domain
+admission, attribute/dataset conversion, payload slot indexing and native input
+rules extracted from the compiled component prototype. The prototype reexports
+the shared module under its previous path and keeps its explicit CEMV byte ingress.
+SSR uses direct retained-native ingress, with no encode/decode round trip or
+component-runtime feature grant. All nine domain parts are present exactly once
+and in schema order. Initial hydration fields are `version`, `instanceId` and
+`outputTarget=light-dom`; declaration/render/adoption stamps remain later work.
+Host attributes and DOMStringMap entries retain encounter order and literal
+values, excluding the existing internal render-scope attribute. Slots index
+rendered direct payload roots in encounter order, retaining original parents.
+Slices, resources, form, validation and event domains start empty.
+
+The retained context closure is bounded to 16,384 expanded native values, depth
+64 and 1 MiB of accounted lexical, provenance/map and node storage. Caller memory
+and logical-stack caps may lower those ceilings. Checks retain the original
+operation scope and cancellation/completed-scope codes; there is no fresh timer.
+These are bounded preparation checks, not total-heap accounting for already
+retained source owners or complete coordinator execution budgeting.
+
+This first profile supports passive HTML payloads with admitted source provenance.
+Missing source maps fail closed instead of acquiring invented origins. Existing
+reserved-alias and sensitive input refusals remain. CEM-ML source payloads,
+foreign payload domains, envelope adapters/extra headers and instance CSS require
+later shared native admission; they are explicitly refused rather than treated
+as ordinary HTML. Script/resource policy remains the earlier strict import policy.
+The prepared native bindings can feed the existing retained template next; this
+increment neither evaluates that declaration nor applies a render plan.
 
 ### 6.3 Bounded settling
 

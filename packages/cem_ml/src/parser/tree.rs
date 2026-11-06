@@ -585,6 +585,12 @@ impl RetainedCemTree {
 
     pub fn node_source_uri(&self, id: AstNodeId) -> Option<&str> {
         self.provenance.get(&id).and_then(|p| p.source_uri.as_deref())
+            .or_else(|| self.nodes.get(id as usize)?.source.frames.iter().find_map(|frame| {
+                match &frame.transform {
+                    crate::source_map::TransformKind::SourceBoundary { uri } => Some(uri.as_str()),
+                    _ => None,
+                }
+            }))
             .or_else(|| self.document_uri())
             .or_else(|| (!self.source_uri.is_empty()).then_some(self.source_uri.as_str()))
     }

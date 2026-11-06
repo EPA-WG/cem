@@ -62,6 +62,25 @@ Chromium without authored scripts; it is not an SSR or hydration execution test.
 `cem_ql:test:ssr-preparation:wasm-regression` checks the existing WASM template
 cache and retained stylesheet consumers after rebuilding the default core.
 
+## First-connection payload and island preparation
+
+`ssr_island::prepare_inline_island` captures the prepared instance's original
+passive HTML children or one explicit inert HTML envelope. It returns a canonical
+native marked template/context and the shared native input bindings, retaining
+source payload references, original owners, maps and the envelope handle. The
+page remains unchanged and non-adoptable; evaluation and AST application follow.
+An explicit caller instance identity is required, and the original operation
+control remains authoritative.
+
+The shared `instance_island` module supplies topology/domain/slot admission to
+both SSR and the isolated compiled component receiver, whose old module path
+remains a reexport. This does not enable the experimental component profile.
+See [supported forms and limits](../../docs/cem-ml-cli-ssr-proposal.md#621-implemented-canonical-html-island-preparation).
+Run `cem_ql:test --test=ssr_island`, `cem_ql:test:ssr-island:stripped`,
+`cem_ql:test:ssr-island:component`, `cem_ql:test:ssr-island:browser` and
+`cem_ql:lint:ssr-island` through `yarn nx run`. Browser observations compare
+capture shapes without authored JavaScript; they do not establish SSR hydration.
+
 ## String helpers
 
 Tier A `str:` functions include literal `split(value, separator)`,

@@ -23,6 +23,51 @@
         ]
     },
     "targets": {
+        "test:ssr-island:stripped": {
+            "executor": "nx:run-commands",
+            "cache": true,
+            "inputs": ["default"],
+            "outputs": [],
+            "options": {
+                "commands": [
+                    "cargo test --locked --package cem-ql --no-default-features --test ssr_island --test ssr_preparation --target-dir dist/target/cem_ql_stripped",
+                    "cargo test --locked --package cem-ql --no-default-features --lib --target-dir dist/target/cem_ql_stripped -- instance_island"
+                ],
+                "parallel": false,
+                "cwd": ""
+            }
+        },
+        "test:ssr-island:component": {
+            "executor": "nx:run-commands",
+            "cache": true,
+            "inputs": ["default"],
+            "outputs": [],
+            "options": {
+                "command": "cargo test --locked --package cem-ql --no-default-features --features component-runtime --lib --target-dir dist/target/cem_ql_component_native -- application_runtime",
+                "cwd": ""
+            }
+        },
+        "test:ssr-island:browser": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "outputs": ["{workspaceRoot}/dist/reports/cem-ssr-island-browser.json"],
+            "options": { "command": "node packages/cem_ql/tests/verify-ssr-island-browser.mjs", "cwd": "" }
+        },
+        "lint:ssr-island": {
+            "executor": "nx:run-commands",
+            "cache": true,
+            "inputs": ["default"],
+            "outputs": [],
+            "options": {
+                "commands": [
+                    "rustfmt --edition 2021 --check packages/cem_ql/src/ssr_island.rs packages/cem_ql/src/instance_island/mod.rs packages/cem_ql/src/application_runtime/inputs.rs packages/cem_ql/tests/ssr_island.rs packages/cem_ql/tests/ssr_preparation.rs packages/cem_ql/tests/support/ssr_page.rs",
+                    "node --check packages/cem_ql/tests/verify-ssr-island-browser.mjs",
+                    "yarn eslint packages/cem_ql/tests/verify-ssr-island-browser.mjs"
+                ],
+                "parallel": false,
+                "cwd": ""
+            }
+        },
         "test:ssr-preparation:stripped": {
             "executor": "nx:run-commands",
             "cache": true,

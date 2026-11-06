@@ -15,7 +15,7 @@ use cem_ml::{
 use std::sync::Arc;
 
 pub(crate) mod inputs;
-pub mod island;
+pub use crate::instance_island as island;
 pub mod owners;
 
 #[cfg(all(test, feature = "component-runtime"))]
@@ -27,7 +27,7 @@ mod generated {
     use crate as cem_ql;
     include!(concat!(env!("OUT_DIR"), "/application_registry.rs"));
 }
-pub const MAX_INPUT_BYTES: usize = 1024 * 1024;
+pub const MAX_INPUT_BYTES: usize = crate::instance_island::LIMITS.max_bytes;
 
 /// A deliberately small prototype boundary: one pinned template and one native
 /// JSON document. It does not promise component ownership, CSS installation,

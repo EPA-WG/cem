@@ -634,23 +634,49 @@ through Phase 9 release governance.
       rendered output or adoption proof is claimed.
       [Archive](archive/todo-completed-ssr-inline-preparation-2026-11-05.md).
 
-- [ ] SSR first-connection island preparation: capture the prepared instance's
-      original author payload and attributes into the canonical native data-island
+- [x] SSR first-connection island preparation for the admitted HTML profile:
+      capture the prepared instance's original author payload and attributes into the canonical native data-island
       lifecycle/domain owners. Extract reusable pieces from existing native island
       admission where needed; do not enable the whole experimental component
       profile or invent a parallel island/data model. Add failing native topology,
       slot/order, ownership/source-map, cancellation and marked-island resume
       fixtures before implementation. Keep preparation non-adoptable.
+      Add explicit failing fixtures for native canonical topology and original
+      payload/attribute owners, live versus explicit inert capture, empty/mixed
+      payloads, slot order, DOMStringMap keys, unsupported CEM/foreign/CSS inputs,
+      sensitive attributes, bounds, cancellation/completed scopes, source/page
+      provenance separation and output-independent instance identity. Compare
+      supported capture shapes with browser DOM without authored script execution.
+      Completed 2026-11-05: 12 failing-first cases expanded to 15 capture tests,
+      passing in default and actual stripped profiles. Thirteen shared island
+      tests and 13 earlier preparation cases pass in both profiles; the isolated
+      component receiver passes 17 cases. Common import, provenance and renderer
+      regressions pass, and Chromium matches ten passive capture observations.
+      Clippy, focused lint and existing WASM template/CSS consumers pass; the
+      optimized default core is 24,179,963 bytes under the unchanged 25 MiB limit,
+      with matching public import/export descriptors. Original native owners,
+      control, source provenance and frozen delivery remain. No page AST apply,
+      declaration evaluation or adoption claim is made.
+      [Archive](archive/todo-completed-ssr-island-preparation-2026-11-05.md).
 
-- [ ] SSR retained rendering and AST application: derive the sanitized native
-      processing snapshot, generate the existing render plan and apply it outside
-      the canonical island using common namespace/ownership rules. Add native
+- [ ] SSR retained rendering and AST application: use the prepared shared native
+      island bindings and retained declaration owner to generate the existing
+      render plan and apply it outside the canonical island using common
+      namespace/ownership rules. Add native
       source-map, rendered-boundary and original-owner preservation fixtures;
       compare the single-inline-DCE result with the browser lifecycle.
 
+- [ ] SSR additional source/domain admission: support CEM-ML source payloads
+      through the shared native import boundary, foreign payload domains and
+      instance CSS through the existing native closure/stylesheet owners. Keep
+      explicit source authority, envelope identity and source maps; never relabel
+      unsupported payloads as HTML. Add failing native adapter/admission fixtures
+      before extending the current passive HTML profile.
+
 - [ ] SSR coordinator and completion: admit scoped/resource closures and multiple
       participants, settle nested work under the original operation/budget policy,
-      then prove complete islands, fresh identity/policy and valid output ranges.
+      then validate declaration versions and prove complete islands, fresh
+      identity/policy and valid output ranges.
       Only that native proof may enable adoption. Wire command lowering, exports
       and browser hydration/parity through the same core after those gates pass.
 

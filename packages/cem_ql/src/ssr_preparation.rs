@@ -358,7 +358,7 @@ fn attributes(tree: &RetainedCemTree, id: AstNodeId) -> BTreeMap<String, String>
         })
         .collect()
 }
-fn check(page: &CemSsrPageArtifact, control: &OperationControl) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn check(page: &CemSsrPageArtifact, control: &OperationControl) -> Result<(), Vec<Diagnostic>> {
     control
         .check_scope(ROOT_EXECUTION_SCOPE_ID)
         .map_err(|error| {
@@ -371,7 +371,7 @@ fn check(page: &CemSsrPageArtifact, control: &OperationControl) -> Result<(), Ve
             )
         })
 }
-fn problem(
+pub(crate) fn problem(
     page: &CemSsrPageArtifact,
     tree: Option<&RetainedCemTree>,
     node: Option<AstNodeId>,

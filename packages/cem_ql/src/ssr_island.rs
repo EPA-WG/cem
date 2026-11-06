@@ -1,0 +1,364 @@
+//! First-connection canonical island preparation over retained CEM owners.
+use crate::{
+    eval::{Item, RetainedCemNode},
+    render::TemplateData,
+    ssr_preparation::PreparedInlineDce,
+};
+use cem_ml::{diagnostics::Diagnostic, operation_control::OperationControl};
+#[derive(Debug)]
+pub struct PreparedInlineIsland {
+    prepared: PreparedInlineDce,
+    template: Item,
+    root: Item,
+    payload: Vec<RetainedCemNode>,
+    envelope: Option<RetainedCemNode>,
+    data: TemplateData,
+    instance_id: String,
+}
+impl PreparedInlineIsland {
+    pub fn prepared(&self) -> &PreparedInlineDce {
+        &self.prepared
+    }
+    pub fn template(&self) -> &Item {
+        &self.template
+    }
+    pub fn context_root(&self) -> &Item {
+        &self.root
+    }
+    pub fn payload(&self) -> &[RetainedCemNode] {
+        &self.payload
+    }
+    pub fn payload_envelope(&self) -> Option<&RetainedCemNode> {
+        self.envelope.as_ref()
+    }
+    pub fn bindings(&self) -> &TemplateData {
+        &self.data
+    }
+    pub fn instance_id(&self) -> &str {
+        &self.instance_id
+    }
+}
+pub fn prepare_inline_island(
+    prepared: PreparedInlineDce,
+    instance_id: &str,
+    control: &OperationControl,
+) -> Result<PreparedInlineIsland, Vec<Diagnostic>> {
+    use crate::ssr_preparation::{check, problem};
+    use cem_ml::parser::tree::CemTreeNodeKind;
+    let page = prepared.page();
+    let tree = &prepared.elements().tree;
+    let instance = prepared.instance_node();
+    let fail = |code, message| problem(page, Some(tree), Some(instance), code, message);
+    check(page, control)?;
+    if instance_id.is_empty()
+        || instance_id.len() > 256
+        || instance_id.chars().all(char::is_whitespace)
+        || instance_id.chars().any(char::is_control)
+    {
+        return Err(fail(
+            "cem.ssr.instance_identity_invalid",
+            "A bounded explicit instance identity is required",
+        ));
+    }
+    let source = RetainedCemNode::new(tree.clone(), instance).unwrap();
+    let child_ids = tree.node(instance).unwrap().children.clone();
+    let templates: Vec<_> = child_ids
+        .iter()
+        .copied()
+        .filter(|id| is_html(tree, *id, "template"))
+        .collect();
+    let meaningful = child_ids
+        .iter()
+        .filter(|id| {
+            let n = tree.node(**id).unwrap();
+            !(n.kind == CemTreeNodeKind::Text && n.value.chars().all(payload_space)
+                || n.kind == CemTreeNodeKind::Comment
+                    && ["cem-render-start", "cem-render-end"].contains(&n.value.as_str()))
+        })
+        .count();
+    if !templates.is_empty() && (templates.len() != 1 || meaningful != 1) {
+        return Err(fail(
+            "cem-element.instance_payload_mixed",
+            "An unmarked payload template must be the sole meaningful direct child",
+        ));
+    }
+    let envelope = templates
+        .first()
+        .copied()
+        .map(|id| RetainedCemNode::new(tree.clone(), id).unwrap());
+    let payload_ids = if let Some(envelope) = &envelope {
+        let node = tree.node(envelope.node_id()).unwrap();
+        for id in &node.attributes {
+            let attr = tree.node(*id).unwrap();
+            if attr.name.as_ref().unwrap().local_name != "type"
+                || attr.value != cem_ml::schema::registry::HTML_CONTENT_TYPE
+            {
+                return Err(fail("cem.ssr.payload_profile_unsupported", "Only a plain HTML payload envelope is supported; source adapters require native admission"));
+            }
+        }
+        node.children.clone()
+    } else {
+        child_ids
+    };
+    // Preserve native source IDs and owners, never clone/serialize their subtrees.
+    let payload: Vec<_> = payload_ids
+        .into_iter()
+        .map(|id| RetainedCemNode::new(tree.clone(), id).unwrap())
+        .collect();
+    let mut pending = payload
+        .iter()
+        .map(|node| node.node_id())
+        .collect::<Vec<_>>();
+    let mut work = 0usize;
+    while let Some(id) = pending.pop() {
+        check(page, control)?;
+        work += 1;
+        if work > crate::instance_island::LIMITS.max_values {
+            return Err(fail(
+                "cem.ssr.island_bounds",
+                "Payload exceeds the native island work limit",
+            ));
+        }
+        let node = tree.node(id).unwrap();
+        if node
+            .name
+            .as_ref()
+            .is_some_and(|name| name.namespace_uri != HTML || name.local_name == "style")
+        {
+            return Err(fail(
+                "cem.ssr.payload_profile_unsupported",
+                "Foreign payloads and instance styles need a later admitted closure",
+            ));
+        }
+        pending.extend(node.children.iter().copied());
+    }
+    let host = tree.node(instance).unwrap();
+    if host.attributes.len() > 64 {
+        return Err(fail(
+            "cem.ssr.island_bounds",
+            "Host attributes exceed the native island alias ceiling",
+        ));
+    }
+    let origin = tree.node_source_map(instance).unwrap_or_default();
+    let mut parts = crate::instance_island::PARTS
+        .iter()
+        .enumerate()
+        .map(|(index, (name, ns))| {
+            element(name, ns, Some(PREFIXES[index + 1]), vec![], vec![], &origin)
+        })
+        .collect::<Vec<_>>();
+    for (name, value) in [
+        ("version", crate::instance_island::VERSION),
+        ("instanceId", instance_id),
+        ("outputTarget", "light-dom"),
+    ] {
+        let text = crate::render::RenderPlanNode::Text {
+            text: value.into(),
+            source_map: origin.clone(),
+        };
+        add_child(
+            &mut parts[0],
+            element(
+                "field",
+                crate::instance_island::PARTS[0].1,
+                Some(PREFIXES[1]),
+                vec![
+                    attribute("name", name, &origin),
+                    attribute("kind", "string", &origin),
+                ],
+                vec![text],
+                &origin,
+            ),
+        );
+    }
+    for id in &host.attributes {
+        let attr = tree.node(*id).unwrap();
+        let name = &attr.name.as_ref().unwrap().local_name;
+        if name == "data-cem-render-scope" {
+            continue;
+        }
+        let map = tree.node_source_map(*id).unwrap_or_default();
+        add_child(
+            &mut parts[1],
+            element(
+                "attribute",
+                crate::instance_island::PARTS[1].1,
+                Some(PREFIXES[2]),
+                vec![
+                    attribute("name", name, &map),
+                    attribute("value", &attr.value, &map),
+                ],
+                vec![],
+                &map,
+            ),
+        );
+        if let Some(suffix) = name.strip_prefix("data-") {
+            add_child(
+                &mut parts[2],
+                element(
+                    "entry",
+                    crate::instance_island::PARTS[2].1,
+                    Some(PREFIXES[3]),
+                    vec![
+                        attribute("key", &crate::instance_island::dataset_key(suffix), &map),
+                        attribute("value", &attr.value, &map),
+                    ],
+                    vec![],
+                    &map,
+                ),
+            );
+        }
+    }
+    if let crate::render::RenderPlanNode::Element {
+        attributes,
+        children,
+        ..
+    } = &mut parts[3]
+    {
+        attributes.extend([
+            attribute(
+                "content-type",
+                cem_ml::schema::registry::HTML_CONTENT_TYPE,
+                &origin,
+            ),
+            attribute("schema", cem_ml::schema::registry::HTML_SCHEMA_URI, &origin),
+        ]);
+        if envelope.is_some() {
+            attributes.push(attribute("data-cem-explicit-payload", "true", &origin));
+        }
+        children.extend(payload.iter().map(|node| {
+            crate::render::RenderPlanNode::Reference {
+                reference: cem_ml::value::CemReference::new(vec![node.query_item()]),
+                source_map: node
+                    .owner()
+                    .node_source_map(node.node_id())
+                    .unwrap_or_default(),
+            }
+        }));
+    }
+    let mut root_attrs = vec![attribute(
+        "version",
+        crate::instance_island::VERSION,
+        &origin,
+    )];
+    for (prefix, ns) in PREFIXES.iter().zip(
+        std::iter::once(crate::instance_island::NAMESPACE)
+            .chain(crate::instance_island::PARTS.iter().map(|(_, ns)| *ns)),
+    ) {
+        let mut attr = attribute(prefix, ns, &origin);
+        attr.namespace = Some("http://www.w3.org/2000/xmlns/".into());
+        attr.qualified_name = Some(format!("xmlns:{prefix}"));
+        root_attrs.push(attr);
+    }
+    let root = element(
+        "context-root",
+        crate::instance_island::NAMESPACE,
+        Some(PREFIXES[0]),
+        root_attrs,
+        parts,
+        &origin,
+    );
+    let template = element(
+        "template",
+        HTML,
+        None,
+        vec![attribute("data-cem-island", "instance", &origin)],
+        vec![root],
+        &origin,
+    );
+    let mut values = crate::eval::output::output_nodes_with_source(vec![template], source).items;
+    let template = values.remove(0);
+    let root = template
+        .view()
+        .unwrap()
+        .field("children")
+        .unwrap()
+        .remove(0);
+    check(page, control)?;
+    let bound = crate::instance_island::bind_retained_root(&root, instance_id, control);
+    check(page, control)?;
+    let data = bound.map_err(|error| {
+        if error == crate::instance_island::BOUNDS {
+            fail(
+                "cem.ssr.island_bounds",
+                "Canonical native island exceeds its value bounds",
+            )
+        } else {
+            fail(
+                "cem.ssr.island_admission_refused",
+                "Shared native island/domain admission refused the captured state",
+            )
+        }
+    })?;
+    Ok(PreparedInlineIsland {
+        prepared,
+        template,
+        root,
+        payload,
+        envelope,
+        data,
+        instance_id: instance_id.into(),
+    })
+}
+const HTML: &str = cem_ml::schema::registry::HTML_NAMESPACE_URI;
+const PREFIXES: &[&str] = &[
+    "cem-island",
+    "cem-hydration",
+    "cem-attributes",
+    "cem-dataset",
+    "cem-payload",
+    "cem-slices",
+    "cem-resources",
+    "cem-form",
+    "cem-validation",
+    "cem-events",
+];
+fn is_html(tree: &cem_ml::parser::tree::RetainedCemTree, id: u32, name: &str) -> bool {
+    tree.node(id)
+        .and_then(|node| node.name.as_ref())
+        .is_some_and(|n| n.namespace_uri == HTML && n.local_name == name)
+}
+// Match browser String.trim for first-connection shape analysis, including BOM
+// and NBSP; U+0085 is meaningful and must not be removed by Rust's broader trim.
+fn payload_space(c: char) -> bool {
+    matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
+}
+fn attribute(
+    name: &str,
+    value: &str,
+    source: &cem_ml::source_map::SourceMapStack,
+) -> crate::render::RenderPlanAttribute {
+    crate::render::RenderPlanAttribute {
+        name: name.into(),
+        namespace: None,
+        qualified_name: None,
+        value: value.into(),
+        value_stream: crate::eval::ItemStream::once(Item::Atomic(crate::eval::AtomValue::String(
+            value.into(),
+        ))),
+        contract: None,
+        source_map: source.clone(),
+    }
+}
+fn element(
+    name: &str,
+    ns: &str,
+    prefix: Option<&str>,
+    attributes: Vec<crate::render::RenderPlanAttribute>,
+    children: Vec<crate::render::RenderPlanNode>,
+    source: &cem_ml::source_map::SourceMapStack,
+) -> crate::render::RenderPlanNode {
+    crate::render::RenderPlanNode::Element {
+        tag: name.into(),
+        namespace: Some(ns.into()),
+        qualified_name: prefix.map(|prefix| format!("{prefix}:{name}")),
+        attributes,
+        children,
+        source_map: source.clone(),
+    }
+}
+fn add_child(parent: &mut crate::render::RenderPlanNode, child: crate::render::RenderPlanNode) {
+    if let crate::render::RenderPlanNode::Element { children, .. } = parent {
+        children.push(child)
+    }
+}

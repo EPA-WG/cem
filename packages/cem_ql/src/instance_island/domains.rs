@@ -129,7 +129,7 @@ fn slice(item: &Item, depth: usize, control: &OperationControl) -> Result<(Strin
     control
         .check_scope(ROOT_EXECUTION_SCOPE_ID)
         .map_err(|_| INVALID)?;
-    if depth > super::super::inputs::LIMITS.max_depth || !is_element(item, "slice", PARTS[4].1) {
+    if depth > super::LIMITS.max_depth || !is_element(item, "slice", PARTS[4].1) {
         return Err(INVALID.into());
     }
     let attrs = names(item, &["name", "kind"])?;
@@ -188,13 +188,13 @@ fn slice(item: &Item, depth: usize, control: &OperationControl) -> Result<(Strin
     Ok((name, native(item, value)?))
 }
 fn dataset_key(name: &str) -> String {
-    super::super::inputs::dataset_key(name)
+    super::dataset_key(name)
 }
 fn attribute_name(name: &str) -> bool {
     name.len() <= 256
         && name == name.to_ascii_lowercase()
         && name != "dataset"
-        && (super::super::inputs::name_allowed(name)
+        && (super::name_allowed(name)
             || name.strip_prefix("data-").is_some_and(|suffix| {
                 suffix.chars().all(|c| {
                     !c.is_control()
@@ -287,7 +287,7 @@ pub(super) fn bind(
     fields.insert("dataset".into(), vec![dataset]);
     for entry in elements(&parts[4])? {
         let (name, value) = slice(&entry, 0, control)?;
-        if !super::super::inputs::name_allowed(&name)
+        if !super::name_allowed(&name)
             || name == "dataset"
             || !aliases.insert(name.clone())
             || aliases.len() > 64

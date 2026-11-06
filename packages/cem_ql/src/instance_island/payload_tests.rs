@@ -25,7 +25,7 @@ fn bind_graph(graph: &CemValueGraph) -> Result<TemplateData, String> {
     bind(
         &fixture::unchecked(graph),
         "island-one",
-        &super::super::render_control().unwrap(),
+        &super::test_control(),
     )
 }
 fn frame(data: &TemplateData) -> &BTreeMap<String, Vec<Item>> {

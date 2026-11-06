@@ -1,0 +1,445 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-05",
+  "baseCommit": "5fc721693ec19fad0f4e437677bc8e94ada70c51",
+  "scope": "Original passive HTML payload capture and canonical retained native island preparation; no page application/evaluation/settling/adoption/publication",
+  "failingFirst": {
+    "initialPassed": 0,
+    "initialFailed": 12,
+    "laterCallerBoundsPassed": 13,
+    "laterCallerBoundsFailed": 1,
+    "initialLog": "/tmp/cem-ssr-island-red.log",
+    "callerBoundsLog": "/tmp/cem-ssr-island-bounds-red.log"
+  },
+  "validation": {
+    "defaultCapture": [
+      {
+        "passed": 15,
+        "failed": 0
+      }
+    ],
+    "actualStrippedCapturePreparationAndSharedIsland": [
+      {
+        "passed": 15,
+        "failed": 0
+      },
+      {
+        "passed": 13,
+        "failed": 0
+      },
+      {
+        "passed": 13,
+        "failed": 0
+      }
+    ],
+    "defaultSharedIsland": [
+      {
+        "passed": 13,
+        "failed": 0
+      }
+    ],
+    "isolatedComponentReceiverNoDefaultFeatures": [
+      {
+        "passed": 17,
+        "failed": 0
+      }
+    ],
+    "earlierPreparation": [
+      {
+        "passed": 13,
+        "failed": 0
+      }
+    ],
+    "commonImport": [
+      {
+        "passed": 24,
+        "failed": 0
+      }
+    ],
+    "nativeImportProvenance": [
+      {
+        "passed": 7,
+        "failed": 0
+      }
+    ],
+    "queryProvenance": [
+      {
+        "passed": 2,
+        "failed": 0
+      }
+    ],
+    "templateSourceUri": [
+      {
+        "passed": 2,
+        "failed": 0
+      }
+    ],
+    "nativeRenderer": [
+      {
+        "passed": 28,
+        "failed": 0
+      }
+    ],
+    "focusedFormattingAndJavaScriptLint": "passed",
+    "nativeClippy": "passed; existing warnings only, none in new/touched island, output-view or tree modules",
+    "browserCaptureObservations": {
+      "browser": "148.0.7778.96",
+      "authoredJavaScript": false,
+      "externalRequests": [],
+      "results": [
+        {
+          "name": "live roots",
+          "mode": "live",
+          "nodes": [
+            "#text",
+            "#comment",
+            "b",
+            "span",
+            "#text"
+          ]
+        },
+        {
+          "name": "explicit HTML",
+          "mode": "html-envelope",
+          "nodes": [
+            "b",
+            "#comment",
+            "#text"
+          ]
+        },
+        {
+          "name": "empty live",
+          "mode": "live",
+          "nodes": []
+        },
+        {
+          "name": "empty envelope",
+          "mode": "html-envelope",
+          "nodes": []
+        },
+        {
+          "name": "mixed siblings",
+          "mode": "mixed",
+          "nodes": []
+        },
+        {
+          "name": "multiple templates",
+          "mode": "mixed",
+          "nodes": []
+        },
+        {
+          "name": "meaningful comment",
+          "mode": "mixed",
+          "nodes": []
+        },
+        {
+          "name": "BOM and NBSP outside envelope",
+          "mode": "html-envelope",
+          "nodes": [
+            "b"
+          ]
+        },
+        {
+          "name": "NEL is meaningful",
+          "mode": "mixed",
+          "nodes": []
+        },
+        {
+          "name": "render boundary comments",
+          "mode": "html-envelope",
+          "nodes": [
+            "b"
+          ]
+        }
+      ]
+    },
+    "defaultProductionWasm": "passed",
+    "existingWasmConsumers": "passed: template compilation/cache and retained declaration/instance stylesheet consumers",
+    "fullWorkspaceGate": false,
+    "cohortCountsOverlap": true
+  },
+  "canonicalIsland": {
+    "templateNamespace": "http://www.w3.org/1999/xhtml",
+    "marker": {
+      "name": "data-cem-island",
+      "value": "instance"
+    },
+    "contextNamespace": "https://cem.dev/ns/runtime/data-island",
+    "contextVersion": "0.2.0",
+    "parts": [
+      "data",
+      "attributes",
+      "dataset",
+      "payload",
+      "slices",
+      "resources",
+      "form-state",
+      "validation-state",
+      "event-state"
+    ],
+    "hydrationFields": [
+      "version",
+      "instanceId",
+      "outputTarget"
+    ],
+    "outputTarget": "light-dom",
+    "explicitHtmlPayloadMarker": "data-cem-explicit-payload=true",
+    "liveDomainsInitiallyEmpty": true
+  },
+  "ownership": {
+    "originalHtmlAndCemOwnersRetained": true,
+    "payloadNativeSourceIdsParentsAndMapsRetained": true,
+    "payloadSubtreesCopied": false,
+    "payloadUsesExistingNativeReferenceOccurrences": true,
+    "canonicalStructureUsesExistingConstructedCemValues": true,
+    "generatedNodesHaveExplicitNativeDerivationAnchor": true,
+    "generatedNodesClaimAuthoredLines": false,
+    "sourceEnvelopeHandleRetained": true,
+    "astSerializationHtmlReparseOrJsonDomHandoff": false
+  },
+  "sharedCore": {
+    "module": "cem_ql::instance_island",
+    "legacyModulePathReexported": "cem_ql::application_runtime::island",
+    "legacyExplicitCemV3IngressPreserved": true,
+    "directRetainedIngressAdded": true,
+    "sharedDatasetAndAliasRules": true,
+    "secondIslandOrSlotModel": false,
+    "experimentalFeaturesEnabledByDefault": false
+  },
+  "sourceProvenance": {
+    "originalBoundaryBeforeDocumentMetadata": true,
+    "documentBaseResolutionUnchanged": true,
+    "transformedOriginsRetained": true,
+    "unmappedInputsRefusedWithoutInventedFrames": true,
+    "physicalOutputExcludedFromCaptureAndInstanceIdentity": true
+  },
+  "limits": {
+    "maxExpandedValues": 16384,
+    "maxContextDepth": 64,
+    "maxAccountedContextBytes": 1048576,
+    "maxHostAttributes": 64,
+    "maxInstanceIdBytes": 256,
+    "callerMemoryAndStackCanOnlyLowerCaps": true,
+    "originalOperationScopePreserved": true,
+    "cancellationAndCompletedScopeCodesPreserved": true,
+    "freshDeadlineCreated": false,
+    "totalHeapAllocatorOrCompleteCoordinator": false
+  },
+  "admissionLimits": [
+    "ordinary passive HTML child nodes or one sole meaningful plain HTML template",
+    "optional envelope type=text/html; other headers/adapters refused",
+    "browser trim semantics; ordinary comments meaningful, render-boundary comments ignored for envelope shape",
+    "marked islands select resume refusal, no recapture of rendered siblings",
+    "CEM source payloads, foreign payload domains and instance CSS need later shared admission",
+    "existing strict script/resource, sensitive-input and reserved-alias rules remain"
+  ],
+  "preparedState": {
+    "pageMutated": false,
+    "lifecycle": "partial",
+    "reason": "incomplete",
+    "renderPasses": 0,
+    "declarationEvaluated": false,
+    "pageAstApplied": false,
+    "hydrationReady": false,
+    "published": false
+  },
+  "verificationEnvironment": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "NX_DAEMON": "false",
+    "nxCacheSkipped": true,
+    "cargoJobs": "2-3",
+    "supersededWasmOptimizationStoppedForFinalSourceRebuild": true
+  },
+  "code": [
+    {
+      "path": "packages/cem_ql/src/ssr_island.rs",
+      "bytes": 12215,
+      "sha256": "1fe2e179aec4135db79083ebadaa3f34287e29099946b2af7b2aee185dd5d2ac"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_preparation.rs",
+      "bytes": 12897,
+      "sha256": "3c593d2a22d993cfccb8bac2a6744b7266785f0aad93012875bd10ef7c14fb22"
+    },
+    {
+      "path": "packages/cem_ql/src/instance_island/mod.rs",
+      "bytes": 13288,
+      "sha256": "049c1c4cec9d1274de5bdf72eb3e59d46ee544598d5642ee1a99598ef340db45"
+    },
+    {
+      "path": "packages/cem_ql/src/instance_island/domains.rs",
+      "bytes": 10272,
+      "sha256": "dff85031724cba6a6c5bd30a5559da1aac1ef6d5bb59ce0d9bc4201694c5dcaa"
+    },
+    {
+      "path": "packages/cem_ql/src/instance_island/payload.rs",
+      "bytes": 3672,
+      "sha256": "4f3f6462a1b8f4bfc11c948e9f863f645b01d3faa84a2a8bcd7aa82b1ee37a72"
+    },
+    {
+      "path": "packages/cem_ql/src/instance_island/tests.rs",
+      "bytes": 15579,
+      "sha256": "3722e296d7e2a8663491c940b9f3a375266aa6638a7ead92cd844f9b060e14a6"
+    },
+    {
+      "path": "packages/cem_ql/src/instance_island/payload_tests.rs",
+      "bytes": 10727,
+      "sha256": "00c70fb95f987179abf3b50efb82e9887d04837fbbc15807908b369da071ad8c"
+    },
+    {
+      "path": "packages/cem_ql/src/eval/output.rs",
+      "bytes": 13978,
+      "sha256": "fbba4282752f74ccdb6b4480a051a5d801066277b8b2bf3f19b22f437d97cfe5"
+    },
+    {
+      "path": "packages/cem_ql/src/application_runtime.rs",
+      "bytes": 7079,
+      "sha256": "2c98bf3083fa2eb3ad5c2b14e8a0d03348911510b5c33298e5b8522d6ef83aee"
+    },
+    {
+      "path": "packages/cem_ql/src/application_runtime/inputs.rs",
+      "bytes": 13763,
+      "sha256": "039b6a6c3e4ba841a2a95bcc06cd273cfa45a19957c54a30094a2de5c60cca16"
+    },
+    {
+      "path": "packages/cem_ql/src/lib.rs",
+      "bytes": 11614,
+      "sha256": "dd24ed68eb20fd48bbfec7007aa4409a5de65f77636f7cf88b47a694581893aa"
+    },
+    {
+      "path": "packages/cem_ml/src/parser/tree.rs",
+      "bytes": 26772,
+      "sha256": "f76f60a2129ebc96c5b9ec09b00f537c96cfe26389de4e69b7a7109773a98ee0"
+    },
+    {
+      "path": "packages/cem_ql/tests/ssr_island.rs",
+      "bytes": 17884,
+      "sha256": "43c9c968f001f08a8680c72c40d844ab2cddc25cef199482e947844d0d4642cc"
+    },
+    {
+      "path": "packages/cem_ql/tests/ssr_preparation.rs",
+      "bytes": 13137,
+      "sha256": "586c6a2769a5191055751ac8a0b3b0f40b42df229714aa8c58fb69cbea5157f3"
+    },
+    {
+      "path": "packages/cem_ql/tests/support/ssr_page.rs",
+      "bytes": 2973,
+      "sha256": "b03acade2d739c24bcda84d7d5cba5f87ddc1205bccfaaa4867c7e8334ee6d39"
+    },
+    {
+      "path": "packages/cem_ql/tests/fixtures/ssr-island-capture.json",
+      "bytes": 1736,
+      "sha256": "d4f202faeee5018a4df81357f9e8667a2063fcc2a646210e717d5ce64bf5710f"
+    },
+    {
+      "path": "packages/cem_ql/tests/verify-ssr-island-browser.mjs",
+      "bytes": 2718,
+      "sha256": "067fa0e36c04dd397b589ee4dcca437d035fc493226373ec6ef6ef6e835d50aa"
+    },
+    {
+      "path": "packages/cem_ql/project.json",
+      "bytes": 25554,
+      "sha256": "f79b92f3c2bbd709bebe8b4565f78e96fe89bcaaaf4aa8c42a2b9029e17f7a9b"
+    }
+  ],
+  "frozenPresentation": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864"
+  },
+  "publicSiteDeploymentChanged": false,
+  "npmCommandAbiChanged": false,
+  "npmPackagesRebuilt": false,
+  "defaultCoreWasmRebuilt": true,
+  "next": [
+    "Generate/apply the existing retained render plan using prepared native bindings",
+    "Admit additional CEM source/foreign payload and instance CSS profiles through shared owners",
+    "Bounded coordinator, declaration/version/identity proof, command lowering and browser adoption"
+  ],
+  "wasmOptimization": {
+    "binaryen": "132.0.0",
+    "mode": "Oz",
+    "inputBytes": 27480136,
+    "outputBytes": 24179963,
+    "inputSha256": "99d98f1b6a45a51867ca6b8bd79e4e16cb209fc3cdc870dff2aee1c736136f93",
+    "outputSha256": "fb436c99bc56a3911523b639f84684700b3f0cd5d8aedaca13519c8cb5a5fb38",
+    "imports": 28,
+    "exports": 171,
+    "milliseconds": 504319
+  },
+  "wasmInterface": {
+    "bytes": 24179963,
+    "sha256": "fb436c99bc56a3911523b639f84684700b3f0cd5d8aedaca13519c8cb5a5fb38",
+    "publicInterfaceMatchesPrevious": true,
+    "imports": 28,
+    "exports": 171,
+    "previousBytes": 24234163,
+    "previousSha256": "aefc60a2eb58a3ddd679436d5e26d07c320f576a2b407fda0366dd3815d27828",
+    "byteDelta": -54200,
+    "budgetBytes": 26214400
+  },
+  "validationLogs": [
+    {
+      "path": "/tmp/cem-ssr-island-green.log",
+      "sha256": "e786efd635164cdd5088622e18d32b88b5d80e085f397165e16775502167d074"
+    },
+    {
+      "path": "/tmp/cem-ssr-island-shared.log",
+      "sha256": "7ecb3acdc7e80d3a2025228f7c0c32acdde599b6c00f0cf90cf18ed67c8707e0"
+    },
+    {
+      "path": "/tmp/cem-ssr-island-stripped.log",
+      "sha256": "ab46c851632673a3176dc41cf759db474b1c96f45639da5297a93aa792bd4beb"
+    },
+    {
+      "path": "/tmp/cem-ssr-island-component.log",
+      "sha256": "d72991aa9d9ae9ae2570480c5f54bf8b4d30e5c6c32cb8e1dcb098e8faa96227"
+    },
+    {
+      "path": "/tmp/cem-ssr-island-preparation.log",
+      "sha256": "5b55f3e45f071afb139a1f5de5944ea2fc7c77a765a6be2571852a41e893c444"
+    },
+    {
+      "path": "/tmp/cem-ssr-island-import.log",
+      "sha256": "d6c02e8b2f4c3970a8200195bac2939d373aa2e6fbce4a21d9da366d30d9adda"
+    },
+    {
+      "path": "/tmp/cem-ssr-island-import-provenance.log",
+      "sha256": "bdee81974ace4857987b02f548ef9777f649f26bdc0673c5708458042e7462ec"
+    },
+    {
+      "path": "/tmp/cem-ssr-island-query-provenance.log",
+      "sha256": "3c3e028a81f6b00873d7feb23103a5f4abca0787b7b609a0f4da316e93a88e50"
+    },
+    {
+      "path": "/tmp/cem-ssr-island-source-uri.log",
+      "sha256": "cfd3ad98ec4b901a85aaad983a867ca0ef58e9ab12f0c7378ec4cd0632f455c4"
+    },
+    {
+      "path": "/tmp/cem-ssr-island-render.log",
+      "sha256": "5b2ffc7ab30a13f5ad08ea8c7b177cb8370d82b73e6caa6b4d010e98d515341f"
+    },
+    {
+      "path": "/tmp/cem-ssr-island-clippy.log",
+      "sha256": "357f03888670e150e6b9b137c138cac2704832c394dc55afee25d4ddc5d82d2a"
+    },
+    {
+      "path": "/tmp/cem-ssr-island-lint.log",
+      "sha256": "b242203275474d01e43ae3429ce0b7d3e84fd9527678220db57f5e482084c966"
+    },
+    {
+      "path": "/tmp/cem-ssr-island-browser.log",
+      "sha256": "aab2b1fdf0c34e15442c50551631fe8eb6e701038114311da3413b6cfb6fe7f7"
+    },
+    {
+      "path": "/tmp/cem-ssr-island-wasm-final.log",
+      "sha256": "d19773857c1bbc156efc423055824d3a3edfa44b1cb759671cabad941fd9dd5b"
+    },
+    {
+      "path": "/tmp/cem-ssr-island-wasm-regression.log",
+      "sha256": "6037dd36d1162786a7c16cab8289d723fa10d2f988dc39e1b34c32b2fe214e84"
+    }
+  ]
+}

@@ -9,6 +9,8 @@ pub struct OutputView {
     xpath: super::xpath_values::ProjectionCache,
     path: Vec<usize>,
     attribute: Option<usize>,
+    // Explicit native derivation anchor; ordinary output has no source grant.
+    source: Option<Arc<super::RetainedCemNode>>,
 }
 
 pub fn output_nodes(nodes: Vec<RenderPlanNode>) -> ItemStream {
@@ -16,6 +18,17 @@ pub fn output_nodes(nodes: Vec<RenderPlanNode>) -> ItemStream {
 }
 
 pub fn shared_output_nodes(owner: Arc<Vec<RenderPlanNode>>) -> ItemStream {
+    output_nodes_with_owner(owner, None)
+}
+
+/// Constructed nodes retain their original native derivation owner. This is
+/// provenance, not a source reparse or permission/adoption grant. Generated nodes
+/// do not claim physical author line numbers. Reference targets stay untouched.
+pub fn output_nodes_with_source(nodes: Vec<RenderPlanNode>, source: super::RetainedCemNode) -> ItemStream {
+    output_nodes_with_owner(Arc::new(nodes), Some(Arc::new(source)))
+}
+
+fn output_nodes_with_owner(owner: Arc<Vec<RenderPlanNode>>, source: Option<Arc<super::RetainedCemNode>>) -> ItemStream {
     let xpath = Arc::new(std::sync::Mutex::new(None));
     ItemStream::from_items(
         (0..owner.len())
@@ -25,6 +38,7 @@ pub fn shared_output_nodes(owner: Arc<Vec<RenderPlanNode>>) -> ItemStream {
                     xpath: xpath.clone(),
                     path: vec![index],
                     attribute: None,
+                    source: source.clone(),
                 })
             })
             .collect(),
@@ -45,6 +59,7 @@ pub fn output_attribute(attribute: RenderPlanAttribute) -> Item {
         xpath: Arc::new(std::sync::Mutex::new(None)),
         path: vec![0],
         attribute: Some(0),
+        source: None,
     })
 }
 
@@ -53,7 +68,7 @@ impl OutputView {
         &self.xpath
     }
     pub(crate) fn owner_values(&self) -> ItemStream {
-        shared_output_nodes(self.owner.clone())
+        output_nodes_with_owner(self.owner.clone(), self.source.clone())
     }
 
     pub fn node(&self) -> &RenderPlanNode {
@@ -80,11 +95,18 @@ impl OutputView {
             xpath: self.xpath.clone(),
             path,
             attribute: None,
+            source: self.source.clone(),
         })
     }
 }
 
 impl QueryItemView for OutputView {
+    fn provenance(&self) -> Option<cem_ml::value::artifact::CemValueProvenance> {
+        let source = self.source.as_ref()?.query_item();
+        let mut provenance = source.view()?.provenance()?;
+        provenance.line_number = None;
+        Some(provenance)
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }

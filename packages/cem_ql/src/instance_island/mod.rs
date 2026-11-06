@@ -1,10 +1,8 @@
 //! Native island admission with explicit domain and live-state gates.
-#[path = "island_domains.rs"]
 mod domains;
-#[path = "island_payload.rs"]
 mod payload;
 use crate::{
-    eval::{portable::decode_values_with_control, AtomValue, Item, ItemStream},
+    eval::{AtomValue, Item, ItemStream},
     render::TemplateData,
 };
 use cem_ml::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
@@ -29,9 +27,57 @@ pub const PARTS: &[(&str, &str)] = &[
     ),
     ("event-state", "https://cem.dev/ns/runtime/event-state"),
 ];
+
+/// Shared native island input ceilings, unchanged from the compiled receiver.
+pub(crate) const LIMITS: cem_ml::value::artifact::CemValueArtifactLimits =
+    cem_ml::value::artifact::CemValueArtifactLimits {
+        max_bytes: 1024 * 1024,
+        max_values: 16_384,
+        max_depth: 64,
+    };
+pub(crate) const BOUNDS: &str = "native island bounds exceeded";
+pub(crate) fn dataset_key(name: &str) -> String {
+    let mut chars = name.chars().peekable();
+    let mut out = String::new();
+    while let Some(c) = chars.next() {
+        if c == '-' && chars.peek().is_some_and(char::is_ascii_lowercase) {
+            out.push(chars.next().unwrap().to_ascii_uppercase())
+        } else {
+            out.push(c)
+        }
+    }
+    out
+}
+pub(crate) fn name_allowed(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 256
+        && name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+        && !matches!(
+            name,
+            "datadom"
+                | "attributes"
+                | "slices"
+                | "dataset"
+                | "slots"
+                | "island"
+                | "instanceID"
+                | "suggestions"
+                | "input"
+                | "position"
+        )
+}
+
+#[cfg(test)]
+fn test_control() -> OperationControl {
+    OperationControl::new(cem_ml::scheduler::AbortSignal::new())
+}
+
 const INVALID: &str = "compiled declaration native island refused";
 
-pub(super) fn has_source(item: &Item) -> bool {
+pub(crate) fn has_source(item: &Item) -> bool {
     item.view()
         .and_then(|view| view.provenance())
         .is_some_and(|source| {
@@ -114,6 +160,11 @@ fn is_element(item: &Item, name: &str, namespace: &str) -> bool {
         && field(item, "namespace").as_deref() == Some(namespace)
 }
 
+#[cfg(any(
+    test,
+    feature = "component-runtime",
+    feature = "application-source-runtime"
+))]
 pub(crate) fn bind(
     bytes: &[u8],
     instance_id: &str,
@@ -122,9 +173,9 @@ pub(crate) fn bind(
     if !bytes.starts_with(b"CEMV\x03") {
         return Err(INVALID.into());
     }
-    let values = decode_values_with_control(
+    let values = crate::eval::portable::decode_values_with_control(
         bytes,
-        &super::inputs::LIMITS,
+        &LIMITS,
         control,
         ROOT_EXECUTION_SCOPE_ID,
     )
@@ -132,6 +183,27 @@ pub(crate) fn bind(
     let [root] = values.items.as_slice() else {
         return Err(INVALID.into());
     };
+    bind_root(root, instance_id, control)
+}
+
+/// Direct retained native ingress; never encodes/reloads a document.
+pub(crate) fn bind_retained_root(
+    root: &Item,
+    instance_id: &str,
+    control: &OperationControl,
+) -> Result<TemplateData, String> {
+    bounded_root(root, control)?;
+    bind_root(root, instance_id, control)
+}
+
+fn bind_root(
+    root: &Item,
+    instance_id: &str,
+    control: &OperationControl,
+) -> Result<TemplateData, String> {
+    control
+        .check_scope(ROOT_EXECUTION_SCOPE_ID)
+        .map_err(|_| INVALID)?;
     let root = if field(root, "kind").as_deref() == Some("document") {
         let roots = elements(root)?;
         let [root] = roots.as_slice() else {
@@ -160,7 +232,7 @@ pub(crate) fn bind(
         if index != 3 && !attrs(part)?.is_empty() {
             return Err(INVALID.into());
         }
-        if !matches!(index, 0 | 1 | 2 | 3 | 4) && !elements(part)?.is_empty() {
+        if !matches!(index, 0..=4) && !elements(part)?.is_empty() {
             return Err(INVALID.into());
         }
     }
@@ -197,10 +269,22 @@ pub(crate) fn bind(
     {
         return Err(INVALID.into());
     }
-    if attrs(&parts[3])?
+    let mut payload_attrs = attrs(&parts[3])?;
+    if let Some(marker) = payload_attrs.remove("data-cem-explicit-payload") {
+        if marker != "true" {
+            return Err(INVALID.into());
+        }
+    }
+    if payload_attrs
         != BTreeMap::from([
-            ("content-type".into(), "text/html".into()),
-            ("schema".into(), "https://cem.dev/ns/data/html/1".into()),
+            (
+                "content-type".into(),
+                cem_ml::schema::registry::HTML_CONTENT_TYPE.into(),
+            ),
+            (
+                "schema".into(),
+                cem_ml::schema::registry::HTML_SCHEMA_URI.into(),
+            ),
         ])
     {
         return Err(INVALID.into());
@@ -226,9 +310,84 @@ pub(crate) fn bind(
 }
 
 #[cfg(test)]
-#[path = "island_tests.rs"]
 mod tests;
 
 #[cfg(test)]
-#[path = "island_payload_tests.rs"]
 mod payload_tests;
+
+// Inspect the owning native value closure, excluding original-source parents.
+// Reference targets retain their source arenas and count toward expanded work.
+fn bounded_root(root: &Item, control: &OperationControl) -> Result<(), String> {
+    let scopes = control.scope_tree();
+    let policy = scopes
+        .scope(ROOT_EXECUTION_SCOPE_ID)
+        .ok_or(INVALID)?
+        .effective_policy;
+    let byte_limit = LIMITS
+        .max_bytes
+        .min(policy.memory_bytes.try_into().unwrap_or(usize::MAX));
+    let depth_limit = LIMITS.max_depth.min(policy.stack_depth as usize);
+    let mut pending = vec![(root.clone(), 0usize)];
+    let mut work = 0usize;
+    let mut bytes = 0usize;
+    while let Some((item, depth)) = pending.pop() {
+        control
+            .check_scope(ROOT_EXECUTION_SCOPE_ID)
+            .map_err(|_| INVALID)?;
+        work = work.saturating_add(1);
+        if work > LIMITS.max_values || depth > depth_limit {
+            return Err(BOUNDS.into());
+        }
+        if let Some(atom) = item.atom() {
+            bytes = bytes.saturating_add(crate::render::item_to_string(&Item::Atomic(atom)).len());
+        } else {
+            let view = item.view().ok_or(INVALID)?;
+            for name in ["name", "namespace", "value"] {
+                if let Some(values) = view.field(name) {
+                    for value in values {
+                        if let Some(atom) = value.atom() {
+                            bytes = bytes.saturating_add(
+                                crate::render::item_to_string(&Item::Atomic(atom)).len(),
+                            );
+                        }
+                    }
+                }
+            }
+            for name in ["children", "attributes", "values", "targets"] {
+                if let Some(values) = view.field(name) {
+                    if pending
+                        .len()
+                        .saturating_add(values.len())
+                        .saturating_add(work)
+                        > LIMITS.max_values
+                    {
+                        return Err(BOUNDS.into());
+                    }
+                    pending.extend(values.into_iter().map(|value| (value, depth + 1)));
+                }
+            }
+        }
+        if let Some(map) = item.source_map() {
+            bytes = bytes.saturating_add(
+                map.frames
+                    .len()
+                    .saturating_mul(std::mem::size_of::<cem_ml::source_map::SourceMapFrame>()),
+            );
+            for frame in map.frames {
+                if let cem_ml::source_map::TransformKind::SourceBoundary { uri } = frame.transform {
+                    bytes = bytes.saturating_add(uri.len());
+                }
+            }
+        }
+        if let Some(provenance) = item.view().and_then(|v| v.provenance()) {
+            bytes = bytes
+                .saturating_add(provenance.source_uri.as_ref().map_or(0, String::len))
+                .saturating_add(provenance.source_key.as_ref().map_or(0, String::len));
+        }
+        bytes = bytes.saturating_add(std::mem::size_of::<Item>());
+        if bytes > byte_limit {
+            return Err(BOUNDS.into());
+        }
+    }
+    Ok(())
+}

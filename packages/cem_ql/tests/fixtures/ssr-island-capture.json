@@ -1,0 +1,76 @@
+[
+  {
+    "name": "live roots",
+    "body": "<x-inline>Lead<!--note--><b slot='heading'>One</b><span slot='heading'>Two</span>Tail</x-inline>",
+    "mode": "live",
+    "nodes": [
+      "#text",
+      "#comment",
+      "b",
+      "span",
+      "#text"
+    ]
+  },
+  {
+    "name": "explicit HTML",
+    "body": "<x-inline> \n<template><b>One</b><!--note-->Tail</template>\n</x-inline>",
+    "mode": "html-envelope",
+    "nodes": [
+      "b",
+      "#comment",
+      "#text"
+    ]
+  },
+  {
+    "name": "empty live",
+    "body": "<x-inline></x-inline>",
+    "mode": "live",
+    "nodes": []
+  },
+  {
+    "name": "empty envelope",
+    "body": "<x-inline><template></template></x-inline>",
+    "mode": "html-envelope",
+    "nodes": []
+  },
+  {
+    "name": "mixed siblings",
+    "body": "<x-inline><template></template><p>Other</p></x-inline>",
+    "mode": "mixed",
+    "nodes": []
+  },
+  {
+    "name": "multiple templates",
+    "body": "<x-inline><template></template><template></template></x-inline>",
+    "mode": "mixed",
+    "nodes": []
+  },
+  {
+    "name": "meaningful comment",
+    "body": "<x-inline><!--note--><template></template></x-inline>",
+    "mode": "mixed",
+    "nodes": []
+  },
+  {
+    "name": "BOM and NBSP outside envelope",
+    "body": "<x-inline>﻿ <template><b>One</b></template>﻿</x-inline>",
+    "mode": "html-envelope",
+    "nodes": [
+      "b"
+    ]
+  },
+  {
+    "name": "NEL is meaningful",
+    "body": "<x-inline><template></template></x-inline>",
+    "mode": "mixed",
+    "nodes": []
+  },
+  {
+    "name": "render boundary comments",
+    "body": "<x-inline><!--cem-render-start--><template><b>One</b></template><!--cem-render-end--></x-inline>",
+    "mode": "html-envelope",
+    "nodes": [
+      "b"
+    ]
+  }
+]

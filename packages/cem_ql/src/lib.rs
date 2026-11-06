@@ -80,6 +80,8 @@ pub mod namespace_names;
 pub mod parser;
 pub mod render;
 pub mod ssr_preparation;
+pub mod ssr_island;
+pub mod instance_island;
 pub mod retained_template;
 pub mod resolve;
 pub mod semantic;
