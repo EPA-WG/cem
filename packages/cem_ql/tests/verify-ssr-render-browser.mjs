@@ -86,7 +86,8 @@ try {
                 const attributes = Object.fromEntries(Array.from(node.attributes)
                     .filter(attr => !internal.has(attr.name) && !attr.name.startsWith('xmlns'))
                     .map(attr => [attr.name, attr.value]));
-                return { tag: node.localName, attributes, children: Array.from(node.childNodes).filter(child => child.nodeType !== 3 || child.textContent !== '').map(exportObservation) };
+                const content = node.localName === 'template' ? node.content.childNodes : node.childNodes;
+                return { tag: node.localName, attributes, children: Array.from(content).filter(child => child.nodeType !== 3 || child.textContent !== '').map(exportObservation) };
             }
             const children = Array.from(host.childNodes);
             const start = children.findIndex(node => node.nodeType === 8 && node.textContent === 'cem-render-start');

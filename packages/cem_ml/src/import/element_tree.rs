@@ -1,6 +1,9 @@
 //! Literal element-tree import with original event identity as compatibility metadata.
 //! Consumers navigate the retained CEM tree, never these parser events.
 use super::*;
+#[path = "cem_payload.rs"]
+mod cem_payload;
+pub use cem_payload::{retain_inline_cem_payload, RetainedCemPayloadSource};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ElementSourceHandle {

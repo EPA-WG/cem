@@ -4,6 +4,40 @@
     "sourceRoot": "packages/cem-elements/src",
     "projectType": "library",
     "targets": {
+        "test:ssr-source-admission": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "dependsOn": [
+                "build"
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-ssr-render-native.json",
+                "{workspaceRoot}/dist/reports/cem-ssr-render-browser.json",
+                "{workspaceRoot}/dist/reports/cem-browser-native-slots.json",
+                "{workspaceRoot}/dist/reports/cem-browser-host-publication.json"
+            ],
+            "options": {
+                "commands": [
+                    "cargo test --locked --package cem-ml --lib --target-dir dist/target/cem_ml -- ssr_cem_payload",
+                    "cargo test --locked --package cem-ml --no-default-features --lib --target-dir dist/target/cem_ml_stripped -- ssr_cem_payload",
+                    "cargo test --locked --package cem-ql --test ssr_cem_payload --test ssr_render --test ssr_host_commit --test ssr_island --test ssr_preparation --test native_payload_slots --target-dir dist/target/cem_ql",
+                    "cargo test --locked --package cem-ql --lib --target-dir dist/target/cem_ql -- source_payload_admission",
+                    "cargo test --locked --package cem-ql --no-default-features --test ssr_cem_payload --test ssr_render --test ssr_host_commit --test ssr_island --test ssr_preparation --test native_payload_slots --target-dir dist/target/cem_ql_stripped",
+                    "cargo test --locked --package cem-ql --no-default-features --lib --target-dir dist/target/cem_ql_stripped -- source_payload_admission",
+                    "node packages/cem_ql/tests/verify-browser-native-slots.mjs",
+                    "node packages/cem_ql/tests/verify-browser-host-commit.mjs",
+                    "node packages/cem_ql/tests/verify-ssr-render-browser.mjs"
+                ],
+                "parallel": false,
+                "cwd": "",
+                "env": {
+                    "CARGO_INCREMENTAL": "0",
+                    "CARGO_PROFILE_DEV_DEBUG": "0",
+                    "CARGO_PROFILE_TEST_DEBUG": "0",
+                    "CARGO_BUILD_JOBS": "2"
+                }
+            }
+        },
         "test:native-slots": {
             "executor": "nx:run-commands",
             "cache": false,

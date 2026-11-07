@@ -255,6 +255,46 @@ payload/snapshot codecs and DOM-template projection remain separate compatibilit
 paths. This browser slot boundary does not broaden SSR source/domain admission,
 prove a complete SSR island or authorize hydration adoption.
 
+## Native SSR CEM-ML source admission
+
+The bounded inline SSR profile admits an unmarked direct
+`template[type="text/cem-ml"]`, optionally carrying the canonical
+`data-cem-schema="https://cem.dev/ns/cem-ml/1"`. The canonical payload keeps the
+entire original source template and records `content-type="text/cem-ml"` and
+its CEM-ML schema. Ordinary HTML envelopes still contribute their contents.
+Shorthand normalization and additional payload/schema/CSS profiles require
+separate admission; they remain explicit refusals in this SSR profile.
+
+`cem_ml::import::element_tree::retain_inline_cem_payload` owns the source handoff.
+It retains the native HTML owner, maps decoded text through the original source
+segments, and uses the controlled CEM tokenizer and schema machine to derive a
+namespace-aware native tree. Self-contained ready namespace bindings are
+required; unknown or unresolved namespaces are not guessed into HTML. References
+and expressions remain source syntax, with no payload evaluation, loading or CSS
+execution. Entity decoding occurs at the HTML import boundary, once.
+
+The shared receiver consumes this already admitted native owner; it never starts
+a source compiler from packet metadata. Compiled portable receivers continue to
+refuse source payloads without the original native admission proof.
+
+The derived tree has distinct source-selection identity per original template,
+retained authored source maps and explicit unknown line numbers. Source/page/base
+metadata stay separate from the physical output URI. `TemplateData` holds the
+admitted source owner outside authored bindings and serialization. Reuse across
+host/island publication requires the exact original tree, template node and
+source-admission operation. A new operation is refused before SSR evaluation;
+a portable graph carrying matching provenance strings cannot manufacture the
+original source admission. The original inert source remains the single stored
+authority and the derived AST is never serialized alongside it.
+
+Source parsing is limited to 32 KiB, 16,384 nodes and depth 64, further reduced by
+explicit import limits and the original operation's stack/memory policy.
+Accounting survives while the last native tree owner is retained. Cancellation,
+failed parsing and refused publication do not publish a partial source tree.
+A successful single pass still produces `Partial(Incomplete)` and cannot enable
+hydration adoption. Shared browser observations establish inert source/island
+content parity; they do not claim browser execution of the derived source AST.
+
 ## Declaration version and SSR compatibility
 
 A declaration may publish its template contract as an exact Semantic Version:

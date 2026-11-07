@@ -54,6 +54,17 @@ pub fn render_and_apply_inline_dce(
     let instance = input.prepared().instance_node();
     let fail = |code, message| problem(page, Some(source), Some(instance), code, message);
     check(page, control)?;
+    if input
+        .bindings()
+        .native_payload_source
+        .as_ref()
+        .is_some_and(|source| !source.matches_operation(control))
+    {
+        return Err(fail(
+            "cem.ssr.payload_source_stale",
+            "CEM-ML source admission belongs to the original operation",
+        ));
+    }
     input
         .prepared()
         .elements()
@@ -98,12 +109,13 @@ pub fn render_and_apply_inline_dce(
         return Err(errors);
     }
     let anchor = crate::eval::RetainedCemNode::new(source.clone(), instance).unwrap();
-    let committed = match crate::instance_island::host_commit::prepare_host_commit(
+    let committed = match crate::instance_island::host_commit::prepare_host_commit_with_source(
         input.template(),
         anchor.clone(),
         input.instance_id(),
         &plan.host_attribute_updates,
         control,
+        input.bindings().native_payload_source.as_ref(),
     ) {
         Ok(state) => Arc::new(state),
         Err(error) => {

@@ -31,7 +31,7 @@
             ],
             "outputs": [],
             "options": {
-                "command": "cargo test --locked --package cem-ql --no-default-features --test native_payload_slots --test ssr_host_commit --test ssr_render --test ssr_island --test ssr_preparation --target-dir dist/target/cem_ql_stripped",
+                "command": "cargo test --locked --package cem-ql --no-default-features --test ssr_cem_payload --test native_payload_slots --test ssr_host_commit --test ssr_render --test ssr_island --test ssr_preparation --target-dir dist/target/cem_ql_stripped",
                 "cwd": ""
             }
         },

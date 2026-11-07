@@ -334,5 +334,30 @@
         ]
       }
     ]
+  },
+  {
+    "name": "canonical CEM-ML source payload remains inert",
+    "template": "{p | Visible}",
+    "body": "<x-inline><template type='text/cem-ml'>{item @key=payload | {$ 1 div 0}}</template></x-inline>",
+    "rendered": [
+      {
+        "tag": "p",
+        "attributes": {},
+        "children": [
+          "Visible"
+        ]
+      }
+    ],
+    "payload": [
+      {
+        "tag": "template",
+        "attributes": {
+          "type": "text/cem-ml"
+        },
+        "children": [
+          "{item @key=payload | {$ 1 div 0}}"
+        ]
+      }
+    ]
   }
 ]

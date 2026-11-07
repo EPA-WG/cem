@@ -287,3 +287,58 @@ fn native_wasm_fixture_refusals_cover_valid_and_malformed_reference_graphs() {
     }
     assert!(bind_graph(&graph).is_ok());
 }
+
+#[test]
+fn source_payload_admission_retains_exact_owner_and_operation_and_refuses_graph_imitation() {
+    use cem_ml::{
+        import::element_tree::retain_html_elements,
+        validation::html::{html_document_ast_from_source_bytes, HtmlSourceValidationRequest},
+    };
+    let bytes=b"<html><body><template type='text/cem-ml'>{item | Original}</template><template type='text/cem-ml'>{item | Original}</template></body></html>";
+    let owner = std::sync::Arc::new(
+        html_document_ast_from_source_bytes(HtmlSourceValidationRequest {
+            bytes,
+            source_uri: "file:///native/source.html",
+            content_type: Some("text/html"),
+        })
+        .0
+        .unwrap(),
+    );
+    let imported = retain_html_elements(owner, Default::default()).unwrap();
+    let ids = imported
+        .elements
+        .iter()
+        .filter_map(|(id, _, _)| {
+            (imported.tree.node(*id)?.name.as_ref()?.local_name == "template").then_some(*id)
+        })
+        .collect::<Vec<_>>();
+    let item = crate::eval::RetainedCemNode::new(imported.tree.clone(), ids[0])
+        .unwrap()
+        .query_item();
+    let other = crate::eval::RetainedCemNode::new(imported.tree.clone(), ids[1])
+        .unwrap()
+        .query_item();
+    let c = super::test_control();
+    assert!(payload::source_payload(std::slice::from_ref(&item), &c, None).is_err());
+    let admitted = cem_ml::import::element_tree::retain_inline_cem_payload(
+        imported.tree.clone(),
+        ids[0],
+        &c,
+        &super::LIMITS,
+    )
+    .unwrap();
+    assert!(std::sync::Arc::ptr_eq(
+        &payload::source_payload(std::slice::from_ref(&item), &c, Some(&admitted)).unwrap(),
+        &admitted
+    ));
+    assert!(payload::source_payload(&[other], &c, Some(&admitted)).is_err());
+    assert!(payload::source_payload(
+        std::slice::from_ref(&item),
+        &super::test_control(),
+        Some(&admitted)
+    )
+    .is_err());
+    let bytes = encode_values(&ItemStream::once(item), &Default::default()).unwrap();
+    let copied = decode_values(&bytes, &Default::default()).unwrap();
+    assert!(payload::source_payload(&copied.items, &c, None).is_err());
+}

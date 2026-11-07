@@ -120,3 +120,47 @@ fn slot_name(item: &Item) -> Result<String, String> {
     }
     Ok(String::new())
 }
+
+/// Source templates keep their original native HTML owner. A CEMV graph with
+/// matching strings/provenance is not a replacement source admission grant.
+pub(crate) fn source_payload(
+    payload: &[Item],
+    control: &OperationControl,
+    admitted: Option<&std::sync::Arc<cem_ml::import::element_tree::RetainedCemPayloadSource>>,
+) -> Result<std::sync::Arc<cem_ml::import::element_tree::RetainedCemPayloadSource>, String> {
+    let admitted = admitted.ok_or(INVALID)?;
+    let mut pending = payload.iter().rev().cloned().collect::<Vec<_>>();
+    let mut roots = vec![];
+    let mut work = 0;
+    while let Some(item) = pending.pop() {
+        check(&mut work, control)?;
+        if field(&item, "kind").as_deref() == Some("reference") {
+            pending.extend(targets(&item)?.into_iter().rev());
+        } else {
+            roots.push(item);
+        }
+    }
+    let [template] = roots.as_slice() else {
+        return Err(INVALID.into());
+    };
+    if !is_element(template, "template", HTML) {
+        return Err(INVALID.into());
+    }
+    let attributes = attrs(template)?;
+    if attributes.get("type").map(String::as_str) != Some("text/cem-ml")
+        || attributes.iter().any(|(name, value)| {
+            name != "type"
+                && (name != "data-cem-schema"
+                    || value != cem_ml::schema::registry::CEM_ML_SCHEMA_URI)
+        })
+    {
+        return Err(INVALID.into());
+    }
+    let native = crate::eval::retained_cem_node(template).ok_or(INVALID)?;
+    if !admitted.matches_source(native.owner(), native.node_id())
+        || !admitted.matches_operation(control)
+    {
+        return Err(INVALID.into());
+    }
+    Ok(admitted.clone())
+}

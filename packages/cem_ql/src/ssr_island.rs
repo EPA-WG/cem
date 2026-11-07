@@ -87,17 +87,38 @@ pub fn prepare_inline_island(
         .first()
         .copied()
         .map(|id| RetainedCemNode::new(tree.clone(), id).unwrap());
+    let mut cem_source = false;
     let payload_ids = if let Some(envelope) = &envelope {
         let node = tree.node(envelope.node_id()).unwrap();
-        for id in &node.attributes {
-            let attr = tree.node(*id).unwrap();
-            if attr.name.as_ref().unwrap().local_name != "type"
-                || attr.value != cem_ml::schema::registry::HTML_CONTENT_TYPE
-            {
-                return Err(fail("cem.ssr.payload_profile_unsupported", "Only a plain HTML payload envelope is supported; source adapters require native admission"));
+        let attrs = node
+            .attributes
+            .iter()
+            .map(|id| {
+                let a = tree.node(*id).unwrap();
+                (&a.name.as_ref().unwrap().local_name, a.value.as_str())
+            })
+            .collect::<std::collections::BTreeMap<_, _>>();
+        cem_source = attrs.get(&"type".to_owned()).copied() == Some("text/cem-ml");
+        for (name, value) in attrs {
+            let accepted = if cem_source {
+                name == "type"
+                    || name == "data-cem-schema"
+                        && value == cem_ml::schema::registry::CEM_ML_SCHEMA_URI
+            } else {
+                name == "type" && value == cem_ml::schema::registry::HTML_CONTENT_TYPE
+            };
+            if !accepted {
+                return Err(fail(
+                    "cem.ssr.payload_profile_unsupported",
+                    "Payload envelope requires an admitted canonical HTML or CEM-ML source profile",
+                ));
             }
         }
-        node.children.clone()
+        if cem_source {
+            vec![envelope.node_id()]
+        } else {
+            node.children.clone()
+        }
     } else {
         child_ids
     };
@@ -133,6 +154,27 @@ pub fn prepare_inline_island(
         }
         pending.extend(node.children.iter().copied());
     }
+    let native_source = if cem_source {
+        let envelope = envelope.as_ref().unwrap();
+        let admitted = cem_ml::import::element_tree::retain_inline_cem_payload(
+            tree.clone(),
+            envelope.node_id(),
+            control,
+            &crate::instance_island::LIMITS,
+        );
+        check(page, control)?;
+        Some(admitted.map_err(|_| {
+            problem(
+                page,
+                Some(tree),
+                Some(envelope.node_id()),
+                "cem.ssr.payload_source_invalid",
+                "Native CEM-ML source admission refused the payload",
+            )
+        })?)
+    } else {
+        None
+    };
     let host = tree.node(instance).unwrap();
     if host.attributes.len() > 64 {
         return Err(fail(
@@ -219,10 +261,22 @@ pub fn prepare_inline_island(
         attributes.extend([
             attribute(
                 "content-type",
-                cem_ml::schema::registry::HTML_CONTENT_TYPE,
+                if cem_source {
+                    "text/cem-ml"
+                } else {
+                    cem_ml::schema::registry::HTML_CONTENT_TYPE
+                },
                 &origin,
             ),
-            attribute("schema", cem_ml::schema::registry::HTML_SCHEMA_URI, &origin),
+            attribute(
+                "schema",
+                if cem_source {
+                    cem_ml::schema::registry::CEM_ML_SCHEMA_URI
+                } else {
+                    cem_ml::schema::registry::HTML_SCHEMA_URI
+                },
+                &origin,
+            ),
         ]);
         if envelope.is_some() {
             attributes.push(attribute("data-cem-explicit-payload", "true", &origin));
@@ -276,7 +330,12 @@ pub fn prepare_inline_island(
         .unwrap()
         .remove(0);
     check(page, control)?;
-    let bound = crate::instance_island::bind_retained_root(&root, instance_id, control);
+    let bound = crate::instance_island::bind_retained_root(
+        &root,
+        instance_id,
+        control,
+        native_source.as_ref(),
+    );
     check(page, control)?;
     let data = bound.map_err(|error| {
         if error == crate::instance_island::BOUNDS {
@@ -286,7 +345,11 @@ pub fn prepare_inline_island(
             )
         } else {
             fail(
-                "cem.ssr.island_admission_refused",
+                if cem_source {
+                    "cem.ssr.payload_source_invalid"
+                } else {
+                    "cem.ssr.island_admission_refused"
+                },
                 "Shared native island/domain admission refused the captured state",
             )
         }

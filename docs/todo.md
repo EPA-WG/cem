@@ -759,6 +759,26 @@ through Phase 9 release governance.
       explicit source authority, envelope identity and source maps; never relabel
       unsupported payloads as HTML. Add failing native adapter/admission fixtures
       before extending the current passive HTML profile.
+  - [x] Canonical CEM-ML source payload admission: add native fixtures for
+        mapped/entity-decoded source, namespaces, original envelope authority,
+        invalid syntax, lowered bounds/cancellation and source-owner refusal.
+        Retain the source template in the canonical payload; reuse its admitted
+        native AST across host publication without evaluating payload code.
+        Add a shared native/browser observation that exports inert template
+        contents and proves source code stays inert after one SSR pass.
+        Completed 2026-11-07: source preparation derives a bounded native AST
+        while keeping its original template authoritative. The shared receiver
+        only consumes explicit native proof; host publication reuses the AST
+        under the original source-admission operation. Portable imitation,
+        unbound namespaces and fresh-operation replay are refused. Source gate
+        passes 130 native checks across default/stripped profiles, 17 native
+        component receiver cases, 8 browser profiles and all 15 shared complete
+        observations. Paired build, focused lint/Clippy and optimized WASM
+        consumers pass. Core: 24,015,219 bytes, 28 imports/175 exports; frozen
+        presentation unchanged. SSR stays partial; broader profiles stay open.
+        [Archive](archive/todo-completed-ssr-cem-source-admission-2026-11-07.md).
+  - [ ] Complete additional ingress/profile admission, including shorthand
+        canonicalization, foreign DOM payloads and retained instance CSS.
 
 - [ ] SSR coordinator and completion: admit scoped/resource closures and multiple
       participants, settle nested work under the original operation/budget policy,

@@ -192,23 +192,23 @@ pub(crate) fn bind(
     let [root] = values.items.as_slice() else {
         return Err(INVALID.into());
     };
-    bind_root(root, instance_id, control)
+    bind_root(root, instance_id, control, None)
 }
 
 /// Direct retained native ingress; never encodes/reloads a document.
 pub(crate) fn bind_retained_root(
-    root: &Item,
-    instance_id: &str,
-    control: &OperationControl,
+    root: &Item, instance_id: &str, control: &OperationControl,
+    source: Option<&std::sync::Arc<cem_ml::import::element_tree::RetainedCemPayloadSource>>,
 ) -> Result<TemplateData, String> {
     bounded_root(root, control)?;
-    bind_root(root, instance_id, control)
+    bind_root(root, instance_id, control, source)
 }
 
 fn bind_root(
     root: &Item,
     instance_id: &str,
     control: &OperationControl,
+    admitted: Option<&std::sync::Arc<cem_ml::import::element_tree::RetainedCemPayloadSource>>,
 ) -> Result<TemplateData, String> {
     control
         .check_scope(ROOT_EXECUTION_SCOPE_ID)
@@ -284,23 +284,16 @@ fn bind_root(
             return Err(INVALID.into());
         }
     }
-    if payload_attrs
-        != BTreeMap::from([
-            (
-                "content-type".into(),
-                cem_ml::schema::registry::HTML_CONTENT_TYPE.into(),
-            ),
-            (
-                "schema".into(),
-                cem_ml::schema::registry::HTML_SCHEMA_URI.into(),
-            ),
-        ])
-    {
-        return Err(INVALID.into());
-    }
     let payload = children(&parts[3])?;
+    let html_profile = BTreeMap::from([("content-type".into(), cem_ml::schema::registry::HTML_CONTENT_TYPE.into()), ("schema".into(),cem_ml::schema::registry::HTML_SCHEMA_URI.into())]);
+    let cem_profile = BTreeMap::from([("content-type".into(), "text/cem-ml".into()), ("schema".into(),cem_ml::schema::registry::CEM_ML_SCHEMA_URI.into())]);
+    let source = if payload_attrs == cem_profile {
+        Some(payload::source_payload(&payload, control, admitted)?)
+    } else if payload_attrs == html_profile && admitted.is_none() { None }
+    else { return Err(INVALID.into()); };
     let slots = self::payload::slots(&payload, control)?;
     let mut data = TemplateData::default().with_binding("island", ItemStream::once(root));
+    data.native_payload_source = source;
     data.bindings.insert(
         "instanceID".into(),
         ItemStream::once(Item::Atomic(AtomValue::String(instance_id.into()))),

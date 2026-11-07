@@ -93,6 +93,8 @@ const MAX_TEMPLATE_CALL_DEPTH: usize = 32;
 
 #[derive(Debug, Clone, Default)]
 pub struct TemplateData {
+    /// Runtime-only admitted source owner; never an authored binding or JSON AST.
+    pub native_payload_source: Option<std::sync::Arc<cem_ml::import::element_tree::RetainedCemPayloadSource>>,
     /// Native selected-registry prototype; ordinary/full runtimes leave this absent.
     #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime", feature = "application-source-runtime"))]
     pub selected_registry: Option<std::sync::Arc<crate::selected_registry::SelectedFunctionRegistry>>,
@@ -3348,6 +3350,7 @@ impl PlanRenderer<'_> {
                         &attributes,
                         source_map,
                         &TemplateData {
+                            native_payload_source: None,
                             #[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime", feature = "application-source-runtime"))]
                             selected_registry: self.selected_registry.clone(),
                             bindings: self.evaluation_context.policy_bindings.clone(),

@@ -143,3 +143,157 @@ fn ssr_element_source_refuses_character_references_outside_native_decode_profile
             .is_err());
     }
 }
+
+#[test]
+fn ssr_cem_payload_import_keeps_source_envelope_and_maps_decoded_namespaced_ast() {
+    let original = document("<html><body><template type='text/cem-ml'>@ns h = &quot;http://www.w3.org/1999/xhtml&quot;\n{h:b @slot=heading | Title &amp;amp; text}</template></body></html>");
+    let imported = imported(original.clone());
+    let id = template(&imported);
+    let control =
+        crate::operation_control::OperationControl::new(crate::scheduler::AbortSignal::new());
+    let payload = retain_inline_cem_payload(
+        imported.tree.clone(),
+        id,
+        &control,
+        &crate::value::artifact::CemValueArtifactLimits::default(),
+    )
+    .unwrap();
+    assert!(Arc::ptr_eq(payload.source_tree(), &imported.tree));
+    assert_eq!(payload.template_node(), id);
+    let tree = payload.tree();
+    let b = tree
+        .ast()
+        .nodes
+        .iter()
+        .enumerate()
+        .find_map(|(id, _)| {
+            tree.node(id as u32)
+                .and_then(|n| n.name.as_ref())
+                .filter(|n| n.local_name == "b")
+                .map(|_| id as u32)
+        })
+        .unwrap();
+    assert_eq!(
+        tree.node(b).unwrap().name.as_ref().unwrap().namespace_uri,
+        "http://www.w3.org/1999/xhtml"
+    );
+    assert!(tree.node_source_map(b).unwrap().frames.iter().any(|f|matches!(&f.transform,TransformKind::SourceBoundary{uri} if uri=="file:///source/page.html")));
+    assert_eq!(
+        tree.text_fragments(b).unwrap().collect::<String>().trim(),
+        "Title &amp; text"
+    );
+    let offset = original.source_text.find("{h:b").unwrap() as u64;
+    assert!(tree
+        .node_source_map(b)
+        .unwrap()
+        .frames
+        .iter()
+        .any(|f| matches!(f.span,FrameSpan::Single(r) if r.start<=offset && r.end()>offset)));
+    assert!(original.source_text.contains("Title &amp;amp; text"));
+}
+
+#[test]
+fn ssr_cem_payload_import_bounds_cancellation_and_invalid_source_are_atomic() {
+    use crate::{
+        operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID},
+        scheduler::AbortSignal,
+        value::artifact::CemValueArtifactLimits,
+    };
+    for text in [
+        "{p | Unclosed",
+        "{unbound:p | Invalid}",
+        "@ns h = &quot;urn:unadmitted&quot;\n{h:p | Unadmitted}",
+        "{p @name=\"Unclosed}",
+        "<b>HTML child</b>",
+    ] {
+        let imported = imported(document(&format!(
+            "<html><template type='text/cem-ml'>{text}</template></html>"
+        )));
+        let c = OperationControl::new(AbortSignal::new());
+        assert!(
+            retain_inline_cem_payload(
+                imported.tree.clone(),
+                template(&imported),
+                &c,
+                &Default::default()
+            )
+            .is_err(),
+            "{text}"
+        );
+        assert_eq!(c.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
+    }
+    let imported = imported(document(
+        "<html><template type='text/cem-ml'>{p | {b | Original}}</template></html>",
+    ));
+    for limits in [
+        CemValueArtifactLimits {
+            max_bytes: 1,
+            ..Default::default()
+        },
+        CemValueArtifactLimits {
+            max_values: 1,
+            ..Default::default()
+        },
+        CemValueArtifactLimits {
+            max_depth: 1,
+            ..Default::default()
+        },
+    ] {
+        let c = OperationControl::new(AbortSignal::new());
+        assert!(
+            retain_inline_cem_payload(imported.tree.clone(), template(&imported), &c, &limits)
+                .is_err()
+        );
+        assert_eq!(c.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
+    }
+    for policy in [
+        crate::scheduler::ScopePolicy::host_root().with_memory_bytes(1),
+        crate::scheduler::ScopePolicy::host_root().with_stack_depth(1),
+    ] {
+        let c = OperationControl::with_root_policy(AbortSignal::new(), policy).unwrap();
+        assert!(retain_inline_cem_payload(
+            imported.tree.clone(),
+            template(&imported),
+            &c,
+            &Default::default()
+        )
+        .is_err());
+        assert_eq!(c.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
+    }
+    let signal = AbortSignal::new();
+    signal.abort();
+    let c = OperationControl::new(signal);
+    assert!(retain_inline_cem_payload(
+        imported.tree.clone(),
+        template(&imported),
+        &c,
+        &Default::default()
+    )
+    .is_err());
+}
+#[test]
+fn ssr_cem_payload_import_retains_memory_and_distinguishes_identical_source_boundaries() {
+    use crate::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
+    let imported=imported(document("<html><template type='text/cem-ml'>{p | Same}</template><template type='text/cem-ml'>{p | Same}</template></html>"));
+    let ids = imported
+        .elements
+        .iter()
+        .filter_map(|(id, _, _)| {
+            (imported.tree.node(*id)?.name.as_ref()?.local_name == "template").then_some(*id)
+        })
+        .collect::<Vec<_>>();
+    let c = OperationControl::new(crate::scheduler::AbortSignal::new());
+    let first =
+        retain_inline_cem_payload(imported.tree.clone(), ids[0], &c, &Default::default()).unwrap();
+    let second =
+        retain_inline_cem_payload(imported.tree.clone(), ids[1], &c, &Default::default()).unwrap();
+    assert_ne!(first.tree().source_key(1), second.tree().source_key(1));
+    assert!(!first.matches_source(&imported.tree, ids[1]));
+    assert!(!first.matches_operation(&OperationControl::new(crate::scheduler::AbortSignal::new())));
+    let retained = first.tree().clone();
+    drop(first);
+    drop(second);
+    assert!(c.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap() > 0);
+    drop(retained);
+    assert_eq!(c.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
+}

@@ -58,6 +58,18 @@ pub fn prepare_host_commit(
     updates: &[HostAttributeUpdate],
     control: &OperationControl,
 ) -> Result<CommittedHostIsland, String> {
+    prepare_host_commit_with_source(template, host, instance_id, updates, control, None)
+}
+
+/// Consume an explicitly admitted source owner without starting a source compiler.
+pub fn prepare_host_commit_with_source(
+    template: &Item,
+    host: RetainedCemNode,
+    instance_id: &str,
+    updates: &[HostAttributeUpdate],
+    control: &OperationControl,
+    source: Option<&Arc<cem_ml::import::element_tree::RetainedCemPayloadSource>>,
+) -> Result<CommittedHostIsland, String> {
     control
         .check_scope(ROOT_EXECUTION_SCOPE_ID)
         .map_err(|e| e.code().to_string())?;
@@ -65,7 +77,7 @@ pub fn prepare_host_commit(
         return Err(BOUNDS.into());
     }
     let root = children(template)?.into_iter().next().ok_or(REFUSED)?;
-    let previous = bind_retained_root(&root, instance_id, control)?;
+    let previous = bind_retained_root(&root, instance_id, control, source)?;
     let native = template
         .view()
         .and_then(|v| v.downcast_ref::<OutputView>())
@@ -230,7 +242,12 @@ pub fn prepare_host_commit(
     );
     let template = output_nodes_with_source(vec![node], host).items.remove(0);
     let root = children(&template)?.remove(0);
-    let bindings = bind_retained_root(&root, instance_id, control)?;
+    let bindings = bind_retained_root(
+        &root,
+        instance_id,
+        control,
+        previous.native_payload_source.as_ref(),
+    )?;
     control
         .check_scope(ROOT_EXECUTION_SCOPE_ID)
         .map_err(|e| e.code().to_string())?;

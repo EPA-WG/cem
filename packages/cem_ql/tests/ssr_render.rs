@@ -13,12 +13,20 @@ use std::sync::Arc;
 mod fixture;
 use fixture::{control, owner, page};
 fn prepared(template: &str, body: &str) -> cem_ql::ssr_island::PreparedInlineIsland {
+    prepared_with_control(template, body, &control())
+}
+fn prepared_with_control(
+    template: &str,
+    body: &str,
+    c: &cem_ml::operation_control::OperationControl,
+) -> cem_ql::ssr_island::PreparedInlineIsland {
     let source=owner(&format!("<cem-element tag='x-inline'><template id='x-inline' type='text/cem-ml'>{template}</template></cem-element><aside>Unaffected &amp; stable</aside>{body}"));
-    let dce = prepare_inline_dce(page(&source, "memory:output"), &control()).unwrap();
-    prepare_inline_island(dce, "inline-one", &control()).unwrap()
+    let dce = prepare_inline_dce(page(&source, "memory:output"), c).unwrap();
+    prepare_inline_island(dce, "inline-one", c).unwrap()
 }
 fn apply(template: &str, body: &str) -> AppliedInlineDce {
-    render_and_apply_inline_dce(prepared(template, body), &control()).unwrap()
+    let c = control();
+    render_and_apply_inline_dce(prepared_with_control(template, body, &c), &c).unwrap()
 }
 fn code(result: Result<AppliedInlineDce, Vec<cem_ml::diagnostics::Diagnostic>>) -> String {
     result.unwrap_err()[0].code.clone()
