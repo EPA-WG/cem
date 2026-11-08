@@ -63,6 +63,16 @@ pub fn prepare_inline_island(
     let fail = |code, message| problem(page, Some(tree), Some(instance), code, message);
     check(page, control)?;
     if prepared
+        .lifecycle_control
+        .as_ref()
+        .is_some_and(|original| !original.same_operation(control))
+    {
+        return Err(fail(
+            "cem.ssr.participant_operation_stale",
+            "Participant preparation belongs to the original operation",
+        ));
+    }
+    if prepared
         .stylesheet_control
         .as_ref()
         .is_some_and(|c| !c.same_operation(control))
@@ -114,9 +124,10 @@ pub fn prepare_inline_island(
         let attrs = node
             .attributes
             .iter()
-            .map(|id| {
+            .filter_map(|id| {
                 let a = tree.node(*id).unwrap();
-                (&a.name.as_ref().unwrap().local_name, a.value.as_str())
+                (a.name.as_ref().unwrap().namespace_uri != "http://www.w3.org/2000/xmlns/")
+                    .then_some((&a.name.as_ref().unwrap().local_name, a.value.as_str()))
             })
             .collect::<std::collections::BTreeMap<_, _>>();
         cem_source = attrs.get(&"type".to_owned()).is_some_and(|value| {
@@ -209,7 +220,21 @@ pub fn prepare_inline_island(
         None
     };
     let host = tree.node(instance).unwrap();
-    if host.attributes.len() > 64 {
+    if host
+        .attributes
+        .iter()
+        .filter(|id| {
+            tree.node(**id)
+                .unwrap()
+                .name
+                .as_ref()
+                .unwrap()
+                .namespace_uri
+                != "http://www.w3.org/2000/xmlns/"
+        })
+        .count()
+        > 64
+    {
         return Err(fail(
             "cem.ssr.island_bounds",
             "Host attributes exceed the native island alias ceiling",
@@ -249,6 +274,9 @@ pub fn prepare_inline_island(
     }
     for id in &host.attributes {
         let attr = tree.node(*id).unwrap();
+        if attr.name.as_ref().unwrap().namespace_uri == "http://www.w3.org/2000/xmlns/" {
+            continue;
+        }
         let name = &attr.name.as_ref().unwrap().local_name;
         if name == "data-cem-render-scope" {
             continue;

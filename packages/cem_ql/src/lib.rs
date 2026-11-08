@@ -84,6 +84,7 @@ pub mod ssr_island;
 mod ssr_css;
 pub mod ssr_render;
 pub mod ssr_stylesheets;
+pub mod ssr_page;
 pub mod instance_island;
 pub mod retained_template;
 pub mod resolve;

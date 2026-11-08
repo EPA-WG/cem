@@ -1,0 +1,5 @@
+[
+  {"name":"parent-first source and generated descendants","declarations":[{"tag":"x-parent","template":"{section | {x-child @label=Generated} {$ datadom.slots.heading}}"},{"tag":"x-child","template":"{b | {$ datadom.attributes.label}}"}],"body":"<x-parent><x-child slot='heading' label='Source'></x-child></x-parent><x-child label='Sibling'></x-child>"},
+  {"name":"repeated sibling participants retain independent payloads","declarations":[{"tag":"x-item","template":"{b | {$ datadom.attributes.label}}"}],"body":"<x-item label='First'><span data-cem-example='literal'>First source</span></x-item><x-item label='Second'><i>Second source</i></x-item>"},
+  {"name":"projected inert templates do not activate their children","declarations":[{"tag":"x-parent","template":"{section | {x-child @label=Generated} {$ datadom.slots.heading}}"},{"tag":"x-child","template":"{b | {$ datadom.attributes.label}}"}],"body":"<x-parent><template><template slot='heading'><x-child label='Inert'></x-child></template></template></x-parent>"}
+]

@@ -32,6 +32,20 @@ pub fn page_with_policy(
     output: &str,
     policy: SsrSettlePolicy,
 ) -> CemSsrPageArtifact {
+    page_with_document(
+        source,
+        output,
+        policy,
+        TransformArtifactBody::HtmlDomProjection(Arc::clone(source)),
+    )
+}
+#[allow(dead_code)] // Explicit alternate-source fixture profile, used by page coordination.
+pub fn page_with_document(
+    source: &Arc<HtmlDocumentAst>,
+    output: &str,
+    policy: SsrSettlePolicy,
+    document: TransformArtifactBody,
+) -> CemSsrPageArtifact {
     let routes = preflight_ssr_page_routes(&[SsrPageRouteRequest::new(
         source,
         "https://ssr.example.test/guide/",
@@ -62,14 +76,8 @@ pub fn page_with_policy(
         source_map_mode: SsrSourceMapMode::Retained,
         formatter_profile: "dom-safe/1".into(),
     };
-    CemSsrPageArtifact::unrendered(
-        Arc::clone(source),
-        &routes[0],
-        TransformArtifactBody::HtmlDomProjection(Arc::clone(source)),
-        identity,
-        policy,
-    )
-    .unwrap()
+    CemSsrPageArtifact::unrendered(Arc::clone(source), &routes[0], document, identity, policy)
+        .unwrap()
 }
 pub fn page(source: &Arc<HtmlDocumentAst>, output: &str) -> CemSsrPageArtifact {
     page_with_policy(

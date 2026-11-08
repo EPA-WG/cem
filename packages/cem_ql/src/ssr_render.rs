@@ -54,6 +54,17 @@ pub fn render_and_apply_inline_dce(
     let instance = input.prepared().instance_node();
     let fail = |code, message| problem(page, Some(source), Some(instance), code, message);
     check(page, control)?;
+    if input
+        .prepared()
+        .lifecycle_control
+        .as_ref()
+        .is_some_and(|original| !original.same_operation(control))
+    {
+        return Err(fail(
+            "cem.ssr.participant_operation_stale",
+            "Participant preparation belongs to the original operation",
+        ));
+    }
     if input.prepared().stylesheet_coordination && input.coordinated_css.is_none() {
         return Err(fail(
             "cem.ssr.css_unprepared",
@@ -207,7 +218,12 @@ pub fn render_and_apply_inline_dce(
     if let Some(css) = &input.coordinated_css {
         css.strip_sources(&mut projected.nodes);
     }
-    admit_output(&mut projected.nodes).map_err(|_| {
+    admit_output_mode(
+        &mut projected.nodes,
+        false,
+        input.prepared().registered_participants.as_deref(),
+    )
+    .map_err(|_| {
         fail(
             "cem.ssr.output_profile_unsupported",
             "Generated output requires an unsupported participant, capability or HTML profile",
@@ -400,10 +416,11 @@ pub fn render_and_apply_inline_dce(
         committed,
     })
 }
-fn admit_output(nodes: &mut [crate::render::RenderPlanNode]) -> Result<(), ()> {
-    admit_output_mode(nodes, false)
-}
-fn admit_output_mode(nodes: &mut [crate::render::RenderPlanNode], inert: bool) -> Result<(), ()> {
+fn admit_output_mode(
+    nodes: &mut [crate::render::RenderPlanNode],
+    inert: bool,
+    registry: Option<&std::collections::BTreeSet<String>>,
+) -> Result<(), ()> {
     use cem_ml::schema::registry::HTML_NAMESPACE_URI;
     const XMLNS_NAMESPACE_URI: &str = "http://www.w3.org/2000/xmlns/";
     use cem_ml::value::CemValueNode;
@@ -450,7 +467,7 @@ fn admit_output_mode(nodes: &mut [crate::render::RenderPlanNode], inert: bool) -
                         }),
                     )
                     .map_err(|_| ())?;
-                    admit_output_mode(children, inert)?;
+                    admit_output_mode(children, inert, registry)?;
                     continue;
                 }
                 if qualified_name
@@ -475,6 +492,11 @@ fn admit_output_mode(nodes: &mut [crate::render::RenderPlanNode], inert: bool) -
                 if inert && tag == "style" {
                     cem_ml::validation::html::validate_passive_html_attributes(tag, &pairs)
                         .map_err(|_| ())?;
+                } else if tag != "cem-element"
+                    && registry.is_some_and(|registry| registry.contains(tag))
+                {
+                    cem_ml::validation::html::validate_passive_html_attributes(tag, &pairs)
+                        .map_err(|_| ())?;
                 } else {
                     cem_ml::validation::html::validate_passive_html_projection(tag, &pairs)
                         .map_err(|_| ())?;
@@ -486,7 +508,7 @@ fn admit_output_mode(nodes: &mut [crate::render::RenderPlanNode], inert: bool) -
                 if VOID.contains(&tag.as_str()) && !children.is_empty() {
                     return Err(());
                 }
-                admit_output_mode(children, inert || tag == "template")?;
+                admit_output_mode(children, inert || tag == "template", registry)?;
             }
             CemValueNode::Text { .. } | CemValueNode::Comment { .. } => {}
             _ => return Err(()),

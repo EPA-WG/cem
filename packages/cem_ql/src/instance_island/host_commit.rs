@@ -144,6 +144,9 @@ pub(crate) fn prepare_host_commit_with_stylesheets(
     for id in &source.attributes {
         let a = tree.node(*id).ok_or(REFUSED)?;
         let name = a.name.as_ref().ok_or(REFUSED)?;
+        if name.namespace_uri == "http://www.w3.org/2000/xmlns/" {
+            continue;
+        }
         if !name.namespace_uri.is_empty() {
             return Err(REFUSED.into());
         }

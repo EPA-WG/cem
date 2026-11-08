@@ -214,6 +214,23 @@ impl CemSsrPageArtifact {
     pub fn applied_tree(&self) -> Option<&Arc<crate::parser::tree::RetainedCemTree>> {
         self.applied_tree.as_ref()
     }
+    /// Only the original native source or the exact current derived view may
+    /// continue this page. Equivalent or stale trees do not authorize application.
+    pub fn accepts_source_tree(
+        &self,
+        tree: &Arc<crate::parser::tree::RetainedCemTree>,
+    ) -> bool {
+        let owner = match &self.applied_tree {
+            Some(current) => Arc::ptr_eq(current, tree),
+            None => tree.native_owner()
+                .and_then(|owner| owner.downcast_ref::<HtmlDocumentAst>())
+                .is_some_and(|owner| std::ptr::eq(owner, self.source.as_ref())),
+        };
+        owner
+            && tree.source_uri() == self.route.source_uri
+            && tree.document_uri() == Some(self.route.page_url.as_str())
+            && tree.base_uri() == Some(self.route.document_base_url.as_str())
+    }
     pub fn into_applied_dom(
         mut self,
         application: &crate::parser::tree_apply::CemTreeApplication,
@@ -228,13 +245,7 @@ impl CemSsrPageArtifact {
         {
             return Err(SsrArtifactError::InvalidProgress);
         }
-        let owner = application
-            .source()
-            .native_owner()
-            .and_then(|owner| owner.downcast_ref::<HtmlDocumentAst>())
-            .ok_or(SsrArtifactError::SourceOwnerMismatch)?;
-        if !std::ptr::eq(owner, self.source.as_ref())
-            || application.source().source_uri() != self.route.source_uri
+        if !self.accepts_source_tree(application.source())
             || application.tree().document_uri() != Some(self.route.page_url.as_str())
             || application.tree().base_uri() != Some(self.route.document_base_url.as_str())
         {

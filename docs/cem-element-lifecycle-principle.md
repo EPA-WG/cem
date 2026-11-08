@@ -412,9 +412,52 @@ refused. An observed resolver revision change cannot revive by restoring an old
 fingerprint. The applied tree retains all source and stylesheet leases.
 
 A ready CSS batch remains distinct from page completion. The resulting page is
-still `Partial(Incomplete)`. Nested/multiple participant settling, final version,
+still `Partial(Incomplete)`. Nested/multiple resource-bearing participant settling, final version,
 island, identity/policy and range proof, then CLI/export and hydration wiring
 remain required before adoption.
+
+## Native SSR passive page coordination
+
+`prepare_inline_page` coordinates first connection for multiple autonomous inline
+participants. This bounded profile uses one direct document-body declaration
+registry with unique tags. It compiles each declaration once and reuses the
+retained template. Scoped registries, declaration modules, CSS/resource closures
+and CEM-ML source payloads require further admission; the single-participant
+stylesheet coordinator remains the separate resource-bearing profile.
+
+`advance` settles the next active host in parent-first native preorder, then
+discovers its produced descendants before continuing with siblings. Projected
+source hosts and generated hosts use the same shared capture, canonical island,
+render plan and host transaction. Inert template contents and canonical data
+islands never become active participants. Unknown tags, customized built-ins,
+generated declarations and forged resume markers refuse the candidate. Explicit
+instance prefixes produce distinct deterministic IDs within the operation.
+
+Each application must use the exact current native page tree. Original HTML
+event handles remap through that application; generated nodes receive no
+fabricated authored event handles. Generated identities use a process-local
+`cem-derived` key, retain their producer's source URI and byte maps, and have no
+authored line number. Copies preserve those identities across continuation.
+They are runtime provenance, not durable cache keys or new source authority.
+Neither continuation nor capture reparses rendered HTML or passes trees through
+JSON. XML namespace declarations remain structural projection metadata rather
+than host aliases; authored reserved writes remain refused.
+
+One original operation owns all preparation and render passes, active elapsed
+time and memory permits. Instance, declaration-depth and render counts accumulate
+across participants; bounded registry and discovery inventories provide additional
+ceilings. No pass renews the clock. As in the stylesheet profile, elapsed admission
+conservatively uses the stricter wall/CPU cap and does not claim measured CPU.
+Every application remaps previously settled hosts, canonical islands and output
+boundaries, then checks their ownership again. Cancellation, failed discovery or
+exhaustion retires the staged candidate without publishing an intermediate page.
+Retained native source/arena permits survive until the final tree owner releases.
+
+`finish` requires an empty active worklist. Its quiescent result remains
+`Partial(Incomplete)` with hydration disabled. Shared page-wide declaration CSS
+leases and pending resource tickets are the next lifecycle step, followed by
+final declaration-version, island, identity/policy and owned-range proof before
+CLI/export or browser adoption.
 
 ## Declaration version and SSR compatibility
 

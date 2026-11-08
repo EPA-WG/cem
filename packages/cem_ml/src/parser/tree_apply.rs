@@ -49,6 +49,13 @@ struct ApplicationOwner {
     _permits: Vec<crate::operation_control::MemoryPermit>,
     qualified_names: Arc<BTreeMap<AstNodeId, String>>,
 }
+/// Native continuation lineage; callers cannot manufacture an application owner.
+pub fn retained_source(tree: &RetainedCemTree) -> Option<&Arc<RetainedCemTree>> {
+    tree.native_owner()?
+        .downcast_ref::<ApplicationOwner>()
+        .map(|owner| &owner._source)
+}
+static NEXT_DERIVATION: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
 /// Lexical names survive native handoff alongside expanded CEM names.
 pub fn applied_qualified_name(tree: &RetainedCemTree, id: AstNodeId) -> Option<&str> {
     tree.native_owner()?
@@ -241,7 +248,15 @@ fn apply_batch_mode<T: Send + Sync + 'static, S: Send + Sync + 'static>(
         }
     }
     let patches = Arc::new(admitted);
+    let derivation = NEXT_DERIVATION
+        .fetch_update(
+            std::sync::atomic::Ordering::Relaxed,
+            std::sync::atomic::Ordering::Relaxed,
+            |value| value.checked_add(1),
+        )
+        .map_err(|_| error("cem.ast.apply_identity"))?;
     let mut builder = Builder {
+        derivation,
         source: source.clone(),
         target,
         patches: &patches,
@@ -306,6 +321,7 @@ fn control_error(e: crate::operation_control::ControlError) -> CemTreeApplyError
 struct Builder<'a, T, S> {
     source: Arc<RetainedCemTree>,
     target: AstNodeId,
+    derivation: usize,
     patches: &'a BTreeMap<AstNodeId, CemElementPatch<T, S>>,
     limits: CemValueArtifactLimits,
     control: &'a OperationControl,
@@ -517,6 +533,24 @@ impl<T, S> Builder<'_, T, S> {
         };
         Ok(id)
     }
+    fn retain_generated_origin(&mut self, id: AstNodeId, map: &crate::source_map::SourceMapStack) {
+        let uri = map
+            .frames
+            .iter()
+            .find_map(|frame| match &frame.transform {
+                crate::source_map::TransformKind::SourceBoundary { uri } => Some(uri.clone()),
+                _ => None,
+            })
+            .unwrap_or_else(|| self.source.source_uri().into());
+        self.semantics.provenance.insert(
+            id,
+            crate::value::artifact::CemValueProvenance {
+                source_uri: Some(uri),
+                source_key: Some(format!("cem-derived:1:{}:{id}", self.derivation)),
+                line_number: None,
+            },
+        );
+    }
     fn insert_attribute(
         &mut self,
         attr: &crate::value::CemValueAttribute<S>,
@@ -531,6 +565,7 @@ impl<T, S> Builder<'_, T, S> {
                     * std::mem::size_of::<crate::source_map::SourceMapFrame>(),
             depth,
         )?;
+        self.retain_generated_origin(aid, &attr.source_map);
         self.semantics.unknown_source_lines.insert(aid);
         if let Some(name) = &attr.qualified_name {
             self.qualified_names.insert(aid, name.clone());
@@ -582,6 +617,7 @@ impl<T, S> Builder<'_, T, S> {
             bytes + map.frames.len() * std::mem::size_of::<crate::source_map::SourceMapFrame>(),
             depth,
         )?;
+        self.retain_generated_origin(id, map);
         self.semantics.unknown_source_lines.insert(id);
         let map = map.clone();
         self.ast.nodes[id as usize] = match node {
@@ -764,6 +800,59 @@ mod tests {
                 0
             );
         }
+    }
+    #[test]
+    fn generated_identity_is_runtime_owned_and_survives_native_continuation() {
+        let source = source();
+        let c = control();
+        let t = target(&source);
+        let first = apply_children(
+            source.clone(),
+            t,
+            text(),
+            Arc::new(()),
+            Default::default(),
+            &c,
+        )
+        .unwrap();
+        let generated = first.inserted_children()[0];
+        let key = first.tree().source_key(generated).unwrap();
+        assert!(key.starts_with("cem-derived:1:"));
+        assert_eq!(first.tree().source_line_number(generated), None);
+        let p = (0..first.tree().ast().nodes.len() as u32)
+            .find(|id| {
+                first
+                    .tree()
+                    .node(*id)
+                    .unwrap()
+                    .name
+                    .as_ref()
+                    .is_some_and(|n| n.local_name == "p")
+            })
+            .unwrap();
+        let second = apply_children(
+            first.tree().clone(),
+            p,
+            text(),
+            Arc::new(()),
+            Default::default(),
+            &c,
+        )
+        .unwrap();
+        assert!(Arc::ptr_eq(
+            retained_source(second.tree()).unwrap(),
+            first.tree()
+        ));
+        assert_eq!(
+            second
+                .tree()
+                .source_key(second.output_for_source(generated).unwrap()),
+            Some(key)
+        );
+        assert_ne!(
+            second.tree().source_key(second.inserted_children()[0]),
+            first.tree().source_key(generated)
+        );
     }
     #[test]
     fn transaction_retains_source_and_decoded_untouched_nodes() {

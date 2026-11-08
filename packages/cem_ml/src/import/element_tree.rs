@@ -3,7 +3,9 @@
 use super::*;
 #[path = "cem_payload.rs"]
 mod cem_payload;
-pub use cem_payload::{canonical_cem_payload_type, retain_inline_cem_payload, RetainedCemPayloadSource};
+pub use cem_payload::{
+    canonical_cem_payload_type, retain_inline_cem_payload, RetainedCemPayloadSource,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ElementSourceHandle {
@@ -11,7 +13,7 @@ pub enum ElementSourceHandle {
     Xml { event_index: usize },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RetainedElementImport {
     pub tree: Arc<RetainedCemTree>,
     pub elements: Vec<(AstNodeId, ElementSourceHandle, usize)>,
@@ -105,15 +107,35 @@ impl InlineCemTemplateSource {
 }
 
 impl RetainedElementImport {
+    /// Carry original import handles through an exact native application chain.
+    /// Generated elements have no authored HTML event handle.
+    pub fn after_application(
+        &self,
+        application: &crate::parser::tree_apply::CemTreeApplication,
+    ) -> Result<Self, String> {
+        if !Arc::ptr_eq(&self.tree, application.source()) {
+            return Err("Native element continuation belongs to another source view".into());
+        }
+        original_html_owner(&self.tree)?;
+        Ok(Self {
+            tree: application.tree().clone(),
+            elements: self
+                .elements
+                .iter()
+                .filter_map(|(id, handle, depth)| {
+                    application
+                        .output_for_source(*id)
+                        .map(|id| (id, *handle, *depth))
+                })
+                .collect(),
+            attribute_names_ascii_case_insensitive: self.attribute_names_ascii_case_insensitive,
+        })
+    }
     /// Check the native decoder's materializable HTML text profile before
     /// deriving a whole-page AST. Earlier capture/import remains lossless.
     pub fn validate_html_text_projection(&self) -> Result<(), String> {
         use html_parser::HtmlEventKind;
-        let owner = self
-            .tree
-            .native_owner()
-            .and_then(|owner| owner.downcast_ref::<html_parser::HtmlDocumentAst>())
-            .ok_or("Projection requires an original HTML owner")?;
+        let owner = original_html_owner(&self.tree)?;
         for event in &owner.events {
             if matches!(event.kind, HtmlEventKind::Text | HtmlEventKind::Rcdata) {
                 require_projectable_references(&event.lexeme)?;
@@ -134,13 +156,7 @@ impl RetainedElementImport {
         node: AstNodeId,
     ) -> Result<InlineCemTemplateSource, String> {
         use html_parser::{HtmlEventKind, HtmlNamespace};
-        let owner = self
-            .tree
-            .native_owner()
-            .ok_or("Missing original HTML owner")?
-            .clone()
-            .downcast::<html_parser::HtmlDocumentAst>()
-            .map_err(|_| "Handoff requires an original HTML owner")?;
+        let owner = original_html_owner(&self.tree)?;
         let start = self
             .elements
             .iter()
@@ -158,7 +174,11 @@ impl RetainedElementImport {
             || !template.attributes.iter().any(|attr| {
                 !attr.duplicate
                     && attr.local_name == "type"
-                    && attr.value.as_deref().and_then(canonical_cem_payload_type).is_some()
+                    && attr
+                        .value
+                        .as_deref()
+                        .and_then(canonical_cem_payload_type)
+                        .is_some()
             })
         {
             return Err("Expected an explicit text/cem-ml template".into());
@@ -355,4 +375,23 @@ fn require_projectable_references(text: &str) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn original_html_owner(
+    tree: &Arc<RetainedCemTree>,
+) -> Result<Arc<html_parser::HtmlDocumentAst>, String> {
+    let mut current = tree;
+    for _ in 0..128 {
+        if let Some(owner) = current.native_owner().and_then(|owner| {
+            owner
+                .clone()
+                .downcast::<html_parser::HtmlDocumentAst>()
+                .ok()
+        }) {
+            return Ok(owner);
+        }
+        current = crate::parser::tree_apply::retained_source(current)
+            .ok_or("Element view requires its original HTML owner")?;
+    }
+    Err("Native element continuation depth exceeded".into())
 }

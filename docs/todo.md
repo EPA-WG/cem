@@ -856,6 +856,32 @@ through Phase 9 release governance.
   - [ ] Nested lifecycle: prepare multiple participants and settle nested work
         under one operation, preserving ownership and resource/render ceilings.
         Add failing native ordering, exhaustion and cancellation fixtures first.
+      - [x] Native continuation fixtures: preserve original import handles and
+            page authority across exact application lineage; give generated
+            nodes explicit runtime provenance without authored coordinates and
+            refuse stale/foreign continuation sources. Refuse an existing DOM
+            projection instead of silently rebuilding its original HTML source.
+      - [x] Passive participant worklist fixtures: root declaration inventory,
+            parent-first discovery, source/generated descendants and siblings,
+            inert payload exclusion, deterministic instance IDs, shared
+            instance/depth/render ceilings, original-operation cancellation,
+            ownership preservation and terminal cleanup.
+      - [x] Shared passive page observations: compare active host order, complete
+            public rendered subtrees and canonical payload source with the
+            browser runtime, including generated/source descendants and inert
+            template contents and authored metadata inside canonical payloads.
+            Keep instance identity checks native and explicit.
+            Verification: 260 native checks across default/stripped profiles,
+            all 22 complete observations and 8 browser regression profiles pass.
+            Paired build, Clippy, focused formatting and WASM consumers pass;
+            23,990,533-byte core retains 28 imports/175 exports. Frozen presentation
+            unchanged. Quiescence stays partial; nested resource admission and
+            final readiness proof remain open.
+            [Archive](archive/todo-completed-ssr-passive-page-coordination-2026-11-08.md).
+      - [ ] Integrate multiple/nested participants with page-wide declaration CSS,
+            CEM-ML payload source leases and pending resource tickets before
+            widening the passive coordinator profile. Keep final page readiness
+            and adoption gated.
   - [ ] Completion proof: validate declaration versions, complete islands,
         identity/policy freshness and owned output ranges before declaring ready.
   - [ ] Adoption wiring: only after that proof, connect CLI lowering, exports

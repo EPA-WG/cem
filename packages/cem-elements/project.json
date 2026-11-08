@@ -11,6 +11,8 @@
                 "build"
             ],
             "outputs": [
+                "{workspaceRoot}/dist/reports/cem-ssr-page-native.json",
+                "{workspaceRoot}/dist/reports/cem-ssr-page-browser.json",
                 "{workspaceRoot}/dist/reports/cem-ssr-render-native.json",
                 "{workspaceRoot}/dist/reports/cem-ssr-render-browser.json",
                 "{workspaceRoot}/dist/reports/cem-browser-native-slots.json",
@@ -24,13 +26,16 @@
                     "cargo test --locked --package cem-ml --no-default-features --lib --target-dir dist/target/cem_ml_stripped -- controlled_import",
                     "cargo test --locked --package cem-ml --lib --target-dir dist/target/cem_ml -- tree_apply",
                     "cargo test --locked --package cem-ml --no-default-features --lib --target-dir dist/target/cem_ml_stripped -- tree_apply",
-                    "cargo test --locked --package cem-ql --test retained_stylesheets --test ssr_stylesheets --test ssr_foreign_css --test ssr_cem_payload --test ssr_render --test ssr_host_commit --test ssr_island --test ssr_preparation --test native_payload_slots --target-dir dist/target/cem_ql",
+                    "cargo test --locked --package cem-ml --lib --target-dir dist/target/cem_ml -- ssr_element_continuation",
+                    "cargo test --locked --package cem-ml --no-default-features --lib --target-dir dist/target/cem_ml_stripped -- ssr_element_continuation",
+                    "cargo test --locked --package cem-ql --test retained_stylesheets --test ssr_page_coordinator --test ssr_stylesheets --test ssr_foreign_css --test ssr_cem_payload --test ssr_render --test ssr_host_commit --test ssr_island --test ssr_preparation --test native_payload_slots --target-dir dist/target/cem_ql",
                     "cargo test --locked --package cem-ql --lib --target-dir dist/target/cem_ql -- source_payload_admission",
-                    "cargo test --locked --package cem-ql --no-default-features --test retained_stylesheets --test ssr_stylesheets --test ssr_foreign_css --test ssr_cem_payload --test ssr_render --test ssr_host_commit --test ssr_island --test ssr_preparation --test native_payload_slots --target-dir dist/target/cem_ql_stripped",
+                    "cargo test --locked --package cem-ql --no-default-features --test retained_stylesheets --test ssr_page_coordinator --test ssr_stylesheets --test ssr_foreign_css --test ssr_cem_payload --test ssr_render --test ssr_host_commit --test ssr_island --test ssr_preparation --test native_payload_slots --target-dir dist/target/cem_ql_stripped",
                     "cargo test --locked --package cem-ql --no-default-features --lib --target-dir dist/target/cem_ql_stripped -- source_payload_admission",
                     "node packages/cem_ql/tests/verify-browser-native-slots.mjs",
                     "node packages/cem_ql/tests/verify-browser-host-commit.mjs",
-                    "node packages/cem_ql/tests/verify-ssr-render-browser.mjs"
+                    "node packages/cem_ql/tests/verify-ssr-render-browser.mjs",
+                    "node packages/cem_ql/tests/verify-ssr-page-browser.mjs"
                 ],
                 "parallel": false,
                 "cwd": "",

@@ -368,3 +368,64 @@ fn ssr_cem_payload_shorthand_canonicalizes_a_native_view_without_replacing_sourc
         assert!(canonical_cem_payload_type(kind).is_none());
     }
 }
+
+#[test]
+fn ssr_element_continuation_preserves_original_handles_and_refuses_stale_views() {
+    use crate::{
+        operation_control::OperationControl, parser::tree_apply::apply_children,
+        scheduler::AbortSignal, value::CemValueNode,
+    };
+    let owner=document("<!doctype html><html><body><template id='x-a' type='text/cem-ml'>{p | A &amp; B}</template><div>Old</div></body></html>");
+    let original = imported(owner);
+    let t = template(&original);
+    let target = original
+        .elements
+        .iter()
+        .map(|e| e.0)
+        .find(|id| {
+            original
+                .tree
+                .node(*id)
+                .unwrap()
+                .name
+                .as_ref()
+                .unwrap()
+                .local_name
+                == "div"
+        })
+        .unwrap();
+    let c = OperationControl::new(AbortSignal::new());
+    let text = || {
+        Arc::new(vec![CemValueNode::<(), ()>::Text {
+            text: "Derived".into(),
+            source_map: Default::default(),
+        }])
+    };
+    let first = apply_children(
+        original.tree.clone(),
+        target,
+        text(),
+        Arc::new(()),
+        Default::default(),
+        &c,
+    )
+    .unwrap();
+    let next = original.after_application(&first).unwrap();
+    next.validate_html_text_projection().unwrap();
+    let remapped = first.output_for_source(t).unwrap();
+    assert_eq!(
+        next.inline_cem_template_source(remapped).unwrap().text(),
+        "{p | A & B}"
+    );
+    let second = apply_children(
+        next.tree.clone(),
+        first.output_target(),
+        text(),
+        Arc::new(()),
+        Default::default(),
+        &c,
+    )
+    .unwrap();
+    assert!(original.after_application(&second).is_err());
+    assert!(next.after_application(&second).is_ok());
+}
