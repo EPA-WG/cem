@@ -4283,6 +4283,13 @@ fn transform_graph_export_primary(
     target_scope: &ScopeConfig,
     style_projection: TransformGraphHtmlStyleProjection,
 ) -> Result<TransformGraphExportPrimary, String> {
+    if let TransformArtifactBody::Extension(native) = &artifact.body {
+        native.validate_publication(
+            &context.operation_control,
+            target_scope,
+            !matches!(style_projection, TransformGraphHtmlStyleProjection::Inline),
+        )?;
+    }
     if let TransformArtifactBody::Encoded(encoded) = &artifact.body {
         if encoded.encoding == TransformEncoding::Binary {
             let identity = target
@@ -4385,6 +4392,7 @@ fn transform_graph_export_primary(
         context,
         artifact,
         target,
+        target_scope,
         metadata.source_map.as_ref(),
         &metadata.output_spans,
     )?;
@@ -4447,9 +4455,13 @@ fn transform_artifact_export_primary(
     context: &EngineContext,
     artifact: &TransformTemplateDataArtifact,
     target: Option<&FormatIdentity>,
+    target_scope: &ScopeConfig,
     source_map: Option<&SourceMapStack>,
     output_spans: &[OutputSpan],
 ) -> Result<Value, String> {
+    if let TransformArtifactBody::Extension(native) = &artifact.body {
+        native.validate_publication(&context.operation_control, target_scope, false)?;
+    }
     let encoded = match &artifact.body {
         TransformArtifactBody::Encoded(encoded) => Arc::clone(encoded),
         body => {
@@ -14071,6 +14083,7 @@ impl CemMlEngine for RealCemMlEngine {
             &request.context,
             &output_artifact,
             request.target.as_ref().or(rendered.identity.as_ref()),
+            &request.target_scope,
             rendered.source_map.as_ref(),
             &rendered.output_spans,
         ) {

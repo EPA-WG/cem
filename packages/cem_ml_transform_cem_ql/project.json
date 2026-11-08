@@ -13,6 +13,19 @@
                 "target-dir": "dist/target/cem_ml_transform_cem_ql"
             }
         },
+        "test:ssr-exports:stripped": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "inputs": ["default", "^default"],
+            "outputs": [],
+            "options": {
+                "parallel": false,
+                "commands": [
+                    "cargo test --locked --package cem-ml-transform-cem-ql --no-default-features --test ssr_exports --target-dir dist/target/cem_ql_stripped",
+                    "cargo test --locked --package cem-ml-transform-cem-ql --no-default-features --lib --target-dir dist/target/cem_ql_stripped -- ssr::tests"
+                ]
+            }
+        },
         "test": {
             "cache": true,
             "executor": "@monodon/rust:test",

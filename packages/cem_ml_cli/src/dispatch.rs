@@ -1813,7 +1813,7 @@ fn transform_request_from_args(
         .data
         .as_deref()
         .ok_or_else(|| CliRequestError::Usage("transform requires DATA or --config".into()))?;
-    let data = engine_input(
+    let mut data = engine_input(
         context,
         data_path,
         None,
@@ -1831,6 +1831,11 @@ fn transform_request_from_args(
     )
     .map_err(|error| CliRequestError::Usage(error.to_string()))?;
     let template_entrypoint = transform_template_entrypoint(args.template_entrypoint.as_deref());
+    if template_entrypoint.name.as_deref() == Some(cem_ml_transform_cem_ql::ssr::ENTRYPOINT) {
+        validate_ssr_cli_output(args)?;
+        data.uri = cem_ml::resolver::prepare_host_source_uri(&data.uri)
+            .map_err(|source| CliRequestError::Engine(engine_io_error(context, data_path, source)))?;
+    }
     let params = transform_parse_cli_params(&args.params)?;
     validate_transform_template_module_surface(template_kind, &template_entrypoint, &params)?;
     let execution_policy =
@@ -2046,10 +2051,34 @@ fn transform_graph_request_from_args(
 ) -> Result<(eng::TransformGraphRequest, String), CliRequestError> {
     let (graph, config_source_uri) = transform_graph_config_from_args(context, args)?;
     let provider = FilesystemTransformGraphResourceProvider::new(context, &config_source_uri);
-    let request =
+    let mut request =
         lower_transform_graph_request(context, &graph, &provider, &config_source_uri, false)
             .map_err(transform_graph_lowering_error)?;
+    for stage in &request.stages {
+        if stage.template_entrypoint.name.as_deref() == Some(cem_ml_transform_cem_ql::ssr::ENTRYPOINT) {
+            validate_ssr_cli_output(args)?;
+            if let Some(input) = request
+                .imports
+                .iter_mut()
+                .find(|input| input.id == stage.primary_input)
+            {
+                input.input.uri = cem_ml::resolver::prepare_host_source_uri(&input.input.uri)
+                    .map_err(|source| {
+                        CliRequestError::Engine(engine_io_error(
+                            context, Path::new(&input.input.uri), source,
+                        ))
+                    })?;
+            }
+        }
+    }
     Ok((request, config_source_uri))
+}
+
+fn validate_ssr_cli_output(args: &cli::TransformArgs) -> Result<(), CliRequestError> {
+    if args.output_color_type.as_deref().is_some_and(|v| v != "none") {
+        return Err(CliRequestError::Usage("SSR deploy HTML requires --output-color-type none; colored source is a separate presentation export".into()));
+    }
+    Ok(())
 }
 
 fn transform_graph_lowering_error(error: TransformGraphRequestError) -> CliRequestError {

@@ -1,0 +1,18 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+  {template @name="ssr:render-page" @visibility="public" |
+    {param @name="page-url" @type="string" @required=true}
+    {param @name="consumer-versions" @type="any" @required=true}
+    {param @name="max-depth" @type="any" @required=true}
+    {param @name="max-instances" @type="any" @required=true}
+    {param @name="max-render-passes" @type="any" @required=true}
+    {param @name="max-resources" @type="any" @required=true}
+    {param @name="max-bytes" @type="any" @required=true}
+    {param @name="wall-ms" @type="any" @required=true}
+    {param @name="cpu-ms" @type="any" @required=true}
+    {body}
+  }
+}

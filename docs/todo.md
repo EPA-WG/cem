@@ -945,9 +945,36 @@ through Phase 9 release governance.
             [Archive](archive/todo-completed-ssr-readiness-proof-2026-11-08.md).
   - [ ] Adoption wiring: only after that proof, connect CLI lowering, exports
         and browser hydration/parity to the same native core.
-      - [ ] Wire CLI lowering and named exports to the native readiness proof.
+      - [x] Wire native CLI transform lowering and named exports to the readiness
+            proof for the bounded inline HTML profile. Native bridge 6/6 and
+            proof-export 3/3 per profile, adapter 109/109, CLI 4/4 plus 34/34
+            existing config checks, shared writer/URI 2/2 per profile, source
+            admission 312/312 and final browser 22/22 pass. Paired core/runtime,
+            Clippy and WASM consumers pass. Core: 23,951,463 bytes, 28 imports /
+            175 exports; frozen presentation unchanged.
+            [Archive](archive/todo-completed-ssr-cli-exports-2026-11-08.md).
+        - [x] Add native bridge fixtures for immutable builtin selection, explicit
+              page URL/budgets/consumer versions, nested inline rendering, fresh
+              HTML/report exports, cancellation and unsupported export refusal.
+        - [x] Add CLI fixtures exercising direct/config lowering, uncolored HTML,
+              report output and atomic refusal without publishing partial files.
+        - [x] Add shared DOM writer fixtures for namespace-qualified islands,
+              HTML/SVG names, raw text, doctype and retained source maps; use the
+              existing HTML formatter rather than an SSR-specific serializer.
+        - [x] Add host URI fixtures for relative local inputs, escaped file names
+              and unchanged registered URI schemes before native source ingress.
+        - [x] Add inline CSS/native payload export fixtures while refusing every
+              pending external resource ticket without invoking host transport.
+        - [x] Verify CLI-emitted HTML in Chromium for standards mode, nested
+              output and inert canonical island prefixes without running a
+              second SSR implementation or claiming hydration parity.
       - [ ] Wire browser hydration/adoption and verify end-to-end parity against
             the same completed native artifact.
+      - [ ] Extend CLI host admission to external resources, further page-source
+            forms and fan-out route/output preflight; account acquisition/parser
+            CPU explicitly while preserving the same native proof and ledger.
+            Current builtin grants no transport and does not claim those profiles.
+            [CLI/export completion archive](archive/todo-completed-ssr-cli-exports-2026-11-08.md).
 
 
 ## Component gallery source-link maintenance (after Studio presentation work)

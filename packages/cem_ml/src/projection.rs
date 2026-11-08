@@ -34,6 +34,9 @@ use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+mod html_writer;
+pub use html_writer::stream as html_dom_writer_stream;
+
 const BINARY_FORMAT_VERSION: &str = "cem-projection-bin/2";
 const BINARY_MAGIC: &[u8; 8] = b"CEMPROJ\0";
 const BINARY_VERSION: u16 = 2;

@@ -1,0 +1,58 @@
+{
+  "schema": "cem-ssr-cli-export-verification/1",
+  "date": "2026-11-08",
+  "baseCommit": "f59d11d92a4d3ed0ed283c688f6bf2c6db812fc0",
+  "scope": "Native transform direct/config lowering and explicit HTML/report publication for the inline HTML profile",
+  "native": {
+    "bridgeIntegration": 6,
+    "adapterUnitTestsIncludingThreeProofExportCases": 109,
+    "strippedBridgeIntegration": 6,
+    "strippedProofExportUnitTests": 3,
+    "sharedDomWriterAndSourceUriTestsPerProfile": 2,
+    "sourceAdmissionAcrossDefaultAndStripped": 312
+  },
+  "cli": {
+    "newIntegrationTests": 4,
+    "existingTransformConfigTests": 34,
+    "atomicFailurePreservesAllDestinations": true
+  },
+  "browser": {
+    "finalCoreRenderMatches": 19,
+    "finalCorePassivePageMatches": 3,
+    "divergences": 0,
+    "cliSerializationObservation": {
+      "mode": "CSS1Compat",
+      "parent": "Ready & safe",
+      "islands": [
+        "cem-island:context-root",
+        "cem-island:context-root"
+      ],
+      "requests": 0
+    },
+    "hydrationAdoptionTested": false
+  },
+  "quality": {
+    "adapterClippy": "passed with existing warnings",
+    "cliClippy": "passed with existing warnings",
+    "focusedRustfmt": "passed",
+    "stagedWhitespaceCheck": "passed"
+  },
+  "wasm": {
+    "bytes": 23951463,
+    "budgetBytes": 26214400,
+    "sha256": "8e942895098ff95749ce1329a0bd2556cbe7568773208ca6dd00130995405104",
+    "imports": 28,
+    "exports": 175,
+    "vendorPairMatches": true,
+    "checkedTemplateCacheConsumer": "passed",
+    "retainedAndInstanceStylesheetConsumers": "passed"
+  },
+  "frozenPresentationSha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864",
+  "limits": [
+    "Native CPU clock exercised on Linux; Windows bindings not executed here.",
+    "Source acquisition/parser CPU before the bridge is excluded; the original wall deadline is retained.",
+    "Inline declarations, CSS and native payload source leases only; pending external resource tickets are refused.",
+    "Generic envelope and report keep hydrationReady false; browser adoption remains next.",
+    "Further source forms and fan-out route/output preflight remain future host admission."
+  ]
+}

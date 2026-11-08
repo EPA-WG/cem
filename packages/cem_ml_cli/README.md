@@ -17,6 +17,12 @@ contract.
 
 ## Verification
 
+Native inline-page SSR uses `transform` with the packaged `ssr-page.cemt`,
+the `ssr:render-page` entrypoint, and explicit routes, consumer versions and
+budgets. It shares the native readiness proof and atomic publication writer;
+HTML and readiness-report outputs are named export boundaries. See the
+[supported command and limits](../../docs/cem-ml-cli-ssr-proposal.md#80-implemented-native-inline-cliexport-slice).
+
 Use Nx for native build and command verification:
 
 ```bash

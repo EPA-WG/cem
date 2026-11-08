@@ -7,6 +7,7 @@
 
 pub mod schema_packages;
 pub mod schema_validation_session;
+pub mod ssr;
 
 mod source_inspection;
 
@@ -1669,6 +1670,13 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
         &self,
         request: TransformTemplateCompileRequest<'_>,
     ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
+        if request.entrypoint.name.as_deref() == Some(ssr::ENTRYPOINT) {
+            return ssr::compile(self.id(), request).map_err(|message| {
+                TransformTemplateAdapterError::failed(
+                    self.id(), TransformTemplateAdapterExecutionPhase::Compile, message,
+                )
+            });
+        }
         let source = std::str::from_utf8(&request.template.bytes).map_err(|err| {
             TransformTemplateAdapterError::failed(
                 self.id(),
@@ -1776,6 +1784,13 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
         request: TransformTemplateRenderRequest<'_>,
         runtime: TransformTemplateRuntimeContext<'_>,
     ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+        if request.compiled.native_payload::<ssr::CompiledSsr>().is_some() {
+            return ssr::render(request, runtime).map_err(|message| {
+                TransformTemplateAdapterError::failed(
+                    self.id(), TransformTemplateAdapterExecutionPhase::Render, message,
+                )
+            });
+        }
         render_cem_ql_payload_with_runtime(self.id(), request, runtime)
     }
 }
@@ -1904,6 +1919,8 @@ pub fn register_cem_ql_source_output_converter(context: &mut EngineContext) {
 }
 
 pub fn register_cem_ql_artifact_exporters(context: &mut EngineContext) {
+    let ssr_exporter = ssr::ReadyExporter::new(context);
+    context.transform_artifact_exporter_registry.register(ssr_exporter);
     context
         .transform_artifact_exporter_registry
         .register(CemQlJsonResultExporter);

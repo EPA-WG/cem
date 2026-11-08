@@ -9098,6 +9098,16 @@ pub trait TransformNativeArtifact: Any + Send + Sync {
     fn representation_id(&self) -> &'static str;
     fn source_map(&self) -> Option<&SourceMapStack>;
     fn as_any(&self) -> &dyn Any;
+    /// Revalidate nonportable authority at the actual host export boundary.
+    /// Ordinary value artifacts need no special publication restriction.
+    fn validate_publication(
+        &self,
+        _control: &crate::operation_control::OperationControl,
+        _scope: &crate::run_config::ScopeConfig,
+        _rewrites_document: bool,
+    ) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 pub trait TransformArtifactExporter: Send + Sync {

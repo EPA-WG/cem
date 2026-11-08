@@ -15,6 +15,44 @@ use crate::scheduler::AbortSignal;
 use crate::source_map::SourceMapStack;
 use serde::{Deserialize, Serialize};
 
+/// Host preparation before document import. Preserve registered resolver URIs;
+/// local paths become absolute percent-encoded file URIs, without changing the
+/// resource read policy or deriving the eventual public page URL.
+#[cfg(any(unix, windows))]
+pub fn prepare_host_source_uri(raw: &str) -> io::Result<String> {
+    if uri_scheme(raw).is_some() && !is_windows_drive_path(raw) {
+        return Ok(raw.to_owned());
+    }
+    let path = std::path::absolute(Path::new(raw))?;
+    url::Url::from_file_path(path)
+        .map(String::from)
+        .map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Source path cannot become an absolute file URI",
+            )
+        })
+}
+
+#[cfg(all(test, any(unix, windows)))]
+mod source_uri_tests {
+    use super::*;
+    #[test]
+    fn host_source_uri_preparation_preserves_schemes_and_escapes_local_paths() {
+        for raw in [
+            "https://example.test/page.html",
+            "project:/page.html",
+            "file:///source/page.html",
+        ] {
+            assert_eq!(prepare_host_source_uri(raw).unwrap(), raw);
+        }
+        let uri = prepare_host_source_uri("source #1.html").unwrap();
+        assert!(uri.starts_with("file:///"));
+        assert!(uri.ends_with("source%20%231.html"));
+        assert!(local_file_uri_to_path(&uri).unwrap().is_absolute());
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]

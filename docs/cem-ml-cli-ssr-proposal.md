@@ -6,8 +6,12 @@ unrendered/partial SSR artifact contract, one-inline-DCE preparation and canonic
 first-connection HTML island preparation and one-pass native render-plan
 application with shared host/island commits are implemented; see §5.1, §6.1.1
 and §6.2.1–§6.2.4.
-The SSR command, settled/adoptable artifact, lifecycle coordinator and page
-compiler described here remain proposed and are not yet implemented.
+The native parent-first inline coordinator and opaque readiness proof are now
+implemented, including version/island/lease/range checks and original-operation
+CPU accounting. The packaged `ssr:render-page` builtin connects native CLI
+`transform` lowering to that proof and explicit HTML/report exports (§8.0).
+Browser adoption, external-resource CLI admission, additional page-source forms,
+the proposed `ssr` shorthand and the general page compiler remain future work.
 
 **Applies to:** `cem-ml`, CEMT transform graphs, `cem-elements`, Edge/SSR
 hosts, browser hydration, HTML/CEM-ML/Markdown page sources, and repository demo
@@ -907,6 +911,71 @@ a divergent payload transformation. Hydration adopts identity-matched
 participant output without rebuilding it.
 
 ## 8. Transform configuration
+
+### 8.0 Implemented native inline CLI/export slice
+
+The native Rust host can execute the immutable packaged
+`packages/cem_ml_transform_cem_ql/templates/ssr-page.cemt` through the ordinary
+`transform` command and config graph. Select the reserved public entrypoint
+`ssr:render-page`. The adapter verifies the builtin bytes; another module using
+that name cannot silently substitute a different implementation.
+
+```sh
+cem-ml transform page.html \
+  --template packages/cem_ml_transform_cem_ql/templates/ssr-page.cemt \
+  --template-content-type text/cem-ml \
+  --template-entrypoint ssr:render-page \
+  --param page-url=https://example.test/guide/ \
+  --param consumer-versions=x-card=1.2.3,x-icon=0.2.0 \
+  --param max-depth=8 --param max-instances=32 \
+  --param max-render-passes=32 --param max-resources=32 \
+  --param max-bytes=1048576 \
+  --param wall-ms=10000 --param cpu-ms=1000 \
+  --to-content-type text/html --out dist/guide/index.html
+```
+
+All limits and consumer versions are explicit. CLI/config numeric parameters
+are positive decimal strings; native callers may supply typed integers.
+`consumer-versions` is a comma-separated `tag=version` control grammar (or a
+native parameter record), not document JSON. Missing/incompatible versions,
+invalid routes and exhausted limits refuse publication. Local source paths are
+prepared as absolute escaped file URIs before the shared native HTML importer;
+the public page URL remains independent. Physical output destinations remain
+owned by the normal CLI publication transaction. The retained render artifact
+has no destination because a graph may export it more than once.
+
+The supported input is an already-admitted native HTML document with unique
+inline declarations. The coordinator discovers nested participants. This
+builtin admits inline CSS and native payload source leases but grants no
+external CSS/payload/declaration reads, source adapters,
+static fallback, browser execution or page-module registry. Those capabilities
+require explicit further admission, not a larger numeric resource budget.
+Ordinary source loading remains in the common command engine. The CPU receipt
+measures bridge preparation, lifecycle work, readiness and synchronous exports
+on the original operation; it does not claim to measure earlier command-source
+acquisition or parser CPU. The original wall deadline includes that time.
+
+Config graphs use the same template, entrypoint and literal `{param}` controls.
+A transform may have both a `text/html` export and an
+`application/vnd.cem.ssr-report+json` export. The first delegates a typed retained
+DOM projection to the existing DOM-to-HTML formatter/writer contract with color
+disabled. Namespace declarations, doctype, raw text, semantic values and source
+maps remain native until that named boundary. The second reports routes,
+participant IDs, measured readiness usage, and previous export bytes. Its
+`readiness: native-ready` observation is metadata; `hydrationReady` remains
+false. Reports contain no DOM/AST and cannot authorize another export.
+
+The native proof stays attached to the private output representation. The
+common engine's publication hook checks the current operation and rejects
+document rewrites or colored output. Every encoding rechecks readiness before
+and after work and charges its bytes to a cumulative export budget. A failure
+in a later graph export prevents the normal CLI transaction from publishing
+earlier outputs. Generic unrendered/partial SSR envelopes remain unexportable.
+Browser hydration/adoption against this exact serialized artifact is the next
+integration step; this command does not yet advertise browser reuse authority.
+
+The examples in §8.1 onward describe the broader proposed page compiler and do
+not replace this bounded builtin's current contract.
 
 The examples in this section are proposed target configuration. They will not
 run until the SSR page adapter, artifact identity, and any noted graph bindings
