@@ -341,6 +341,12 @@ impl TemplateStylesheetArtifact {
         })
     }
 
+    /// Preserve authored HTML source maps when adopting a native inline style.
+    pub fn from_inline_css(source: cem_ml::import::inline_css::RetainedInlineCss) -> Self {
+        let (css_tree, css) = source.into_parts();
+        Self { css, scope: None, css_tree, compiled_imports: None }
+    }
+
     /// Admission of a build-pinned native CSS tree; no CSS parser participates.
     pub fn from_compiled_css(bytes: &[u8], hash: &str, scope: Option<String>) -> Result<Self, String> {
         let admitted = cem_ml::compiled_css::admit_inline(bytes, hash)?;

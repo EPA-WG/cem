@@ -753,10 +753,10 @@ through Phase 9 release governance.
       remains unchanged; SSR stays partial and adoption remains gated.
       [Archive](archive/todo-completed-browser-native-slots-2026-11-06.md).
 
-- [ ] SSR additional source/domain admission: support CEM-ML source payloads
-      through the shared native import boundary, foreign payload domains and
-      instance CSS through the existing native closure/stylesheet owners. Keep
-      explicit source authority, envelope identity and source maps; never relabel
+- [x] SSR additional source/domain admission: support CEM-ML source payloads
+      through the shared native import boundary, bounded passive foreign DOM and
+      resource-free instance CSS through existing native closure/stylesheet owners.
+      Keep explicit source authority, envelope identity and source maps; never relabel
       unsupported payloads as HTML. Add failing native adapter/admission fixtures
       before extending the current passive HTML profile.
   - [x] Canonical CEM-ML source payload admission: add native fixtures for
@@ -794,8 +794,26 @@ through Phase 9 release governance.
         consumers pass. Core: 24,027,304 bytes, 28 imports/175 exports. Frozen
         presentation remains; foreign/CSS admission and adoption stay gated.
         [Archive](archive/todo-completed-ssr-cem-ingress-normalization-2026-11-08.md).
-  - [ ] Complete additional profile admission for foreign DOM payloads and
-        retained instance CSS.
+  - [x] Foreign payload and CSS closure fixtures: preserve passive SVG/MathML
+        expanded names, case-sensitive attributes, source identity/maps and slot
+        order; admit explicit HTML payload CSS through retained native owners,
+        preserve scoped emission and inert nested templates, refuse external
+        resources, active content, implicit styles and operation replay. Verify
+        default/stripped native profiles and shared browser observations.
+  - [x] Complete bounded passive SVG/MathML and resource-free instance CSS
+        admission through retained native owners.
+        Completed 2026-11-08: shared HTML import preserves foreign casing and
+        expanded names. Explicit HTML payload CSS retains original source maps,
+        uses the existing instance closure/emitter and publishes a managed suffix
+        with host/island state. Unsupported resource/integration profiles remain
+        refused; nested templates stay inert. Source gate passes 200 native
+        checks across default/stripped profiles, 8 browser profiles and all 19
+        complete observations with no divergences. Shared receiver units pass
+        19/19 per profile; component receiver passes 17/17. Paired build,
+        Clippy, focused formatting and optimized WASM consumers pass. Core:
+        23,969,473 bytes, 28 imports/175 exports. Frozen presentation unchanged;
+        SSR remains partial and hydration adoption stays gated.
+        [Archive](archive/todo-completed-ssr-foreign-css-admission-2026-11-08.md).
 
 - [ ] SSR coordinator and completion: admit scoped/resource closures and multiple
       participants, settle nested work under the original operation/budget policy,
@@ -803,6 +821,17 @@ through Phase 9 release governance.
       identity/policy and valid output ranges.
       Only that native proof may enable adoption. Wire command lowering, exports
       and browser hydration/parity through the same core after those gates pass.
+  - [ ] Resource coordination: admit declaration CSS and resource-bearing
+        instance closures with explicit shared resolver/loader authority and
+        original-operation budgets. Add native pending/ready/refused/cancelled
+        closure fixtures before permitting transport or publication.
+  - [ ] Nested lifecycle: prepare multiple participants and settle nested work
+        under one operation, preserving ownership and resource/render ceilings.
+        Add failing native ordering, exhaustion and cancellation fixtures first.
+  - [ ] Completion proof: validate declaration versions, complete islands,
+        identity/policy freshness and owned output ranges before declaring ready.
+  - [ ] Adoption wiring: only after that proof, connect CLI lowering, exports
+        and browser hydration/parity to the same native core.
 
 
 ## Component gallery source-link maintenance (after Studio presentation work)

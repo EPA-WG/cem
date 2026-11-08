@@ -322,10 +322,6 @@ fn export_observation(tree: &cem_ml::parser::tree::RetainedCemTree, id: u32) -> 
     let node = tree.node(id).unwrap();
     match node.kind {
         CemTreeNodeKind::Element => {
-            assert_eq!(
-                node.name.as_ref().unwrap().namespace_uri,
-                "http://www.w3.org/1999/xhtml"
-            );
             let attributes = node
                 .attributes
                 .iter()
@@ -337,8 +333,12 @@ fn export_observation(tree: &cem_ml::parser::tree::RetainedCemTree, id: u32) -> 
                         .then(|| (name.clone(), json!(attr.value)))
                 })
                 .collect::<serde_json::Map<String, serde_json::Value>>();
-            json!({"tag":node.name.as_ref().unwrap().local_name,"attributes":attributes,
-                "children":node.children.iter().map(|id|export_observation(tree,*id)).collect::<Vec<_>>()})
+            let mut value = json!({"tag":node.name.as_ref().unwrap().local_name,"attributes":attributes,
+                "children":node.children.iter().map(|id|export_observation(tree,*id)).collect::<Vec<_>>()});
+            if node.name.as_ref().unwrap().namespace_uri != "http://www.w3.org/1999/xhtml" {
+                value["namespace"] = json!(node.name.as_ref().unwrap().namespace_uri);
+            }
+            value
         }
         CemTreeNodeKind::Comment => json!({"comment":node.value}),
         CemTreeNodeKind::Text => json!(node.value),
@@ -358,7 +358,11 @@ fn shared_render_observations_match_native_application() {
         );
         let tree = r.application().tree();
         let ids = r.application().inserted_children();
-        let rendered = ids[2..ids.len() - 1]
+        let end = ids
+            .iter()
+            .position(|id| tree.node(*id).unwrap().value == "cem-render-end")
+            .unwrap();
+        let rendered = ids[2..end]
             .iter()
             .map(|id| export_observation(tree, *id))
             .collect::<Vec<_>>();
@@ -384,6 +388,14 @@ fn shared_render_observations_match_native_application() {
         assert_eq!(r.page().usage().render_passes, 1);
         assert!(!r.page().adoption_identity().hydration_ready());
         let mut observation = json!({"name":vector["name"],"rendered":rendered,"payload":payload});
+        if let Some(styles) = vector.get("instanceStyles") {
+            let output = ids[end + 1..]
+                .iter()
+                .map(|id| export_observation(tree, *id))
+                .collect::<Vec<_>>();
+            assert_eq!(json!(output), *styles, "{}", vector["name"]);
+            observation["instanceStyles"] = json!(output);
+        }
         if vector.get("hostAttributes").is_some() {
             let read_attributes = |id: u32| {
                 tree.node(id)

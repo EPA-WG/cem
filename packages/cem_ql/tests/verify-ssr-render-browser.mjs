@@ -77,22 +77,30 @@ try {
             await runtime.whenDeclarationSettled(declaration);
             const host = container.querySelector('x-inline');
             await runtime.whenRenderSettled(host);
+            if (vector.cssProbe) {
+                const target = host.querySelector(vector.cssProbe.selector);
+                if (!target || getComputedStyle(target).color !== vector.cssProbe.color) throw new Error('Managed instance CSS did not apply');
+                const outside = document.createElement('b');
+                outside.className = target.className;
+                outside.textContent = 'Outside instance';
+                document.body.append(outside);
+                if (getComputedStyle(outside).color === vector.cssProbe.color) throw new Error('Managed instance CSS escaped its host');
+            }
             const internal = new Set(['data-cem-render-scope', 'data-cem-render-node-id', 'data-cem-template-artifact-id', 'data-cem-data-revision', 'data-cem-source-fidelity', 'data-cem-source-frame']);
             function exportObservation(node) {
                 if (node.nodeType === 3) return node.textContent;
                 if (node.nodeType === 8) return { comment: node.textContent };
                 if (node.nodeType !== 1) throw new Error('Unsupported observation node');
-                if (node.namespaceURI !== 'http://www.w3.org/1999/xhtml') throw new Error('Unexpected output namespace');
                 const attributes = Object.fromEntries(Array.from(node.attributes)
                     .filter(attr => !internal.has(attr.name) && !attr.name.startsWith('xmlns'))
                     .map(attr => [attr.name, attr.value]));
                 const content = node.localName === 'template' ? node.content.childNodes : node.childNodes;
-                return { tag: node.localName, attributes, children: Array.from(content).filter(child => child.nodeType !== 3 || child.textContent !== '').map(exportObservation) };
+                return { ...(node.namespaceURI === 'http://www.w3.org/1999/xhtml' ? {} : { namespace: node.namespaceURI }), tag: node.localName, attributes, children: Array.from(content).filter(child => child.nodeType !== 3 || child.textContent !== '').map(exportObservation) };
             }
             const children = Array.from(host.childNodes);
             const start = children.findIndex(node => node.nodeType === 8 && node.textContent === 'cem-render-start');
             const end = children.findIndex(node => node.nodeType === 8 && node.textContent === 'cem-render-end');
-            if (start !== 1 || end !== children.length - 1) throw new Error('Unexpected island/range topology');
+            if (start !== 1 || end !== children.length - 1 - (vector.instanceStyles?.length ?? 0)) throw new Error('Unexpected island/range topology');
             const island = children[0];
             if (island.localName !== 'template' || island.getAttribute('data-cem-island') !== 'instance') throw new Error('Missing inert island');
             const context = island.content.firstElementChild;
@@ -107,6 +115,7 @@ try {
             }
             return JSON.stringify({
                 ...hostState,
+                ...(vector.instanceStyles ? { instanceStyles: children.slice(end + 1).map(exportObservation) } : {}),
                 name: vector.name,
                 rendered: children.slice(start + 1, end).map(exportObservation),
                 payload: Array.from(payload.childNodes).map(exportObservation),
@@ -121,6 +130,11 @@ try {
         const nativeExpected = { name: vector.name, rendered: vector.rendered, payload: vector.payload };
         if (vector.hostAttributes) for (const field of ['hostAttributes', 'islandAttributes', 'islandDataset']) {
             result[field] = observation[field]; expected[field] = vector[`browser${field[0].toUpperCase()}${field.slice(1)}`] || vector[field]; nativeExpected[field] = vector[field];
+        }
+        if (vector.instanceStyles) {
+            result.instanceStyles = observation.instanceStyles;
+            expected.instanceStyles = vector.instanceStyles;
+            nativeExpected.instanceStyles = vector.instanceStyles;
         }
         assert.deepEqual(result, expected, vector.name);
         const nativeResult = native.find(entry => entry.name === vector.name);

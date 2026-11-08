@@ -409,5 +409,198 @@
         ]
       }
     ]
+  },
+  {
+    "name": "passive SVG and MathML preserve namespaces and SVG casing",
+    "template": "{section | {$ datadom.slots.heading}}",
+    "body": "<x-inline><svg slot='heading' viewBox='0 0 24 24'><linearGradient id='paint'></linearGradient><circle r='4'></circle></svg><math slot='heading'><mi>x</mi><mo>+</mo><mn>1</mn></math></x-inline>",
+    "rendered": [
+      {
+        "tag": "section",
+        "attributes": {},
+        "children": [
+          {
+            "tag": "svg",
+            "attributes": {
+              "slot": "heading",
+              "viewBox": "0 0 24 24"
+            },
+            "children": [
+              {
+                "tag": "linearGradient",
+                "attributes": {
+                  "id": "paint"
+                },
+                "children": [],
+                "namespace": "http://www.w3.org/2000/svg"
+              },
+              {
+                "tag": "circle",
+                "attributes": {
+                  "r": "4"
+                },
+                "children": [],
+                "namespace": "http://www.w3.org/2000/svg"
+              }
+            ],
+            "namespace": "http://www.w3.org/2000/svg"
+          },
+          {
+            "tag": "math",
+            "attributes": {
+              "slot": "heading"
+            },
+            "children": [
+              {
+                "tag": "mi",
+                "attributes": {},
+                "children": [
+                  "x"
+                ],
+                "namespace": "http://www.w3.org/1998/Math/MathML"
+              },
+              {
+                "tag": "mo",
+                "attributes": {},
+                "children": [
+                  "+"
+                ],
+                "namespace": "http://www.w3.org/1998/Math/MathML"
+              },
+              {
+                "tag": "mn",
+                "attributes": {},
+                "children": [
+                  "1"
+                ],
+                "namespace": "http://www.w3.org/1998/Math/MathML"
+              }
+            ],
+            "namespace": "http://www.w3.org/1998/Math/MathML"
+          }
+        ]
+      }
+    ],
+    "payload": [
+      {
+        "tag": "svg",
+        "attributes": {
+          "slot": "heading",
+          "viewBox": "0 0 24 24"
+        },
+        "children": [
+          {
+            "tag": "linearGradient",
+            "attributes": {
+              "id": "paint"
+            },
+            "children": [],
+            "namespace": "http://www.w3.org/2000/svg"
+          },
+          {
+            "tag": "circle",
+            "attributes": {
+              "r": "4"
+            },
+            "children": [],
+            "namespace": "http://www.w3.org/2000/svg"
+          }
+        ],
+        "namespace": "http://www.w3.org/2000/svg"
+      },
+      {
+        "tag": "math",
+        "attributes": {
+          "slot": "heading"
+        },
+        "children": [
+          {
+            "tag": "mi",
+            "attributes": {},
+            "children": [
+              "x"
+            ],
+            "namespace": "http://www.w3.org/1998/Math/MathML"
+          },
+          {
+            "tag": "mo",
+            "attributes": {},
+            "children": [
+              "+"
+            ],
+            "namespace": "http://www.w3.org/1998/Math/MathML"
+          },
+          {
+            "tag": "mn",
+            "attributes": {},
+            "children": [
+              "1"
+            ],
+            "namespace": "http://www.w3.org/1998/Math/MathML"
+          }
+        ],
+        "namespace": "http://www.w3.org/1998/Math/MathML"
+      }
+    ]
+  },
+  {
+    "name": "explicit instance CSS uses a managed suffix outside the render range",
+    "template": "{section | {$ datadom.slots.heading}}",
+    "body": "<x-inline><template><style>.title {color:red}</style><b class='title' slot='heading'>Title</b></template></x-inline>",
+    "rendered": [
+      {
+        "tag": "section",
+        "attributes": {},
+        "children": [
+          {
+            "tag": "b",
+            "attributes": {
+              "class": "title",
+              "slot": "heading"
+            },
+            "children": [
+              "Title"
+            ]
+          }
+        ]
+      }
+    ],
+    "payload": [
+      {
+        "tag": "style",
+        "attributes": {},
+        "children": [
+          ".title {color:red}"
+        ]
+      },
+      {
+        "tag": "b",
+        "attributes": {
+          "class": "title",
+          "slot": "heading"
+        },
+        "children": [
+          "Title"
+        ]
+      }
+    ],
+    "instanceStyles": [
+      {
+        "tag": "style",
+        "attributes": {
+          "data-cem-instance-style": "0"
+        },
+        "children": [
+          "@scope to (:scope :has(> template[data-cem-island=\"instance\"]) > *, [slot]:not(input) > *) {:scope .title {color:red;}}"
+        ]
+      }
+    ],
+    "cssProbe": {
+      "selector": ".title",
+      "color": "rgb(255, 0, 0)"
+    },
+    "browserDiagnostics": [
+      "cem.processing_host.worker_startup_fallback"
+    ]
   }
 ]

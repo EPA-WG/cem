@@ -1,0 +1,198 @@
+{
+  "version": 1,
+  "date": "2026-11-08",
+  "topic": "SSR foreign payload and CSS closure admission",
+  "baseCommit": "836e5bb808e7bbb444d36fd834257e410114c509",
+  "sourceBoundary": "cem_ml::import, retained typed CEM trees with original native owners",
+  "profiles": {
+    "foreignPayload": "bounded passive SVG/MathML with namespace identity and HTML foreign-name adjustments",
+    "instanceCss": "resource-free native closures from plain styles in explicit inert HTML payload templates",
+    "sourceBytesPerCssBlock": 32768,
+    "nativeValuesPerCssBlock": 16384,
+    "maxDepth": 64,
+    "maxStyleOccurrences": 64,
+    "callerLimitsApply": true,
+    "originalOperationRequiredForCss": true,
+    "nestedTemplatesInert": true
+  },
+  "gates": {
+    "sourceAdmissionNativeChecks": 200,
+    "nativeFeatureProfiles": [
+      "default",
+      "no-default-features"
+    ],
+    "componentReceiverChecks": 17,
+    "sharedReceiverUnitChecksPerProfile": 19,
+    "nativeSlotBrowserProfiles": 4,
+    "hostPublicationBrowserProfiles": 4,
+    "completeNativeBrowserObservations": 19,
+    "documentedDivergences": 0,
+    "cssHostLocalityProbe": true,
+    "pairedBuild": true,
+    "clippy": "pass, existing warnings",
+    "focusedRustfmt": "pass",
+    "browserScriptSyntax": "pass",
+    "optimizedWasmConsumers": "pass",
+    "expectedCssBrowserDiagnostic": "cem.processing_host.worker_startup_fallback (deliberately forced main-thread test harness)"
+  },
+  "browser": "148.0.7778.96",
+  "externalRequests": [],
+  "core": {
+    "path": "packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+    "bytes": 23969473,
+    "sha256": "72c465c592e54bf31aff761dd65d3a3f675d4ffbe75798e5a87db2429a47400a",
+    "imports": 28,
+    "exports": 175,
+    "perFileCeilingBytes": 26214400
+  },
+  "packagedCore": {
+    "path": "packages/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+    "bytes": 23969473,
+    "sha256": "72c465c592e54bf31aff761dd65d3a3f675d4ffbe75798e5a87db2429a47400a"
+  },
+  "frozenPresentation": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864"
+  },
+  "adoption": {
+    "lifecycle": "partial/incomplete",
+    "hydrationReady": false,
+    "cliExportWired": false
+  },
+  "limits": [
+    "Foreign active/unknown/integration profiles refused; text integration containers require markup-free text/comments.",
+    "CSS imports, URL resources, declaration styles and unsupported managed syntax require later coordination.",
+    "CSS source mapping currently requires unchanged raw text; carriage-return normalization and style attributes are refused.",
+    "Nested/multiple participant settling and final completion/identity/range proof remain open."
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/cem-elements/project.json",
+      "bytes": 51090,
+      "sha256": "57594b2e9379a52e9661f7995f697b231f44bcdacc5fe3ee0d82738258fb5a90"
+    },
+    {
+      "path": "packages/cem_ml/src/import.rs",
+      "bytes": 57828,
+      "sha256": "dc30cb1d4bfd05feaf15a7cd551b8b8d45c76d14122330da004899dc34902dc9"
+    },
+    {
+      "path": "packages/cem_ml/src/import/html.rs",
+      "bytes": 11289,
+      "sha256": "100a15ccb215f9b26e54faa6e78b36e739fb681404f97bb6cbe19ca858679e5f"
+    },
+    {
+      "path": "packages/cem_ml/src/import/html_names.rs",
+      "bytes": 3107,
+      "sha256": "71986f47c4c87082562c1a81349dda74ac768274efea8ad1ffbad6541ae4308c"
+    },
+    {
+      "path": "packages/cem_ml/src/import/inline_css.rs",
+      "bytes": 6396,
+      "sha256": "b10b0ad690c923b5e8febe5d5b1b17ef3fb233bb06897e243569e91189043ac8"
+    },
+    {
+      "path": "packages/cem_ml/src/validation/html.rs",
+      "bytes": 78817,
+      "sha256": "bb4fd75e37fd677425fa75b56847af6a2290763a79c5b68253c32eb44989b3af"
+    },
+    {
+      "path": "packages/cem_ml/src/validation/html_foreign.rs",
+      "bytes": 4319,
+      "sha256": "6fd428da5805c97d8f09d796d3b254aa3d6d47d6e9606ec944d474349f645778"
+    },
+    {
+      "path": "packages/cem_ql/project.json",
+      "bytes": 27410,
+      "sha256": "f25bf192a3f2a608d715886e1fd6e61b72ea011735731a5289e234d8cab548ff"
+    },
+    {
+      "path": "packages/cem_ql/src/instance_island/payload.rs",
+      "bytes": 7888,
+      "sha256": "6a7efa821e30108d36c108d9e54b917374cad79c374793e8a2a4a341003a5c4f"
+    },
+    {
+      "path": "packages/cem_ql/src/lib.rs",
+      "bytes": 11647,
+      "sha256": "2063500ff399e2278100ec9e3174707d38b00a245cbd044fbefd9bf2c36e1e08"
+    },
+    {
+      "path": "packages/cem_ql/src/render.rs",
+      "bytes": 245970,
+      "sha256": "345f0baeff1b3d86ff74aef30f7d03c2d86fdefd38ef64f1a113d4d13b57223c"
+    },
+    {
+      "path": "packages/cem_ql/src/retained_template.rs",
+      "bytes": 11097,
+      "sha256": "c4b9adc50b71887ae1b1a9824befedd4ea93390889ea6298ed9504ee74ce673f"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_css.rs",
+      "bytes": 8140,
+      "sha256": "3df6ec49bbafe90fa570d906ef8a2f22f2ddddc8bd5c9a40600fa27ef8e940ba"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_island.rs",
+      "bytes": 13498,
+      "sha256": "3cc8bc3e1d3320e1ebdcb2335d3b6fa4b89544623ef1f47aabb4f650a7780a42"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_render.rs",
+      "bytes": 13356,
+      "sha256": "7a9a19edd8540d747c96e9732bc41ae5848598d6f5973058f541594a5a042ed1"
+    },
+    {
+      "path": "packages/cem_ql/tests/fixtures/ssr-render-observations.json",
+      "bytes": 13958,
+      "sha256": "9ffe8316127d06a9e96930d07f60896f935561da4737756d33ccef270cc1a7ba"
+    },
+    {
+      "path": "packages/cem_ql/tests/ssr_foreign_css.rs",
+      "bytes": 12966,
+      "sha256": "ab2525bd23e2876ca651b823643c2e9c5a2e01be92305fefebde95a01037f37e"
+    },
+    {
+      "path": "packages/cem_ql/tests/ssr_island.rs",
+      "bytes": 17551,
+      "sha256": "a0314e0145dcf07268c980b8d8d28475711d66291c43e611921a71a8b5ce345b"
+    },
+    {
+      "path": "packages/cem_ql/tests/ssr_render.rs",
+      "bytes": 20088,
+      "sha256": "e523416abe52226997f75a41501ebd5fe0a811bc76530a2db52313484f377439"
+    },
+    {
+      "path": "packages/cem_ql/tests/verify-ssr-render-browser.mjs",
+      "bytes": 10679,
+      "sha256": "2f8392997848c8047556591952a28713956ae12ca18aaf1f0e9bc6a8231b4209"
+    }
+  ],
+  "observations": [
+    {
+      "path": "dist/reports/cem-ssr-render-native.json",
+      "bytes": 11096,
+      "sha256": "088e910f38e766aa92f99365a82d533c9f168af1c48ef403f54e22fc3245f489"
+    },
+    {
+      "path": "dist/reports/cem-ssr-render-browser.json",
+      "bytes": 12881,
+      "sha256": "41e49f151ba55f5f0439ae33ddf1cbeb74bdd545662813d1e0ad1838352b3179"
+    },
+    {
+      "path": "dist/reports/cem-browser-native-slots.json",
+      "bytes": 1176,
+      "sha256": "3acc0e2763a9180f86f8a94926ef903e7295a4b747a29eeba5e25a624016354f"
+    },
+    {
+      "path": "dist/reports/cem-browser-host-publication.json",
+      "bytes": 1121,
+      "sha256": "6f29b4a24ca44a406b85e2f479cba3bda2b800e29be73f5b347568076e43554f"
+    },
+    {
+      "path": "dist/reports/wasm-optimization/cem-ql.json",
+      "bytes": 329,
+      "sha256": "92d0225aed4310f1b4e31cb30a2df1808c8ad919b7f82e54e47727acdd358a02"
+    }
+  ]
+}

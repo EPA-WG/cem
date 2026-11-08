@@ -15,6 +15,7 @@ pub struct PreparedInlineIsland {
     envelope: Option<RetainedCemNode>,
     data: TemplateData,
     instance_id: String,
+    pub(crate) css: Option<crate::ssr_css::InstanceCss>,
 }
 impl PreparedInlineIsland {
     pub fn prepared(&self) -> &PreparedInlineDce {
@@ -34,6 +35,11 @@ impl PreparedInlineIsland {
     }
     pub fn bindings(&self) -> &TemplateData {
         &self.data
+    }
+    pub fn instance_stylesheets(
+        &self,
+    ) -> &[std::sync::Arc<crate::retained_template::RetainedStylesheet>] {
+        self.css.as_ref().map_or(&[], |css| css.records())
     }
     pub fn instance_id(&self) -> &str {
         &self.instance_id
@@ -144,18 +150,24 @@ pub fn prepare_inline_island(
             ));
         }
         let node = tree.node(id).unwrap();
-        if node
-            .name
-            .as_ref()
-            .is_some_and(|name| name.namespace_uri != HTML || name.local_name == "style")
-        {
-            return Err(fail(
-                "cem.ssr.payload_profile_unsupported",
-                "Foreign payloads and instance styles need a later admitted closure",
-            ));
-        }
         pending.extend(node.children.iter().copied());
     }
+    let css = crate::ssr_css::InstanceCss::prepare(
+        tree,
+        &payload,
+        envelope.is_some() && !cem_source,
+        instance_id,
+        &page.route().document_base_url,
+        page.policy(),
+        control,
+    );
+    check(page, control)?;
+    let css = css.map_err(|_| {
+        fail(
+            "cem.ssr.css_closure_refused",
+            "Native instance stylesheet closure admission refused",
+        )
+    })?;
     let native_source = if cem_source {
         let envelope = envelope.as_ref().unwrap();
         let admitted = cem_ml::import::element_tree::retain_inline_cem_payload(
@@ -372,6 +384,7 @@ pub fn prepare_inline_island(
         envelope,
         data,
         instance_id: instance_id.into(),
+        css,
     })
 }
 const HTML: &str = cem_ml::schema::registry::HTML_NAMESPACE_URI;

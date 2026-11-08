@@ -45,6 +45,18 @@ impl RetainedStylesheet {
             stylesheet_url: &sheet.url,
         })
     }
+    /// Native source access retains the imported CSS owner; no AST transport.
+    pub fn source_tree(
+        &self,
+        sheet: usize,
+    ) -> Result<&Arc<cem_ml::parser::tree::RetainedCemTree>, &'static str> {
+        self.emission()?;
+        self.closure
+            .sheets()
+            .get(sheet)
+            .map(|sheet| &sheet.resources.tree)
+            .ok_or("unknown stylesheet occurrence")
+    }
     fn active(&self) -> bool {
         !self.released.is_aborted()
             && self.closure.state() == CssImportState::Ready
@@ -96,6 +108,27 @@ impl RetainedTemplate {
             return Err("instance stylesheet sources must not declare a shared scope".into());
         }
         let mut owner = Self::new(crate::render::adopt_dom_stylesheets(sources));
+        owner.instance_identity = Some(instance_identity.into());
+        Ok(owner)
+    }
+
+    /// Native import callers retain their original CSS trees and source maps.
+    pub fn new_instance_stylesheet_artifacts(
+        artifact: TemplateArtifact,
+        instance_identity: &str,
+    ) -> Result<Self, String> {
+        if instance_identity.trim().is_empty()
+            || !artifact.nodes.is_empty()
+            || artifact.module_map.is_some()
+            || artifact.stylesheets.iter().any(|s| s.scope.is_some())
+            || artifact
+                .diagnostics
+                .iter()
+                .any(|d| d.severity.is_hard_violation())
+        {
+            return Err("Instance stylesheet artifact admission refused".into());
+        }
+        let mut owner = Self::new(artifact);
         owner.instance_identity = Some(instance_identity.into());
         Ok(owner)
     }

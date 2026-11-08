@@ -1,5 +1,7 @@
 //! Import the registered HTML parser's decoded events into the shared CEM tree.
 //! HTML mirrors stay literal attributes; application mappings are explicit queries.
+#[path = "html_names.rs"]
+mod names;
 use super::{html_range, ImportBuilder, MAX_DEPTH};
 use crate::{
     parser::{tree::CemTreeSemantics, CemAstNode},
@@ -102,10 +104,10 @@ pub(super) fn project_tracked(
                 let id = builder.element(
                     parent,
                     &event.namespace_uri,
-                    event
-                        .local_name
-                        .as_deref()
-                        .ok_or("HTML element name missing.")?,
+                    names::element(
+                        &event.namespace_uri,
+                        event.local_name.as_deref().ok_or("HTML element name missing.")?,
+                    ),
                     source.clone(),
                 );
                 for attribute in event
@@ -134,7 +136,7 @@ pub(super) fn project_tracked(
                     builder.attribute(
                         id,
                         namespace,
-                        name,
+                        names::attribute(&event.namespace_uri, namespace, name),
                         value.clone(),
                         document
                             .source_map_for_range(attribute.source_range)

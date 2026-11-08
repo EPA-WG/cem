@@ -33,8 +33,40 @@ pub(super) fn slots(
         match field(&item, "kind").as_deref() {
             Some("reference") => pending.extend(targets(&item)?),
             Some("element") => {
-                if field(&item, "namespace").as_deref() != Some(HTML) {
-                    return Err(INVALID.into());
+                let namespace = field(&item, "namespace").ok_or(INVALID)?;
+                if namespace != HTML {
+                    let raw = item
+                        .view()
+                        .and_then(|v| v.field("attributes"))
+                        .ok_or(INVALID)?;
+                    let values = raw
+                        .iter()
+                        .map(|a| {
+                            Ok((
+                                field(a, "namespace").ok_or(INVALID)?,
+                                field(a, "name").ok_or(INVALID)?,
+                                field(a, "value").ok_or(INVALID)?,
+                            ))
+                        })
+                        .collect::<Result<Vec<_>, String>>()?;
+                    let pairs = values
+                        .iter()
+                        .map(|(ns, n, v)| (ns.as_str(), n.as_str(), v.as_str()))
+                        .collect::<Vec<_>>();
+                    cem_ml::validation::html::validate_passive_foreign_projection(
+                        &namespace,
+                        &field(&item, "name").ok_or(INVALID)?,
+                        &pairs,
+                        children(&item)?.iter().any(|item| {
+                            !matches!(
+                                field(item, "kind").as_deref(),
+                                Some("text" | "whitespace" | "cdata" | "raw-text" | "comment")
+                            ) || field(item, "value").is_some_and(|text| text.contains('<'))
+                        }),
+                    )
+                    .map_err(|_| INVALID)?;
+                    pending.extend(children(&item)?);
+                    continue;
                 }
                 let attributes = attrs(&item)?;
                 let tag = field(&item, "name").ok_or(INVALID)?;
@@ -62,7 +94,7 @@ pub(super) fn slots(
                 }
                 pending.extend(children(&item)?);
             }
-            Some("text" | "whitespace" | "cdata" | "comment") => {}
+            Some("text" | "whitespace" | "cdata" | "raw-text" | "comment") => {}
             _ => return Err(INVALID.into()),
         }
     }

@@ -248,11 +248,9 @@ fn ambiguous_payloads_and_resume_are_refused_without_rewriting_source() {
     assert_eq!(source.source_text, before);
 }
 #[test]
-fn unsupported_source_payload_adapters_foreign_nodes_and_styles_fail_closed() {
+fn unsupported_source_payload_adapters_fail_closed() {
     for body in [
         "<x-inline><template type='application/json'>{}</template></x-inline>",
-        "<x-inline><svg><circle></circle></svg></x-inline>",
-        "<x-inline><template><style>p {color:red}</style></template></x-inline>",
     ] {
         assert_eq!(error(body)[0].code, "cem.ssr.payload_profile_unsupported");
     }

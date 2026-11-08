@@ -22,6 +22,7 @@ use std::sync::Arc;
 pub mod documents;
 pub mod projection;
 pub mod element_tree;
+pub mod inline_css;
 mod css;
 mod html;
 mod expression_sources;

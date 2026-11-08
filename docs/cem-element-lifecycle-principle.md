@@ -264,8 +264,8 @@ entire original source template and records `content-type="text/cem-ml"` and
 its CEM-ML schema. Ordinary HTML envelopes still contribute their contents.
 Type matching uses ASCII case folding and the browser's `String.trim`
 whitespace set (including BOM/NBSP, excluding U+0085). Saved islands and native
-bindings expose exactly `text/cem-ml`. Additional payload/schema/CSS profiles
-still require separate admission.
+bindings expose exactly `text/cem-ml`. Passive foreign DOM and resource-free
+instance CSS use the separate admission described below.
 
 `cem_ml::import::element_tree::retain_inline_cem_payload` owns the source handoff.
 It retains the native HTML owner, maps decoded text through the original source
@@ -304,6 +304,53 @@ failed parsing and refused publication do not publish a partial source tree.
 A successful single pass still produces `Partial(Incomplete)` and cannot enable
 hydration adoption. Shared browser observations establish inert source/island
 content parity; they do not claim browser execution of the derived source AST.
+
+## Native SSR foreign payload and instance CSS admission
+
+HTML payloads may retain passive SVG and MathML elements through the original
+native HTML owner. Expanded names, case-sensitive SVG names/attributes, native
+slot order, parents and authored source maps survive island binding and render
+projection. HTML foreign-name adjustments belong to `cem_ml::import`; downstream
+rendering neither reparses markup nor relabels unsupported namespaces as HTML.
+The shared semantic admission profile lists supported passive elements. Active
+foreign elements, unknown namespaces, HTML integration containers and external
+resources remain refused. SVG title/description and MathML text containers admit
+markup-free text/comments only, avoiding an unsupported HTML child-token
+interpretation (including markup-shaped RCDATA from the current tokenizer).
+Namespace-qualified XML language/space and local XLink fragment references retain
+their expanded attribute identity. Inline foreign CSS and URL-valued paint
+functions require a later admitted resource profile.
+
+Per-instance CSS requires an explicit direct HTML payload template. The native
+importer extracts plain HTML style blocks, maps CSS parser events to original
+HTML source bytes, and retains that owner and the original operation's memory
+permit. Each block is bounded to 32 KiB, 16,384 native values and depth 64, further
+reduced by the caller's limits. The current source-map profile requires unchanged
+raw text; carriage-return normalization is refused. Style attributes, alternate
+CSS content types and shared scopes require separate admission. Nested HTML
+templates remain inert and their styles are not collected or compiled.
+
+The SSR adapter adopts these native CSS trees through the existing retained
+instance stylesheet owner. Ready resource-free closures use the shared managed
+CSS emitter, including its native `@scope` wrapper and keyframe ownership. No
+resolver context, import response or URL resource authority is inferred. Imports,
+URL references and unsupported managed grammar remain refused. Stylesheet count
+uses the page's resource ceiling, additionally capped at 64 occurrences.
+
+Canonical islands retain authored style nodes as inert payload source. Only
+admitted source style occurrences are removed from projected slot content;
+managed emitted sheets become a host-local suffix after `cem-render-end` in the
+same native application as host attributes and canonical island state. CSS does
+not use a generated instance selector. Retained closure output is rechecked under
+the original operation before application; another operation cannot replay it.
+The applied native tree retains the stylesheet owner, and its final release
+invalidates outstanding emission handles. Cancellation and refusal publish no
+partial page update.
+
+These profiles do not prove completion. A successful single render remains
+`Partial(Incomplete)` with hydration adoption disabled. Declaration styles,
+resource-bearing closures, nested participants and final identity/range proof
+belong to the coordinator step before CLI/export and hydration wiring.
 
 ## Declaration version and SSR compatibility
 

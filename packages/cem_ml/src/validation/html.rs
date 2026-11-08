@@ -1723,6 +1723,10 @@ pub fn validate_passive_html_projection(
     validate_passive_html_attributes(name, attributes)
 }
 
+#[path = "html_foreign.rs"]
+mod foreign;
+pub use foreign::validate_passive_foreign_projection;
+
 /// Passive semantic attribute policy, also applicable to an admitted custom host.
 pub fn validate_passive_html_attributes(
     name: &str,

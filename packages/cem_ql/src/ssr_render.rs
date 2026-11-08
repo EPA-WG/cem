@@ -65,6 +65,14 @@ pub fn render_and_apply_inline_dce(
             "CEM-ML source admission belongs to the original operation",
         ));
     }
+    if let Some(css) = &input.css {
+        css.check(control).map_err(|_| {
+            fail(
+                "cem.ssr.css_closure_stale",
+                "Instance stylesheet closure is not current for this operation",
+            )
+        })?;
+    }
     input
         .prepared()
         .elements()
@@ -83,6 +91,16 @@ pub fn render_and_apply_inline_dce(
     if usage.render_passes > page.policy().max_render_passes {
         return Err(fail("cem.ssr.settle_budget", "No render pass remains"));
     }
+    usage.resources = usage
+        .resources
+        .checked_add(input.instance_stylesheets().len() as u32)
+        .filter(|count| *count <= page.policy().max_resources)
+        .ok_or_else(|| {
+            fail(
+                "cem.ssr.settle_budget",
+                "Instance stylesheet resource budget exceeded",
+            )
+        })?;
     let plan = Arc::new(render::render_compiled_template_with_control(
         input.prepared().declaration_owner().artifact(),
         input.bindings(),
@@ -148,6 +166,9 @@ pub fn render_and_apply_inline_dce(
         ROOT_EXECUTION_SCOPE_ID,
     )
     .map_err(|e| fail(e.code(), "Native render projection refused"))?;
+    if let Some(css) = &input.css {
+        css.strip_sources(&mut projected.nodes);
+    }
     admit_output(&mut projected.nodes).map_err(|_| {
         fail(
             "cem.ssr.output_profile_unsupported",
@@ -197,6 +218,20 @@ pub fn render_and_apply_inline_dce(
         text: "cem-render-end".into(),
         source_map: boundary_source,
     });
+    if let Some(css) = &input.css {
+        css.check(control).map_err(|_| {
+            fail(
+                "cem.ssr.css_closure_stale",
+                "Instance stylesheet closure is no longer current",
+            )
+        })?;
+        children.extend(css.output().map_err(|_| {
+            fail(
+                "cem.ssr.css_closure_refused",
+                "Native instance stylesheet output refused",
+            )
+        })?);
+    }
     let page = page.clone();
     let source = source.clone();
     let input = Arc::new(input);
@@ -253,6 +288,9 @@ pub fn render_and_apply_inline_dce(
     })
 }
 fn admit_output(nodes: &mut [crate::render::RenderPlanNode]) -> Result<(), ()> {
+    admit_output_mode(nodes, false)
+}
+fn admit_output_mode(nodes: &mut [crate::render::RenderPlanNode], inert: bool) -> Result<(), ()> {
     use cem_ml::schema::registry::HTML_NAMESPACE_URI;
     const XMLNS_NAMESPACE_URI: &str = "http://www.w3.org/2000/xmlns/";
     use cem_ml::value::CemValueNode;
@@ -266,12 +304,45 @@ fn admit_output(nodes: &mut [crate::render::RenderPlanNode]) -> Result<(), ()> {
                 children,
                 ..
             } => {
-                if namespace
-                    .as_deref()
-                    .is_some_and(|ns| ns != HTML_NAMESPACE_URI)
-                    || qualified_name
-                        .as_ref()
-                        .is_some_and(|name| name.contains(':'))
+                if let Some(ns) = namespace.as_deref().filter(|ns| *ns != HTML_NAMESPACE_URI) {
+                    if qualified_name
+                        .as_deref()
+                        .is_some_and(|q| q.rsplit(':').next() != Some(tag.as_str()))
+                        || attributes.iter().any(|a| {
+                            a.contract.is_some()
+                                || a.qualified_name
+                                    .as_deref()
+                                    .is_some_and(|q| q.rsplit(':').next() != Some(a.name.as_str()))
+                        })
+                    {
+                        return Err(());
+                    }
+                    let pairs = attributes
+                        .iter()
+                        .map(|a| {
+                            (
+                                a.namespace.as_deref().unwrap_or(""),
+                                a.name.as_str(),
+                                a.value.as_str(),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    cem_ml::validation::html::validate_passive_foreign_projection(
+                        ns,
+                        tag,
+                        &pairs,
+                        children.iter().any(|node| {
+                            matches!(node, CemValueNode::Element { .. })
+                                || matches!(node,CemValueNode::Text{text,..} if text.contains('<'))
+                        }),
+                    )
+                    .map_err(|_| ())?;
+                    admit_output_mode(children, inert)?;
+                    continue;
+                }
+                if qualified_name
+                    .as_ref()
+                    .is_some_and(|name| name.contains(':'))
                 {
                     return Err(());
                 }
@@ -288,8 +359,13 @@ fn admit_output(nodes: &mut [crate::render::RenderPlanNode]) -> Result<(), ()> {
                     .iter()
                     .map(|a| (a.name.as_str(), a.value.as_str()))
                     .collect::<Vec<_>>();
-                cem_ml::validation::html::validate_passive_html_projection(tag, &pairs)
-                    .map_err(|_| ())?;
+                if inert && tag == "style" {
+                    cem_ml::validation::html::validate_passive_html_attributes(tag, &pairs)
+                        .map_err(|_| ())?;
+                } else {
+                    cem_ml::validation::html::validate_passive_html_projection(tag, &pairs)
+                        .map_err(|_| ())?;
+                }
                 const VOID: &[&str] = &[
                     "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta",
                     "param", "source", "track", "wbr",
@@ -297,7 +373,7 @@ fn admit_output(nodes: &mut [crate::render::RenderPlanNode]) -> Result<(), ()> {
                 if VOID.contains(&tag.as_str()) && !children.is_empty() {
                     return Err(());
                 }
-                admit_output(children)?;
+                admit_output_mode(children, inert || tag == "template")?;
             }
             CemValueNode::Text { .. } | CemValueNode::Comment { .. } => {}
             _ => return Err(()),
