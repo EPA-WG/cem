@@ -30,6 +30,8 @@ pub struct PreparedInlineDce {
     retained: Arc<RetainedTemplate>,
     pub(crate) registered_participants: Option<Arc<BTreeSet<String>>>,
     pub(crate) lifecycle_control: Option<OperationControl>,
+    pub(crate) payload_sources:
+        Option<Arc<cem_ml::import::element_tree::RetainedCemPayloadSourcePool>>,
     pub(crate) stylesheet_coordination: bool,
     pub(crate) stylesheet_control: Option<OperationControl>,
     pub(crate) shared_scope: Option<String>,
@@ -60,6 +62,9 @@ impl PreparedInlineDce {
     }
     pub fn tag(&self) -> &str {
         &self.tag
+    }
+    pub(crate) fn declaration_lease_identity(&self) -> &Arc<RetainedTemplate> {
+        &self.retained
     }
     pub fn declaration_owner(&self) -> &RetainedTemplate {
         &self.retained
@@ -236,6 +241,7 @@ fn prepare_inline_dce_mode(
         retained,
         registered_participants: None,
         lifecycle_control: None,
+        payload_sources: None,
         stylesheet_coordination,
         stylesheet_control: stylesheet_coordination.then(|| control.clone()),
         shared_scope: root.get("scope").cloned(),
@@ -408,20 +414,31 @@ pub(crate) struct InlineDefinition {
     pub declaration: AstNodeId,
     pub template: AstNodeId,
     pub retained: Arc<RetainedTemplate>,
+    pub shared_scope: Option<String>,
+    pub stylesheet_coordination: bool,
 }
 pub(crate) fn compile_inline_definition(
     page: &CemSsrPageArtifact,
     elements: &RetainedElementImport,
     declaration: AstNodeId,
     control: &OperationControl,
+    stylesheet_coordination: bool,
 ) -> Result<InlineDefinition, Vec<Diagnostic>> {
-    let header = declaration_header(page, elements, declaration, false)?;
-    let retained = compile_source(page, elements, header.template, false, control)?;
+    let header = declaration_header(page, elements, declaration, stylesheet_coordination)?;
+    let retained = compile_source(
+        page,
+        elements,
+        header.template,
+        stylesheet_coordination,
+        control,
+    )?;
     Ok(InlineDefinition {
         tag: header.tag,
         declaration,
         template: header.template,
         retained,
+        shared_scope: header.root.get("scope").cloned(),
+        stylesheet_coordination,
     })
 }
 pub(crate) struct InlineParticipantSelection {
@@ -430,6 +447,7 @@ pub(crate) struct InlineParticipantSelection {
     pub instance: AstNodeId,
     pub depth: u32,
     pub registry: Arc<BTreeSet<String>>,
+    pub payload_sources: Option<Arc<cem_ml::import::element_tree::RetainedCemPayloadSourcePool>>,
 }
 pub(crate) fn prepare_inline_participant(
     page: CemSsrPageArtifact,
@@ -442,6 +460,7 @@ pub(crate) fn prepare_inline_participant(
         instance,
         depth,
         registry,
+        payload_sources,
     } = selection;
     check(&page, control)?;
     let tree = &elements.tree;
@@ -490,9 +509,10 @@ pub(crate) fn prepare_inline_participant(
         retained: definition.retained,
         registered_participants: Some(registry),
         lifecycle_control: Some(control.clone()),
-        stylesheet_coordination: false,
-        stylesheet_control: None,
-        shared_scope: None,
+        payload_sources,
+        stylesheet_coordination: definition.stylesheet_coordination,
+        stylesheet_control: definition.stylesheet_coordination.then(|| control.clone()),
+        shared_scope: definition.shared_scope,
     })
 }
 

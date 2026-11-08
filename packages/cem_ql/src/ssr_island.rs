@@ -38,6 +38,13 @@ impl PreparedInlineIsland {
     pub fn bindings(&self) -> &TemplateData {
         &self.data
     }
+    pub fn declaration_stylesheets(
+        &self,
+    ) -> &[std::sync::Arc<crate::retained_template::RetainedStylesheet>] {
+        self.coordinated_css
+            .as_ref()
+            .map_or(&[], |css| css.declaration_records())
+    }
     pub fn instance_stylesheets(
         &self,
     ) -> &[std::sync::Arc<crate::retained_template::RetainedStylesheet>] {
@@ -200,12 +207,21 @@ pub fn prepare_inline_island(
     })?;
     let native_source = if cem_source {
         let envelope = envelope.as_ref().unwrap();
-        let admitted = cem_ml::import::element_tree::retain_inline_cem_payload(
-            tree.clone(),
-            envelope.node_id(),
-            control,
-            &crate::instance_island::LIMITS,
-        );
+        let admitted = if let Some(pool) = &prepared.payload_sources {
+            pool.retain(
+                tree.clone(),
+                envelope.node_id(),
+                control,
+                &crate::instance_island::LIMITS,
+            )
+        } else {
+            cem_ml::import::element_tree::retain_inline_cem_payload(
+                tree.clone(),
+                envelope.node_id(),
+                control,
+                &crate::instance_island::LIMITS,
+            )
+        };
         check(page, control)?;
         Some(admitted.map_err(|_| {
             problem(

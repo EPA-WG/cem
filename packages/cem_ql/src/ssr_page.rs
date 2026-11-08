@@ -1,12 +1,16 @@
 //! Parent-first native first-connection worklist. Quiescence remains partial;
-//! this profile admits passive inline participants in one document registry.
+//! passive and explicit resource profiles share one document registry.
 use crate::{
-    ssr_island::prepare_inline_island,
+    ssr_island::{prepare_inline_island, PreparedInlineIsland},
     ssr_preparation::{
         check, compile_inline_definition, prepare_inline_participant, problem, InlineDefinition,
         InlineParticipantSelection,
     },
     ssr_render::{render_and_apply_inline_dce, AppliedInlineDce},
+    ssr_stylesheets::{
+        begin_inline_stylesheets_reusing, CoordinatedStylesheets, SsrCssProgress, SsrCssRequest,
+        SsrStylesheetCoordinator,
+    },
 };
 use cem_ml::{
     diagnostics::Diagnostic,
@@ -21,18 +25,23 @@ use cem_ml::{
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SsrPageState {
     Prepared,
     Settling,
+    Pending,
     Quiescent,
     Refused,
     Cancelled,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum SsrPageProgress {
+    Pending(SsrCssRequest),
     Rendered {
         tag: String,
         instance_id: String,
@@ -49,6 +58,7 @@ pub struct SettledParticipant {
     island: AstNodeId,
     start: AstNodeId,
     end: AstNodeId,
+    styles: Vec<AstNodeId>,
     pass: Arc<AppliedInlineDce>,
 }
 impl SettledParticipant {
@@ -88,7 +98,37 @@ impl QuiescentInlinePage {
         &self.participants
     }
 }
+struct PageResources {
+    payload_sources: Arc<cem_ml::import::element_tree::RetainedCemPayloadSourcePool>,
+    capability: cem_ml::module_resolution::CemModuleUrlResolutionCapability,
+    fingerprint: String,
+    stale: AtomicBool,
+    declarations: BTreeMap<String, Arc<CoordinatedStylesheets>>,
+}
+impl PageResources {
+    fn check(&self, control: &OperationControl) -> Result<(), String> {
+        if self.capability.cache_identity().as_deref() != Some(self.fingerprint.as_str()) {
+            self.stale.store(true, Ordering::Relaxed);
+        }
+        if self.stale.load(Ordering::Relaxed) {
+            return Err("Page resolver authority changed".into());
+        }
+        for lease in self.declarations.values() {
+            lease.check(control)?;
+        }
+        Ok(())
+    }
+}
+struct PendingParticipant {
+    tag: String,
+    depth: u32,
+    instance_id: String,
+    css: SsrStylesheetCoordinator,
+}
 pub struct InlinePageCoordinator {
+    resources: Option<PageResources>,
+    pending: Option<PendingParticipant>,
+    resource_failure: Option<cem_ml::css_imports::CssImportFailure>,
     page: Option<CemSsrPageArtifact>,
     elements: Option<RetainedElementImport>,
     definitions: BTreeMap<String, InlineDefinition>,
@@ -111,6 +151,57 @@ impl std::fmt::Debug for InlinePageCoordinator {
 pub fn prepare_inline_page(
     page: CemSsrPageArtifact,
     prefix: &str,
+    control: &OperationControl,
+) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
+    prepare_inline_page_mode(page, prefix, None, control)
+}
+/// Explicit resource profile. Transport receives native tickets; no I/O occurs here.
+pub fn prepare_inline_page_with_resources(
+    page: CemSsrPageArtifact,
+    prefix: &str,
+    capability: cem_ml::module_resolution::CemModuleUrlResolutionCapability,
+    control: &OperationControl,
+) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
+    let fingerprint = capability
+        .cache_identity()
+        .filter(|id| !id.is_empty() && id.len() <= crate::instance_island::LIMITS.max_bytes)
+        .ok_or_else(|| {
+            problem(
+                &page,
+                None,
+                None,
+                "cem.ssr.css_authority_unavailable",
+                "Page resources require bounded stable explicit resolver authority",
+            )
+        })?;
+    let payload_sources = Arc::new(
+        cem_ml::import::element_tree::RetainedCemPayloadSourcePool::new(control).map_err(|_| {
+            problem(
+                &page,
+                None,
+                None,
+                "cem.ssr.page_bounds",
+                "Payload source pool memory refused",
+            )
+        })?,
+    );
+    prepare_inline_page_mode(
+        page,
+        prefix,
+        Some(PageResources {
+            payload_sources,
+            capability,
+            fingerprint,
+            stale: AtomicBool::new(false),
+            declarations: BTreeMap::new(),
+        }),
+        control,
+    )
+}
+fn prepare_inline_page_mode(
+    page: CemSsrPageArtifact,
+    prefix: &str,
+    resources: Option<PageResources>,
     control: &OperationControl,
 ) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
     check(&page, control)?;
@@ -230,7 +321,8 @@ pub fn prepare_inline_page(
                     "Inline declaration inventory exceeds its bound",
                 ));
             }
-            let definition = compile_inline_definition(&page, &elements, id, control)?;
+            let definition =
+                compile_inline_definition(&page, &elements, id, control, resources.is_some())?;
             if definition.tag == "cem-element" || definitions.contains_key(&definition.tag) {
                 return Err(fail(
                     "cem.ssr.declaration_identity_conflict",
@@ -256,6 +348,9 @@ pub fn prepare_inline_page(
         .into_partial(SsrPartialReason::Incomplete, usage, vec![])
         .map_err(|_| refused)?;
     let coordinator = InlinePageCoordinator {
+        resources,
+        pending: None,
+        resource_failure: None,
         page: Some(page),
         elements: Some(elements),
         definitions,
@@ -272,12 +367,22 @@ pub fn prepare_inline_page(
     Ok(coordinator)
 }
 impl InlinePageCoordinator {
+    pub fn resource_failure(&self) -> Option<&cem_ml::css_imports::CssImportFailure> {
+        self.resource_failure.as_ref()
+    }
     pub fn state(&self) -> SsrPageState {
         if matches!(self.state, SsrPageState::Refused | SsrPageState::Cancelled) {
             return self.state;
         }
         if self.control.is_cancelled() {
             return SsrPageState::Cancelled;
+        }
+        if self
+            .resources
+            .as_ref()
+            .is_some_and(|r| r.check(&self.control).is_err())
+        {
+            return SsrPageState::Refused;
         }
         if self.control.check_scope(ROOT_EXECUTION_SCOPE_ID).is_err()
             || self
@@ -324,6 +429,16 @@ impl InlinePageCoordinator {
             }]);
         }
         check(self.page.as_ref().unwrap(), control)?;
+        if let Some(resources) = &self.resources {
+            resources.check(control).map_err(|_| {
+                self.fail(
+                    "cem.ssr.css_closure_stale",
+                    "Page resource leases are no longer current",
+                    None,
+                )
+            })?;
+        }
+
         if control
             .active_elapsed_ms(ROOT_EXECUTION_SCOPE_ID)
             .map_err(|_| {
@@ -349,6 +464,15 @@ impl InlinePageCoordinator {
         } else {
             SsrPageState::Refused
         };
+        if self.resource_failure.is_none() {
+            self.resource_failure = self
+                .pending
+                .as_ref()
+                .and_then(|pending| pending.css.failure())
+                .cloned();
+        }
+        self.pending = None;
+        self.resources = None;
         self.participants.clear();
         self.definitions.clear();
         self.elements = None;
@@ -419,7 +543,9 @@ impl InlinePageCoordinator {
                     let children = &n.children;
                     if children.first() != Some(&participant.island)
                         || children.get(1) != Some(&participant.start)
-                        || children.last() != Some(&participant.end)
+                        || children.get(children.len().saturating_sub(participant.styles.len() + 1))
+                            != Some(&participant.end)
+                        || !children.ends_with(&participant.styles)
                         || tree.node(participant.start).is_none_or(|n| {
                             n.kind != CemTreeNodeKind::Comment || n.value != "cem-render-start"
                         })
@@ -488,6 +614,9 @@ impl InlinePageCoordinator {
         control: &OperationControl,
     ) -> Result<SsrPageProgress, Vec<Diagnostic>> {
         self.check(control)?;
+        if self.pending.is_some() {
+            return self.advance_resources(control);
+        }
         let Some((instance, tag, depth)) = self.discover()? else {
             self.state = SsrPageState::Quiescent;
             return Ok(SsrPageProgress::Quiescent);
@@ -503,12 +632,14 @@ impl InlinePageCoordinator {
                 Some(instance),
             ));
         }
-        // Source-code and stylesheet owners need native shared leases before
-        // their admission can widen from the one-participant coordinator.
-        if tree.node(instance).unwrap().children.iter().any(|id| {
-            html(tree, *id, "template")
-                && attr(tree, *id, "type").is_some_and(|value| value != "text/html")
-        }) {
+        // The ordinary profile remains passive; the explicit resource profile
+        // owns its shared source leases, stylesheet batches and pending tickets.
+        if self.resources.is_none()
+            && tree.node(instance).unwrap().children.iter().any(|id| {
+                html(tree, *id, "template")
+                    && attr(tree, *id, "type").is_some_and(|value| value != "text/html")
+            })
+        {
             return Err(self.fail(
                 "cem.ssr.page_payload_profile",
                 "This page worklist admits literal HTML payload envelopes",
@@ -524,13 +655,15 @@ impl InlinePageCoordinator {
                 instance,
                 depth,
                 registry: self.registry.clone(),
+                payload_sources: self.resources.as_ref().map(|r| r.payload_sources.clone()),
             },
             control,
         )?;
         let instance_id = format!("{}-{}", self.prefix, self.participants.len() + 1);
         let island = prepare_inline_island(prepared, &instance_id, control)?;
-        if island.bindings().native_payload_source.is_some()
-            || !island.instance_stylesheets().is_empty()
+        if self.resources.is_none()
+            && (island.bindings().native_payload_source.is_some()
+                || !island.instance_stylesheets().is_empty())
         {
             return Err(self.fail(
                 "cem.ssr.page_payload_profile",
@@ -538,6 +671,172 @@ impl InlinePageCoordinator {
                 Some(instance),
             ));
         }
+        if let Some(resources) = &self.resources {
+            let css = begin_inline_stylesheets_reusing(
+                island,
+                resources.capability.clone(),
+                resources.declarations.get(&tag).cloned(),
+                control,
+            )
+            .map_err(|_| {
+                self.fail(
+                    "cem.ssr.css_closure_refused",
+                    "Native page stylesheet coordination refused this participant",
+                    Some(instance),
+                )
+            })?;
+            self.pending = Some(PendingParticipant {
+                tag,
+                depth,
+                instance_id,
+                css,
+            });
+            return self.advance_resources(control);
+        }
+        self.apply_participant(island, tag, instance_id, depth, control)
+    }
+    fn advance_resources(
+        &mut self,
+        control: &OperationControl,
+    ) -> Result<SsrPageProgress, Vec<Diagnostic>> {
+        let progress = self
+            .pending
+            .as_mut()
+            .unwrap()
+            .css
+            .advance(control)
+            .map_err(|_| {
+                self.fail(
+                    "cem.ssr.css_closure_refused",
+                    "Native page resource work refused",
+                    None,
+                )
+            })?;
+        match progress {
+            SsrCssProgress::Pending(request) => {
+                self.state = SsrPageState::Pending;
+                Ok(SsrPageProgress::Pending(request))
+            }
+            SsrCssProgress::Ready => {
+                let pending = self.pending.take().unwrap();
+                let island = pending.css.finish(control).map_err(|_| {
+                    self.fail(
+                        "cem.ssr.css_closure_refused",
+                        "Native page resource closure refused",
+                        None,
+                    )
+                })?;
+                self.apply_participant(
+                    island,
+                    pending.tag,
+                    pending.instance_id,
+                    pending.depth,
+                    control,
+                )
+            }
+        }
+    }
+    pub fn deliver(
+        &mut self,
+        request: &SsrCssRequest,
+        response: cem_ml::resolver::ResolvedRead,
+        control: &OperationControl,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if !self.control.same_operation(control) {
+            return Err(self.fail(
+                "cem.ssr.participant_operation_stale",
+                "Page delivery belongs to the original operation",
+                None,
+            ));
+        }
+        let Some(pending) = self.pending.as_mut() else {
+            return Err(self.fail(
+                "cem.ssr.resource_ticket_stale",
+                "Page has no outstanding resource request",
+                None,
+            ));
+        };
+        // Foreign/stale tickets cannot retire another participant's current work.
+        pending.css.match_request(request).map_err(|_| {
+            self.fail(
+                "cem.ssr.resource_ticket_stale",
+                "Resource ticket is stale or foreign",
+                None,
+            )
+        })?;
+        let result = (|| {
+            self.check(control)?;
+            self.pending
+                .as_mut()
+                .unwrap()
+                .css
+                .deliver(request, response, control)
+                .map_err(|_| {
+                    self.fail(
+                        "cem.ssr.css_closure_refused",
+                        "Native page resource response refused",
+                        None,
+                    )
+                })
+        })();
+        if result.is_err() {
+            self.stop();
+        }
+        result
+    }
+    pub fn fail_resource(
+        &mut self,
+        request: &SsrCssRequest,
+        message: &str,
+        control: &OperationControl,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if !self.control.same_operation(control) {
+            return Err(self.fail(
+                "cem.ssr.participant_operation_stale",
+                "Page failure belongs to the original operation",
+                None,
+            ));
+        }
+        let Some(pending) = self.pending.as_mut() else {
+            return Err(self.fail(
+                "cem.ssr.resource_ticket_stale",
+                "Page has no outstanding resource request",
+                None,
+            ));
+        };
+        pending.css.match_request(request).map_err(|_| {
+            self.fail(
+                "cem.ssr.resource_ticket_stale",
+                "Resource ticket is stale or foreign",
+                None,
+            )
+        })?;
+        let result = self
+            .pending
+            .as_mut()
+            .unwrap()
+            .css
+            .fail(request, message, control)
+            .map_err(|_| {
+                self.fail(
+                    "cem.ssr.css_transport_failed",
+                    "Page resource transport failed",
+                    None,
+                )
+            });
+        self.stop();
+        result
+    }
+    fn apply_participant(
+        &mut self,
+        island: PreparedInlineIsland,
+        tag: String,
+        instance_id: String,
+        depth: u32,
+        control: &OperationControl,
+    ) -> Result<SsrPageProgress, Vec<Diagnostic>> {
+        let instance = island.prepared().instance_node();
+        let lease = island.coordinated_css.clone();
         let pass = Arc::new(render_and_apply_inline_dce(island, control)?);
         let application = pass.application();
         let elements = self
@@ -558,7 +857,10 @@ impl InlinePageCoordinator {
                 &mut participant.island,
                 &mut participant.start,
                 &mut participant.end,
-            ] {
+            ]
+            .into_iter()
+            .chain(participant.styles.iter_mut())
+            {
                 *id = application.output_for_source(*id).ok_or_else(|| {
                     vec![Diagnostic {
                         code: "cem.ssr.participant_ownership_lost".into(),
@@ -590,6 +892,7 @@ impl InlinePageCoordinator {
             self.registry_owner = Some(application.output_for_source(owner).ok_or_else(missing)?);
         }
         let children = application.inserted_children();
+        let end_index = children.len() - pass.input().instance_stylesheets().len() - 1;
         self.participants.push(SettledParticipant {
             tag: tag.clone(),
             instance_id: instance_id.clone(),
@@ -597,9 +900,13 @@ impl InlinePageCoordinator {
             host: application.output_target(),
             island: children[0],
             start: children[1],
-            end: *children.last().unwrap(),
+            end: children[end_index],
+            styles: children[end_index + 1..].to_vec(),
             pass: pass.clone(),
         });
+        if let (Some(resources), Some(lease)) = (&mut self.resources, lease) {
+            resources.declarations.entry(tag.clone()).or_insert(lease);
+        }
         self.page = Some(pass.page().clone());
         self.elements = Some(elements);
         self.state = SsrPageState::Settling;
@@ -616,7 +923,7 @@ impl InlinePageCoordinator {
         control: &OperationControl,
     ) -> Result<QuiescentInlinePage, Vec<Diagnostic>> {
         self.check(control)?;
-        if self.discover()?.is_some() {
+        if self.pending.is_some() || self.discover()?.is_some() {
             return Err(self.fail(
                 "cem.ssr.page_pending",
                 "Page coordination still has undispatched native participants",

@@ -5,6 +5,7 @@ use super::*;
 mod cem_payload;
 pub use cem_payload::{
     canonical_cem_payload_type, retain_inline_cem_payload, RetainedCemPayloadSource,
+    RetainedCemPayloadSourcePool,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -67,8 +68,25 @@ pub struct InlineCemTemplateSource {
     owner: Arc<html_parser::HtmlDocumentAst>,
     text: String,
     segments: Vec<(ByteRange, html_parser::HtmlSourceRange, bool)>,
+    mapped: Option<Vec<(ByteRange, SourceMapStack)>>,
 }
 impl InlineCemTemplateSource {
+    fn same_native_source(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.owner, &other.owner)
+            && self.text == other.text
+            && self.mapped == other.mapped
+            && self.segments.len() == other.segments.len()
+            && self
+                .segments
+                .iter()
+                .zip(&other.segments)
+                .all(|((a, ar, ai), (b, br, bi))| {
+                    a == b
+                        && ar.start.byte_offset == br.start.byte_offset
+                        && ar.byte_length == br.byte_length
+                        && ai == bi
+                })
+    }
     pub fn text(&self) -> &str {
         &self.text
     }
@@ -77,6 +95,19 @@ impl InlineCemTemplateSource {
             || u64::from(range.len) > self.text.len() as u64 - range.start
         {
             return None;
+        }
+        if let Some(segments) = &self.mapped {
+            let mut result = SourceMapStack::default();
+            for (segment, map) in segments {
+                if segment.start < range.end() && range.start < segment.end() {
+                    for frame in &map.frames {
+                        if !result.frames.contains(frame) {
+                            result.frames.push(frame.clone());
+                        }
+                    }
+                }
+            }
+            return (!result.frames.is_empty()).then_some(result);
         }
         let first = self
             .segments
@@ -223,6 +254,7 @@ impl RetainedElementImport {
             owner,
             text,
             segments,
+            mapped: None,
         })
     }
 }
@@ -377,7 +409,7 @@ fn require_projectable_references(text: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn original_html_owner(
+pub(super) fn original_html_owner(
     tree: &Arc<RetainedCemTree>,
 ) -> Result<Arc<html_parser::HtmlDocumentAst>, String> {
     let mut current = tree;
@@ -394,4 +426,40 @@ fn original_html_owner(
             .ok_or("Element view requires its original HTML owner")?;
     }
     Err("Native element continuation depth exceeded".into())
+}
+
+/// Literal retained text after native application. Its producer maps are kept
+/// conservatively; generated nodes never acquire authored HTML event handles.
+pub(super) fn retained_inline_text(
+    tree: &Arc<RetainedCemTree>,
+    node: AstNodeId,
+) -> Result<InlineCemTemplateSource, String> {
+    if crate::parser::tree_apply::retained_source(tree).is_none() {
+        return Err("Mapped inline source requires native application lineage".into());
+    }
+    let owner = original_html_owner(tree)?;
+    let mut text = String::new();
+    let mut mapped = vec![];
+    for id in &tree.node(node).ok_or("Missing inline source")?.children {
+        let child = tree.node(*id).ok_or("Missing inline text")?;
+        match child.kind {
+            crate::parser::tree::CemTreeNodeKind::Comment => continue,
+            crate::parser::tree::CemTreeNodeKind::Text => {}
+            _ => return Err("Inline source requires literal retained text".into()),
+        }
+        if text.len().saturating_add(child.value.len()) > MAX_DOCUMENT_BYTES {
+            return Err("Retained inline source bounds exceeded".into());
+        }
+        mapped.push((
+            ByteRange::new(text.len() as u64, child.value.len() as u32),
+            tree.node_source_map(*id).unwrap_or_default(),
+        ));
+        text.push_str(&child.value);
+    }
+    Ok(InlineCemTemplateSource {
+        owner,
+        text,
+        segments: vec![],
+        mapped: Some(mapped),
+    })
 }

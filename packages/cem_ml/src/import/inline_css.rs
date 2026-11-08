@@ -33,15 +33,16 @@ pub fn retain_inline_css(
             .map_err(|e| e.code().to_owned())
     };
     check()?;
-    let original = source
-        .native_owner()
-        .and_then(|o| o.downcast_ref::<html_parser::HtmlDocumentAst>())
-        .ok_or("Inline CSS requires its original HTML owner")?;
+    let original = super::element_tree::original_html_owner(&source)?;
     let node = source.node(style).ok_or("Missing style node")?;
     if !node.name.as_ref().is_some_and(|n| {
         n.namespace_uri == crate::schema::registry::HTML_NAMESPACE_URI && n.local_name == "style"
-    }) || !node.attributes.is_empty()
-    {
+    }) || node.attributes.iter().any(|id| {
+        source
+            .node(*id)
+            .and_then(|n| n.name.as_ref())
+            .is_none_or(|name| name.namespace_uri != "http://www.w3.org/2000/xmlns/")
+    }) {
         return Err("Inline instance CSS requires an unqualified style block".into());
     }
     let mut bytes = 0usize;
@@ -69,18 +70,35 @@ pub fn retain_inline_css(
         .collect::<String>();
     // HTML raw-text has no character references. Defer newline normalization
     // requiring a segmented source map rather than inventing byte coordinates.
-    let start = source
-        .source_node_range(style)
-        .ok_or("Missing style coordinates")?;
-    let offset = start.offset + start.length;
-    if original
-        .source_text
-        .get(offset as usize..offset as usize + css.len())
-        != Some(css.as_str())
-        || css.contains('\r')
-    {
-        return Err("Inline CSS source mapping requires unchanged raw text".into());
-    }
+    let derived = source
+        .source_key(style)
+        .is_some_and(|key| key.starts_with("cem-derived:"))
+        || node.children.iter().any(|id| {
+            source
+                .source_key(*id)
+                .is_some_and(|key| key.starts_with("cem-derived:"))
+        });
+    let mapped = if derived {
+        Some(super::element_tree::retained_inline_text(&source, style)?)
+    } else {
+        None
+    };
+    let start = source.source_node_range(style);
+    let offset = if mapped.is_some() {
+        0
+    } else {
+        let start = start.ok_or("Missing style coordinates")?;
+        let offset = start.offset + start.length;
+        if original
+            .source_text
+            .get(offset as usize..offset as usize + css.len())
+            != Some(css.as_str())
+            || css.contains('\r')
+        {
+            return Err("Inline CSS source mapping requires unchanged raw text".into());
+        }
+        offset
+    };
     let mut doc = super::css::parse(
         css.as_bytes(),
         source.source_uri(),
@@ -88,6 +106,19 @@ pub fn retain_inline_css(
     )?;
     check()?;
     for event in &mut doc.events {
+        if let Some(mapped) = &mapped {
+            event.source_map = mapped
+                .source_map_for_range(ByteRange::new(
+                    event.source_range.start.byte_offset,
+                    event
+                        .source_range
+                        .byte_length
+                        .try_into()
+                        .map_err(|_| "CSS map range overflow")?,
+                ))
+                .unwrap_or_default();
+            continue;
+        }
         let mut range = html_parser::HtmlSourceRange {
             start: html_parser::HtmlSourcePosition {
                 line: 0,
@@ -119,6 +150,9 @@ pub fn retain_inline_css(
     {
         return Err("Inline CSS tree bounds exceeded".into());
     }
+    if mapped.is_some() {
+        semantics.ranges.clear();
+    }
     for range in semantics.ranges.values_mut() {
         range.offset += offset;
         if let Some(position) = source.source_byte_coordinate(range.offset) {
@@ -140,7 +174,7 @@ pub fn retain_inline_css(
         ],
     ));
     for id in 0..ast.nodes.len() as u32 {
-        let mapped = match &ast.nodes[id as usize] {
+        let node_map = match &ast.nodes[id as usize] {
             CemAstNode::Element { source, .. } | CemAstNode::Attribute { source, .. }
                 if !source.frames.is_empty() =>
             {
@@ -148,9 +182,11 @@ pub fn retain_inline_css(
             }
             _ => source.node_source_map(style).unwrap_or_default(),
         };
-        semantics.sources.entry(id).or_insert(mapped);
-        semantics.ranges.entry(id).or_insert(start);
-        if start.line == 0 {
+        semantics.sources.entry(id).or_insert(node_map);
+        if mapped.is_none() {
+            semantics.ranges.entry(id).or_insert(start.unwrap());
+        }
+        if mapped.is_some() || start.is_some_and(|start| start.line == 0) {
             semantics.unknown_source_lines.insert(id);
         }
     }

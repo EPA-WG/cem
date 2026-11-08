@@ -67,6 +67,7 @@ pub struct SsrStylesheetCoordinator {
     bytes: u64,
     elapsed_limit: u64,
     failure: Option<cem_ml::css_imports::CssImportFailure>,
+    shared_declaration: Option<Arc<CoordinatedStylesheets>>,
 }
 impl std::fmt::Debug for SsrStylesheetCoordinator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -79,6 +80,14 @@ impl std::fmt::Debug for SsrStylesheetCoordinator {
 pub fn begin_inline_stylesheets(
     input: PreparedInlineIsland,
     capability: CemModuleUrlResolutionCapability,
+    control: &OperationControl,
+) -> Result<SsrStylesheetCoordinator, String> {
+    begin_inline_stylesheets_reusing(input, capability, None, control)
+}
+pub(crate) fn begin_inline_stylesheets_reusing(
+    input: PreparedInlineIsland,
+    capability: CemModuleUrlResolutionCapability,
+    shared_declaration: Option<Arc<CoordinatedStylesheets>>,
     control: &OperationControl,
 ) -> Result<SsrStylesheetCoordinator, String> {
     control
@@ -112,12 +121,32 @@ pub fn begin_inline_stylesheets(
         policy,
         control,
     )?;
-    let declarations = prepared.declaration_owner().artifact().stylesheets.clone();
+    if let Some(shared) = &shared_declaration {
+        shared.check(control)?;
+        if !Arc::ptr_eq(
+            &shared.declaration_owner,
+            prepared.declaration_lease_identity(),
+        ) || shared.fingerprint != fingerprint
+        {
+            return Err(
+                "Declaration lease belongs to another native definition or resolver".into(),
+            );
+        }
+    }
+    let declarations = if shared_declaration.is_some() {
+        vec![]
+    } else {
+        prepared.declaration_owner().artifact().stylesheets.clone()
+    };
+    let remaining_resources = policy
+        .max_resources
+        .checked_sub(page.usage().resources)
+        .ok_or("CSS page resource budget exceeded")?;
     let roots = instances
         .len()
         .checked_add(declarations.len())
         .ok_or("Stylesheet count overflow")?;
-    if roots > 64 || roots as u32 > policy.max_resources {
+    if roots > 64 || roots as u32 > remaining_resources {
         return Err("Stylesheet root resource budget exceeded".into());
     }
     let artifact = |stylesheets| TemplateArtifact {
@@ -217,7 +246,7 @@ pub fn begin_inline_stylesheets(
                         .try_into()
                         .map_err(|_| "CSS resource count overflow")?,
                 )
-                .filter(|n| *n <= policy.max_resources)
+                .filter(|n| *n <= remaining_resources)
                 .ok_or("CSS resource budget exceeded")?;
             loads.push(Load {
                 closure: Some(closure),
@@ -259,6 +288,7 @@ pub fn begin_inline_stylesheets(
         bytes: 0,
         elapsed_limit,
         failure: None,
+        shared_declaration,
     })
 }
 impl SsrStylesheetCoordinator {
@@ -299,6 +329,9 @@ impl SsrStylesheetCoordinator {
         control
             .check_scope(ROOT_EXECUTION_SCOPE_ID)
             .map_err(|e| e.code().to_owned())?;
+        if let Some(shared) = &self.shared_declaration {
+            shared.check(control)?;
+        }
         if matches!(self.state(), SsrCssState::Cancelled | SsrCssState::Refused) {
             return Err("Stylesheet coordination is cancelled, refused or stale".into());
         }
@@ -317,6 +350,7 @@ impl SsrStylesheetCoordinator {
             SsrCssState::Refused
         };
         self.pending = None;
+        self.shared_declaration = None;
         self.input = None;
         self.owners.clear();
         self.loads.clear();
@@ -379,7 +413,7 @@ impl SsrStylesheetCoordinator {
         self.state = SsrCssState::Ready;
         Ok(SsrCssProgress::Ready)
     }
-    fn match_request(&self, request: &SsrCssRequest) -> Result<(), String> {
+    pub(crate) fn match_request(&self, request: &SsrCssRequest) -> Result<(), String> {
         if !Arc::ptr_eq(&self.ticket, &request.ticket)
             || !self.pending.as_ref().is_some_and(|p| {
                 p.serial == request.serial
@@ -445,7 +479,12 @@ impl SsrStylesheetCoordinator {
                         .try_into()
                         .map_err(|_| "CSS resource count overflow")?,
                 )
-                .filter(|n| *n <= page.policy().max_resources)
+                .filter(|n| {
+                    page.usage()
+                        .resources
+                        .checked_add(*n)
+                        .is_some_and(|total| total <= page.policy().max_resources)
+                })
                 .ok_or("CSS resource budget exceeded")?;
             load.references = references;
             self.bytes = self
@@ -502,7 +541,12 @@ impl SsrStylesheetCoordinator {
                 instances.push(record)
             }
         }
+        if let Some(shared) = &self.shared_declaration {
+            declarations = shared.declarations.clone();
+        }
         let ready = CoordinatedStylesheets {
+            declaration_owner: input.prepared().declaration_lease_identity().clone(),
+            shared_declaration: self.shared_declaration.take(),
             _owners: std::mem::take(&mut self.owners),
             declarations,
             instances,
@@ -525,6 +569,8 @@ impl SsrStylesheetCoordinator {
     }
 }
 pub(crate) struct CoordinatedStylesheets {
+    declaration_owner: Arc<RetainedTemplate>,
+    shared_declaration: Option<Arc<CoordinatedStylesheets>>,
     _owners: Vec<RetainedTemplate>,
     declarations: Vec<Arc<RetainedStylesheet>>,
     instances: Vec<Arc<RetainedStylesheet>>,
@@ -569,6 +615,9 @@ impl CoordinatedStylesheets {
         if self.stale.load(Ordering::Relaxed) {
             return Err("Stylesheet resolver authority changed".into());
         }
+        if let Some(shared) = &self.shared_declaration {
+            shared.check(control)?;
+        }
         for record in self.declarations.iter().chain(&self.instances) {
             record.emission()?;
         }
@@ -588,6 +637,9 @@ impl CoordinatedStylesheets {
             return Err("Stylesheet batch belongs to another native host".into());
         }
         Ok(())
+    }
+    pub(crate) fn declaration_records(&self) -> &[Arc<RetainedStylesheet>] {
+        &self.declarations
     }
     pub(crate) fn instance_records(&self) -> &[Arc<RetainedStylesheet>] {
         &self.instances
@@ -626,7 +678,11 @@ impl CoordinatedStylesheets {
         &self,
         origin: &SourceMapStack,
     ) -> Result<Vec<RenderPlanNode>, String> {
-        self.output(&self.declarations, true, origin)
+        if self.shared_declaration.is_some() {
+            Ok(vec![])
+        } else {
+            self.output(&self.declarations, true, origin)
+        }
     }
     fn output(
         &self,

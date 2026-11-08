@@ -853,7 +853,7 @@ through Phase 9 release governance.
         exports. Frozen presentation unchanged; SSR stays partial and adoption
         remains gated.
         [Archive](archive/todo-completed-ssr-stylesheet-coordination-2026-11-08.md).
-  - [ ] Nested lifecycle: prepare multiple participants and settle nested work
+  - [x] Nested lifecycle: prepare multiple participants and settle nested work
         under one operation, preserving ownership and resource/render ceilings.
         Add failing native ordering, exhaustion and cancellation fixtures first.
       - [x] Native continuation fixtures: preserve original import handles and
@@ -878,14 +878,45 @@ through Phase 9 release governance.
             unchanged. Quiescence stays partial; nested resource admission and
             final readiness proof remain open.
             [Archive](archive/todo-completed-ssr-passive-page-coordination-2026-11-08.md).
-      - [ ] Integrate multiple/nested participants with page-wide declaration CSS,
+      - [x] Integrate multiple/nested participants with page-wide declaration CSS,
             CEM-ML payload source leases and pending resource tickets before
             widening the passive coordinator profile. Keep final page readiness
             and adoption gated.
+          - [x] Declaration lease fixtures: share one closed native declaration
+                CSS owner across siblings/nested instances; publish it once and
+                keep instance CSS identities and request tickets independent.
+          - [x] Payload source continuation fixtures: import copied/projected
+                CEM-ML envelopes from retained native text and producer maps;
+                preserve aliases, non-execution, canonical ownership and lifetime.
+                Verify projected instance CSS retains producer maps and has no
+                fabricated authored line coordinates. Share a parsed payload view
+                only for identical native producer maps/content/metadata under
+                the original operation; keep each host's canonical lease distinct.
+                Recheck lowered limits and actual source type on cache hits, and
+                keep identical text from distinct authored origins separate.
+          - [x] Page resource fixtures: enforce aggregate roots/references/bytes
+                across participants; reject stale/foreign tickets and operations,
+                cancellation, transport failures with native source locations,
+                and resolver revision changes; release all staged source/CSS
+                permits on failure and at final-owner retirement.
+                Verification: 284 native checks across default/stripped profiles,
+                including 12 resource-sharing cases per profile; stripped SSR
+                109/109, component receiver 17/17 and shared receiver 19/19 per
+                profile pass. All 22 existing complete observations and 8 browser
+                regression profiles match. Paired build, Clippy, focused formatting
+                and optimized WASM consumers pass. Core: 23,996,553 bytes, 28
+                imports/175 exports. Frozen presentation unchanged. Scoped/module
+                registries remain refused; quiescence stays partial and adoption
+                awaits final completion proof.
+                [Archive](archive/todo-completed-ssr-page-resource-sharing-2026-11-08.md).
   - [ ] Completion proof: validate declaration versions, complete islands,
-        identity/policy freshness and owned output ranges before declaring ready.
+        closed/current source and CSS leases, identity/policy freshness, owned
+        output/style ranges and precise CPU accounting before declaring ready.
   - [ ] Adoption wiring: only after that proof, connect CLI lowering, exports
         and browser hydration/parity to the same native core.
+      - [ ] Wire CLI lowering and named exports to the native readiness proof.
+      - [ ] Wire browser hydration/adoption and verify end-to-end parity against
+            the same completed native artifact.
 
 
 ## Component gallery source-link maintenance (after Studio presentation work)

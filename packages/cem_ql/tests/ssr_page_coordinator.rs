@@ -60,6 +60,7 @@ fn parent_first_discovery_settles_generated_and_source_children_with_distinct_id
                 depth,
             } => seen.push((tag, instance_id, depth)),
             SsrPageProgress::Quiescent => break,
+            SsrPageProgress::Pending(_) => panic!("passive profile cannot request resources"),
         }
     }
     assert_eq!(
@@ -223,6 +224,7 @@ fn inert_templates_and_dropped_payload_hosts_do_not_activate_participants() {
         match coordinator.advance(&c).unwrap() {
             SsrPageProgress::Rendered { tag, .. } => tags.push(tag),
             SsrPageProgress::Quiescent => break,
+            SsrPageProgress::Pending(_) => panic!("passive profile cannot request resources"),
         }
     }
     let settled = coordinator.finish(&c).unwrap();

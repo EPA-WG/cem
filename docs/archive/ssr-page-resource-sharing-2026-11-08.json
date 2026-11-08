@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "date": "2026-11-08",
+  "topic": "Native SSR page resource sharing",
+  "baseCommit": "b75daf3009af098d1bbdcfa1926b9097fbc19210",
+  "profile": {
+    "participants": "multiple/nested autonomous inline DCEs in one direct document-body registry; unique declarations; explicit resource profile",
+    "css": "one native compiled declaration lease per tag with single publication; separate per-instance CSS owners, identities and tickets",
+    "payloads": "original/copied/projected literal CEM-ML source; bounded original-operation weak lease pool shares parsed views only for identical native producer ownership, text/maps, metadata and compatible limits; distinct current-envelope canonical leases",
+    "transport": "native opaque ordered tickets; stable pending observation; host-supplied response bytes/final URI/MIME; shared import validation; original failure maps retained; no automatic I/O",
+    "accounting": "original operation memory and active clock; remaining page roots/import/URL references and delivered bytes; conservative elapsed wall/CPU admission without claiming measured CPU",
+    "publication": "one staged candidate; no intermediate page exposed; canonical islands/host attributes and styles commit through shared native application; prior host/island/range/style-suffix handles remap",
+    "limits": "64 declarations/active hosts and weak payload entries; scoped registries and declaration modules remain refused"
+  },
+  "gates": {
+    "sourceAdmissionNativeChecks": 284,
+    "nativeFeatureProfiles": [
+      "default",
+      "no-default-features"
+    ],
+    "pageResourceSharingCasesPerProfile": 12,
+    "passivePageCoordinatorCasesPerProfile": 11,
+    "singleParticipantCssCasesPerProfile": 14,
+    "standaloneStrippedSsrChecks": 109,
+    "componentReceiverChecks": 17,
+    "sharedReceiverChecksPerProfile": 19,
+    "existingPassivePageNativeBrowserObservations": 3,
+    "existingSingleParticipantNativeBrowserObservations": 19,
+    "nativeSlotBrowserProfiles": 4,
+    "hostPublicationBrowserProfiles": 4,
+    "documentedDivergences": 0,
+    "pairedBuild": true,
+    "clippy": "pass, existing warnings",
+    "focusedRustfmt": "pass",
+    "optimizedWasmConsumers": "pass"
+  },
+  "browser": "148.0.7778.96",
+  "externalRequests": [],
+  "core": {
+    "path": "packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+    "bytes": 23996553,
+    "sha256": "8f9e8475586e3b432870e0dd9e8fab62b4d774694a8e0827c3e56c91344e3136",
+    "imports": 28,
+    "exports": 175,
+    "perFileCeilingBytes": 26214400
+  },
+  "packagedCore": {
+    "path": "packages/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+    "bytes": 23996553,
+    "sha256": "8f9e8475586e3b432870e0dd9e8fab62b4d774694a8e0827c3e56c91344e3136"
+  },
+  "frozenPresentation": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864"
+  },
+  "adoption": {
+    "lifecycle": "partial/incomplete",
+    "hydrationReady": false,
+    "cliExportWired": false
+  },
+  "next": [
+    "Final declaration-version, complete-island, identity/policy and owned-range readiness proof, including precise CPU completion.",
+    "Wire CLI lowering and named exports through the proven native core.",
+    "Browser hydration/adoption and end-to-end parity after readiness proof."
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/cem-elements/project.json",
+      "bytes": 52021,
+      "sha256": "47eaebe7cc2c10a7ebf6ce531cd97555290c33eccd9e31c6e68793491076c1d8"
+    },
+    {
+      "path": "packages/cem_ml/src/import/cem_payload.rs",
+      "bytes": 18847,
+      "sha256": "aa2c0dd58d1cc71df7c674d9251afa70f66ae98a802f03ab4cfe511b983a5311"
+    },
+    {
+      "path": "packages/cem_ml/src/import/element_tree.rs",
+      "bytes": 18288,
+      "sha256": "e56a484e76394efb6de9cb4dd9054dda210ff707d1c0c6bed9fe8d63625b7686"
+    },
+    {
+      "path": "packages/cem_ml/src/import/inline_css.rs",
+      "bytes": 7660,
+      "sha256": "06df188550761fb5fd99a53e609d94de94076e9c4861989f32c1cda2f49ced3c"
+    },
+    {
+      "path": "packages/cem_ql/project.json",
+      "bytes": 27487,
+      "sha256": "61be578dde4f51f4db58c6638588a16b28061a8b207e20779a879df359311892"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_island.rs",
+      "bytes": 15511,
+      "sha256": "5e181f52bd36db98c49d4ebb8346eddffbfd4e7778316c96dabf09413b4b1fb9"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_page.rs",
+      "bytes": 34796,
+      "sha256": "ea856d241ca1d9b1e50f39cea924d4598c43b0fb575aed87f98311962735be54"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_preparation.rs",
+      "bytes": 18941,
+      "sha256": "d68973bb4c3f7883e57aecaeac623f8cc17517881ba2de52db95f33cc16c3a2e"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_stylesheets.rs",
+      "bytes": 27535,
+      "sha256": "a939632079753bdf7045e738a366e6871c929084fb165f96ee101236c0835b0b"
+    },
+    {
+      "path": "packages/cem_ql/tests/ssr_page_coordinator.rs",
+      "bytes": 17398,
+      "sha256": "99b2f6e307e48d533afdbc2d3dffe778f1a9cf8b0beeaf11f8d482a76304cde0"
+    },
+    {
+      "path": "packages/cem_ql/tests/ssr_page_resources.rs",
+      "bytes": 23751,
+      "sha256": "b0e478f90e9596088d5825366408757f501d7d0c663cf6611f39a5de00f99bd9"
+    }
+  ],
+  "observations": [
+    {
+      "path": "dist/reports/cem-ssr-page-native.json",
+      "bytes": 5821,
+      "sha256": "4505b1f8187e80a49581e18f3f6364219579de73c873b54f36f591b388d22cc4"
+    },
+    {
+      "path": "dist/reports/cem-ssr-page-browser.json",
+      "bytes": 6417,
+      "sha256": "8fe1a2ba7e3384ff65f40bf98989d7f8ac1000bd6ef32a7bfb436ad64e3b8714"
+    },
+    {
+      "path": "dist/reports/cem-ssr-render-native.json",
+      "bytes": 11096,
+      "sha256": "088e910f38e766aa92f99365a82d533c9f168af1c48ef403f54e22fc3245f489"
+    },
+    {
+      "path": "dist/reports/cem-ssr-render-browser.json",
+      "bytes": 12881,
+      "sha256": "41e49f151ba55f5f0439ae33ddf1cbeb74bdd545662813d1e0ad1838352b3179"
+    },
+    {
+      "path": "dist/reports/cem-browser-native-slots.json",
+      "bytes": 1176,
+      "sha256": "3acc0e2763a9180f86f8a94926ef903e7295a4b747a29eeba5e25a624016354f"
+    },
+    {
+      "path": "dist/reports/cem-browser-host-publication.json",
+      "bytes": 1121,
+      "sha256": "6f29b4a24ca44a406b85e2f479cba3bda2b800e29be73f5b347568076e43554f"
+    },
+    {
+      "path": "dist/reports/wasm-optimization/cem-ql.json",
+      "bytes": 329,
+      "sha256": "6a9a89d502d512ef807c54381b37cee679472585e6329c945c64284f41e8d55b"
+    }
+  ]
+}

@@ -412,18 +412,18 @@ refused. An observed resolver revision change cannot revive by restoring an old
 fingerprint. The applied tree retains all source and stylesheet leases.
 
 A ready CSS batch remains distinct from page completion. The resulting page is
-still `Partial(Incomplete)`. Nested/multiple resource-bearing participant settling, final version,
-island, identity/policy and range proof, then CLI/export and hydration wiring
-remain required before adoption.
+still `Partial(Incomplete)`. The explicit page resource profile below handles
+nested/multiple inline participants. Final version, island, identity/policy and
+range proof, then CLI/export and hydration wiring remain required before adoption.
 
 ## Native SSR passive page coordination
 
 `prepare_inline_page` coordinates first connection for multiple autonomous inline
 participants. This bounded profile uses one direct document-body declaration
 registry with unique tags. It compiles each declaration once and reuses the
-retained template. Scoped registries, declaration modules, CSS/resource closures
-and CEM-ML source payloads require further admission; the single-participant
-stylesheet coordinator remains the separate resource-bearing profile.
+retained template. Scoped registries and declaration modules remain refused.
+CSS/resource closures and CEM-ML source payloads require the explicit page resource
+profile below; the ordinary preparation API retains its passive HTML boundary.
 
 `advance` settles the next active host in parent-first native preorder, then
 discovers its produced descendants before continuing with siblings. Projected
@@ -454,10 +454,72 @@ exhaustion retires the staged candidate without publishing an intermediate page.
 Retained native source/arena permits survive until the final tree owner releases.
 
 `finish` requires an empty active worklist. Its quiescent result remains
-`Partial(Incomplete)` with hydration disabled. Shared page-wide declaration CSS
-leases and pending resource tickets are the next lifecycle step, followed by
-final declaration-version, island, identity/policy and owned-range proof before
-CLI/export or browser adoption.
+`Partial(Incomplete)` with hydration disabled. The explicit resource profile below
+adds shared declaration CSS and payload source leases. Final declaration-version,
+island, identity/policy and owned-range proof still precedes CLI/export or browser
+adoption.
+
+## Native SSR page resource coordination
+
+`prepare_inline_page_with_resources` extends the same parent-first inline worklist
+with an explicit stable `CemModuleUrlResolutionCapability`. It retains the one
+body registry, unique native declarations, exact current-tree continuation and
+original operation. Modules and scoped registries remain outside this profile.
+The ordinary `prepare_inline_page` API keeps its passive admission boundary.
+
+Each declaration's first participant closes its stylesheet batch through the
+shared native CSS coordinator. The page caches that lease against the actual
+compiled declaration owner, operation and resolver fingerprint. Later participants
+share the same immutable declaration records and context marker without issuing
+another declaration import or publishing duplicate declaration styles. Private
+and named shared CSS keep their existing scope contracts. Instance sheets retain
+separate owners, IDs, closures and tickets, even when their URLs coincide.
+
+`advance` may return `Pending(SsrCssRequest)` for the current participant.
+Observation is stable until `deliver` supplies named response bytes, actual final
+URI and MIME, or `fail_resource` reports transport failure. A ticket is private to
+its original stylesheet coordinator and outstanding sequence. Foreign, consumed
+or old-participant tickets cannot replace or retire current work. Transport is
+host-owned; this API performs no automatic reads. Shared import validates MIME,
+integrity, redirects, import placement, cycles and depth. `resource_failure`
+retains the native import failure and source location after terminal cleanup.
+
+All new roots and import/URL-reference occurrences use the page's remaining
+resource allowance. Delivered bytes use the remaining total after the original
+source and every earlier participant. Shared declaration resources count once;
+instance occurrences count independently. Pending work never renews the operation,
+clock or budgets. An observed resolver revision permanently refuses the page,
+including after a declaration cache hit. Every retained lease is checked again
+before further work and final quiescence.
+
+CEM-ML payloads remain non-executing literal source envelopes. The shared import
+layer admits original, copied and projected text directly from retained trees.
+Authored event mappings keep their precise import path; projected/generated text
+retains conservative producer maps without fabricated HTML event handles or
+line coordinates. The same native text mapping supports projected instance CSS.
+Neither path serializes or reparses rendered HTML, and no downstream format parser
+or JSON tree handoff is introduced.
+
+The operation owns a bounded weak pool of payload source leases. A parsed view is
+shared only when native producer ownership, text, segment maps, document/base URI
+and admission limits all match. Identical text at different authored origins
+keeps separate views. Reuse still validates the current payload type, original
+operation and caller limits. Each host receives a distinct canonical/source lease
+bound to its own current envelope; sharing a parsed tree grants no authority to
+select another host's island. Weak entries prevent retention cycles through
+native page application lineage.
+
+Host attributes, canonical islands and styles still commit through the shared
+native transaction. Previously settled hosts, islands, output boundaries and
+instance-style suffixes remap after each application. Cancellation, import or
+budget failure drops the entire staged page. Resource permits follow concrete
+native owners: a retained stylesheet handle may keep its source memory after its
+emission lease retires, until that final handle is also dropped.
+
+Quiescence remains `Partial(Incomplete)` with hydration disabled. The next topic
+is final completion proof: declaration versions, complete islands, current
+identity/policy, owned ranges and precise CPU accounting. CLI lowering, exports
+and browser hydration follow only after that proof.
 
 ## Declaration version and SSR compatibility
 
