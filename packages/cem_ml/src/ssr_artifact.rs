@@ -259,6 +259,9 @@ impl CemSsrPageArtifact {
     pub fn route(&self) -> &SsrArtifactRoute {
         &self.route
     }
+    pub fn execution_identity(&self) -> &SsrExecutionIdentity {
+        &self.identity
+    }
     pub fn policy(&self) -> &SsrSettlePolicy {
         &self.policy
     }

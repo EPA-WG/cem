@@ -31,6 +31,8 @@ use crate::{
     },
 };
 
+pub mod cpu;
+
 pub const ROOT_EXECUTION_SCOPE_ID: ExecutionScopeId = ExecutionScopeId(0);
 /// Maximum number of caller-defined work units allowed between cooperative
 /// control checks. Callers must report work in naturally bounded units such as
@@ -747,6 +749,7 @@ struct MemoryCharge {
 
 #[derive(Debug)]
 struct ControlInner {
+    cpu: cpu::CpuState,
     tree: ExecutionScopeTree,
     accounting: BTreeMap<ExecutionScopeId, ScopeAccounting>,
     stack_depths: BTreeMap<(TaskId, ExecutionScopeId), u32>,
@@ -882,6 +885,7 @@ impl OperationControl {
             operation_id,
             abort_signal,
             inner: Arc::new(Mutex::new(ControlInner {
+                cpu: Default::default(),
                 tree,
                 accounting,
                 stack_depths: BTreeMap::new(),

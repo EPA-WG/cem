@@ -270,6 +270,12 @@ fn bind_root(
         }
     }
     if hydration
+        .remove("declarationVersion")
+        .is_some_and(|version| !cem_ml::schema::document_model::is_canonical_semver(&version))
+    {
+        return Err(INVALID.into());
+    }
+    if hydration
         != BTreeMap::from([
             ("version".into(), VERSION.into()),
             ("instanceId".into(), instance_id.into()),

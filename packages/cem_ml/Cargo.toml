@@ -49,6 +49,12 @@ name = "cem-ml-command-types-emit"
 path = "src/bin/cem-ml-command-types-emit.rs"
 required-features = ["typescript-projections"]
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"

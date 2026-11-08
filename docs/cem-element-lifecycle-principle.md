@@ -446,9 +446,10 @@ than host aliases; authored reserved writes remain refused.
 One original operation owns all preparation and render passes, active elapsed
 time and memory permits. Instance, declaration-depth and render counts accumulate
 across participants; bounded registry and discovery inventories provide additional
-ceilings. No pass renews the clock. As in the stylesheet profile, elapsed admission
-conservatively uses the stricter wall/CPU cap and does not claim measured CPU.
-Every application remaps previously settled hosts, canonical islands and output
+ceilings. No pass renews the clock. Supported native hosts account synchronous
+phases through the original operation's CPU ledger and bound active wall time
+separately. Unsupported CPU-clock targets keep the conservative elapsed bound
+for partial work and cannot issue readiness. Every application remaps previously settled hosts, canonical islands and output
 boundaries, then checks their ownership again. Cancellation, failed discovery or
 exhaustion retires the staged candidate without publishing an intermediate page.
 Retained native source/arena permits survive until the final tree owner releases.
@@ -516,10 +517,75 @@ budget failure drops the entire staged page. Resource permits follow concrete
 native owners: a retained stylesheet handle may keep its source memory after its
 emission lease retires, until that final handle is also dropped.
 
-Quiescence remains `Partial(Incomplete)` with hydration disabled. The next topic
-is final completion proof: declaration versions, complete islands, current
-identity/policy, owned ranges and precise CPU accounting. CLI lowering, exports
-and browser hydration follow only after that proof.
+Quiescence remains `Partial(Incomplete)` with hydration disabled. The native proof
+below validates completion for this bounded profile. CLI lowering, exports and
+browser hydration still require their separate adoption wiring.
+
+## Native SSR readiness proof
+
+`QuiescentInlinePage::prove_ready` consumes a settled candidate and returns an
+opaque `ReadyInlinePage` only after native completion checks pass. Its fields and
+constructor are private; diagnostic reports, hashes and copied metadata cannot
+construct this authority. Generic `CemSsrPageArtifact` envelopes remain partial
+and their hydration flag stays false. Named export and browser adoption wiring
+must explicitly consume the validated native result in the next integration step.
+
+The host supplies a fresh `SsrReadinessContext` from a complete execution identity,
+current route/settle policy and expected consumer declaration versions. Opaque,
+pending, released, missing or unsupported dependency context is refused. The
+supported native plan contract is `cem-native-render-plan/1`; lifecycle, island
+and CEM-QL engine versions must match the producing native runtime. The context
+is an expected-input record, not a publication grant. Source and resource authority
+still comes from the original native owners and operation.
+
+Every active declaration needs an exact canonical Semantic Version. Preparation
+rejects malformed authored values; missing versions may render partial output but
+cannot prove ready. Native canonical islands retain `declarationVersion`, keeping
+it separate from component-owned host input named `version`. Expected consumer
+versions follow the same stable, zero-major, prerelease and build-metadata rules
+as the browser. Declaration source, compiled owner, canonical metadata and current
+native host must agree.
+
+The proof re-admits the already-owned canonical context through the shared native
+island validator and compares its literal projection with the final island. It
+never parses rendered HTML or turns it into payload. Closed CEM-ML source leases
+keep their original operation, envelope and canonical binding; CSS records and
+resolver revisions must remain live. Declaration styles publish once, instance
+styles remain in their owned suffix, and recorded resources/bytes/depth reconcile
+with the actual settled owners.
+
+Each host's final attributes and range boundaries match its own native commit.
+The proof compares rendered output with the shared plan while allowing only
+individually proven descendant commits. It checks native output-node provenance
+through that retained application lineage, as well as content. Changed, missing,
+reordered or grafted output/island nodes, extra active participants, duplicate
+instance identities and duplicate live HTML IDs refuse readiness. Native source
+keys are meaningful inside this exact lineage; they are not portable authority.
+
+`ReadyInlinePage::validate_current` requires the exact current tree, fresh expected
+context and original operation before returning a usage observation. Equivalent
+replacement trees do not match. Cancellation, deadlines, exhausted CPU, dead
+leases and observed resolver changes refuse use. Restoring a previous resolver
+fingerprint cannot revive an invalidated lease. Consumers must perform this check
+at their actual publication boundary; retaining an earlier observation does not
+authorize later writes or adoption.
+
+Native CPU accounting uses an operation-owned cumulative ledger with thread CPU
+counters: `CLOCK_THREAD_CPUTIME_ID` on Linux and `GetThreadTimes` on Windows. The
+ledger measures admitted synchronous preparation, advancement, delivery, finishing
+and proof phases. Host transport waits and work outside those phases are excluded.
+Sequential threads share the same total. Scope clocks and CPU budgets do not
+restart across handles; an unfinished guard, unsupported clock, counter failure,
+overlap or exhausted budget cannot mint a receipt. Nanosecond/tick totals are
+summed before rounding up to milliseconds; precision follows the OS counter.
+The Linux implementation is exercised by the native gates; Windows bindings are
+implemented but were not executed by that Linux verification run. Other targets,
+including ordinary browser WASM, refuse readiness without an available CPU clock.
+CLI wiring must use the same ledger for any additional owned ingress/lowering work.
+
+Completion of this native proof does not publish HTML, change the frozen
+presentation, wire CLI exports or activate browser hydration. Those are the next
+adoption steps and must use this same validated native core.
 
 ## Declaration version and SSR compatibility
 

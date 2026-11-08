@@ -7,7 +7,7 @@ use cem_ml::{
 use cem_ql::ssr_preparation::{prepare_inline_dce, MAX_INLINE_TEMPLATE_BYTES};
 use std::sync::Arc;
 
-const DECL: &str = "<cem-element tag='x-inline' version='1'><template id='x-inline' type='text/cem-ml'>{p | Hello &amp; welcome}</template></cem-element>";
+const DECL: &str = "<cem-element tag='x-inline' version='1.0.0'><template id='x-inline' type='text/cem-ml'>{p | Hello &amp; welcome}</template></cem-element>";
 const INSTANCE: &str = "<x-inline label='World'><b>Original payload</b></x-inline>";
 #[path = "support/ssr_page.rs"]
 mod fixture;

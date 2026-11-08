@@ -1,0 +1,201 @@
+{
+  "version": 1,
+  "date": "2026-11-08",
+  "topic": "Native SSR readiness proof",
+  "baseCommit": "569b0985298e6bacc7839e900dce0785b0805cb7",
+  "profile": {
+    "participants": "bounded one-body registry of autonomous inline declarations; native ReadyInlinePage proof with private fields and constructor",
+    "versions": "canonical declaration SemVer retained in islands; browser-compatible stable/zero-major/prerelease/build bands; current lifecycle/island/CEM-QL tuple and cem-native-render-plan/1 contract",
+    "islands": "shared native admission plus literal comparison with committed canonical projection; rendered output never recaptured as input",
+    "leases": "original source envelope/operation/parsed-view binding; current closed CSS owners and resolver revision; aggregate resources/bytes/depth reconciled against actual evidence",
+    "ranges": "native host/range/island/style suffix handles, parent output provenance and separately proved descendant commits; exact current final tree; unique active inventory and live HTML IDs",
+    "cpu": "original-operation cumulative thread CPU ledger over admitted synchronous preparation, advancement, response delivery, finishing and proof; no wall-time substitution; no renewal across handles/threads; nanosecond/tick aggregation before millisecond ceiling",
+    "freshness": "fresh complete input/policy/route/version context plus original native operation, immutable tree and live leases at every validate_current call",
+    "publication": "generic artifact stays partial; proof is nonportable and observations are metadata, not later publication or browser-adoption grants"
+  },
+  "cpuHostVerification": {
+    "linux": "native counters exercised in default and stripped gates",
+    "windows": "GetThreadTimes bindings implemented and inspected; not executed by this Linux run",
+    "otherTargets": "readiness refused without supported native CPU clock; partial work retains conservative elapsed bounds",
+    "precision": "OS-reported counter resolution",
+    "excludedWork": "transport waits and caller work outside admitted phases; future CLI ingress/lowering must use the same ledger"
+  },
+  "gates": {
+    "sourceAdmissionNativeChecks": 312,
+    "nativeFeatureProfiles": [
+      "default",
+      "no-default-features"
+    ],
+    "cpuCasesPerProfile": 4,
+    "readinessIntegrationCasesPerProfile": 7,
+    "readinessVersionIslandRangeUnitCasesPerProfile": 3,
+    "standaloneStrippedSsrChecks": 116,
+    "componentReceiverChecks": 17,
+    "sharedReceiverChecksPerProfile": 19,
+    "existingPassivePageNativeBrowserObservations": 3,
+    "existingSingleParticipantNativeBrowserObservations": 19,
+    "nativeSlotBrowserProfiles": 4,
+    "hostPublicationBrowserProfiles": 4,
+    "documentedDivergences": 0,
+    "pairedBuild": true,
+    "clippy": "pass, existing warnings",
+    "focusedRustfmt": "pass",
+    "optimizedWasmConsumers": "pass"
+  },
+  "browser": "148.0.7778.96",
+  "externalRequests": [],
+  "core": {
+    "path": "packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+    "bytes": 23967363,
+    "sha256": "57897af7ffc4a8ed07ea774ea36ff01a30a169c598dfda06e6500005b2fad902",
+    "imports": 28,
+    "exports": 175,
+    "perFileCeilingBytes": 26214400
+  },
+  "packagedCore": {
+    "path": "packages/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+    "bytes": 23967363,
+    "sha256": "57897af7ffc4a8ed07ea774ea36ff01a30a169c598dfda06e6500005b2fad902"
+  },
+  "frozenPresentation": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864"
+  },
+  "adoption": {
+    "nativeReadinessProofAvailable": true,
+    "genericArtifactLifecycle": "partial/incomplete",
+    "genericHydrationReady": false,
+    "cliExportWired": false,
+    "browserAdoptionWired": false
+  },
+  "next": [
+    "CLI lowering and named exports must consume current native proof and original CPU ledger.",
+    "Browser hydration/adoption must validate the exported evidence and current declaration/policy through the same native core.",
+    "End-to-end parity and supported-host verification before deployment."
+  ],
+  "sourceFiles": [
+    {
+      "path": "Cargo.lock",
+      "bytes": 69667,
+      "sha256": "9c3da71944e6c3dcb8555a213339da06d8e66e43465cf8fb55ef92182c7cfbd6"
+    },
+    {
+      "path": "packages/cem-elements/project.json",
+      "bytes": 52581,
+      "sha256": "a433ddfbb8e6a19e84f6c8283740152970dad7d1a444e371e0dd22977607bfbc"
+    },
+    {
+      "path": "packages/cem_ml/Cargo.toml",
+      "bytes": 1976,
+      "sha256": "f713ffc042b49e5d8fb63015644723e2cf0452b3b2d6c3d5b3ffa23c3764841e"
+    },
+    {
+      "path": "packages/cem_ml/src/operation_control.rs",
+      "bytes": 116430,
+      "sha256": "230b28695b580e9e47a5d7ca55f668a1639d6c032498c9fc1dfd277d9326f974"
+    },
+    {
+      "path": "packages/cem_ml/src/operation_control/cpu.rs",
+      "bytes": 6672,
+      "sha256": "1dddfc9bc72c9b8722567f33fc31548c51e9ae8e0cce085efb4519ae356560e9"
+    },
+    {
+      "path": "packages/cem_ml/src/schema/document_model.rs",
+      "bytes": 1513039,
+      "sha256": "20bcbdb90b4cc0edf175d59cec25766104c47ce633279db6baf5d1194df83c63"
+    },
+    {
+      "path": "packages/cem_ml/src/ssr_artifact.rs",
+      "bytes": 21100,
+      "sha256": "a60baf436ca0a0d14f77fee939c5adcc576ec0ba87565d64103e5951953b3458"
+    },
+    {
+      "path": "packages/cem_ml/tests/ssr_cpu.rs",
+      "bytes": 2491,
+      "sha256": "934e9c5123fb6d2328b3bfe861c79ccf2eae9420675143dabb555e57abbd57f4"
+    },
+    {
+      "path": "packages/cem_ql/project.json",
+      "bytes": 27508,
+      "sha256": "038be82709924036def0af306417bbe892e4c4e2375b7a935000b5d57994fc76"
+    },
+    {
+      "path": "packages/cem_ql/src/instance_island/mod.rs",
+      "bytes": 14235,
+      "sha256": "c2a40d900994d46abc3fdcee2c34d5137eaf8cfc5e44b88b30c48a7bb38dea76"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_island.rs",
+      "bytes": 16400,
+      "sha256": "d54ea1ba537db69921b760060940053a78f7b7b091082337d4361081e7ae8a83"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_page.rs",
+      "bytes": 40737,
+      "sha256": "c46ba7c9ceede292cef286246ffda58448cd30c9f05b48200c451f8ce1f6082d"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_preparation.rs",
+      "bytes": 19624,
+      "sha256": "dc1d8aad4fa2543c07d4c53fd5ab26936a4b045b212d9bd156a8815784b30def"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_readiness.rs",
+      "bytes": 34577,
+      "sha256": "1ce2da60d18e43e3a680a8acb6e4906f1e1ebbfb01b33fb382d4912ed58bfe60"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_stylesheets.rs",
+      "bytes": 28049,
+      "sha256": "120af66654a8e66a8314a8b415c515c91a29b65f7456662a0c8c53b8e2d26f41"
+    },
+    {
+      "path": "packages/cem_ql/tests/ssr_preparation.rs",
+      "bytes": 13141,
+      "sha256": "8add50d5926c5f46a8ded2423e11c3f7f0d72e75f7857afd5027b1f8229df1bc"
+    },
+    {
+      "path": "packages/cem_ql/tests/ssr_readiness.rs",
+      "bytes": 13094,
+      "sha256": "0670cb98dd153e9aee6f0ca7701b0ed33c2cf3262bb84508cecbe0d00d7ca891"
+    }
+  ],
+  "observations": [
+    {
+      "path": "dist/reports/cem-ssr-page-native.json",
+      "bytes": 5821,
+      "sha256": "4505b1f8187e80a49581e18f3f6364219579de73c873b54f36f591b388d22cc4"
+    },
+    {
+      "path": "dist/reports/cem-ssr-page-browser.json",
+      "bytes": 6417,
+      "sha256": "8fe1a2ba7e3384ff65f40bf98989d7f8ac1000bd6ef32a7bfb436ad64e3b8714"
+    },
+    {
+      "path": "dist/reports/cem-ssr-render-native.json",
+      "bytes": 11096,
+      "sha256": "088e910f38e766aa92f99365a82d533c9f168af1c48ef403f54e22fc3245f489"
+    },
+    {
+      "path": "dist/reports/cem-ssr-render-browser.json",
+      "bytes": 12881,
+      "sha256": "41e49f151ba55f5f0439ae33ddf1cbeb74bdd545662813d1e0ad1838352b3179"
+    },
+    {
+      "path": "dist/reports/cem-browser-native-slots.json",
+      "bytes": 1176,
+      "sha256": "3acc0e2763a9180f86f8a94926ef903e7295a4b747a29eeba5e25a624016354f"
+    },
+    {
+      "path": "dist/reports/cem-browser-host-publication.json",
+      "bytes": 1121,
+      "sha256": "6f29b4a24ca44a406b85e2f479cba3bda2b800e29be73f5b347568076e43554f"
+    },
+    {
+      "path": "dist/reports/wasm-optimization/cem-ql.json",
+      "bytes": 329,
+      "sha256": "0da1badb3630c2127f28478e2ad1e8d5f184593b4979658eb64299bf5bccd07d"
+    }
+  ]
+}

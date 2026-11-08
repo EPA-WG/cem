@@ -30,6 +30,8 @@ pub struct PreparedInlineDce {
     retained: Arc<RetainedTemplate>,
     pub(crate) registered_participants: Option<Arc<BTreeSet<String>>>,
     pub(crate) lifecycle_control: Option<OperationControl>,
+    pub(crate) lifecycle_cpu: Option<Arc<cem_ml::operation_control::cpu::NativeCpuAccounting>>,
+    pub(crate) declaration_version: Option<String>,
     pub(crate) payload_sources:
         Option<Arc<cem_ml::import::element_tree::RetainedCemPayloadSourcePool>>,
     pub(crate) stylesheet_coordination: bool,
@@ -241,6 +243,8 @@ fn prepare_inline_dce_mode(
         retained,
         registered_participants: None,
         lifecycle_control: None,
+        lifecycle_cpu: None,
+        declaration_version: root.get("version").cloned(),
         payload_sources: None,
         stylesheet_coordination,
         stylesheet_control: stylesheet_coordination.then(|| control.clone()),
@@ -273,9 +277,9 @@ fn declaration_header(
         || root
             .get("xmlns")
             .is_some_and(|value| value != HTML_NAMESPACE_URI)
-        || root
-            .get("version")
-            .is_some_and(|value| value.trim().is_empty() || value.len() > 1024)
+        || root.get("version").is_some_and(|value| {
+            value.len() > 1024 || !cem_ml::schema::document_model::is_canonical_semver(value)
+        })
     {
         return Err(problem(
             page,
@@ -410,6 +414,9 @@ fn compile_source(
 }
 #[derive(Clone)]
 pub(crate) struct InlineDefinition {
+    pub source: Arc<RetainedCemTree>,
+    pub source_declaration: AstNodeId,
+    pub version: Option<String>,
     pub tag: String,
     pub declaration: AstNodeId,
     pub template: AstNodeId,
@@ -433,6 +440,9 @@ pub(crate) fn compile_inline_definition(
         control,
     )?;
     Ok(InlineDefinition {
+        source: elements.tree.clone(),
+        source_declaration: declaration,
+        version: header.root.get("version").cloned(),
         tag: header.tag,
         declaration,
         template: header.template,
@@ -448,6 +458,7 @@ pub(crate) struct InlineParticipantSelection {
     pub depth: u32,
     pub registry: Arc<BTreeSet<String>>,
     pub payload_sources: Option<Arc<cem_ml::import::element_tree::RetainedCemPayloadSourcePool>>,
+    pub cpu: Option<Arc<cem_ml::operation_control::cpu::NativeCpuAccounting>>,
 }
 pub(crate) fn prepare_inline_participant(
     page: CemSsrPageArtifact,
@@ -461,6 +472,7 @@ pub(crate) fn prepare_inline_participant(
         depth,
         registry,
         payload_sources,
+        cpu,
     } = selection;
     check(&page, control)?;
     let tree = &elements.tree;
@@ -509,6 +521,8 @@ pub(crate) fn prepare_inline_participant(
         retained: definition.retained,
         registered_participants: Some(registry),
         lifecycle_control: Some(control.clone()),
+        lifecycle_cpu: cpu,
+        declaration_version: definition.version,
         payload_sources,
         stylesheet_coordination: definition.stylesheet_coordination,
         stylesheet_control: definition.stylesheet_coordination.then(|| control.clone()),

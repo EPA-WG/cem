@@ -2401,6 +2401,11 @@ fn is_cem_wildcard_type_reference(value: &str) -> bool {
     }
 }
 
+/// Exact declaration/protocol spelling; schema scalar validation also permits trimming.
+pub fn is_canonical_semver(value: &str) -> bool {
+    value == value.trim() && is_semver(value)
+}
+
 fn is_semver(value: &str) -> bool {
     let value = value.trim();
     let Some((core, build)) = value

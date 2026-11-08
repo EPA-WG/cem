@@ -263,7 +263,11 @@ pub(crate) fn begin_inline_stylesheets_reusing(
             });
         }
     }
-    let elapsed_limit = policy.max_wall_time_ms.min(policy.max_cpu_time_ms);
+    let elapsed_limit = if prepared.lifecycle_cpu.is_some() {
+        policy.max_wall_time_ms
+    } else {
+        policy.max_wall_time_ms.min(policy.max_cpu_time_ms)
+    };
     if control
         .active_elapsed_ms(ROOT_EXECUTION_SCOPE_ID)
         .map_err(|e| e.code().to_owned())?
@@ -329,6 +333,13 @@ impl SsrStylesheetCoordinator {
         control
             .check_scope(ROOT_EXECUTION_SCOPE_ID)
             .map_err(|e| e.code().to_owned())?;
+        if let Some(cpu) = self
+            .input
+            .as_ref()
+            .and_then(|input| input.prepared().lifecycle_cpu.as_ref())
+        {
+            cpu.usage_ms(control)?;
+        }
         if let Some(shared) = &self.shared_declaration {
             shared.check(control)?;
         }
@@ -545,6 +556,7 @@ impl SsrStylesheetCoordinator {
             declarations = shared.declarations.clone();
         }
         let ready = CoordinatedStylesheets {
+            cpu: input.prepared().lifecycle_cpu.clone(),
             declaration_owner: input.prepared().declaration_lease_identity().clone(),
             shared_declaration: self.shared_declaration.take(),
             _owners: std::mem::take(&mut self.owners),
@@ -569,6 +581,7 @@ impl SsrStylesheetCoordinator {
     }
 }
 pub(crate) struct CoordinatedStylesheets {
+    cpu: Option<Arc<cem_ml::operation_control::cpu::NativeCpuAccounting>>,
     declaration_owner: Arc<RetainedTemplate>,
     shared_declaration: Option<Arc<CoordinatedStylesheets>>,
     _owners: Vec<RetainedTemplate>,
@@ -617,6 +630,9 @@ impl CoordinatedStylesheets {
         }
         if let Some(shared) = &self.shared_declaration {
             shared.check(control)?;
+        }
+        if let Some(cpu) = &self.cpu {
+            cpu.usage_ms(control)?;
         }
         for record in self.declarations.iter().chain(&self.instances) {
             record.emission()?;

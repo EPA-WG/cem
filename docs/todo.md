@@ -909,9 +909,40 @@ through Phase 9 release governance.
                 registries remain refused; quiescence stays partial and adoption
                 awaits final completion proof.
                 [Archive](archive/todo-completed-ssr-page-resource-sharing-2026-11-08.md).
-  - [ ] Completion proof: validate declaration versions, complete islands,
+  - [x] Completion proof: validate declaration versions, complete islands,
         closed/current source and CSS leases, identity/policy freshness, owned
         output/style ranges and precise CPU accounting before declaring ready.
+      - [x] CPU fixtures: measure synchronous native phases with original-operation
+            thread CPU counters; exclude transport wait, reject overlap/foreign
+            controls and unfinished guards, retain cumulative usage across handles
+            and sequential threads,
+            and refuse missing clocks or exhausted budgets without renewal.
+      - [x] Version/island fixtures: carry canonical declaration versions through
+            native islands; prove compatibility bands, strict complete topology,
+            missing/malformed versions and unsupported runtime protocol refusals.
+            Update the legacy preparation fixture to an exact 1.0.0 declaration
+            so its existing source-map and refusal checks exercise valid input.
+      - [x] Readiness fixtures: bind a nonportable proof to the exact final native
+            tree and complete current execution/policy context; validate original
+            source/CSS leases, nested output substitutions, host attributes,
+            canonical islands, declaration/instance styles and owned ranges.
+            Refuse pending work, cancellation, stale resolver revisions, replaced
+            trees, opaque dependencies, duplicate IDs, changed/removed/reordered
+            island content and grafted output-range suffixes.
+            Verification: 312 native checks across default/stripped profiles,
+            including 4 CPU, 7 readiness integration and 3 focused version/island/
+            range cases per profile pass. Native proof binds exact current tree,
+            compiled declaration owners, closed source/CSS leases, complete
+            context, version bands, range provenance and original-operation CPU.
+            Generic artifacts remain partial; export/hydration wiring is next.
+            All 22 existing observations and 8 browser regression profiles match.
+            Stripped SSR 116/116, component receiver 17/17 and shared receiver
+            19/19 per profile pass. Paired build, Clippy, focused formatting and
+            WASM consumers pass. Core: 23,967,363 bytes, 28 imports/175 exports.
+            Linux CPU counters exercised; Windows bindings not executed on this
+            host; unsupported clocks cannot issue readiness. Frozen presentation
+            unchanged.
+            [Archive](archive/todo-completed-ssr-readiness-proof-2026-11-08.md).
   - [ ] Adoption wiring: only after that proof, connect CLI lowering, exports
         and browser hydration/parity to the same native core.
       - [ ] Wire CLI lowering and named exports to the native readiness proof.

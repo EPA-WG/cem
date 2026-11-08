@@ -1,5 +1,7 @@
 //! Parent-first native first-connection worklist. Quiescence remains partial;
 //! passive and explicit resource profiles share one document registry.
+#[path = "ssr_readiness.rs"]
+mod readiness;
 use crate::{
     ssr_island::{prepare_inline_island, PreparedInlineIsland},
     ssr_preparation::{
@@ -12,6 +14,7 @@ use crate::{
         SsrStylesheetCoordinator,
     },
 };
+use cem_ml::operation_control::cpu::{NativeCpuAccounting, NativeCpuGuard};
 use cem_ml::{
     diagnostics::Diagnostic,
     import::element_tree::{retain_html_elements, RetainedElementImport},
@@ -22,6 +25,9 @@ use cem_ml::{
     },
     schema::registry::HTML_NAMESPACE_URI,
     ssr_artifact::{CemSsrPageArtifact, SsrLifecycleState, SsrPartialReason},
+};
+pub use readiness::{
+    ReadyInlinePage, SsrReadinessContext, SsrReadinessObservation, SSR_READY_RENDER_PLAN,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -81,11 +87,22 @@ impl SettledParticipant {
         &self.pass
     }
 }
-#[derive(Debug)]
 pub struct QuiescentInlinePage {
+    control: OperationControl,
+    cpu: Option<Arc<NativeCpuAccounting>>,
+    resources: Option<PageResources>,
+    definitions: BTreeMap<String, InlineDefinition>,
+    declaration_styles: BTreeMap<String, Vec<AstNodeId>>,
     page: CemSsrPageArtifact,
     elements: RetainedElementImport,
     participants: Vec<SettledParticipant>,
+}
+impl std::fmt::Debug for QuiescentInlinePage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("QuiescentInlinePage")
+            .field("participants", &self.participants.len())
+            .finish_non_exhaustive()
+    }
 }
 impl QuiescentInlinePage {
     pub fn page(&self) -> &CemSsrPageArtifact {
@@ -126,6 +143,8 @@ struct PendingParticipant {
     css: SsrStylesheetCoordinator,
 }
 pub struct InlinePageCoordinator {
+    cpu: Option<Arc<NativeCpuAccounting>>,
+    declaration_styles: BTreeMap<String, Vec<AstNodeId>>,
     resources: Option<PageResources>,
     pending: Option<PendingParticipant>,
     resource_failure: Option<cem_ml::css_imports::CssImportFailure>,
@@ -153,14 +172,62 @@ pub fn prepare_inline_page(
     prefix: &str,
     control: &OperationControl,
 ) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
-    prepare_inline_page_mode(page, prefix, None, control)
+    prepare_measured(page, prefix, None, control)
 }
-/// Explicit resource profile. Transport receives native tickets; no I/O occurs here.
 pub fn prepare_inline_page_with_resources(
     page: CemSsrPageArtifact,
     prefix: &str,
     capability: cem_ml::module_resolution::CemModuleUrlResolutionCapability,
     control: &OperationControl,
+) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
+    prepare_measured(page, prefix, Some(capability), control)
+}
+fn cpu_error(_: String) -> Vec<Diagnostic> {
+    vec![Diagnostic {
+        code: "cem.ssr.cpu_accounting".into(),
+        message: "Original native CPU accounting is unavailable, incomplete or exhausted".into(),
+        severity: cem_ml::diagnostics::Severity::Error,
+        ..Default::default()
+    }]
+}
+fn prepare_measured(
+    page: CemSsrPageArtifact,
+    prefix: &str,
+    capability: Option<cem_ml::module_resolution::CemModuleUrlResolutionCapability>,
+    control: &OperationControl,
+) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
+    let cpu = if NativeCpuAccounting::supported() {
+        Some(Arc::new(
+            NativeCpuAccounting::new(control, page.policy().max_cpu_time_ms).map_err(cpu_error)?,
+        ))
+    } else {
+        None
+    };
+    let guard = cpu
+        .as_ref()
+        .map(|cpu| cpu.begin(control))
+        .transpose()
+        .map_err(cpu_error)?;
+    let result = if let Some(capability) = capability {
+        prepare_resources(page, prefix, capability, control, cpu)
+    } else {
+        prepare_inline_page_mode(page, prefix, None, control, cpu)
+    };
+    let measured = guard
+        .map(NativeCpuGuard::finish)
+        .transpose()
+        .map_err(cpu_error);
+    let coordinator = result?;
+    measured?;
+    coordinator.check(control)?;
+    Ok(coordinator)
+}
+fn prepare_resources(
+    page: CemSsrPageArtifact,
+    prefix: &str,
+    capability: cem_ml::module_resolution::CemModuleUrlResolutionCapability,
+    control: &OperationControl,
+    cpu: Option<Arc<NativeCpuAccounting>>,
 ) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
     let fingerprint = capability
         .cache_identity()
@@ -196,6 +263,7 @@ pub fn prepare_inline_page_with_resources(
             declarations: BTreeMap::new(),
         }),
         control,
+        cpu,
     )
 }
 fn prepare_inline_page_mode(
@@ -203,6 +271,7 @@ fn prepare_inline_page_mode(
     prefix: &str,
     resources: Option<PageResources>,
     control: &OperationControl,
+    cpu: Option<Arc<NativeCpuAccounting>>,
 ) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
     check(&page, control)?;
     let fail = |code, message| problem(&page, None, None, code, message);
@@ -335,10 +404,13 @@ fn prepare_inline_page_mode(
         pending.extend(node.children.iter().rev().copied());
     }
     let registry = Arc::new(definitions.keys().cloned().collect());
-    let elapsed_limit = page
-        .policy()
-        .max_wall_time_ms
-        .min(page.policy().max_cpu_time_ms);
+    let elapsed_limit = if cpu.is_some() {
+        page.policy().max_wall_time_ms
+    } else {
+        page.policy()
+            .max_wall_time_ms
+            .min(page.policy().max_cpu_time_ms)
+    };
     let usage = page.usage();
     let refused = fail(
         "cem.ssr.settle_budget",
@@ -348,6 +420,8 @@ fn prepare_inline_page_mode(
         .into_partial(SsrPartialReason::Incomplete, usage, vec![])
         .map_err(|_| refused)?;
     let coordinator = InlinePageCoordinator {
+        cpu,
+        declaration_styles: BTreeMap::new(),
         resources,
         pending: None,
         resource_failure: None,
@@ -377,6 +451,14 @@ impl InlinePageCoordinator {
         if self.control.is_cancelled() {
             return SsrPageState::Cancelled;
         }
+        if self
+            .cpu
+            .as_ref()
+            .is_some_and(|cpu| cpu.usage_ms(&self.control).is_err())
+        {
+            return SsrPageState::Refused;
+        }
+
         if self
             .resources
             .as_ref()
@@ -429,6 +511,9 @@ impl InlinePageCoordinator {
             }]);
         }
         check(self.page.as_ref().unwrap(), control)?;
+        if let Some(cpu) = &self.cpu {
+            cpu.usage_ms(control).map_err(cpu_error)?;
+        }
         if let Some(resources) = &self.resources {
             resources.check(control).map_err(|_| {
                 self.fail(
@@ -473,6 +558,7 @@ impl InlinePageCoordinator {
         }
         self.pending = None;
         self.resources = None;
+        self.declaration_styles.clear();
         self.participants.clear();
         self.definitions.clear();
         self.elements = None;
@@ -603,7 +689,19 @@ impl InlinePageCoordinator {
                 None,
             ));
         }
+        let guard = match self.begin_cpu(control) {
+            Ok(guard) => guard,
+            Err(error) => {
+                self.stop();
+                return Err(error);
+            }
+        };
         let result = self.advance_inner(control);
+        let measured = guard
+            .map(NativeCpuGuard::finish)
+            .transpose()
+            .map_err(cpu_error);
+        let result = result.and_then(|value| measured.map(|_| value));
         if result.is_err() {
             self.stop();
         }
@@ -656,6 +754,7 @@ impl InlinePageCoordinator {
                 depth,
                 registry: self.registry.clone(),
                 payload_sources: self.resources.as_ref().map(|r| r.payload_sources.clone()),
+                cpu: self.cpu.clone(),
             },
             control,
         )?;
@@ -764,6 +863,13 @@ impl InlinePageCoordinator {
                 None,
             )
         })?;
+        let guard = match self.begin_cpu(control) {
+            Ok(guard) => guard,
+            Err(error) => {
+                self.stop();
+                return Err(error);
+            }
+        };
         let result = (|| {
             self.check(control)?;
             self.pending
@@ -779,6 +885,11 @@ impl InlinePageCoordinator {
                     )
                 })
         })();
+        let measured = guard
+            .map(NativeCpuGuard::finish)
+            .transpose()
+            .map_err(cpu_error);
+        let result = result.and_then(|_| measured.map(|_| ()));
         if result.is_err() {
             self.stop();
         }
@@ -811,6 +922,13 @@ impl InlinePageCoordinator {
                 None,
             )
         })?;
+        let guard = match self.begin_cpu(control) {
+            Ok(guard) => guard,
+            Err(error) => {
+                self.stop();
+                return Err(error);
+            }
+        };
         let result = self
             .pending
             .as_mut()
@@ -824,6 +942,11 @@ impl InlinePageCoordinator {
                     None,
                 )
             });
+        let measured = guard
+            .map(NativeCpuGuard::finish)
+            .transpose()
+            .map_err(cpu_error);
+        let result = result.and_then(|_| measured.map(|_| ()));
         self.stop();
         result
     }
@@ -880,6 +1003,21 @@ impl InlinePageCoordinator {
                 ..Default::default()
             }]
         };
+        for ids in self.declaration_styles.values_mut() {
+            for id in ids {
+                *id = application.output_for_source(*id).ok_or_else(missing)?;
+            }
+        }
+        let declaration = self.definitions.get(&tag).unwrap().declaration;
+        let count = pass.input().declaration_stylesheets().len();
+        if count > 0 && !self.declaration_styles.contains_key(&tag) {
+            let target = application
+                .output_for_source(declaration)
+                .ok_or_else(missing)?;
+            let children = &application.tree().node(target).unwrap().children;
+            self.declaration_styles
+                .insert(tag.clone(), children[children.len() - count..].to_vec());
+        }
         for definition in self.definitions.values_mut() {
             definition.declaration = application
                 .output_for_source(definition.declaration)
@@ -918,7 +1056,31 @@ impl InlinePageCoordinator {
             depth,
         })
     }
+    fn begin_cpu(
+        &self,
+        control: &OperationControl,
+    ) -> Result<Option<NativeCpuGuard>, Vec<Diagnostic>> {
+        self.cpu
+            .as_ref()
+            .map(|cpu| cpu.begin(control))
+            .transpose()
+            .map_err(cpu_error)
+    }
     pub fn finish(
+        self,
+        control: &OperationControl,
+    ) -> Result<QuiescentInlinePage, Vec<Diagnostic>> {
+        let guard = self.begin_cpu(control)?;
+        let result = self.finish_inner(control);
+        let measured = guard
+            .map(NativeCpuGuard::finish)
+            .transpose()
+            .map_err(cpu_error);
+        let page = result?;
+        measured?;
+        Ok(page)
+    }
+    fn finish_inner(
         mut self,
         control: &OperationControl,
     ) -> Result<QuiescentInlinePage, Vec<Diagnostic>> {
@@ -946,6 +1108,9 @@ impl InlinePageCoordinator {
                             )
                         })?,
                 );
+        if let Some(cpu) = &self.cpu {
+            usage.cpu_time_ms = cpu.usage_ms(control).map_err(cpu_error)?;
+        }
         let diagnostics = self
             .participants
             .last()
@@ -962,6 +1127,11 @@ impl InlinePageCoordinator {
                 )
             })?;
         Ok(QuiescentInlinePage {
+            control: self.control.clone(),
+            cpu: self.cpu.clone(),
+            resources: self.resources.take(),
+            definitions: std::mem::take(&mut self.definitions),
+            declaration_styles: std::mem::take(&mut self.declaration_styles),
             page,
             elements: self.elements.take().unwrap(),
             participants: std::mem::take(&mut self.participants),

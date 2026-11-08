@@ -99,6 +99,14 @@ pub fn prepare_inline_island(
             "A bounded explicit instance identity is required",
         ));
     }
+    if let Some(cpu) = &prepared.lifecycle_cpu {
+        cpu.usage_ms(control).map_err(|_| {
+            fail(
+                "cem.ssr.cpu_budget",
+                "Original native CPU budget refused island preparation",
+            )
+        })?;
+    }
     let source = RetainedCemNode::new(tree.clone(), instance).unwrap();
     let child_ids = tree.node(instance).unwrap().children.clone();
     let templates: Vec<_> = child_ids
@@ -375,6 +383,25 @@ pub fn prepare_inline_island(
                     .unwrap_or_default(),
             }
         }));
+    }
+    if let Some(version) = &prepared.declaration_version {
+        add_child(
+            &mut parts[0],
+            element(
+                "field",
+                crate::instance_island::PARTS[0].1,
+                Some(PREFIXES[1]),
+                vec![
+                    attribute("name", "declarationVersion", &origin),
+                    attribute("kind", "string", &origin),
+                ],
+                vec![crate::render::RenderPlanNode::Text {
+                    text: version.clone(),
+                    source_map: origin.clone(),
+                }],
+                &origin,
+            ),
+        );
     }
     let mut root_attrs = vec![attribute(
         "version",
