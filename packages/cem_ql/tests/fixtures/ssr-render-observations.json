@@ -359,5 +359,55 @@
         ]
       }
     ]
+  },
+  {
+    "name": "CEM-ML shorthand stores canonical source type",
+    "template": "{p | Visible}",
+    "body": "<x-inline><template type='cem-ml'>{item @key=payload | {$ 1 div 0}}</template></x-inline>",
+    "rendered": [
+      {
+        "tag": "p",
+        "attributes": {},
+        "children": [
+          "Visible"
+        ]
+      }
+    ],
+    "payload": [
+      {
+        "tag": "template",
+        "attributes": {
+          "type": "text/cem-ml"
+        },
+        "children": [
+          "{item @key=payload | {$ 1 div 0}}"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CEM-ML type case and whitespace normalize at ingress",
+    "template": "{p | Visible}",
+    "body": "<x-inline><template type='\ufeff CeM-mL \u00a0'>{item @key=payload | {$ 1 div 0}}</template></x-inline>",
+    "rendered": [
+      {
+        "tag": "p",
+        "attributes": {},
+        "children": [
+          "Visible"
+        ]
+      }
+    ],
+    "payload": [
+      {
+        "tag": "template",
+        "attributes": {
+          "type": "text/cem-ml"
+        },
+        "children": [
+          "{item @key=payload | {$ 1 div 0}}"
+        ]
+      }
+    ]
   }
 ]

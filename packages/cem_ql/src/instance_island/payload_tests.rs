@@ -342,3 +342,62 @@ fn source_payload_admission_retains_exact_owner_and_operation_and_refuses_graph_
     let copied = decode_values(&bytes, &Default::default()).unwrap();
     assert!(payload::source_payload(&copied.items, &c, None).is_err());
 }
+
+#[test]
+fn source_payload_admission_refuses_a_forged_canonical_view() {
+    use cem_ml::{
+        import::element_tree::{retain_html_elements, retain_inline_cem_payload},
+        validation::html::{html_document_ast_from_source_bytes, HtmlSourceValidationRequest},
+    };
+    let owner = std::sync::Arc::new(
+        html_document_ast_from_source_bytes(HtmlSourceValidationRequest {
+            bytes: b"<html><template type='cem-ml'>{item | Original}</template></html>",
+            source_uri: "file:///source/alias.html",
+            content_type: Some("text/html"),
+        })
+        .0
+        .unwrap(),
+    );
+    let imported = retain_html_elements(owner, Default::default()).unwrap();
+    let id = imported
+        .elements
+        .iter()
+        .find_map(|(id, _, _)| {
+            (imported.tree.node(*id)?.name.as_ref()?.local_name == "template").then_some(*id)
+        })
+        .unwrap();
+    let c = super::test_control();
+    let admitted = retain_inline_cem_payload(imported.tree, id, &c, &super::LIMITS).unwrap();
+    let good = crate::eval::RetainedCemNode::new(
+        admitted.canonical_tree().clone(),
+        admitted.canonical_template_node(),
+    )
+    .unwrap()
+    .query_item();
+    assert!(payload::source_payload(std::slice::from_ref(&good), &c, Some(&admitted)).is_ok());
+    let attr = cem_ml::value::CemValueAttribute {
+        name: "type".into(),
+        namespace: None,
+        qualified_name: None,
+        value: "text/cem-ml".into(),
+        value_stream: (),
+        contract: None,
+        source_map: Default::default(),
+    };
+    let fake = cem_ml::parser::tree_apply::apply_attributes(
+        admitted.canonical_tree().clone(),
+        admitted.canonical_template_node(),
+        std::sync::Arc::new(vec![attr]),
+        std::sync::Arc::new(()),
+        Default::default(),
+        &c,
+    )
+    .unwrap();
+    let fake = crate::eval::RetainedCemNode::new(fake.tree().clone(), fake.output_target())
+        .unwrap()
+        .query_item();
+    assert!(payload::source_payload(&[fake], &c, Some(&admitted)).is_err());
+    let bytes = encode_values(&ItemStream::once(good), &Default::default()).unwrap();
+    let graph = decode_values(&bytes, &Default::default()).unwrap();
+    assert!(payload::source_payload(&graph.items, &c, Some(&admitted)).is_err());
+}

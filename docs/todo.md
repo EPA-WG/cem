@@ -777,8 +777,25 @@ through Phase 9 release governance.
         consumers pass. Core: 24,015,219 bytes, 28 imports/175 exports; frozen
         presentation unchanged. SSR stays partial; broader profiles stay open.
         [Archive](archive/todo-completed-ssr-cem-source-admission-2026-11-07.md).
-  - [ ] Complete additional ingress/profile admission, including shorthand
-        canonicalization, foreign DOM payloads and retained instance CSS.
+  - [x] CEM-ML ingress normalization: add failing native attribute-only edit
+        and shorthand fixtures, preserve original text/parents/source maps and
+        operation authority, and prove canonical type in native bindings and
+        saved islands. Cover case/whitespace variants, unchanged canonical input,
+        lowered bounds and refusal of a forged canonical view. Add shared
+        native/browser shorthand observations before extending acceptance.
+        Completed 2026-11-08: native attribute-only edits produce a canonical
+        source view while keeping authored spelling/content authoritative.
+        Case/trim matching is aligned in shared browser ingress. Receivers
+        require the exact admitted canonical view and original operation;
+        equivalent native trees and portable graphs cannot replace it. The
+        source gate passes 154 native checks across default/stripped profiles,
+        17 native component cases, 8 browser profiles and all 17 shared complete
+        observations. Paired build, focused lint/Clippy and optimized WASM
+        consumers pass. Core: 24,027,304 bytes, 28 imports/175 exports. Frozen
+        presentation remains; foreign/CSS admission and adoption stay gated.
+        [Archive](archive/todo-completed-ssr-cem-ingress-normalization-2026-11-08.md).
+  - [ ] Complete additional profile admission for foreign DOM payloads and
+        retained instance CSS.
 
 - [ ] SSR coordinator and completion: admit scoped/resource closures and multiple
       participants, settle nested work under the original operation/budget policy,

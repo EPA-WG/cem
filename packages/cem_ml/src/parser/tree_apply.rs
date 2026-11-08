@@ -90,8 +90,42 @@ pub fn apply_element<T: Send + Sync + 'static, S: Send + Sync + 'static>(
     target: AstNodeId,
     edit: CemElementEdit<T, S>,
     retained: Arc<dyn Any + Send + Sync>,
+    limits: CemValueArtifactLimits,
+    control: &OperationControl,
+) -> Result<CemTreeApplication, CemTreeApplyError> {
+    apply_element_mode(source, target, edit, retained, limits, control, false)
+}
+
+/// Derive attribute writes while retaining all source children and provenance.
+pub fn apply_attributes<S: Send + Sync + 'static>(
+    source: Arc<RetainedCemTree>,
+    target: AstNodeId,
+    attributes: Arc<Vec<crate::value::CemValueAttribute<S>>>,
+    retained: Arc<dyn Any + Send + Sync>,
+    limits: CemValueArtifactLimits,
+    control: &OperationControl,
+) -> Result<CemTreeApplication, CemTreeApplyError> {
+    apply_element_mode::<(), S>(
+        source,
+        target,
+        CemElementEdit {
+            children: Arc::new(vec![]),
+            attributes,
+        },
+        retained,
+        limits,
+        control,
+        true,
+    )
+}
+fn apply_element_mode<T: Send + Sync + 'static, S: Send + Sync + 'static>(
+    source: Arc<RetainedCemTree>,
+    target: AstNodeId,
+    edit: CemElementEdit<T, S>,
+    retained: Arc<dyn Any + Send + Sync>,
     mut limits: CemValueArtifactLimits,
     control: &OperationControl,
+    preserve_children: bool,
 ) -> Result<CemTreeApplication, CemTreeApplyError> {
     let nodes = edit.children;
     let attributes = edit.attributes;
@@ -133,6 +167,7 @@ pub fn apply_element<T: Send + Sync + 'static, S: Send + Sync + 'static>(
         source: source.clone(),
         target,
         nodes: &nodes,
+        preserve_children,
         attributes: &attributes,
         limits,
         control,
@@ -197,6 +232,7 @@ struct Builder<'a, T, S> {
     source: Arc<RetainedCemTree>,
     target: AstNodeId,
     nodes: &'a [CemValueNode<T, S>],
+    preserve_children: bool,
     attributes: &'a [crate::value::CemValueAttribute<S>],
     limits: CemValueArtifactLimits,
     control: &'a OperationControl,
@@ -327,15 +363,17 @@ impl<T, S> Builder<'_, T, S> {
             }
         }
         let mut output_children = vec![];
-        if old == self.target {
+        if old == self.target && !self.preserve_children {
             for index in 0..self.nodes.len() {
                 output_children.push(self.insert(&self.nodes[index], depth + 1)?);
             }
-            self.inserted_children = output_children.clone();
         } else {
             for child in children {
                 output_children.push(self.copy_source(child, depth + 1)?);
             }
+        }
+        if old == self.target {
+            self.inserted_children = output_children.clone();
         }
         self.ast.nodes[id as usize] = match kind {
             K::Document => N::Document {
@@ -893,5 +931,129 @@ mod attribute_tests {
             0
         );
         assert_eq!(source.text_fragments(t).unwrap().collect::<String>(), "Old");
+    }
+}
+
+#[cfg(test)]
+mod attribute_only_tests {
+    use super::*;
+    #[test]
+    fn attribute_only_edit_preserves_source_children_and_original_owner() {
+        let source = crate::import::import_data_bytes(
+            b"<div type='cem-ml'><b>Original &amp; stable</b><!--keep--></div>",
+            "application/xml",
+            "cem",
+            "file:///original.xhtml",
+        )
+        .unwrap();
+        let target = source.node(0).unwrap().children[0];
+        let attr = crate::value::CemValueAttribute {
+            name: "type".into(),
+            namespace: None,
+            qualified_name: None,
+            value: "text/cem-ml".into(),
+            value_stream: (),
+            contract: None,
+            source_map: source
+                .node_source_map(source.node(target).unwrap().attributes[0])
+                .unwrap(),
+        };
+        let c = OperationControl::new(crate::scheduler::AbortSignal::new());
+        let result = apply_attributes(
+            source.clone(),
+            target,
+            Arc::new(vec![attr]),
+            Arc::new(()),
+            Default::default(),
+            &c,
+        )
+        .unwrap();
+        let output = result.tree().node(result.output_target()).unwrap();
+        assert_eq!(
+            result.tree().node(output.attributes[0]).unwrap().value,
+            "text/cem-ml"
+        );
+        assert_eq!(
+            source
+                .node(source.node(target).unwrap().attributes[0])
+                .unwrap()
+                .value,
+            "cem-ml"
+        );
+        assert_eq!(
+            output.children.len(),
+            source.node(target).unwrap().children.len()
+        );
+        for child in &source.node(target).unwrap().children {
+            let id = result.output_for_source(*child).unwrap();
+            assert_eq!(result.tree().source_key(id), source.source_key(*child));
+            assert_eq!(
+                result.tree().node(id).unwrap().parent,
+                Some(result.output_target())
+            );
+        }
+        assert!(Arc::ptr_eq(result.source(), &source));
+    }
+}
+
+#[cfg(test)]
+mod attribute_only_bounds_tests {
+    use super::*;
+    #[test]
+    fn attribute_only_edits_refuse_lowered_bounds_without_mutating_or_leaking_source() {
+        let source = crate::import::import_data_bytes(
+            b"<div type='cem-ml'><b>Original</b></div>",
+            "application/xml",
+            "cem",
+            "file:///original.xhtml",
+        )
+        .unwrap();
+        let target = source.node(0).unwrap().children[0];
+        for limits in [
+            CemValueArtifactLimits {
+                max_bytes: 1,
+                ..Default::default()
+            },
+            CemValueArtifactLimits {
+                max_values: 1,
+                ..Default::default()
+            },
+            CemValueArtifactLimits {
+                max_depth: 1,
+                ..Default::default()
+            },
+        ] {
+            let c = OperationControl::new(crate::scheduler::AbortSignal::new());
+            let attr = crate::value::CemValueAttribute {
+                name: "type".into(),
+                namespace: None,
+                qualified_name: None,
+                value: "text/cem-ml".into(),
+                value_stream: (),
+                contract: None,
+                source_map: Default::default(),
+            };
+            assert!(apply_attributes(
+                source.clone(),
+                target,
+                Arc::new(vec![attr]),
+                Arc::new(()),
+                limits,
+                &c
+            )
+            .is_err());
+            assert_eq!(
+                c.memory_charged(crate::operation_control::ROOT_EXECUTION_SCOPE_ID)
+                    .unwrap(),
+                0
+            );
+            assert_eq!(
+                source
+                    .node(source.node(target).unwrap().attributes[0])
+                    .unwrap()
+                    .value,
+                "cem-ml"
+            );
+        }
     }
 }

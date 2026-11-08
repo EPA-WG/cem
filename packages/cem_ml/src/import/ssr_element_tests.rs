@@ -297,3 +297,74 @@ fn ssr_cem_payload_import_retains_memory_and_distinguishes_identical_source_boun
     drop(retained);
     assert_eq!(c.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
 }
+
+#[test]
+fn ssr_cem_payload_shorthand_canonicalizes_a_native_view_without_replacing_source() {
+    for kind in [
+        "cem-ml",
+        " CeM-mL ",
+        "\u{feff}TEXT/CEM-ML\u{a0}",
+        "text/cem-ml",
+    ] {
+        let imported = imported(document(&format!(
+            "<html><template type='{kind}'>{{item | Original &amp;amp; text}}</template></html>"
+        )));
+        let id = template(&imported);
+        let c =
+            crate::operation_control::OperationControl::new(crate::scheduler::AbortSignal::new());
+        let admitted =
+            retain_inline_cem_payload(imported.tree.clone(), id, &c, &Default::default()).unwrap();
+        let value = |tree: &RetainedCemTree, id: u32| {
+            tree.node(id)
+                .unwrap()
+                .attributes
+                .iter()
+                .find_map(|a| {
+                    let a = tree.node(*a).unwrap();
+                    (a.name.as_ref().unwrap().local_name == "type").then(|| a.value.clone())
+                })
+                .unwrap()
+        };
+        assert_eq!(value(admitted.source_tree(), id), kind);
+        assert_eq!(
+            value(
+                admitted.canonical_tree(),
+                admitted.canonical_template_node()
+            ),
+            "text/cem-ml"
+        );
+        assert_eq!(
+            Arc::ptr_eq(admitted.source_tree(), admitted.canonical_tree()),
+            kind == "text/cem-ml"
+        );
+        assert!(admitted.matches_source(&imported.tree, id));
+        assert!(admitted.matches_canonical_source(
+            admitted.canonical_tree(),
+            admitted.canonical_template_node()
+        ));
+        for (old, new) in imported.tree.node(id).unwrap().children.iter().zip(
+            &admitted
+                .canonical_tree()
+                .node(admitted.canonical_template_node())
+                .unwrap()
+                .children,
+        ) {
+            assert_eq!(
+                imported.tree.source_key(*old),
+                admitted.canonical_tree().source_key(*new)
+            );
+            assert_eq!(
+                imported.tree.node_source_map(*old),
+                admitted.canonical_tree().node_source_map(*new)
+            );
+        }
+    }
+    for kind in [
+        "\u{85}cem-ml",
+        "application/cem",
+        "cem-ml; charset=utf-8",
+        "text/html",
+    ] {
+        assert!(canonical_cem_payload_type(kind).is_none());
+    }
+}

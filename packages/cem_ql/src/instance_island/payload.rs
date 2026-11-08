@@ -157,7 +157,7 @@ pub(crate) fn source_payload(
         return Err(INVALID.into());
     }
     let native = crate::eval::retained_cem_node(template).ok_or(INVALID)?;
-    if !admitted.matches_source(native.owner(), native.node_id())
+    if !admitted.matches_canonical_source(native.owner(), native.node_id())
         || !admitted.matches_operation(control)
     {
         return Err(INVALID.into());

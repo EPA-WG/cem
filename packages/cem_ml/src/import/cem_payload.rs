@@ -21,6 +21,8 @@ pub struct RetainedCemPayloadSource {
     template: AstNodeId,
     tree: Arc<RetainedCemTree>,
     control: OperationControl,
+    canonical_tree: Arc<RetainedCemTree>,
+    canonical_template: AstNodeId,
 }
 impl std::fmt::Debug for RetainedCemPayloadSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -37,6 +39,19 @@ impl RetainedCemPayloadSource {
     pub fn template_node(&self) -> AstNodeId {
         self.template
     }
+    pub fn canonical_tree(&self) -> &Arc<RetainedCemTree> {
+        &self.canonical_tree
+    }
+    pub fn canonical_template_node(&self) -> AstNodeId {
+        self.canonical_template
+    }
+    pub fn matches_canonical_source(
+        &self,
+        tree: &Arc<RetainedCemTree>,
+        template: AstNodeId,
+    ) -> bool {
+        Arc::ptr_eq(&self.canonical_tree, tree) && self.canonical_template == template
+    }
     pub fn tree(&self) -> &Arc<RetainedCemTree> {
         &self.tree
     }
@@ -46,6 +61,13 @@ impl RetainedCemPayloadSource {
     pub fn matches_source(&self, tree: &Arc<RetainedCemTree>, template: AstNodeId) -> bool {
         Arc::ptr_eq(&self.source_tree, tree) && self.template == template
     }
+}
+/// Match the browser's CEM payload type aliases and String.trim whitespace.
+/// U+0085 is meaningful here; Rust's broader trim must not admit it.
+pub fn canonical_cem_payload_type(value: &str) -> Option<&'static str> {
+    let value=value.trim_matches(|c|matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'));
+    (value.eq_ignore_ascii_case("cem-ml") || value.eq_ignore_ascii_case("text/cem-ml"))
+        .then_some("text/cem-ml")
 }
 struct Owner {
     _source: InlineCemTemplateSource,
@@ -295,10 +317,57 @@ pub fn retain_inline_cem_payload(
     });
     let tree = RetainedCemTree::from_shared(ast, uri, "", semantics, Some(native))?;
     check()?;
+    let type_id = original
+        .node(template)
+        .unwrap()
+        .attributes
+        .iter()
+        .copied()
+        .find(|id| {
+            original
+                .node(*id)
+                .and_then(|n| n.name.as_ref())
+                .is_some_and(|n| n.namespace_uri.is_empty() && n.local_name == "type")
+        })
+        .ok_or("Missing payload type")?;
+    let (canonical_tree, canonical_template) =
+        if original.node(type_id).unwrap().value == "text/cem-ml" {
+            (original.clone(), template)
+        } else {
+            let attr = crate::value::CemValueAttribute {
+                name: "type".into(),
+                namespace: None,
+                qualified_name: None,
+                value: "text/cem-ml".into(),
+                value_stream: "text/cem-ml".to_owned(),
+                contract: None,
+                source_map: original.node_source_map(type_id).unwrap_or_default(),
+            };
+            // The whole-page edit uses the existing page-application ceilings;
+            // source-code parsing above has its independent, tighter import limits.
+            let page_limits = CemValueArtifactLimits {
+                max_bytes: super::super::MAX_DOCUMENT_BYTES,
+                max_values: super::super::MAX_DOCUMENT_VALUES,
+                max_depth: 64,
+            };
+            let applied = crate::parser::tree_apply::apply_attributes(
+                original.clone(),
+                template,
+                Arc::new(vec![attr]),
+                Arc::new(()),
+                page_limits,
+                control,
+            )
+            .map_err(|e| e.code)?;
+            (applied.tree().clone(), applied.output_target())
+        };
+    check()?;
     Ok(Arc::new(RetainedCemPayloadSource {
         source_tree: original,
         template,
         tree,
         control: control.clone(),
+        canonical_tree,
+        canonical_template,
     }))
 }

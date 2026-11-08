@@ -10193,7 +10193,7 @@ function canonicalDataIslandPayloadType(value: string | null): string | null {
 }
 
 function isCemMlPayloadTemplate(element: Element): boolean {
-    const type = element.getAttribute('type');
+    const type = element.getAttribute('type')?.trim().toLowerCase();
     return type === 'cem-ml' || type === DATA_ISLAND_CEM_ML_CONTENT_TYPE;
 }
 

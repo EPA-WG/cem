@@ -20,6 +20,8 @@
                 "commands": [
                     "cargo test --locked --package cem-ml --lib --target-dir dist/target/cem_ml -- ssr_cem_payload",
                     "cargo test --locked --package cem-ml --no-default-features --lib --target-dir dist/target/cem_ml_stripped -- ssr_cem_payload",
+                    "cargo test --locked --package cem-ml --lib --target-dir dist/target/cem_ml -- tree_apply",
+                    "cargo test --locked --package cem-ml --no-default-features --lib --target-dir dist/target/cem_ml_stripped -- tree_apply",
                     "cargo test --locked --package cem-ql --test ssr_cem_payload --test ssr_render --test ssr_host_commit --test ssr_island --test ssr_preparation --test native_payload_slots --target-dir dist/target/cem_ql",
                     "cargo test --locked --package cem-ql --lib --target-dir dist/target/cem_ql -- source_payload_admission",
                     "cargo test --locked --package cem-ql --no-default-features --test ssr_cem_payload --test ssr_render --test ssr_host_commit --test ssr_island --test ssr_preparation --test native_payload_slots --target-dir dist/target/cem_ql_stripped",

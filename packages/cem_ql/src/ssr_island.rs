@@ -98,7 +98,9 @@ pub fn prepare_inline_island(
                 (&a.name.as_ref().unwrap().local_name, a.value.as_str())
             })
             .collect::<std::collections::BTreeMap<_, _>>();
-        cem_source = attrs.get(&"type".to_owned()).copied() == Some("text/cem-ml");
+        cem_source = attrs.get(&"type".to_owned()).is_some_and(|value| {
+            cem_ml::import::element_tree::canonical_cem_payload_type(value).is_some()
+        });
         for (name, value) in attrs {
             let accepted = if cem_source {
                 name == "type"
@@ -281,7 +283,15 @@ pub fn prepare_inline_island(
         if envelope.is_some() {
             attributes.push(attribute("data-cem-explicit-payload", "true", &origin));
         }
-        children.extend(payload.iter().map(|node| {
+        let canonical_payload = native_source.as_ref().map(|source| {
+            vec![RetainedCemNode::new(
+                source.canonical_tree().clone(),
+                source.canonical_template_node(),
+            )
+            .unwrap()]
+        });
+        let projected_payload = canonical_payload.as_deref().unwrap_or(&payload);
+        children.extend(projected_payload.iter().map(|node| {
             crate::render::RenderPlanNode::Reference {
                 reference: cem_ml::value::CemReference::new(vec![node.query_item()]),
                 source_map: node

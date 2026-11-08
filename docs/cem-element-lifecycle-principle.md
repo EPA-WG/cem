@@ -258,12 +258,14 @@ prove a complete SSR island or authorize hydration adoption.
 ## Native SSR CEM-ML source admission
 
 The bounded inline SSR profile admits an unmarked direct
-`template[type="text/cem-ml"]`, optionally carrying the canonical
+`template[type="text/cem-ml"]` or its `cem-ml` shorthand, optionally carrying the canonical
 `data-cem-schema="https://cem.dev/ns/cem-ml/1"`. The canonical payload keeps the
 entire original source template and records `content-type="text/cem-ml"` and
 its CEM-ML schema. Ordinary HTML envelopes still contribute their contents.
-Shorthand normalization and additional payload/schema/CSS profiles require
-separate admission; they remain explicit refusals in this SSR profile.
+Type matching uses ASCII case folding and the browser's `String.trim`
+whitespace set (including BOM/NBSP, excluding U+0085). Saved islands and native
+bindings expose exactly `text/cem-ml`. Additional payload/schema/CSS profiles
+still require separate admission.
 
 `cem_ml::import::element_tree::retain_inline_cem_payload` owns the source handoff.
 It retains the native HTML owner, maps decoded text through the original source
@@ -272,6 +274,14 @@ namespace-aware native tree. Self-contained ready namespace bindings are
 required; unknown or unresolved namespaces are not guessed into HTML. References
 and expressions remain source syntax, with no payload evaluation, loading or CSS
 execution. Entity decoding occurs at the HTML import boundary, once.
+
+Normalization uses an attribute-only native CEM tree edit. Authored source,
+content and parent provenance remain unchanged. Canonical input reuses its exact
+source tree; aliases receive a derived canonical envelope owned by the source
+admission. This view uses the existing whole-page application limits and the
+original operation's budget, independently of the tighter source parser limits.
+The receiver requires this exact canonical view, so another native tree with
+identical strings/source keys is not a replacement admission.
 
 The shared receiver consumes this already admitted native owner; it never starts
 a source compiler from packet metadata. Compiled portable receivers continue to

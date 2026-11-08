@@ -250,7 +250,6 @@ fn ambiguous_payloads_and_resume_are_refused_without_rewriting_source() {
 #[test]
 fn unsupported_source_payload_adapters_foreign_nodes_and_styles_fail_closed() {
     for body in [
-        "<x-inline><template type='cem-ml'>{p | Source}</template></x-inline>",
         "<x-inline><template type='application/json'>{}</template></x-inline>",
         "<x-inline><svg><circle></circle></svg></x-inline>",
         "<x-inline><template><style>p {color:red}</style></template></x-inline>",

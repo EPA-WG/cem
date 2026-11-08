@@ -11,7 +11,14 @@ fn input(
     payload: &str,
     c: &cem_ml::operation_control::OperationControl,
 ) -> cem_ql::ssr_island::PreparedInlineIsland {
-    let source=owner(&format!("<cem-element tag='x-inline'><template id='x-inline' type='text/cem-ml'>{{attribute @name=label | Committed}}{{p | Visible}}</template></cem-element><x-inline><template type='text/cem-ml'>{payload}</template></x-inline>"));
+    input_with_type(payload, "text/cem-ml", c)
+}
+fn input_with_type(
+    payload: &str,
+    kind: &str,
+    c: &cem_ml::operation_control::OperationControl,
+) -> cem_ql::ssr_island::PreparedInlineIsland {
+    let source=owner(&format!("<cem-element tag='x-inline'><template id='x-inline' type='text/cem-ml'>{{attribute @name=label | Committed}}{{p | Visible}}</template></cem-element><x-inline><template type='{kind}'>{payload}</template></x-inline>"));
     prepare_inline_island(
         prepare_inline_dce(page(&source, "memory:output"), c).unwrap(),
         "one",
@@ -100,4 +107,57 @@ fn source_admission_cannot_be_restarted_under_a_new_operation() {
             .unwrap(),
         0
     );
+}
+
+#[test]
+fn shorthand_preserves_authored_template_but_exposes_one_canonical_native_view() {
+    let c = control();
+    let input = input_with_type("{item | {$ 1 div 0}}", "cem-ml", &c);
+    let source = input.bindings().native_payload_source.as_ref().unwrap();
+    let original = source.source_tree().node(source.template_node()).unwrap();
+    let type_value = |tree: &cem_ml::parser::tree::RetainedCemTree, id: u32| {
+        tree.node(id)
+            .unwrap()
+            .attributes
+            .iter()
+            .find_map(|id| {
+                let a = tree.node(*id).unwrap();
+                (a.name.as_ref().unwrap().local_name == "type").then(|| a.value.clone())
+            })
+            .unwrap()
+    };
+    assert_eq!(
+        type_value(source.source_tree(), source.template_node()),
+        "cem-ml"
+    );
+    assert_eq!(
+        type_value(source.canonical_tree(), source.canonical_template_node()),
+        "text/cem-ml"
+    );
+    assert_eq!(
+        original.children.len(),
+        source
+            .canonical_tree()
+            .node(source.canonical_template_node())
+            .unwrap()
+            .children
+            .len()
+    );
+    let [cem_ql::eval::Item::Record(frame)] = input.bindings().bindings["datadom"].items.as_slice()
+    else {
+        panic!()
+    };
+    let [cem_ql::eval::Item::Record(slots)] = frame["slots"].as_slice() else {
+        panic!()
+    };
+    let root = cem_ql::eval::retained_cem_node(&slots[""][0]).unwrap();
+    assert!(Arc::ptr_eq(root.owner(), source.canonical_tree()));
+    assert_eq!(type_value(root.owner(), root.node_id()), "text/cem-ml");
+    let result = render_and_apply_inline_dce(input, &c).unwrap();
+    assert!(result
+        .page()
+        .source_document()
+        .source_text
+        .contains("type='cem-ml'"));
+    assert!(!result.page().adoption_identity().hydration_ready());
 }

@@ -3,7 +3,7 @@
 use super::*;
 #[path = "cem_payload.rs"]
 mod cem_payload;
-pub use cem_payload::{retain_inline_cem_payload, RetainedCemPayloadSource};
+pub use cem_payload::{canonical_cem_payload_type, retain_inline_cem_payload, RetainedCemPayloadSource};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ElementSourceHandle {
@@ -158,7 +158,7 @@ impl RetainedElementImport {
             || !template.attributes.iter().any(|attr| {
                 !attr.duplicate
                     && attr.local_name == "type"
-                    && attr.value.as_deref() == Some("text/cem-ml")
+                    && attr.value.as_deref().and_then(canonical_cem_payload_type).is_some()
             })
         {
             return Err("Expected an explicit text/cem-ml template".into());
