@@ -23,6 +23,8 @@ pub mod documents;
 pub mod projection;
 pub mod element_tree;
 pub mod inline_css;
+mod controlled;
+pub use controlled::import_data_bytes_controlled;
 mod css;
 mod html;
 mod expression_sources;

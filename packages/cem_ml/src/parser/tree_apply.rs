@@ -44,8 +44,7 @@ impl CemTreeApplication {
 }
 struct ApplicationOwner {
     _source: Arc<RetainedCemTree>,
-    _nodes: Arc<dyn Any + Send + Sync>,
-    _attributes: Arc<dyn Any + Send + Sync>,
+    _patches: Arc<dyn Any + Send + Sync>,
     _retained: Arc<dyn Any + Send + Sync>,
     _permits: Vec<crate::operation_control::MemoryPermit>,
     qualified_names: Arc<BTreeMap<AstNodeId, String>>,
@@ -63,6 +62,29 @@ pub fn applied_qualified_name(tree: &RetainedCemTree, id: AstNodeId) -> Option<&
 pub struct CemElementEdit<T, S> {
     pub children: Arc<Vec<CemValueNode<T, S>>>,
     pub attributes: Arc<Vec<crate::value::CemValueAttribute<S>>>,
+}
+
+/// One atomic page transaction; independent source targets cannot overlap.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CemChildEditMode {
+    Replace,
+    Append,
+    Preserve,
+}
+pub struct CemElementPatch<T, S> {
+    pub target: AstNodeId,
+    pub edit: CemElementEdit<T, S>,
+    pub children: CemChildEditMode,
+}
+pub fn apply_elements<T: Send + Sync + 'static, S: Send + Sync + 'static>(
+    source: Arc<RetainedCemTree>,
+    primary: AstNodeId,
+    patches: Vec<CemElementPatch<T, S>>,
+    retained: Arc<dyn Any + Send + Sync>,
+    limits: CemValueArtifactLimits,
+    control: &OperationControl,
+) -> Result<CemTreeApplication, CemTreeApplyError> {
+    apply_batch_mode(source, primary, patches, retained, limits, control)
 }
 
 pub fn apply_children<T: Send + Sync + 'static, S: Send + Sync + 'static>(
@@ -123,12 +145,35 @@ fn apply_element_mode<T: Send + Sync + 'static, S: Send + Sync + 'static>(
     target: AstNodeId,
     edit: CemElementEdit<T, S>,
     retained: Arc<dyn Any + Send + Sync>,
-    mut limits: CemValueArtifactLimits,
+    limits: CemValueArtifactLimits,
     control: &OperationControl,
     preserve_children: bool,
 ) -> Result<CemTreeApplication, CemTreeApplyError> {
-    let nodes = edit.children;
-    let attributes = edit.attributes;
+    apply_batch_mode(
+        source,
+        target,
+        vec![CemElementPatch {
+            target,
+            edit,
+            children: if preserve_children {
+                CemChildEditMode::Preserve
+            } else {
+                CemChildEditMode::Replace
+            },
+        }],
+        retained,
+        limits,
+        control,
+    )
+}
+fn apply_batch_mode<T: Send + Sync + 'static, S: Send + Sync + 'static>(
+    source: Arc<RetainedCemTree>,
+    target: AstNodeId,
+    patches: Vec<CemElementPatch<T, S>>,
+    retained: Arc<dyn Any + Send + Sync>,
+    mut limits: CemValueArtifactLimits,
+    control: &OperationControl,
+) -> Result<CemTreeApplication, CemTreeApplyError> {
     use crate::{operation_control::ROOT_EXECUTION_SCOPE_ID, parser::tree::CemTreeNodeKind};
     control
         .check_scope(ROOT_EXECUTION_SCOPE_ID)
@@ -148,27 +193,58 @@ fn apply_element_mode<T: Send + Sync + 'static, S: Send + Sync + 'static>(
     limits.max_bytes = limits
         .max_bytes
         .min(policy.memory_bytes.try_into().unwrap_or(usize::MAX));
-    let mut names = std::collections::BTreeSet::new();
-    if attributes.len() > limits.max_values {
+    let mut admitted = BTreeMap::new();
+    if patches.is_empty() || patches.len() > limits.max_values {
         return Err(error("cem.ast.apply_bounds"));
     }
-    for a in attributes.iter() {
+    for patch in patches {
         control
             .check_scope(ROOT_EXECUTION_SCOPE_ID)
             .map_err(control_error)?;
-        if a.name.is_empty()
-            || a.contract.is_some()
-            || !names.insert((a.namespace.as_deref().unwrap_or_default(), a.name.as_str()))
+        if !source
+            .node(patch.target)
+            .is_some_and(|n| n.kind == CemTreeNodeKind::Element)
+            || admitted.contains_key(&patch.target)
         {
-            return Err(error("cem.ast.apply_attributes"));
+            return Err(error("cem.ast.apply_target"));
+        }
+        if patch.children == CemChildEditMode::Preserve && !patch.edit.children.is_empty() {
+            return Err(error("cem.ast.apply_children"));
+        }
+        let mut names = std::collections::BTreeSet::new();
+        if patch.edit.attributes.len() > limits.max_values {
+            return Err(error("cem.ast.apply_bounds"));
+        }
+        for a in patch.edit.attributes.iter() {
+            if a.name.is_empty()
+                || a.contract.is_some()
+                || !names.insert((a.namespace.as_deref().unwrap_or_default(), a.name.as_str()))
+            {
+                return Err(error("cem.ast.apply_attributes"));
+            }
+        }
+        admitted.insert(patch.target, patch);
+    }
+    if !admitted.contains_key(&target) {
+        return Err(error("cem.ast.apply_target"));
+    }
+    for id in admitted.keys() {
+        let mut parent = source.source_parent(*id);
+        while let Some(id) = parent {
+            control
+                .check_scope(ROOT_EXECUTION_SCOPE_ID)
+                .map_err(control_error)?;
+            if admitted.contains_key(&id) {
+                return Err(error("cem.ast.apply_overlap"));
+            }
+            parent = source.source_parent(id);
         }
     }
+    let patches = Arc::new(admitted);
     let mut builder = Builder {
         source: source.clone(),
         target,
-        nodes: &nodes,
-        preserve_children,
-        attributes: &attributes,
+        patches: &patches,
         limits,
         control,
         ast: super::document::CemDocument::default(),
@@ -201,8 +277,7 @@ fn apply_element_mode<T: Send + Sync + 'static, S: Send + Sync + 'static>(
     let qualified_names = Arc::new(qualified_names);
     let owner: Arc<dyn Any + Send + Sync> = Arc::new(ApplicationOwner {
         _source: source.clone(),
-        _nodes: nodes,
-        _attributes: attributes,
+        _patches: patches,
         _retained: retained,
         _permits: permits,
         qualified_names: qualified_names.clone(),
@@ -231,9 +306,7 @@ fn control_error(e: crate::operation_control::ControlError) -> CemTreeApplyError
 struct Builder<'a, T, S> {
     source: Arc<RetainedCemTree>,
     target: AstNodeId,
-    nodes: &'a [CemValueNode<T, S>],
-    preserve_children: bool,
-    attributes: &'a [crate::value::CemValueAttribute<S>],
+    patches: &'a BTreeMap<AstNodeId, CemElementPatch<T, S>>,
     limits: CemValueArtifactLimits,
     control: &'a OperationControl,
     ast: super::document::CemDocument,
@@ -324,6 +397,17 @@ impl<T, S> Builder<'_, T, S> {
         if let Some(base) = base {
             self.semantics.base_uris.insert(id, base);
         }
+        let patch = self.patches.get(&old);
+        let has_patch = patch.is_some();
+        let attributes = patch
+            .map(|p| p.edit.attributes.clone())
+            .unwrap_or_else(|| Arc::new(vec![]));
+        let nodes = patch
+            .map(|p| p.edit.children.clone())
+            .unwrap_or_else(|| Arc::new(vec![]));
+        let mode = patch
+            .map(|p| p.children)
+            .unwrap_or(CemChildEditMode::Preserve);
         let mut output_attrs = vec![];
         for attr in &attrs {
             let current = self
@@ -331,9 +415,9 @@ impl<T, S> Builder<'_, T, S> {
                 .node(*attr)
                 .and_then(|n| n.name.as_ref())
                 .ok_or_else(|| error("cem.ast.apply_tree"))?;
-            let replacement = (old == self.target)
+            let replacement = has_patch
                 .then(|| {
-                    self.attributes.iter().find(|a| {
+                    attributes.iter().find(|a| {
                         a.name == current.local_name
                             && a.namespace.as_deref().unwrap_or_default() == current.namespace_uri
                     })
@@ -347,8 +431,8 @@ impl<T, S> Builder<'_, T, S> {
                 output_attrs.push(self.copy_source(*attr, depth + 1)?);
             }
         }
-        if old == self.target {
-            for a in self.attributes {
+        if has_patch {
+            for a in attributes.iter() {
                 if !attrs.iter().any(|id| {
                     self.source
                         .node(*id)
@@ -363,13 +447,14 @@ impl<T, S> Builder<'_, T, S> {
             }
         }
         let mut output_children = vec![];
-        if old == self.target && !self.preserve_children {
-            for index in 0..self.nodes.len() {
-                output_children.push(self.insert(&self.nodes[index], depth + 1)?);
-            }
-        } else {
+        if mode != CemChildEditMode::Replace {
             for child in children {
                 output_children.push(self.copy_source(child, depth + 1)?);
+            }
+        }
+        if mode != CemChildEditMode::Preserve {
+            for node in nodes.iter() {
+                output_children.push(self.insert(node, depth + 1)?);
             }
         }
         if old == self.target {
@@ -599,6 +684,86 @@ mod tests {
             text: "New & literal".into(),
             source_map: Default::default(),
         }])
+    }
+    #[test]
+    fn multi_element_transaction_preserves_append_sources_and_rejects_overlap_atomically() {
+        let source = source();
+        let t = target(&source);
+        let p = (0..source.ast().nodes.len() as u32)
+            .find(|id| {
+                source
+                    .node(*id)
+                    .unwrap()
+                    .name
+                    .as_ref()
+                    .is_some_and(|n| n.local_name == "p")
+            })
+            .unwrap();
+        let patch = |target, children| CemElementPatch {
+            target,
+            edit: CemElementEdit {
+                children: if children == CemChildEditMode::Append {
+                    Arc::new(vec![CemValueNode::Comment {
+                        text: "Suffix".into(),
+                        source_map: Default::default(),
+                    }])
+                } else {
+                    text()
+                },
+                attributes: Arc::new(vec![]),
+            },
+            children,
+        };
+        let c = control();
+        let result = apply_elements(
+            source.clone(),
+            t,
+            vec![
+                patch(t, CemChildEditMode::Replace),
+                patch(p, CemChildEditMode::Append),
+            ],
+            Arc::new(()),
+            Default::default(),
+            &c,
+        )
+        .unwrap();
+        let original_child = source.node(p).unwrap().children[0];
+        let appended = result
+            .tree()
+            .node(result.output_for_source(p).unwrap())
+            .unwrap();
+        assert_eq!(appended.children.len(), 2);
+        assert_eq!(
+            appended.children[0],
+            result.output_for_source(original_child).unwrap()
+        );
+        assert_eq!(source.node(t).unwrap().children.len(), 1);
+        drop(result);
+        assert_eq!(
+            c.memory_charged(crate::operation_control::ROOT_EXECUTION_SCOPE_ID)
+                .unwrap(),
+            0
+        );
+        for targets in [vec![t, t], vec![t, source.node(t).unwrap().children[0]]] {
+            let edits = targets
+                .into_iter()
+                .map(|id| patch(id, CemChildEditMode::Replace))
+                .collect();
+            assert!(apply_elements(
+                source.clone(),
+                t,
+                edits,
+                Arc::new(()),
+                Default::default(),
+                &c
+            )
+            .is_err());
+            assert_eq!(
+                c.memory_charged(crate::operation_control::ROOT_EXECUTION_SCOPE_ID)
+                    .unwrap(),
+                0
+            );
+        }
     }
     #[test]
     fn transaction_retains_source_and_decoded_untouched_nodes() {

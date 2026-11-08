@@ -70,6 +70,7 @@ pub struct RetainedCemTree {
     source_uri: String,
     metadata: CemDocumentMetadata,
     native_owner: Option<Arc<dyn Any + Send + Sync>>,
+    resources: std::sync::Mutex<Vec<Arc<dyn Any + Send + Sync>>>,
     nodes: Vec<CemTreeNode>,
     canonical: Vec<Option<AstNodeId>>,
     semantic_roots: Vec<AstNodeId>,
@@ -169,6 +170,19 @@ impl RetainedCemTree {
         native_owner: Option<Arc<dyn Any + Send + Sync>>,
     ) -> Result<Arc<Self>, String> {
         Self::new_with_roots(ast, source_uri.into(), source_text, semantics, native_owner, None)
+    }
+
+    /// Import-owned resource accounting preserves the original parser owner.
+    pub(crate) fn retain_resource(tree: &mut Arc<Self>, resource: Arc<dyn Any + Send + Sync>) -> Result<(),String> {
+        Arc::get_mut(tree).ok_or("Imported tree escaped before resource retention")?.retain_native_resource(resource)
+    }
+
+    /// Hold bounded native accounting/workspace without changing semantic nodes,
+    /// source identity or the concrete parser owner. This grants no capabilities.
+    pub fn retain_native_resource(&self, resource: Arc<dyn Any + Send + Sync>) -> Result<(),String> {
+        let mut resources=self.resources.lock().map_err(|_|"Poisoned native resource retention")?;
+        if resources.len()>=64 {return Err("Native resource retention limit exceeded".into());}
+        resources.push(resource);Ok(())
     }
 
     /// Native value projection may contain detached element/attribute roots and
@@ -465,6 +479,7 @@ impl RetainedCemTree {
             source_uri,
             metadata,
             native_owner,
+            resources: std::sync::Mutex::new(Vec::new()),
             nodes,
             canonical,
             semantic_roots,

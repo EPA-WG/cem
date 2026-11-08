@@ -16,6 +16,8 @@ pub struct PreparedInlineIsland {
     data: TemplateData,
     instance_id: String,
     pub(crate) css: Option<crate::ssr_css::InstanceCss>,
+    pub(crate) coordinated_css:
+        Option<std::sync::Arc<crate::ssr_stylesheets::CoordinatedStylesheets>>,
 }
 impl PreparedInlineIsland {
     pub fn prepared(&self) -> &PreparedInlineDce {
@@ -39,7 +41,10 @@ impl PreparedInlineIsland {
     pub fn instance_stylesheets(
         &self,
     ) -> &[std::sync::Arc<crate::retained_template::RetainedStylesheet>] {
-        self.css.as_ref().map_or(&[], |css| css.records())
+        self.coordinated_css
+            .as_ref()
+            .map(|css| css.instance_records())
+            .unwrap_or_else(|| self.css.as_ref().map_or(&[], |css| css.records()))
     }
     pub fn instance_id(&self) -> &str {
         &self.instance_id
@@ -57,6 +62,16 @@ pub fn prepare_inline_island(
     let instance = prepared.instance_node();
     let fail = |code, message| problem(page, Some(tree), Some(instance), code, message);
     check(page, control)?;
+    if prepared
+        .stylesheet_control
+        .as_ref()
+        .is_some_and(|c| !c.same_operation(control))
+    {
+        return Err(fail(
+            "cem.ssr.css_closure_stale",
+            "Stylesheet preparation belongs to the original operation",
+        ));
+    }
     if instance_id.is_empty()
         || instance_id.len() > 256
         || instance_id.chars().all(char::is_whitespace)
@@ -152,15 +167,19 @@ pub fn prepare_inline_island(
         let node = tree.node(id).unwrap();
         pending.extend(node.children.iter().copied());
     }
-    let css = crate::ssr_css::InstanceCss::prepare(
-        tree,
-        &payload,
-        envelope.is_some() && !cem_source,
-        instance_id,
-        &page.route().document_base_url,
-        page.policy(),
-        control,
-    );
+    let css = if prepared.stylesheet_coordination {
+        Ok(None)
+    } else {
+        crate::ssr_css::InstanceCss::prepare(
+            tree,
+            &payload,
+            envelope.is_some() && !cem_source,
+            instance_id,
+            &page.route().document_base_url,
+            page.policy(),
+            control,
+        )
+    };
     check(page, control)?;
     let css = css.map_err(|_| {
         fail(
@@ -385,6 +404,7 @@ pub fn prepare_inline_island(
         data,
         instance_id: instance_id.into(),
         css,
+        coordinated_css: None,
     })
 }
 const HTML: &str = cem_ml::schema::registry::HTML_NAMESPACE_URI;

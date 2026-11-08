@@ -46,7 +46,7 @@ pub fn render_and_apply_inline_dce(
     };
     use cem_ml::{
         operation_control::ROOT_EXECUTION_SCOPE_ID,
-        parser::tree_apply::{apply_element, CemElementEdit},
+        parser::tree_apply::{apply_elements, CemChildEditMode, CemElementEdit, CemElementPatch},
         value::{CemReference, CemValueNode},
     };
     let page = input.prepared().page();
@@ -54,6 +54,20 @@ pub fn render_and_apply_inline_dce(
     let instance = input.prepared().instance_node();
     let fail = |code, message| problem(page, Some(source), Some(instance), code, message);
     check(page, control)?;
+    if input.prepared().stylesheet_coordination && input.coordinated_css.is_none() {
+        return Err(fail(
+            "cem.ssr.css_unprepared",
+            "Stylesheets require a complete current native closure batch",
+        ));
+    }
+    if let Some(css) = &input.coordinated_css {
+        css.check(control).map_err(|_| {
+            fail(
+                "cem.ssr.css_closure_stale",
+                "Stylesheet closure batch is stale or belongs to another operation",
+            )
+        })?;
+    }
     if input
         .bindings()
         .native_payload_source
@@ -93,7 +107,14 @@ pub fn render_and_apply_inline_dce(
     }
     usage.resources = usage
         .resources
-        .checked_add(input.instance_stylesheets().len() as u32)
+        .checked_add(
+            input
+                .coordinated_css
+                .as_ref()
+                .map_or(input.instance_stylesheets().len() as u32, |css| {
+                    css.resources
+                }),
+        )
         .filter(|count| *count <= page.policy().max_resources)
         .ok_or_else(|| {
             fail(
@@ -101,12 +122,24 @@ pub fn render_and_apply_inline_dce(
                 "Instance stylesheet resource budget exceeded",
             )
         })?;
-    let plan = Arc::new(render::render_compiled_template_with_control(
+    if let Some(css) = &input.coordinated_css {
+        usage.total_bytes = usage
+            .total_bytes
+            .checked_add(css.bytes)
+            .filter(|n| *n <= page.policy().max_total_bytes)
+            .ok_or_else(|| {
+                fail(
+                    "cem.ssr.settle_budget",
+                    "Stylesheet aggregate byte budget exceeded",
+                )
+            })?;
+    }
+    let plan = render::render_compiled_template_with_control(
         input.prepared().declaration_owner().artifact(),
         input.bindings(),
         control,
         ROOT_EXECUTION_SCOPE_ID,
-    ));
+    );
     check(page, control)?;
     if plan
         .diagnostics
@@ -126,14 +159,16 @@ pub fn render_and_apply_inline_dce(
         );
         return Err(errors);
     }
+    let plan = Arc::new(plan);
     let anchor = crate::eval::RetainedCemNode::new(source.clone(), instance).unwrap();
-    let committed = match crate::instance_island::host_commit::prepare_host_commit_with_source(
+    let committed = match crate::instance_island::host_commit::prepare_host_commit_with_stylesheets(
         input.template(),
         anchor.clone(),
         input.instance_id(),
         &plan.host_attribute_updates,
         control,
         input.bindings().native_payload_source.as_ref(),
+        input.coordinated_css.as_deref(),
     ) {
         Ok(state) => Arc::new(state),
         Err(error) => {
@@ -167,6 +202,9 @@ pub fn render_and_apply_inline_dce(
     )
     .map_err(|e| fail(e.code(), "Native render projection refused"))?;
     if let Some(css) = &input.css {
+        css.strip_sources(&mut projected.nodes);
+    }
+    if let Some(css) = &input.coordinated_css {
         css.strip_sources(&mut projected.nodes);
     }
     admit_output(&mut projected.nodes).map_err(|_| {
@@ -232,6 +270,44 @@ pub fn render_and_apply_inline_dce(
             )
         })?);
     }
+    let declaration_styles = if let Some(css) = &input.coordinated_css {
+        css.check(control).map_err(|_| {
+            fail(
+                "cem.ssr.css_closure_stale",
+                "Stylesheet batch is no longer current",
+            )
+        })?;
+        children.extend(css.instance_output().map_err(|_| {
+            fail(
+                "cem.ssr.css_closure_refused",
+                "Instance stylesheet publication refused",
+            )
+        })?);
+        css.declaration_output(
+            &source
+                .node_source_map(input.prepared().declaration_node())
+                .unwrap_or_default(),
+        )
+        .map_err(|_| {
+            fail(
+                "cem.ssr.css_closure_refused",
+                "Declaration stylesheet publication refused",
+            )
+        })?
+    } else {
+        vec![]
+    };
+    let declaration = input.prepared().declaration_node();
+    if input.coordinated_css.is_some() {
+        usage.wall_time_ms = control
+            .active_elapsed_ms(ROOT_EXECUTION_SCOPE_ID)
+            .map_err(|_| {
+                fail(
+                    "cem.ssr.settle_budget",
+                    "Stylesheet elapsed accounting failed",
+                )
+            })?;
+    }
     let page = page.clone();
     let source = source.clone();
     let input = Arc::new(input);
@@ -242,13 +318,28 @@ pub fn render_and_apply_inline_dce(
         projected.clone(),
         committed.clone(),
     ));
-    let application = apply_element(
-        source,
-        instance,
-        CemElementEdit {
+    let mut patches = vec![CemElementPatch {
+        target: instance,
+        edit: CemElementEdit {
             children: Arc::new(children),
             attributes: committed.writes().clone(),
         },
+        children: CemChildEditMode::Replace,
+    }];
+    if !declaration_styles.is_empty() {
+        patches.push(CemElementPatch {
+            target: declaration,
+            edit: CemElementEdit {
+                children: Arc::new(declaration_styles),
+                attributes: Arc::new(vec![]),
+            },
+            children: CemChildEditMode::Append,
+        });
+    }
+    let application = apply_elements(
+        source.clone(),
+        instance,
+        patches,
         retained,
         cem_ml::value::artifact::CemValueArtifactLimits {
             max_bytes: 16 * 1024 * 1024,
@@ -267,6 +358,28 @@ pub fn render_and_apply_inline_dce(
         )
     })?;
     check(&page, control)?;
+    if let Some(css) = &input.coordinated_css {
+        css.check(control).map_err(|_| {
+            crate::ssr_preparation::problem(
+                &page,
+                Some(&source),
+                Some(instance),
+                "cem.ssr.css_closure_stale",
+                "Stylesheet authority or elapsed budget changed during native application",
+            )
+        })?;
+        usage.wall_time_ms = control
+            .active_elapsed_ms(ROOT_EXECUTION_SCOPE_ID)
+            .map_err(|_| {
+                crate::ssr_preparation::problem(
+                    &page,
+                    Some(&source),
+                    Some(instance),
+                    "cem.ssr.settle_budget",
+                    "Stylesheet elapsed accounting failed",
+                )
+            })?;
+    }
     let page = page
         .into_applied_dom(&application, usage, plan.diagnostics.clone())
         .map_err(|e| {

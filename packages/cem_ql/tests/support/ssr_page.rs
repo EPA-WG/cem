@@ -27,7 +27,11 @@ pub fn owner(body: &str) -> Arc<HtmlDocumentAst> {
         .unwrap(),
     )
 }
-pub fn page(source: &Arc<HtmlDocumentAst>, output: &str) -> CemSsrPageArtifact {
+pub fn page_with_policy(
+    source: &Arc<HtmlDocumentAst>,
+    output: &str,
+    policy: SsrSettlePolicy,
+) -> CemSsrPageArtifact {
     let routes = preflight_ssr_page_routes(&[SsrPageRouteRequest::new(
         source,
         "https://ssr.example.test/guide/",
@@ -63,6 +67,14 @@ pub fn page(source: &Arc<HtmlDocumentAst>, output: &str) -> CemSsrPageArtifact {
         &routes[0],
         TransformArtifactBody::HtmlDomProjection(Arc::clone(source)),
         identity,
+        policy,
+    )
+    .unwrap()
+}
+pub fn page(source: &Arc<HtmlDocumentAst>, output: &str) -> CemSsrPageArtifact {
+    page_with_policy(
+        source,
+        output,
         SsrSettlePolicy {
             max_declaration_depth: 8,
             max_instances: 4,
@@ -74,7 +86,6 @@ pub fn page(source: &Arc<HtmlDocumentAst>, output: &str) -> CemSsrPageArtifact {
             allow_static_fallback: false,
         },
     )
-    .unwrap()
 }
 pub fn control() -> OperationControl {
     OperationControl::new(AbortSignal::new())

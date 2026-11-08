@@ -821,10 +821,38 @@ through Phase 9 release governance.
       identity/policy and valid output ranges.
       Only that native proof may enable adoption. Wire command lowering, exports
       and browser hydration/parity through the same core after those gates pass.
-  - [ ] Resource coordination: admit declaration CSS and resource-bearing
+  - [x] Resource coordination: admit declaration CSS and resource-bearing
         instance closures with explicit shared resolver/loader authority and
         original-operation budgets. Add native pending/ready/refused/cancelled
         closure fixtures before permitting transport or publication.
+      - [x] Controlled import fixtures: retain original native CSS owners and
+            operation memory through final tree release; cover byte/value/depth
+            ceilings, cancellation and failed admission without leaked permits.
+      - [x] Atomic multi-element application fixtures: preserve independent
+            declaration/instance sources, maps and child order; reject duplicate,
+            nested or invalid targets and release all allocations on refusal.
+      - [x] Inline CSS coordinator fixtures: explicit stable resolver authority,
+            declaration/instance pending and ready states, redirects and relative
+            URLs, token/source/operation replay, MIME/integrity/cancellation,
+            aggregate byte/resource ceilings and atomic publication only when
+            the complete native batch is current and ready.
+        Completed 2026-11-08: explicit inline CSS preparation and opaque ordered
+        native request tickets coordinate declaration/instance owners under the
+        original source, operation and resolver authority. Shared import checks
+        MIME/integrity/redirects; roots, references and imported bytes share page
+        ceilings. Native workspace/arena permits follow retained trees. A closed
+        current batch alone authorizes runtime CSS metadata and atomic declaration
+        append/instance publication; authored reserved writes remain refused.
+        Elapsed admission uses the original active clock with a conservative
+        wall/CPU bound, including transport wait; precise CPU completion remains
+        open. The source gate passes 234 native checks across both profiles,
+        8 browser profiles and all 19 existing complete observations. Coordinator
+        cases pass 14/14 per profile; receiver units pass 19/19 per profile and
+        component receiver passes 17/17. Paired build, Clippy, focused formatting
+        and optimized WASM consumers pass. Core: 23,999,276 bytes, 28 imports/175
+        exports. Frozen presentation unchanged; SSR stays partial and adoption
+        remains gated.
+        [Archive](archive/todo-completed-ssr-stylesheet-coordination-2026-11-08.md).
   - [ ] Nested lifecycle: prepare multiple participants and settle nested work
         under one operation, preserving ownership and resource/render ceilings.
         Add failing native ordering, exhaustion and cancellation fixtures first.

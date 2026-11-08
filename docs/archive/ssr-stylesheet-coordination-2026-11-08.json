@@ -1,0 +1,184 @@
+{
+  "version": 1,
+  "date": "2026-11-08",
+  "topic": "Native SSR stylesheet coordination",
+  "baseCommit": "32fbd57c1942cc17b771937b729c679e7db038cc",
+  "profile": {
+    "participants": "one autonomous inline DCE",
+    "css": "private/shared declaration and explicit HTML payload instance CSS",
+    "authority": "closed native batch bound to source tree, host, instance, original operation and stable resolver fingerprint",
+    "transport": "opaque ordered request tickets and host-supplied ResolvedRead bytes; no automatic file/network I/O",
+    "importBoundary": "cem_ml::import; retained typed CEM trees",
+    "resourceAccounting": "all roots and import/URL-reference occurrences share page ceiling",
+    "byteAccounting": "source document plus all delivered import responses share page ceiling",
+    "memoryAccounting": "original-operation workspace, byte and retained-arena permits survive native owners",
+    "elapsedAccounting": "original active clock excluding debugger suspension; stricter wall/CPU cap used as conservative elapsed admission bound, including transport wait; not measured CPU usage",
+    "publication": "atomic independent declaration append and instance replacement with canonical host/island commit"
+  },
+  "gates": {
+    "sourceAdmissionNativeChecks": 234,
+    "nativeFeatureProfiles": [
+      "default",
+      "no-default-features"
+    ],
+    "coordinatorCasesPerProfile": 14,
+    "controlledImportCasesPerProfile": 2,
+    "treeApplyCasesPerProfile": 10,
+    "componentReceiverChecks": 17,
+    "sharedReceiverUnitChecksPerProfile": 19,
+    "nativeSlotBrowserProfiles": 4,
+    "hostPublicationBrowserProfiles": 4,
+    "existingCompleteNativeBrowserObservations": 19,
+    "documentedDivergences": 0,
+    "pairedBuild": true,
+    "clippy": "pass, existing warnings",
+    "focusedRustfmt": "pass",
+    "optimizedWasmConsumers": "pass"
+  },
+  "browser": "148.0.7778.96",
+  "externalRequests": [],
+  "core": {
+    "path": "packages/cem_ql/dist/wasm/cem_ql_bg.wasm",
+    "bytes": 23999276,
+    "sha256": "c9dcb33944e395da70a9d4427e69a5521d49c7e8482800b86a47a729a42d6ba3",
+    "imports": 28,
+    "exports": 175,
+    "perFileCeilingBytes": 26214400
+  },
+  "packagedCore": {
+    "path": "packages/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+    "bytes": 23999276,
+    "sha256": "c9dcb33944e395da70a9d4427e69a5521d49c7e8482800b86a47a729a42d6ba3"
+  },
+  "frozenPresentation": {
+    "path": "dist/releases/cem-amsterdam-2026-final.tgz",
+    "bytes": 17321262,
+    "sha256": "bbcb37da0a36491e5c021a5cf0c67304cc41f001a98247fc5c101ed6c45a9864"
+  },
+  "adoption": {
+    "lifecycle": "partial/incomplete",
+    "hydrationReady": false,
+    "cliExportWired": false
+  },
+  "limits": [
+    "Single declaration/instance; nested and multiple participant settling remain open.",
+    "Host transport owns buffering bounds; native delivery rechecks aggregate allowance before parsing.",
+    "URL assets are resolved/emitted by explicit authority, not fetched by this coordinator; automatic fragment binding remains deferred.",
+    "Precise CPU and final page completion/identity/range proof remain open.",
+    "Existing default feature selection and named JS/WASM ABI remain unchanged."
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/cem-elements/project.json",
+      "bytes": 51405,
+      "sha256": "054d5b0d016055053fb10452b3dfa8f90dec506dd4fc0d8dfb9feadcbb8abbbd"
+    },
+    {
+      "path": "packages/cem_ml/src/css_imports.rs",
+      "bytes": 25706,
+      "sha256": "d5300e81661b91f3d816fefac87048f164c667af98bc72b519bba4eeb7c63489"
+    },
+    {
+      "path": "packages/cem_ml/src/import.rs",
+      "bytes": 57894,
+      "sha256": "4f0331a580c0dc2986dab2b97c3e45f34eb1ff5a461973d42d17d62de9bc1d72"
+    },
+    {
+      "path": "packages/cem_ml/src/import/controlled.rs",
+      "bytes": 5128,
+      "sha256": "47926212f723dca01a67a6a2cdc8e98357ac19fdaf2e294ae43c11118a1f6070"
+    },
+    {
+      "path": "packages/cem_ml/src/operation_control.rs",
+      "bytes": 116351,
+      "sha256": "30eb9ad6a9e21214744d3994fc964168fc5d1d0d1924547170033eb2bfd3a65c"
+    },
+    {
+      "path": "packages/cem_ml/src/parser/tree.rs",
+      "bytes": 27725,
+      "sha256": "7c11b552763bca7f65654437bb0e4e271e716a36168d56adb81dc727305753b8"
+    },
+    {
+      "path": "packages/cem_ml/src/parser/tree_apply.rs",
+      "bytes": 41168,
+      "sha256": "9537532a130547439cc488457e7acf844acd78aa962759cf432c088530479c31"
+    },
+    {
+      "path": "packages/cem_ql/project.json",
+      "bytes": 27433,
+      "sha256": "b6dad41fcebe6a3c7d9e54a256a8303032d9462d97f9b4da62e07bacb7648cbf"
+    },
+    {
+      "path": "packages/cem_ql/src/instance_island/host_commit.rs",
+      "bytes": 14839,
+      "sha256": "993c4c27beeab7f8017fc150ca37bc3d095df3a02508de5b1825b376a1c29fd3"
+    },
+    {
+      "path": "packages/cem_ql/src/lib.rs",
+      "bytes": 11672,
+      "sha256": "3754429fd0b712560c20e8345defa7afbf20d08cf4ced4f0f76b8fd89333a4a3"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_css.rs",
+      "bytes": 8632,
+      "sha256": "c21a7c50ce22c973fce5151cadb9c20b3b438ba9f59fd46c88d7ef8a36d23bda"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_island.rs",
+      "bytes": 14154,
+      "sha256": "ea70506ed5c4582ba219a186ca83554d85362dffc84a515ab8a8f7aed3fff88c"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_preparation.rs",
+      "bytes": 13827,
+      "sha256": "baf5a04aa5a1ef950d28594ca81a8e08e987425505fbc0530c8ff9b07ed599ed"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_render.rs",
+      "bytes": 17179,
+      "sha256": "b4b59fffbc4ff7340acb6c5a45a05da280243b4c5ea3cd927cf94addcd97a0e1"
+    },
+    {
+      "path": "packages/cem_ql/src/ssr_stylesheets.rs",
+      "bytes": 25442,
+      "sha256": "db57648ab4d466dae83ce87664aa510004a23296df697f7cb04f0f554b650107"
+    },
+    {
+      "path": "packages/cem_ql/tests/ssr_stylesheets.rs",
+      "bytes": 21277,
+      "sha256": "b39baebc1020f00b59caf88ae0113093cc6b6d1bd52675ce0bec7855954ca1d3"
+    },
+    {
+      "path": "packages/cem_ql/tests/support/ssr_page.rs",
+      "bytes": 3184,
+      "sha256": "00f5c62b77124eda5c34cbbeb98cc82f3ab649f1fdc9ddc5bd4f3cf037b77be5"
+    }
+  ],
+  "observations": [
+    {
+      "path": "dist/reports/cem-ssr-render-native.json",
+      "bytes": 11096,
+      "sha256": "088e910f38e766aa92f99365a82d533c9f168af1c48ef403f54e22fc3245f489"
+    },
+    {
+      "path": "dist/reports/cem-ssr-render-browser.json",
+      "bytes": 12881,
+      "sha256": "41e49f151ba55f5f0439ae33ddf1cbeb74bdd545662813d1e0ad1838352b3179"
+    },
+    {
+      "path": "dist/reports/cem-browser-native-slots.json",
+      "bytes": 1176,
+      "sha256": "3acc0e2763a9180f86f8a94926ef903e7295a4b747a29eeba5e25a624016354f"
+    },
+    {
+      "path": "dist/reports/cem-browser-host-publication.json",
+      "bytes": 1121,
+      "sha256": "6f29b4a24ca44a406b85e2f479cba3bda2b800e29be73f5b347568076e43554f"
+    },
+    {
+      "path": "dist/reports/wasm-optimization/cem-ql.json",
+      "bytes": 329,
+      "sha256": "08398352709d7d40cdde9f85d7de5e9325fffe269e381f66cadb43ca70462290"
+    }
+  ]
+}

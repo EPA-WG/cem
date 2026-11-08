@@ -372,6 +372,26 @@ impl CssImportClosure {
         response: crate::resolver::ResolvedRead,
         policy: &CssImportResponsePolicy,
     ) -> Result<(), CssImportFailure> {
+        self.complete_response_mode(id, response, policy, None)
+    }
+
+    /// Shared native import under the original caller's accounting and cancellation.
+    pub fn complete_response_with_control(
+        &mut self,
+        id: u64,
+        response: crate::resolver::ResolvedRead,
+        policy: &CssImportResponsePolicy,
+        control: &crate::operation_control::OperationControl,
+    ) -> Result<(), CssImportFailure> {
+        self.complete_response_mode(id, response, policy, Some(control))
+    }
+    fn complete_response_mode(
+        &mut self,
+        id: u64,
+        response: crate::resolver::ResolvedRead,
+        policy: &CssImportResponsePolicy,
+        control: Option<&crate::operation_control::OperationControl>,
+    ) -> Result<(), CssImportFailure> {
         self.check_active()?;
         let request = self.request(id)?.clone();
         let validated = (|| {
@@ -382,8 +402,22 @@ impl CssImportClosure {
                 response.content_type.as_deref(),
                 policy,
             )?;
-            let tree = crate::import::import_data_bytes(&response.bytes, &mime, "cem", &url)
-                .map_err(|e| failure("cem.css.import_parse_failed", e))?;
+            let tree = match control {
+                Some(control) => crate::import::import_data_bytes_controlled(
+                    &response.bytes,
+                    &mime,
+                    "cem",
+                    &url,
+                    control,
+                    &crate::value::artifact::CemValueArtifactLimits {
+                        max_bytes: policy.max_response_bytes,
+                        max_values: crate::import::MAX_DOCUMENT_VALUES,
+                        max_depth: 64,
+                    },
+                ),
+                None => crate::import::import_data_bytes(&response.bytes, &mime, "cem", &url),
+            }
+            .map_err(|e| failure("cem.css.import_parse_failed", e))?;
             Ok((tree, url, total))
         })();
         match validated {

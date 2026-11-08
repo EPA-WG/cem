@@ -1949,6 +1949,14 @@ impl OperationControl {
         })
     }
 
+    /// Active wall time of the original scope, excluding debugger suspension.
+    /// This observation neither starts a new clock nor renews a deadline.
+    pub fn active_elapsed_ms(&self, scope: ExecutionScopeId) -> Result<u64,ControlError> {
+        let inner=self.inner.lock().expect("poisoned operation-control mutex");
+        let accounting=inner.accounting.get(&scope).ok_or(ControlError::UnknownScope(scope))?;
+        Ok(accounting.activated_at.map(|start|Instant::now().saturating_duration_since(start).saturating_sub(accounting.excluded_time).as_millis().try_into().unwrap_or(u64::MAX)).unwrap_or(0))
+    }
+
     pub fn memory_charged(&self, scope: ExecutionScopeId) -> Result<u64, ControlError> {
         let inner = self.inner.lock().expect("poisoned operation-control mutex");
         inner

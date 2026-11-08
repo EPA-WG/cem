@@ -25,6 +25,9 @@ pub struct PreparedInlineDce {
     instance: AstNodeId,
     tag: String,
     retained: RetainedTemplate,
+    pub(crate) stylesheet_coordination: bool,
+    pub(crate) stylesheet_control: Option<OperationControl>,
+    pub(crate) shared_scope: Option<String>,
 }
 impl std::fmt::Debug for PreparedInlineDce {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -61,6 +64,20 @@ impl PreparedInlineDce {
 pub fn prepare_inline_dce(
     page: CemSsrPageArtifact,
     control: &OperationControl,
+) -> Result<PreparedInlineDce, Vec<Diagnostic>> {
+    prepare_inline_dce_mode(page, control, false)
+}
+/// Compile scoped CSS sources without granting resource loading or publication.
+pub fn prepare_inline_dce_with_stylesheets(
+    page: CemSsrPageArtifact,
+    control: &OperationControl,
+) -> Result<PreparedInlineDce, Vec<Diagnostic>> {
+    prepare_inline_dce_mode(page, control, true)
+}
+fn prepare_inline_dce_mode(
+    page: CemSsrPageArtifact,
+    control: &OperationControl,
+    stylesheet_coordination: bool,
 ) -> Result<PreparedInlineDce, Vec<Diagnostic>> {
     check(&page, control)?;
     if page.lifecycle() != SsrLifecycleState::Unrendered {
@@ -145,9 +162,10 @@ pub fn prepare_inline_dce(
         .filter(|tag| crate::declaration_artifact::valid_tag(tag))
         .cloned();
     if tag.is_none()
-        || root
-            .keys()
-            .any(|key| !["tag", "version", "xmlns"].contains(&key.as_str()))
+        || root.keys().any(|key| {
+            !(["tag", "version", "xmlns"].contains(&key.as_str())
+                || stylesheet_coordination && key == "scope")
+        })
         || root
             .get("xmlns")
             .is_some_and(|value| value != HTML_NAMESPACE_URI)
@@ -294,7 +312,7 @@ pub fn prepare_inline_dce(
         );
         return Err(errors);
     }
-    if !compiled.stylesheets.is_empty()
+    if (!stylesheet_coordination && !compiled.stylesheets.is_empty())
         || compiled.module_map.is_some()
         || crate::declaration_artifact::has_external_template_imports(
             source.text(),
@@ -338,6 +356,9 @@ pub fn prepare_inline_dce(
         instance,
         tag,
         retained: RetainedTemplate::new(compiled),
+        stylesheet_coordination,
+        stylesheet_control: stylesheet_coordination.then(|| control.clone()),
+        shared_scope: root.get("scope").cloned(),
     })
 }
 
@@ -358,7 +379,10 @@ fn attributes(tree: &RetainedCemTree, id: AstNodeId) -> BTreeMap<String, String>
         })
         .collect()
 }
-pub(crate) fn check(page: &CemSsrPageArtifact, control: &OperationControl) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn check(
+    page: &CemSsrPageArtifact,
+    control: &OperationControl,
+) -> Result<(), Vec<Diagnostic>> {
     control
         .check_scope(ROOT_EXECUTION_SCOPE_ID)
         .map_err(|error| {

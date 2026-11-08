@@ -41,49 +41,7 @@ impl InstanceCss {
                 CemScopedModuleUrlResolver,
             },
         };
-        let check = || {
-            control
-                .check_scope(ROOT_EXECUTION_SCOPE_ID)
-                .map_err(|e| e.code().to_owned())
-        };
-        let mut pending = payload
-            .iter()
-            .rev()
-            .map(|n| n.node_id())
-            .collect::<Vec<_>>();
-        let mut sources = vec![];
-        let mut maps = vec![];
-        let mut bytes = 0usize;
-        while let Some(id) = pending.pop() {
-            check()?;
-            let n = source.node(id).ok_or("Missing CSS source")?;
-            if let Some(name) = &n.name {
-                if name.namespace_uri == cem_ml::schema::registry::HTML_NAMESPACE_URI {
-                    if name.local_name == "template" {
-                        continue;
-                    }
-                    if name.local_name == "style" {
-                        if !explicit || sources.len() >= (policy.max_resources as usize).min(64) {
-                            return Err("Instance CSS requires an explicit envelope and available resource budget".into());
-                        }
-                        let imported = cem_ml::import::inline_css::retain_inline_css(
-                            source.clone(),
-                            id,
-                            control,
-                            &crate::instance_island::LIMITS,
-                        )?;
-                        bytes = bytes.saturating_add(imported.css().len());
-                        if bytes as u64 > policy.max_total_bytes {
-                            return Err("Instance CSS byte budget exceeded".into());
-                        }
-                        sources.push(TemplateStylesheetArtifact::from_inline_css(imported));
-                        maps.push(source.node_source_map(id).unwrap_or_default());
-                        continue;
-                    }
-                }
-            }
-            pending.extend(n.children.iter().rev());
-        }
+        let (sources, maps) = collect_sources(source, payload, explicit, policy, control)?;
         if sources.is_empty() {
             return Ok(None);
         }
@@ -104,7 +62,9 @@ impl InstanceCss {
         );
         let mut records = vec![];
         for index in 0..owner.artifact().stylesheets.len() {
-            check()?;
+            control
+                .check_scope(ROOT_EXECUTION_SCOPE_ID)
+                .map_err(|e| e.code().to_owned())?;
             let closure = CssImportClosure::new(
                 owner.artifact().stylesheets[index].css_tree().clone(),
                 base,
@@ -135,7 +95,9 @@ impl InstanceCss {
             }
             records.push(record);
         }
-        check()?;
+        control
+            .check_scope(ROOT_EXECUTION_SCOPE_ID)
+            .map_err(|e| e.code().to_owned())?;
         Ok(Some(Self {
             _owner: owner,
             records,
@@ -159,22 +121,7 @@ impl InstanceCss {
         &self.records
     }
     pub(crate) fn strip_sources(&self, nodes: &mut Vec<RenderPlanNode>) {
-        nodes.retain(|n| !matches!(n,RenderPlanNode::Element{tag,namespace,source_map,..} if tag=="style" && namespace.as_deref()==Some(cem_ml::schema::registry::HTML_NAMESPACE_URI) && self.maps.contains(source_map)));
-        for node in nodes {
-            if let RenderPlanNode::Element {
-                tag,
-                namespace,
-                children,
-                ..
-            } = node
-            {
-                if !(tag == "template"
-                    && namespace.as_deref() == Some(cem_ml::schema::registry::HTML_NAMESPACE_URI))
-                {
-                    self.strip_sources(children);
-                }
-            }
-        }
+        strip_sources(nodes, &self.maps)
     }
     pub(crate) fn output(&self) -> Result<Vec<RenderPlanNode>, String> {
         self.records
@@ -205,5 +152,77 @@ impl InstanceCss {
                 })
             })
             .collect()
+    }
+}
+
+pub(crate) fn collect_sources(
+    source: &Arc<RetainedCemTree>,
+    payload: &[RetainedCemNode],
+    explicit: bool,
+    policy: &cem_ml::ssr_artifact::SsrSettlePolicy,
+    control: &OperationControl,
+) -> Result<(Vec<TemplateStylesheetArtifact>, Vec<SourceMapStack>), String> {
+    let check = || {
+        control
+            .check_scope(ROOT_EXECUTION_SCOPE_ID)
+            .map_err(|e| e.code().to_owned())
+    };
+    let mut pending = payload
+        .iter()
+        .rev()
+        .map(|n| n.node_id())
+        .collect::<Vec<_>>();
+    let mut sources = vec![];
+    let mut maps = vec![];
+    let mut bytes = 0usize;
+    while let Some(id) = pending.pop() {
+        check()?;
+        let n = source.node(id).ok_or("Missing CSS source")?;
+        if let Some(name) = &n.name {
+            if name.namespace_uri == cem_ml::schema::registry::HTML_NAMESPACE_URI {
+                if name.local_name == "template" {
+                    continue;
+                }
+                if name.local_name == "style" {
+                    if !explicit || sources.len() >= (policy.max_resources as usize).min(64) {
+                        return Err("Instance CSS requires an explicit envelope and available resource budget".into());
+                    }
+                    let imported = cem_ml::import::inline_css::retain_inline_css(
+                        source.clone(),
+                        id,
+                        control,
+                        &crate::instance_island::LIMITS,
+                    )?;
+                    bytes = bytes.saturating_add(imported.css().len());
+                    if bytes as u64 > policy.max_total_bytes {
+                        return Err("Instance CSS byte budget exceeded".into());
+                    }
+                    sources.push(TemplateStylesheetArtifact::from_inline_css(imported));
+                    maps.push(source.node_source_map(id).unwrap_or_default());
+                    continue;
+                }
+            }
+        }
+        pending.extend(n.children.iter().rev());
+    }
+    Ok((sources, maps))
+}
+
+pub(crate) fn strip_sources(nodes: &mut Vec<RenderPlanNode>, maps: &[SourceMapStack]) {
+    nodes.retain(|n| !matches!(n,RenderPlanNode::Element{tag,namespace,source_map,..} if tag=="style" && namespace.as_deref()==Some(cem_ml::schema::registry::HTML_NAMESPACE_URI) && maps.contains(source_map)));
+    for node in nodes {
+        if let RenderPlanNode::Element {
+            tag,
+            namespace,
+            children,
+            ..
+        } = node
+        {
+            if !(tag == "template"
+                && namespace.as_deref() == Some(cem_ml::schema::registry::HTML_NAMESPACE_URI))
+            {
+                strip_sources(children, maps);
+            }
+        }
     }
 }

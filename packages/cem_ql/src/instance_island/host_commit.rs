@@ -70,6 +70,42 @@ pub fn prepare_host_commit_with_source(
     control: &OperationControl,
     source: Option<&Arc<cem_ml::import::element_tree::RetainedCemPayloadSource>>,
 ) -> Result<CommittedHostIsland, String> {
+    prepare_host_commit_with_stylesheets(
+        template,
+        host,
+        instance_id,
+        updates,
+        control,
+        source,
+        None,
+    )
+}
+/// Runtime metadata is derived only from a current closed native stylesheet proof.
+pub(crate) fn prepare_host_commit_with_stylesheets(
+    template: &Item,
+    host: RetainedCemNode,
+    instance_id: &str,
+    updates: &[HostAttributeUpdate],
+    control: &OperationControl,
+    source: Option<&Arc<cem_ml::import::element_tree::RetainedCemPayloadSource>>,
+    stylesheets: Option<&crate::ssr_stylesheets::CoordinatedStylesheets>,
+) -> Result<CommittedHostIsland, String> {
+    // Bound and validate authored effects before cloning or adding runtime metadata.
+    coalesced_host_writes(updates, control)?;
+    let trusted_start = updates.len();
+    let mut native_updates = updates.to_vec();
+    if let Some(stylesheets) = stylesheets {
+        stylesheets.check_host(&host, instance_id, control)?;
+        native_updates.extend(
+            stylesheets.host_updates(
+                &host
+                    .owner()
+                    .node_source_map(host.node_id())
+                    .unwrap_or_default(),
+            )?,
+        );
+    }
+    let updates = native_updates.as_slice();
     control
         .check_scope(ROOT_EXECUTION_SCOPE_ID)
         .map_err(|e| e.code().to_string())?;
@@ -139,7 +175,7 @@ pub fn prepare_host_commit_with_source(
         .min(policy.memory_bytes.try_into().unwrap_or(usize::MAX));
     let mut bytes = 0usize;
     let mut names = vec![];
-    for index in coalesced_host_writes(updates, control)? {
+    for index in coalesced_host_writes_mode(updates, control, trusted_start)? {
         let update = &updates[index];
         control
             .check_scope(ROOT_EXECUTION_SCOPE_ID)
@@ -152,6 +188,7 @@ pub fn prepare_host_commit_with_source(
         }
         if update.source_map().frames.is_empty()
             || update.name.starts_with("data-cem-")
+                && !(index >= trusted_start && update.name == "data-cem-css-context")
             || update.name == "xmlns"
         {
             return Err(REFUSED.into());
@@ -299,6 +336,13 @@ fn coalesced_host_writes(
     updates: &[HostAttributeUpdate],
     control: &OperationControl,
 ) -> Result<Vec<usize>, String> {
+    coalesced_host_writes_mode(updates, control, updates.len())
+}
+fn coalesced_host_writes_mode(
+    updates: &[HostAttributeUpdate],
+    control: &OperationControl,
+    trusted_start: usize,
+) -> Result<Vec<usize>, String> {
     control
         .check_scope(ROOT_EXECUTION_SCOPE_ID)
         .map_err(|e| e.code().to_string())?;
@@ -326,7 +370,11 @@ fn coalesced_host_writes(
             return Err(BOUNDS.into());
         }
         let name = update.name.to_ascii_lowercase();
-        if name.is_empty() || name.starts_with("data-cem-") || name == "xmlns" {
+        if name.is_empty()
+            || name.starts_with("data-cem-")
+                && !(index >= trusted_start && name == "data-cem-css-context")
+            || name == "xmlns"
+        {
             return Err(REFUSED.into());
         }
         if let Some(position) = indices

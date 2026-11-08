@@ -348,9 +348,73 @@ invalidates outstanding emission handles. Cancellation and refusal publish no
 partial page update.
 
 These profiles do not prove completion. A successful single render remains
-`Partial(Incomplete)` with hydration adoption disabled. Declaration styles,
-resource-bearing closures, nested participants and final identity/range proof
-belong to the coordinator step before CLI/export and hydration wiring.
+`Partial(Incomplete)` with hydration adoption disabled. The explicit coordinator below admits declaration styles and resource-bearing
+closures. Nested participants and final identity/range proof still precede
+CLI/export and hydration wiring.
+
+## Native SSR stylesheet coordination
+
+`prepare_inline_dce_with_stylesheets` is the explicit inline CSS preparation
+profile. It compiles declaration styles and permits a declaration-owned `scope`
+header while retaining the original source. Module maps and external declaration
+modules remain refused. `prepare_inline_island` captures the same canonical
+payload and marks its stylesheet work deferred. The ordinary preparation API
+keeps its resource-free profile; neither preparation path grants transport.
+
+A deferred island cannot render until `begin_inline_stylesheets` receives an
+explicit shared `CemModuleUrlResolutionCapability` with a stable map/policy
+fingerprint. The coordinator binds that authority to the original preparation
+operation and native source/host identity. It adopts declaration and instance
+sources through existing retained stylesheet owners, CSS import closures and
+managed emitters. Private CSS uses the produced tag; shared CSS requires its
+scope to match declaration-owned membership.
+
+The native coordinator exposes pending, ready, refused and cancelled states.
+`advance` returns one opaque request ticket at a time, retaining source order and
+returning the same outstanding request on repeated observation. Transport reads
+the shared request's resolved URL and supplies bytes, actual final URI and MIME
+through `deliver`. A ticket belongs to its coordinator and sequence; stale or
+foreign delivery cannot replace current work. Format parsing remains exclusively
+in `cem_ml::import`. Shared closure validation checks redirects, MIME, integrity,
+cycles, placement and import depth. `failure` retains the native import location.
+URL references are resolved by the same explicit capability and rewritten by the
+shared emitter; the coordinator does not fetch those assets. Fragment references
+keep the shared emitter's existing deferred binding contract; no automatic local
+ID substitution is introduced. The caller bounds response buffering before
+native delivery, which rechecks the remaining aggregate allowance before parsing.
+
+Declaration/instance roots, imports and URL-reference occurrences share the page
+resource ceiling. Delivered bytes share one remaining page byte allowance after
+the original document. CSS import depth is bounded by both the existing 16-level
+limit and the page's declaration-depth cap. Native resource workspace, imported
+bytes and retained arenas use the original operation's memory permits. Retained
+resource sidecars preserve the concrete parser owner, semantic tree, source maps
+and source identity; they are lifetime accounting, not new authority or a wire
+representation. Refusal/cancellation retires the entire candidate, including its
+prepared declaration state, without changing authored source or the page.
+
+Elapsed admission observes the original operation's active clock, excluding
+its debugger suspension. This synchronous profile conservatively uses the
+stricter wall/CPU cap as an elapsed bound, including pending transport time;
+it does not report that bound as measured CPU usage. No phase renews the clock.
+The final wall-time observation is retained, while precise CPU completion
+accounting remains part of the later completion proof.
+
+`finish` only returns an island carrying a closed current native batch. Rendering
+rechecks operation, resolver freshness, owner liveness and elapsed allowance
+before and after native application. Independent declaration and instance edits
+form one bounded transaction: original declaration children retain their IDs and
+maps, declaration sheets append outside its source template, and instance sheets
+remain after the render range. A runtime CSS context marker and shared membership
+are committed with host attributes and canonical island state. Only the closed
+native batch may supply that runtime marker; authored reserved writes stay
+refused. An observed resolver revision change cannot revive by restoring an old
+fingerprint. The applied tree retains all source and stylesheet leases.
+
+A ready CSS batch remains distinct from page completion. The resulting page is
+still `Partial(Incomplete)`. Nested/multiple participant settling, final version,
+island, identity/policy and range proof, then CLI/export and hydration wiring
+remain required before adoption.
 
 ## Declaration version and SSR compatibility
 
