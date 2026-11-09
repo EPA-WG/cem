@@ -9,7 +9,7 @@ use cem_ml::{
     },
     dependency_identity::{
         DependencyClosureState, DependencyLayer, DependencySnapshot, DependencyVersion,
-        SourceDependency, RENDER_DEPENDENCY_INPUTS,
+        RENDER_DEPENDENCY_INPUTS,
     },
     diagnostics::Diagnostic,
     engine::EngineContext,
@@ -271,11 +271,7 @@ pub(super) fn render(
                 root_uri: source.source.uri.clone(),
                 sources: BTreeMap::from([(
                     source.source.uri.clone(),
-                    SourceDependency {
-                        content_type: "text/html".into(),
-                        schema: Some(HTML_SCHEMA_URI.into()),
-                        version: content(source.source_text.as_bytes()),
-                    },
+                    source.ssr_source_dependency(),
                 )]),
                 imports: vec![],
                 options: BTreeMap::from([(
@@ -543,7 +539,7 @@ impl TransformArtifactExporter for ReadyExporter {
         let guard = artifact.cpu.begin(&artifact.control)?;
         let encoded = (|| {
             let media = request.target.content_type.as_deref().unwrap_or("");
-            let (encoding,bytes)=match (media,request.target.schema.as_deref()) {
+            let (encoding,bytes,output_spans)=match (media,request.target.schema.as_deref()) {
                 ("text/html",None|Some(HTML_SCHEMA_URI))=> {
                     let mut descriptor=self.conversions.converter("cem-dom-projection-to-html-cemt").ok_or("Missing native DOM-to-HTML converter")?.clone();
                     descriptor.output_contract.color_profile=Some("none".into());
@@ -564,13 +560,13 @@ impl TransformArtifactExporter for ReadyExporter {
                     let output=execute_conversion_output_pipeline_from_cem_tree_with_environment(&environment,&contract.pipeline,stream,artifact.ready.page().source_map().cloned(),vec![],descriptor.id.as_str(),None,Some(&artifact.ready.page().route().source_uri));
                     if output.diagnostics.iter().any(|d|d.severity.is_hard_violation()) {return Err(diagnostics(output.diagnostics))}
                     let text=output.output.as_ref().and_then(serde_json::Value::as_str).ok_or("DOM-safe formatter returned no HTML")?;
-                    (TransformEncoding::Text,text.as_bytes().to_vec())
+                    (TransformEncoding::Text,text.as_bytes().to_vec(),output.output_spans)
                 },
                 (REPORT_CONTENT_TYPE,None)=> {
                     let page=artifact.ready.page();
                     let participants=artifact.ready.participants().iter().map(|p|serde_json::json!({"tag":p.tag(),"instanceId":p.instance_id(),"depth":p.depth()})).collect::<Vec<_>>();
                     let report=serde_json::json!({"schema":"https://cem.dev/ns/ssr-report/1","readiness":"native-ready","hydrationReady":false,"route":page.route(),"renderInputIdentity":artifact.ready.render_input_identity().hex,"usage":observation.usage(),"previousExportBytes":artifact.exported_bytes.load(Ordering::Relaxed),"participants":participants});
-                    (TransformEncoding::Json,serde_json::to_vec(&report).map_err(|e|e.to_string())?)
+                    (TransformEncoding::Json,serde_json::to_vec(&report).map_err(|e|e.to_string())?,vec![])
                 },
                 _=>return Err("SSR requires an explicit text/html or application/vnd.cem.ssr-report+json export identity".into()),
             };
@@ -591,7 +587,7 @@ impl TransformArtifactExporter for ReadyExporter {
                 return Err("SSR export exceeds original byte budget".into());
             }
             TransformEncodedArtifact::new(request.target.clone(), encoding, bytes)
-                .map(Arc::new)
+                .map(|artifact| Arc::new(artifact.with_output_spans(output_spans)))
                 .map_err(|e| e.to_string())
         })();
         guard.finish()?;

@@ -1285,7 +1285,9 @@ impl SemanticRule for SuspiciousContentTypeSwitchRule {
                 // A MIME-style value (`text/*`, `application/*`,
                 // `image/*`, etc.) on a non-MIME-host element is the
                 // suspicious case.
-                if !MIME_HOSTS.contains(&local) && looks_like_mime(v) {
+                let cem_template = local == "template"
+                    && crate::import::element_tree::canonical_cem_payload_type(v).is_some();
+                if !cem_template && !MIME_HOSTS.contains(&local) && looks_like_mime(v) {
                     out.push(diag_at(
                         "cem.lint.suspicious_content_type_switch",
                         Severity::Warning,

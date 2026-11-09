@@ -69,3 +69,4 @@ The [active checklist](../todo.md) records remaining execution work.
 - [Live slice and local form hydration](todo-completed-ssr-live-state-hydration-2026-11-09.md)
 - [CLI admission for external stylesheet imports](todo-completed-ssr-cli-resource-admission-2026-11-09.md)
 - [CLI HTML page ingress and authored bases](todo-completed-ssr-cli-page-ingress-2026-11-09.md)
+- [CEM-ML and CEM Markdown SSR page sources](todo-completed-ssr-cem-markdown-pages-2026-11-09.md)

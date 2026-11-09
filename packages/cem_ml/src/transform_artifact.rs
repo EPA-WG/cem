@@ -9695,6 +9695,7 @@ pub struct TransformEncodedArtifact {
     pub identity: FormatIdentity,
     pub encoding: TransformEncoding,
     pub bytes: Arc<[u8]>,
+    pub output_spans: Arc<[OutputSpan]>,
 }
 
 impl TransformEncodedArtifact {
@@ -9717,7 +9718,12 @@ impl TransformEncodedArtifact {
             identity,
             encoding,
             bytes: bytes.into(),
+            output_spans: Arc::default(),
         })
+    }
+    pub fn with_output_spans(mut self, output_spans: Vec<OutputSpan>) -> Self {
+        self.output_spans = output_spans.into();
+        self
     }
 }
 

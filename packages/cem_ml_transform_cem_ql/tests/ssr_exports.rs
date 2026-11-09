@@ -86,6 +86,176 @@ fn authored_base_keeps_the_ordinary_html_source_policy() {
 }
 
 #[test]
+fn named_page_profiles_render_from_authored_sources() {
+    use cem_ml::source_map::{FrameSpan, TransformKind};
+
+    let declaration = r#"{cem-element @tag=x-parent @version="1.2.3" | {template @id=x-parent @type="text/cem-ml" |```{article | Published}```}}{x-parent}"#;
+    let cem = format!(
+        r#"@doc cem-ml 1
+@ns svg = "http://www.w3.org/2000/svg"
+{{html | {{head | {{base @href="/assets/"}}{{title | CEM page}}}}{{body |
+  {{svg:svg @viewBox="0 0 24 24" | {{svg:title | Icon}}{{svg:circle @r=8}}}}
+  {{p | From source}}{declaration}
+}}}}"#
+    );
+    let markdown = format!("# Native page\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n```cem-ml\n{{p | From source}}{declaration}\n```\n\n```\n{{p | Literal}}\n```\n");
+    for (suffix, content_type, schema, source) in [
+        (
+            "cem",
+            cem_ml::ssr_route::SSR_CEM_PAGE_CONTENT_TYPE,
+            cem_ml::ssr_route::SSR_CEM_PAGE_SCHEMA,
+            &cem,
+        ),
+        (
+            "cem.md",
+            cem_ml::ssr_route::SSR_MARKDOWN_PAGE_CONTENT_TYPE,
+            cem_ml::ssr_route::SSR_MARKDOWN_PAGE_SCHEMA,
+            &markdown,
+        ),
+    ] {
+        let mut r = request("text/html");
+        r.params
+            .insert("consumer-versions".into(), json!({"x-parent": "1.9.0"}));
+        let uri = format!("file:///source/page.{suffix}");
+        r.data.uri = uri.clone();
+        r.data.bytes = source.as_bytes().to_vec();
+        r.data.identity = Some(FormatIdentity {
+            content_type: Some(content_type.into()),
+            schema: Some(schema.into()),
+            ..Default::default()
+        });
+        let response = RealCemMlEngine::new().transform(r).unwrap();
+        let html = response
+            .primary
+            .as_str()
+            .unwrap_or_else(|| panic!("{suffix}: {:?}", response.diagnostics));
+        assert!(
+            html.contains("<p>From source</p>") && html.contains("<article>Published</article>"),
+            "{html}"
+        );
+        assert!(html.starts_with("<!doctype html>"), "{html}");
+        let text_offset = html.find("From source").unwrap() as u64;
+        let origin = response
+            .output_spans
+            .iter()
+            .find(|span| {
+                span.output_range.start <= text_offset && span.output_range.end() > text_offset
+            })
+            .expect("written text retains its source range");
+        let offset = source.find("From source").unwrap() as u64;
+        let includes = |span: &FrameSpan| {
+            let ranges = match span {
+                FrameSpan::Single(range) => std::slice::from_ref(range),
+                FrameSpan::Multi(ranges) => ranges,
+            };
+            ranges
+                .iter()
+                .any(|range| range.start <= offset && range.end() > offset)
+        };
+        assert!(origin.origin.frames.iter().any(|frame| {
+            matches!(&frame.transform, TransformKind::SourceBoundary { uri: origin } if *origin == uri)
+                && includes(&frame.span)
+        }), "{:?}", origin.origin);
+        if suffix == "cem" {
+            assert!(
+                html.contains(r#"<base href="/assets/">"#)
+                    && html.contains(r#"<svg viewBox="0 0 24 24">"#),
+                "{html}"
+            );
+        }
+        if suffix == "cem.md" {
+            assert!(
+                html.contains("<pre><code>{p | Literal}")
+                    && html.contains("<th>A</th>")
+                    && html.contains("<td>2</td>"),
+                "{html}"
+            );
+            assert!(origin.origin.frames.iter().any(|frame| {
+                matches!(&frame.transform, TransformKind::SourceBoundary { uri: origin } if origin.starts_with(&format!("{uri}#cem-ml-fence-")))
+            }));
+        }
+    }
+}
+
+#[test]
+fn markdown_page_cpu_exhaustion_precedes_route_and_unsafe_markup_is_refused() {
+    let mut r = request("text/html");
+    r.data.uri = "file:///source/page.cem.md".into();
+    r.data.identity = Some(FormatIdentity {
+        content_type: Some(cem_ml::ssr_route::SSR_MARKDOWN_PAGE_CONTENT_TYPE.into()),
+        schema: Some(cem_ml::ssr_route::SSR_MARKDOWN_PAGE_SCHEMA.into()),
+        ..Default::default()
+    });
+    let mut expensive = r.clone();
+    expensive.data.bytes = "# Repeated paragraph\n\n".repeat(35_000).into_bytes();
+    expensive.params.insert("cpu-ms".into(), json!(1));
+    expensive
+        .params
+        .insert("page-url".into(), json!("invalid route"));
+    let refused = RealCemMlEngine::new().transform(expensive).unwrap();
+    assert!(refused.primary.is_null());
+    assert!(
+        refused.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.ssr.page_ingress"
+                && diagnostic.message.contains("CPU budget exhausted")
+        }),
+        "{:?}",
+        refused.diagnostics
+    );
+
+    for source in [
+        "<script>throw 1</script>\n",
+        "```cem-ml\n{iframe @srcdoc='unsafe'}\n```\n",
+        "[unsafe](javascript:alert)\n",
+    ] {
+        let mut r = r.clone();
+        r.context.operation_control = OperationControl::default();
+        r.data.bytes = source.as_bytes().to_vec();
+        let output = RealCemMlEngine::new().transform(r).unwrap();
+        assert!(output.primary.is_null());
+        assert!(
+            output.diagnostics.iter().any(|diagnostic| {
+                matches!(
+                    diagnostic.code.as_str(),
+                    "cem.ssr.page_ingress"
+                        | "cem.markdown.embedded_html_rejected"
+                        | "cem.unsafe.srcdoc"
+                )
+            }),
+            "{:?}",
+            output.diagnostics
+        );
+    }
+}
+
+#[test]
+fn deeply_nested_cem_page_refuses_before_recursive_projection() {
+    let mut r = request("text/html");
+    r.data.uri = "file:///source/deep.cem".into();
+    r.data.identity = Some(FormatIdentity {
+        content_type: Some(cem_ml::ssr_route::SSR_CEM_PAGE_CONTENT_TYPE.into()),
+        schema: Some(cem_ml::ssr_route::SSR_CEM_PAGE_SCHEMA.into()),
+        ..Default::default()
+    });
+    r.data.bytes = format!(
+        "{{html | {{head}}{{body | {}{} }}}}",
+        "{div | ".repeat(80),
+        "}".repeat(80)
+    )
+    .into_bytes();
+    let response = RealCemMlEngine::new().transform(r).unwrap();
+    assert!(response.primary.is_null());
+    assert!(
+        response
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("native document nesting limit")),
+        "{:?}",
+        response.diagnostics
+    );
+}
+
+#[test]
 fn html_parser_can_exhaust_the_original_cpu_budget_before_route_preflight() {
     let mut r = request("text/html");
     let html = format!(

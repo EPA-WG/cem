@@ -37,10 +37,19 @@ fn params() -> [&'static str; 9] {
     ]
 }
 fn direct(root: &std::path::Path, target: &str, extra: &[&str]) -> std::process::Output {
+    direct_page(root, "page.html", target, extra)
+}
+
+fn direct_page(
+    root: &std::path::Path,
+    source: &str,
+    target: &str,
+    extra: &[&str],
+) -> std::process::Output {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_cem-ml"));
     cmd.current_dir(root).args([
         "transform",
-        "page.html",
+        source,
         "--template",
         "ssr.cemt",
         "--template-content-type",
@@ -187,13 +196,22 @@ fn direct_cli_refuses_coloring_without_replacing_existing_output() {
     fs::remove_dir_all(root).unwrap();
 }
 fn config_cli(root: &std::path::Path, args: &[&str]) -> std::process::Output {
+    config_page(root, "page.html", r#"@content-type="text/html""#, args)
+}
+
+fn config_page(
+    root: &std::path::Path,
+    source: &str,
+    identity: &str,
+    args: &[&str],
+) -> std::process::Output {
     let mut bindings = String::new();
     for param in &params() {
         let (k, v) = param.split_once('=').unwrap();
         bindings.push_str(&format!("{{param @name=\"{k}\" @value='{v}'}}"));
     }
     let config = format!(
-        r#"{{run | {{import @id=page @src="page.html" @content-type="text/html" | {{transform @id=ready @src="ssr.cemt" @template-content-type="text/cem-ml" @entrypoint="ssr:render-page" | {bindings} {{export @id=html @out="page-out.html" @content-type="text/html"}} {{export @id=report @out="page-out.json" @content-type="application/vnd.cem.ssr-report+json"}} }} }} }}"#
+        r#"{{run | {{import @id=page @src="{source}" {identity} | {{transform @id=ready @src="ssr.cemt" @template-content-type="text/cem-ml" @entrypoint="ssr:render-page" | {bindings} {{export @id=html @out="page-out.html" @content-type="text/html"}} {{export @id=report @out="page-out.json" @content-type="application/vnd.cem.ssr-report+json"}} }} }} }}"#
     );
     fs::write(root.join("run.cem"), config).unwrap();
     Command::new(env!("CARGO_BIN_EXE_cem-ml"))
@@ -202,6 +220,73 @@ fn config_cli(root: &std::path::Path, args: &[&str]) -> std::process::Output {
         .args(args)
         .output()
         .unwrap()
+}
+
+#[test]
+fn page_profiles_work_in_direct_and_config_cli() {
+    let root = fixture();
+    let declaration = r#"{cem-element @tag=x-card @version="1.2.3" | {template @id=x-card @type="text/cem-ml" |```{article | Published}```}}{x-card}"#;
+    let cem = format!("{{html | {{head | {{title | CEM page}}}}{{body | {declaration}}}}}");
+    let markdown = format!("# Markdown page\n\n```cem-ml\n{declaration}\n```\n");
+    for (source, bytes, extra, config_identity) in [
+        (
+            "page.cem",
+            cem.as_str(),
+            &["--data-content-type", "application/vnd.cem.page+cem"][..],
+            r#"@content-type="application/vnd.cem.page+cem""#,
+        ),
+        ("page.cem.md", markdown.as_str(), &[][..], ""),
+    ] {
+        fs::write(root.join(source), bytes).unwrap();
+        for out in [
+            direct_page(&root, source, "text/html", extra),
+            config_page(&root, source, config_identity, &[]),
+        ] {
+            assert!(
+                out.status.success(),
+                "{}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+        for dest in ["out.html", "page-out.html"] {
+            let html = fs::read_to_string(root.join(dest)).unwrap();
+            assert!(
+                html.contains("<article>Published</article>") && html.contains("data-cem-island="),
+                "{html}"
+            );
+            let map: serde_json::Value =
+                serde_json::from_slice(&fs::read(root.join(format!("{dest}.map"))).unwrap())
+                    .unwrap();
+            let spans = map["outputSpans"].as_array().expect("HTML output spans");
+            assert!(spans.iter().any(|span| span.to_string().contains(source)));
+            if source.ends_with(".cem.md") {
+                assert!(spans.iter().any(|span| span.to_string().contains("#cem-ml-fence-")));
+            }
+        }
+        let report: serde_json::Value =
+            serde_json::from_slice(&fs::read(root.join("page-out.json")).unwrap()).unwrap();
+        assert_eq!(report["usage"]["totalBytes"], bytes.len());
+        assert!(report["route"]["sourceUri"]
+            .as_str()
+            .unwrap()
+            .ends_with(source));
+    }
+    let prior = fs::read(root.join("out.html")).unwrap();
+    let prior_map = fs::read(root.join("out.html.map")).unwrap();
+    fs::write(root.join("plain.md"), markdown).unwrap();
+    let plain = direct_page(&root, "plain.md", "text/html", &[]);
+    assert!(!plain.status.success());
+    assert!(String::from_utf8_lossy(&plain.stderr).contains("opted-in CEM page profile"));
+    let override_profile = direct_page(
+        &root,
+        "page.cem.md",
+        "text/html",
+        &["--data-content-type", "text/markdown"],
+    );
+    assert!(!override_profile.status.success());
+    assert_eq!(fs::read(root.join("out.html")).unwrap(), prior);
+    assert_eq!(fs::read(root.join("out.html.map")).unwrap(), prior_map);
+    fs::remove_dir_all(root).unwrap();
 }
 
 #[test]

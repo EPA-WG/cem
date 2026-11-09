@@ -512,7 +512,7 @@ fn validate(
         return Err(refused("inventory"));
     }
     let mut resources = 0u32;
-    let mut bytes = settled.page.source_document().source.byte_length as u64;
+    let mut bytes = settled.page.authored_page_byte_length();
     for participant in &settled.participants {
         let input = participant.pass.input();
         resources = resources

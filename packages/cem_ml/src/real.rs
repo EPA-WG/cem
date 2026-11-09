@@ -2396,6 +2396,25 @@ pub(crate) fn prepare_cem_query_input(
     )
 }
 
+/// SSR page conversion validates the retained CEM source without opening
+/// package example or converter artifacts from authored markup.
+pub(crate) fn prepare_cem_ssr_page(
+    bytes: &[u8],
+    root_scope: &ScopeConfig,
+    context: &EngineContext,
+    source_uri: &str,
+) -> PipelineRun {
+    run_pipeline_as_with_validation_phase(
+        bytes,
+        InputFormat::Cem,
+        Some(root_scope),
+        Some(context),
+        Some(source_uri),
+        true,
+        false,
+    )
+}
+
 fn run_pipeline_as_with_model_validation(
     bytes: &[u8],
     from_format: InputFormat,
@@ -3559,11 +3578,7 @@ fn load_transform_data_artifact(
             if input.bytes.len() > budget.max_bytes {
                 return Err("Original SSR page byte budget exceeded before HTML parsing".into());
             }
-            if admit_base {
-                Ok(LifecycleRegistry::with_builtin_adapters().load_ssr_page(input, context))
-            } else {
-                Ok(load_source_input_through_lifecycle(input, context))
-            }
+            crate::ssr_source::load_page(input, context, budget.max_bytes, admit_base)
         }) {
             Ok(loaded) => loaded,
             Err(message) => {
@@ -4463,7 +4478,7 @@ fn transform_graph_export_primary(
         }
     }
 
-    let primary = transform_artifact_export_primary(
+    let (primary, written_spans) = transform_artifact_export_primary(
         context,
         artifact,
         target,
@@ -4475,7 +4490,11 @@ fn transform_graph_export_primary(
         primary,
         None,
         metadata.source_map.clone(),
-        metadata.output_spans.clone(),
+        if written_spans.is_empty() {
+            metadata.output_spans.clone()
+        } else {
+            written_spans.to_vec()
+        },
     ))
 }
 
@@ -4533,7 +4552,7 @@ fn transform_artifact_export_primary(
     target_scope: &ScopeConfig,
     source_map: Option<&SourceMapStack>,
     output_spans: &[OutputSpan],
-) -> Result<Value, String> {
+) -> Result<(Value, Arc<[OutputSpan]>), String> {
     if let TransformArtifactBody::Extension(native) = &artifact.body {
         native.validate_publication(&context.operation_control, target_scope, false)?;
     }
@@ -4557,7 +4576,7 @@ fn transform_artifact_export_primary(
         }
     };
 
-    match encoded.encoding {
+    let primary = match encoded.encoding {
         TransformEncoding::Text => std::str::from_utf8(encoded.bytes.as_ref())
             .map(|text| Value::String(text.to_owned()))
             .map_err(|error| format!("encoded transform text is not valid UTF-8: {error}")),
@@ -4566,7 +4585,8 @@ fn transform_artifact_export_primary(
         TransformEncoding::Binary => {
             Err("binary transform artifacts require a byte-capable response boundary".to_owned())
         }
-    }
+    }?;
+    Ok((primary, Arc::clone(&encoded.output_spans)))
 }
 
 fn transform_graph_target_is_css(target: Option<&FormatIdentity>) -> bool {
@@ -14170,7 +14190,7 @@ impl CemMlEngine for RealCemMlEngine {
 
         let output_artifact = transform_data_artifact_from_output("output", &rendered)
             .map_err(EngineError::Internal)?;
-        let primary = match transform_artifact_export_primary(
+        let (primary, written_spans) = match transform_artifact_export_primary(
             &request.context,
             &output_artifact,
             request.target.as_ref().or(rendered.identity.as_ref()),
@@ -14187,7 +14207,7 @@ impl CemMlEngine for RealCemMlEngine {
                     message,
                     ..Diagnostic::default()
                 });
-                Value::Null
+                (Value::Null, Arc::default())
             }
         };
 
@@ -14195,7 +14215,11 @@ impl CemMlEngine for RealCemMlEngine {
         Ok(TransformResponse {
             primary,
             source_map: rendered.source_map,
-            output_spans: rendered.output_spans,
+            output_spans: if written_spans.is_empty() {
+                rendered.output_spans
+            } else {
+                written_spans.to_vec()
+            },
             diagnostics,
             scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
         })

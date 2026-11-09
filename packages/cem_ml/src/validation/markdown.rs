@@ -1113,7 +1113,7 @@ fn content_type_parameters(content_type: Option<&str>) -> BTreeMap<String, Strin
         .collect()
 }
 
-fn content_type_parameter(content_type: &str, name: &str) -> Option<String> {
+pub(crate) fn content_type_parameter(content_type: &str, name: &str) -> Option<String> {
     content_type_parameters(Some(content_type)).remove(&name.to_ascii_lowercase())
 }
 

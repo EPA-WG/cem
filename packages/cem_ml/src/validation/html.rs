@@ -1,3 +1,5 @@
+#[path = "html/ssr_projection.rs"]
+pub(crate) mod ssr_projection;
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::schema::document_model::compile_schema_document_model;
 use crate::schema::package_sources::builtin_schema_package_source;
@@ -27,6 +29,7 @@ pub struct HtmlSourceValidationRequest<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HtmlDocumentAst {
+    ssr_authored_source: Option<crate::ssr_source::AuthoredPageSource>,
     // Only native conversion routes may grant inert projection admission.
     // Source identity/provenance and public source parsers never grant it.
     import_profile: HtmlImportProfile,
@@ -63,6 +66,51 @@ impl HtmlDocumentAst {
                 kind,
                 HtmlFactKind::ExternalResourceRejected | HtmlFactKind::ScriptRejected
             )
+    }
+
+    /// The authored input that the normalized SSR page is bound to.
+    pub fn ssr_source_dependency(&self) -> crate::dependency_identity::SourceDependency {
+        use crate::dependency_identity::{DependencyVersion, SourceDependency};
+        if let Some(source) = &self.ssr_authored_source {
+            return source.dependency.clone();
+        }
+        SourceDependency {
+            content_type: HTML_CONTENT_TYPE.into(),
+            schema: Some(HTML_SCHEMA_URI.into()),
+            version: DependencyVersion::Content(crate::content_cache::ContentHash::from_blake3(
+                self.source_text.as_bytes(),
+            )),
+        }
+    }
+
+    pub(crate) fn ssr_source_matches(&self, root: &crate::dependency_identity::SourceDependency) -> bool {
+        let expected = self.ssr_source_dependency();
+        if self.ssr_authored_source.is_some() {
+            return root == &expected;
+        }
+        root.version == expected.version
+            && root.schema == expected.schema
+            && content_type_essence(&root.content_type) == self.source.media_type
+    }
+
+    pub(crate) fn ssr_authored_byte_length(&self) -> usize {
+        self.ssr_authored_source
+            .as_ref()
+            .map_or(self.source.byte_length, |source| source.byte_length)
+    }
+
+    pub(crate) fn ssr_authored_source_map(&self) -> Option<SourceMapStack> {
+        if let Some(source) = &self.ssr_authored_source {
+            return Some(source.origin.clone());
+        }
+        self.source_map_for_range(HtmlSourceRange {
+            start: HtmlSourcePosition {
+                line: 1,
+                column: 1,
+                byte_offset: 0,
+            },
+            byte_length: self.source_text.len() as u64,
+        })
     }
 
     pub fn source_map_for_range(&self, range: HtmlSourceRange) -> Option<SourceMapStack> {
@@ -894,7 +942,7 @@ fn parse_html_document(
         tokens.push(token);
     }
     let tokenizer_diagnostics = tokenizer.take_diagnostics();
-    let mut facts = tokenizer_diagnostics
+    let facts = tokenizer_diagnostics
         .iter()
         .map(|diagnostic| HtmlFact {
             kind: HtmlFactKind::ParseError,
@@ -905,11 +953,29 @@ fn parse_html_document(
             value: Some(diagnostic.code.clone()),
         })
         .collect::<Vec<_>>();
-    let mime_charset = parameters.get("charset").cloned();
-    let build = build_html_events(
+    html_document_from_tokens(
         source,
+        source_info,
         &line_index,
         &tokens,
+        facts,
+        admit_ssr_base,
+    )
+}
+
+fn html_document_from_tokens(
+    source: &str,
+    source_info: HtmlDocumentSource,
+    line_index: &LineIndex,
+    tokens: &[SchemaToken],
+    mut facts: Vec<HtmlFact>,
+    admit_ssr_base: bool,
+) -> (Option<HtmlDocumentAst>, Vec<Diagnostic>) {
+    let mime_charset = source_info.parameters.get("charset").cloned();
+    let build = build_html_events(
+        source,
+        line_index,
+        tokens,
         mime_charset.as_deref(),
         &mut facts,
     );
@@ -952,6 +1018,7 @@ fn parse_html_document(
         value: Some(normalized_encoding.clone()),
     });
     let ast = HtmlDocumentAst {
+        ssr_authored_source: None,
         import_profile: HtmlImportProfile::Source,
         origin_spans: None,
         metadata: None,
@@ -971,7 +1038,7 @@ fn parse_html_document(
         line_ending: detect_line_ending(source),
     };
     let diagnostics = html_fact_diagnostics(
-        request.source_uri,
+        &ast.source.uri,
         &ast.source.media_type,
         &ast.facts,
         HtmlSchemaContractCatalog::from_builtin(),

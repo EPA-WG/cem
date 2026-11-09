@@ -11,7 +11,7 @@ use crate::ssr_route::{SsrBasePolicy, SsrBaseSelection, SsrPageRoute};
 use crate::transform_artifact::{
     TransformArtifactBody, TransformDataArtifact, TransformNativeArtifact,
 };
-use crate::validation::html::{HtmlDocumentAst, HtmlSourcePosition, HtmlSourceRange};
+use crate::validation::html::HtmlDocumentAst;
 
 pub const SSR_PAGE_CONTENT_TYPE: &str = "application/vnd.cem.ssr-page+cem-bin";
 pub const SSR_PAGE_SCHEMA: &str = "https://cem.dev/ns/projection/ssr-page/1";
@@ -164,20 +164,13 @@ impl CemSsrPageArtifact {
         policy.validate()?;
         identity.validate_protocol()?;
         let usage = SsrExecutionUsage {
-            total_bytes: source.source.byte_length as u64,
+            total_bytes: source.ssr_authored_byte_length() as u64,
             ..SsrExecutionUsage::default()
         };
         if !usage.within(&policy) {
             return Err(SsrArtifactError::BudgetExceeded);
         }
-        let source_map = source.source_map_for_range(HtmlSourceRange {
-            start: HtmlSourcePosition {
-                line: 1,
-                column: 1,
-                byte_offset: 0,
-            },
-            byte_length: source.source_text.len() as u64,
-        });
+        let source_map = source.ssr_authored_source_map();
         let artifact = Self {
             source,
             document,
@@ -202,6 +195,10 @@ impl CemSsrPageArtifact {
         };
         artifact.check_metadata_bounds()?;
         Ok(artifact)
+    }
+
+    pub fn authored_page_byte_length(&self) -> u64 {
+        self.source.ssr_authored_byte_length() as u64
     }
 
     pub fn source_document(&self) -> &Arc<HtmlDocumentAst> {
@@ -300,14 +297,7 @@ impl CemSsrPageArtifact {
             .sources
             .get(&dependencies.root_uri)
             .ok_or(SsrArtifactError::IdentityIncomplete)?;
-        if root.version
-            != DependencyVersion::Content(ContentHash::from_blake3(
-                self.source.source_text.as_bytes(),
-            ))
-            || crate::schema::registry::content_type_essence(&root.content_type)
-                != self.source.source.media_type
-            || root.schema.as_deref() != Some(crate::schema::registry::HTML_SCHEMA_URI)
-        {
+        if !self.source.ssr_source_matches(root) {
             return Err(SsrArtifactError::IdentityIncomplete);
         }
         let closure = dependencies

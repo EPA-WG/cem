@@ -272,17 +272,21 @@ the result for hydration.
 
 ### 4.2 CEM-ML
 
-A `.cem` page should use a dedicated page-document schema, proposed as:
+A `.cem` page selects the dedicated page-document profile:
 
 ```text
 content type: application/vnd.cem.page+cem
 schema:       https://cem.dev/ns/page/1
 ```
 
-The schema describes a document whose output nodes have explicit HTML, SVG, or
-MathML namespace identity and may contain `cem-element` declarations and DCE
-instances. A registered converter lowers it directly into the same DOM
-projection used by HTML input.
+Select the profile with `--data-content-type application/vnd.cem.page+cem` or
+the matching data schema. Config imports can select it with `@content-type`
+or `@schema`. The document contains one `html` element with `head` followed by
+`body`. Bare names default to HTML. The projection uses resolved CEM
+namespace bindings for SVG and checks their HTML embedding context. The
+ordinary CEM namespace policy still applies to authored markup. In particular,
+the built-in page profile does not supply a CEM MathML schema. The native CEM
+parser and typed HTML event builder carry source ranges across conversion.
 
 A CEM-native template module is a different source kind. If a `.cem` file is a
 template module, an earlier transform stage must render its selected entrypoint
@@ -291,18 +295,24 @@ without a page or template schema is too ambiguous and must diagnose.
 
 ### 4.3 `.cem.md`
 
-`.cem.md` should be an explicit CEM-enabled Markdown profile, not an extension
-that silently changes generic Markdown behavior. The proposed identity is:
+`.cem.md` selects the CEM-enabled Markdown profile at the SSR CLI boundary
+when no source identity is supplied. Use the same profile explicitly in a
+config or with an ordinary filename:
 
 ```text
 content type: text/markdown; charset=utf-8; variant=CEM
 schema:       https://cem.dev/ns/page/cem-markdown/1
 ```
 
-Normal Markdown blocks first lower through the existing typed Markdown AST.
-The profile may additionally admit explicitly labelled CEM-ML page fragments.
-Those fragments are parsed as CEM-ML and joined into the page DOM AST with
-source-map frames for both the Markdown fence and embedded source.
+Markdown blocks lower through the existing GFM event stream into a synthetic
+HTML document. Fences whose info string is exactly `cem-ml` contribute typed
+CEM-ML fragments to the body. Their source maps include both the authored
+Markdown range and the embedded CEM-ML source. The generated document
+envelope has no authored range.
+The CLI writes those authored ranges and rendered HTML spans to its usual
+`.map` sidecars. The projection admits passive markup and component-owned
+styles inside CEM templates. Standalone projected stylesheet elements require
+a separate resource admission profile.
 
 Unlabelled fences remain code. Raw embedded HTML remains subject to the existing
 trust policy. Ordinary `.md` with CommonMark or GFM identity does not execute
@@ -950,9 +960,11 @@ the public page URL remains independent. Physical output destinations remain
 owned by the normal CLI publication transaction. The retained render artifact
 has no destination because a graph may export it more than once.
 
-The supported input is an already-admitted native HTML document with unique
-inline declarations. The coordinator discovers nested participants, retains
-native payload source leases and handles inline declaration and instance CSS.
+The supported input profiles are HTML, explicit CEM-ML pages and opted-in
+CEM Markdown with unique inline declarations. They converge on the native
+HTML event owner before the coordinator discovers nested participants,
+retains payload source leases and handles inline declaration and instance CSS.
+Source identity and byte accounting remain tied to the authored file.
 To fulfill CSS `@import` tickets, add a public-URL read map to either CLI form.
 For example, `--resolver-read-map https://example.test/guide/=/work/cem/styles/`
 maps `https://example.test/guide/theme.css` to `/work/cem/styles/theme.css`.
@@ -977,7 +989,8 @@ operation, a refused read, or a parser error aborts the page before export.
 The direct CLI and concrete config imports acquire regular local page files
 under the original operation. The file size is checked before opening and
 the bounded reader checks byte, wall and CPU budgets while reading.
-The CPU receipt then includes shared native HTML parsing, bridge preparation,
+The CPU receipt then includes native source parsing, typed page conversion,
+bridge preparation,
 external stylesheet acquisition and parsing, lifecycle work, readiness and
 synchronous exports. For native callers that supply bytes, measurement starts
 at parsing. Config and template acquisition are outside the measured CPU

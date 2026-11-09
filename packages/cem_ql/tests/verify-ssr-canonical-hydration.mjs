@@ -15,7 +15,10 @@ const builtin = path.join(root, 'packages/cem_ml_transform_cem_ql/templates/ssr-
 const cli = path.join(root, `dist/target/cem_ml_cli/debug/cem-ml${process.platform === 'win32' ? '.exe' : ''}`);
 const template = '{article | {$ datadom.slots.heading}}';
 async function render(body, versions, extra = [], head = '') {
-    await writeFile(source, `<!doctype html><html><head><title>Canonical SSR</title>${head}</head><body>${body}</body></html>`);
+    return renderSource(source, `<!doctype html><html><head><title>Canonical SSR</title>${head}</head><body>${body}</body></html>`, versions, extra);
+}
+async function renderSource(source, content, versions, extra = []) {
+    await writeFile(source, content);
     execFileSync(cli, ['transform', source, '--template', builtin, '--template-content-type', 'text/cem-ml',
         '--template-entrypoint', 'ssr:render-page', '--to-content-type', 'text/html', '--out', output,
         ...['page-url=https://ssr.example.test/', `consumer-versions=${versions}`, 'max-depth=8',
@@ -72,10 +75,17 @@ try {
         '</template></cem-element><x-mapped></x-mapped><article>Outside</article>',
     ].join(''), 'x-mapped=1.9.0', ['--resolver-read-map', `https://ssr.example.test/assets/=${mirror}`],
     '<base href="/assets/">');
+    const authored = '{cem-element @tag=x-authored @version="1.2.3" | {template @id=x-authored @type="text/cem-ml" |```{article | From source}```}}{x-authored}';
+    const cemPage = await renderSource(path.join(temp, 'source.cem'),
+        `{html | {head | {title | Native page}}{body | ${authored}}}`,
+        'x-authored=1.9.0', ['--data-content-type', 'application/vnd.cem.page+cem']);
+    const markdownPage = await renderSource(path.join(temp, 'source.cem.md'),
+        `# Native page\n\n\`\`\`cem-ml\n${authored}\n\`\`\`\n`, 'x-authored=1.9.0');
+    const authoredPages = ['/cem.html', '/cem-markdown.html'];
     const pages = new Map([
         ['/ssr.html', html], ['/nested.html', nested], ['/direct.html', direct], ['/styled.html', styled],
         ['/foreign.html', foreign], ['/source.html', cemSource], ['/forms.html', forms],
-        ['/mapped.html', mapped],
+        ['/mapped.html', mapped], [authoredPages[0], cemPage], [authoredPages[1], markdownPage],
     ]);
     assert.match(html, /<article><strong\b[^>]*\bslot="heading"[^>]*>Island input<\/strong><\/article>/);
     assert.match(html, /data-cem-ssr-profile="cem-native-inline\/1"/);
@@ -637,9 +647,37 @@ try {
     assert.equal(mappedResult.marked, true);
     assert.ok(mappedResult.diagnostics.includes('cem-element.hydration_native_refused'));
     await page.close();
+    for (const route of authoredPages) {
+        const page = await browser.newPage();
+        page.on('pageerror', error => errors.push(error.message));
+        await page.route('**/*', request => {
+            if (new URL(request.request().url()).origin === origin) return request.continue();
+            requests.push(request.request().url()); return request.abort();
+        });
+        await page.goto(`${origin}${route}`);
+        const result = await page.evaluate(async () => {
+            const { CemElementRuntime } = await import('/packages/cem-elements/dist/lib/cem-elements.js');
+            const host = document.querySelector('x-authored');
+            const article = host.querySelector('article');
+            const declaration = document.querySelector('cem-element');
+            const runtime = new CemElementRuntime({ processingWorkerFactory: () => { throw new Error('Use main-thread runtime'); } });
+            runtime.install(window);
+            await runtime.whenDeclarationSettled(declaration);
+            await runtime.whenRenderSettled(host);
+            return {
+                text: article?.textContent,
+                retained: host.querySelector('article') === article,
+                diagnostics: runtime.diagnosticsFor(host).map(d => d.code),
+            };
+        });
+        assert.equal(result.text, 'From source', JSON.stringify(result));
+        assert.equal(result.retained, true, JSON.stringify(result));
+        assert.ok(!result.diagnostics.includes('cem-element.hydration_native_refused'), JSON.stringify(result));
+        await page.close();
+    }
     assert.deepEqual(errors, []); assert.deepEqual(requests, []);
-    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + 1;
-    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} stylesheet, ${payloadCases.length} foreign/source, ${formCases.length} form and one mapped CSS scenario, zero external requests`);
+    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + authoredPages.length + 1;
+    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} stylesheet, ${payloadCases.length} foreign/source, ${formCases.length} form, two authored source profiles and one mapped CSS scenario, zero external requests`);
 } finally {
     await browser?.close();
     if (server) await new Promise(resolve => server.close(resolve));

@@ -1242,6 +1242,14 @@ impl<'a> TransformGraphRequestLowerer<'a> {
                 node.content_type.clone(),
                 node.schema.clone(),
             );
+            if self.deferred_ssr_pages.contains_key(&node.id) {
+                crate::ssr_route::set_ssr_source_defaults(
+                    &mut input.root_scope,
+                    &input.uri,
+                    node.content_type.is_some(),
+                );
+                input.identity = input.root_scope.format_identity_option();
+            }
             if node.opaque {
                 // Opaque publication never claims the source's parsed schema or namespaces.
                 let content_type = input

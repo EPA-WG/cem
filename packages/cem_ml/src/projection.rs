@@ -2011,11 +2011,27 @@ pub fn cem_tree_nodes_with_source_content_type(
     doc: &CemDocument,
     source_content_type: Option<&str>,
 ) -> CemTreeAstStream {
+    project_cem_tree_roots(doc, source_content_type, None)
+}
+
+/// Project names from the native lexical capture for a page conversion.
+pub(crate) fn cem_tree_nodes_with_lexical_names(
+    captured: &crate::schema::machine::LexicallyScopedDocument,
+    source_content_type: &str,
+) -> CemTreeAstStream {
+    project_cem_tree_roots(captured.document(), Some(source_content_type), Some(captured))
+}
+
+fn project_cem_tree_roots(
+    doc: &CemDocument,
+    source_content_type: Option<&str>,
+    captured: Option<&crate::schema::machine::LexicallyScopedDocument>,
+) -> CemTreeAstStream {
     match doc.root() {
         Some(CemAstNode::Document { root_children, .. }) => CemTreeAstStream::new(
             root_children
                 .iter()
-                .filter_map(|id| project_cem_tree_node(doc, *id, source_content_type))
+                .filter_map(|id| project_cem_tree_node(doc, *id, source_content_type, captured))
                 .collect(),
         ),
         _ => CemTreeAstStream::empty(),
@@ -2195,8 +2211,14 @@ fn project_cem_tree_node(
     doc: &CemDocument,
     id: AstNodeId,
     source_content_type: Option<&str>,
+    captured: Option<&crate::schema::machine::LexicallyScopedDocument>,
 ) -> Option<CemTreeAstNode> {
     let node = doc.get(id)?;
+    if captured.is_some()
+        && matches!(node, CemAstNode::Element { expanded_name, .. } if expanded_name.local_name.starts_with('@'))
+    {
+        return None;
+    }
     // Source output lowers the original slot to its canonical directive spelling.
     // This is presentation only; the retained arena and lexical sidecar stay native.
     if let Some(syntax) = doc.typed_preludes.get(&id) {
@@ -2240,7 +2262,7 @@ fn project_cem_tree_node(
         } => CemTreeAstNode::Document {
             children: root_children
                 .iter()
-                .filter_map(|id| project_cem_tree_node(doc, *id, source_content_type))
+                .filter_map(|id| project_cem_tree_node(doc, *id, source_content_type, captured))
                 .collect(),
             source: source_map_with_content_type_transform(source, source_content_type),
         },
@@ -2253,19 +2275,22 @@ fn project_cem_tree_node(
         } => {
             let mut attrs = attributes
                 .iter()
-                .filter_map(|aid| project_cem_tree_attribute(doc, *aid, source_content_type))
+                .filter_map(|aid| project_cem_tree_attribute(doc, *aid, source_content_type, captured))
                 .collect::<Vec<_>>();
             attrs.sort_by(|left, right| {
                 let left_name = left.name.as_str();
                 let right_name = right.name.as_str();
                 (left_name.contains(':'), left_name).cmp(&(right_name.contains(':'), right_name))
             });
+            let name = captured
+                .and_then(|scope| scope.expanded_name(scope.document(), id))
+                .unwrap_or(expanded_name);
             CemTreeAstNode::Element {
-                name: projected_expanded_name(expanded_name),
+                name: projected_expanded_name(name),
                 attributes: attrs,
                 children: children
                     .iter()
-                    .filter_map(|cid| project_cem_tree_node(doc, *cid, source_content_type))
+                    .filter_map(|cid| project_cem_tree_node(doc, *cid, source_content_type, captured))
                     .collect(),
                 source: source_map_with_content_type_transform(source, source_content_type),
             }
@@ -2314,6 +2339,7 @@ fn project_cem_tree_attribute(
     doc: &CemDocument,
     id: AstNodeId,
     source_content_type: Option<&str>,
+    captured: Option<&crate::schema::machine::LexicallyScopedDocument>,
 ) -> Option<CemTreeAstAttribute> {
     let CemAstNode::Attribute {
         expanded_name,
@@ -2325,12 +2351,18 @@ fn project_cem_tree_attribute(
     else {
         return None;
     };
+    // HTML default namespaces apply to elements. An unqualified CEM
+    // attribute remains unqualified when the page projects it to HTML.
+    let name = captured
+        .filter(|_| !expanded_name.namespace_uri.is_empty())
+        .and_then(|scope| scope.expanded_name(scope.document(), id))
+        .unwrap_or(expanded_name);
     Some(CemTreeAstAttribute {
-        name: projected_expanded_name(expanded_name),
+        name: projected_expanded_name(name),
         value: value.clone(),
         value_nodes: value_nodes
             .iter()
-            .filter_map(|id| project_cem_tree_node(doc, *id, source_content_type))
+            .filter_map(|id| project_cem_tree_node(doc, *id, source_content_type, captured))
             .collect(),
         source: source_map_with_content_type_transform(source, source_content_type),
     })

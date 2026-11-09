@@ -15,6 +15,52 @@ use crate::validation::html::{
 use url::Url;
 
 pub const SSR_PAGE_ENTRYPOINT: &str = "ssr:render-page";
+pub const SSR_CEM_PAGE_CONTENT_TYPE: &str = "application/vnd.cem.page+cem";
+pub const SSR_CEM_PAGE_SCHEMA: &str = "https://cem.dev/ns/page/1";
+pub const SSR_MARKDOWN_PAGE_CONTENT_TYPE: &str = "text/markdown; charset=utf-8; variant=CEM";
+pub const SSR_MARKDOWN_PAGE_SCHEMA: &str = "https://cem.dev/ns/page/cem-markdown/1";
+
+/// Apply SSR source inference without changing ordinary Markdown or CEM inputs.
+pub fn set_ssr_source_defaults(
+    scope: &mut crate::run_config::ScopeConfig,
+    source: &str,
+    explicit_content_type: bool,
+) {
+    if !explicit_content_type {
+        let content_type = match scope.schema.as_deref() {
+            Some(SSR_CEM_PAGE_SCHEMA) => Some(SSR_CEM_PAGE_CONTENT_TYPE),
+            Some(SSR_MARKDOWN_PAGE_SCHEMA) => Some(SSR_MARKDOWN_PAGE_CONTENT_TYPE),
+            None if source.to_ascii_lowercase().ends_with(".cem.md") => {
+                Some(SSR_MARKDOWN_PAGE_CONTENT_TYPE)
+            }
+            _ => None,
+        };
+        if let Some(content_type) = content_type {
+            scope.default_content_type = Some(content_type.into());
+        }
+    }
+    if scope.schema.is_none() {
+        let media = scope
+            .default_content_type
+            .as_deref()
+            .map(crate::schema::registry::content_type_essence);
+        scope.schema = match media.as_deref() {
+            Some(SSR_CEM_PAGE_CONTENT_TYPE) => Some(SSR_CEM_PAGE_SCHEMA.into()),
+            Some("text/markdown")
+                if scope
+                    .default_content_type
+                    .as_deref()
+                    .and_then(|content_type| {
+                        crate::validation::markdown::content_type_parameter(content_type, "variant")
+                    })
+                    .is_some_and(|variant| variant.eq_ignore_ascii_case("cem")) =>
+            {
+                Some(SSR_MARKDOWN_PAGE_SCHEMA.into())
+            }
+            _ => None,
+        };
+    }
+}
 
 /// Limits selected by the trusted page template before the native HTML loader runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

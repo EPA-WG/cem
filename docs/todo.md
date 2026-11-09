@@ -308,9 +308,13 @@ links the corresponding design and verification records.
         that HTML and readiness-report exports share its admitted base.
   - [x] Verify Chromium observes the emitted base URL and scoped mapped CSS
         without external requests.
-- [ ] Admit CEM-ML and opted-in `.cem.md` page sources through the shared native
+- [x] Admit CEM-ML and opted-in `.cem.md` page sources through the shared native
       page import and conversion path. Retain source maps and account for
       acquisition, parsing and conversion under the original SSR operation.
+  - [x] Verify native page projection, authored source identity and fence
+        ranges, including original-operation CPU and unsafe input refusal.
+  - [x] Verify direct and config CLI publication for both formats and plain
+        Markdown refusal. Exercise the resulting page in Chromium.
 - [ ] Preflight multi-page routes and output paths before rendering. Prove
       deterministic and atomic fan-out for HTML and readiness reports. Extend
       bounded acquisition to glob-expanded page imports.

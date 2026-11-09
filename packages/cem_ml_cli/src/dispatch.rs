@@ -1899,9 +1899,14 @@ fn transform_request_from_args(
         .ok_or_else(|| CliRequestError::Usage("transform requires DATA or --config".into()))?;
     let template_entrypoint = transform_template_entrypoint(args.template_entrypoint.as_deref());
     let ssr = template_entrypoint.name.as_deref() == Some(cem_ml_transform_cem_ql::ssr::ENTRYPOINT);
-    let data_scope = transform_data_scope(args, data_path);
+    let mut data_scope = transform_data_scope(args, data_path);
     let data = if ssr {
         validate_ssr_cli_output(args)?;
+        cem_ml::ssr_route::set_ssr_source_defaults(
+            &mut data_scope,
+            &data_path.to_string_lossy(),
+            args.data_content_type.is_some(),
+        );
         None
     } else {
         Some(
