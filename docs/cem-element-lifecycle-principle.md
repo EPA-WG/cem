@@ -583,9 +583,9 @@ implemented but were not executed by that Linux verification run. Other targets,
 including ordinary browser WASM, refuse readiness without an available CPU clock.
 CLI wiring must use the same ledger for any additional owned ingress/lowering work.
 
-Completion of this native proof does not publish HTML, change the frozen
-presentation, wire CLI exports or activate browser hydration. Those are the next
-adoption steps and must use this same validated native core.
+Named CLI publication uses this proof. The browser admission below checks a
+fresh local capture; the server's CPU ledger is never reconstructed in WASM.
+Neither step changes the frozen presentation.
 
 ## Declaration version and SSR compatibility
 
@@ -665,6 +665,37 @@ DOM-native hydration data and rendered output must agree on revision identity.
 On mismatch, retained output is not trusted. The declaration-version fallback
 renders only from an understood island; it never reconstructs payload from stale
 output. Other invalid or unsafe identity conditions continue to fail closed.
+
+### Native CLI island adoption
+
+The readiness-checked HTML exporter adds
+`data-cem-ssr-profile="cem-native-inline/1"` to its owned island templates as
+typed writer metadata. It does not change the retained native tree. The marker
+selects admission; it is not readiness authority, and report metadata cannot
+authorize adoption. Legacy browser islands keep their existing resume path.
+
+The browser captures actual host, island and range nodes through the native DOM
+import boundary. This explicit capture resolves lexical namespace bindings,
+retains source keys and maps, and transports a typed value capsule. Rust checks
+the complete canonical island, current host inputs, bounded passive content and
+the single owned range. It shares declaration version compatibility with the
+server readiness gate. For a compatible version it compares the retained range
+with a fresh native projection of the current declaration and admitted island.
+The comparison does not publish a second render or capture output as payload.
+
+The host rechecks that the declaration, DOM, connection and instance identity
+are current before committing. A match keeps existing rendered nodes, seeds the
+established browser lifecycle and allows normal later invalidation. Missing,
+malformed or incompatible declaration versions use the admitted payload to
+render on load. Unknown island/profile versions, inconsistent or unsafe input,
+duplicate instance IDs, changed ranges and stale captures remain frozen. No
+instance resource or behavior work starts while admission is pending.
+
+The first adoption profile uses the default browser policies and passive CEM-ML
+light DOM with HTML payloads. Nested declarations, scoped CSS, foreign markup,
+CEM source payloads, live slices, form controls and external capabilities still
+require parity/admission work. Adoption records only declaration-level source
+fidelity on the retained browser root. No server byte coordinates are invented.
 
 Structured-clone `DataIslandSnapshot` records remain valid processing-boundary
 transport for workers, Edge, or other non-DOM hosts. They are derived from the

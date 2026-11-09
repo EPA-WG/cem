@@ -547,14 +547,31 @@ pub fn append_dom_node(id: u32, parent: u32, key: &str, kind: &str, namespace: &
 }
 #[wasm_bindgen(js_name = "finishDomPayloadCapture")]
 pub fn finish_dom_capture(id: u32, limits_json: &str) -> Result<Vec<u8>, JsValue> {
+    finish_capture(id,limits_json,false)
+}
+#[wasm_bindgen(js_name = "finishDomLiteralNamespaceCapture")]
+pub fn finish_dom_literal_capture(id:u32,limits_json:&str)->Result<Vec<u8>,JsValue> {
+    finish_capture(id,limits_json,true)
+}
+fn finish_capture(id:u32,limits_json:&str,literal:bool)->Result<Vec<u8>,JsValue> {
     let _native = cem_ml::runtime_admission::admit(false).map_err(JsValue::from_str)?;
     let (capture, _memory, _) = DOM_CAPTURES.with(|s| s.borrow_mut().remove(&id)).ok_or_else(||JsValue::from_str("Unknown DOM capture"))?;
     let limits = limits(limits_json).map_err(|e| JsValue::from_str(&e))?;
-    let tree = capture.finish().map_err(|e|JsValue::from_str(&e))?;
+    let tree = if literal {capture.finish_literal_namespaces()} else {capture.finish()}.map_err(|e|JsValue::from_str(&e))?;
     let children = &tree.node(0).ok_or_else(||JsValue::from_str("Missing DOM capture document"))?.children;
     let [container] = children.as_slice() else { return Err(JsValue::from_str("DOM payload capture requires one container")); };
     let value = crate::eval::RetainedCemNode::new(tree.clone(), *container).ok_or_else(||JsValue::from_str("Missing DOM capture container"))?.query_item();
     crate::eval::portable::encode_values(&ItemStream::once(value), &limits).map_err(|e|JsValue::from_str(&e))
+}
+#[wasm_bindgen(js_name = "admitCanonicalSsrHost")]
+pub fn admit_canonical_ssr_host(bytes:&[u8],tag:&str,version:&str,source:&str)->Result<String,JsValue> {
+    let _native=cem_ml::runtime_admission::admit(false).map_err(JsValue::from_str)?;
+    let _memory=cem_ml::runtime_memory::admit_input(bytes.len().saturating_add(source.len()).saturating_add(tag.len()).saturating_add(version.len())).map_err(|e|JsValue::from_str(e.0))?;
+    let control=cem_ml::operation_control::OperationControl::default();
+    let values=crate::eval::portable::decode_values_with_control(bytes,&crate::instance_island::LIMITS,&control,cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID).map_err(|e|JsValue::from_str(&e.to_string()))?;
+    let [host]=values.items.as_slice() else {return Err(JsValue::from_str("cem.ssr.resume_host"))};
+    let admitted=crate::ssr_browser_resume::admit(host,tag,version,source,&control).map_err(|e|JsValue::from_str(&e))?;
+    serde_json::to_string(&admitted).map_err(|e|JsValue::from_str(&e.to_string()))
 }
 #[wasm_bindgen(js_name = "disposeDomPayloadCapture")]
 pub fn dispose_dom_capture(id: u32) -> bool {

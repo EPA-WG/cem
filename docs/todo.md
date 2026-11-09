@@ -968,8 +968,28 @@ through Phase 9 release governance.
         - [x] Verify CLI-emitted HTML in Chromium for standards mode, nested
               output and inert canonical island prefixes without running a
               second SSR implementation or claiming hydration parity.
-      - [ ] Wire browser hydration/adoption and verify end-to-end parity against
-            the same completed native artifact.
+      - [x] Wire browser adoption to the readiness-checked CLI HTML artifact for
+            the bounded passive CEM-ML and HTML payload profile.
+            Canonical browser 9/9 against the paired optimized core, including
+            unmarked snapshot reload, with zero external requests. Canonical
+            native 6/6, stripped SSR 122/122, component-runtime 17/17, and
+            CLI 4/4 pass. Frozen presentation unchanged.
+            [Archive](archive/todo-completed-ssr-browser-hydration-2026-11-09.md).
+        - [x] Add native DOM-capture fixtures for explicit lexical namespace
+              admission while preserving source ownership and ordinary captures.
+        - [x] Add native canonical-resume fixtures for complete islands, version
+              bands/fallback, exact retained output and host input agreement,
+              unsafe/unknown regions, cancellation and bounded passive profiles.
+        - [x] Verify the profile marker is emitted only by the readiness-checked
+              HTML exporter, without changing the retained native island.
+        - [x] Add browser CLI-output fixtures for retained node adoption, version
+              fallback from payload only, frozen invalid islands, stale admission
+              and reconnect, including resuming the resulting browser snapshot
+              through the existing unmarked path.
+      - [ ] Extend browser adoption parity against the same CLI HTML artifact:
+            coordinate nested participants and scoped CSS, then add foreign
+            markup and native CEM source payloads. Verify live state, form
+            controls, node identity and retained ranges before widening admission.
       - [ ] Extend CLI host admission to external resources, further page-source
             forms and fan-out route/output preflight; account acquisition/parser
             CPU explicitly while preserving the same native proof and ledger.

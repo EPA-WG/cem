@@ -45,6 +45,10 @@ fn named_html_export_renders_nested_native_participants_and_retains_islands() {
     );
     let html = response.primary.as_str().unwrap();
     assert!(html.contains("data-cem-island="), "{html}");
+    assert!(
+        html.contains("data-cem-ssr-profile=\"cem-native-inline/1\""),
+        "{html}"
+    );
     assert!(html.contains("<section>"), "{html}");
     assert!(html.contains("<b>Ready"), "{html}");
     assert!(!html.contains('\u{1b}'));

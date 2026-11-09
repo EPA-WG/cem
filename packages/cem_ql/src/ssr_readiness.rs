@@ -136,26 +136,9 @@ fn refused(reason: &str) -> Vec<Diagnostic> {
     }]
 }
 fn compatible(a: &str, b: &str) -> bool {
-    if !cem_ml::schema::document_model::is_canonical_semver(a)
-        || !cem_ml::schema::document_model::is_canonical_semver(b)
-    {
-        return false;
-    }
-    fn parts(value: &str) -> (&str, Option<&str>) {
-        let value = value.split('+').next().unwrap();
-        value
-            .split_once('-')
-            .map_or((value, None), |(a, b)| (a, Some(b)))
-    }
-    let (a, ap) = parts(a);
-    let (b, bp) = parts(b);
-    if ap.is_some() || bp.is_some() {
-        return a == b && ap == bp;
-    }
-    let a = a.split('.').collect::<Vec<_>>();
-    let b = b.split('.').collect::<Vec<_>>();
-    a[0] == b[0] && (a[0] != "0" || a[1] == b[1] && (a[1] != "0" || a[2] == b[2]))
+    crate::ssr_browser_resume::versions_compatible(a, b)
 }
+
 struct Work<'a> {
     remaining: usize,
     cpu: &'a NativeCpuAccounting,

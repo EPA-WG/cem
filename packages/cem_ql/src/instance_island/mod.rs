@@ -2,6 +2,7 @@
 pub(crate) mod construct;
 mod domains;
 pub mod host_commit;
+pub mod resume;
 pub(crate) mod payload;
 use crate::{
     eval::{AtomValue, Item, ItemStream},
@@ -192,7 +193,7 @@ pub(crate) fn bind(
     let [root] = values.items.as_slice() else {
         return Err(INVALID.into());
     };
-    bind_root(root, instance_id, control, None)
+    bind_root(root, instance_id, control, None, false)
 }
 
 /// Direct retained native ingress; never encodes/reloads a document.
@@ -201,7 +202,35 @@ pub(crate) fn bind_retained_root(
     source: Option<&std::sync::Arc<cem_ml::import::element_tree::RetainedCemPayloadSource>>,
 ) -> Result<TemplateData, String> {
     bounded_root(root, control)?;
-    bind_root(root, instance_id, control, source)
+    bind_root(root, instance_id, control, source, false)
+}
+
+fn hydration_fields(part: &Item) -> Result<BTreeMap<String,String>,String> {
+    let mut hydration = BTreeMap::new();
+    for item in elements(part)? {
+        if !is_element(&item, "field", PARTS[0].1) {
+            return Err(INVALID.into());
+        }
+        let attrs = attrs(&item)?;
+        if attrs.len() != 2 || attrs.get("kind").map(String::as_str) != Some("string") {
+            return Err(INVALID.into());
+        }
+        let name = attrs.get("name").ok_or(INVALID)?;
+        let mut text = String::new();
+        for child in children(&item)? {
+            if !matches!(
+                field(&child, "kind").as_deref(),
+                Some("text" | "whitespace" | "cdata")
+            ) {
+                return Err(INVALID.into());
+            }
+            text.push_str(&field(&child, "value").ok_or(INVALID)?);
+        }
+        if hydration.insert(name.clone(), text).is_some() {
+            return Err(INVALID.into());
+        }
+    }
+    Ok(hydration)
 }
 
 fn bind_root(
@@ -209,6 +238,7 @@ fn bind_root(
     instance_id: &str,
     control: &OperationControl,
     admitted: Option<&std::sync::Arc<cem_ml::import::element_tree::RetainedCemPayloadSource>>,
+    allow_version_fallback: bool,
 ) -> Result<TemplateData, String> {
     control
         .check_scope(ROOT_EXECUTION_SCOPE_ID)
@@ -245,33 +275,10 @@ fn bind_root(
             return Err(INVALID.into());
         }
     }
-    let mut hydration = BTreeMap::new();
-    for item in elements(&parts[0])? {
-        if !is_element(&item, "field", PARTS[0].1) {
-            return Err(INVALID.into());
-        }
-        let attrs = attrs(&item)?;
-        if attrs.len() != 2 || attrs.get("kind").map(String::as_str) != Some("string") {
-            return Err(INVALID.into());
-        }
-        let name = attrs.get("name").ok_or(INVALID)?;
-        let mut text = String::new();
-        for child in children(&item)? {
-            if !matches!(
-                field(&child, "kind").as_deref(),
-                Some("text" | "whitespace" | "cdata")
-            ) {
-                return Err(INVALID.into());
-            }
-            text.push_str(&field(&child, "value").ok_or(INVALID)?);
-        }
-        if hydration.insert(name.clone(), text).is_some() {
-            return Err(INVALID.into());
-        }
-    }
+    let mut hydration = hydration_fields(&parts[0])?;
     if hydration
         .remove("declarationVersion")
-        .is_some_and(|version| !cem_ml::schema::document_model::is_canonical_semver(&version))
+        .is_some_and(|version| !allow_version_fallback && !cem_ml::schema::document_model::is_canonical_semver(&version))
     {
         return Err(INVALID.into());
     }

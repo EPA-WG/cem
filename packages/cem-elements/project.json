@@ -4,6 +4,15 @@
     "sourceRoot": "packages/cem-elements/src",
     "projectType": "library",
     "targets": {
+        "test:ssr-canonical-hydration": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build", { "projects": ["cem_ml_cli"], "target": "build" }],
+            "options": {
+                "command": "node packages/cem_ql/tests/verify-ssr-canonical-hydration.mjs",
+                "cwd": "{workspaceRoot}"
+            }
+        },
         "test:ssr-source-admission": {
             "executor": "nx:run-commands",
             "cache": false,

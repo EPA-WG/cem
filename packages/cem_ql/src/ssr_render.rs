@@ -416,7 +416,7 @@ pub fn render_and_apply_inline_dce(
         committed,
     })
 }
-fn admit_output_mode(
+pub(crate) fn admit_output_mode(
     nodes: &mut [crate::render::RenderPlanNode],
     inert: bool,
     registry: Option<&std::collections::BTreeSet<String>>,

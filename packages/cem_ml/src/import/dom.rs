@@ -2,7 +2,7 @@
 //! serialization. Coordinates name a runtime capture, not authored source bytes.
 use super::*;
 use crate::value::artifact::{CemValueArtifactLimits, CemValueProvenance};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub struct DomCapture {
     ast: CemDocument,
@@ -217,11 +217,223 @@ impl DomCapture {
         }
         RetainedCemTree::new(self.ast, self.uri, "", self.semantics, None)
     }
+    /// Explicit literal-XML vocabulary within an HTML DOM capture. Resolve
+    /// prefixed names at the import boundary; ordinary captures stay unchanged.
+    /// Original nodes, values, source keys and maps remain owned by this capture.
+    pub fn finish_literal_namespaces(mut self) -> Result<Arc<RetainedCemTree>, String> {
+        if self.failed || self.ast.nodes.is_empty() {
+            return Err("Incomplete DOM capture".into());
+        }
+        let mut projected_bytes = self.bytes;
+        let mut parents = vec![0; self.ast.nodes.len()];
+        for n in &self.ast.nodes {
+            match n {
+                CemAstNode::Document {
+                    node_id,
+                    root_children,
+                    ..
+                } => {
+                    for id in root_children {
+                        parents[*id as usize] = *node_id;
+                    }
+                }
+                CemAstNode::Element {
+                    node_id,
+                    attributes,
+                    children,
+                    ..
+                } => {
+                    for id in attributes.iter().chain(children) {
+                        parents[*id as usize] = *node_id;
+                    }
+                }
+                _ => {}
+            }
+        }
+        const XML: &str = "http://www.w3.org/XML/1998/namespace";
+        const XMLNS: &str = "http://www.w3.org/2000/xmlns/";
+        // Store only each element's local declarations. A bounded parent walk
+        // resolves inherited prefixes without copying a large ancestor scope.
+        let mut scopes = vec![BTreeMap::new(); self.ast.nodes.len()];
+        scopes[0].insert("xml", XML);
+        for (id, n) in self.ast.nodes.iter().enumerate() {
+            if let CemAstNode::Element { attributes, .. } = n {
+                for aid in attributes {
+                    if let Some(CemAstNode::Attribute {
+                        expanded_name,
+                        value,
+                        ..
+                    }) = self.ast.get(*aid)
+                    {
+                        let prefix = if expanded_name.namespace_uri == XMLNS {
+                            Some(if expanded_name.local_name == "xmlns" {
+                                ""
+                            } else {
+                                expanded_name.local_name.as_str()
+                            })
+                        } else if expanded_name.namespace_uri.is_empty() {
+                            expanded_name
+                                .local_name
+                                .strip_prefix("xmlns:")
+                                .or_else(|| (expanded_name.local_name == "xmlns").then_some(""))
+                        } else {
+                            None
+                        };
+                        if let Some(prefix) = prefix {
+                            let value =
+                                value.as_deref().ok_or("Missing literal namespace value")?;
+                            if prefix.len() > 128
+                                || prefix.contains(':')
+                                || prefix == "xmlns"
+                                || (prefix == "xml") != (value == XML)
+                                || value.is_empty()
+                                || value.len() > 4096
+                                || value == XMLNS
+                                || scopes[id].insert(prefix, value).is_some()
+                            {
+                                return Err("Invalid literal namespace declaration".into());
+                            }
+                            let local = if prefix.is_empty() { "xmlns" } else { prefix };
+                            projected_bytes =
+                                projected_bytes.saturating_add(XMLNS.len() + local.len());
+                            if projected_bytes > self.limits.max_bytes {
+                                return Err(
+                                    "Literal namespace projection exceeds DOM capture bounds"
+                                        .into(),
+                                );
+                            }
+                            self.semantics.names.insert(
+                                *aid,
+                                ExpandedName {
+                                    namespace_uri: XMLNS.into(),
+                                    local_name: local.into(),
+                                    schema_id: None,
+                                },
+                            );
+                        }
+                    }
+                }
+            }
+            let name = match n {
+                CemAstNode::Element { expanded_name, .. }
+                | CemAstNode::Attribute { expanded_name, .. } => expanded_name,
+                _ => continue,
+            };
+            if self.semantics.names.contains_key(&(id as u32)) {
+                continue;
+            }
+            if let Some((prefix, local)) = name.local_name.split_once(':') {
+                let mut scope = id;
+                let ns = loop {
+                    if let Some(&namespace) = scopes[scope].get(prefix) {
+                        break namespace;
+                    }
+                    if scope == 0 {
+                        return Err("Unbound literal namespace prefix".into());
+                    }
+                    scope = parents[scope] as usize;
+                };
+                if prefix.is_empty()
+                    || local.is_empty()
+                    || local.contains(':')
+                    || !(name.namespace_uri.is_empty()
+                        || name.namespace_uri == "http://www.w3.org/1999/xhtml"
+                        || name.namespace_uri == ns)
+                {
+                    return Err("Conflicting literal namespace name".into());
+                }
+                projected_bytes = projected_bytes
+                    .saturating_add(ns.len())
+                    .saturating_add(local.len());
+                if projected_bytes > self.limits.max_bytes {
+                    return Err("Literal namespace projection exceeds DOM capture bounds".into());
+                }
+                self.semantics.names.insert(
+                    id as u32,
+                    ExpandedName {
+                        namespace_uri: ns.into(),
+                        local_name: local.into(),
+                        schema_id: None,
+                    },
+                );
+            }
+        }
+        self.finish()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn literal_namespace_capture_is_explicit_and_keeps_native_source_keys() {
+        fn capture() -> (DomCapture, u32) {
+            let mut c = DomCapture::new(
+                "cem-dom://runtime/literal",
+                "https://example.test/",
+                "https://example.test/",
+                Default::default(),
+            )
+            .unwrap();
+            c.push(0, "doc", "document", "", "", "").unwrap();
+            let root = c
+                .push(
+                    0,
+                    "root",
+                    "element",
+                    "http://www.w3.org/1999/xhtml",
+                    "island:context-root",
+                    "",
+                )
+                .unwrap();
+            c.push(
+                root,
+                "xmlns",
+                "attribute",
+                "",
+                "xmlns:island",
+                "https://cem.dev/ns/runtime/data-island",
+            )
+            .unwrap();
+            (c, root)
+        }
+        let (c, id) = capture();
+        let ordinary = c.finish().unwrap();
+        assert_eq!(
+            ordinary
+                .node(id)
+                .unwrap()
+                .name
+                .as_ref()
+                .unwrap()
+                .namespace_uri,
+            "http://www.w3.org/1999/xhtml"
+        );
+        let (c, id) = capture();
+        let literal = c.finish_literal_namespaces().unwrap();
+        let n = literal.node(id).unwrap();
+        assert_eq!(
+            n.name.as_ref().unwrap().namespace_uri,
+            "https://cem.dev/ns/runtime/data-island"
+        );
+        assert_eq!(n.name.as_ref().unwrap().local_name, "context-root");
+        assert_eq!(literal.source_key(id), ordinary.source_key(id));
+        assert!(!n.source.frames.is_empty());
+        let mut invalid =
+            DomCapture::new("cem-dom://runtime/literal", "", "", Default::default()).unwrap();
+        invalid.push(0, "doc", "document", "", "", "").unwrap();
+        invalid
+            .push(
+                0,
+                "root",
+                "element",
+                "http://www.w3.org/1999/xhtml",
+                "missing:root",
+                "",
+            )
+            .unwrap();
+        assert!(invalid.finish_literal_namespaces().is_err());
+    }
     #[test]
     fn dom_capture_retains_decoded_values_identity_and_unknown_coordinates() {
         let mut c = DomCapture::new(

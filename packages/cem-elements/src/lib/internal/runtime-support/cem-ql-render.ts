@@ -291,6 +291,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         renderTemplateWithNativeValues,
         renderTemplateWithNativeValuesAndAdmission,
         beginDomPayloadCapture, appendDomPayloadNode, finishDomPayloadCapture, disposeDomPayloadCapture,
+        finishDomLiteralNamespaceCapture, admitCanonicalSsrHost,
         importCemDocumentValue,
         exportCemJsonValue,
         importNativeValueArtifact,
@@ -1493,8 +1494,9 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         if (!key) { key = `dom-${++domSequence}`; domKeys.set(node, key); }
         return key;
     }
-    const captureDomPayload = nativeCheckpointWork(captureDomPayloadOperation);
-    async function captureDomPayloadOperation(container: Element, limits: CemValueArtifactLimits): Promise<NativeCemValue> {
+    const captureDomPayload = nativeCheckpointWork((container: Element, limits: CemValueArtifactLimits) =>
+        captureDomPayloadOperation(container, limits));
+    async function captureDomPayloadOperation(container: Element, limits: CemValueArtifactLimits, literalNamespaces = false): Promise<NativeCemValue> {
         await ensureRuntimeReady();
         const policy = JSON.stringify(limits);
         const handle = beginDomPayloadCapture(domSourceUri, container.ownerDocument.documentURI, container.baseURI, policy);
@@ -1518,12 +1520,16 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
                     pending.push({children: children.values(), parent: id});
                 }
             }
-            const artifact = finishDomPayloadCapture(handle, policy).slice().buffer as ArrayBuffer;
+            const artifact = (literalNamespaces ? finishDomLiteralNamespaceCapture(handle, policy) : finishDomPayloadCapture(handle, policy)).slice().buffer as ArrayBuffer;
             return {kind: 'cem-native-value-v1', artifact, index: 0, contentHash: edgeContentAddress('sanitized-snapshot', artifact).digest};
         } finally { disposeDomPayloadCapture(handle); }
     }
 
-    return { domain, native, processCheckpointControl, captureDomPayload,
+    const admitCanonicalSsrInstance = nativeCheckpointWork(async (host: HTMLElement, tag: string, version: string, source: string, limits: CemValueArtifactLimits): Promise<{ decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null }> => {
+        const captured = await captureDomPayloadOperation(host, limits, true);
+        return JSON.parse(admitCanonicalSsrHost(new Uint8Array(captured.artifact), tag, version, source));
+    });
+    return { domain, native, processCheckpointControl, captureDomPayload, admitCanonicalSsrInstance,
         highlightSource,
         retainStylesheetSources,
         releaseRetainedTemplateStylesheets,
@@ -1580,6 +1586,7 @@ export const validatePortableCheckpointRuntime = defaultBindings.validatePortabl
 export const resolveDeclarationResourceBase = defaultBindings.resolveDeclarationResourceBase;
 export const resolveRenderPlanLinks = defaultBindings.resolveRenderPlanLinks;
 export const captureDomPayload = defaultBindings.captureDomPayload;
+export const admitCanonicalSsrInstance = defaultBindings.admitCanonicalSsrInstance;
 export const ensureRuntimeReady = defaultBindings.ensureRuntimeReady;
 export const isRuntimeReady = defaultBindings.isRuntimeReady;
 export const runtimeVersion = defaultBindings.runtimeVersion;

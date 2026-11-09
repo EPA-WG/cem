@@ -1219,6 +1219,7 @@ const DEFAULT_DECLARATION_TAG = 'cem-element';
 export const CEM_RESOURCE_BASE_URL = Symbol.for('@epa-wg/cem-elements/resource-base-url');
 const CEM_BROWSER_REGISTRATION_MARKER = Symbol.for('@epa-wg/cem-elements/browser-registration-v1');
 const DEFAULT_SCOPE_POLICY_STAMP = 'phase-3a-local-default';
+const RETAINED_STYLESHEET_SCOPE_STAMP = ':retained-declaration-css:retained-instance-css';
 const DEFAULT_PRIVACY_POLICY_STAMP = 'local-only';
 const MAX_FORM_REFRESH_PASSES = 8;
 const CEM_TEMPLATE_ARTIFACT_NAMESPACE: CemArtifactRegistryNamespace = {
@@ -1233,6 +1234,8 @@ const DEFAULT_HTTP_RESOURCE_POLICY: CemHttpResourcePolicy = {
     redirect: 'error',
 };
 const DATA_ISLAND_ATTR = 'data-cem-island';
+const NATIVE_SSR_PROFILE_ATTR = 'data-cem-ssr-profile';
+const nativeSsrIds = new WeakMap<Document, Map<string, WeakRef<HTMLElement>>>();
 const DATA_ISLAND_VALUE = 'instance';
 const DATA_ISLAND_ROOT_TAG = 'cem-island:context-root';
 const DATA_ISLAND_ROOT_NAMESPACE = 'https://cem.dev/ns/runtime/data-island';
@@ -1847,6 +1850,7 @@ export class CemElementRuntime {
     private readonly registrationOptions = new WeakMap<object, CemDeclarationRegistrationOptions>();
     private readonly hydratedServerRenders = new WeakSet<HTMLElement>();
     private readonly hydrationSnapshots = new WeakMap<HTMLElement, DataIslandSnapshot>();
+    private readonly canonicalSsrAdmissions = new WeakMap<HTMLElement, { cancel(): void }>();
     private readonly instanceIds = new WeakMap<HTMLElement, string>();
     private readonly dataRevisions = new WeakMap<HTMLElement, number>();
     private readonly checkpointScopeBindings = new Map<CemDeclarationScope, CheckpointScopeBinding>();
@@ -1982,7 +1986,7 @@ export class CemElementRuntime {
         this.processingPackageHostConfiguration = options.processingPackageHostConfiguration;
         this.processingNativeWork = options.processingNativeWork;
         this.retainedStylesheets = options.retainedStylesheets === false ? undefined : options.retainedStylesheets ?? {};
-        if (this.retainedStylesheets) this.scopePolicyStamp += ':retained-declaration-css:retained-instance-css';
+        if (this.retainedStylesheets) this.scopePolicyStamp += RETAINED_STYLESHEET_SCOPE_STAMP;
         this.processingPoolPolicy = options.processingPoolPolicy;
         this.artifactRegistry = options.artifactRegistry;
         this.onProcessingTrace = options.onProcessingTrace;
@@ -3924,6 +3928,15 @@ export class CemElementRuntime {
     }
 
     private connectProducedInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
+        if (this.frozenSerializedInstances.has(instance)) {
+            this.renderSettled.set(instance, Promise.resolve());
+            return;
+        }
+        const nativeIsland = directDataIslands(instance)[0];
+        if (!this.initializedInstances.has(instance) && nativeIsland?.hasAttribute(NATIVE_SSR_PROFILE_ATTR)) {
+            this.connectCanonicalSsrInstance(instance, compiled, nativeIsland);
+            return;
+        }
         this.installDeclarationStylesheets(compiled);
         const island = this.ensureDataIsland(instance);
         if (!this.checkpointNativeInstances.has(instance) && (compiled.mode !== 'dom' || this.checkpointPublication)) {
@@ -3994,7 +4007,97 @@ export class CemElementRuntime {
         this.renderInstance(instance, compiled);
     }
 
+    private connectCanonicalSsrInstance(instance: HTMLElement, compiled: CompiledDeclaration, island: HTMLTemplateElement): void {
+        if (this.canonicalSsrAdmissions.has(instance)) return;
+        const Observer = instance.ownerDocument.defaultView?.MutationObserver;
+        let changed = false;
+        const observer = Observer && new Observer(() => { changed = true; });
+        observer?.observe(instance, { subtree: true, childList: true, attributes: true, characterData: true });
+        observer?.observe(island.content, { subtree: true, childList: true, attributes: true, characterData: true });
+        observer?.observe(compiled.declarationElement, { subtree: true, childList: true, attributes: true, characterData: true });
+        for (const template of compiled.declarationElement.querySelectorAll('template')) {
+            observer?.observe(template.content, { subtree: true, childList: true, attributes: true, characterData: true });
+        }
+        const entry = { cancel: () => { changed = true; observer?.disconnect(); } };
+        this.canonicalSsrAdmissions.set(instance, entry);
+        const pending = (async () => {
+            try {
+                const defaultScope = DEFAULT_SCOPE_POLICY_STAMP + (this.retainedStylesheets ? RETAINED_STYLESHEET_SCOPE_STAMP : '');
+                if (!observer || directDataIslands(instance).length !== 1 || instance.firstElementChild !== island
+                    || compiled.mode !== 'cem-ml' || compiled.cemMlSource === null || compiled.behavior
+                    || compiled.pinnedDeclaration || compiled.linkBaseUrl || compiled.declaredSlices.length || compiled.stylesheets.length
+                    || this.scopePolicyStamp !== defaultScope || this.privacyPolicyStamp !== DEFAULT_PRIVACY_POLICY_STAMP)
+                    throw new Error('cem.ssr.resume_profile_unsupported');
+                const decision = await this.renderSupport(compiled.declarationScope).admitCanonicalSsrInstance(
+                    instance, compiled.producedTag, compiled.declarationVersion ?? '', compiled.cemMlSource, this.nativeValueLimits);
+                if (this.canonicalSsrAdmissions.get(instance) !== entry || !instance.isConnected || compiled.declarationScope.disposed
+                    || this.declarationForInstance(instance) !== compiled) return;
+                if (changed || observer.takeRecords().length) throw new Error('cem.ssr.resume_stale');
+                const bounds = directRenderBounds(instance);
+                if (!bounds) throw new Error('cem.ssr.resume_bounds');
+                const contextRoot = directIslandContextRoot(island);
+                if (!contextRoot || Object.entries(DATA_ISLAND_NAMESPACE_BINDINGS).some(([prefix, namespace]) =>
+                    contextRoot.getAttribute(`xmlns:${prefix}`) !== namespace)
+                    || DATA_ISLAND_SECTION_ORDER.some(name => !directIslandSection(island, name))) {
+                    throw new Error('cem.ssr.resume_dom_targets');
+                }
+                const document = instance.ownerDocument;
+                const identities = nativeSsrIds.get(document) ?? new Map<string, WeakRef<HTMLElement>>();
+                for (const [id, owner] of identities) if (!owner.deref()) identities.delete(id);
+                const owner = identities.get(decision.instanceId)?.deref();
+                if ((owner && owner !== instance) || (!owner && identities.size >= 64)) throw new Error('cem.ssr.resume_instance_identity');
+                identities.set(decision.instanceId, new WeakRef(instance));
+                nativeSsrIds.set(document, identities);
+                // All semantics came from native admission of the captured island.
+                // Seed the established browser lifecycle from its input mirrors,
+                // never from rendered output, including form or loading views.
+                observer.disconnect();
+                this.instanceIds.set(instance, decision.instanceId);
+                this.dataRevisions.set(instance, 0);
+                this.renderBounds.set(instance, bounds);
+                const snapshot = this.snapshotFromCapturedForms(instance, compiled, island, '0', undefined,
+                    { formData: {}, validationState: {}, sliceMirrors: {} }, false);
+                snapshot.declarationVersion = decision.declarationVersion ?? undefined;
+                this.hydrationSnapshots.set(instance, snapshot);
+                if (decision.decision === 'adopt') {
+                    const root = firstRenderedElementBetween(bounds);
+                    if (!root) throw new Error('cem.ssr.resume_bounds');
+                    root.setAttribute(RENDER_TEMPLATE_ARTIFACT_ID_ATTR, compiled.artifactId);
+                    root.setAttribute(RENDER_DATA_REVISION_ATTR, '0');
+                    root.setAttribute(SOURCE_FIDELITY_ATTR, 'declaration-only');
+                    this.hydratedServerRenders.add(instance);
+                } else {
+                    this.recordDiagnostics(instance, [renderDiagnostic(
+                        decision.declarationVersion === null ? 'cem-element.hydration_declaration_version_missing' : 'cem-element.hydration_declaration_version_incompatible',
+                        'The understood canonical island requires rendering with the current declaration version', instance.localName, 'warning')]);
+                }
+                writeDataIslandHydrationData(island, snapshot);
+                island.removeAttribute(NATIVE_SSR_PROFILE_ATTR);
+                this.initializedInstances.add(instance);
+                this.canonicalSsrAdmissions.delete(instance);
+                this.connectProducedInstance(instance, compiled);
+                await this.renderSettled.get(instance);
+            } catch (error) {
+                if (this.canonicalSsrAdmissions.get(instance) !== entry || !instance.isConnected) return;
+                this.frozenSerializedInstances.add(instance);
+                this.initializedInstances.add(instance);
+                this.recordDiagnostics(instance, [renderDiagnostic('cem-element.hydration_native_refused',
+                    error instanceof Error ? error.message : String(error), instance.localName)]);
+            } finally {
+                observer?.disconnect();
+                if (this.canonicalSsrAdmissions.get(instance) === entry) {
+                    this.canonicalSsrAdmissions.delete(instance);
+                    const latest = this.declarationForInstance(instance);
+                    if (instance.isConnected && latest && latest !== compiled) this.connectProducedInstance(instance, latest);
+                }
+            }
+        })();
+        this.renderSettled.set(instance, pending);
+    }
+
     private disconnectProducedInstance(instance: HTMLElement): void {
+        this.canonicalSsrAdmissions.get(instance)?.cancel();
+        this.canonicalSsrAdmissions.delete(instance);
         this.checkpointNativeSources.delete(instance);
         this.checkpointNativeInstances.get(instance)?.();
         this.checkpointOwners.get(instance)?.detach();
@@ -5660,6 +5763,9 @@ export class CemElementRuntime {
 
         if (shape.mode === 'resume-island') {
             const island = markedIslands[0];
+            if (island.hasAttribute(NATIVE_SSR_PROFILE_ATTR) && !this.initializedInstances.has(instance)) {
+                throw new Error('cem.ssr.resume_pending');
+            }
             const structureError = validateDataIslandStructure(island);
             if (structureError) {
                 this.frozenSerializedInstances.add(instance);

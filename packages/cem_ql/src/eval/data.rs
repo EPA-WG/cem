@@ -313,7 +313,8 @@ impl QueryItemView for CemAstView {
                 _ => None,
             };
         };
-        let node = self.owner.tree.as_ref()?.ast().get(id)?;
+        let tree = self.owner.tree.as_ref()?;
+        let node = tree.ast().get(id)?;
         if name == "id" {
             return Some(string(
                 self.owner
@@ -381,13 +382,20 @@ impl QueryItemView for CemAstView {
             (
                 CemAstNode::Element { expanded_name, .. }
                 | CemAstNode::Attribute { expanded_name, .. },
-                "name",
-            ) => string(&expanded_name.local_name),
-            (
-                CemAstNode::Element { expanded_name, .. }
-                | CemAstNode::Attribute { expanded_name, .. },
-                "namespace",
-            ) => string(&expanded_name.namespace_uri),
+                "name" | "namespace",
+            ) => {
+                // AST identities and retained tree positions can differ after projection.
+                let expanded_name = tree
+                    .canonical_id(id)
+                    .and_then(|id| tree.node(id))
+                    .and_then(|node| node.name.as_ref())
+                    .unwrap_or(expanded_name);
+                string(if name == "name" {
+                    &expanded_name.local_name
+                } else {
+                    &expanded_name.namespace_uri
+                })
+            }
             (CemAstNode::Element { attributes, .. }, "attributes") => {
                 attributes.iter().map(|id| self.item(*id)).collect()
             }

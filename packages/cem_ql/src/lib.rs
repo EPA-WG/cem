@@ -85,6 +85,7 @@ mod ssr_css;
 pub mod ssr_render;
 pub mod ssr_stylesheets;
 pub mod ssr_page;
+pub use instance_island::resume as ssr_browser_resume;
 pub mod instance_island;
 pub mod retained_template;
 pub mod resolve;

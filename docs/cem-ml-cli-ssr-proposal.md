@@ -10,8 +10,10 @@ The native parent-first inline coordinator and opaque readiness proof are now
 implemented, including version/island/lease/range checks and original-operation
 CPU accounting. The packaged `ssr:render-page` builtin connects native CLI
 `transform` lowering to that proof and explicit HTML/report exports (§8.0).
-Browser adoption, external-resource CLI admission, additional page-source forms,
-the proposed `ssr` shorthand and the general page compiler remain future work.
+Browser adoption is implemented for the bounded passive HTML profile described
+in the lifecycle contract. Broader browser parity, external-resource CLI
+admission, additional page-source forms, the proposed `ssr` shorthand and the
+general page compiler remain future work.
 
 **Applies to:** `cem-ml`, CEMT transform graphs, `cem-elements`, Edge/SSR
 hosts, browser hydration, HTML/CEM-ML/Markdown page sources, and repository demo
@@ -971,8 +973,11 @@ document rewrites or colored output. Every encoding rechecks readiness before
 and after work and charges its bytes to a cumulative export budget. A failure
 in a later graph export prevents the normal CLI transaction from publishing
 earlier outputs. Generic unrendered/partial SSR envelopes remain unexportable.
-Browser hydration/adoption against this exact serialized artifact is the next
-integration step; this command does not yet advertise browser reuse authority.
+The proven HTML export marks its canonical island templates for
+[bounded native browser admission](cem-element-lifecycle-principle.md#native-cli-island-adoption).
+The browser verifies versions, inputs and the live range independently before
+reusing nodes. The marker is routing metadata, and the report still carries no
+browser reuse authority.
 
 The examples in §8.1 onward describe the broader proposed page compiler and do
 not replace this bounded builtin's current contract.

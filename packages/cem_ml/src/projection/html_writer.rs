@@ -55,6 +55,7 @@ fn node(
     aliases: &BTreeMap<String, String>,
     depth: usize,
     c: &OperationControl,
+    output_attributes: &BTreeMap<AstNodeId, CemTreeAstAttribute>,
 ) -> Result<CemTreeAstNode, String> {
     c.check_scope(ROOT_EXECUTION_SCOPE_ID)
         .map_err(|e| e.code().to_owned())?;
@@ -86,7 +87,7 @@ fn node(
                     aliases.insert(an.local_name[6..].into(), a.value.clone());
                 }
             }
-            let attributes = n
+            let mut attributes: Vec<_> = n
                 .attributes
                 .iter()
                 .map(|id| {
@@ -105,6 +106,12 @@ fn node(
                     })
                 })
                 .collect::<Result<_, String>>()?;
+            if let Some(extra) = output_attributes.get(&id) {
+                if attributes.iter().any(|a| a.name == extra.name) {
+                    return Err("DOM writer output attribute duplicates a retained name".into());
+                }
+                attributes.push(extra.clone());
+            }
             CemTreeAstNode::Element {
                 name: name(
                     n.name.as_ref().ok_or("DOM element has no name")?,
@@ -115,7 +122,7 @@ fn node(
                 children: n
                     .children
                     .iter()
-                    .map(|id| node(tree, *id, &aliases, depth + 1, c))
+                    .map(|id| node(tree, *id, &aliases, depth + 1, c, output_attributes))
                     .collect::<Result<_, _>>()?,
                 source,
             }
@@ -124,7 +131,7 @@ fn node(
             children: n
                 .children
                 .iter()
-                .map(|id| node(tree, *id, aliases, depth + 1, c))
+                .map(|id| node(tree, *id, aliases, depth + 1, c, output_attributes))
                 .collect::<Result<_, _>>()?,
             source,
         },
@@ -157,6 +164,25 @@ pub fn stream(
     original: &HtmlDocumentAst,
     c: &OperationControl,
 ) -> Result<CemTreeAstStream, String> {
+    stream_with_output_attributes(tree, original, c, &BTreeMap::new())
+}
+
+/// Typed export annotations do not change the retained owner or its native
+/// identity. The exporter is responsible for admitting each annotated node.
+pub fn stream_with_output_attributes(
+    tree: Arc<RetainedCemTree>,
+    original: &HtmlDocumentAst,
+    c: &OperationControl,
+    output_attributes: &BTreeMap<AstNodeId, CemTreeAstAttribute>,
+) -> Result<CemTreeAstStream, String> {
+    if output_attributes.len() > 64
+        || output_attributes.keys().any(|id| {
+            tree.node(*id)
+                .is_none_or(|n| n.kind != CemTreeNodeKind::Element)
+        })
+    {
+        return Err("DOM writer output attribute owner is invalid".into());
+    }
     let root = tree.node(0).ok_or("DOM writer has no document root")?;
     if root.kind != CemTreeNodeKind::Document {
         return Err("DOM writer requires a document root".into());
@@ -164,7 +190,7 @@ pub fn stream(
     let mut nodes = root
         .children
         .iter()
-        .map(|id| node(&tree, *id, &BTreeMap::new(), 0, c))
+        .map(|id| node(&tree, *id, &BTreeMap::new(), 0, c, output_attributes))
         .collect::<Result<Vec<_>, _>>()?;
     for event in original
         .events

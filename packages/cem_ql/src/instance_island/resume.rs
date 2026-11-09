@@ -1,0 +1,371 @@
+//! Fresh native admission of a captured canonical SSR host. Serialized readiness
+//! flags and hashes confer no authority: compatible output is recomputed locally.
+use crate::{
+    eval::Item,
+    instance_island as island,
+    render::{
+        compile_template, project_render_plan_with_control, render_compiled_template_with_control,
+        CompileTemplateOptions, RenderPlanNode,
+    },
+};
+use cem_ml::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
+use std::collections::BTreeMap;
+
+pub const PROFILE: &str = "cem-native-inline/1";
+pub const PROFILE_ATTRIBUTE: &str = "data-cem-ssr-profile";
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ResumeDecision {
+    Adopt,
+    RenderOnLoad,
+}
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeSsrResume {
+    pub decision: ResumeDecision,
+    pub instance_id: String,
+    pub declaration_version: Option<String>,
+}
+pub fn versions_compatible(a: &str, b: &str) -> bool {
+    if !cem_ml::schema::document_model::is_canonical_semver(a)
+        || !cem_ml::schema::document_model::is_canonical_semver(b)
+    {
+        return false;
+    }
+    fn parts(value: &str) -> (&str, Option<&str>) {
+        let value = value.split('+').next().unwrap();
+        value
+            .split_once('-')
+            .map_or((value, None), |(a, b)| (a, Some(b)))
+    }
+    let (a, ap) = parts(a);
+    let (b, bp) = parts(b);
+    if ap.is_some() || bp.is_some() {
+        return a == b && ap == bp;
+    }
+    let a = a.split('.').collect::<Vec<_>>();
+    let b = b.split('.').collect::<Vec<_>>();
+    a[0] == b[0] && (a[0] != "0" || a[1] == b[1] && (a[1] != "0" || a[2] == b[2]))
+}
+fn fail() -> String {
+    "cem.ssr.resume_refused: canonical island, host, output or passive profile is invalid".into()
+}
+fn text(i: &Item) -> Result<String, String> {
+    island::field(i, "value").ok_or_else(fail)
+}
+fn kind(i: &Item) -> Option<String> {
+    island::field(i, "kind")
+}
+fn whitespace(i: &Item) -> bool {
+    matches!(kind(i).as_deref(), Some("text" | "whitespace"))
+        && text(i).is_ok_and(|s| s.trim().is_empty())
+}
+fn marker(i: &Item, name: &str) -> bool {
+    kind(i).as_deref() == Some("comment") && text(i).as_deref() == Ok(name)
+}
+pub fn admit(
+    host: &Item,
+    tag: &str,
+    current_version: &str,
+    source: &str,
+    c: &OperationControl,
+) -> Result<NativeSsrResume, String> {
+    if source.len() > 1024 * 1024 || tag.len() > 256 || current_version.len() > 1024 {
+        return Err(fail());
+    }
+    island::bounded_root(host, c)?;
+    if !island::is_element(host, tag, "http://www.w3.org/1999/xhtml") {
+        return Err(fail());
+    }
+    let children = island::children(host)?;
+    let templates = children
+        .iter()
+        .enumerate()
+        .filter(|(_, i)| island::is_element(i, "template", "http://www.w3.org/1999/xhtml"))
+        .collect::<Vec<_>>();
+    let [(ti, template)] = templates.as_slice() else {
+        return Err(fail());
+    };
+    if !children[..*ti].iter().all(whitespace)
+        || island::attrs(template)?
+            != BTreeMap::from([
+                ("data-cem-island".into(), "instance".into()),
+                (PROFILE_ATTRIBUTE.into(), PROFILE.into()),
+            ])
+    {
+        return Err(fail());
+    }
+    let roots = island::elements(template)?;
+    let [root] = roots.as_slice() else {
+        return Err(fail());
+    };
+    let parts = island::elements(root)?;
+    let hydration = parts.first().ok_or_else(fail)?;
+    let fields = island::hydration_fields(hydration)?;
+    let instance_id = fields
+        .get("instanceId")
+        .filter(|s| !s.is_empty() && s.len() <= 256 && !s.chars().any(char::is_control))
+        .ok_or_else(fail)?
+        .clone();
+    let data = island::bind_root(root, &instance_id, c, None, true)?;
+    // This first browser profile has no external declarations, CSS, CEM source,
+    // resource capabilities or portable live state. Never downgrade their admission.
+    if island::attrs(&parts[3])?
+        .get("content-type")
+        .map(String::as_str)
+        != Some("text/html")
+        || parts[4..]
+            .iter()
+            .any(|p| !island::elements(p).is_ok_and(|v| v.is_empty()))
+    {
+        return Err(fail());
+    }
+    let mut saved = BTreeMap::new();
+    for a in island::elements(&parts[1])? {
+        let a = island::attrs(&a)?;
+        saved.insert(
+            a.get("name").ok_or_else(fail)?.clone(),
+            a.get("value").ok_or_else(fail)?.clone(),
+        );
+    }
+    let mut actual = island::attrs(host)?;
+    let host_attrs = actual
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect::<Vec<_>>();
+    cem_ml::validation::html::validate_passive_html_attributes(tag, &host_attrs)
+        .map_err(|_| fail())?;
+    actual.remove("data-cem-render-scope");
+    if actual != saved {
+        return Err(fail());
+    }
+    let starts = children
+        .iter()
+        .enumerate()
+        .filter(|(_, i)| marker(i, "cem-render-start"))
+        .map(|(i, _)| i)
+        .collect::<Vec<_>>();
+    let ends = children
+        .iter()
+        .enumerate()
+        .filter(|(_, i)| marker(i, "cem-render-end"))
+        .map(|(i, _)| i)
+        .collect::<Vec<_>>();
+    let ([start], [end]) = (starts.as_slice(), ends.as_slice()) else {
+        return Err(fail());
+    };
+    if start <= ti
+        || end <= start
+        || !children[*ti + 1..*start].iter().all(whitespace)
+        || !children[*end + 1..].iter().all(whitespace)
+    {
+        return Err(fail());
+    }
+    passive_nodes(&island::children(&parts[3])?, c)?;
+    passive_nodes(&children[*start + 1..*end], c)?;
+    let artifact = compile_template(
+        source,
+        &CompileTemplateOptions {
+            host_bindings: data.bindings.keys().cloned().collect(),
+            source_uri: Some("cem-resume:declaration".into()),
+            ..Default::default()
+        },
+    );
+    if !artifact.stylesheets.is_empty()
+        || artifact.module_map.is_some()
+        || artifact.requires_legacy_runtime_resources()
+        || artifact
+            .diagnostics
+            .iter()
+            .any(|d| d.severity.is_hard_violation())
+    {
+        return Err(fail());
+    }
+    let version = fields.get("declarationVersion").cloned();
+    let plan = render_compiled_template_with_control(&artifact, &data, c, ROOT_EXECUTION_SCOPE_ID);
+    if plan
+        .diagnostics
+        .iter()
+        .any(|d| d.severity.is_hard_violation())
+    {
+        return Err(fail());
+    }
+    let mut plan = project_render_plan_with_control(
+        &plan,
+        crate::eval::QueryContextScope(0),
+        &island::LIMITS,
+        c,
+        ROOT_EXECUTION_SCOPE_ID,
+    )
+    .map_err(|_| fail())?;
+    crate::ssr_render::admit_output_mode(&mut plan.nodes, false, None).map_err(|_| fail())?;
+    let mut pending: Vec<_> = plan.nodes.iter().collect();
+    while let Some(node) = pending.pop() {
+        if let RenderPlanNode::Element {
+            tag,
+            namespace,
+            children,
+            ..
+        } = node
+        {
+            if !profile_tag(tag) || namespace.as_deref() != Some("http://www.w3.org/1999/xhtml") {
+                return Err(fail());
+            }
+            pending.extend(children);
+        }
+    }
+    if !version
+        .as_deref()
+        .is_some_and(|v| versions_compatible(v, current_version))
+    {
+        return Ok(NativeSsrResume {
+            decision: ResumeDecision::RenderOnLoad,
+            instance_id,
+            declaration_version: version,
+        });
+    }
+    for a in &plan.host_attribute_updates {
+        if actual.get(&a.name) != Some(&a.value) {
+            return Err(fail());
+        }
+    }
+    compare(&plan.nodes, &children[*start + 1..*end], 0, c)?;
+    if !plan
+        .nodes
+        .iter()
+        .any(|n| matches!(n, RenderPlanNode::Element { .. }))
+    {
+        return Err(fail());
+    }
+    Ok(NativeSsrResume {
+        decision: ResumeDecision::Adopt,
+        instance_id,
+        declaration_version: version,
+    })
+}
+fn compare(
+    expected: &[RenderPlanNode],
+    actual: &[Item],
+    depth: usize,
+    c: &OperationControl,
+) -> Result<(), String> {
+    c.check_scope(ROOT_EXECUTION_SCOPE_ID).map_err(|_| fail())?;
+    if depth > 64 {
+        return Err(fail());
+    }
+    let (mut e, mut a) = (0, 0);
+    while e < expected.len() || a < actual.len() {
+        let mut et = String::new();
+        while let Some(RenderPlanNode::Text { text, .. }) = expected.get(e) {
+            et.push_str(text);
+            e += 1;
+        }
+        let mut at = String::new();
+        while actual
+            .get(a)
+            .is_some_and(|i| matches!(kind(i).as_deref(), Some("text" | "whitespace")))
+        {
+            at.push_str(&text(&actual[a])?);
+            a += 1;
+        }
+        if et != at {
+            return Err(fail());
+        }
+        if e == expected.len() && a == actual.len() {
+            break;
+        }
+        let item = actual.get(a).ok_or_else(fail)?;
+        match expected.get(e).ok_or_else(fail)? {
+            RenderPlanNode::Element {
+                tag,
+                namespace,
+                attributes,
+                children,
+                ..
+            } => {
+                if tag.contains('-')
+                    || tag == "template"
+                    || tag == "style"
+                    || !island::is_element(
+                        item,
+                        tag,
+                        namespace
+                            .as_deref()
+                            .filter(|s| !s.is_empty())
+                            .unwrap_or("http://www.w3.org/1999/xhtml"),
+                    )
+                {
+                    return Err(fail());
+                }
+                let attributes: Vec<_> = attributes
+                    .iter()
+                    .filter(|a| a.namespace.as_deref() != Some("http://www.w3.org/2000/xmlns/"))
+                    .collect();
+                let attrs = attributes
+                    .iter()
+                    .map(|a| {
+                        if a.namespace.as_deref().is_some_and(|s| !s.is_empty()) {
+                            return Err(fail());
+                        }
+                        Ok((a.name.clone(), a.value.clone()))
+                    })
+                    .collect::<Result<BTreeMap<_, _>, String>>()?;
+                if attrs.len() != attributes.len() || attrs != island::attrs(item)? {
+                    return Err(fail());
+                }
+                compare(children, &island::children(item)?, depth + 1, c)?;
+            }
+            RenderPlanNode::Comment { text: expected, .. }
+                if kind(item).as_deref() == Some("comment")
+                    && text(item).as_deref() == Ok(expected.as_str()) => {}
+            _ => return Err(fail()),
+        }
+        e += 1;
+        a += 1;
+    }
+    Ok(())
+}
+
+fn passive_nodes(roots: &[Item], c: &OperationControl) -> Result<(), String> {
+    let mut pending = roots.to_vec();
+    while let Some(node) = pending.pop() {
+        c.check_scope(ROOT_EXECUTION_SCOPE_ID).map_err(|_| fail())?;
+        match kind(&node).as_deref() {
+            Some("element") => {
+                let tag = island::field(&node, "name").ok_or_else(fail)?;
+                // Inert nested templates have a separate DOM mutation root.
+                if !profile_tag(&tag)
+                    || !island::is_element(&node, &tag, "http://www.w3.org/1999/xhtml")
+                {
+                    return Err(fail());
+                }
+                let attributes = island::attrs(&node)?;
+                let pairs = attributes
+                    .iter()
+                    .map(|(k, v)| (k.as_str(), v.as_str()))
+                    .collect::<Vec<_>>();
+                cem_ml::validation::html::validate_passive_html_projection(&tag, &pairs)
+                    .map_err(|_| fail())?;
+                pending.extend(island::children(&node)?);
+            }
+            Some("text" | "whitespace" | "comment") => {}
+            _ => return Err(fail()),
+        }
+    }
+    Ok(())
+}
+
+fn profile_tag(tag: &str) -> bool {
+    !tag.contains('-')
+        && !matches!(
+            tag,
+            "template"
+                | "form"
+                | "input"
+                | "textarea"
+                | "select"
+                | "option"
+                | "fieldset"
+                | "button"
+        )
+}

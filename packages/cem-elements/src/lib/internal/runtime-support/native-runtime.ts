@@ -288,6 +288,8 @@ export const renderTemplateWithNativeValuesAndAdmission = bind('renderTemplateWi
 export const beginDomPayloadCapture = bind('beginDomPayloadCapture');
 export const appendDomPayloadNode = bind('appendDomPayloadNode');
 export const finishDomPayloadCapture = bind('finishDomPayloadCapture');
+export const finishDomLiteralNamespaceCapture = bind('finishDomLiteralNamespaceCapture');
+export const admitCanonicalSsrHost = bind('admitCanonicalSsrHost');
 export const disposeDomPayloadCapture = bind('disposeDomPayloadCapture');
 export const importCemDocumentValue = bind('importCemDocumentValue');
 export const exportCemJsonValue = bind('exportCemJsonValue');
@@ -338,6 +340,7 @@ const sharedEntrypoints = [
     'compileTemplateModuleClosure', 'convertLegacyCustomElementTemplate', 'disposeTemplate',
     'importTemplateArtifact', 'importPinnedTemplateArtifact', 'admitDeclarationMetadata', 'renderTemplateWithNativeValues', 'renderTemplateWithNativeValuesAndAdmission',
     'beginDomPayloadCapture', 'appendDomPayloadNode', 'finishDomPayloadCapture', 'disposeDomPayloadCapture',
+    'finishDomLiteralNamespaceCapture', 'admitCanonicalSsrHost',
     'importCemDocumentValue', 'exportCemJsonValue', 'importNativeValueArtifact',
     'importReferenceReloadBundle', 'parseReferenceSource', 'prepareNativeCapabilitySession',
     'prepareNativeDatalist', 'publishNativeDatalist', 'nativeCapabilitySessionLength',

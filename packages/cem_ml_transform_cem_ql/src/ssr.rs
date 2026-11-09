@@ -413,7 +413,16 @@ impl TransformArtifactExporter for ReadyExporter {
                     if !ds.is_empty() {return Err(diagnostics(ds))}
                     let contract=contract.ok_or("Missing DOM-safe HTML writer contract")?;
                     let environment=ConversionOutputPipelineEnvironment {schema_registry:&self.schemas,conversion_registry:&self.conversions,package_artifact_reader:None,artifact_cache:None};
-                    let stream=Arc::new(cem_ml::projection::html_dom_writer_stream(artifact.ready.tree().clone(),artifact.ready.page().source_document(),&artifact.control)?);
+                    let tree=artifact.ready.tree();
+                    let attributes=artifact.ready.participants().iter().map(|p| {
+                        let id=p.island_node();
+                        (id,cem_ml::projection::CemTreeAstAttribute {
+                            name:cem_ql::ssr_browser_resume::PROFILE_ATTRIBUTE.into(),
+                            value:Some(cem_ql::ssr_browser_resume::PROFILE.into()),value_nodes:vec![],
+                            source:tree.node_source_map(id).unwrap_or_default(),
+                        })
+                    }).collect();
+                    let stream=Arc::new(cem_ml::projection::html_dom_writer_stream_with_output_attributes(tree.clone(),artifact.ready.page().source_document(),&artifact.control,&attributes)?);
                     let output=execute_conversion_output_pipeline_from_cem_tree_with_environment(&environment,&contract.pipeline,stream,artifact.ready.page().source_map().cloned(),vec![],descriptor.id.as_str(),None,Some(&artifact.ready.page().route().source_uri));
                     if output.diagnostics.iter().any(|d|d.severity.is_hard_violation()) {return Err(diagnostics(output.diagnostics))}
                     let text=output.output.as_ref().and_then(serde_json::Value::as_str).ok_or("DOM-safe formatter returned no HTML")?;
@@ -539,6 +548,16 @@ mod tests {
             panic!()
         };
         let native = native.as_any().downcast_ref::<ReadyArtifact>().unwrap();
+        let island = native.ready.participants()[0].island_node();
+        let tree = native.ready.tree();
+        assert!(tree.node(island).unwrap().attributes.iter().all(|id| tree
+            .node(*id)
+            .unwrap()
+            .name
+            .as_ref()
+            .unwrap()
+            .local_name
+            != cem_ql::ssr_browser_resume::PROFILE_ATTRIBUTE));
         assert_eq!(
             native.exported_bytes.load(Ordering::Relaxed),
             2 * first.bytes.len() as u64
