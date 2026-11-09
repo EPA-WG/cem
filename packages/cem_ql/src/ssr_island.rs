@@ -3,6 +3,7 @@ use crate::instance_island::construct::{add_child, attribute, element, PREFIXES}
 use crate::{
     eval::{AtomValue, Item, RetainedCemNode},
     render::TemplateData,
+    ssr_page::SsrResourceReader,
     ssr_preparation::PreparedInlineDce,
 };
 use cem_ml::{diagnostics::Diagnostic, operation_control::OperationControl};
@@ -60,6 +61,15 @@ impl PreparedInlineIsland {
 pub fn prepare_inline_island(
     prepared: PreparedInlineDce,
     instance_id: &str,
+    control: &OperationControl,
+) -> Result<PreparedInlineIsland, Vec<Diagnostic>> {
+    prepare_inline_island_with_resource_reads(prepared, instance_id, None, control)
+}
+
+pub(crate) fn prepare_inline_island_with_resource_reads(
+    mut prepared: PreparedInlineDce,
+    instance_id: &str,
+    read: Option<&mut SsrResourceReader<'_>>,
     control: &OperationControl,
 ) -> Result<PreparedInlineIsland, Vec<Diagnostic>> {
     use crate::ssr_preparation::{check, problem};
@@ -134,6 +144,7 @@ pub fn prepare_inline_island(
         .copied()
         .map(|id| RetainedCemNode::new(tree.clone(), id).unwrap());
     let mut cem_source = false;
+    let mut external_src = None;
     let payload_ids = if let Some(envelope) = &envelope {
         let node = tree.node(envelope.node_id()).unwrap();
         let attrs = node
@@ -149,6 +160,10 @@ pub fn prepare_inline_island(
             cem_ml::import::element_tree::canonical_cem_payload_type(value).is_some()
         });
         for (name, value) in attrs {
+            if cem_source && name == "data-cem-payload-src" {
+                external_src = Some(value);
+                continue;
+            }
             let accepted = if cem_source {
                 name == "type"
                     || name == "data-cem-schema"
@@ -215,31 +230,44 @@ pub fn prepare_inline_island(
     })?;
     let native_source = if cem_source {
         let envelope = envelope.as_ref().unwrap();
-        let admitted = if let Some(pool) = &prepared.payload_sources {
-            pool.retain(
-                tree.clone(),
-                envelope.node_id(),
-                control,
-                &crate::instance_island::LIMITS,
-            )
+        let admitted = if let Some(src) = external_src {
+            let read = read
+                .filter(|_| prepared.payload_sources.is_some())
+                .ok_or_else(|| {
+                    fail(
+                        "cem.ssr.payload_authority_unavailable",
+                        "External payload requires a bounded explicit reader",
+                    )
+                })?;
+            read_payload(page, envelope, src, read, control)?
         } else {
-            cem_ml::import::element_tree::retain_inline_cem_payload(
-                tree.clone(),
-                envelope.node_id(),
-                control,
-                &crate::instance_island::LIMITS,
-            )
+            let admitted = if let Some(pool) = &prepared.payload_sources {
+                pool.retain(
+                    tree.clone(),
+                    envelope.node_id(),
+                    control,
+                    &crate::instance_island::LIMITS,
+                )
+            } else {
+                cem_ml::import::element_tree::retain_inline_cem_payload(
+                    tree.clone(),
+                    envelope.node_id(),
+                    control,
+                    &crate::instance_island::LIMITS,
+                )
+            };
+            check(page, control)?;
+            admitted.map_err(|_| {
+                problem(
+                    page,
+                    Some(tree),
+                    Some(envelope.node_id()),
+                    "cem.ssr.payload_source_invalid",
+                    "Native CEM-ML source admission refused the payload",
+                )
+            })?
         };
-        check(page, control)?;
-        Some(admitted.map_err(|_| {
-            problem(
-                page,
-                Some(tree),
-                Some(envelope.node_id()),
-                "cem.ssr.payload_source_invalid",
-                "Native CEM-ML source admission refused the payload",
-            )
-        })?)
+        Some(admitted)
     } else {
         None
     };
@@ -365,6 +393,9 @@ pub fn prepare_inline_island(
         ]);
         if envelope.is_some() {
             attributes.push(attribute("data-cem-explicit-payload", "true", &origin));
+        }
+        if external_src.is_some() {
+            attributes.push(attribute("data-cem-external-payload", "true", &origin));
         }
         let canonical_payload = native_source.as_ref().map(|source| {
             vec![RetainedCemNode::new(
@@ -503,6 +534,12 @@ pub fn prepare_inline_island(
             )
         }
     })?;
+    if let Some(input) = native_source
+        .as_ref()
+        .and_then(|source| source.external_input())
+    {
+        prepared.record_external_payload_bytes(input.byte_length)?;
+    }
     Ok(PreparedInlineIsland {
         prepared,
         template,
@@ -513,6 +550,85 @@ pub fn prepare_inline_island(
         instance_id: instance_id.into(),
         css,
         coordinated_css: None,
+    })
+}
+fn read_payload(
+    page: &cem_ml::ssr_artifact::CemSsrPageArtifact,
+    envelope: &RetainedCemNode,
+    src: &str,
+    read: &mut SsrResourceReader<'_>,
+    control: &OperationControl,
+) -> Result<std::sync::Arc<cem_ml::import::element_tree::RetainedCemPayloadSource>, Vec<Diagnostic>>
+{
+    use crate::{
+        ssr_page::ssr_resource::public_read_request,
+        ssr_preparation::{check, problem},
+    };
+    use cem_ml::{
+        import::element_tree::{retain_external_cem_payload, MAX_CEM_PAYLOAD_SOURCE_BYTES},
+        schema::registry::content_type_essence,
+    };
+    let tree = envelope.owner();
+    let template = envelope.node_id();
+    let fail = |code, message: &str| problem(page, Some(tree), Some(template), code, message);
+    if !tree.node(template).unwrap().children.is_empty() {
+        return Err(fail(
+            "cem.ssr.payload_profile_unsupported",
+            "External payload requires an empty source template",
+        ));
+    }
+    let request = public_read_request(page, src, None, "text/cem-ml").ok_or_else(|| {
+        fail(
+            "cem.ssr.payload_url",
+            "External payload requires a public URL without credentials, a query or a fragment",
+        )
+    })?;
+    let usage = page.usage();
+    let limit = (page.policy().max_total_bytes - usage.total_bytes)
+        .min(MAX_CEM_PAYLOAD_SOURCE_BYTES as u64)
+        .min(crate::instance_island::LIMITS.max_bytes as u64) as usize;
+    if limit == 0 || usage.resources >= page.policy().max_resources {
+        return Err(fail(
+            "cem.ssr.settle_budget",
+            "External payload resource or byte budget exhausted",
+        ));
+    }
+    let origin = tree.node_source_map(template);
+    let (response, _buffer) = read(&request, limit, origin.as_ref())
+        .map_err(|error| fail("cem.ssr.resource_read", &error))?;
+    check(page, control)?;
+    if response.bytes.len() > limit {
+        return Err(fail(
+            "cem.ssr.settle_budget",
+            "External payload exceeds its read budget",
+        ));
+    }
+    if response.uri != request.uri
+        || response
+            .content_type
+            .as_deref()
+            .map(content_type_essence)
+            .as_deref()
+            != Some("text/cem-ml")
+    {
+        return Err(fail(
+            "cem.ssr.payload_response",
+            "External payload requires its exact public URL and a text/cem-ml response",
+        ));
+    }
+    retain_external_cem_payload(
+        tree.clone(),
+        template,
+        &request.uri,
+        response.bytes,
+        control,
+        &crate::instance_island::LIMITS,
+    )
+    .map_err(|error| {
+        fail(
+            "cem.ssr.payload_source_invalid",
+            &format!("{}: {error}", request.uri),
+        )
     })
 }
 const HTML: &str = cem_ml::schema::registry::HTML_NAMESPACE_URI;

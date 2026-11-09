@@ -319,19 +319,20 @@ pub(super) fn render(
         },
     );
     let capability = CemModuleUrlResolutionCapability::new(Arc::new(resolver), handle);
+    let mut read = |request: &ResolveRequest, max_bytes, source: Option<&SourceMapStack>| {
+        read_ssr_resource(request, source, &runtime, &cpu, max_bytes, wall_limit)
+    };
     let mut coordinator = prepare_inline_page_with_declaration_reads(
         page,
         "ssr",
         capability,
-        &mut |request, max_bytes, source| {
-            read_ssr_resource(request, source, &runtime, &cpu, max_bytes, wall_limit)
-        },
+        &mut read,
         runtime.operation_control,
     )
     .map_err(diagnostics)?;
     loop {
         match coordinator
-            .advance(runtime.operation_control)
+            .advance_with_resource_reads(runtime.operation_control, &mut read)
             .map_err(diagnostics)?
         {
             SsrPageProgress::Quiescent => break,

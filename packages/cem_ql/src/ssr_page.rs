@@ -4,8 +4,10 @@
 mod external_declaration;
 #[path = "ssr_readiness.rs"]
 mod readiness;
+#[path = "ssr_resource.rs"]
+pub(crate) mod ssr_resource;
 use crate::{
-    ssr_island::{prepare_inline_island, PreparedInlineIsland},
+    ssr_island::{prepare_inline_island_with_resource_reads, PreparedInlineIsland},
     ssr_preparation::{
         check, compile_inline_definition, prepare_inline_participant, problem, InlineDefinition,
         InlineParticipantSelection,
@@ -30,10 +32,11 @@ use cem_ml::{
     ssr_artifact::{CemSsrPageArtifact, SsrLifecycleState, SsrPartialReason},
 };
 pub(crate) use external_declaration::ExternalDeclarationLease;
-pub use external_declaration::SsrDeclarationReader;
 pub use readiness::{
     ReadyInlinePage, SsrReadinessContext, SsrReadinessObservation, SSR_READY_RENDER_PLAN,
 };
+pub use ssr_resource::SsrResourceReader;
+pub use ssr_resource::SsrResourceReader as SsrDeclarationReader;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{
@@ -134,6 +137,18 @@ struct ResourceInput {
     content: ContentHash,
     #[serde(skip_serializing_if = "Option::is_none")]
     declaration_bytes: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    payload_bytes: Option<usize>,
+}
+impl ResourceInput {
+    fn from_payload(input: &cem_ml::import::element_tree::ExternalCemPayloadInput) -> Self {
+        Self {
+            resolved_uri: input.uri.clone(),
+            content: input.content.clone(),
+            declaration_bytes: None,
+            payload_bytes: Some(input.byte_length),
+        }
+    }
 }
 impl PageResources {
     fn check(&self, control: &OperationControl) -> Result<(), String> {
@@ -737,6 +752,23 @@ impl InlinePageCoordinator {
         &mut self,
         control: &OperationControl,
     ) -> Result<SsrPageProgress, Vec<Diagnostic>> {
+        self.advance_measured(control, None)
+    }
+
+    /// Resolve external payloads during this participant's original CPU phase.
+    pub fn advance_with_resource_reads(
+        &mut self,
+        control: &OperationControl,
+        read: &mut SsrResourceReader<'_>,
+    ) -> Result<SsrPageProgress, Vec<Diagnostic>> {
+        self.advance_measured(control, Some(read))
+    }
+
+    fn advance_measured(
+        &mut self,
+        control: &OperationControl,
+        read: Option<&mut SsrResourceReader<'_>>,
+    ) -> Result<SsrPageProgress, Vec<Diagnostic>> {
         if !self.control.same_operation(control) {
             return Err(self.fail(
                 "cem.ssr.participant_operation_stale",
@@ -751,7 +783,7 @@ impl InlinePageCoordinator {
                 return Err(error);
             }
         };
-        let result = self.advance_inner(control);
+        let result = self.advance_inner(control, read);
         let measured = guard
             .map(NativeCpuGuard::finish)
             .transpose()
@@ -765,6 +797,7 @@ impl InlinePageCoordinator {
     fn advance_inner(
         &mut self,
         control: &OperationControl,
+        read: Option<&mut SsrResourceReader<'_>>,
     ) -> Result<SsrPageProgress, Vec<Diagnostic>> {
         self.check(control)?;
         if self.pending.is_some() {
@@ -814,7 +847,36 @@ impl InlinePageCoordinator {
             control,
         )?;
         let instance_id = format!("{}-{}", self.prefix, self.participants.len() + 1);
-        let island = prepare_inline_island(prepared, &instance_id, control)?;
+        let island =
+            prepare_inline_island_with_resource_reads(prepared, &instance_id, read, control)?;
+        if let Some(input) = island
+            .bindings()
+            .native_payload_source
+            .as_ref()
+            .and_then(|source| source.external_input())
+        {
+            let resources = self
+                .resources
+                .as_mut()
+                .expect("External payload requires page resource authority");
+            let witness = ResourceInput::from_payload(input);
+            if resources
+                .inputs
+                .get(&input.uri)
+                .is_some_and(|previous| previous != &witness)
+                || resources
+                    .inputs
+                    .values()
+                    .any(|previous| previous.resolved_uri == input.uri && previous != &witness)
+            {
+                return Err(self.fail(
+                    "cem.ssr.resource_changed",
+                    "Payload response changed within the original page operation",
+                    Some(instance),
+                ));
+            }
+            resources.inputs.insert(input.uri.clone(), witness);
+        }
         if self.resources.is_none()
             && (island.bindings().native_payload_source.is_some()
                 || !island.instance_stylesheets().is_empty())
@@ -969,6 +1031,7 @@ impl InlinePageCoordinator {
                 resolved_uri: response.uri.clone(),
                 content: ContentHash::from_blake3(&response.bytes),
                 declaration_bytes: None,
+                payload_bytes: None,
             };
             let resources = self.resources.as_ref().unwrap();
             if resources
@@ -976,8 +1039,7 @@ impl InlinePageCoordinator {
                 .get(uri)
                 .is_some_and(|previous| previous != &witness)
                 || resources.inputs.values().any(|previous| {
-                    previous.resolved_uri == witness.resolved_uri
-                        && previous.content != witness.content
+                    previous.resolved_uri == witness.resolved_uri && previous != &witness
                 })
             {
                 return Err(self.fail(

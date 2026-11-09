@@ -83,6 +83,14 @@ try {
         'x-external=1.9.0', ['--resolver-read-map', `https://ssr.example.test/assets/=${mirror}`],
         '<base href="/assets/">',
     );
+    const payloadText = '{item | Mapped payload {$ 1 div 0}}';
+    await writeFile(path.join(mirror, 'payload.cem'), payloadText);
+    const externalPayloadPage = await render([
+        '<cem-element tag="x-payload" version="1.2.3"><template id="x-payload" type="text/cem-ml">',
+        '{article | {$ datadom.payload.children.targets.children}}</template></cem-element>',
+        '<x-payload><template type="text/cem-ml" data-cem-payload-src="./payload.cem"></template></x-payload>',
+    ].join(''), 'x-payload=1.9.0', ['--resolver-read-map', `https://ssr.example.test/assets/=${mirror}`],
+    '<base href="/assets/">');
     const authored = '{cem-element @tag=x-authored @version="1.2.3" | {template @id=x-authored @type="text/cem-ml" |```{article | From source}```}}{x-authored}';
     const cemPage = await renderSource(path.join(temp, 'source.cem'),
         `{html | {head | {title | Native page}}{body | ${authored}}}`,
@@ -95,6 +103,7 @@ try {
         ['/foreign.html', foreign], ['/source.html', cemSource], ['/forms.html', forms],
         ['/mapped.html', mapped], [authoredPages[0], cemPage], [authoredPages[1], markdownPage],
         ['/external.html', externalPage], ['/assets/external.html', externalDeclaration],
+        ['/external-payload.html', externalPayloadPage],
     ]);
     assert.match(html, /<article><strong\b[^>]*\bslot="heading"[^>]*>Island input<\/strong><\/article>/);
     assert.match(html, /data-cem-ssr-profile="cem-native-inline\/1"/);
@@ -656,35 +665,44 @@ try {
     assert.equal(mappedResult.marked, true);
     assert.ok(mappedResult.diagnostics.includes('cem-element.hydration_native_refused'));
     await page.close();
-    const external = await browser.newPage();
-    external.on('pageerror', error => errors.push(error.message));
-    await external.route('**/*', route => {
-        if (new URL(route.request().url()).origin === origin) return route.continue();
-        requests.push(route.request().url()); return route.abort();
-    });
-    await external.goto(`${origin}/external.html`);
-    const externalResult = await external.evaluate(async () => {
-        const { CemElementRuntime } = await import('/packages/cem-elements/dist/lib/cem-elements.js');
-        const host = document.querySelector('x-external');
-        const declaration = document.querySelector('cem-element');
-        const article = host.querySelector('article');
-        const before = host.innerHTML;
-        const runtime = new CemElementRuntime({ processingWorkerFactory: () => { throw new Error('Use main-thread runtime'); } });
-        runtime.install(window);
-        await runtime.whenDeclarationSettled(declaration);
-        await runtime.whenRenderSettled(host);
-        return {
-            text: article?.textContent,
-            unchanged: host.innerHTML === before && host.querySelector('article') === article,
-            marked: host.querySelector('template[data-cem-ssr-profile]') !== null,
-            diagnostics: runtime.diagnosticsFor(host).map(d => d.code),
-        };
-    });
-    assert.deepEqual(externalResult, {
-        text: 'From external declaration', unchanged: true, marked: true,
-        diagnostics: ['cem-element.hydration_native_refused'],
-    });
-    await external.close();
+    for (const [route, tag, text] of [
+        ['/external.html', 'x-external', 'From external declaration'],
+        ['/external-payload.html', 'x-payload', payloadText],
+    ]) {
+        const external = await browser.newPage();
+        external.on('pageerror', error => errors.push(error.message));
+        const payloadReads = [];
+        await external.route('**/*', route => {
+            const url = new URL(route.request().url());
+            if (url.pathname === '/assets/payload.cem') payloadReads.push(url.pathname);
+            if (url.origin === origin) return route.continue();
+            requests.push(url.href); return route.abort();
+        });
+        await external.goto(`${origin}${route}`);
+        const externalResult = await external.evaluate(async tag => {
+            const { CemElementRuntime } = await import('/packages/cem-elements/dist/lib/cem-elements.js');
+            const host = document.querySelector(tag);
+            const declaration = document.querySelector('cem-element');
+            const article = host.querySelector('article');
+            const before = host.innerHTML;
+            const runtime = new CemElementRuntime({ processingWorkerFactory: () => { throw new Error('Use main-thread runtime'); } });
+            runtime.install(window);
+            await runtime.whenDeclarationSettled(declaration);
+            await runtime.whenRenderSettled(host);
+            return {
+                text: article?.textContent,
+                unchanged: host.innerHTML === before && host.querySelector('article') === article,
+                marked: host.querySelector('template[data-cem-ssr-profile]') !== null,
+                diagnostics: runtime.diagnosticsFor(host).map(d => d.code),
+            };
+        }, tag);
+        assert.deepEqual(externalResult, {
+            text, unchanged: true, marked: true,
+            diagnostics: ['cem-element.hydration_native_refused'],
+        }, route);
+        assert.deepEqual(payloadReads, []);
+        await external.close();
+    }
     for (const route of authoredPages) {
         const page = await browser.newPage();
         page.on('pageerror', error => errors.push(error.message));
@@ -714,8 +732,8 @@ try {
         await page.close();
     }
     assert.deepEqual(errors, []); assert.deepEqual(requests, []);
-    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + authoredPages.length + 2;
-    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} stylesheet, ${payloadCases.length} foreign/source, ${formCases.length} form, two authored source profiles plus mapped CSS and external declarations, zero off-origin requests`);
+    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + authoredPages.length + 3;
+    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} stylesheet, ${payloadCases.length} foreign/source, ${formCases.length} form, two authored source profiles plus mapped CSS, declarations and payloads, zero off-origin requests`);
 } finally {
     await browser?.close();
     if (server) await new Promise(resolve => server.close(resolve));

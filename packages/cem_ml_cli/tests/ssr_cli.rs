@@ -203,6 +203,142 @@ fn config_cli_proves_declaration_bytes_and_preserves_exports_on_refusal() {
     fs::remove_dir_all(root).unwrap();
 }
 
+fn external_payload_fixture() -> (PathBuf, &'static str, &'static str) {
+    let root = fixture();
+    let page = r#"<!doctype html><html><head><base href="/assets/"><title>SSR</title></head><body><cem-element tag="x-card" version="1.2.3"><template id="x-card" type="text/cem-ml">{article | {$ datadom.payload.children.targets.children}}</template></cem-element><x-card><template type="text/cem-ml" data-cem-payload-src="./payload.cem"></template></x-card></body></html>"#;
+    let payload = "{item | External {$ 1 div 0}}";
+    fs::write(root.join("page.html"), page).unwrap();
+    fs::create_dir(root.join("mirror")).unwrap();
+    fs::write(root.join("mirror/payload.cem"), payload).unwrap();
+    (root, page, payload)
+}
+
+#[test]
+fn direct_cli_loads_mapped_external_cem_payload() {
+    let (root, _, payload) = external_payload_fixture();
+    let read_map = format!("https://ssr.test/assets/={}", root.join("mirror").display());
+    let out = direct(&root, "text/html", &["--resolver-read-map", &read_map]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let html = fs::read_to_string(root.join("out.html")).unwrap();
+    assert!(
+        html.contains(&format!("<article>{payload}</article>")),
+        "{html}"
+    );
+    assert!(
+        html.contains(r#"data-cem-external-payload="true""#),
+        "{html}"
+    );
+    assert!(!html.contains("data-cem-payload-src="));
+    assert!(!html.contains(root.join("mirror").to_str().unwrap()));
+    let map: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.join("out.html.map")).unwrap()).unwrap();
+    let spans = map["outputSpans"].as_array().unwrap();
+    let occurrences = html
+        .match_indices(payload)
+        .map(|(offset, _)| offset as u64)
+        .collect::<Vec<_>>();
+    assert_eq!(occurrences.len(), 2, "{html}");
+    for offset in occurrences {
+        assert!(
+            spans.iter().any(|span| {
+                span["outputRange"]["start"] == offset
+                    && span["outputRange"]["len"] == payload.len()
+                    && span["origin"]["frames"].as_array().is_some_and(|frames| {
+                        frames.iter().any(|frame| {
+                            frame["transform"]["uri"] == "https://ssr.test/assets/payload.cem"
+                                && frame["span"]["ranges"]["start"] == 0
+                                && frame["span"]["ranges"]["len"] == payload.len()
+                        })
+                    })
+            }),
+            "{map}"
+        );
+    }
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn config_cli_accounts_for_each_payload_read_and_preserves_exports_on_late_refusal() {
+    let (root, page, payload) = external_payload_fixture();
+    let read_map = format!("https://ssr.test/assets/={}", root.join("mirror").display());
+    let args = ["--resolver-read-map", &read_map];
+    let host = r#"<x-card><template type="text/cem-ml" data-cem-payload-src="./payload.cem"></template></x-card>"#;
+    let twice = page.replace(host, &format!("{host}{host}"));
+    fs::write(root.join("page.html"), &twice).unwrap();
+    let publish = || {
+        let out = config_cli(&root, &args);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        serde_json::from_slice::<serde_json::Value>(&fs::read(root.join("page-out.json")).unwrap())
+            .unwrap()
+    };
+    let first = publish();
+    assert_eq!(first["usage"]["resources"], 2);
+    assert_eq!(
+        first["usage"]["totalBytes"],
+        twice.len() + 2 * payload.len()
+    );
+    fs::write(
+        root.join("mirror/payload.cem"),
+        payload.replace("External", "Modified"),
+    )
+    .unwrap();
+    let second = publish();
+    assert_ne!(first["renderInputIdentity"], second["renderInputIdentity"]);
+
+    let outputs = [
+        "page-out.html",
+        "page-out.html.map",
+        "page-out.json",
+        "page-out.json.map",
+    ];
+    let previous = outputs.map(|name| fs::read(root.join(name)).unwrap());
+    let reject = |args: &[&str], code: &str| {
+        let result = config_cli(&root, args);
+        assert!(!result.status.success());
+        let error = String::from_utf8_lossy(&result.stderr);
+        assert!(error.contains(code), "{error}");
+        assert_eq!(
+            outputs.map(|name| fs::read(root.join(name)).unwrap()),
+            previous
+        );
+    };
+    reject(&[], "cem.ssr.resource_read");
+    let bad = root.join("mirror/bad.cem");
+    fs::write(
+        root.join("page.html"),
+        page.replace(
+            host,
+            &format!("{host}{}", host.replace("payload.cem", "bad.cem")),
+        ),
+    )
+    .unwrap();
+    fs::write(&bad, "{item | Unclosed").unwrap();
+    reject(&args, "cem.ssr.payload_source_invalid");
+    fs::write(&bad, vec![b' '; 32_769]).unwrap();
+    reject(&args, "cem.ssr.resource_read");
+    fs::write(
+        root.join("page.html"),
+        page.replace("</template></x-card>", "{item | Mixed}</template></x-card>"),
+    )
+    .unwrap();
+    reject(&args, "cem.ssr.payload_profile_unsupported");
+    fs::write(
+        root.join("page.html"),
+        page.replace("payload.cem", "payload.cem?query"),
+    )
+    .unwrap();
+    reject(&args, "cem.ssr.payload_url");
+    fs::remove_dir_all(root).unwrap();
+}
+
 fn stylesheet_fixture() -> PathBuf {
     let root = fixture();
     let page = root.join("page.html");

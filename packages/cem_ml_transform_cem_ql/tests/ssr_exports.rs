@@ -391,6 +391,58 @@ fn external_declaration_acquisition_cpu_is_in_the_original_report_and_can_exhaus
     );
 }
 
+#[test]
+fn external_payload_acquisition_cpu_is_in_the_original_report_and_can_exhaust_it() {
+    verify_resource_cpu(
+        "https://ssr.test/guide/payload.cem",
+        "text/cem-ml",
+        b"{item | Inert {$ 1 div 0}}",
+        |source| {
+            source.replace(
+            "<x-parent></x-parent>",
+            r#"<x-parent><template type="text/cem-ml" data-cem-payload-src="./payload.cem"></template></x-parent>"#,
+        )
+        },
+    );
+}
+
+#[test]
+fn payload_occurrences_share_the_original_page_resource_limit() {
+    let mut r = request("application/vnd.cem.ssr-report+json");
+    let host = r#"<x-parent><template type="text/cem-ml" data-cem-payload-src="./payload.cem"></template></x-parent>"#;
+    r.data.bytes = std::str::from_utf8(&r.data.bytes)
+        .unwrap()
+        .replace("<x-parent></x-parent>", &format!("{host}{host}"))
+        .into_bytes();
+    r.params.insert("max-resources".into(), json!(1));
+    let reads = Arc::new(AtomicU64::new(0));
+    r.context.resolver_registry.register(
+        "https",
+        ResolvePurpose::SsrResource,
+        ResolveDirection::Read,
+        MeasuredResource {
+            uri: "https://ssr.test/guide/payload.cem",
+            content_type: "text/cem-ml",
+            body: b"{item | One read}",
+            original: r.context.operation_control.clone(),
+            burn_ms: 0,
+            reads: reads.clone(),
+            completed_cpu_ms: Arc::new(AtomicU64::new(0)),
+        },
+    );
+    let output = RealCemMlEngine::new().transform(r).unwrap();
+    assert_eq!(reads.load(Ordering::Relaxed), 1);
+    assert!(
+        output.diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("External payload resource or byte budget exhausted")
+        }),
+        "{:?}",
+        output.diagnostics
+    );
+}
+
 fn verify_resource_cpu(
     uri: &'static str,
     content_type: &'static str,

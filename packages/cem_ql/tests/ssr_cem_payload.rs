@@ -161,3 +161,49 @@ fn shorthand_preserves_authored_template_but_exposes_one_canonical_native_view()
         .contains("type='cem-ml'"));
     assert!(!result.page().adoption_identity().hydration_ready());
 }
+
+#[test]
+fn external_native_adapter_keeps_exact_resource_ranges_and_the_original_envelope() {
+    use cem_ml::{
+        import::element_tree::retain_external_cem_payload,
+        parser::CemAstNode,
+        source_map::{FrameSpan, TransformKind},
+    };
+    let c = control();
+    let source = owner(
+        r#"<cem-element tag="x-inline"><template id="x-inline" type="text/cem-ml">{p | Visible}</template></cem-element><x-inline><template type="text/cem-ml" data-cem-payload-src="./payload.cem"></template></x-inline>"#,
+    );
+    let prepared = prepare_inline_dce(page(&source, "memory:output"), &c).unwrap();
+    let tree = &prepared.elements().tree;
+    let stub = tree.node(prepared.instance_node()).unwrap().children[0];
+    let text = "\n{item | {#nodes[1 div 0]}}";
+    let uri = "https://ssr.test/payload.cem";
+    let admitted = retain_external_cem_payload(
+        tree.clone(),
+        stub,
+        uri,
+        text.as_bytes().to_vec(),
+        &c,
+        &Default::default(),
+    )
+    .unwrap();
+    assert!(admitted.matches_source(tree, stub));
+    assert!(admitted.matches_operation(&c));
+    assert!(!admitted.matches_operation(&control()));
+    assert_eq!(admitted.tree().source_uri(), uri);
+    assert_eq!(admitted.tree().base_uri(), Some(uri));
+    let (id, _) = admitted.tree().ast().nodes.iter().enumerate().find(|(_, node)| {
+        matches!(node, CemAstNode::Reference { expression, targets: None, .. } if expression == "#nodes[1 div 0]")
+    }).expect("CEM reference remains inert");
+    let map = admitted.tree().node_source_map(id as u32).unwrap();
+    let offset = text.find("1 div 0").unwrap() as u64;
+    assert!(map.frames.iter().any(|frame| {
+        matches!(&frame.transform, TransformKind::SourceBoundary { uri: source } if source == uri)
+            && matches!(frame.span, FrameSpan::Single(range) if range.start <= offset && offset < range.end())
+    }), "{map:?}");
+    let canonical = admitted.canonical_tree();
+    let template = canonical.node(admitted.canonical_template_node()).unwrap();
+    assert_eq!(canonical.node(template.children[0]).unwrap().value, text);
+    assert_eq!(template.attributes.len(), 1);
+    assert_eq!(admitted.external_input().unwrap().byte_length, text.len());
+}

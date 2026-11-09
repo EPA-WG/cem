@@ -4,8 +4,9 @@ use super::*;
 #[path = "cem_payload.rs"]
 mod cem_payload;
 pub use cem_payload::{
-    canonical_cem_payload_type, retain_captured_cem_payload, retain_inline_cem_payload,
-    RetainedCemPayloadSource, RetainedCemPayloadSourcePool,
+    canonical_cem_payload_type, retain_captured_cem_payload, retain_external_cem_payload,
+    retain_inline_cem_payload, ExternalCemPayloadInput, RetainedCemPayloadSource,
+    RetainedCemPayloadSourcePool, MAX_CEM_PAYLOAD_SOURCE_BYTES,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -69,6 +70,7 @@ pub struct InlineCemTemplateSource {
     text: String,
     segments: Vec<(ByteRange, html_parser::HtmlSourceRange, bool)>,
     mapped: Option<Vec<(ByteRange, SourceMapStack)>>,
+    external_uri: Option<String>,
 }
 impl InlineCemTemplateSource {
     fn same_native_source(&self, other: &Self) -> bool {
@@ -98,6 +100,15 @@ impl InlineCemTemplateSource {
             || u64::from(range.len) > self.text.len() as u64 - range.start
         {
             return None;
+        }
+        if let Some(uri) = &self.external_uri {
+            return Some(SourceMapStack {
+                frames: vec![crate::source_map::SourceMapFrame {
+                    source_id: SourceId(1),
+                    span: FrameSpan::Single(range),
+                    transform: crate::source_map::TransformKind::SourceBoundary { uri: uri.clone() },
+                }],
+            });
         }
         if let Some(segments) = &self.mapped {
             let mut result = SourceMapStack::default();
@@ -258,6 +269,7 @@ impl RetainedElementImport {
             text,
             segments,
             mapped: None,
+            external_uri: None,
         })
     }
 }
@@ -471,5 +483,6 @@ fn literal_inline_text(
         text,
         segments: vec![],
         mapped: Some(mapped),
+        external_uri: None,
     })
 }

@@ -249,6 +249,9 @@ impl Group<'_> {
         }
         let payload_part = parts.get(3).ok_or_else(fail)?;
         let payload_attrs = island::attrs(payload_part)?;
+        if payload_attrs.contains_key("data-cem-external-payload") {
+            return Err(fail());
+        }
         let payload = island::children(payload_part)?;
         let explicit = payload_attrs
             .get("data-cem-explicit-payload")

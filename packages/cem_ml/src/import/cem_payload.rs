@@ -1,6 +1,7 @@
 //! Source-preserving, non-executing CEM-ML payload admission.
 use super::*;
 use crate::{
+    content_cache::ContentHash,
     events::cem::CemEventNormalizer,
     operation_control::{MemoryPermit, OperationControl, ROOT_EXECUTION_SCOPE_ID},
     parser::tree::CemDocumentMetadata,
@@ -12,7 +13,14 @@ use crate::{
     value::artifact::CemValueArtifactLimits,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
-const MAX_SOURCE_BYTES: usize = 32_768;
+pub const MAX_CEM_PAYLOAD_SOURCE_BYTES: usize = 32_768;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalCemPayloadInput {
+    pub uri: String,
+    pub content: ContentHash,
+    pub byte_length: usize,
+}
 
 /// The retained literal template remains authoritative; its parsed CEM tree is
 /// an immutable native view. JSON records cannot supply source authority.
@@ -24,6 +32,7 @@ pub struct RetainedCemPayloadSource {
     canonical_tree: Arc<RetainedCemTree>,
     canonical_template: AstNodeId,
     limits: CemValueArtifactLimits,
+    external: Option<ExternalCemPayloadInput>,
 }
 impl std::fmt::Debug for RetainedCemPayloadSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -55,6 +64,9 @@ impl RetainedCemPayloadSource {
     }
     pub fn tree(&self) -> &Arc<RetainedCemTree> {
         &self.tree
+    }
+    pub fn external_input(&self) -> Option<&ExternalCemPayloadInput> {
+        self.external.as_ref()
     }
     pub fn matches_operation(&self, control: &OperationControl) -> bool {
         self.control.same_operation(control)
@@ -220,22 +232,9 @@ fn retain_inline_cem_payload_mode(
     pool: Option<&RetainedCemPayloadSourcePool>,
     capture: bool,
 ) -> Result<Arc<RetainedCemPayloadSource>, String> {
-    let check = || {
-        control
-            .check_scope(ROOT_EXECUTION_SCOPE_ID)
-            .map_err(|e| e.code().to_owned())
-    };
+    let check = || check_operation(control);
     check()?;
-    let scopes = control.scope_tree();
-    let policy = scopes
-        .scope(ROOT_EXECUTION_SCOPE_ID)
-        .ok_or("Missing payload operation scope")?
-        .effective_policy;
-    let limits = CemValueArtifactLimits {
-        max_bytes: limits.max_bytes.min(MAX_SOURCE_BYTES),
-        max_values: limits.max_values.min(16_384),
-        max_depth: limits.max_depth.min(64).min(policy.stack_depth as usize),
-    };
+    let limits = payload_limits(control, limits)?;
     let owner = if capture {
         None
     } else {
@@ -333,126 +332,9 @@ fn retain_inline_cem_payload_mode(
     let tree = if let Some(tree) = shared {
         tree
     } else {
-        let failed = Arc::new(AtomicBool::new(false));
-        let diagnostics = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let tokenizer = CemTokenizer::from_source_with_control(
-            BytesSource::new(SourceId(1), source.text().as_bytes().to_vec()),
-            control.clone(),
-            ROOT_EXECUTION_SCOPE_ID,
-        );
-        let captured = CemSchemaMachine::new(
-            CompiledSchema::cem_core(),
-            CemEventNormalizer::new(BoundedTokens {
-                tokenizer,
-                failed: failed.clone(),
-                work: 0,
-                depth: 0,
-                limits,
-                diagnostics: diagnostics.clone(),
-            }),
-        )
-        .build_with_lexical_scopes();
-        check()?;
-        let ast = captured.document();
-        if failed.load(Ordering::Relaxed) || ast.nodes.len() > limits.max_values {
-            return Err("CEM payload AST bounds exceeded".into());
-        }
-        let lexical_diagnostics = diagnostics.lock().unwrap();
-        if let Some(error) = captured
-            .diagnostics()
-            .iter()
-            .chain(ast.diagnostics.iter())
-            .chain(lexical_diagnostics.iter())
-            .find(|d| d.severity.is_hard_violation())
-        {
-            return Err(format!("CEM payload source refused: {}", error.code));
-        }
-        let source_key = original
-            .source_key(template)
-            .ok_or("Missing native source selection key")?;
-        let mut semantics = CemTreeSemantics {
-            source_fingerprint: Some(source_fingerprint(
-                source_uri,
-                source.text().as_bytes(),
-                &["inline-cem-payload/1", &source_key],
-            )),
-            document_metadata: Some(CemDocumentMetadata {
-                document_uri: original.document_uri().map(str::to_owned),
-                base_uri: original.base_uri().map(str::to_owned),
-            }),
-            ..Default::default()
-        };
-        for (id, node) in ast.nodes.iter().enumerate() {
-            check()?;
-            let id = id as u32;
-            if captured.pending_namespace_declaration(ast, id).is_some()
-                || captured.pending_namespace_name(ast, id).is_some()
-                || captured
-                    .pending_namespace_bindings(ast, id)
-                    .is_some_and(|n| !n.is_empty())
-            {
-                return Err("CEM payload requires ready namespace bindings".into());
-            }
-            if let Some(name) = captured.expanded_name(ast, id) {
-                semantics.names.insert(id, name.clone());
-            } else if matches!(node,CemAstNode::Element{expanded_name,..}|CemAstNode::Attribute{expanded_name,..} if !expanded_name.namespace_uri.is_empty() || expanded_name.local_name.contains(':'))
-            {
-                return Err("CEM payload contains an unbound namespace name".into());
-            }
-            let parsed = match node {
-                CemAstNode::Document { source, .. }
-                | CemAstNode::Element { source, .. }
-                | CemAstNode::Attribute { source, .. }
-                | CemAstNode::Reference { source, .. }
-                | CemAstNode::Text { source, .. }
-                | CemAstNode::Whitespace { source, .. }
-                | CemAstNode::Comment { source, .. }
-                | CemAstNode::Cdata { source, .. }
-                | CemAstNode::RawText { source, .. }
-                | CemAstNode::ProcessingInstruction { source, .. }
-                | CemAstNode::Error { source, .. } => source,
-            };
-            let mut map = parsed
-                .origin()
-                .and_then(|f| match f.span {
-                    FrameSpan::Single(r) => source.source_map_for_range(r),
-                    _ => None,
-                })
-                .unwrap_or_default();
-            if id == 0 {
-                map = original.node_source_map(template).unwrap_or_default();
-            }
-            if let Some(frame) = map.current().cloned() {
-                map.push(SourceMapFrame {
-                    transform: TransformKind::HandoffBoundary {
-                        child_content_type: "text/cem-ml".into(),
-                    },
-                    ..frame
-                });
-            }
-            semantics.sources.insert(id, map);
-            // The origin may be another authored resource; decoded-buffer lines and
-            // the enclosing HTML line index are not interchangeable with it.
-            semantics.unknown_source_lines.insert(id);
-        }
-        let retained = control
-            .charge_memory(
-                ROOT_EXECUTION_SCOPE_ID,
-                ast.nodes
-                    .len()
-                    .saturating_mul(1024)
-                    .saturating_add(source.text().len()) as u64,
-                original.node_source_map(template),
-            )
-            .map_err(|e| e.code().to_owned())?;
-        let ast = ast.clone();
-        let uri = source_uri.to_owned();
-        let native = Arc::new(Owner {
-            _source: source,
-            _original: original.clone(),
-            _memory: vec![memory, retained],
-        });
-        RetainedCemTree::from_shared(ast, uri, "", semantics, Some(native))?
+        retain_payload_tree(
+            &original, template, source, source_uri, memory, limits, control,
+        )?
     };
     check()?;
     let type_id = original
@@ -508,5 +390,323 @@ fn retain_inline_cem_payload_mode(
         canonical_tree,
         canonical_template,
         limits,
+        external: None,
+    }))
+}
+
+fn check_operation(control: &OperationControl) -> Result<(), String> {
+    control
+        .check_scope(ROOT_EXECUTION_SCOPE_ID)
+        .map_err(|e| e.code().to_owned())
+}
+
+fn payload_limits(
+    control: &OperationControl,
+    limits: &CemValueArtifactLimits,
+) -> Result<CemValueArtifactLimits, String> {
+    let scopes = control.scope_tree();
+    let policy = scopes
+        .scope(ROOT_EXECUTION_SCOPE_ID)
+        .ok_or("Missing payload operation scope")?
+        .effective_policy;
+    Ok(CemValueArtifactLimits {
+        max_bytes: limits.max_bytes.min(MAX_CEM_PAYLOAD_SOURCE_BYTES),
+        max_values: limits.max_values.min(16_384),
+        max_depth: limits.max_depth.min(64).min(policy.stack_depth as usize),
+    })
+}
+
+fn retain_payload_tree(
+    original: &Arc<RetainedCemTree>,
+    template: AstNodeId,
+    source: InlineCemTemplateSource,
+    source_uri: &str,
+    memory: MemoryPermit,
+    limits: CemValueArtifactLimits,
+    control: &OperationControl,
+) -> Result<Arc<RetainedCemTree>, String> {
+    let check = || check_operation(control);
+    let external = source.external_uri.is_some();
+    let full_range = ByteRange::new(0, source.text().len() as u32);
+    let root_map = if external {
+        source.source_map_for_range(full_range)
+    } else {
+        original.node_source_map(template)
+    };
+    let failed = Arc::new(AtomicBool::new(false));
+    let diagnostics = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let tokenizer = CemTokenizer::from_source_with_control(
+        BytesSource::new(SourceId(1), source.text().as_bytes().to_vec()),
+        control.clone(),
+        ROOT_EXECUTION_SCOPE_ID,
+    );
+    let captured = CemSchemaMachine::new(
+        CompiledSchema::cem_core(),
+        CemEventNormalizer::new(BoundedTokens {
+            tokenizer,
+            failed: failed.clone(),
+            work: 0,
+            depth: 0,
+            limits,
+            diagnostics: diagnostics.clone(),
+        }),
+    )
+    .build_with_lexical_scopes();
+    check()?;
+    let ast = captured.document();
+    if failed.load(Ordering::Relaxed) || ast.nodes.len() > limits.max_values {
+        return Err("CEM payload AST bounds exceeded".into());
+    }
+    let lexical_diagnostics = diagnostics.lock().unwrap();
+    if let Some(error) = captured
+        .diagnostics()
+        .iter()
+        .chain(ast.diagnostics.iter())
+        .chain(lexical_diagnostics.iter())
+        .find(|d| d.severity.is_hard_violation())
+    {
+        return Err(format!("CEM payload source refused: {}", error.code));
+    }
+    let source_key = original
+        .source_key(template)
+        .ok_or("Missing native source selection key")?;
+    let mut semantics = CemTreeSemantics {
+        source_fingerprint: Some(source_fingerprint(
+            source_uri,
+            source.text().as_bytes(),
+            &[
+                if external {
+                    "external-cem-payload/1"
+                } else {
+                    "inline-cem-payload/1"
+                },
+                &source_key,
+            ],
+        )),
+        document_metadata: Some(CemDocumentMetadata {
+            document_uri: if external {
+                Some(source_uri.into())
+            } else {
+                original.document_uri().map(str::to_owned)
+            },
+            base_uri: if external {
+                Some(source_uri.into())
+            } else {
+                original.base_uri().map(str::to_owned)
+            },
+        }),
+        ..Default::default()
+    };
+    for (id, node) in ast.nodes.iter().enumerate() {
+        check()?;
+        let id = id as u32;
+        if captured.pending_namespace_declaration(ast, id).is_some()
+            || captured.pending_namespace_name(ast, id).is_some()
+            || captured
+                .pending_namespace_bindings(ast, id)
+                .is_some_and(|n| !n.is_empty())
+        {
+            return Err("CEM payload requires ready namespace bindings".into());
+        }
+        if let Some(name) = captured.expanded_name(ast, id) {
+            semantics.names.insert(id, name.clone());
+        } else if matches!(node,CemAstNode::Element{expanded_name,..}|CemAstNode::Attribute{expanded_name,..} if !expanded_name.namespace_uri.is_empty() || expanded_name.local_name.contains(':'))
+        {
+            return Err("CEM payload contains an unbound namespace name".into());
+        }
+        let parsed = match node {
+            CemAstNode::Document { source, .. }
+            | CemAstNode::Element { source, .. }
+            | CemAstNode::Attribute { source, .. }
+            | CemAstNode::Reference { source, .. }
+            | CemAstNode::Text { source, .. }
+            | CemAstNode::Whitespace { source, .. }
+            | CemAstNode::Comment { source, .. }
+            | CemAstNode::Cdata { source, .. }
+            | CemAstNode::RawText { source, .. }
+            | CemAstNode::ProcessingInstruction { source, .. }
+            | CemAstNode::Error { source, .. } => source,
+        };
+        let mut map = if id == 0 {
+            root_map.clone().unwrap_or_default()
+        } else if external {
+            parsed.clone().with_source_uri(source_uri)
+        } else {
+            parsed
+                .origin()
+                .and_then(|f| match f.span {
+                    FrameSpan::Single(r) => source.source_map_for_range(r),
+                    _ => None,
+                })
+                .unwrap_or_default()
+        };
+        if let Some(frame) = map.current().cloned() {
+            map.push(SourceMapFrame {
+                transform: TransformKind::HandoffBoundary {
+                    child_content_type: "text/cem-ml".into(),
+                },
+                ..frame
+            });
+        }
+        semantics.sources.insert(id, map);
+        // The origin may be another authored resource; decoded-buffer lines and
+        // the enclosing HTML line index are not interchangeable with it.
+        if !external {
+            semantics.unknown_source_lines.insert(id);
+        }
+    }
+    let retained = control
+        .charge_memory(
+            ROOT_EXECUTION_SCOPE_ID,
+            ast.nodes
+                .len()
+                .saturating_mul(1024)
+                .saturating_add(source.text().len()) as u64,
+            root_map,
+        )
+        .map_err(|e| e.code().to_owned())?;
+    let ast = ast.clone();
+    let uri = source_uri.to_owned();
+    let native = Arc::new(Owner {
+        _source: source,
+        _original: original.clone(),
+        _memory: vec![memory, retained],
+    });
+    let source_text = if external { native._source.text() } else { "" };
+    RetainedCemTree::from_shared(ast, uri, source_text, semantics, Some(native.clone()))
+}
+
+/// Admit bounded public CEM-ML bytes through the same inert parser as inline
+/// payloads. The original stub and the materialized canonical envelope have
+/// separate native owners and source ranges.
+pub fn retain_external_cem_payload(
+    original: Arc<RetainedCemTree>,
+    template: AstNodeId,
+    uri: &str,
+    bytes: Vec<u8>,
+    control: &OperationControl,
+    limits: &CemValueArtifactLimits,
+) -> Result<Arc<RetainedCemPayloadSource>, String> {
+    check_operation(control)?;
+    let limits = payload_limits(control, limits)?;
+    if bytes.len() > limits.max_bytes || limits.max_values == 0 {
+        return Err("CEM payload source bounds exceeded".into());
+    }
+    let node = original.node(template).ok_or("Missing source template")?;
+    if !node.name.as_ref().is_some_and(|name| {
+        name.namespace_uri == crate::schema::registry::HTML_NAMESPACE_URI
+            && name.local_name == "template"
+    }) || !node.children.is_empty()
+    {
+        return Err("External CEM payload requires an empty source template".into());
+    }
+    let type_node =
+        node.attributes
+            .iter()
+            .copied()
+            .find(|id| {
+                original.node(*id).is_some_and(|attr| {
+                    attr.name.as_ref().is_some_and(|name| {
+                        name.namespace_uri.is_empty() && name.local_name == "type"
+                    }) && canonical_cem_payload_type(&attr.value).is_some()
+                })
+            })
+            .ok_or("External CEM payload requires its canonical source type")?;
+    let type_map = original.node_source_map(type_node).unwrap_or_default();
+    let external = ExternalCemPayloadInput {
+        uri: uri.into(),
+        content: ContentHash::from_blake3(&bytes),
+        byte_length: bytes.len(),
+    };
+    let text = String::from_utf8(bytes).map_err(|_| "External CEM payload must use UTF-8")?;
+    if text.contains('\0') {
+        return Err("External CEM payload contains an unsupported NUL".into());
+    }
+    let source = InlineCemTemplateSource {
+        owner: None,
+        text,
+        segments: vec![],
+        mapped: None,
+        external_uri: Some(uri.into()),
+    };
+    let origin = source
+        .source_map_for_range(ByteRange::new(0, external.byte_length as u32))
+        .ok_or("Missing external payload source range")?;
+    let memory = control
+        .charge_memory(
+            ROOT_EXECUTION_SCOPE_ID,
+            external.byte_length.saturating_mul(8).saturating_add(4096) as u64,
+            Some(origin.clone()),
+        )
+        .map_err(|e| e.code().to_owned())?;
+    let text = source.text().to_owned();
+    let tree = retain_payload_tree(&original, template, source, uri, memory, limits, control)?;
+    let envelope_key = original
+        .source_key(template)
+        .ok_or("Missing native source selection key")?;
+    let fingerprint = source_fingerprint(
+        uri,
+        text.as_bytes(),
+        &["external-cem-payload-envelope/1", &envelope_key],
+    );
+    let canonical_template = 1;
+    let ast = crate::parser::document::CemDocument {
+        nodes: vec![
+            CemAstNode::Document {
+                node_id: 0,
+                root_children: vec![canonical_template],
+                source: origin.clone(),
+            },
+            CemAstNode::Element {
+                node_id: canonical_template,
+                expanded_name: ExpandedName {
+                    namespace_uri: crate::schema::registry::HTML_NAMESPACE_URI.into(),
+                    local_name: "template".into(),
+                    schema_id: None,
+                },
+                attributes: vec![2],
+                children: vec![3],
+                has_explicit_boundary: true,
+                source: original.node_source_map(template).unwrap_or_default(),
+            },
+            CemAstNode::Attribute {
+                node_id: 2,
+                expanded_name: ExpandedName {
+                    namespace_uri: String::new(),
+                    local_name: "type".into(),
+                    schema_id: None,
+                },
+                value: Some("text/cem-ml".into()),
+                value_nodes: vec![],
+                source: type_map,
+            },
+            CemAstNode::Text {
+                node_id: 3,
+                data: text,
+                source: origin,
+            },
+        ],
+        ..Default::default()
+    };
+    let canonical_tree = RetainedCemTree::new(
+        ast,
+        uri,
+        "",
+        CemTreeSemantics {
+            source_fingerprint: Some(fingerprint),
+            ..Default::default()
+        },
+        Some(tree.clone()),
+    )?;
+    check_operation(control)?;
+    Ok(Arc::new(RetainedCemPayloadSource {
+        source_tree: original,
+        template,
+        tree,
+        control: control.clone(),
+        canonical_tree,
+        canonical_template,
+        limits,
+        external: Some(external),
     }))
 }

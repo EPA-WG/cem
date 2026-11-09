@@ -990,8 +990,8 @@ The direct CLI and literal or glob-expanded config imports acquire regular local
 under the original operation. The file size is checked before opening and
 the bounded reader checks byte, wall and CPU budgets while reading.
 The CPU receipt then includes native source parsing, typed page conversion,
-bridge preparation, external declaration and stylesheet acquisition and
-parsing, lifecycle work, readiness and synchronous exports. For native callers that supply bytes, measurement starts
+bridge preparation, external declaration, payload and stylesheet acquisition
+and parsing, lifecycle work, readiness and synchronous exports. For native callers that supply bytes, measurement starts
 at parsing. Config and template acquisition are outside the measured CPU
 phases. Config SSR routes require direct, non-opaque local page imports.
 
@@ -1019,9 +1019,27 @@ URL without the fragment and enforces both the remaining page budget and a
 public resource. The declaration template must be free of stylesheet,
 module-map and external template import dependencies. The CLI publishes the
 original `src` and the settled range. Browser hydration keeps the server range
-in place when the declaration came from an external URL. External payloads,
-network read policies and browser adoption of resource-dependent pages are
-separate admission steps.
+in place when the declaration came from an external URL.
+
+A participant can read a UTF-8 `text/cem-ml` payload through the same read
+map. Give the produced element one direct, empty payload template.
+
+```html
+<x-card>
+  <template type="text/cem-ml" data-cem-payload-src="./payload.cem"></template>
+</x-card>
+```
+
+The read uses the effective document base and an explicit public HTTP(S)
+URL without credentials, a query or a fragment. The 32 KiB payload ceiling
+and the remaining page resource and byte allowances apply before transport.
+Each host read counts against the page, including repeated reads of a URL.
+The native CEM payload adapter preserves byte ranges from the public file
+and keeps embedded expressions inert. The exported island contains the
+payload as literal text, so include only content intended for the published
+page. Its external-payload marker keeps the server range in place until
+browser adoption has its own resource proof. Network read policies and
+browser adoption of resource-dependent pages are separate admission steps.
 
 Config graphs use the same template, entrypoint and literal `{param}` controls.
 A transform may have both a `text/html` export and an

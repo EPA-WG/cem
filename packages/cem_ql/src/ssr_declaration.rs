@@ -1,36 +1,25 @@
 //! Bounded admission of a canonical external declaration and its source owner.
-use super::{attr, html, ResourceInput};
+use super::{attr, html, ssr_resource::public_read_request, ResourceInput, SsrResourceReader};
 use crate::ssr_preparation::{check, compile_inline_definition, problem, InlineDefinition};
 use cem_ml::{
     content_cache::ContentHash,
     diagnostics::Diagnostic,
     import::element_tree::retain_html_elements,
-    operation_control::{MemoryPermit, OperationControl, ROOT_EXECUTION_SCOPE_ID},
+    operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID},
     parser::{
         tree::{CemDocumentMetadata, CemTreeNodeKind, RetainedCemTree},
         AstNodeId,
     },
-    resolver::{ssr_resource_url, ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead},
     schema::{
         document_model::is_canonical_semver,
         registry::{content_type_essence, HTML_NAMESPACE_URI},
     },
-    source_map::SourceMapStack,
     ssr_artifact::CemSsrPageArtifact,
     validation::html::{
         html_document_ast_from_source_bytes, HtmlDocumentMode, HtmlSourceValidationRequest,
     },
 };
 use std::sync::Arc;
-
-/// The host must apply its resolver policy and bound the read before allocation.
-/// The permit holds the response buffer against the original operation until import.
-pub type SsrDeclarationReader<'a> = dyn FnMut(
-        &ResolveRequest,
-        usize,
-        Option<&SourceMapStack>,
-    ) -> Result<(ResolvedRead, MemoryPermit), String>
-    + 'a;
 
 const MAX_DECLARATION_BYTES: usize = 64 * 1024;
 
@@ -56,7 +45,7 @@ pub(super) fn read_definition(
     stub_tree: &Arc<RetainedCemTree>,
     stub: AstNodeId,
     src: &str,
-    read: &mut SsrDeclarationReader<'_>,
+    read: &mut SsrResourceReader<'_>,
     remaining: u64,
     control: &OperationControl,
 ) -> Result<InlineDefinition, Vec<Diagnostic>> {
@@ -75,27 +64,11 @@ pub(super) fn read_definition(
         .ok_or_else(invalid)?;
     if meaningful_children(stub_tree, stub).next().is_some()
         || attr(stub_tree, stub, "xmlns").is_some_and(|namespace| namespace != HTML_NAMESPACE_URI)
-        || src.len() > 4096
-        || !(src.starts_with("./")
-            || src.starts_with("../")
-            || src.starts_with('/')
-            || src.starts_with("https://")
-            || src.starts_with("http://"))
-        || src.trim() != src
-        || src.contains('\\')
-        || src.chars().any(char::is_control)
     {
         return Err(invalid());
     }
-    let base = url::Url::parse(&page.route().document_base_url).map_err(|_| invalid())?;
-    let url = base.join(src).map_err(|_| invalid())?;
-    if url.fragment() != Some(tag.as_str()) || url.query().is_some() {
-        return Err(invalid());
-    }
-    let uri = ssr_resource_url(url.as_str()).map_err(|_| invalid())?;
-    if uri == page.route().page_url || uri.len() > 4096 {
-        return Err(invalid());
-    }
+    let request = public_read_request(page, src, Some(&tag), "text/html").ok_or_else(invalid)?;
+    let uri = &request.uri;
     let limit = remaining.min(MAX_DECLARATION_BYTES as u64) as usize;
     if limit == 0 {
         return Err(fail(
@@ -103,9 +76,6 @@ pub(super) fn read_definition(
             "External declaration byte budget exhausted",
         ));
     }
-    let request = ResolveRequest::new(&uri, ResolvePurpose::SsrResource, ResolveDirection::Read)
-        .with_base_uri(base.as_str())
-        .with_content_type_hint("text/html");
     let source_map = stub_tree.node_source_map(stub);
     let (response, _buffer) = read(&request, limit, source_map.as_ref())
         .map_err(|error| fail("cem.ssr.resource_read", &error))?;
@@ -116,7 +86,7 @@ pub(super) fn read_definition(
             "External declaration exceeds its read budget",
         ));
     }
-    if response.uri != uri
+    if &response.uri != uri
         || response
             .content_type
             .as_deref()
@@ -149,7 +119,7 @@ pub(super) fn read_definition(
     let (document, diagnostics) =
         html_document_ast_from_source_bytes(HtmlSourceValidationRequest {
             bytes: &response.bytes,
-            source_uri: &uri,
+            source_uri: uri,
             content_type: response.content_type.as_deref(),
         });
     let mut errors: Vec<_> = diagnostics
@@ -221,9 +191,10 @@ pub(super) fn read_definition(
 
     definition.external = Some(Arc::new(ExternalDeclarationLease {
         input: ResourceInput {
-            resolved_uri: uri,
+            resolved_uri: uri.clone(),
             content: ContentHash::from_blake3(&response.bytes),
             declaration_bytes: Some(response.bytes.len()),
+            payload_bytes: None,
         },
         tree: elements.tree.clone(),
         declaration,

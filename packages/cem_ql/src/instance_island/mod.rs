@@ -301,6 +301,12 @@ fn bind_root(
             return Err(INVALID.into());
         }
     }
+    let external = payload_attrs.remove("data-cem-external-payload");
+    if external.as_deref().is_some_and(|value| value != "true")
+        || external.is_some() != admitted.is_some_and(|source| source.external_input().is_some())
+    {
+        return Err(INVALID.into());
+    }
     let payload = children(&parts[3])?;
     let html_profile = BTreeMap::from([("content-type".into(), cem_ml::schema::registry::HTML_CONTENT_TYPE.into()), ("schema".into(),cem_ml::schema::registry::HTML_SCHEMA_URI.into())]);
     let cem_profile = BTreeMap::from([("content-type".into(), "text/cem-ml".into()), ("schema".into(),cem_ml::schema::registry::CEM_ML_SCHEMA_URI.into())]);

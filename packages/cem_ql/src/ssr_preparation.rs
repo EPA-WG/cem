@@ -51,6 +51,28 @@ impl PreparedInlineDce {
     pub fn page(&self) -> &CemSsrPageArtifact {
         &self.page
     }
+    pub(crate) fn record_external_payload_bytes(
+        &mut self,
+        bytes: usize,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut usage = self.page.usage();
+        usage.resources += 1;
+        usage.total_bytes += bytes as u64;
+        self.page = self
+            .page
+            .clone()
+            .into_partial(SsrPartialReason::Incomplete, usage, vec![])
+            .map_err(|_| {
+                problem(
+                    &self.page,
+                    Some(&self.elements.tree),
+                    Some(self.instance),
+                    "cem.ssr.settle_budget",
+                    "External payload budget was refused",
+                )
+            })?;
+        Ok(())
+    }
     pub fn elements(&self) -> &RetainedElementImport {
         &self.elements
     }

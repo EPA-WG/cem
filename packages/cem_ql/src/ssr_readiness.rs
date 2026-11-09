@@ -541,6 +541,29 @@ fn validate(
     }
     for participant in &settled.participants {
         let input = participant.pass.input();
+        if let Some((source, external)) = input
+            .bindings()
+            .native_payload_source
+            .as_ref()
+            .and_then(|source| source.external_input().map(|external| (source, external)))
+        {
+            let witness = settled
+                .resources
+                .as_ref()
+                .and_then(|resources| resources.inputs.get(&external.uri));
+            if witness != Some(&super::ResourceInput::from_payload(external))
+                || source.tree().source_uri() != external.uri
+                || source.tree().document_uri() != Some(external.uri.as_str())
+            {
+                return Err(refused("source_lease"));
+            }
+            resources = resources
+                .checked_add(1)
+                .ok_or_else(|| refused("accounting"))?;
+            bytes = bytes
+                .checked_add(external.byte_length as u64)
+                .ok_or_else(|| refused("accounting"))?;
+        }
         resources = resources
             .checked_add(
                 input

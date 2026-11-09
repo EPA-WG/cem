@@ -510,6 +510,12 @@ bound to its own current envelope; sharing a parsed tree grants no authority to
 select another host's island. Weak entries prevent retention cycles through
 native page application lineage.
 
+The CLI also accepts an empty CEM-ML envelope with `data-cem-payload-src`
+through its explicit read map. The lease identifies the authored envelope
+and retains a separately sourced native CEM tree under the original
+operation. The materialized island text carries the fetched resource's byte
+ranges. Browser adoption requires its own resource proof for this profile.
+
 Host attributes, canonical islands and styles still commit through the shared
 native transaction. Previously settled hosts, islands, output boundaries and
 instance-style suffixes remap after each application. Cancellation, import or

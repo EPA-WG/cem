@@ -330,8 +330,14 @@ links the corresponding design and verification records.
         preserve published output.
   - [x] Verify Chromium shows the published range and retains it when browser
         adoption lacks an external declaration proof.
-- [ ] Admit external payload sources through their native adapter. Retain the
+- [x] Admit external payload sources through their native adapter. Retain the
       source lease, origin ranges and original-operation resource accounting.
+  - [x] Verify mapped CEM-ML payloads retain public source ranges in the native
+        lease and rendered HTML. Keep source expressions inert.
+  - [x] Verify resolver policy, resource and CPU budgets, and atomic refusal
+        for malformed, mixed or oversized payloads.
+  - [x] Verify Chromium keeps the rendered range when the external payload
+        has only a server-side proof.
 - [ ] Extend external declaration admission to canonical XHTML and scoped
       stylesheet closures. Resolve nested reads from the declaration URL.
 - [ ] Extend the resource proof to explicit network policies and

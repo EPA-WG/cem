@@ -72,3 +72,4 @@ The [active checklist](../todo.md) records remaining execution work.
 - [CEM-ML and CEM Markdown SSR page sources](todo-completed-ssr-cem-markdown-pages-2026-11-09.md)
 - [Multi-page SSR route preflight and publication](todo-completed-ssr-page-batches-2026-11-09.md)
 - [Mapped external declarations for native SSR](todo-completed-ssr-external-declarations-2026-11-09.md)
+- [Mapped external CEM-ML payloads for SSR](todo-completed-ssr-external-payloads-2026-11-09.md)
