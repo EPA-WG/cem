@@ -87,6 +87,13 @@ impl PreparedInlineDce {
             .as_deref()
             .unwrap_or(&self.elements.tree)
     }
+    pub(crate) fn declaration_resource_base(&self) -> &str {
+        self.external_template_source
+            .as_ref()
+            .map_or(&self.page.route().document_base_url, |tree| {
+                tree.source_uri()
+            })
+    }
     pub fn instance_node(&self) -> AstNodeId {
         self.instance
     }

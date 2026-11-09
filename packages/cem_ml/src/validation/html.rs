@@ -1098,7 +1098,7 @@ fn apply_ssr_page_resource_policy(events: &[HtmlEventAst], facts: &mut Vec<HtmlF
             && event.local_name.as_deref() == Some("cem-element")
             && event.attributes.iter().all(|attr| {
                 !attr.duplicate && attr.value.is_some()
-                    && ["tag", "version", "src", "xmlns"].contains(&attr.local_name.as_str())
+                    && ["tag", "version", "src", "scope", "xmlns"].contains(&attr.local_name.as_str())
             });
         event.kind == HtmlEventKind::StartElement
             && Some(event.index) != admitted_base

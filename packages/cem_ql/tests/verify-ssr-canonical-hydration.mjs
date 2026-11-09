@@ -91,6 +91,22 @@ try {
         '<x-payload><template type="text/cem-ml" data-cem-payload-src="./payload.cem"></template></x-payload>',
     ].join(''), 'x-payload=1.9.0', ['--resolver-read-map', `https://ssr.example.test/assets/=${mirror}`],
     '<base href="/assets/">');
+    const component = path.join(mirror, 'components');
+    await mkdir(path.join(component, 'styles'), { recursive: true });
+    await writeFile(path.join(component, 'card.xhtml'), [
+        '<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="x-card" version="1.2.3" scope="card">',
+        '<template id="x-card" type="text/cem-ml">',
+        "{style @scope=card |```@import './styles/card.css';```}{article | XHTML &amp; CSS}",
+        '</template></cem-element>',
+    ].join(''));
+    await writeFile(path.join(component, 'styles/card.css'),
+        "@import './color.css'; article {padding:3px}");
+    await writeFile(path.join(component, 'styles/color.css'), 'article {color:rgb(17,34,51)}');
+    const xhtmlPage = await render([
+        '<cem-element tag="x-card" version="1.2.3" scope="card" src="./components/card.xhtml#x-card"></cem-element>',
+        '<x-card></x-card><x-card></x-card><article>Outside scope</article>',
+    ].join(''), 'x-card=1.9.0', ['--resolver-read-map', `https://ssr.example.test/assets/=${mirror}`],
+    '<base href="/assets/">');
     const authored = '{cem-element @tag=x-authored @version="1.2.3" | {template @id=x-authored @type="text/cem-ml" |```{article | From source}```}}{x-authored}';
     const cemPage = await renderSource(path.join(temp, 'source.cem'),
         `{html | {head | {title | Native page}}{body | ${authored}}}`,
@@ -103,7 +119,7 @@ try {
         ['/foreign.html', foreign], ['/source.html', cemSource], ['/forms.html', forms],
         ['/mapped.html', mapped], [authoredPages[0], cemPage], [authoredPages[1], markdownPage],
         ['/external.html', externalPage], ['/assets/external.html', externalDeclaration],
-        ['/external-payload.html', externalPayloadPage],
+        ['/external-payload.html', externalPayloadPage], ['/xhtml.html', xhtmlPage],
     ]);
     assert.match(html, /<article><strong\b[^>]*\bslot="heading"[^>]*>Island input<\/strong><\/article>/);
     assert.match(html, /data-cem-ssr-profile="cem-native-inline\/1"/);
@@ -703,6 +719,36 @@ try {
         assert.deepEqual(payloadReads, []);
         await external.close();
     }
+    const xhtml = await browser.newPage();
+    xhtml.on('pageerror', error => errors.push(error.message));
+    const xhtmlReads = [];
+    await xhtml.route('**/*', route => {
+        const url = new URL(route.request().url());
+        if (url.origin !== origin) {
+            requests.push(url.href);
+            return route.abort();
+        }
+        if (url.pathname.startsWith('/assets/')) xhtmlReads.push(url.pathname);
+        return route.continue();
+    });
+    await xhtml.goto(`${origin}/xhtml.html`);
+    const xhtmlResult = await xhtml.evaluate(() => {
+        const style = document.querySelector('cem-element > style[data-cem-declaration-style="shared"]');
+        return {
+            styles: document.querySelectorAll('cem-element > style').length,
+            imports: style?.textContent.includes('@import'),
+            cards: Array.from(document.querySelectorAll('x-card > article'), article => [
+                article.textContent, getComputedStyle(article).color, getComputedStyle(article).padding,
+            ]),
+            outside: getComputedStyle(document.querySelector('body > article')).color,
+        };
+    });
+    assert.equal(xhtmlResult.styles, 1);
+    assert.equal(xhtmlResult.imports, false);
+    assert.deepEqual(xhtmlResult.cards, Array(2).fill(['XHTML & CSS', 'rgb(17, 34, 51)', '3px']));
+    assert.notEqual(xhtmlResult.outside, 'rgb(17, 34, 51)');
+    assert.deepEqual(xhtmlReads, []);
+    await xhtml.close();
     for (const route of authoredPages) {
         const page = await browser.newPage();
         page.on('pageerror', error => errors.push(error.message));
@@ -732,8 +778,8 @@ try {
         await page.close();
     }
     assert.deepEqual(errors, []); assert.deepEqual(requests, []);
-    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + authoredPages.length + 3;
-    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} stylesheet, ${payloadCases.length} foreign/source, ${formCases.length} form, two authored source profiles plus mapped CSS, declarations and payloads, zero off-origin requests`);
+    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + authoredPages.length + 4;
+    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} stylesheet, ${payloadCases.length} foreign/source, ${formCases.length} form, two authored source profiles plus mapped CSS, HTML/XHTML declarations and payloads, zero off-origin requests`);
 } finally {
     await browser?.close();
     if (server) await new Promise(resolve => server.close(resolve));

@@ -634,6 +634,15 @@ fn validate(
                 .as_ref()
                 .and_then(|r| r.declarations.get(tag))
                 .ok_or_else(|| refused("lease_missing"))?;
+            let expected_base = definition
+                .external
+                .as_ref()
+                .map_or(settled.page.route().document_base_url.as_str(), |source| {
+                    source.uri()
+                });
+            if lease.declaration_base != expected_base {
+                return Err(refused("source_lease"));
+            }
             let expected = lease
                 .declaration_output(&Default::default())
                 .map_err(|_| refused("lease_stale"))?;

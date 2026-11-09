@@ -69,7 +69,7 @@ pub struct InlineCemTemplateSource {
     owner: Option<Arc<html_parser::HtmlDocumentAst>>,
     text: String,
     segments: Vec<(ByteRange, html_parser::HtmlSourceRange, bool)>,
-    mapped: Option<Vec<(ByteRange, SourceMapStack)>>,
+    mapped: Option<Vec<(ByteRange, SourceMapStack, bool)>>,
     external_uri: Option<String>,
 }
 impl InlineCemTemplateSource {
@@ -106,17 +106,27 @@ impl InlineCemTemplateSource {
                 frames: vec![crate::source_map::SourceMapFrame {
                     source_id: SourceId(1),
                     span: FrameSpan::Single(range),
-                    transform: crate::source_map::TransformKind::SourceBoundary { uri: uri.clone() },
+                    transform: crate::source_map::TransformKind::SourceBoundary {
+                        uri: uri.clone(),
+                    },
                 }],
             });
         }
         if let Some(segments) = &self.mapped {
             let mut result = SourceMapStack::default();
-            for (segment, map) in segments {
-                if segment.start < range.end() && range.start < segment.end() {
-                    for frame in &map.frames {
-                        if !result.frames.contains(frame) {
-                            result.frames.push(frame.clone());
+            for (segment, map, exact) in segments {
+                let start = segment.start.max(range.start);
+                let end = segment.end().min(range.end());
+                if start < end {
+                    for mut frame in map.frames.iter().cloned() {
+                        if *exact {
+                            if let FrameSpan::Single(origin) = &mut frame.span {
+                                origin.start += start - segment.start;
+                                origin.len = (end - start) as u32;
+                            }
+                        }
+                        if !result.frames.contains(&frame) {
+                            result.frames.push(frame);
                         }
                     }
                 }
@@ -201,6 +211,13 @@ impl RetainedElementImport {
         node: AstNodeId,
     ) -> Result<InlineCemTemplateSource, String> {
         use html_parser::{HtmlEventKind, HtmlNamespace};
+        if let Some(LoadedInputAstStream::XmlDocument(document)) = self
+            .tree
+            .native_owner()
+            .and_then(|owner| owner.downcast_ref::<LoadedInputAstStream>())
+        {
+            return self.xhtml_template_source(document, node);
+        }
         let owner = original_html_owner(&self.tree)?;
         let start = self
             .elements
@@ -272,6 +289,119 @@ impl RetainedElementImport {
             external_uri: None,
         })
     }
+
+    fn xhtml_template_source(
+        &self,
+        document: &xml::XmlDocumentAst,
+        node: AstNodeId,
+    ) -> Result<InlineCemTemplateSource, String> {
+        use xml::XmlEventKind;
+        if document.source.media_type != crate::schema::registry::XHTML_CONTENT_TYPE {
+            return Err("Expected a standalone XHTML declaration owner".into());
+        }
+        let start = self
+            .elements
+            .iter()
+            .find_map(|(id, handle, _)| match handle {
+                ElementSourceHandle::Xml { event_index } if *id == node => Some(*event_index),
+                _ => None,
+            })
+            .ok_or("Missing XHTML template source handle")?;
+        let template = &document.events[start];
+        if template.kind != XmlEventKind::StartElement
+            || template.qualified_name.as_deref() != Some("template")
+            || template.namespace_uri.as_deref()
+                != Some(crate::schema::registry::HTML_NAMESPACE_URI)
+        {
+            return Err("Expected an explicit XHTML template".into());
+        }
+        let mut text = String::new();
+        let mut mapped = Vec::new();
+        for event in &document.events[start + 1..] {
+            let mut original = event.source_range;
+            let data = match event.kind {
+                XmlEventKind::EndElement if event.depth == template.depth => {
+                    return Ok(InlineCemTemplateSource {
+                        owner: None,
+                        text,
+                        segments: vec![],
+                        mapped: Some(mapped),
+                        external_uri: None,
+                    });
+                }
+                XmlEventKind::Text => xml_line_endings(event.value.as_deref().unwrap_or_default()),
+                XmlEventKind::EntityReference => {
+                    xml::xml_decode_entity_reference(event.value.as_deref().unwrap_or_default())
+                        .ok_or("Unresolved XHTML template entity reference")?
+                        .to_string()
+                }
+                XmlEventKind::Cdata => {
+                    original.start.byte_offset += "<![CDATA[".len() as u64;
+                    original.byte_length = original
+                        .byte_length
+                        .checked_sub(("<![CDATA[".len() + "]]>".len()) as u64)
+                        .ok_or("Invalid XHTML CDATA source range")?;
+                    xml_line_endings(event.value.as_deref().unwrap_or_default())
+                }
+                XmlEventKind::Comment => continue,
+                _ => return Err("XHTML CEM source requires literal character data".into()),
+            };
+            if text.len().saturating_add(data.len()) > MAX_DOCUMENT_BYTES {
+                return Err("XHTML template source limit".into());
+            }
+            let exact = event.kind != XmlEventKind::EntityReference
+                && data.len() as u64 == original.byte_length;
+            mapped.push((
+                ByteRange::new(text.len() as u64, data.len() as u32),
+                original.source_map().with_source_uri(&document.source.uri),
+                exact,
+            ));
+            text.push_str(&data);
+        }
+        Err("Unclosed XHTML source template".into())
+    }
+}
+
+/// Standalone component XHTML has a component root instead of an HTML document
+/// shell. Validate it with native XML syntax and preserve the XML event owner.
+pub fn retain_xhtml_declaration_elements(
+    request: xml::XmlSourceValidationRequest<'_>,
+) -> Result<RetainedElementImport, Vec<Diagnostic>> {
+    let (document, diagnostics) = xml::xml_document_ast_from_source_bytes(request);
+    let errors: Vec<_> = diagnostics
+        .into_iter()
+        .filter(|diagnostic| diagnostic.severity.is_hard_violation())
+        .collect();
+    if !errors.is_empty() {
+        return Err(errors);
+    }
+    let refused = |message: String| {
+        vec![Diagnostic {
+            uri: Some(request.source_uri.into()),
+            code: "cem.xhtml.declaration_profile".into(),
+            message,
+            severity: crate::diagnostics::Severity::Error,
+            ..Diagnostic::default()
+        }]
+    };
+    let document = document
+        .filter(|document| {
+            document.source.media_type == crate::schema::registry::XHTML_CONTENT_TYPE
+                && document.encoding_report.normalized_encoding == "utf-8"
+                && !document.events.iter().any(|event| {
+                    matches!(
+                        event.kind,
+                        xml::XmlEventKind::Doctype | xml::XmlEventKind::ProcessingInstruction
+                    ) || event.prefix.is_some()
+                })
+        })
+        .ok_or_else(|| {
+            refused(
+                "Standalone XHTML declarations require UTF-8, unprefixed elements and passive XML"
+                    .into(),
+            )
+        })?;
+    retain_element_lifecycle(Arc::new(LoadedInputAstStream::XmlDocument(document))).map_err(refused)
 }
 
 /// Preserve the original lifecycle owner and its byte coordinates. This source
@@ -475,6 +605,7 @@ fn literal_inline_text(
         mapped.push((
             ByteRange::new(text.len() as u64, child.value.len() as u32),
             tree.node_source_map(*id).unwrap_or_default(),
+            false,
         ));
         text.push_str(&child.value);
     }

@@ -127,6 +127,7 @@ pub(crate) fn begin_inline_stylesheets_reusing(
             &shared.declaration_owner,
             prepared.declaration_lease_identity(),
         ) || shared.fingerprint != fingerprint
+            || shared.declaration_base != prepared.declaration_resource_base()
         {
             return Err(
                 "Declaration lease belongs to another native definition or resolver".into(),
@@ -196,7 +197,11 @@ pub(crate) fn begin_inline_stylesheets_reusing(
     {
         source.css_tree().retain_native_resource(permit.clone())?;
     }
-    let identity = format!("{}#{}", page.route().source_uri, prepared.tag());
+    let identity = format!(
+        "{}#{}",
+        prepared.template_source_tree().source_uri(),
+        prepared.tag()
+    );
     let mut loads = vec![];
     let mut resources = roots as u32;
     for (owner_index, owner) in owners.iter().enumerate() {
@@ -224,9 +229,14 @@ pub(crate) fn begin_inline_stylesheets_reusing(
             } else {
                 CssManagedScope::Instance
             };
+            let base = if declaration {
+                prepared.declaration_resource_base()
+            } else {
+                &page.route().document_base_url
+            };
             let closure = CssImportClosure::new(
                 source.css_tree().clone(),
-                &page.route().document_base_url,
+                base,
                 capability.clone(),
                 CssImportLimits {
                     max_sheets: (policy.max_resources as usize).min(64),
@@ -585,6 +595,7 @@ impl SsrStylesheetCoordinator {
         let ready = CoordinatedStylesheets {
             cpu: input.prepared().lifecycle_cpu.clone(),
             declaration_owner: input.prepared().declaration_lease_identity().clone(),
+            declaration_base: input.prepared().declaration_resource_base().into(),
             shared_declaration: self.shared_declaration.take(),
             _owners: std::mem::take(&mut self.owners),
             declarations,
@@ -610,6 +621,7 @@ impl SsrStylesheetCoordinator {
 pub(crate) struct CoordinatedStylesheets {
     cpu: Option<Arc<cem_ml::operation_control::cpu::NativeCpuAccounting>>,
     declaration_owner: Arc<RetainedTemplate>,
+    pub(crate) declaration_base: String,
     shared_declaration: Option<Arc<CoordinatedStylesheets>>,
     _owners: Vec<RetainedTemplate>,
     declarations: Vec<Arc<RetainedStylesheet>>,

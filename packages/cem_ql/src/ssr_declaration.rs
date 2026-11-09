@@ -4,7 +4,9 @@ use crate::ssr_preparation::{check, compile_inline_definition, problem, InlineDe
 use cem_ml::{
     content_cache::ContentHash,
     diagnostics::Diagnostic,
-    import::element_tree::retain_html_elements,
+    import::element_tree::{
+        retain_html_elements, retain_xhtml_declaration_elements, RetainedElementImport,
+    },
     operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID},
     parser::{
         tree::{CemDocumentMetadata, CemTreeNodeKind, RetainedCemTree},
@@ -12,11 +14,16 @@ use cem_ml::{
     },
     schema::{
         document_model::is_canonical_semver,
-        registry::{content_type_essence, HTML_NAMESPACE_URI},
+        registry::{
+            content_type_essence, HTML_CONTENT_TYPE, HTML_NAMESPACE_URI, XHTML_CONTENT_TYPE,
+        },
     },
     ssr_artifact::CemSsrPageArtifact,
-    validation::html::{
-        html_document_ast_from_source_bytes, HtmlDocumentMode, HtmlSourceValidationRequest,
+    validation::{
+        html::{
+            html_document_ast_from_source_bytes, HtmlDocumentMode, HtmlSourceValidationRequest,
+        },
+        xml::XmlSourceValidationRequest,
     },
 };
 use std::sync::Arc;
@@ -49,7 +56,8 @@ pub(super) fn read_definition(
     remaining: u64,
     control: &OperationControl,
 ) -> Result<InlineDefinition, Vec<Diagnostic>> {
-    let fail = |code, message: &str| problem(page, Some(stub_tree), Some(stub), code, message);
+    let fail =
+        |code: &str, message: &str| problem(page, Some(stub_tree), Some(stub), code, message);
     let invalid = || {
         fail(
             "cem.ssr.external_declaration_unsupported",
@@ -67,8 +75,18 @@ pub(super) fn read_definition(
     {
         return Err(invalid());
     }
-    let request = public_read_request(page, src, Some(&tag), "text/html").ok_or_else(invalid)?;
+    let mut request =
+        public_read_request(page, src, Some(&tag), HTML_CONTENT_TYPE).ok_or_else(invalid)?;
     let uri = &request.uri;
+    let xhtml = uri
+        .rsplit_once('.')
+        .is_some_and(|(_, suffix)| suffix.eq_ignore_ascii_case("xhtml"));
+    let content_type = if xhtml {
+        XHTML_CONTENT_TYPE
+    } else {
+        HTML_CONTENT_TYPE
+    };
+    request.content_type_hint = Some(content_type.into());
     let limit = remaining.min(MAX_DECLARATION_BYTES as u64) as usize;
     if limit == 0 {
         return Err(fail(
@@ -92,11 +110,13 @@ pub(super) fn read_definition(
             .as_deref()
             .map(content_type_essence)
             .as_deref()
-            != Some("text/html")
+            != Some(content_type)
     {
         return Err(fail(
             "cem.ssr.external_declaration_response",
-            "External declaration requires its exact public URL and a text/html response",
+            &format!(
+                "External declaration requires its exact public URL and a {content_type} response"
+            ),
         ));
     }
 
@@ -116,6 +136,83 @@ pub(super) fn read_definition(
                 "External declaration workspace refused",
             )
         })?;
+    let elements = if xhtml {
+        retain_xhtml_declaration_elements(XmlSourceValidationRequest {
+            bytes: &response.bytes,
+            source_uri: uri,
+            content_type: response.content_type.as_deref(),
+        })
+        .map_err(|mut errors| {
+            errors.splice(
+                0..0,
+                fail(
+                    "cem.ssr.external_declaration_response",
+                    "External declaration XHTML was refused",
+                ),
+            );
+            errors
+        })?
+    } else {
+        retain_html_declaration(&response, &fail)?
+    };
+    elements
+        .tree
+        .retain_native_resource(Arc::new(workspace))
+        .map_err(|_| {
+            fail(
+                "cem.ssr.page_bounds",
+                "External declaration owner retention refused",
+            )
+        })?;
+
+    let mut roots = meaningful_children(&elements.tree, 0);
+    let declaration = roots
+        .next()
+        .filter(|id| html(&elements.tree, *id, "cem-element"))
+        .filter(|_| roots.next().is_none())
+        .ok_or_else(|| {
+            fail(
+                "cem.ssr.external_declaration_response",
+                "Expected a single external cem-element declaration",
+            )
+        })?;
+    let mut definition = compile_inline_definition(page, &elements, declaration, control, xhtml)?;
+    if definition.tag != tag
+        || definition.version.as_deref() != Some(&version)
+        || definition.shared_scope != attr(stub_tree, stub, "scope")
+    {
+        return Err(problem(
+            page,
+            Some(&elements.tree),
+            Some(declaration),
+            "cem.ssr.external_declaration_identity",
+            "External declaration tag, version and scope must match the page registry",
+        ));
+    }
+
+    definition.external = Some(Arc::new(ExternalDeclarationLease {
+        input: ResourceInput {
+            resolved_uri: uri.clone(),
+            content: ContentHash::from_blake3(&response.bytes),
+            declaration_bytes: Some(response.bytes.len()),
+            payload_bytes: None,
+        },
+        tree: elements.tree.clone(),
+        declaration,
+        control: control.clone(),
+    }));
+    definition.source = stub_tree.clone();
+    definition.source_declaration = stub;
+    definition.declaration = stub;
+    definition.stylesheet_coordination = true;
+    Ok(definition)
+}
+
+fn retain_html_declaration(
+    response: &cem_ml::resolver::ResolvedRead,
+    fail: &impl Fn(&str, &str) -> Vec<Diagnostic>,
+) -> Result<RetainedElementImport, Vec<Diagnostic>> {
+    let uri = &response.uri;
     let (document, diagnostics) =
         html_document_ast_from_source_bytes(HtmlSourceValidationRequest {
             bytes: &response.bytes,
@@ -157,54 +254,7 @@ pub(super) fn read_definition(
     elements
         .validate_html_text_projection()
         .map_err(|error| fail("cem.ssr.external_declaration_response", &error))?;
-    elements
-        .tree
-        .retain_native_resource(Arc::new(workspace))
-        .map_err(|_| {
-            fail(
-                "cem.ssr.page_bounds",
-                "External declaration owner retention refused",
-            )
-        })?;
-
-    let mut roots = meaningful_children(&elements.tree, 0);
-    let declaration = roots
-        .next()
-        .filter(|id| html(&elements.tree, *id, "cem-element"))
-        .filter(|_| roots.next().is_none())
-        .ok_or_else(|| {
-            fail(
-                "cem.ssr.external_declaration_response",
-                "Expected a single external cem-element declaration",
-            )
-        })?;
-    let mut definition = compile_inline_definition(page, &elements, declaration, control, false)?;
-    if definition.tag != tag || definition.version.as_deref() != Some(&version) {
-        return Err(problem(
-            page,
-            Some(&elements.tree),
-            Some(declaration),
-            "cem.ssr.external_declaration_identity",
-            "External declaration tag and version must match the page registry",
-        ));
-    }
-
-    definition.external = Some(Arc::new(ExternalDeclarationLease {
-        input: ResourceInput {
-            resolved_uri: uri.clone(),
-            content: ContentHash::from_blake3(&response.bytes),
-            declaration_bytes: Some(response.bytes.len()),
-            payload_bytes: None,
-        },
-        tree: elements.tree.clone(),
-        declaration,
-        control: control.clone(),
-    }));
-    definition.source = stub_tree.clone();
-    definition.source_declaration = stub;
-    definition.declaration = stub;
-    definition.stylesheet_coordination = true;
-    Ok(definition)
+    Ok(elements)
 }
 
 fn meaningful_children(

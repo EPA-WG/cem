@@ -338,8 +338,12 @@ links the corresponding design and verification records.
         for malformed, mixed or oversized payloads.
   - [x] Verify Chromium keeps the rendered range when the external payload
         has only a server-side proof.
-- [ ] Extend external declaration admission to canonical XHTML and scoped
+- [x] Extend external declaration admission to canonical XHTML and scoped
       stylesheet closures. Resolve nested reads from the declaration URL.
+  - [x] Verify native XHTML source maps and shared CSS closure accounting.
+        Keep declaration, nested stylesheet and instance referrers distinct.
+  - [x] Verify XML, version, scope and CSS refusals preserve published output.
+  - [x] Verify Chromium applies the closed stylesheet to the rendered hosts.
 - [ ] Extend the resource proof to explicit network policies and
       resource-dependent browser adoption.
 - [ ] Extend stateful browser admission to nested and styled groups. Verify form

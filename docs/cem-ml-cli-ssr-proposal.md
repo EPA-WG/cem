@@ -1016,10 +1016,21 @@ declaration. The public response must have the same tag and version.
 The effective document base resolves the URL. The reader uses the public
 URL without the fragment and enforces both the remaining page budget and a
 64 KiB declaration limit. The native adapter retains source ranges from the
-public resource. The declaration template must be free of stylesheet,
-module-map and external template import dependencies. The CLI publishes the
-original `src` and the settled range. Browser hydration keeps the server range
-in place when the declaration came from an external URL.
+public resource. The HTML fragment profile admits resource-free templates.
+
+Use a `.xhtml` URL for a UTF-8 `application/xhtml+xml` component file. Its
+unprefixed `cem-element` root declares the XHTML namespace and holds one
+direct CEM-ML source template. The XML importer preserves character and
+entity source ranges. The page stub and fetched declaration must agree on
+the tag, version and optional named `scope`. The native stylesheet coordinator
+closes private and named declaration styles under the page's existing budgets.
+Relative imports in declaration CSS start at the public declaration URL.
+Nested imports use the imported stylesheet URL and instance CSS uses the
+document base. The CLI emits the closed declaration styles once for all
+instances. Module maps and external template imports require separate
+admission. The CLI publishes the original `src` and the settled range.
+Browser hydration keeps the server range in place when the declaration
+came from an external URL.
 
 A participant can read a UTF-8 `text/cem-ml` payload through the same read
 map. Give the produced element one direct, empty payload template.

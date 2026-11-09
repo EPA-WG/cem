@@ -203,6 +203,151 @@ fn config_cli_proves_declaration_bytes_and_preserves_exports_on_refusal() {
     fs::remove_dir_all(root).unwrap();
 }
 
+#[test]
+fn config_cli_admits_canonical_xhtml_and_resolves_declaration_styles_from_its_url() {
+    let root = fixture();
+    let page = r#"<!doctype html><html><head><base href="/assets/"><title>SSR</title></head><body><cem-element tag="x-card" version="1.2.3" scope="card" src="./components/card.xhtml#x-card"></cem-element><x-card><template><style>@import './instance.css';</style></template></x-card><x-card></x-card></body></html>"#;
+    let xhtml = r#"<?xml version="1.0" encoding="UTF-8"?><cem-element xmlns="http://www.w3.org/1999/xhtml" tag="x-card" version="1.2.3" scope="card"><template id="x-card" type="text/cem-ml">{style @scope=card |```@import './styles/theme.css';```}{article | XHTML &amp; CSS}</template></cem-element>"#;
+    let files = [
+        ("components/card.xhtml", xhtml),
+        (
+            "components/styles/theme.css",
+            "@import './nested/color.css'; article { padding: 3px }",
+        ),
+        (
+            "components/styles/nested/color.css",
+            "article { color: rgb(17, 34, 51) }",
+        ),
+        (
+            "instance.css",
+            "article { background-color: rgb(29, 47, 71) }",
+        ),
+    ];
+    fs::write(root.join("page.html"), page).unwrap();
+    fs::create_dir_all(root.join("mirror/components/styles/nested")).unwrap();
+    for (path, bytes) in files {
+        fs::write(root.join("mirror").join(path), bytes).unwrap();
+    }
+    let mapping = format!("https://ssr.test/assets/={}", root.join("mirror").display());
+    let out = config_cli(&root, &["--resolver-read-map", &mapping]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let html = fs::read_to_string(root.join("page-out.html")).unwrap();
+    assert_eq!(
+        html.matches("<article>XHTML &amp; CSS</article>").count(),
+        2,
+        "{html}"
+    );
+    assert_eq!(
+        html.matches(r#"data-cem-declaration-style="shared""#)
+            .count(),
+        1,
+        "{html}"
+    );
+    assert_eq!(
+        html.matches(r#"data-cem-instance-style="0""#).count(),
+        1,
+        "{html}"
+    );
+    let hosts: Vec<_> = html
+        .match_indices("<x-card ")
+        .map(|(start, _)| html[start..].split_once('>').unwrap().0)
+        .collect();
+    assert_eq!(hosts.len(), 2, "{html}");
+    assert!(
+        hosts.iter().all(|tag| tag.contains(r#" scope="card""#)),
+        "{html}"
+    );
+    for style in html.split("<style data-cem-").skip(1) {
+        let css = style.split_once("</style>").unwrap().0;
+        assert!(!css.contains("@import"), "{css}");
+    }
+    assert!(html.contains("@import './instance.css'"));
+    let report: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.join("page-out.json")).unwrap()).unwrap();
+    assert_eq!(report["usage"]["resources"], 6);
+    assert_eq!(
+        report["usage"]["totalBytes"],
+        page.len() + files.iter().map(|(_, bytes)| bytes.len()).sum::<usize>()
+    );
+    let paths = [
+        "page-out.html",
+        "page-out.html.map",
+        "page-out.json",
+        "page-out.json.map",
+    ];
+    let previous = paths.map(|path| fs::read(root.join(path)).unwrap());
+    let map: serde_json::Value = serde_json::from_slice(&previous[1]).unwrap();
+    let offset = html.find("XHTML &amp; CSS</article>").unwrap() as u64;
+    let source_offset = xhtml.find("XHTML").unwrap() as u64;
+    assert!(
+        map["outputSpans"].as_array().unwrap().iter().any(|span| {
+            let range = &span["outputRange"];
+            let start = range["start"].as_u64().unwrap_or(u64::MAX);
+            let length = range["len"].as_u64().unwrap_or(0);
+            start <= offset
+                && offset - start < length
+                && span["origin"]["frames"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|frame| {
+                        let range = &frame["span"]["ranges"];
+                        frame["transform"]["uri"] == "https://ssr.test/assets/components/card.xhtml"
+                            && range["start"] == source_offset
+                            && range["len"] == "XHTML ".len()
+                    })
+        }),
+        "{map}"
+    );
+    let reject = |code: &str| {
+        let result = config_cli(&root, &["--resolver-read-map", &mapping]);
+        assert!(!result.status.success());
+        let error = String::from_utf8_lossy(&result.stderr);
+        assert!(error.contains(code), "{error}");
+        assert_eq!(
+            paths.map(|path| fs::read(root.join(path)).unwrap()),
+            previous
+        );
+    };
+    let declaration = root.join("mirror/components/card.xhtml");
+    for (source, code) in [
+        (
+            xhtml.replace("</template>", "</wrong>"),
+            "cem.ssr.external_declaration_response",
+        ),
+        (
+            xhtml.replace("1.2.3", "1.2.4"),
+            "cem.ssr.external_declaration_identity",
+        ),
+        (
+            xhtml.replace(r#"scope="card""#, r#"scope="other""#),
+            "cem.ssr.external_declaration_identity",
+        ),
+        (
+            xhtml.replace("<?xml", r#"<?xml-stylesheet href="external.css"?><?xml"#),
+            "cem.ssr.external_declaration_response",
+        ),
+        (
+            xhtml.replace(
+                "<cem-element",
+                r#"<!DOCTYPE cem-element SYSTEM "external.dtd"><cem-element"#,
+            ),
+            "cem.ssr.external_declaration_response",
+        ),
+    ] {
+        fs::write(&declaration, source).unwrap();
+        reject(code);
+    }
+    fs::write(&declaration, xhtml).unwrap();
+    fs::remove_file(root.join("mirror/components/styles/nested/color.css")).unwrap();
+    reject("cem.css.import");
+    fs::remove_dir_all(root).unwrap();
+}
+
 fn external_payload_fixture() -> (PathBuf, &'static str, &'static str) {
     let root = fixture();
     let page = r#"<!doctype html><html><head><base href="/assets/"><title>SSR</title></head><body><cem-element tag="x-card" version="1.2.3"><template id="x-card" type="text/cem-ml">{article | {$ datadom.payload.children.targets.children}}</template></cem-element><x-card><template type="text/cem-ml" data-cem-payload-src="./payload.cem"></template></x-card></body></html>"#;
