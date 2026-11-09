@@ -110,6 +110,7 @@ import {
     decideCemDeclarationTemplateLanguage,
     type CemDeclarationTemplateLanguage,
 } from './legacy-xslt/template-language.js';
+import { fetchSsrSource, readSsrSourceReceipt, SSR_DECLARATION_RECEIPT, SSR_PAYLOAD_RECEIPT } from './ssr-resource-proof.js';
 import { analyzeExternalDeclarationSourceFormat } from './external-declaration-source.js';
 import {
     CemDeclarationScopeError,
@@ -1933,6 +1934,7 @@ export class CemElementRuntime {
     private readonly checkpointReferenceIntent = new WeakMap<HTMLElement, NonNullable<CemCheckpointRuntimeState['references']>>();
     private readonly checkpointPresentationResume = new WeakMap<HTMLElement, HTMLElement>();
     private readonly checkpointResumeRevisions = new WeakMap<HTMLElement, CemCheckpointResumeContext>();
+    private readonly verifiedSsrDeclarations = new WeakMap<HTMLElement, { receipt: string; source: string; src: string; base: string; scope?: string }>();
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
     private readonly resolveScopedModuleUrlOption?: CemElementRuntimeOptions['resolveScopedModuleUrl'];
     private readonly resolveModuleUrlOption?: CemElementRuntimeOptions['resolveModuleUrl'];
@@ -2584,6 +2586,56 @@ export class CemElementRuntime {
         reference: SrcReference,
         declarationScope: CemDeclarationScope,
     ): Promise<void> {
+        const raw = declarationElement.getAttribute(SSR_DECLARATION_RECEIPT);
+        if (raw !== null) {
+            const controller = new AbortController();
+            const release = onCemDeclarationScopeDispose(declarationScope, () => controller.abort());
+            try {
+                const document = declarationElement.ownerDocument;
+                const scope = declarationElement.getAttribute('scope') ?? undefined;
+                const base = document.baseURI;
+                const receipt = readSsrSourceReceipt(raw, 64 * 1024);
+                if (reference.id !== tag || !declarationVersion
+                    || new URL(reference.path, document.baseURI).href !== receipt.url) {
+                    throw new Error('cem.ssr.resume_declaration_resource');
+                }
+                const bytes = await fetchSsrSource(document, receipt, ['text/html', 'application/xhtml+xml'], controller.signal);
+                const source = await this.renderSupport(declarationScope).verifyCanonicalSsrSource(
+                    raw, bytes, tag, declarationVersion, scope);
+                assertCemDeclarationScopeActive(declarationScope);
+                if (declarationElement.ownerDocument !== document || !declarationElement.isConnected
+                    || declarationElement.getAttribute(SSR_DECLARATION_RECEIPT) !== raw
+                    || declarationElement.getAttribute('src') !== src
+                    || declarationElement.getAttribute('tag') !== tag
+                    || declarationElement.getAttribute('version') !== declarationVersion
+                    || (declarationElement.getAttribute('scope') ?? undefined) !== scope
+                    || new URL(reference.path, document.baseURI).href !== receipt.url
+                    || !analyzeDeclarationElement(declarationElement).ok) {
+                    throw new Error('cem.ssr.resume_stale_declaration');
+                }
+                const template = document.createElement('template');
+                template.setAttribute('type', 'text/cem-ml');
+                template.id = tag;
+                template.content.textContent = source;
+                this.verifiedSsrDeclarations.set(declarationElement, { receipt: raw, source, src, base, scope });
+                await this.registerResolvedDeclaration(declarationElement, tag, declarationVersion, template, [], declarationScope, {
+                    sourceRef: { kind: 'url', value: `${receipt.url}#${tag}` },
+                    resolverIdentity: `ssr-resource:${receipt.hash}`,
+                    resourceBaseUrl: receipt.url,
+                    contentType: receipt.contentType,
+                });
+            } catch (error) {
+                this.verifiedSsrDeclarations.delete(declarationElement);
+                this.registeredDeclarationElements.delete(declarationElement);
+                this.recordDiagnostics(declarationElement, [declarationDiagnostic(
+                    'cem-element.hydration_native_refused',
+                    error instanceof Error ? error.message : String(error), tag,
+                )]);
+            } finally {
+                release();
+            }
+            return;
+        }
         let loaded: LoadedSrcDocument;
         try {
             loaded = await this.loadSrcDocumentParsed(declarationElement, reference.path);
@@ -4042,7 +4094,9 @@ export class CemElementRuntime {
         observeIsland(island);
         observe(compiled.declarationElement);
         for (const template of directTemplateChildren(compiled.declarationElement)) observe(template.content);
-        const entry = { cancel: () => { changed = true; observer?.disconnect(); } };
+        const resourceAbort = new AbortController();
+        let resourceDeadline: ReturnType<typeof setTimeout> | undefined;
+        const entry = { cancel: () => { changed = true; resourceAbort.abort(); observer?.disconnect(); } };
         const members = new Map([[instance, island]]);
         this.canonicalSsrAdmissions.set(instance, entry);
         const pending = (async () => {
@@ -4080,23 +4134,30 @@ export class CemElementRuntime {
                         || host.firstElementChild !== memberIsland || declaration.mode !== 'cem-ml'
                         || declaration.cemMlSource === null || declaration.behavior || declaration.pinnedDeclaration
                         || declaration.linkBaseUrl
-                        // The browser has no receipt for the server's external declaration bytes.
-                        || declaration.sourceRef?.kind === 'url'
                         || (members.size > 1 && declaration.sourceRef?.kind !== 'inline')) {
                         throw new Error('cem.ssr.resume_profile_unsupported');
                     }
                     const element = declaration.declarationElement;
                     const templates = directTemplateChildren(element);
+                    const verified = this.verifiedSsrDeclarations.get(element);
                     if (declaration.sourceRef?.kind === 'inline') {
                         const shape = analyzeDeclarationElement(element);
                         const template = templates[0];
                         if (!element.isConnected || !shape.ok || shape.src || shape.tag !== declaration.producedTag
+                            || element.hasAttribute(SSR_DECLARATION_RECEIPT)
                             || shape.version !== declaration.declarationVersion || !template || templateMode(template) !== 'cem-ml'
                             || templateSourceText(template) !== declaration.cemMlSource
                             || element.getAttribute('link-base')?.trim() === 'source'
                             || element.getAttribute('capability')?.trim() || template.getAttribute('capability')?.trim()) {
                             throw new Error('cem.ssr.resume_stale_declaration');
                         }
+                    } else if (declaration.sourceRef?.kind !== 'url' || !verified
+                        || verified.receipt !== element.getAttribute(SSR_DECLARATION_RECEIPT)
+                        || verified.source !== declaration.cemMlSource || verified.src !== element.getAttribute('src')
+                        || verified.base !== element.ownerDocument.baseURI
+                        || declaration.declarationVersion !== element.getAttribute('version')
+                        || verified.scope !== (element.getAttribute('scope') ?? undefined)) {
+                        throw new Error('cem.ssr.resume_declaration_resource');
                     }
                     observe(element);
                     for (const template of templates) observe(template.content);
@@ -4109,12 +4170,30 @@ export class CemElementRuntime {
                     return { host, island: memberIsland, declaration };
                 });
                 const declarations = [...new Set(participants.map(({ declaration }) => declaration.declarationElement))];
+                const base = instance.ownerDocument.baseURI;
+                const payloads: { host: HTMLElement; bytes: Uint8Array }[] = [];
+                let payloadBytes = 0;
+                for (const { host, island: memberIsland } of participants) {
+                    const raw = memberIsland.getAttribute(SSR_PAYLOAD_RECEIPT);
+                    if (raw === null) continue;
+                    const receipt = readSsrSourceReceipt(raw, 32 * 1024);
+                    payloadBytes += receipt.byteLength;
+                    if (payloadBytes > this.nativeValueLimits.maxBytes) throw new Error('cem.ssr.resume_resource_bounds');
+                    resourceDeadline ??= setTimeout(() => resourceAbort.abort(), 5000);
+                    const bytes = await fetchSsrSource(host.ownerDocument, receipt, ['text/cem-ml'], resourceAbort.signal);
+                    payloads.push({ host, bytes });
+                }
                 const decisions = await this.renderSupport(compiled.declarationScope).admitCanonicalSsrInstance(
                     instance, compiled.producedTag, compiled.declarationVersion ?? '', source, this.nativeValueLimits,
-                    [...members.keys()], [...nestedDeclarations.values()], declarations,
+                    [...members.keys()], [...nestedDeclarations.values()], declarations, payloads,
                 );
+                const resourceDependent = payloads.length > 0 || compiled.sourceRef?.kind === 'url';
+                if (resourceDependent && decisions.some(decision => decision.decision !== 'adopt' || decision.stateful)) {
+                    throw new Error('cem.ssr.resume_resource_profile');
+                }
                 if (this.canonicalSsrAdmissions.get(instance) !== entry || !instance.isConnected) return;
                 if (changed || observer.takeRecords().length || compiled.declarationScope.disposed
+                    || (resourceDependent && instance.ownerDocument.baseURI !== base)
                     || participants.some(({ host, declaration }) => !host.isConnected || !instance.contains(host)
                         || this.canonicalSsrAdmissions.get(host) !== entry || this.declarationForInstance(host) !== declaration)) {
                     throw new Error('cem.ssr.resume_stale');
@@ -4202,6 +4281,7 @@ export class CemElementRuntime {
                     }
                     writeDataIslandHydrationData(memberIsland, snapshot);
                     memberIsland.removeAttribute(NATIVE_SSR_PROFILE_ATTR);
+                    memberIsland.removeAttribute(SSR_PAYLOAD_RECEIPT);
                     this.initializedInstances.add(host);
                     this.canonicalSsrAdmissions.delete(host);
                 }
@@ -4217,6 +4297,8 @@ export class CemElementRuntime {
                         error instanceof Error ? error.message : String(error), host.localName)]);
                 }
             } finally {
+                clearTimeout(resourceDeadline);
+                resourceAbort.abort();
                 observer?.disconnect();
                 for (const host of members.keys()) {
                     if (this.canonicalSsrAdmissions.get(host) === entry) this.canonicalSsrAdmissions.delete(host);

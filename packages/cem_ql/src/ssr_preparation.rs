@@ -203,7 +203,12 @@ fn prepare_inline_dce_mode(
         ));
     };
     let declaration = *declaration;
-    let header = declaration_header(&page, &elements, declaration, stylesheet_coordination)?;
+    let header = declaration_header(
+        &elements,
+        declaration,
+        stylesheet_coordination,
+        |id, code, message| problem(&page, Some(&elements.tree), Some(id), code, message),
+    )?;
     let tag = header.tag;
     let template = header.template;
     let root = header.root;
@@ -288,16 +293,16 @@ fn prepare_inline_dce_mode(
     })
 }
 
-struct DeclarationHeader {
-    tag: String,
-    template: AstNodeId,
-    root: BTreeMap<String, String>,
+pub(crate) struct DeclarationHeader {
+    pub(crate) tag: String,
+    pub(crate) template: AstNodeId,
+    pub(crate) root: BTreeMap<String, String>,
 }
-fn declaration_header(
-    page: &CemSsrPageArtifact,
+pub(crate) fn declaration_header(
     elements: &RetainedElementImport,
     declaration: AstNodeId,
     stylesheet_coordination: bool,
+    fail: impl Fn(AstNodeId, &str, &str) -> Vec<Diagnostic>,
 ) -> Result<DeclarationHeader, Vec<Diagnostic>> {
     let tree = &elements.tree;
     let root = attributes(tree, declaration);
@@ -317,10 +322,8 @@ fn declaration_header(
             value.len() > 1024 || !cem_ml::schema::document_model::is_canonical_semver(value)
         })
     {
-        return Err(problem(
-            page,
-            Some(tree),
-            Some(declaration),
+        return Err(fail(
+            declaration,
             "cem.ssr.inline_declaration_unsupported",
             "Unsupported inline declaration header or capability",
         ));
@@ -340,10 +343,8 @@ fn declaration_header(
         .collect();
     let template = children.first().copied();
     if children.len() != 1 || !template.is_some_and(|id| is_html(tree, id, "template")) {
-        return Err(problem(
-            page,
-            Some(tree),
-            Some(declaration),
+        return Err(fail(
+            declaration,
             "cem.ssr.inline_template_unsupported",
             "Expected one direct canonical CEM source template",
         ));
@@ -356,10 +357,8 @@ fn declaration_header(
             .keys()
             .any(|key| !["id", "type"].contains(&key.as_str()))
     {
-        return Err(problem(
-            page,
-            Some(tree),
-            Some(template),
+        return Err(fail(
+            template,
             "cem.ssr.inline_template_unsupported",
             "Unsupported template identity, type or source adapter",
         ));
@@ -468,7 +467,12 @@ pub(crate) fn compile_inline_definition(
     control: &OperationControl,
     stylesheet_coordination: bool,
 ) -> Result<InlineDefinition, Vec<Diagnostic>> {
-    let header = declaration_header(page, elements, declaration, stylesheet_coordination)?;
+    let header = declaration_header(
+        elements,
+        declaration,
+        stylesheet_coordination,
+        |id, code, message| problem(page, Some(&elements.tree), Some(id), code, message),
+    )?;
     let retained = compile_source(
         page,
         elements,

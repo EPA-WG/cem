@@ -349,9 +349,17 @@ links the corresponding design and verification records.
         Include policy and content identity in the readiness proof.
   - [x] Verify no transport for ungranted URLs, no redirects or mirror fallbacks,
         and atomic refusal on response, byte and wall-time failures.
-- [ ] Extend browser adoption to pages with verified external resources.
+- [x] Verify external declaration and CEM-ML payload identities before
+      passive browser adoption.
+  - [x] Verify native publication carries exact resource receipts and that
+        fetched bytes are bound to the live native proof.
+  - [x] Verify Chromium retains exact nodes for missing, changed, redirected
+        and tampered resources, and adopts matching passive ranges in place.
+- [ ] Rebuild verified external CSS closures for browser adoption.
 - [ ] Extend stateful browser admission to nested and styled groups. Verify form
       and slice ownership across participants and preserve group atomicity.
+- [ ] Define explicit cross-origin browser read grants for external resources
+      and verify transport, identity, and refusal behavior.
 
 ## Component gallery source-link maintenance (after Studio presentation work)
 

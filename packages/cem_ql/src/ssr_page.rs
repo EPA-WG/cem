@@ -1,7 +1,7 @@
 //! Parent-first native first-connection worklist. Quiescence remains partial;
 //! passive and explicit resource profiles share one document registry.
 #[path = "ssr_declaration.rs"]
-mod external_declaration;
+pub(crate) mod external_declaration;
 #[path = "ssr_readiness.rs"]
 mod readiness;
 #[path = "ssr_resource.rs"]

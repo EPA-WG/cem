@@ -1,0 +1,85 @@
+//! Bounded portable resource identities. The browser must provide fresh bytes.
+use cem_ml::{content_cache::ContentHash, resolver::ssr_resource_url};
+
+pub const DECLARATION_ATTRIBUTE: &str = "data-cem-ssr-declaration";
+pub const PAYLOAD_ATTRIBUTE: &str = "data-cem-ssr-payload";
+pub const MAX_DECLARATION_BYTES: usize = 64 * 1024;
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SourceReceipt {
+    pub url: String,
+    pub content_type: String,
+    pub byte_length: usize,
+    pub hash: String,
+}
+
+impl SourceReceipt {
+    pub(crate) fn new(url: &str, content_type: &str, length: usize, hash: &ContentHash) -> Self {
+        Self {
+            url: url.into(),
+            content_type: content_type.into(),
+            byte_length: length,
+            hash: hash.hex.clone(),
+        }
+    }
+
+    pub fn verify(
+        raw: &str,
+        bytes: &[u8],
+        content_type: &str,
+        limit: usize,
+    ) -> Result<Self, String> {
+        let fail = || "cem.ssr.resume_resource_identity".to_owned();
+        if raw.len() > 8192 || bytes.len() > limit {
+            return Err(fail());
+        }
+        let receipt: Self = serde_json::from_str(raw).map_err(|_| fail())?;
+        if receipt.url.len() > 4096
+            || ssr_resource_url(&receipt.url).as_deref() != Ok(receipt.url.as_str())
+            || receipt.content_type != content_type
+            || receipt.byte_length != bytes.len()
+            || receipt.hash != ContentHash::from_blake3(bytes).hex
+        {
+            return Err(fail());
+        }
+        Ok(receipt)
+    }
+}
+
+pub fn declaration_content_type(uri: &str) -> &'static str {
+    use cem_ml::schema::registry::{HTML_CONTENT_TYPE, XHTML_CONTENT_TYPE};
+    if uri
+        .rsplit_once('.')
+        .is_some_and(|(_, suffix)| suffix.eq_ignore_ascii_case("xhtml"))
+    {
+        XHTML_CONTENT_TYPE
+    } else {
+        HTML_CONTENT_TYPE
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn receipt_requires_exact_bytes_length_mime_and_canonical_url() {
+        let bytes = b"{item | Expected}";
+        let mut receipt = SourceReceipt::new(
+            "https://ssr.test/payload.cem",
+            "text/cem-ml",
+            bytes.len(),
+            &ContentHash::from_blake3(bytes),
+        );
+        let raw = |receipt: &SourceReceipt| serde_json::to_string(receipt).unwrap();
+        assert!(SourceReceipt::verify(&raw(&receipt), bytes, "text/cem-ml", 64).is_ok());
+        assert!(
+            SourceReceipt::verify(&raw(&receipt), b"{item | Modified}", "text/cem-ml", 64).is_err()
+        );
+        assert!(SourceReceipt::verify(&raw(&receipt), bytes, "text/html", 64).is_err());
+        assert!(SourceReceipt::verify(&raw(&receipt), bytes, "text/cem-ml", 8).is_err());
+        receipt.url.push_str("#foreign");
+        assert!(SourceReceipt::verify(&raw(&receipt), bytes, "text/cem-ml", 64).is_err());
+    }
+}

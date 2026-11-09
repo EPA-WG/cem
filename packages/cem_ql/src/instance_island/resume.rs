@@ -1,5 +1,6 @@
 //! Fresh native admission of a captured canonical SSR host. Serialized readiness
 //! flags and hashes confer no authority: compatible output is recomputed locally.
+use crate::ssr_browser_resources::{SourceReceipt, PAYLOAD_ATTRIBUTE};
 use crate::{
     eval::{AtomValue, Item},
     instance_island as island,
@@ -8,7 +9,10 @@ use crate::{
         CompileTemplateOptions, RenderPlanAttribute, RenderPlanNode,
     },
 };
-use cem_ml::import::element_tree::{canonical_cem_payload_type, retain_captured_cem_payload};
+use cem_ml::import::element_tree::{
+    canonical_cem_payload_type, retain_captured_cem_payload, retain_verified_captured_cem_payload,
+    MAX_CEM_PAYLOAD_SOURCE_BYTES,
+};
 use cem_ml::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
 use cem_ml::schema::registry::HTML_NAMESPACE_URI;
 use std::collections::{BTreeMap, BTreeSet};
@@ -56,6 +60,7 @@ struct Group<'a> {
     ids: BTreeSet<String>,
     participants: Vec<NativeSsrResume>,
     remaining_source_bytes: usize,
+    payload_reads: BTreeMap<String, Vec<u8>>,
 }
 
 struct ParentInput<'a> {
@@ -130,6 +135,28 @@ pub fn admit_group_with_styles(
     declaration_nodes: &[Item],
     c: &OperationControl,
 ) -> Result<NativeSsrGroup, String> {
+    admit_group_with_resource_reads(
+        host,
+        tag,
+        current_version,
+        source,
+        nested,
+        declaration_nodes,
+        BTreeMap::new(),
+        c,
+    )
+}
+
+pub fn admit_group_with_resource_reads(
+    host: &Item,
+    tag: &str,
+    current_version: &str,
+    source: &str,
+    nested: &[NestedDeclaration],
+    declaration_nodes: &[Item],
+    payload_reads: BTreeMap<String, Vec<u8>>,
+    c: &OperationControl,
+) -> Result<NativeSsrGroup, String> {
     let mut source_bytes = source.len();
     if nested.len() >= 64
         || declaration_nodes.len() > 64
@@ -145,6 +172,7 @@ pub fn admit_group_with_styles(
         ids: BTreeSet::new(),
         participants: vec![],
         remaining_source_bytes: 1024 * 1024,
+        payload_reads,
     };
     for declaration in nested {
         source_bytes = source_bytes.saturating_add(declaration.source.len());
@@ -182,9 +210,54 @@ pub fn admit_group_with_styles(
     }
     island::bounded_root(host, c)?;
     group.admit_member(host, tag, current_version, source, None, 0, c)?;
+    if !group.payload_reads.is_empty() {
+        return Err(fail());
+    }
     Ok(NativeSsrGroup {
         participants: group.participants,
     })
+}
+
+// HTML materializes native reference occurrences as their targets. Restore
+// the canonical payload reference for the fresh comparison render.
+fn restore_payload_reference(
+    data: &mut crate::render::TemplateData,
+    host: &Item,
+    section: &Item,
+    template: &Item,
+) -> Result<(), String> {
+    use crate::instance_island::construct::{attribute, element, PREFIXES};
+    let origin = section.source_map().ok_or_else(fail)?;
+    let anchor = crate::eval::retained_cem_node(host).ok_or_else(fail)?;
+    let attributes = island::attrs(section)?
+        .iter()
+        .map(|(name, value)| attribute(name, value, &origin))
+        .collect();
+    let node = element(
+        "payload",
+        island::PARTS[3].1,
+        Some(PREFIXES[4]),
+        attributes,
+        vec![RenderPlanNode::Reference {
+            reference: cem_ml::value::CemReference::new(vec![template.clone()]),
+            source_map: template.source_map().ok_or_else(fail)?,
+        }],
+        &origin,
+    );
+    let [Item::Record(fields)] = data
+        .bindings
+        .get_mut("datadom")
+        .ok_or_else(fail)?
+        .items
+        .as_mut_slice()
+    else {
+        return Err(fail());
+    };
+    fields.insert(
+        "payload".into(),
+        crate::eval::output::output_nodes_with_source(vec![node], anchor).items,
+    );
+    Ok(())
 }
 
 impl Group<'_> {
@@ -223,8 +296,12 @@ impl Group<'_> {
         let [(ti, template)] = templates.as_slice() else {
             return Err(fail());
         };
-        if !children[..*ti].iter().all(whitespace)
-            || island::attrs(template)?
+        let mut template_attrs = island::attrs(template)?;
+        let payload_receipt = template_attrs.remove(PAYLOAD_ATTRIBUTE);
+        let payload_bytes = self.payload_reads.remove(&source_key);
+        if payload_receipt.is_some() != payload_bytes.is_some()
+            || !children[..*ti].iter().all(whitespace)
+            || template_attrs
                 != BTreeMap::from([
                     ("data-cem-island".into(), "instance".into()),
                     (PROFILE_ATTRIBUTE.into(), PROFILE.into()),
@@ -249,7 +326,7 @@ impl Group<'_> {
         }
         let payload_part = parts.get(3).ok_or_else(fail)?;
         let payload_attrs = island::attrs(payload_part)?;
-        if payload_attrs.contains_key("data-cem-external-payload") {
+        if payload_attrs.contains_key("data-cem-external-payload") != payload_receipt.is_some() {
             return Err(fail());
         }
         let payload = island::children(payload_part)?;
@@ -257,25 +334,45 @@ impl Group<'_> {
             .get("data-cem-explicit-payload")
             .is_some_and(|value| value == "true");
         let source_payload = match payload_attrs.get("content-type").map(String::as_str) {
-            Some("text/html") => None,
+            Some("text/html") if payload_receipt.is_none() => None,
             Some("text/cem-ml") if explicit => {
                 let [template] = payload.as_slice() else {
                     return Err(fail());
                 };
                 let native = crate::eval::retained_cem_node(template).ok_or_else(fail)?;
-                Some(
+                let source = if let Some((raw, bytes)) =
+                    payload_receipt.as_deref().zip(payload_bytes.as_deref())
+                {
+                    let receipt = SourceReceipt::verify(
+                        raw,
+                        bytes,
+                        "text/cem-ml",
+                        MAX_CEM_PAYLOAD_SOURCE_BYTES,
+                    )?;
+                    retain_verified_captured_cem_payload(
+                        native.owner().clone(),
+                        native.node_id(),
+                        &receipt.url,
+                        bytes,
+                        c,
+                        &island::LIMITS,
+                    )
+                } else {
                     retain_captured_cem_payload(
                         native.owner().clone(),
                         native.node_id(),
                         c,
                         &island::LIMITS,
                     )
-                    .map_err(|_| fail())?,
-                )
+                };
+                Some(source.map_err(|_| fail())?)
             }
             _ => return Err(fail()),
         };
-        let data = island::bind_root(root, &instance_id, c, source_payload.as_ref(), true)?;
+        let mut data = island::bind_root(root, &instance_id, c, source_payload.as_ref(), true)?;
+        if payload_receipt.is_some() {
+            restore_payload_reference(&mut data, host, payload_part, &payload[0])?;
+        }
         let mut saved = BTreeMap::new();
         for a in island::elements(&parts[1])? {
             let a = island::attrs(&a)?;

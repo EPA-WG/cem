@@ -224,6 +224,36 @@ pub fn retain_captured_cem_payload(
     retain_inline_cem_payload_mode(original, template, control, limits, None, true)
 }
 
+/// Admit a live canonical payload only when its literal text matches a
+/// freshly verified resource. The original DOM owner still anchors the island.
+pub fn retain_verified_captured_cem_payload(
+    original: Arc<RetainedCemTree>,
+    template: AstNodeId,
+    uri: &str,
+    bytes: &[u8],
+    control: &OperationControl,
+    limits: &CemValueArtifactLimits,
+) -> Result<Arc<RetainedCemPayloadSource>, String> {
+    if !crate::import::dom::has_live_capture_owner(&original)
+        || bytes.len() > limits.max_bytes.min(MAX_CEM_PAYLOAD_SOURCE_BYTES)
+        || super::literal_inline_text(&original, template, None)?
+            .text()
+            .as_bytes()
+            != bytes
+    {
+        return Err("CEM payload resource differs from the captured island".into());
+    }
+    let mut retained = retain_captured_cem_payload(original, template, control, limits)?;
+    Arc::get_mut(&mut retained)
+        .ok_or("Unexpected shared payload lease")?
+        .external = Some(ExternalCemPayloadInput {
+        uri: uri.into(),
+        content: ContentHash::from_blake3(bytes),
+        byte_length: bytes.len(),
+    });
+    Ok(retained)
+}
+
 fn retain_inline_cem_payload_mode(
     original: Arc<RetainedCemTree>,
     template: AstNodeId,

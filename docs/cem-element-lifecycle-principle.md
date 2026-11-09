@@ -514,7 +514,9 @@ The CLI also accepts an empty CEM-ML envelope with `data-cem-payload-src`
 through its explicit read map. The lease identifies the authored envelope
 and retains a separately sourced native CEM tree under the original
 operation. The materialized island text carries the fetched resource's byte
-ranges. Browser adoption requires its own resource proof for this profile.
+ranges. Browser adoption verifies the external payload receipt against a
+fresh same-origin response and checks those bytes against the captured
+literal envelope before comparing the render.
 
 Host attributes, canonical islands and styles still commit through the shared
 native transaction. Previously settled hosts, islands, output boundaries and

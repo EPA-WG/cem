@@ -5,7 +5,7 @@ use super::*;
 mod cem_payload;
 pub use cem_payload::{
     canonical_cem_payload_type, retain_captured_cem_payload, retain_external_cem_payload,
-    retain_inline_cem_payload, ExternalCemPayloadInput, RetainedCemPayloadSource,
+    retain_inline_cem_payload, retain_verified_captured_cem_payload, ExternalCemPayloadInput, RetainedCemPayloadSource,
     RetainedCemPayloadSourcePool, MAX_CEM_PAYLOAD_SOURCE_BYTES,
 };
 

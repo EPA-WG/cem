@@ -292,7 +292,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         renderTemplateWithNativeValues,
         renderTemplateWithNativeValuesAndAdmission,
         beginDomPayloadCapture, appendDomPayloadNode, finishDomPayloadCapture, disposeDomPayloadCapture,
-        finishDomLiteralNamespaceCapture, admitCapturedCanonicalSsrHost,
+        finishDomLiteralNamespaceCapture, admitCapturedCanonicalSsrHost, verifyCanonicalSsrDeclaration,
         importCemDocumentValue,
         exportCemJsonValue,
         importNativeValueArtifact,
@@ -1539,6 +1539,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         host: HTMLElement, tag: string, version: string, source: string, limits: CemValueArtifactLimits,
         members: readonly HTMLElement[], nested: readonly { tag: string; version: string; source: string }[],
         declarations: readonly HTMLElement[],
+        payloads: readonly { host: HTMLElement; bytes: Uint8Array }[],
     ) => {
         const styleInputs: Uint8Array[] = [];
         let declarationBytes = 0;
@@ -1549,14 +1550,21 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
             styleInputs.push(new Uint8Array(artifact));
         }
         const proof = await withDomCapture(host, limits, handle =>
-            admitCapturedCanonicalSsrHost(handle, tag, version, source, JSON.stringify(nested), styleInputs));
+            admitCapturedCanonicalSsrHost(handle, tag, version, source, JSON.stringify(nested), styleInputs,
+                payloads.map(({host, bytes}) => [domKey(host), bytes])));
         const { participants } = JSON.parse(proof) as { participants: { decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null; sourceKey: string; instanceStylesheets: boolean; stateful: boolean }[] };
         if (participants.length !== members.length || participants.some((decision, index) => decision.sourceKey !== domKey(members[index]))) {
             throw new Error('cem.ssr.resume_participants');
         }
         return participants;
     });
-    return { domain, native, processCheckpointControl, captureDomPayload, admitCanonicalSsrInstance,
+    const verifyCanonicalSsrSource = nativeCheckpointWork(async (
+        receipt: string, bytes: Uint8Array, tag: string, version: string, scope?: string,
+    ) => {
+        await ensureRuntimeReady();
+        return verifyCanonicalSsrDeclaration(receipt, bytes, tag, version, scope);
+    });
+    return { domain, native, processCheckpointControl, captureDomPayload, admitCanonicalSsrInstance, verifyCanonicalSsrSource,
         highlightSource,
         retainStylesheetSources,
         releaseRetainedTemplateStylesheets,
@@ -1614,6 +1622,7 @@ export const resolveDeclarationResourceBase = defaultBindings.resolveDeclaration
 export const resolveRenderPlanLinks = defaultBindings.resolveRenderPlanLinks;
 export const captureDomPayload = defaultBindings.captureDomPayload;
 export const admitCanonicalSsrInstance = defaultBindings.admitCanonicalSsrInstance;
+export const verifyCanonicalSsrSource = defaultBindings.verifyCanonicalSsrSource;
 export const ensureRuntimeReady = defaultBindings.ensureRuntimeReady;
 export const isRuntimeReady = defaultBindings.isRuntimeReady;
 export const runtimeVersion = defaultBindings.runtimeVersion;

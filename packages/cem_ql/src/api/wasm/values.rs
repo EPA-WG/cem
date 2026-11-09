@@ -578,20 +578,37 @@ pub fn admit_canonical_ssr_host(
         let values = decode_ssr_capture(bytes, control)?;
         let [host] = values.items.as_slice() else { return Err(JsValue::from_str("cem.ssr.resume_host")) };
         Ok(host.clone())
-    }, tag, version, source, nested_json, declarations)
+    }, tag, version, source, nested_json, declarations, None)
+}
+
+#[wasm_bindgen(js_name = "verifyCanonicalSsrDeclaration")]
+pub fn verify_canonical_ssr_declaration(
+    receipt: &str, bytes: js_sys::Uint8Array, tag: &str, version: &str, scope: Option<String>,
+) -> Result<String, JsValue> {
+    let _native = cem_ml::runtime_admission::admit(false).map_err(JsValue::from_str)?;
+    if receipt.len() > 8192 || bytes.length() as usize > crate::ssr_browser_resources::MAX_DECLARATION_BYTES
+        || tag.len() > 256 || version.len() > 1024 || scope.as_ref().is_some_and(|s| s.len() > 256)
+    {
+        return Err(JsValue::from_str("cem.ssr.resume_declaration_bounds"));
+    }
+    let _memory = cem_ml::runtime_memory::admit_input(bytes.length() as usize * 128)
+        .map_err(|e| JsValue::from_str(e.0))?;
+    crate::ssr_page::external_declaration::verify_browser_declaration(
+        receipt, bytes.to_vec(), tag, version, scope.as_deref(),
+    ).map_err(|e| JsValue::from_str(&e))
 }
 
 #[wasm_bindgen(js_name = "admitCapturedCanonicalSsrHost")]
 pub fn admit_captured_canonical_ssr_host(
     id: u32, tag: &str, version: &str, source: &str, nested_json: String,
-    declarations: js_sys::Array,
+    declarations: js_sys::Array, payloads: Option<js_sys::Array>,
 ) -> Result<String, JsValue> {
     let _native = cem_ml::runtime_admission::admit(false).map_err(JsValue::from_str)?;
     let (capture, _memory, _) = DOM_CAPTURES.with(|s| s.borrow_mut().remove(&id))
         .ok_or_else(|| JsValue::from_str("Unknown DOM capture"))?;
     prove_canonical_ssr_host(0, |_| {
         captured_container(capture.finish_literal_namespaces().map_err(|e| JsValue::from_str(&e))?)
-    }, tag, version, source, Some(nested_json), Some(declarations))
+    }, tag, version, source, Some(nested_json), Some(declarations), payloads)
 }
 
 fn decode_ssr_capture(
@@ -607,8 +624,9 @@ fn prove_canonical_ssr_host(
     host: impl FnOnce(&cem_ml::operation_control::OperationControl) -> Result<crate::eval::Item, JsValue>,
     tag: &str, version: &str, source: &str, nested_json: Option<String>,
     declarations: Option<js_sys::Array>,
+    payloads: Option<js_sys::Array>,
 ) -> Result<String, JsValue> {
-    use crate::ssr_browser_resume::{admit, admit_group_with_styles, NestedDeclaration};
+    use crate::ssr_browser_resume::{admit, admit_group_with_resource_reads, NestedDeclaration};
 
     let nested_bytes = nested_json.as_ref().map_or(0, String::len);
     if nested_bytes > 2 * 1024 * 1024 {
@@ -627,7 +645,30 @@ fn prove_canonical_ssr_host(
             captures.push(capture);
         }
     }
-    let input_bytes = [host_bytes, source.len(), tag.len(), version.len(), nested_bytes, declaration_bytes]
+    let mut payload_inputs = std::collections::BTreeMap::new();
+    let mut payload_bytes = 0usize;
+    if let Some(payloads) = payloads {
+        if payloads.length() > 64 {
+            return Err(JsValue::from_str("cem.ssr.resume_resource_bounds"));
+        }
+        for entry in payloads.iter() {
+            let entry = entry.dyn_into::<js_sys::Array>()?;
+            if entry.length() != 2 {
+                return Err(JsValue::from_str("cem.ssr.resume_resource_identity"));
+            }
+            let key = entry.get(0).as_string().filter(|s| s.len() <= 256)
+                .ok_or_else(|| JsValue::from_str("cem.ssr.resume_resource_identity"))?;
+            let bytes = entry.get(1).dyn_into::<js_sys::Uint8Array>()?;
+            payload_bytes += bytes.length() as usize;
+            if bytes.length() as usize > cem_ml::import::element_tree::MAX_CEM_PAYLOAD_SOURCE_BYTES
+                || payload_bytes > crate::instance_island::LIMITS.max_bytes
+                || payload_inputs.insert(key, bytes).is_some()
+            {
+                return Err(JsValue::from_str("cem.ssr.resume_resource_bounds"));
+            }
+        }
+    }
+    let input_bytes = [host_bytes, source.len(), tag.len(), version.len(), nested_bytes, declaration_bytes, payload_bytes]
         .into_iter().fold(0usize, usize::saturating_add);
     let _memory = cem_ml::runtime_memory::admit_input(input_bytes).map_err(|e| JsValue::from_str(e.0))?;
     let control = cem_ml::operation_control::OperationControl::default();
@@ -641,7 +682,8 @@ fn prove_canonical_ssr_host(
             if captured.len() != 1 { return Err(JsValue::from_str("cem.ssr.resume_declarations")); }
             nodes.push(captured.remove(0));
         }
-        let group = admit_group_with_styles(&host, tag, version, source, &declarations, &nodes, &control)
+        let payload_reads = payload_inputs.into_iter().map(|(key, bytes)| (key, bytes.to_vec())).collect();
+        let group = admit_group_with_resource_reads(&host, tag, version, source, &declarations, &nodes, payload_reads, &control)
             .map_err(|e| JsValue::from_str(&e))?;
         serde_json::to_string(&group)
     } else {

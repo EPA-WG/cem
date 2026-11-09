@@ -52,6 +52,22 @@ fn push_host(
             cem_ql::ssr_browser_resume::PROFILE
         },
     );
+    if case == "source-resource" {
+        let bytes = b"{item | {$ 1 div 0}}";
+        let receipt = serde_json::json!({
+            "url": "https://example.test/payload.cem",
+            "contentType": "text/cem-ml",
+            "byteLength": bytes.len(),
+            "hash": cem_ml::content_cache::ContentHash::from_blake3(bytes).hex,
+        });
+        push(
+            t,
+            "attribute",
+            "",
+            cem_ql::ssr_browser_resources::PAYLOAD_ATTRIBUTE,
+            &receipt.to_string(),
+        );
+    }
     let r = push(
         t,
         "element",
@@ -153,6 +169,9 @@ fn push_host(
                     cem_ml::schema::registry::CEM_ML_SCHEMA_URI,
                 );
                 push(p, "attribute", "", "data-cem-explicit-payload", "true");
+                if case == "source-resource" {
+                    push(p, "attribute", "", "data-cem-external-payload", "true");
+                }
                 let envelope = push(p, "element", "http://www.w3.org/1999/xhtml", "template", "");
                 push(envelope, "attribute", "", "type", "text/cem-ml");
                 if case == "source-markup" {
@@ -596,4 +615,37 @@ fn current_native_plan_uses_admitted_slot_payload_instead_of_output_text() {
         &c
     )
     .is_err());
+}
+
+#[test]
+fn external_payload_requires_fresh_bytes_and_restores_the_native_reference() {
+    use cem_ql::ssr_browser_resume::admit_group_with_resource_reads;
+    use std::collections::BTreeMap;
+    let payload = "{item | {$ 1 div 0}}";
+    let host = host_case(Some("1.2.3"), payload, "source-resource");
+    let source = "{b | {$ datadom.payload.children.targets.children}}";
+    let c = OperationControl::default();
+    let key = host
+        .view()
+        .unwrap()
+        .provenance()
+        .unwrap()
+        .source_key
+        .unwrap();
+    assert!(admit(&host, "x-card", "1.2.3", source, &c).is_err());
+    let verify = |bytes: &[u8]| {
+        admit_group_with_resource_reads(
+            &host,
+            "x-card",
+            "1.2.3",
+            source,
+            &[],
+            &[],
+            BTreeMap::from([(key.clone(), bytes.to_vec())]),
+            &c,
+        )
+    };
+    assert!(verify(b"{item | {$ 1 div 1}}").is_err());
+    let proof = verify(payload.as_bytes()).unwrap();
+    assert_eq!(proof.participants[0].decision, ResumeDecision::Adopt);
 }

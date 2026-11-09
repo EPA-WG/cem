@@ -1029,8 +1029,8 @@ Nested imports use the imported stylesheet URL and instance CSS uses the
 document base. The CLI emits the closed declaration styles once for all
 instances. Module maps and external template imports require separate
 admission. The CLI publishes the original `src` and the settled range.
-Browser hydration keeps the server range in place when the declaration
-came from an external URL.
+The browser can adopt a standalone passive declaration after checking its
+same-origin resource receipt and comparing a fresh native render.
 
 A participant can read a UTF-8 `text/cem-ml` payload through the same read
 map. Give the produced element one direct, empty payload template.
@@ -1048,8 +1048,8 @@ Each host read counts against the page, including repeated reads of a URL.
 The native CEM payload adapter preserves byte ranges from the public file
 and keeps embedded expressions inert. The exported island contains the
 payload as literal text, so include only content intended for the published
-page. Its external-payload marker keeps the server range in place until
-browser adoption has its own resource proof.
+page. Browser adoption checks both the fetched payload and the literal
+payload in the canonical island.
 
 The direct CLI and config CLI accept repeatable `--ssr-network-read URL=IP`
 flags for exact resource URLs. Supply a separate grant for each declaration,
@@ -1065,8 +1065,17 @@ disabled. It accepts
 a complete HTTP 200 response with the expected media type and identity
 content encoding. Reads share the original page resource, byte, wall-time
 and CPU allowances. The readiness proof incorporates the grant policy and
-the content hashes of admitted responses. Browser adoption of
-resource-dependent pages requires its own resource proof.
+the content hashes of admitted responses.
+
+The HTML export carries separate declaration and payload receipts with a
+public URL, expected MIME type, byte length and BLAKE3 hash. The browser
+reads bounded same-origin resources without credentials or redirects.
+WASM validates the fetched bytes before declaration registration or island
+adoption. The native comparison render must agree with the live range.
+Missing resources, changed bytes or stale DOM leave the server-rendered
+nodes and markers in place. This profile covers standalone passive external
+declarations and CEM-ML payloads. External stylesheet closures, cross-origin
+transport and resource-dependent stateful groups remain separate work.
 
 Config graphs use the same template, entrypoint and literal `{param}` controls.
 A transform may have both a `text/html` export and an

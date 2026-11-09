@@ -399,6 +399,7 @@ fn direct_cli_loads_mapped_external_declaration() {
     let html = fs::read_to_string(root.join("out.html")).unwrap();
     assert!(html.contains("<article>External</article>"), "{html}");
     assert!(html.contains(r#"src="./card.html#x-card""#), "{html}");
+    assert!(html.contains("data-cem-ssr-declaration="), "{html}");
     assert!(html.contains("data-cem-island="));
     assert!(!html.contains(root.join("mirror").to_str().unwrap()));
 
@@ -667,6 +668,7 @@ fn direct_cli_loads_mapped_external_cem_payload() {
         html.contains(&format!("<article>{payload}</article>")),
         "{html}"
     );
+    assert!(html.contains("data-cem-ssr-payload="), "{html}");
     assert!(
         html.contains(r#"data-cem-external-payload="true""#),
         "{html}"

@@ -35,7 +35,11 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 mod html_writer;
-pub use html_writer::{stream as html_dom_writer_stream,stream_with_output_attributes as html_dom_writer_stream_with_output_attributes};
+pub use html_writer::{
+    stream as html_dom_writer_stream,
+    stream_with_output_attribute_lists as html_dom_writer_stream_with_output_attribute_lists,
+    stream_with_output_attributes as html_dom_writer_stream_with_output_attributes,
+};
 
 const BINARY_FORMAT_VERSION: &str = "cem-projection-bin/2";
 const BINARY_MAGIC: &[u8; 8] = b"CEMPROJ\0";

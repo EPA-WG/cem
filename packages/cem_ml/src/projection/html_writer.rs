@@ -55,7 +55,7 @@ fn node(
     aliases: &BTreeMap<String, String>,
     depth: usize,
     c: &OperationControl,
-    output_attributes: &BTreeMap<AstNodeId, CemTreeAstAttribute>,
+    output_attributes: &BTreeMap<AstNodeId, Vec<CemTreeAstAttribute>>,
 ) -> Result<CemTreeAstNode, String> {
     c.check_scope(ROOT_EXECUTION_SCOPE_ID)
         .map_err(|e| e.code().to_owned())?;
@@ -107,10 +107,12 @@ fn node(
                 })
                 .collect::<Result<_, String>>()?;
             if let Some(extra) = output_attributes.get(&id) {
-                if attributes.iter().any(|a| a.name == extra.name) {
-                    return Err("DOM writer output attribute duplicates a retained name".into());
+                for attribute in extra {
+                    if attributes.iter().any(|a| a.name == attribute.name) {
+                        return Err("DOM writer output attribute duplicates a retained name".into());
+                    }
+                    attributes.push(attribute.clone());
                 }
-                attributes.push(extra.clone());
             }
             let expanded = n.name.as_ref().ok_or("DOM element has no name")?;
             let children = if expanded.namespace_uri == HTML && expanded.local_name == "style" {
@@ -194,7 +196,7 @@ pub fn stream(
     original: &HtmlDocumentAst,
     c: &OperationControl,
 ) -> Result<CemTreeAstStream, String> {
-    stream_with_output_attributes(tree, original, c, &BTreeMap::new())
+    stream_with_output_attribute_lists(tree, original, c, &BTreeMap::new())
 }
 
 /// Typed export annotations do not change the retained owner or its native
@@ -205,7 +207,24 @@ pub fn stream_with_output_attributes(
     c: &OperationControl,
     output_attributes: &BTreeMap<AstNodeId, CemTreeAstAttribute>,
 ) -> Result<CemTreeAstStream, String> {
-    if output_attributes.len() > 64
+    if output_attributes.len() > 64 {
+        return Err("DOM writer output attribute owner is invalid".into());
+    }
+    let lists = output_attributes
+        .iter()
+        .map(|(id, attribute)| (*id, vec![attribute.clone()]))
+        .collect();
+    stream_with_output_attribute_lists(tree, original, c, &lists)
+}
+
+pub fn stream_with_output_attribute_lists(
+    tree: Arc<RetainedCemTree>,
+    original: &HtmlDocumentAst,
+    c: &OperationControl,
+    output_attributes: &BTreeMap<AstNodeId, Vec<CemTreeAstAttribute>>,
+) -> Result<CemTreeAstStream, String> {
+    if output_attributes.len() > 128
+        || output_attributes.values().map(Vec::len).sum::<usize>() > 192
         || output_attributes.keys().any(|id| {
             tree.node(*id)
                 .is_none_or(|n| n.kind != CemTreeNodeKind::Element)

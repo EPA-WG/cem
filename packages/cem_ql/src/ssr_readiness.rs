@@ -93,6 +93,49 @@ impl ReadyInlinePage {
     pub fn participants(&self) -> &[SettledParticipant] {
         &self.settled.participants
     }
+    /// Portable input receipts are candidates for a fresh browser proof.
+    pub fn browser_source_receipts(
+        &self,
+    ) -> Vec<(
+        AstNodeId,
+        &'static str,
+        crate::ssr_browser_resources::SourceReceipt,
+    )> {
+        use crate::ssr_browser_resources::{
+            declaration_content_type, SourceReceipt, DECLARATION_ATTRIBUTE, PAYLOAD_ATTRIBUTE,
+        };
+        let declarations = self.settled.definitions.values().filter_map(|definition| {
+            if !self.context.versions.contains_key(&definition.tag) {
+                return None;
+            }
+            let lease = definition.external.as_ref()?;
+            Some((
+                definition.declaration,
+                DECLARATION_ATTRIBUTE,
+                SourceReceipt::new(
+                    lease.uri(),
+                    declaration_content_type(lease.uri()),
+                    lease.bytes(),
+                    &lease.input.content,
+                ),
+            ))
+        });
+        let payloads = self.settled.participants.iter().filter_map(|participant| {
+            let input = participant
+                .pass
+                .input()
+                .bindings()
+                .native_payload_source
+                .as_ref()?
+                .external_input()?;
+            Some((
+                participant.island,
+                PAYLOAD_ATTRIBUTE,
+                SourceReceipt::new(&input.uri, "text/cem-ml", input.byte_length, &input.content),
+            ))
+        });
+        declarations.chain(payloads).collect()
+    }
     /// Final deterministic input identity including the closed resource reads.
     pub fn render_input_identity(&self) -> &ContentHash {
         &self.render_input

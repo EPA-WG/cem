@@ -1,6 +1,9 @@
 //! Bounded admission of a canonical external declaration and its source owner.
 use super::{attr, html, ssr_resource::public_read_request, ResourceInput, SsrResourceReader};
-use crate::ssr_preparation::{check, compile_inline_definition, problem, InlineDefinition};
+use crate::{
+    ssr_browser_resources::{declaration_content_type, MAX_DECLARATION_BYTES},
+    ssr_preparation::{check, compile_inline_definition, problem, InlineDefinition},
+};
 use cem_ml::{
     content_cache::ContentHash,
     diagnostics::Diagnostic,
@@ -27,8 +30,6 @@ use cem_ml::{
     },
 };
 use std::sync::Arc;
-
-const MAX_DECLARATION_BYTES: usize = 64 * 1024;
 
 pub(crate) struct ExternalDeclarationLease {
     pub(super) input: ResourceInput,
@@ -78,14 +79,8 @@ pub(super) fn read_definition(
     let mut request =
         public_read_request(page, src, Some(&tag), HTML_CONTENT_TYPE).ok_or_else(invalid)?;
     let uri = &request.uri;
-    let xhtml = uri
-        .rsplit_once('.')
-        .is_some_and(|(_, suffix)| suffix.eq_ignore_ascii_case("xhtml"));
-    let content_type = if xhtml {
-        XHTML_CONTENT_TYPE
-    } else {
-        HTML_CONTENT_TYPE
-    };
+    let content_type = declaration_content_type(uri);
+    let xhtml = content_type == XHTML_CONTENT_TYPE;
     request.content_type_hint = Some(content_type.into());
     let limit = remaining.min(MAX_DECLARATION_BYTES as u64) as usize;
     if limit == 0 {
@@ -136,25 +131,7 @@ pub(super) fn read_definition(
                 "External declaration workspace refused",
             )
         })?;
-    let elements = if xhtml {
-        retain_xhtml_declaration_elements(XmlSourceValidationRequest {
-            bytes: &response.bytes,
-            source_uri: uri,
-            content_type: response.content_type.as_deref(),
-        })
-        .map_err(|mut errors| {
-            errors.splice(
-                0..0,
-                fail(
-                    "cem.ssr.external_declaration_response",
-                    "External declaration XHTML was refused",
-                ),
-            );
-            errors
-        })?
-    } else {
-        retain_html_declaration(&response, &fail)?
-    };
+    let elements = retain_declaration(&response, xhtml, &fail)?;
     elements
         .tree
         .retain_native_resource(Arc::new(workspace))
@@ -165,17 +142,12 @@ pub(super) fn read_definition(
             )
         })?;
 
-    let mut roots = meaningful_children(&elements.tree, 0);
-    let declaration = roots
-        .next()
-        .filter(|id| html(&elements.tree, *id, "cem-element"))
-        .filter(|_| roots.next().is_none())
-        .ok_or_else(|| {
-            fail(
-                "cem.ssr.external_declaration_response",
-                "Expected a single external cem-element declaration",
-            )
-        })?;
+    let declaration = declaration_root(&elements).ok_or_else(|| {
+        fail(
+            "cem.ssr.external_declaration_response",
+            "Expected a single external cem-element declaration",
+        )
+    })?;
     let mut definition = compile_inline_definition(page, &elements, declaration, control, xhtml)?;
     if definition.tag != tag
         || definition.version.as_deref() != Some(&version)
@@ -206,6 +178,111 @@ pub(super) fn read_definition(
     definition.declaration = stub;
     definition.stylesheet_coordination = true;
     Ok(definition)
+}
+
+fn retain_declaration(
+    response: &cem_ml::resolver::ResolvedRead,
+    xhtml: bool,
+    fail: &impl Fn(&str, &str) -> Vec<Diagnostic>,
+) -> Result<RetainedElementImport, Vec<Diagnostic>> {
+    let uri = &response.uri;
+    if xhtml {
+        retain_xhtml_declaration_elements(XmlSourceValidationRequest {
+            bytes: &response.bytes,
+            source_uri: uri,
+            content_type: response.content_type.as_deref(),
+        })
+        .map_err(|mut errors| {
+            errors.splice(
+                0..0,
+                fail(
+                    "cem.ssr.external_declaration_response",
+                    "External declaration XHTML was refused",
+                ),
+            );
+            errors
+        })
+    } else {
+        retain_html_declaration(response, fail)
+    }
+}
+
+fn declaration_root(elements: &RetainedElementImport) -> Option<AstNodeId> {
+    let mut roots = meaningful_children(&elements.tree, 0);
+    roots
+        .next()
+        .filter(|id| html(&elements.tree, *id, "cem-element"))
+        .filter(|_| roots.next().is_none())
+}
+
+/// Verify fresh bytes and return the same native source handoff used by SSR.
+#[cfg(any(test, target_arch = "wasm32"))]
+pub(crate) fn verify_browser_declaration(
+    raw: &str,
+    bytes: Vec<u8>,
+    tag: &str,
+    version: &str,
+    scope: Option<&str>,
+) -> Result<String, String> {
+    use crate::ssr_browser_resources::SourceReceipt;
+    let fail = || "cem.ssr.resume_declaration_resource".to_owned();
+    if raw.len() > 8192 || bytes.len() > MAX_DECLARATION_BYTES {
+        return Err(fail());
+    }
+    let candidate: SourceReceipt = serde_json::from_str(raw).map_err(|_| fail())?;
+    let content_type = declaration_content_type(&candidate.url);
+    let receipt = SourceReceipt::verify(raw, &bytes, content_type, MAX_DECLARATION_BYTES)?;
+    let response = cem_ml::resolver::ResolvedRead {
+        uri: receipt.url,
+        bytes,
+        content_type: Some(content_type.into()),
+    };
+    let elements = retain_declaration(
+        &response,
+        content_type == XHTML_CONTENT_TYPE,
+        &|_, _| vec![],
+    )
+    .map_err(|_| fail())?;
+    let declaration = declaration_root(&elements).ok_or_else(fail)?;
+    let header =
+        crate::ssr_preparation::declaration_header(&elements, declaration, true, |_, _, _| vec![])
+            .map_err(|_| fail())?;
+    if header.tag != tag
+        || header.root.get("version").map(String::as_str) != Some(version)
+        || header.root.get("scope").map(String::as_str) != scope
+    {
+        return Err(fail());
+    }
+    let source = elements
+        .inline_cem_template_source(header.template)
+        .map_err(|_| fail())?;
+    if source.text().len() > crate::ssr_preparation::MAX_INLINE_TEMPLATE_BYTES
+        || crate::declaration_artifact::has_external_template_imports(source.text(), &response.uri)
+    {
+        return Err(fail());
+    }
+    let artifact = crate::render::compile_template(
+        source.text(),
+        &crate::render::CompileTemplateOptions {
+            host_bindings: crate::declaration_artifact::DECLARATION_HOST_BINDINGS
+                .iter()
+                .map(|name| (*name).into())
+                .collect(),
+            source_uri: Some(response.uri),
+            ..Default::default()
+        },
+    );
+    if artifact.module_map.is_some()
+        || !artifact.stylesheets.is_empty()
+        || artifact.requires_legacy_runtime_resources()
+        || artifact
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return Err(fail());
+    }
+    Ok(source.text().to_owned())
 }
 
 fn retain_html_declaration(
@@ -271,4 +348,43 @@ fn meaningful_children(
             child.kind != CemTreeNodeKind::Comment
                 && !(child.kind == CemTreeNodeKind::Text && child.value.trim().is_empty())
         })
+}
+
+#[cfg(test)]
+mod browser_tests {
+    use super::*;
+    use crate::ssr_browser_resources::SourceReceipt;
+
+    #[test]
+    fn verified_xhtml_uses_the_native_source_and_rejects_changed_bytes() {
+        let xml = r#"<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="x-card" version="1.2.3"><template id="x-card" type="text/cem-ml">{p | A &amp; B}</template></cem-element>"#;
+        let receipt = serde_json::to_string(&SourceReceipt::new(
+            "https://ssr.test/card.xhtml",
+            XHTML_CONTENT_TYPE,
+            xml.len(),
+            &ContentHash::from_blake3(xml.as_bytes()),
+        ))
+        .unwrap();
+        assert_eq!(
+            verify_browser_declaration(&receipt, xml.as_bytes().to_vec(), "x-card", "1.2.3", None)
+                .unwrap(),
+            "{p | A & B}"
+        );
+        assert!(verify_browser_declaration(
+            &receipt,
+            xml.replace("A", "C").into_bytes(),
+            "x-card",
+            "1.2.3",
+            None
+        )
+        .is_err());
+        assert!(verify_browser_declaration(
+            &receipt,
+            xml.as_bytes().to_vec(),
+            "x-card",
+            "1.2.4",
+            None
+        )
+        .is_err());
+    }
 }

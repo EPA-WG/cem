@@ -118,8 +118,9 @@ try {
         ['/ssr.html', html], ['/nested.html', nested], ['/direct.html', direct], ['/styled.html', styled],
         ['/foreign.html', foreign], ['/source.html', cemSource], ['/forms.html', forms],
         ['/mapped.html', mapped], [authoredPages[0], cemPage], [authoredPages[1], markdownPage],
-        ['/external.html', externalPage], ['/assets/external.html', externalDeclaration],
-        ['/external-payload.html', externalPayloadPage], ['/xhtml.html', xhtmlPage],
+        ['/external.html', externalPage.replace(/ data-cem-ssr-declaration="[^"]*"/gu, '')],
+        ['/assets/external.html', externalDeclaration],
+        ['/external-payload.html', externalPayloadPage.replace(/ data-cem-ssr-payload="[^"]*"/gu, '')], ['/xhtml.html', xhtmlPage],
     ]);
     assert.match(html, /<article><strong\b[^>]*\bslot="heading"[^>]*>Island input<\/strong><\/article>/);
     assert.match(html, /data-cem-ssr-profile="cem-native-inline\/1"/);
@@ -719,6 +720,87 @@ try {
         assert.deepEqual(payloadReads, []);
         await external.close();
     }
+    const proofRoot = path.join(temp, 'verified');
+    await mkdir(proofRoot);
+    const proofDeclaration = '<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="x-proof" version="1.2.3">'
+        + '<template id="x-proof" type="text/cem-ml">{article | {$ datadom.payload.children.targets.children}}</template></cem-element>';
+    const proofPayload = '{item | Verified {$ 1 div 0}}';
+    await writeFile(path.join(proofRoot, 'card.xhtml'), proofDeclaration);
+    await writeFile(path.join(proofRoot, 'payload.cem'), proofPayload);
+    const proofPage = await render([
+        '<cem-element tag="x-proof" version="1.2.3" src="./card.xhtml#x-proof"></cem-element>',
+        '<x-proof><template type="text/cem-ml" data-cem-payload-src="./payload.cem"></template></x-proof>',
+    ].join(''), 'x-proof=1.9.0', ['--resolver-read-map', `${origin}/verified/=${proofRoot}`],
+    `<base href="${origin}/verified/">`);
+    pages.set('/resource-proof.html', proofPage);
+    const resourceCases = ['matching', 'missing-declaration', 'changed-declaration', 'missing-payload',
+        'changed-payload', 'redirect', 'tampered-island', 'missing-receipt', 'stale-stub'];
+    for (const scenario of resourceCases) {
+        const page = await browser.newPage();
+        page.on('pageerror', error => errors.push(error.message));
+        const reads = [];
+        await page.route('**/*', route => {
+            const url = new URL(route.request().url());
+            if (url.origin !== origin) {
+                requests.push(url.href);
+                return route.abort();
+            }
+            if (!url.pathname.startsWith('/verified/')) return route.continue();
+            reads.push(url.pathname);
+            if (url.pathname.endsWith('/card.xhtml')) {
+                if (scenario === 'missing-declaration') return route.fulfill({ status: 404 });
+                return route.fulfill({ contentType: 'application/xhtml+xml',
+                    body: scenario === 'changed-declaration' ? proofDeclaration.replace('article', 'section') : proofDeclaration });
+            }
+            if (url.pathname.endsWith('/payload.cem')) {
+                if (scenario === 'missing-payload') return route.fulfill({ status: 404 });
+                if (scenario === 'redirect') return route.fulfill({ status: 302, headers: { location: '/verified/replacement.cem' } });
+                return route.fulfill({ contentType: 'text/cem-ml',
+                    body: scenario === 'changed-payload' ? proofPayload.replace('Verified', 'Tampered') : proofPayload });
+            }
+            return route.fulfill({ status: 404 });
+        });
+        await page.goto(`${origin}/resource-proof.html`);
+        const result = await page.evaluate(async scenario => {
+            const { CemElementRuntime } = await import('/packages/cem-elements/dist/lib/cem-elements.js');
+            const host = document.querySelector('x-proof');
+            const declaration = document.querySelector('cem-element');
+            const island = host.querySelector('template[data-cem-island]');
+            const article = host.querySelector('article');
+            if (scenario === 'tampered-island') {
+                island.content.querySelector('template[type="text/cem-ml"]').content.textContent = '{item | Tampered {$ 1 div 0}}';
+            }
+            if (scenario === 'missing-receipt') island.removeAttribute('data-cem-ssr-payload');
+            if (scenario === 'stale-stub') declaration.setAttribute('src', './replacement.xhtml#x-proof');
+            const nodes = [...host.childNodes];
+            const before = host.innerHTML;
+            const runtime = new CemElementRuntime({ processingWorkerFactory: () => { throw new Error('Use main-thread runtime'); } });
+            runtime.install(window);
+            await runtime.whenDeclarationSettled(declaration);
+            await runtime.whenRenderSettled(host);
+            return {
+                text: article.textContent,
+                retained: host.childNodes.length === nodes.length && nodes.every((node, index) => host.childNodes[index] === node),
+                unchanged: host.innerHTML === before,
+                marked: island.hasAttribute('data-cem-ssr-profile'),
+                diagnostics: [...runtime.diagnosticsFor(host), ...runtime.diagnosticsFor(declaration)].map(d => d.code),
+            };
+        }, scenario);
+        const detail = `${scenario} ${JSON.stringify(result)}`;
+        assert.equal(result.text, proofPayload, detail);
+        assert.equal(result.retained, true, detail);
+        if (scenario === 'matching') {
+            assert.equal(result.marked, false, detail);
+            assert.deepEqual(result.diagnostics, [], detail);
+            assert.deepEqual(reads, ['/verified/card.xhtml', '/verified/payload.cem']);
+        } else {
+            assert.equal(result.marked, true, detail);
+            assert.equal(result.unchanged, true, detail);
+            assert.ok(result.diagnostics.includes('cem-element.hydration_native_refused'), detail);
+            assert.ok(!reads.some(url => url.includes('replacement')), detail);
+        }
+        await page.close();
+    }
     const xhtml = await browser.newPage();
     xhtml.on('pageerror', error => errors.push(error.message));
     const xhtmlReads = [];
@@ -778,8 +860,8 @@ try {
         await page.close();
     }
     assert.deepEqual(errors, []); assert.deepEqual(requests, []);
-    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + authoredPages.length + 4;
-    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} stylesheet, ${payloadCases.length} foreign/source, ${formCases.length} form, two authored source profiles plus mapped CSS, HTML/XHTML declarations and payloads, zero off-origin requests`);
+    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + authoredPages.length + resourceCases.length + 4;
+    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} stylesheet, ${payloadCases.length} foreign/source, ${formCases.length} form, two authored source profiles plus verified resources, mapped CSS, declarations and payloads, zero off-origin requests`);
 } finally {
     await browser?.close();
     if (server) await new Promise(resolve => server.close(resolve));
