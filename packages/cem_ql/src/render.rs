@@ -4451,6 +4451,40 @@ fn declaration_prelude(nodes: &[TemplateNode]) -> impl Iterator<Item = &Template
     })
 }
 
+pub(crate) fn canonical_slice_defaults(
+    artifact: &TemplateArtifact,
+) -> Result<BTreeMap<String, (AtomValue, SourceMapStack)>, String> {
+    let mut defaults = BTreeMap::new();
+    for node in declaration_prelude(&artifact.nodes) {
+        let TemplateNode::Element { tag, attributes, children, source_map, .. } = node else {
+            continue;
+        };
+        if local_template_name(tag) != "slice" {
+            continue;
+        }
+        let name = declaration_name(attributes).filter(|name|
+            crate::instance_island::name_allowed(name)
+                && !matches!(name.as_str(), "__proto__" | "prototype" | "constructor")
+        ).ok_or("Canonical SSR requires a literal slice name")?;
+        if defaults.insert(name, (declaration_default_value("slice", children), source_map.clone())).is_some()
+            || defaults.len() > 64
+        {
+            return Err("Canonical SSR slice declarations are duplicate or exceed bounds".into());
+        }
+    }
+    Ok(defaults)
+}
+
+fn declaration_default_value(kind: &str, children: &[TemplateNode]) -> AtomValue {
+    let default = declaration_default_text(children);
+    match (kind, default.as_str()) {
+        (_, "") => AtomValue::Null,
+        ("slice", "true") => AtomValue::Boolean(true),
+        ("slice", "false") => AtomValue::Boolean(false),
+        _ => AtomValue::String(default),
+    }
+}
+
 /// Seed binding values from top-level `{attribute @name=X | default}` / `{slice @name=X | default}`
 /// declarations: the declaration's text content is the default for `X` when the host data
 /// omits it (host-provided values win). Applying defaults in the render engine means the
@@ -4485,16 +4519,7 @@ fn seed_declaration_defaults(
         // the host left it unset (DCE parity: a declared attribute is always referenceable). An
         // empty declaration binds Null; attribute defaults bind text, while slice booleans
         // retain their type so `datadom.slices.*` conditions do not treat `false` as truthy text.
-        let default = declaration_default_text(children);
-        let value = if default.is_empty() {
-            Item::Atomic(AtomValue::Null)
-        } else if declaration_kind == "slice" && default == "true" {
-            Item::Atomic(AtomValue::Boolean(true))
-        } else if declaration_kind == "slice" && default == "false" {
-            Item::Atomic(AtomValue::Boolean(false))
-        } else {
-            Item::Atomic(AtomValue::String(default))
-        };
+        let value = Item::Atomic(declaration_default_value(declaration_kind, children));
         let reflected_default = if declaration_kind == "attribute" {
             match &value {
                 Item::Atomic(AtomValue::String(default)) => Some(default.clone()),

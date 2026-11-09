@@ -13,8 +13,9 @@ CPU accounting. The packaged `ssr:render-page` builtin connects native CLI
 Browser adoption supports standalone and nested participants in the bounded
 profile described in the lifecycle contract. It covers passive HTML, SVG and
 MathML, inert CEM source payloads and resource-free declaration and instance
-stylesheets. Live slices and form controls, external-resource CLI
-admission, additional page-source forms, the proposed `ssr` shorthand and the
+stylesheets. Standalone participants can also hydrate declaration-owned scalar
+slices and resource-free native forms. External-resource CLI admission,
+additional page-source forms, the proposed `ssr` shorthand and the
 general page compiler remain future work.
 
 **Applies to:** `cem-ml`, CEMT transform graphs, `cem-elements`, Edge/SSR

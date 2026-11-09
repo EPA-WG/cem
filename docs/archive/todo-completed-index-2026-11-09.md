@@ -66,3 +66,4 @@ The [active checklist](../todo.md) records remaining execution work.
 - [SSR nested hydration](todo-completed-ssr-nested-hydration-2026-11-09.md)
 - [SSR scoped CSS hydration](todo-completed-ssr-scoped-css-hydration-2026-11-09.md)
 - [Browser adoption of foreign markup and inert CEM source](todo-completed-ssr-foreign-source-hydration-2026-11-09.md)
+- [Live slice and local form hydration](todo-completed-ssr-live-state-hydration-2026-11-09.md)

@@ -2462,6 +2462,70 @@ export function preparePatchFramesForRange(bounds: RenderPlanDomRange, frames: r
     return new PreparedDomPatch(bounds, frames, expectedRevision, document, options);
 }
 
+/** Bind a fresh, independently admitted plan to the existing SSR range. */
+export function prepareRetainedSsrPatchBaseline(
+    bounds: RenderPlanDomRange, frames: readonly PatchFrame[], revision: RenderRevision,
+): () => void {
+    const parsed = parseCommittedPatchFrames(frames);
+    const refuse = () => new Error('cem.ssr.resume_processing_range');
+    if (!parsed.ok || renderRevisionKey(parsed.revision) !== renderRevisionKey(revision)) throw refuse();
+    const plan: RenderPlan = { ...parsed.commit.nextRenderPlan, nodes: parsed.ops.map(op => {
+        if (op.op !== 'replaceScope' || op.reason !== 'first-render') throw refuse();
+        return deserializePatchNode(op.node.node);
+    }) };
+    const writes: (() => void)[] = [];
+    const ids = new Set<string>();
+    const unique = (id: string) => {
+        if (!id || ids.has(id)) throw refuse();
+        ids.add(id);
+    };
+    const authored = (name: string) => name !== DATA_CEM_RENDER_SCOPE_ATTR
+        && name !== 'xmlns' && !name.startsWith('xmlns:');
+    const align = (current: ChildNode | null, end: Node | null, nodes: readonly RenderPlanNode[]) => {
+        for (const node of nodes) {
+            if (!current || current === end) throw refuse();
+            if (node.kind === 'text' || node.kind === 'comment') {
+                if (current.nodeType !== (node.kind === 'text' ? 3 : 8) || current.nodeValue !== node.text) throw refuse();
+                const retained = current as ChildNode & { cemRenderNodeId?: string };
+                const id = textNodePatchId(node);
+                unique(id);
+                writes.push(() => { retained.cemRenderNodeId = id; renderedTextValues.set(retained, node.text); });
+            } else {
+                const element = current as Element;
+                if (element.nodeType !== 1 || element.localName !== node.tag
+                    || !renderPlanNamespaceMatches(element.namespaceURI, node.namespace)) throw refuse();
+                const attributes = new Map(node.attributes.map(attribute => [attribute.name, attribute.value]));
+                if (node.attributes.some(attribute => authored(attribute.name)
+                        && renderPlanAttributeValue(element, attribute.name) !== attribute.value)
+                    || Array.from(element.attributes).some(attribute => authored(attribute.name)
+                        && attributes.get(attribute.name) !== attribute.value)) throw refuse();
+                unique(node.renderNodeId);
+                const children = renderPlanElementChildContainer(element);
+                align(children.firstChild as ChildNode | null, null, node.children);
+                writes.push(() => {
+                    mirrorRenderIdentity(element, node.renderNodeId, plan.instanceId);
+                    renderedAttributeValues.set(element, attributes);
+                    syncNativeAttributes(element, node.attributes);
+                    rememberRenderedChildren(element, node.children, plan);
+                    for (const [name, value] of renderPlanElementAttributes(node, plan)) {
+                        if ((isRenderMetadataAttribute(name) || name === DATA_CEM_RENDER_SCOPE_ATTR)
+                            && element.getAttribute(name) !== value) element.setAttribute(name, value);
+                    }
+                });
+            }
+            current = current.nextSibling;
+        }
+        if (current !== end) throw refuse();
+    };
+    const parent = bounds.start.parentNode;
+    if (!parent || parent !== bounds.end.parentNode) throw refuse();
+    align(bounds.start.nextSibling, bounds.end, plan.nodes);
+    return () => {
+        for (const write of writes) write();
+        renderedRangeOwners.set(bounds.start, { end: bounds.end, parent, owner: renderPlanOwnerKey(plan), rootIds: planRootIds(plan, {}) });
+    };
+}
+
 function parseCommittedPatchFrames(frames: readonly PatchFrame[]):
     | {
           ok: true;

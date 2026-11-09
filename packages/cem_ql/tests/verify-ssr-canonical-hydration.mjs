@@ -54,9 +54,18 @@ try {
         '<cem-element tag="x-source" version="1.2.3"><template id="x-source" type="text/cem-ml">{article | Visible}</template></cem-element>',
         '<x-source><template type="cem-ml">{item | {$ 1 div 0}}</template></x-source>',
     ].join(''), 'x-source=1.9.0');
+    const forms = await render([
+        '<cem-element tag="x-profile" version="1.2.3"><template id="x-profile" type="text/cem-ml">',
+        '{slice @name=message | Ready}{slice @name=flag | false}{slice @name=choice}',
+        '{article | {p | {$ message}}{form @id=profile-form @name=profile |',
+        '{input @type=text @name=message @value=Ready @required @slice=message}',
+        '{input @type=checkbox @name=flag @value=yes @checked @slice=flag}',
+        '{select @name=choice @slice=choice | {option @value=a | Alpha}{option @value=b | Beta}}',
+        '}}</template></cem-element><x-profile></x-profile>',
+    ].join(''), 'x-profile=1.9.0');
     const pages = new Map([
         ['/ssr.html', html], ['/nested.html', nested], ['/direct.html', direct], ['/styled.html', styled],
-        ['/foreign.html', foreign], ['/source.html', cemSource],
+        ['/foreign.html', foreign], ['/source.html', cemSource], ['/forms.html', forms],
     ]);
     assert.match(html, /<article><strong\b[^>]*\bslot="heading"[^>]*>Island input<\/strong><\/article>/);
     assert.match(html, /data-cem-ssr-profile="cem-native-inline\/1"/);
@@ -443,9 +452,147 @@ try {
         }
         await page.close();
     }
+    const formCases = ['dirty-compatible', 'worker-compatible', 'slice-tampered', 'forged-form-state',
+        'private-field', 'external-owner', 'shadowed-form', 'stale-form'];
+    for (const scenario of formCases) {
+        const page = await browser.newPage();
+        page.on('pageerror', error => errors.push(error.message));
+        await page.route('**/*', route => {
+            if (new URL(route.request().url()).origin === origin) return route.continue();
+            requests.push(route.request().url()); return route.abort();
+        });
+        await page.goto(`${origin}/forms.html`);
+        const result = await page.evaluate(async scenario => {
+            const { CemElementRuntime } = await import('/packages/cem-elements/dist/lib/cem-elements.js');
+            const host = document.querySelector('x-profile');
+            const declaration = document.querySelector('cem-element');
+            const island = host.querySelector('template[data-cem-island]');
+            const form = host.querySelector('form');
+            const message = form.querySelector('input[name=message]');
+            const flag = form.querySelector('input[name=flag]');
+            const choice = form.querySelector('select');
+            const paragraph = host.querySelector('p');
+            const comments = [...host.childNodes].filter(node => node.nodeType === Node.COMMENT_NODE);
+            const retained = () => host.querySelector('p') === paragraph && host.querySelector('form') === form
+                && form.querySelector('input') === message && form.querySelector('input[name=flag]') === flag
+                && form.querySelector('select') === choice && comments.every(comment => comment.parentNode === host);
+            const state = () => [message.value, flag.checked, choice.value];
+            const inputState = ['Pre-hydration edit', false, 'b'];
+            [message.value, flag.checked, choice.value] = inputState;
+            message.focus();
+            message.setSelectionRange(3, 8);
+            let formdataEvents = 0;
+            form.addEventListener('formdata', () => formdataEvents++);
+            const external = () => {
+                const input = document.createElement('input');
+                input.name = 'external';
+                input.value = 'External private value';
+                input.setAttribute('form', form.id);
+                document.body.append(input);
+                return input;
+            };
+            if (scenario === 'slice-tampered') island.content.querySelector('[name="flag"]').textContent = 'true';
+            if (scenario === 'forged-form-state') {
+                const entry = document.createElement('cem-form:form');
+                entry.textContent = 'Forged value';
+                island.content.firstElementChild.children[6].append(entry);
+            }
+            if (scenario === 'private-field') {
+                message.type = 'password';
+                message.value = 'Private password';
+                const template = declaration.querySelector('template');
+                template.content.textContent = template.content.textContent.replace('@type=text', '@type=password');
+            }
+            if (scenario === 'external-owner') external();
+            if (scenario === 'shadowed-form') {
+                message.name = 'setAttribute';
+                const template = declaration.querySelector('template');
+                template.content.textContent = template.content.textContent.replace('@type=text @name=message', '@type=text @name=setAttribute');
+                if (typeof form.setAttribute === 'function') throw new Error('Fixture must shadow the form method');
+            }
+            const runtime = scenario === 'worker-compatible' ? new CemElementRuntime()
+                : new CemElementRuntime({ processingWorkerFactory: () => { throw new Error('Use main-thread runtime'); } });
+            if (scenario === 'stale-form') {
+                const prepare = runtime.prepareCanonicalSsrState.bind(runtime);
+                runtime.prepareCanonicalSsrState = async (...args) => {
+                    const baseline = await prepare(...args);
+                    message.value = 'Changed while preparing baseline';
+                    return baseline;
+                };
+            }
+            const before = host.innerHTML;
+            runtime.install(window);
+            await runtime.whenDeclarationSettled(declaration);
+            await runtime.whenRenderSettled(host);
+            const result = {
+                retained: retained(), unchanged: host.innerHTML === before,
+                marked: island.hasAttribute('data-cem-ssr-profile'),
+                diagnostics: runtime.diagnosticsFor(host).map(d => d.code),
+                messages: runtime.diagnosticsFor(host).map(d => d.message),
+                formdataEvents,
+            };
+            if (scenario.endsWith('-compatible') && !result.marked) {
+                result.mode = runtime.processingHost(runtime.declarationForInstance(host)).mode;
+                result.state = state();
+                result.focus = document.activeElement === message && message.selectionStart === 3 && message.selectionEnd === 8;
+                const initial = runtime.readInstanceSnapshot(host);
+                result.slices = [initial.slices.message, initial.slices.flag, initial.slices.choice];
+                result.form = initial.formData.profile;
+                result.valid = initial.validationState.profile?.valid;
+                message.value = 'Browser update';
+                message.dispatchEvent(new Event('change', { bubbles: true }));
+                await runtime.whenRenderSettled(host);
+                flag.click();
+                choice.value = 'a';
+                choice.dispatchEvent(new Event('change', { bubbles: true }));
+                await runtime.whenRenderSettled(host);
+                const updated = runtime.readInstanceSnapshot(host);
+                result.updated = [updated.slices.message, updated.slices.flag, updated.slices.choice, paragraph.textContent];
+                result.afterState = state();
+                result.afterRetained = retained();
+                result.afterDiagnostics = runtime.diagnosticsFor(host).map(d => d.code);
+                result.localSubmit = !form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
+                await runtime.whenRenderSettled(host);
+                const outside = external();
+                message.type = 'password';
+                message.value = 'Entered private value';
+                message.dispatchEvent(new Event('change', { bubbles: true }));
+                const snapshot = runtime.readInstanceSnapshot(host);
+                result.privacy = !JSON.stringify(snapshot).includes('Entered private value')
+                    && !JSON.stringify(snapshot).includes('External private value');
+                outside.remove();
+                result.formdataEvents = formdataEvents;
+            }
+            return result;
+        }, scenario);
+        const detail = `${scenario} ${JSON.stringify(result)}`;
+        assert.equal(result.retained, true, detail);
+        assert.equal(result.formdataEvents, 0, detail);
+        if (scenario.endsWith('-compatible')) {
+            assert.equal(result.marked, false, detail);
+            assert.deepEqual(result.diagnostics, [], detail);
+            assert.equal(result.mode, scenario === 'worker-compatible' ? 'worker' : 'main-thread', detail);
+            assert.deepEqual(result.state, ['Pre-hydration edit', false, 'b'], detail);
+            assert.equal(result.focus, true, detail);
+            assert.deepEqual(result.slices, ['Ready', false, null], detail);
+            assert.deepEqual(result.form, { message: 'Pre-hydration edit', choice: 'b' }, detail);
+            assert.equal(result.valid, true, detail);
+            assert.deepEqual(result.updated, ['Browser update', 'yes', 'a', 'Browser update'], detail);
+            assert.deepEqual(result.afterState, ['Browser update', true, 'a'], detail);
+            assert.equal(result.afterRetained, true, detail);
+            assert.equal(result.localSubmit, true, detail);
+            assert.equal(result.privacy, true, detail);
+            assert.deepEqual(result.afterDiagnostics, [], detail);
+        } else {
+            assert.equal(result.marked, true, detail);
+            assert.equal(result.unchanged, true, detail);
+            assert.ok(result.diagnostics.includes('cem-element.hydration_native_refused'), detail);
+        }
+        await page.close();
+    }
     assert.deepEqual(errors, []); assert.deepEqual(requests, []);
-    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length;
-    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} stylesheet and ${payloadCases.length} foreign/source scenarios, zero external requests`);
+    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length;
+    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} stylesheet, ${payloadCases.length} foreign/source and ${formCases.length} form scenarios, zero external requests`);
 } finally {
     await browser?.close();
     if (server) await new Promise(resolve => server.close(resolve));

@@ -1550,7 +1550,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         }
         const proof = await withDomCapture(host, limits, handle =>
             admitCapturedCanonicalSsrHost(handle, tag, version, source, JSON.stringify(nested), styleInputs));
-        const { participants } = JSON.parse(proof) as { participants: { decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null; sourceKey: string; instanceStylesheets: boolean }[] };
+        const { participants } = JSON.parse(proof) as { participants: { decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null; sourceKey: string; instanceStylesheets: boolean; stateful: boolean }[] };
         if (participants.length !== members.length || participants.some((decision, index) => decision.sourceKey !== domKey(members[index]))) {
             throw new Error('cem.ssr.resume_participants');
         }

@@ -724,8 +724,23 @@ their runtime URI with unknown authored coordinates. The payload stays inert
 during proof and subsequent rendering. Observing its separate template fragment
 catches edits during proof and invalidates the connected instance on later edits.
 
-Live slices, form controls and external capabilities still require separate
-admission. The retained browser root records declaration-level source fidelity.
+Standalone participants with compatible declarations can adopt named scalar
+slice defaults and local native forms. The CLI writes typed defaults into the
+island. Browser admission checks each value against the native declaration
+before using it. A fresh processing baseline must match the retained range
+with the current form mirrors. It gives the existing nodes their runtime
+identities so later patches can update them in place. Native input, textarea
+and single-select controls can write a named slice on input or change.
+
+The browser reads current form values and validity from controls inside the
+owned range, including edits made before hydration. It blocks submission in
+this local profile and reads successful controls without dispatching a
+`formdata` event. External form owners, credentials, file controls and custom
+validation are refused at admission. Private or external fields are excluded
+from subsequent capture. Stateful participants currently require a standalone
+range with no stylesheet closure or inert CEM source payload. External
+capabilities still require separate admission. The retained browser root
+records declaration-level source fidelity.
 
 Structured-clone `DataIslandSnapshot` records remain valid processing-boundary
 transport for workers, Edge, or other non-DOM hosts. They are derived from the

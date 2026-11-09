@@ -1,7 +1,7 @@
 //! First-connection canonical island preparation over retained CEM owners.
 use crate::instance_island::construct::{add_child, attribute, element, PREFIXES};
 use crate::{
-    eval::{Item, RetainedCemNode},
+    eval::{AtomValue, Item, RetainedCemNode},
     render::TemplateData,
     ssr_preparation::PreparedInlineDce,
 };
@@ -383,6 +383,43 @@ pub fn prepare_inline_island(
                     .unwrap_or_default(),
             }
         }));
+    }
+    let defaults = crate::render::canonical_slice_defaults(prepared.declaration_owner().artifact())
+        .map_err(|_| {
+            fail(
+                "cem.ssr.slice_defaults_refused",
+                "Canonical SSR requires bounded, named scalar slice defaults",
+            )
+        })?;
+    for (name, (value, source_map)) in defaults {
+        let (kind, text) = match value {
+            AtomValue::Null => ("null", String::new()),
+            AtomValue::Boolean(value) => ("boolean", value.to_string()),
+            AtomValue::String(value) => ("string", value),
+            _ => unreachable!("declaration defaults are scalar"),
+        };
+        let children = if text.is_empty() {
+            vec![]
+        } else {
+            vec![crate::render::RenderPlanNode::Text {
+                text,
+                source_map: source_map.clone(),
+            }]
+        };
+        add_child(
+            &mut parts[4],
+            element(
+                "slice",
+                crate::instance_island::PARTS[4].1,
+                Some(PREFIXES[5]),
+                vec![
+                    attribute("name", &name, &source_map),
+                    attribute("kind", kind, &source_map),
+                ],
+                children,
+                &source_map,
+            ),
+        );
     }
     if let Some(version) = &prepared.declaration_version {
         add_child(

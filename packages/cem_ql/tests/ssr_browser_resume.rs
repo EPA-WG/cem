@@ -94,6 +94,32 @@ fn push_host(
             "cem-events",
         ][i];
         let p = push(r, "element", ns, &format!("{prefix}:{local}"), "");
+        if i == 4 && case.starts_with("state-") {
+            let slice = push(p, "element", ns, "cem-slices:slice", "");
+            push(
+                slice,
+                "attribute",
+                "",
+                "name",
+                if case == "state-undeclared" {
+                    "other"
+                } else {
+                    "message"
+                },
+            );
+            push(slice, "attribute", "", "kind", "string");
+            push(
+                slice,
+                "text",
+                "",
+                "",
+                if case == "state-tampered" {
+                    "Changed"
+                } else {
+                    "Ready"
+                },
+            );
+        }
         if i == 0 {
             let mut fields = vec![
                 ("version", island_version),
@@ -173,7 +199,25 @@ fn push_host(
     }
     push(h, "comment", "", "", "cem-render-start");
     let b = push(h, "element", "http://www.w3.org/1999/xhtml", "b", "");
-    if case.starts_with("foreign") {
+    if case.starts_with("state-") {
+        let html = "http://www.w3.org/1999/xhtml";
+        let form = push(b, "element", html, "form", "");
+        if case == "state-route" {
+            push(form, "attribute", "", "action", "#other");
+        }
+        let input = push(form, "element", html, "input", "");
+        push(input, "attribute", "", "name", "message");
+        push(input, "attribute", "", "slice", "message");
+        if case == "state-private" {
+            push(
+                input,
+                "attribute",
+                "",
+                "autocomplete",
+                "section-account one-time-code",
+            );
+        }
+    } else if case.starts_with("foreign") {
         push_foreign(push, b, case == "foreign-range", case == "foreign-active");
     } else if case.starts_with("nested") {
         push_host(
@@ -209,6 +253,36 @@ fn push_host(
         push(h, "comment", "", "", "cem-render-start");
     }
     h
+}
+
+#[test]
+fn browser_resume_proves_slice_defaults_and_form_policy() {
+    let run = |case, form_attrs, input_attrs, version| {
+        let source = format!("{{slice @name=message | Ready}}{{b | {{form {form_attrs} | {{input @name=message @slice=message {input_attrs}}}}}}}");
+        admit(
+            &host_case(Some("1.2.3"), "", case),
+            "x-card",
+            version,
+            &source,
+            &OperationControl::default(),
+        )
+    };
+    assert_eq!(
+        run("state-valid", "", "", "1.9.0").unwrap().decision,
+        ResumeDecision::Adopt
+    );
+    assert!(run("state-valid", "", "", "2.0.0").is_err());
+    for case in ["state-tampered", "state-undeclared"] {
+        assert!(run(case, "", "", "1.9.0").is_err(), "{case}");
+    }
+    assert!(run("state-route", "@action='#other'", "", "1.9.0").is_err());
+    assert!(run(
+        "state-private",
+        "",
+        "@autocomplete='section-account one-time-code'",
+        "1.9.0"
+    )
+    .is_err());
 }
 
 fn push_foreign(

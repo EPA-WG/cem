@@ -3,7 +3,7 @@ import { compiledDeclarationWork, readCompiledDeclarationAsset } from './compile
 import { openCemHttpResource as defaultLoadHttpResource, streamCemHttpResponseBody as responseBody } from './http-resource-transport.js';
 import { CemRecoveryStatusObserver } from './recovery-status.js';
 import { prepareCemProviderHandoff, type CemProviderHandoff } from './checkpoint-provider-handoff.js';
-import { prepareCemEditorProviderHandoff } from './form-control-capability.js';
+import { isCemCredentialControl, prepareCemEditorProviderHandoff } from './form-control-capability.js';
 import { prepareCemCheckpointProcessing, preparedCheckpointProcessing, type CemResumedProcessingOwner } from './checkpoint-processing.js';
 import { revokeCemCheckpointResume, type CemCheckpointResumeAdapter, type CemCheckpointResumeContext } from './checkpoint-resume.js';
 import * as defaultRenderSupport from './internal/runtime-support/cem-ql-render.js';
@@ -30,6 +30,7 @@ import {
     applyPatchFramesToRange,
     diffRenderPlansToPatchFrames,
     preparePatchFramesForRange,
+    prepareRetainedSsrPatchBaseline,
     renderPlanIdentity,
     type RenderRevision,
     retainCapturedPayloadEnvelope,
@@ -1890,6 +1891,7 @@ export class CemElementRuntime {
     private readonly checkpointNativeInstances = new WeakMap<HTMLElement, () => void>();
     private readonly processingArtifacts = new WeakMap<CompiledDeclaration, Promise<CemProcessingCompileResult>>();
     private readonly processingRenderPlans = new WeakMap<HTMLElement, CemProcessingRenderPlanHandle>();
+    private readonly canonicalSsrStateful = new WeakSet<HTMLElement>();
     private readonly processingRenderJobs = new WeakMap<HTMLElement, ActiveProcessingRenderJob>();
     private readonly processingWorkerFactory?: CemProcessingWorkerFactory;
     private readonly processingPackageHostConfiguration?: string;
@@ -3980,6 +3982,11 @@ export class CemElementRuntime {
                 hydrationSnapshot?.declarationTag === compiled.declarationTag &&
                 hydrationSnapshot.templateArtifactId === compiled.artifactId
             ) {
+                const bounds = this.renderBounds.get(instance);
+                if (bounds && this.canonicalSsrStateful.has(instance)) {
+                    this.bindRenderedSliceEventsInRange(instance, compiled, bounds);
+                    this.bindRenderedFormEventsInRange(instance, compiled, bounds);
+                }
                 if (Object.values(state.slices).some((value) => isPlainRecord(value) && value.kind === 'http-request')) {
                     // Serialized metadata has no native document owners. Render the
                     // request declarations again so hydration reacquires their trees.
@@ -4072,7 +4079,7 @@ export class CemElementRuntime {
                         || this.initializedInstances.has(host) || directDataIslands(host).length !== 1
                         || host.firstElementChild !== memberIsland || declaration.mode !== 'cem-ml'
                         || declaration.cemMlSource === null || declaration.behavior || declaration.pinnedDeclaration
-                        || declaration.linkBaseUrl || declaration.declaredSlices.length
+                        || declaration.linkBaseUrl
                         || (members.size > 1 && declaration.sourceRef?.kind !== 'inline')) {
                         throw new Error('cem.ssr.resume_profile_unsupported');
                     }
@@ -4117,9 +4124,6 @@ export class CemElementRuntime {
                     declaration.sharedStyleScope && sharedScopes.has(declaration.sharedStyleScope) && !admittedDeclarations.has(declaration))) {
                     throw new Error('cem.ssr.resume_shared_stylesheet_owner');
                 }
-                const identities = nativeSsrIds.get(document) ?? new Map<string, WeakRef<HTMLElement>>();
-                for (const [id, owner] of identities) if (!owner.deref()) identities.delete(id);
-                let identityCount = identities.size;
                 const targets = participants.map(({ host, island: memberIsland, declaration }, index) => {
                     const decision = decisions[index];
                     const styleNodes = [
@@ -4137,15 +4141,38 @@ export class CemElementRuntime {
                         || DATA_ISLAND_SECTION_ORDER.some(name => !directIslandSection(memberIsland, name))) {
                         throw new Error('cem.ssr.resume_dom_targets');
                     }
-                    const owner = identities.get(decision.instanceId)?.deref();
-                    if (owner ? owner !== host : ++identityCount > 64) throw new Error('cem.ssr.resume_instance_identity');
+                    const forms = decision.stateful ? this.captureRenderedForms(host, bounds, true)
+                        : { formData: {}, validationState: {}, sliceMirrors: {} };
                     const snapshot = this.snapshotFromCapturedForms(host, declaration, memberIsland, '0', undefined,
-                        { formData: {}, validationState: {}, sliceMirrors: {} }, false, decision.instanceId);
+                        forms, false, decision.instanceId);
+                    if (decision.stateful) {
+                        const defaults = readIslandRecordSection(memberIsland, DATA_ISLAND_SECTIONS.slices);
+                        if (Object.keys(forms.sliceMirrors).some(name => Object.hasOwn(defaults, name))) {
+                            throw new Error('cem.ssr.resume_form_slice_collision');
+                        }
+                        snapshot.slices = { ...defaults, ...snapshot.slices };
+                    }
                     snapshot.declarationVersion = decision.declarationVersion ?? undefined;
-                    return { host, island: memberIsland, declaration, decision, bounds, root, snapshot };
+                    return { host, island: memberIsland, declaration, decision, bounds, root, snapshot, forms };
                 });
+                const stateful = targets.find(target => target.decision.stateful);
+                const baseline = stateful && await this.prepareCanonicalSsrState(
+                    stateful.host, stateful.island, stateful.declaration, stateful.bounds, stateful.snapshot);
+                if (stateful && (changed || observer.takeRecords().length || !stateful.host.isConnected
+                    || this.canonicalSsrAdmissions.get(stateful.host) !== entry || stateful.declaration.declarationScope.disposed
+                    || this.declarationForInstance(stateful.host) !== stateful.declaration
+                    || !resourceValuesEqual(stateful.forms, this.captureRenderedForms(stateful.host, stateful.bounds, true)))) {
+                    throw new Error('cem.ssr.resume_stale');
+                }
 
                 // Validate every target before changing any island or attaching a lifecycle.
+                const identities = nativeSsrIds.get(document) ?? new Map<string, WeakRef<HTMLElement>>();
+                for (const [id, owner] of identities) if (!owner.deref()) identities.delete(id);
+                let identityCount = identities.size;
+                for (const { host, decision } of targets) {
+                    const owner = identities.get(decision.instanceId)?.deref();
+                    if (owner ? owner !== host : ++identityCount > 64) throw new Error('cem.ssr.resume_instance_identity');
+                }
                 observer.disconnect();
                 nativeSsrIds.set(document, identities);
                 for (const { host, island: memberIsland, declaration, decision, bounds, root, snapshot } of targets) {
@@ -4155,6 +4182,11 @@ export class CemElementRuntime {
                     this.renderBounds.set(host, bounds);
                     if (decision.instanceStylesheets) this.portableSsrInstanceStyles.add(host);
                     this.hydrationSnapshots.set(host, snapshot);
+                    if (decision.stateful && baseline) {
+                        baseline.commit();
+                        this.processingRenderPlans.set(host, baseline.plan);
+                        this.canonicalSsrStateful.add(host);
+                    }
                     if (decision.decision === 'adopt' && root) {
                         root.setAttribute(RENDER_TEMPLATE_ARTIFACT_ID_ATTR, declaration.artifactId);
                         root.setAttribute(RENDER_DATA_REVISION_ATTR, '0');
@@ -4190,6 +4222,34 @@ export class CemElementRuntime {
             }
         })();
         this.renderSettled.set(instance, pending);
+    }
+
+    private async prepareCanonicalSsrState(host: HTMLElement, island: HTMLTemplateElement, compiled: CompiledDeclaration,
+        bounds: RenderBounds, snapshot: DataIslandSnapshot): Promise<{ commit(): void; plan: CemProcessingRenderPlanHandle }> {
+        const payload = directIslandSection(island, DATA_ISLAND_SECTIONS.payload);
+        if (!payload || compiled.xpathFunctionsRef || this.elementReferenceInputsOption || this.nativeSuggestionsInputsOption
+            || this.localSuggestionsEnabled || this.checkpointPublication) throw new Error('cem.ssr.resume_stateful_profile');
+        const data = wasmTemplateData(snapshot, compiled.declaredAttributes);
+        const nativePayload = await this.renderSupport(compiled.declarationScope).captureDomPayload(payload, this.nativeValueLimits);
+        const { artifact } = await this.ensureProcessingArtifact(compiled, Object.keys(data));
+        const revision = {
+            instanceId: snapshot.instanceId,
+            dataRevision: snapshot.dataRevision,
+            templateArtifactId: snapshot.templateArtifactId,
+            scopePolicyStamp: snapshot.scopePolicyStamp,
+            ariaReferenceProfile: snapshot.ariaReferenceProfile,
+            outputTarget: snapshot.outputTarget,
+        };
+        const result = await this.processingHost(compiled).renderDiff({
+            artifact, revision, snapshot, data, nativePayload, nativeValueLimits: this.nativeValueLimits,
+            previousRenderPlan: null, scopeUid: this.currentScopeUid(host, compiled),
+        }).result;
+        if (result.resourceControls.length || result.elementPlacementUses?.length || result.suggestionPlacements?.length
+            || result.diagnostics.some(d => d.severity === 'error' || d.severity === 'fatal')
+            || result.hostAttributeUpdates.some(update => host.getAttribute(update.name) !== update.value)) {
+            throw new Error('cem.ssr.resume_stateful_profile');
+        }
+        return { commit: prepareRetainedSsrPatchBaseline(bounds, result.frames, revision), plan: result.nextRenderPlan };
     }
 
     private disconnectProducedInstance(instance: HTMLElement): void {
@@ -6289,6 +6349,7 @@ export class CemElementRuntime {
             // internal dispatch may initialize a still-detached rendered node.
             if (event !== initialization && (!owner.isConnected || !renderedBy.isConnected || !element.isConnected || !withinOwner
                 || this.renderedSliceBindingOwner(renderedBy, element) !== owner)) return;
+            if (this.canonicalSsrStateful.has(owner) && (event.target !== target || !canonicalSsrFormControl(target))) return;
             this.writeSlicesFromEvent(owner, compiled, sliceNames, attributeNames, expression, event, nativeValue);
         };
         for (const eventName of eventNames) {
@@ -6435,13 +6496,14 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         form: HTMLFormElement,
     ): void {
-        if (!this.ownsRenderedElement(instance, form)) return;
+        if (!this.ownsRenderedElement(instance, form)
+            || this.canonicalSsrStateful.has(instance) && !canonicalSsrFormSurface(form)) return;
         const sliceNames = parseSliceTargets(form.getAttribute('slice') ?? '');
         if (sliceNames.length > 0) {
             this.formSliceNames.set(form, sliceNames);
             form.removeAttribute('slice');
         }
-        if (!this.formNeedsRuntimeBinding(form)) {
+        if (!this.canonicalSsrStateful.has(instance) && !this.formNeedsRuntimeBinding(form)) {
             return;
         }
 
@@ -6457,7 +6519,10 @@ export class CemElementRuntime {
         }
 
         const listener: EventListener = (event) => {
-            if (event.type === 'submit' && !this.isFormCurrentlyValid(form)) {
+            const canonical = this.canonicalSsrStateful.has(instance);
+            if (canonical && event.type !== 'submit' && event.target !== form
+                && (!isDomInstance(event.target, 'Element') || !canonicalSsrFormControl(event.target))) return;
+            if (event.type === 'submit' && (canonical || !this.isFormCurrentlyValid(form))) {
                 event.preventDefault();
             }
             this.renderInstance(instance, compiled);
@@ -8667,9 +8732,11 @@ export class CemElementRuntime {
         return true;
     }
 
-    private captureRenderedForms(instance: HTMLElement): CapturedRenderedForms {
-        const bounds = this.renderBounds.get(instance);
-        const captured: CapturedRenderedForms = { formData: {}, validationState: {}, sliceMirrors: {} };
+    private captureRenderedForms(instance: HTMLElement, bounds = this.renderBounds.get(instance), proving = false): CapturedRenderedForms {
+        const canonical = proving || this.canonicalSsrStateful.has(instance);
+        const captured: CapturedRenderedForms = canonical
+            ? { formData: Object.create(null), validationState: Object.create(null), sliceMirrors: Object.create(null) }
+            : { formData: {}, validationState: {}, sliceMirrors: {} };
         if (!bounds) {
             return captured;
         }
@@ -8677,10 +8744,19 @@ export class CemElementRuntime {
             .filter(form => this.ownsRenderedElement(instance, form));
         for (const [index, element] of forms.entries()) {
             const form = element as HTMLFormElement;
+            if (canonical && !canonicalSsrFormSurface(form)) {
+                if (proving) throw new Error('cem.ssr.resume_form_owner');
+                continue;
+            }
             const names = this.formSliceNames.get(form);
             const key = renderedFormKey(form, names, index);
-            const formData = serializeRenderedFormData(form);
-            const validation = serializeRenderedFormValidation(form, this.customValidationMessages);
+            const controls = canonical ? renderedFormControls(form).filter(control =>
+                form.contains(control) && this.ownsRenderedElement(instance, control) && canonicalSsrFormControl(control)) : undefined;
+            if (proving && (controls?.length !== form.elements.length || Object.hasOwn(captured.formData, key))) {
+                throw new Error('cem.ssr.resume_form_owner');
+            }
+            const formData = controls ? serializeCanonicalSsrFormData(controls) : serializeRenderedFormData(form);
+            const validation = serializeRenderedFormValidation(form, this.customValidationMessages, controls);
             captured.formData[key] = formData;
             captured.validationState[key] = validation;
             captured.sliceMirrors[key] = {
@@ -10746,6 +10822,45 @@ function serializeRenderedFormData(form: HTMLFormElement): SerializedFormData {
     return data;
 }
 
+function canonicalSsrFormSurface(form: HTMLFormElement): boolean {
+    // Named controls can replace the DOM properties and methods on their form.
+    return ['elements', 'attributes', 'childNodes', 'parentElement', 'ownerDocument',
+        'namespaceURI', 'localName', 'nodeType', 'getAttribute', 'setAttribute', 'removeAttribute',
+        'hasAttribute', 'contains', 'addEventListener', 'removeEventListener']
+        .every(name => !Object.hasOwn(form, name));
+}
+
+function canonicalSsrFormControl(control: Element): boolean {
+    if (control.namespaceURI !== XHTML_NAMESPACE || !control.matches('input, textarea, select, button, fieldset')) return false;
+    const field = control as HTMLInputElement;
+    if (isDomInstance(control, 'HTMLInputElement')
+        && !['text', 'search', 'email', 'url', 'tel', 'number', 'range', 'checkbox', 'radio'].includes(control.type)) return false;
+    if (isDomInstance(control, 'HTMLButtonElement') && control.type !== 'button') return false;
+    return (!field.form || canonicalSsrFormSurface(field.form) && field.form.contains(control))
+        && !control.hasAttribute('form') && !control.hasAttribute('dirname')
+        && !field.validity?.customError
+        && !isCemCredentialControl(control) && (!field.form || !isCemCredentialControl(field.form));
+}
+
+/** A read of local successful controls does not dispatch a formdata event. */
+function serializeCanonicalSsrFormData(controls: readonly Element[]): SerializedFormData {
+    const data: SerializedFormData = Object.create(null);
+    for (const control of controls) {
+        const name = control.getAttribute('name');
+        if (!name || control.matches(':disabled, button, fieldset')) continue;
+        if (isDomInstance(control, 'HTMLSelectElement')) {
+            for (const option of control.selectedOptions) {
+                if (!option.matches(':disabled')) appendSerializedFormDataValue(data, name, option.value);
+            }
+        } else if (isDomInstance(control, 'HTMLTextAreaElement')
+            || isDomInstance(control, 'HTMLInputElement')
+                && (!['radio', 'checkbox'].includes(control.type) || control.checked)) {
+            appendSerializedFormDataValue(data, name, control.value);
+        }
+    }
+    return data;
+}
+
 function appendSerializedFormDataValue(data: SerializedFormData, name: string, value: string): void {
     const existing = data[name];
     if (existing === undefined) {
@@ -10764,12 +10879,13 @@ function serializeFormDataValue(value: FormDataEntryValue): string {
 function serializeRenderedFormValidation(
     form: HTMLFormElement,
     customMessages: WeakMap<Element, string>,
+    renderedControls = renderedFormControls(form),
 ): SerializedFormValidation {
     const controls: Record<string, SerializedControlValidation> = {};
     const formMessage = customMessages.get(form) ?? '';
     let valid = formMessage.length === 0;
     let validationMessage = formMessage;
-    for (const [index, control] of renderedFormControls(form).entries()) {
+    for (const [index, control] of renderedControls.entries()) {
         const serialized = serializeRenderedControlValidation(control, customMessages);
         controls[uniqueFormControlKey(controls, control, index)] = serialized;
         if (!serialized.valid) {

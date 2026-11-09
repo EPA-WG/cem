@@ -1,7 +1,7 @@
 //! Fresh native admission of a captured canonical SSR host. Serialized readiness
 //! flags and hashes confer no authority: compatible output is recomputed locally.
 use crate::{
-    eval::Item,
+    eval::{AtomValue, Item},
     instance_island as island,
     render::{
         compile_template, project_render_plan_with_control, render_compiled_template_with_control,
@@ -12,6 +12,8 @@ use cem_ml::import::element_tree::{canonical_cem_payload_type, retain_captured_c
 use cem_ml::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
 use cem_ml::schema::registry::HTML_NAMESPACE_URI;
 use std::collections::{BTreeMap, BTreeSet};
+#[path = "resume_controls.rs"]
+mod controls;
 #[path = "resume_stylesheets.rs"]
 mod stylesheets;
 
@@ -31,6 +33,7 @@ pub struct NativeSsrResume {
     pub declaration_version: Option<String>,
     pub source_key: String,
     pub instance_stylesheets: bool,
+    pub stateful: bool,
 }
 
 #[derive(serde::Deserialize)]
@@ -270,12 +273,6 @@ impl Group<'_> {
             _ => return Err(fail()),
         };
         let data = island::bind_root(root, &instance_id, c, source_payload.as_ref(), true)?;
-        if parts[4..]
-            .iter()
-            .any(|p| !island::elements(p).is_ok_and(|v| v.is_empty()))
-        {
-            return Err(fail());
-        }
         let mut saved = BTreeMap::new();
         for a in island::elements(&parts[1])? {
             let a = island::attrs(&a)?;
@@ -412,6 +409,28 @@ impl Group<'_> {
         }
         stylesheets::verify_declaration(declaration, tag, shared_scope.as_deref(), &artifact, c)?;
         let styled = instance_stylesheets || !artifact.stylesheets.is_empty();
+        let defaults = crate::render::canonical_slice_defaults(&artifact).map_err(|_| fail())?;
+        let entries = island::elements(&parts[4])?;
+        if entries.len() != defaults.len()
+            || entries.iter().any(|entry| {
+                let Ok(attrs) = island::attrs(entry) else {
+                    return true;
+                };
+                let Some(name) = attrs.get("name") else {
+                    return true;
+                };
+                let actual = data.bindings.get(name).and_then(|stream| {
+                    let [value] = stream.items.as_slice() else {
+                        return None;
+                    };
+                    value.atom()
+                });
+                defaults.get(name).map(|(value, _)| value) != actual.as_ref()
+            })
+        {
+            return Err(fail());
+        }
+        let mut stateful = !defaults.is_empty();
         let version = fields.get("declarationVersion").cloned();
         let plan =
             render_compiled_template_with_control(&artifact, &data, c, ROOT_EXECUTION_SCOPE_ID);
@@ -438,6 +457,7 @@ impl Group<'_> {
             if let RenderPlanNode::Element {
                 tag,
                 namespace,
+                attributes,
                 children,
                 ..
             } = node
@@ -448,16 +468,22 @@ impl Group<'_> {
                 {
                     return Err(fail());
                 }
+                if namespace.as_deref() == Some(HTML_NAMESPACE_URI) {
+                    stateful |= controls::admit(tag, attributes, &defaults)?;
+                }
                 if !self.registry.contains(tag) {
                     pending.extend(children);
                 }
             }
         }
+        if stateful && (styled || source_payload.is_some() || !self.registry.is_empty()) {
+            return Err(fail());
+        }
         if !version
             .as_deref()
             .is_some_and(|v| versions_compatible(v, current_version))
         {
-            if styled || source_payload.is_some() || !self.registry.is_empty() {
+            if stateful || styled || source_payload.is_some() || !self.registry.is_empty() {
                 return Err(fail());
             }
             passive_nodes(output, c, None)?;
@@ -467,6 +493,7 @@ impl Group<'_> {
                 declaration_version: version,
                 source_key,
                 instance_stylesheets,
+                stateful,
             });
             return Ok(());
         }
@@ -488,6 +515,7 @@ impl Group<'_> {
             declaration_version: version,
             source_key,
             instance_stylesheets,
+            stateful,
         });
         compare(&plan.nodes, output, depth, c, Some(self), false)
     }
@@ -655,7 +683,10 @@ fn passive_nodes(
                     continue;
                 }
                 // Inert nested templates have a separate DOM mutation root.
-                if !profile_tag(&tag) || !island::is_element(&node, &tag, HTML_NAMESPACE_URI) {
+                if !profile_tag(&tag)
+                    || controls::is_form_tag(&tag)
+                    || !island::is_element(&node, &tag, HTML_NAMESPACE_URI)
+                {
                     return Err(fail());
                 }
                 let attributes = island::attrs(&node)?;
@@ -675,16 +706,5 @@ fn passive_nodes(
 }
 
 fn profile_tag(tag: &str) -> bool {
-    !tag.contains('-')
-        && !matches!(
-            tag,
-            "template"
-                | "form"
-                | "input"
-                | "textarea"
-                | "select"
-                | "option"
-                | "fieldset"
-                | "button"
-        )
+    !tag.contains('-') && !matches!(tag, "template" | "slice")
 }

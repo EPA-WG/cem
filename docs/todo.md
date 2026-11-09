@@ -9,7 +9,7 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-The latest completion is [browser adoption of foreign markup and inert CEM source](archive/todo-completed-ssr-foreign-source-hydration-2026-11-09.md).
+The latest completion is [browser hydration for live slices and local forms](archive/todo-completed-ssr-live-state-hydration-2026-11-09.md).
 The [completion index](archive/todo-completed-index-2026-11-09.md) links the
 evidence for the retired checklist entries. Current execution is in the
 [SSR follow-ups](#browser-and-cli-ssr-follow-ups).
@@ -291,14 +291,15 @@ through Phase 9 release governance.
 The native coordinator, readiness proof and named CLI exports are complete.
 Browser adoption covers passive inline HTML, SVG and MathML, inert native
 CEM source payloads, nested participants and resource-free scoped CSS.
+Standalone stateful participants support named scalar slices and local forms.
 The [SSR completion index](archive/todo-completed-index-2026-11-09.md#ssr)
 links the corresponding design and verification records.
 
-- [ ] Extend browser adoption to live slices and form controls. Prove state,
-      privacy, node identity and retained range parity.
 - [ ] Extend CLI host admission to external resources, further page-source forms
       and fan-out route/output preflight. Account for acquisition and parser CPU
       under the original operation's proof and ledger.
+- [ ] Extend stateful browser admission to nested and styled groups. Verify form
+      and slice ownership across participants and preserve group atomicity.
 
 ## Component gallery source-link maintenance (after Studio presentation work)
 
