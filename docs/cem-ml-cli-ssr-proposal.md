@@ -961,9 +961,12 @@ public URL resolves its nested imports. Read maps use regular files under the
 configured root and keep local paths out of the retained resource identity.
 Use query-free stylesheet URLs with local maps. The shared CSS parser's
 64-level and 4,096-event import limits still apply.
-The ordinary CLI HTML ingress still requires a separate admission decision for
-authored `<base href>` elements. Inline imports in the direct CLI profile use
-the deployed page URL.
+The packaged SSR entrypoint accepts a single `<base href>` in the document
+head with an effective HTTP(S) URL and no credentials. The original tag stays
+in the exported HTML and its source map appears in the readiness report.
+The CLI profile assumes no effective header CSP and refuses an authored base
+when a CSP meta element is present. A graph import shared with an ordinary
+consumer retains the ordinary HTML resource policy.
 
 The SSR reader checks the remaining page byte allowance and the original
 operation's cancellation, wall time and CPU budget while acquiring bytes.
@@ -971,10 +974,15 @@ The coordinator checks and parses each delivery through the shared native CSS
 importer under that same operation. The readiness identity includes the
 admitted public URLs and response hashes. A changed response during one page
 operation, a refused read, or a parser error aborts the page before export.
-The CPU receipt covers bridge preparation, external stylesheet acquisition
-and parsing, lifecycle work, readiness and synchronous exports. Initial command
-source loading and parsing still run in the common engine before the receipt
-starts. Elapsed accounting includes that earlier work.
+The direct CLI and concrete config imports acquire regular local page files
+under the original operation. The file size is checked before opening and
+the bounded reader checks byte, wall and CPU budgets while reading.
+The CPU receipt then includes shared native HTML parsing, bridge preparation,
+external stylesheet acquisition and parsing, lifecycle work, readiness and
+synchronous exports. For native callers that supply bytes, measurement starts
+at parsing. Config and template acquisition are outside the measured CPU
+phases. Glob acquisition and derived graph inputs still use their existing
+paths.
 
 The external-resource profile covers mapped CSS imports for CLI publication.
 Network SSR, external declarations and payload adapters, and browser adoption

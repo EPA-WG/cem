@@ -26,8 +26,7 @@ use cem_ml::schema::registry::{
 };
 use cem_ml::transform_config::{self, TransformGraphConfig};
 use cem_ml::transform_graph_request::{
-    lower_transform_graph_request, FilesystemTransformGraphResourceProvider,
-    TransformGraphRequestError,
+    FilesystemTransformGraphResourceProvider, TransformGraphRequestError,
 };
 use cem_ml_transform_cem_ql::{
     engine_context_with_cem_ql_template_adapter, register_cem_ql_query_exporters,
@@ -592,7 +591,6 @@ fn engine_input(
     from_format: Option<cli::InputFormat>,
     root_scope: ScopeConfig,
 ) -> Result<eng::EngineInput, EngineError> {
-    let mut root_scope = root_scope;
     let read = read_source(
         context,
         path,
@@ -601,17 +599,56 @@ fn engine_input(
         root_scope.default_content_type.as_deref(),
     )
     .map_err(|source| engine_io_error(context, path, source))?;
+    Ok(engine_input_from_read(
+        context,
+        path,
+        from_format,
+        root_scope,
+        read,
+    ))
+}
+
+fn engine_input_from_read(
+    context: &eng::EngineContext,
+    path: &Path,
+    from_format: Option<cli::InputFormat>,
+    mut root_scope: ScopeConfig,
+    read: ResolvedRead,
+) -> eng::EngineInput {
     if root_scope.default_content_type.is_none() {
         root_scope.default_content_type = read.content_type.clone();
     }
     apply_schema_registry_defaults(context, &mut root_scope);
-    Ok(eng::EngineInput {
+    eng::EngineInput {
         uri: path.display().to_string(),
         bytes: read.bytes,
         from_format: from_format.map(to_engine_input_format),
         identity: root_scope.format_identity_option(),
         root_scope,
-    })
+    }
+}
+
+fn read_ssr_page_input(
+    context: &eng::EngineContext,
+    path: &Path,
+    scope: ScopeConfig,
+    policy: cem_ml::ssr_route::SsrPageIngressPolicy,
+) -> Result<eng::EngineInput, CliRequestError> {
+    let source_uri = cem_ml::resolver::prepare_host_source_uri(&path.to_string_lossy())
+        .map_err(|source| CliRequestError::Engine(engine_io_error(context, path, source)))?;
+    let bytes = policy
+        .read_local_page(&context.operation_control, path)
+        .map_err(|message| {
+            CliRequestError::Engine(engine_io_error(context, path, io::Error::other(message)))
+        })?;
+    let read = ResolvedRead {
+        uri: source_uri.clone(),
+        bytes,
+        content_type: None,
+    };
+    let mut input = engine_input_from_read(context, path, None, scope, read);
+    input.uri = source_uri;
+    Ok(input)
 }
 
 fn positional_input_scope(path: &Path, defaults: &ScopeConfig) -> ScopeConfig {
@@ -1860,13 +1897,18 @@ fn transform_request_from_args(
         .data
         .as_deref()
         .ok_or_else(|| CliRequestError::Usage("transform requires DATA or --config".into()))?;
-    let mut data = engine_input(
-        context,
-        data_path,
-        None,
-        transform_data_scope(args, data_path),
-    )
-    .map_err(CliRequestError::Engine)?;
+    let template_entrypoint = transform_template_entrypoint(args.template_entrypoint.as_deref());
+    let ssr = template_entrypoint.name.as_deref() == Some(cem_ml_transform_cem_ql::ssr::ENTRYPOINT);
+    let data_scope = transform_data_scope(args, data_path);
+    let data = if ssr {
+        validate_ssr_cli_output(args)?;
+        None
+    } else {
+        Some(
+            engine_input(context, data_path, None, data_scope.clone())
+                .map_err(CliRequestError::Engine)?,
+        )
+    };
     let template = transform_template_input_from_args(context, args)?;
     let template_identity = template
         .identity
@@ -1877,17 +1919,22 @@ fn transform_request_from_args(
         &context.template_adapter_registry,
     )
     .map_err(|error| CliRequestError::Usage(error.to_string()))?;
-    let template_entrypoint = transform_template_entrypoint(args.template_entrypoint.as_deref());
-    if template_entrypoint.name.as_deref() == Some(cem_ml_transform_cem_ql::ssr::ENTRYPOINT) {
-        validate_ssr_cli_output(args)?;
-        data.uri = cem_ml::resolver::prepare_host_source_uri(&data.uri)
-            .map_err(|source| CliRequestError::Engine(engine_io_error(context, data_path, source)))?;
-    }
     let params = transform_parse_cli_params(&args.params)?;
     validate_transform_template_module_surface(template_kind, &template_entrypoint, &params)?;
     let execution_policy =
         transform_execution_policy_for(template_kind, &template_entrypoint, &params);
     let target_scope = transform_target_scope(args)?;
+    let data = match data {
+        Some(data) => data,
+        None => {
+            let policy = context
+                .template_adapter_registry
+                .ssr_page_ingress(&template, &template_entrypoint, &params)
+                .map_err(CliRequestError::Usage)?
+                .ok_or_else(|| CliRequestError::Usage("SSR page ingress is unavailable".into()))?;
+            read_ssr_page_input(context, data_path, data_scope, policy)?
+        }
+    };
     Ok(eng::TransformRequest {
         data,
         template,
@@ -2097,13 +2144,17 @@ fn transform_graph_request_from_args(
     args: &cli::TransformArgs,
 ) -> Result<(eng::TransformGraphRequest, String), CliRequestError> {
     let (graph, config_source_uri) = transform_graph_config_from_args(context, args)?;
+    if graph.nodes.iter().any(|node| {
+        node.entrypoint.as_deref().map(str::trim) == Some(cem_ml_transform_cem_ql::ssr::ENTRYPOINT)
+    }) {
+        validate_ssr_cli_output(args)?;
+    }
     let provider = FilesystemTransformGraphResourceProvider::new(context, &config_source_uri);
-    let mut request =
-        lower_transform_graph_request(context, &graph, &provider, &config_source_uri, false)
-            .map_err(transform_graph_lowering_error)?;
+    let mut request = provider
+        .lower_with_ssr_page_ingress(&graph)
+        .map_err(transform_graph_lowering_error)?;
     for stage in &request.stages {
         if stage.template_entrypoint.name.as_deref() == Some(cem_ml_transform_cem_ql::ssr::ENTRYPOINT) {
-            validate_ssr_cli_output(args)?;
             if let Some(input) = request
                 .imports
                 .iter_mut()

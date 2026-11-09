@@ -71,6 +71,47 @@ fn named_html_export_renders_nested_native_participants_and_retains_islands() {
 }
 
 #[test]
+fn authored_base_keeps_the_ordinary_html_source_policy() {
+    use cem_ml::validation::html::{validate_html_source_bytes, HtmlSourceValidationRequest};
+
+    let diagnostics = validate_html_source_bytes(HtmlSourceValidationRequest {
+        bytes: br#"<!doctype html><html><head><base href="/assets/"></head><body></body></html>"#,
+        source_uri: "file:///source/page.html",
+        content_type: Some("text/html"),
+    });
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "cem.html.external_resource_rejected"
+            && diagnostic.severity.is_hard_violation()
+    }));
+}
+
+#[test]
+fn html_parser_can_exhaust_the_original_cpu_budget_before_route_preflight() {
+    let mut r = request("text/html");
+    let html = format!(
+        "<!doctype html><html><head><title>CPU</title></head><body>{}</body></html>",
+        "<p>x</p>".repeat(80_000),
+    );
+    r.data.bytes = html.into_bytes();
+    r.params.insert("cpu-ms".into(), json!(1));
+    r.params.insert("page-url".into(), json!("invalid route"));
+    let response = RealCemMlEngine::new().transform(r).unwrap();
+    assert!(response.primary.is_null());
+    assert!(
+        response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.ssr.page_ingress"
+                && diagnostic.message.contains("CPU budget exhausted")
+        }),
+        "{:?}",
+        response.diagnostics
+    );
+    assert!(!response
+        .diagnostics
+        .iter()
+        .any(|diagnostic| { diagnostic.message.contains("cem.ssr.page_url_invalid") }));
+}
+
+#[test]
 fn immutable_builtin_and_no_transport_profile_cannot_be_bypassed() {
     let mut edited = request("text/html");
     edited.template.bytes.push(b'\n');

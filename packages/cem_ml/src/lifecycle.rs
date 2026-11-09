@@ -233,7 +233,15 @@ impl LifecycleRegistry {
     }
 
     pub fn load(&self, input: &EngineInput, context: &EngineContext) -> LoadedInput {
-        self.load_for_operation(input, context, false)
+        self.load_for_operation(input, context, false, false)
+    }
+
+    pub(crate) fn load_ssr_page(
+        &self,
+        input: &EngineInput,
+        context: &EngineContext,
+    ) -> LoadedInput {
+        self.load_for_operation(input, context, false, true)
     }
 
     pub fn load_for_source_validation(
@@ -241,7 +249,7 @@ impl LifecycleRegistry {
         input: &EngineInput,
         context: &EngineContext,
     ) -> LoadedInput {
-        self.load_for_operation(input, context, true)
+        self.load_for_operation(input, context, true, false)
     }
 
     fn load_for_operation(
@@ -249,6 +257,7 @@ impl LifecycleRegistry {
         input: &EngineInput,
         context: &EngineContext,
         source_validation: bool,
+        admit_ssr_base: bool,
     ) -> LoadedInput {
         let identity = input
             .identity
@@ -321,6 +330,11 @@ impl LifecycleRegistry {
             [adapter] if source_validation => {
                 adapter.validate_source_with_context(input, &identity, context)
             }
+            [adapter] if admit_ssr_base && adapter.id() == "html" => load_html_input(
+                input,
+                &identity,
+                crate::validation::html::html_document_ast_from_ssr_page,
+            ),
             [adapter] => adapter.load_with_context(input, &identity, context),
             [] => {
                 let mut loaded =
@@ -678,6 +692,30 @@ impl LifecycleAdapter for CemMlAdapter {
 
 struct HtmlAdapter;
 
+fn load_html_input(
+    input: &EngineInput,
+    identity: &FormatIdentity,
+    parse: impl FnOnce(HtmlSourceValidationRequest<'_>) -> (Option<HtmlDocumentAst>, Vec<Diagnostic>),
+) -> LoadedInput {
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .or(input.root_scope.default_content_type.as_deref())
+        .unwrap_or(HTML_CONTENT_TYPE);
+    let (document, diagnostics) = parse(HtmlSourceValidationRequest {
+        bytes: &input.bytes,
+        source_uri: &input.uri,
+        content_type: Some(content_type),
+    });
+    LoadedInput {
+        bytes: input.bytes.clone(),
+        from_format: InputFormat::Html,
+        ast_stream: document.map(LoadedInputAstStream::HtmlDocument),
+        diagnostics,
+        adapter_id: Some("html"),
+    }
+}
+
 impl LifecycleAdapter for HtmlAdapter {
     fn id(&self) -> &'static str {
         "html"
@@ -690,24 +728,7 @@ impl LifecycleAdapter for HtmlAdapter {
     }
 
     fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
-        let content_type = identity
-            .content_type
-            .as_deref()
-            .or(input.root_scope.default_content_type.as_deref())
-            .unwrap_or(HTML_CONTENT_TYPE);
-        let (document, diagnostics) =
-            html_document_ast_from_source_bytes(HtmlSourceValidationRequest {
-                bytes: &input.bytes,
-                source_uri: &input.uri,
-                content_type: Some(content_type),
-            });
-        LoadedInput {
-            bytes: input.bytes.clone(),
-            from_format: InputFormat::Html,
-            ast_stream: document.map(LoadedInputAstStream::HtmlDocument),
-            diagnostics,
-            adapter_id: Some(self.id()),
-        }
+        load_html_input(input, identity, html_document_ast_from_source_bytes)
     }
 
     fn matches_target(&self, identity: &FormatIdentity) -> bool {

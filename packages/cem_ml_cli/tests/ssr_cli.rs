@@ -132,6 +132,48 @@ fn direct_cli_loads_mapped_stylesheets_with_nested_public_bases() {
     );
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn direct_cli_uses_authored_base_for_mapped_stylesheets() {
+    let root = stylesheet_fixture();
+    let page = root.join("page.html");
+    let original = fs::read_to_string(&page).unwrap();
+    fs::write(
+        &page,
+        original.replace("<head>", r#"<head><base href="/assets/">"#),
+    )
+    .unwrap();
+    let read_map = format!("https://ssr.test/assets/={}", root.join("mirror").display());
+    let out = direct(&root, "text/html", &["--resolver-read-map", &read_map]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let html = fs::read_to_string(root.join("out.html")).unwrap();
+    assert!(html.contains(r#"<base href="/assets/">"#), "{html}");
+    assert!(
+        html.contains("color: red") || html.contains("color:red"),
+        "{html}"
+    );
+
+    for base in [
+        r#"<base href="javascript:alert(1)">"#,
+        r#"<base href="file:///assets/">"#,
+        r#"<base href="https://user@ssr.test/">"#,
+        r#"<base href="/assets/" target="_blank">"#,
+        r#"<base href="/assets/"><base href="/other/">"#,
+        r#"<base href="/assets/"><meta http-equiv="Content-Security-Policy" content="base-uri 'none'">"#,
+        r#"<base href="/assets/"><script>throw 1</script>"#,
+        r#"<base href="/assets/"><link rel="stylesheet" href="unadmitted.css">"#,
+    ] {
+        fs::write(&page, original.replace("<head>", &format!("<head>{base}"))).unwrap();
+        let out = direct(&root, "text/html", &["--resolver-read-map", &read_map]);
+        assert!(!out.status.success(), "{base}");
+        assert_eq!(fs::read_to_string(root.join("out.html")).unwrap(), html);
+    }
+    fs::remove_dir_all(root).unwrap();
+}
 #[test]
 fn direct_cli_refuses_coloring_without_replacing_existing_output() {
     let root = fixture();
@@ -178,6 +220,53 @@ fn config_cli_shares_proof_for_named_html_and_report_exports_atomically() {
         serde_json::from_slice(&fs::read(root.join("page-out.json")).unwrap()).unwrap();
     assert_eq!(report["readiness"], "native-ready");
     assert_eq!(report["hydrationReady"], false);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn config_and_direct_cli_bound_page_acquisition_before_publication() {
+    let root = stylesheet_fixture();
+    let page = root.join("page.html");
+    let text = fs::read_to_string(&page).unwrap();
+    fs::write(
+        &page,
+        text.replace("<head>", r#"<head><base href="/assets/">"#),
+    )
+    .unwrap();
+    let read_map = format!("https://ssr.test/assets/={}", root.join("mirror").display());
+    let out = config_cli(&root, &["--resolver-read-map", &read_map]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let html = fs::read_to_string(root.join("page-out.html")).unwrap();
+    assert!(html.contains(r#"<base href="/assets/">"#), "{html}");
+    let report: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.join("page-out.json")).unwrap()).unwrap();
+    assert_eq!(
+        report["route"]["documentBaseUrl"],
+        "https://ssr.test/assets/"
+    );
+    assert!(report["route"]["baseSourceMap"].is_object());
+    assert_eq!(report["usage"]["resources"], 3);
+
+    fs::write(root.join("out.html"), "previous direct output").unwrap();
+    let paths = ["page-out.html", "page-out.json", "out.html"];
+    let previous = paths.map(|path| fs::read(root.join(path)).unwrap());
+    fs::File::create(page).unwrap().set_len(1_048_577).unwrap();
+    for out in [config_cli(&root, &[]), direct(&root, "text/html", &[])] {
+        assert!(!out.status.success());
+        let error = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            error.contains("Original SSR page byte budget exceeded before opening"),
+            "{error}"
+        );
+    }
+    assert_eq!(
+        paths.map(|path| fs::read(root.join(path)).unwrap()),
+        previous
+    );
     fs::remove_dir_all(root).unwrap();
 }
 

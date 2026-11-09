@@ -26848,6 +26848,16 @@ pub trait TransformTemplateAdapter: Send + Sync {
 
     fn matches_template(&self, identity: &FormatIdentity) -> bool;
 
+    /// A trusted native adapter may opt its immutable page template into SSR ingress.
+    fn ssr_page_ingress(
+        &self,
+        _template: &crate::engine::TemplateInput,
+        _entrypoint: &crate::engine::TransformTemplateEntrypoint,
+        _params: &BTreeMap<String, Value>,
+    ) -> Result<Option<crate::ssr_route::SsrPageIngressPolicy>, String> {
+        Ok(None)
+    }
+
     fn compile(
         &self,
         request: TransformTemplateCompileRequest<'_>,
@@ -26993,6 +27003,26 @@ impl TransformTemplateAdapterRegistry {
             many => TransformTemplateAdapterLookup::Ambiguous(
                 many.iter().map(|adapter| adapter.id()).collect(),
             ),
+        }
+    }
+
+    pub fn ssr_page_ingress(
+        &self,
+        template: &crate::engine::TemplateInput,
+        entrypoint: &crate::engine::TransformTemplateEntrypoint,
+        params: &BTreeMap<String, Value>,
+    ) -> Result<Option<crate::ssr_route::SsrPageIngressPolicy>, String> {
+        if entrypoint.name.as_deref() != Some(crate::ssr_route::SSR_PAGE_ENTRYPOINT) {
+            return Ok(None);
+        }
+        let Some(identity) = template.identity.as_ref() else {
+            return Ok(None);
+        };
+        match self.select_adapter(identity) {
+            TransformTemplateAdapterLookup::Matched(adapter) => {
+                adapter.ssr_page_ingress(template, entrypoint, params)
+            }
+            _ => Ok(None),
         }
     }
 }

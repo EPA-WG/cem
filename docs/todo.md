@@ -292,14 +292,28 @@ The native coordinator, readiness proof and named CLI exports are complete.
 Browser adoption covers passive inline HTML, SVG and MathML, inert native
 CEM source payloads, nested participants and resource-free scoped CSS.
 Standalone stateful participants support named scalar slices and local forms.
-The CLI publishes scoped CSS from explicitly mapped stylesheet imports.
+The CLI publishes scoped CSS from explicitly mapped stylesheet imports and
+accepts a single authored HTTP(S) document base. Direct and concrete config
+page reads and native HTML parsing share the original SSR CPU budget.
 The [SSR completion index](archive/todo-completed-index-2026-11-09.md#ssr)
 links the corresponding design and verification records.
 
-- [ ] Admit further page-source forms and authored base URLs. Extend
-      original-operation CPU accounting to initial page acquisition and parsing.
+- [x] Admit a single authored HTML base and charge initial local file
+      acquisition and native parsing to the original SSR operation.
+  - [x] Verify the packaged SSR template resolves mapped stylesheets from an
+        authored HTTP(S) base and refuses unsafe bases without replacing output.
+  - [x] Verify direct SSR bounds initial file reads and charges native HTML
+        parsing to the original CPU budget before route or render work.
+  - [x] Verify a concrete config page import is bounded before opening and
+        that HTML and readiness-report exports share its admitted base.
+  - [x] Verify Chromium observes the emitted base URL and scoped mapped CSS
+        without external requests.
+- [ ] Admit CEM-ML and opted-in `.cem.md` page sources through the shared native
+      page import and conversion path. Retain source maps and account for
+      acquisition, parsing and conversion under the original SSR operation.
 - [ ] Preflight multi-page routes and output paths before rendering. Prove
-      deterministic and atomic fan-out for HTML and readiness reports.
+      deterministic and atomic fan-out for HTML and readiness reports. Extend
+      bounded acquisition to glob-expanded page imports.
 - [ ] Admit external declarations and payload sources through their native
       adapters. Extend the resource proof to explicit network policies and
       resource-dependent browser adoption.

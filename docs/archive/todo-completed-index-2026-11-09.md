@@ -68,3 +68,4 @@ The [active checklist](../todo.md) records remaining execution work.
 - [Browser adoption of foreign markup and inert CEM source](todo-completed-ssr-foreign-source-hydration-2026-11-09.md)
 - [Live slice and local form hydration](todo-completed-ssr-live-state-hydration-2026-11-09.md)
 - [CLI admission for external stylesheet imports](todo-completed-ssr-cli-resource-admission-2026-11-09.md)
+- [CLI HTML page ingress and authored bases](todo-completed-ssr-cli-page-ingress-2026-11-09.md)

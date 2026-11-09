@@ -1,13 +1,98 @@
-//! Native, side-effect-free URL context for a future whole-page SSR coordinator.
-use std::collections::BTreeMap;
+//! Native URL preflight and original-operation page ingress limits.
+use std::{collections::BTreeMap, fs, path::Path, sync::Arc};
 
 use crate::diagnostics::{Diagnostic, Severity};
-use crate::resolver::{ResolveDirection, ResolvePurpose, ResolveRequest};
+use crate::operation_control::{
+    cpu::NativeCpuAccounting, OperationControl, ROOT_EXECUTION_SCOPE_ID,
+};
+use crate::resolver::{
+    local_path_or_file_uri, ResolveDirection, ResolvePurpose, ResolveRequest, SsrReadBudget,
+};
 use crate::source_map::SourceMapStack;
 use crate::validation::html::{
     HtmlDocumentAst, HtmlDocumentMode, HtmlEventAst, HtmlEventKind, HtmlNamespace,
 };
 use url::Url;
+
+pub const SSR_PAGE_ENTRYPOINT: &str = "ssr:render-page";
+
+/// Limits selected by the trusted page template before the native HTML loader runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SsrPageIngressPolicy {
+    pub max_bytes: u64,
+    pub wall_ms: u64,
+    pub cpu_ms: u64,
+}
+
+impl SsrPageIngressPolicy {
+    pub fn read_local_page(
+        self,
+        control: &OperationControl,
+        path: &Path,
+    ) -> Result<Vec<u8>, String> {
+        self.run(control, &path.to_string_lossy(), |request, budget| {
+            let local =
+                local_path_or_file_uri(path, "SSR page path").map_err(|error| error.to_string())?;
+            let metadata = fs::metadata(&local).map_err(|error| error.to_string())?;
+            if !metadata.is_file() {
+                return Err("SSR page acquisition requires a regular local file".into());
+            }
+            if metadata.len() > self.max_bytes {
+                return Err(
+                    "Original SSR page byte budget exceeded before opening the file".into(),
+                );
+            }
+            budget.check(request).map_err(|error| error.to_string())?;
+            let mut options = fs::OpenOptions::new();
+            options.read(true);
+            #[cfg(target_os = "linux")]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                // A path replaced by a FIFO between metadata and open must not block.
+                options.custom_flags(libc::O_NONBLOCK);
+            }
+            let file = options.open(local).map_err(|error| error.to_string())?;
+            if !file
+                .metadata()
+                .map_err(|error| error.to_string())?
+                .is_file()
+            {
+                return Err("SSR page acquisition requires a regular local file".into());
+            }
+            budget
+                .read_from(request, file)
+                .map_err(|error| error.to_string())
+        })
+    }
+
+    pub(crate) fn run<T>(
+        self,
+        control: &OperationControl,
+        uri: &str,
+        phase: impl FnOnce(&ResolveRequest, &SsrReadBudget<'_>) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let max_bytes =
+            usize::try_from(self.max_bytes).map_err(|_| "SSR page byte limit exceeds usize")?;
+        let cpu = Arc::new(NativeCpuAccounting::new(control, self.cpu_ms)?);
+        let guard = cpu.begin(control)?;
+        let budget = SsrReadBudget {
+            control,
+            cpu: &cpu,
+            scope: ROOT_EXECUTION_SCOPE_ID,
+            max_bytes,
+            max_wall_time_ms: self.wall_ms,
+        };
+        let request = ResolveRequest::new(uri, ResolvePurpose::Input, ResolveDirection::Read);
+        let result = (|| {
+            budget.check(&request).map_err(|e| e.to_string())?;
+            let result = phase(&request, &budget)?;
+            budget.check(&request).map_err(|e| e.to_string())?;
+            Ok(result)
+        })();
+        let receipt = guard.finish();
+        result.and_then(|value| receipt.map(|_| value))
+    }
+}
 
 /// A host decision for the selected base URL, not permission to read a resource.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]

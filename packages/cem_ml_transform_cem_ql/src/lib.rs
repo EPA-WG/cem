@@ -1666,6 +1666,15 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
         matches_cem_native_identity(identity)
     }
 
+    fn ssr_page_ingress(
+        &self,
+        template: &cem_ml::engine::TemplateInput,
+        entrypoint: &cem_ml::engine::TransformTemplateEntrypoint,
+        params: &BTreeMap<String, serde_json::Value>,
+    ) -> Result<Option<cem_ml::ssr_route::SsrPageIngressPolicy>, String> {
+        ssr::page_ingress_policy(template, entrypoint, params)
+    }
+
     fn compile(
         &self,
         request: TransformTemplateCompileRequest<'_>,

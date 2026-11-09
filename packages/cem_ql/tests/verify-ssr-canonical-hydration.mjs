@@ -14,8 +14,8 @@ const output = path.join(temp, 'rendered.html');
 const builtin = path.join(root, 'packages/cem_ml_transform_cem_ql/templates/ssr-page.cemt');
 const cli = path.join(root, `dist/target/cem_ml_cli/debug/cem-ml${process.platform === 'win32' ? '.exe' : ''}`);
 const template = '{article | {$ datadom.slots.heading}}';
-async function render(body, versions, extra = []) {
-    await writeFile(source, `<!doctype html><html><head><title>Canonical SSR</title></head><body>${body}</body></html>`);
+async function render(body, versions, extra = [], head = '') {
+    await writeFile(source, `<!doctype html><html><head><title>Canonical SSR</title>${head}</head><body>${body}</body></html>`);
     execFileSync(cli, ['transform', source, '--template', builtin, '--template-content-type', 'text/cem-ml',
         '--template-entrypoint', 'ssr:render-page', '--to-content-type', 'text/html', '--out', output,
         ...['page-url=https://ssr.example.test/', `consumer-versions=${versions}`, 'max-depth=8',
@@ -70,7 +70,8 @@ try {
         '<cem-element tag="x-mapped" version="1.2.3"><template id="x-mapped" type="text/cem-ml">',
         '{style |```@import "./theme.css";```}{article | Mapped}',
         '</template></cem-element><x-mapped></x-mapped><article>Outside</article>',
-    ].join(''), 'x-mapped=1.9.0', ['--resolver-read-map', `https://ssr.example.test/=${mirror}`]);
+    ].join(''), 'x-mapped=1.9.0', ['--resolver-read-map', `https://ssr.example.test/assets/=${mirror}`],
+    '<base href="/assets/">');
     const pages = new Map([
         ['/ssr.html', html], ['/nested.html', nested], ['/direct.html', direct], ['/styled.html', styled],
         ['/foreign.html', foreign], ['/source.html', cemSource], ['/forms.html', forms],
@@ -618,6 +619,7 @@ try {
         await runtime.whenDeclarationSettled(declaration);
         await runtime.whenRenderSettled(host);
         return {
+            baseUrl: document.baseURI,
             initial, current: getComputedStyle(output).color,
             outside: getComputedStyle(document.querySelector('body > article')).color,
             retained: host.querySelector('article') === output && declaration.querySelector('style') === style,
@@ -626,6 +628,7 @@ try {
             diagnostics: runtime.diagnosticsFor(host).map(d => d.code),
         };
     });
+    assert.equal(mappedResult.baseUrl, `${origin}/assets/`);
     assert.equal(mappedResult.initial, 'rgb(12, 34, 56)');
     assert.equal(mappedResult.current, mappedResult.initial);
     assert.notEqual(mappedResult.outside, mappedResult.initial);

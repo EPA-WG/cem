@@ -22,7 +22,9 @@ use cem_ml::{
     schema::registry::{SchemaRegistry, HTML_SCHEMA_URI},
     source_map::SourceMapStack,
     ssr_artifact::{CemSsrPageArtifact, SsrExecutionIdentity, SsrSettlePolicy, SsrSourceMapMode},
-    ssr_route::{preflight_ssr_page_routes, SsrPageRouteRequest},
+    ssr_route::{
+        preflight_ssr_page_routes, SsrBaseSelection, SsrPageIngressPolicy, SsrPageRouteRequest,
+    },
     transform_artifact::{
         CemtEvaluatorValue, TransformArtifactBody, TransformArtifactExportRequest,
         TransformArtifactExporter, TransformEncodedArtifact, TransformEncoding,
@@ -48,7 +50,7 @@ use std::{
     },
 };
 
-pub const ENTRYPOINT: &str = "ssr:render-page";
+pub use cem_ml::ssr_route::SSR_PAGE_ENTRYPOINT as ENTRYPOINT;
 pub const BUILTIN_TEMPLATE: &str = include_str!("../templates/ssr-page.cemt");
 pub const REPORT_CONTENT_TYPE: &str = "application/vnd.cem.ssr-report+json";
 const REPRESENTATION: &str = "cem.ssr-ready-inline/1";
@@ -94,6 +96,48 @@ fn string(value: Option<&CemtEvaluatorValue<'_>>, name: &str) -> Result<String, 
         .map(str::to_owned)
         .ok_or_else(|| format!("SSR parameter `{name}` must be a string"))
 }
+
+fn positive_integer(name: &str, typed: Option<u64>, text: Option<&str>) -> Result<u64, String> {
+    typed
+        .or_else(|| {
+            text.filter(|s| {
+                !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) && !s.starts_with('0')
+            })
+            .and_then(|s| s.parse().ok())
+        })
+        .filter(|n| *n > 0)
+        .ok_or_else(|| format!("SSR parameter `{name}` must be a positive integer"))
+}
+
+pub(super) fn page_ingress_policy(
+    template: &cem_ml::engine::TemplateInput,
+    entrypoint: &cem_ml::engine::TransformTemplateEntrypoint,
+    params: &BTreeMap<String, serde_json::Value>,
+) -> Result<Option<SsrPageIngressPolicy>, String> {
+    if entrypoint.name.as_deref() != Some(ENTRYPOINT) {
+        return Ok(None);
+    }
+    if template.bytes != BUILTIN_TEMPLATE.as_bytes() {
+        return Err(
+            "ssr:render-page requires the unmodified packaged ssr-page.cemt builtin".into(),
+        );
+    }
+    let number = |name: &str| {
+        let qualified = format!("{ENTRYPOINT}.{name}");
+        let value = params.get(name).or_else(|| params.get(&qualified));
+        positive_integer(
+            name,
+            value.and_then(serde_json::Value::as_u64),
+            value.and_then(serde_json::Value::as_str),
+        )
+    };
+    Ok(Some(SsrPageIngressPolicy {
+        max_bytes: number("max-bytes")?,
+        wall_ms: number("wall-ms")?,
+        cpu_ms: number("cpu-ms")?,
+    }))
+}
+
 pub(super) fn render(
     request: TransformTemplateRenderRequest<'_>,
     runtime: TransformTemplateRuntimeContext<'_>,
@@ -102,21 +146,14 @@ pub(super) fn render(
     // CLI/config parameters are literal strings. Native callers may also pass
     // typed numbers; this is a control grammar, never a document/AST decoder.
     let number = |name: &str| {
-        params
-            .value(name)
-            .and_then(|v| {
-                v.as_number().and_then(|n| n.as_u64()).or_else(|| {
-                    v.as_str()
-                        .filter(|s| {
-                            !s.is_empty()
-                                && s.bytes().all(|b| b.is_ascii_digit())
-                                && !s.starts_with('0')
-                        })
-                        .and_then(|s| s.parse().ok())
-                })
-            })
-            .filter(|n| *n > 0)
-            .ok_or_else(|| format!("SSR parameter `{name}` must be a positive integer"))
+        let value = params.value(name);
+        positive_integer(
+            name,
+            value
+                .and_then(CemtEvaluatorValue::as_number)
+                .and_then(|n| n.as_u64()),
+            value.and_then(CemtEvaluatorValue::as_str),
+        )
     };
     let small = |name: &str| {
         number(name).and_then(|n| {
@@ -207,6 +244,13 @@ pub(super) fn render(
         let routes =
             preflight_ssr_page_routes(&[SsrPageRouteRequest::new(&source, &page_url, None)])
                 .map_err(diagnostics)?;
+        let route = &routes[0];
+        if let SsrBaseSelection::HtmlBase { used_fallback, .. } = route.base_selection() {
+            let base = route.document_base_url();
+            if used_fallback || !(base.starts_with("https://") || base.starts_with("http://")) {
+                return Err("SSR publication requires an effective HTTP(S) authored base".into());
+            }
+        }
         let content = |bytes: &[u8]| DependencyVersion::Content(ContentHash::from_blake3(bytes));
         let parameter_hash = ContentHash::from_blake3(params.identity_bytes());
         let policy_bytes = serde_json::to_vec(&policy).map_err(|e| e.to_string())?;
@@ -257,7 +301,7 @@ pub(super) fn render(
         };
         let page = CemSsrPageArtifact::unrendered(
             source.clone(),
-            &routes[0],
+            route,
             TransformArtifactBody::HtmlDomProjection(source.clone()),
             identity,
             policy,

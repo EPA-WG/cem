@@ -848,6 +848,19 @@ pub fn validate_html_source_bytes(request: HtmlSourceValidationRequest<'_>) -> V
 pub fn html_document_ast_from_source_bytes(
     request: HtmlSourceValidationRequest<'_>,
 ) -> (Option<HtmlDocumentAst>, Vec<Diagnostic>) {
+    parse_html_document(request, false)
+}
+
+pub(crate) fn html_document_ast_from_ssr_page(
+    request: HtmlSourceValidationRequest<'_>,
+) -> (Option<HtmlDocumentAst>, Vec<Diagnostic>) {
+    parse_html_document(request, true)
+}
+
+fn parse_html_document(
+    request: HtmlSourceValidationRequest<'_>,
+    admit_ssr_base: bool,
+) -> (Option<HtmlDocumentAst>, Vec<Diagnostic>) {
     let parameters =
         parse_content_type_parameters(request.content_type.unwrap_or(HTML_CONTENT_TYPE));
     let source_info = HtmlDocumentSource::from_request(request, parameters.clone());
@@ -900,6 +913,9 @@ pub fn html_document_ast_from_source_bytes(
         mime_charset.as_deref(),
         &mut facts,
     );
+    if admit_ssr_base {
+        admit_single_ssr_base(&build.events, &mut facts);
+    }
     let mode = if build.document_observed {
         HtmlDocumentMode::Document
     } else {
@@ -961,6 +977,59 @@ pub fn html_document_ast_from_source_bytes(
         HtmlSchemaContractCatalog::from_builtin(),
     );
     (Some(ast), diagnostics)
+}
+
+fn admit_single_ssr_base(events: &[HtmlEventAst], facts: &mut Vec<HtmlFact>) {
+    let mut bases = events.iter().filter(|event| {
+        event.kind == HtmlEventKind::StartElement
+            && event.namespace == HtmlNamespace::Html
+            && event.local_name.as_deref() == Some("base")
+    });
+    let Some(base) = bases.next() else { return };
+    let inside_head = base.depth == 2
+        && events[..base.index]
+            .iter()
+            .rev()
+            .find(|event| event.depth < base.depth)
+            .is_some_and(|event| {
+                event.kind == HtmlEventKind::StartElement
+                    && event.namespace == HtmlNamespace::Html
+                    && event.local_name.as_deref() == Some("head")
+            });
+    if inside_head
+        && bases.next().is_none()
+        && matches!(base.attributes.as_slice(), [href] if href.local_name == "href" && href.value.is_some())
+    {
+        // The HTML fact stream retains only the first occurrence per kind.
+        // Replace the base fact with the next resource violation if one exists.
+        if let Some(index) = facts.iter().position(|fact| {
+            fact.kind == HtmlFactKind::ExternalResourceRejected
+                && fact.source_range == Some(base.source_range)
+        }) {
+            let next_resource = events[base.index + 1..].iter().find(|event| {
+                event.kind == HtmlEventKind::StartElement
+                    && event.local_name.as_deref().is_some_and(|name| {
+                        html_start_tag_requires_resource_policy(
+                            name, event.namespace, &event.attributes,
+                        )
+                    })
+            });
+            if let Some(event) = next_resource {
+                facts[index].source_range = Some(event.source_range);
+                facts[index].value = event.local_name.clone();
+            } else {
+                facts.remove(index);
+            }
+        }
+    } else {
+        push_fact_once(
+            facts,
+            HtmlFactKind::ExternalResourceRejected,
+            Some(base.source_range),
+            "SSR accepts a single base element with only href in the document head",
+            Some("base".into()),
+        );
+    }
 }
 
 /// Recover conversion output for non-executing native inspection/query only.

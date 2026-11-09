@@ -3531,6 +3531,7 @@ fn load_transform_data_artifact(
     context: &EngineContext,
     artifact_id: impl Into<String>,
     opaque: bool,
+    ssr_ingress: Option<(crate::ssr_route::SsrPageIngressPolicy, bool)>,
 ) -> (Option<TransformTemplateDataArtifact>, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
     let mut scope_diagnostics =
@@ -3553,7 +3554,26 @@ fn load_transform_data_artifact(
         };
         return (Some(artifact), diagnostics);
     }
-    let mut loaded = load_source_input_through_lifecycle(input, context);
+    let mut loaded = if let Some((policy, admit_base)) = ssr_ingress {
+        match policy.run(&context.operation_control, &input.uri, |_, budget| {
+            if input.bytes.len() > budget.max_bytes {
+                return Err("Original SSR page byte budget exceeded before HTML parsing".into());
+            }
+            if admit_base {
+                Ok(LifecycleRegistry::with_builtin_adapters().load_ssr_page(input, context))
+            } else {
+                Ok(load_source_input_through_lifecycle(input, context))
+            }
+        }) {
+            Ok(loaded) => loaded,
+            Err(message) => {
+                diagnostics.push(ssr_ingress_diagnostic(&input.uri, message));
+                return (None, diagnostics);
+            }
+        }
+    } else {
+        load_source_input_through_lifecycle(input, context)
+    };
     diagnostics.append(&mut loaded.diagnostics);
     // A failed structured import has no data artifact. In particular, JSON
     // source failures must not enter an encoded-text fallback or reach a native
@@ -3613,6 +3633,61 @@ fn load_transform_data_artifact(
             body,
         });
     (artifact, diagnostics)
+}
+
+fn ssr_ingress_diagnostic(uri: &str, message: String) -> Diagnostic {
+    Diagnostic {
+        uri: Some(uri.to_owned()),
+        code: "cem.ssr.page_ingress".into(),
+        severity: Severity::Fatal,
+        message,
+        ..Diagnostic::default()
+    }
+}
+
+fn graph_ssr_page_ingress(
+    request: &TransformGraphRequest,
+    import_id: &str,
+) -> Result<Option<(crate::ssr_route::SsrPageIngressPolicy, bool)>, String> {
+    let mut policy = None;
+    let mut shared = request
+        .exports
+        .iter()
+        .any(|export| export.input == import_id)
+        || request
+            .conversions
+            .iter()
+            .any(|node| node.primary_input == import_id)
+        || request
+            .joins
+            .iter()
+            .flat_map(|join| &join.inputs)
+            .any(|input| input.artifact_id == import_id)
+        || request
+            .importmap_rewrites
+            .iter()
+            .any(|node| node.primary_input == import_id);
+    for stage in &request.stages {
+        shared |= stage
+            .secondary_inputs
+            .values()
+            .any(|input| input == import_id);
+        if stage.primary_input != import_id {
+            continue;
+        }
+        match request.context.template_adapter_registry.ssr_page_ingress(
+            &stage.template,
+            &stage.template_entrypoint,
+            &stage.params,
+        )? {
+            Some(candidate) if policy.is_some_and(|previous| previous != candidate) => {
+                return Err("SSR stages sharing a page require the same ingress limits".into());
+            }
+            Some(candidate) => policy = Some(candidate),
+            None => shared = true,
+        }
+    }
+    Ok(policy.map(|policy| (policy, !shared)))
 }
 
 fn collect_transform_graph_join(
@@ -13946,8 +14021,24 @@ impl CemMlEngine for RealCemMlEngine {
 
         let mut primary_input: Option<TransformTemplateDataArtifact> = None;
         data_pool.run_to_completion(&abort, |_| {
-            let (artifact, mut data_diagnostics) =
-                load_transform_data_artifact(&request.data, &request.context, "data", false);
+            let ssr_ingress = match request.context.template_adapter_registry.ssr_page_ingress(
+                &request.template,
+                &request.template_entrypoint,
+                &request.params,
+            ) {
+                Ok(policy) => policy,
+                Err(message) => {
+                    diagnostics.push(ssr_ingress_diagnostic(&request.template.uri, message));
+                    return;
+                }
+            };
+            let (artifact, mut data_diagnostics) = load_transform_data_artifact(
+                &request.data,
+                &request.context,
+                "data",
+                false,
+                ssr_ingress.map(|policy| (policy, true)),
+            );
             diagnostics.append(&mut data_diagnostics);
             primary_input = artifact;
         });
@@ -14124,6 +14215,15 @@ impl CemMlEngine for RealCemMlEngine {
             .iter()
             .map(|rewrite| rewrite.primary_input.clone())
             .collect::<BTreeSet<_>>();
+        let ssr_imports = request
+            .stages
+            .iter()
+            .filter_map(|stage| {
+                (stage.template_entrypoint.name.as_deref()
+                    == Some(crate::ssr_route::SSR_PAGE_ENTRYPOINT))
+                .then_some(stage.primary_input.as_str())
+            })
+            .collect::<BTreeSet<_>>();
 
         for import in &request.imports {
             request.context.ensure_active()?;
@@ -14155,11 +14255,23 @@ impl CemMlEngine for RealCemMlEngine {
                     .map(Some)
                     .expect("raw graph import text encoding must be valid")
                 } else {
+                    let ssr_ingress = if ssr_imports.contains(import.id.as_str()) && !import.opaque {
+                        match graph_ssr_page_ingress(&request, &import.id) {
+                            Ok(policy) => policy,
+                            Err(message) => {
+                                diagnostics.push(ssr_ingress_diagnostic(&import.input.uri, message));
+                                return;
+                            }
+                        }
+                    } else {
+                        None
+                    };
                     let (artifact, mut import_diagnostics) = load_transform_data_artifact(
                         &import.input,
                         &request.context,
                         &import.id,
                         import.opaque,
+                        ssr_ingress,
                     );
                     diagnostics.append(&mut import_diagnostics);
                     artifact
@@ -16063,7 +16175,8 @@ mod tests {
             crate::schema::registry::JSON_VALUE_SCHEMA_URI,
         );
 
-        let (artifact, diagnostics) = load_transform_data_artifact(&input, &ctx(), "data", false);
+        let (artifact, diagnostics) =
+            load_transform_data_artifact(&input, &ctx(), "data", false, None);
         let artifact = artifact.expect("valid native data artifact");
 
         assert!(!diagnostics
@@ -16632,7 +16745,8 @@ mod tests {
             XML_SCHEMA_URI,
         );
 
-        let (artifact, diagnostics) = load_transform_data_artifact(&input, &ctx(), "data", false);
+        let (artifact, diagnostics) =
+            load_transform_data_artifact(&input, &ctx(), "data", false, None);
         let artifact = artifact.expect("valid native data artifact");
 
         assert!(!diagnostics
@@ -16744,9 +16858,9 @@ mod tests {
             XML_SCHEMA_URI,
         );
         let (first, first_diagnostics) =
-            load_transform_data_artifact(&first_input, &ctx(), "first", false);
+            load_transform_data_artifact(&first_input, &ctx(), "first", false, None);
         let (second, second_diagnostics) =
-            load_transform_data_artifact(&second_input, &ctx(), "second", false);
+            load_transform_data_artifact(&second_input, &ctx(), "second", false, None);
         let first = first.expect("valid first native data artifact");
         let second = second.expect("valid second native data artifact");
         assert!(first_diagnostics
@@ -17360,8 +17474,13 @@ mod tests {
             root_scope: ScopeConfig::default(),
         };
 
-        let (artifact, diagnostics) =
-            load_transform_data_artifact(&input, &EngineContext::default(), "opaque-json", true);
+        let (artifact, diagnostics) = load_transform_data_artifact(
+            &input,
+            &EngineContext::default(),
+            "opaque-json",
+            true,
+            None,
+        );
         let artifact = artifact.expect("opaque data artifact bypasses source validation");
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         let TransformArtifactBody::Encoded(encoded) = &artifact.body else {

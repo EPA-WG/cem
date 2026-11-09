@@ -297,6 +297,29 @@ impl<'a> FilesystemTransformGraphResourceProvider<'a> {
         }
     }
 
+    /// Lower concrete page routes before their local bodies are acquired.
+    pub fn lower_with_ssr_page_ingress(
+        &self,
+        graph: &TransformGraphConfig,
+    ) -> Result<TransformGraphRequest, TransformGraphRequestError> {
+        let mut pages = BTreeMap::new();
+        for stage in graph.nodes.iter().filter(|node| {
+            node.kind == TransformGraphNodeKind::Transform
+                && node.entrypoint.as_deref().map(str::trim)
+                    == Some(crate::ssr_route::SSR_PAGE_ENTRYPOINT)
+        }) {
+            let (input, _) = primary_ref(graph, stage, &self.config_uri)?;
+            if let Some(import) = graph.nodes.iter().find(|node| {
+                node.id == input && node.kind == TransformGraphNodeKind::Import && !node.opaque
+            }) {
+                if let Some(src) = import.src.as_deref().filter(|src| !src.contains('*')) {
+                    pages.insert(input, self.resolved(src));
+                }
+            }
+        }
+        lower_graph_request(self.context, graph, self, &self.config_uri, false, pages)
+    }
+
     fn resolved(&self, reference: &str) -> String {
         if Path::new(reference).is_absolute()
             || uri_scheme(reference).is_some() && !is_windows_drive_path(reference)
@@ -951,11 +974,31 @@ pub fn lower_transform_graph_request(
     config_uri: &str,
     preserve_source_offsets: bool,
 ) -> Result<TransformGraphRequest, TransformGraphRequestError> {
+    lower_graph_request(
+        context,
+        graph,
+        provider,
+        config_uri,
+        preserve_source_offsets,
+        BTreeMap::new(),
+    )
+}
+
+fn lower_graph_request(
+    context: &EngineContext,
+    graph: &TransformGraphConfig,
+    provider: &dyn TransformGraphResourceProvider,
+    config_uri: &str,
+    preserve_source_offsets: bool,
+    deferred_ssr_pages: BTreeMap<String, String>,
+) -> Result<TransformGraphRequest, TransformGraphRequestError> {
     let mut lowerer = TransformGraphRequestLowerer::new(
         &context.operation_control, &context.template_adapter_registry, graph, provider, config_uri,
     );
+    lowerer.deferred_ssr_pages = deferred_ssr_pages;
     lowerer.lower()?;
     apply_stage_targets(&mut lowerer.stages, &lowerer.exports);
+    lowerer.acquire_ssr_pages(context)?;
     Ok(TransformGraphRequest {
         imports: lowerer.imports,
         joins: lowerer.joins,
@@ -1037,6 +1080,7 @@ struct TransformGraphRequestLowerer<'a> {
     provider: &'a dyn TransformGraphResourceProvider,
     config_uri: &'a str,
     imports: Vec<TransformGraphImport>,
+    deferred_ssr_pages: BTreeMap<String, String>,
     joins: Vec<TransformGraphJoin>,
     conversions: Vec<TransformGraphConversion>,
     stages: Vec<TransformGraphStage>,
@@ -1079,6 +1123,7 @@ impl<'a> TransformGraphRequestLowerer<'a> {
             provider,
             config_uri,
             imports: Vec::new(),
+            deferred_ssr_pages: BTreeMap::new(),
             joins: Vec::new(),
             conversions: Vec::new(),
             stages: Vec::new(),
@@ -1109,6 +1154,45 @@ impl<'a> TransformGraphRequestLowerer<'a> {
         Ok(())
     }
 
+    fn acquire_ssr_pages(
+        &mut self,
+        context: &EngineContext,
+    ) -> Result<(), TransformGraphRequestError> {
+        for import in self
+            .imports
+            .iter_mut()
+            .filter(|import| self.deferred_ssr_pages.contains_key(&import.id))
+        {
+            let fail = |message| config_error(&import.input.uri, "cem.ssr.page_ingress", message);
+            let mut policy = None;
+            for stage in self
+                .stages
+                .iter()
+                .filter(|stage| stage.primary_input == import.id)
+            {
+                let Some(candidate) = context
+                    .template_adapter_registry
+                    .ssr_page_ingress(&stage.template, &stage.template_entrypoint, &stage.params)
+                    .map_err(fail)?
+                else {
+                    continue;
+                };
+                if policy.is_some_and(|previous| previous != candidate) {
+                    return Err(fail(
+                        "SSR stages sharing a page require the same ingress limits".into(),
+                    ));
+                }
+                policy = Some(candidate);
+            }
+            let policy = policy
+                .ok_or_else(|| fail("No trusted SSR adapter admitted the deferred page".into()))?;
+            let bytes = policy.read_local_page(self.control, Path::new(&import.input.uri));
+            context.ensure_active()?;
+            import.input.bytes = bytes.map_err(fail)?;
+        }
+        Ok(())
+    }
+
     fn lower_import(
         &mut self,
         node: &TransformGraphNode,
@@ -1131,9 +1215,17 @@ impl<'a> TransformGraphRequestLowerer<'a> {
                 Ok(normalize_folder_address(&self.provider.output_uri(root)?))
             })
             .transpose()?;
-        let resources = self
-            .provider
-            .import_resources(src, node.content_type.as_deref())?;
+        let resources = if let Some(uri) = self.deferred_ssr_pages.get(&node.id) {
+            vec![TransformGraphResource {
+                uri: uri.clone(),
+                bytes: Vec::new(),
+                identity: None,
+                content_type: None,
+            }]
+        } else {
+            self.provider
+                .import_resources(src, node.content_type.as_deref())?
+        };
         let count = resources.len();
         let mut variants = Vec::with_capacity(count);
         for (index, resource) in resources.into_iter().enumerate() {
