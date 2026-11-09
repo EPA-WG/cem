@@ -301,6 +301,67 @@ fn aggregate_resource_and_byte_budgets_fail_on_later_participant_and_retire_ever
         assert!(work.finish(&c).is_err());
     }
 }
+
+#[cfg(any(target_os = "linux", windows))]
+#[test]
+fn stylesheet_delivery_charges_parse_cpu_to_the_same_page_operation() {
+    use cem_ml::operation_control::cpu::NativeCpuAccounting;
+    let c = control();
+    let source = source("<x-item></x-item>");
+    let policy = policy(&source);
+    let cpu = NativeCpuAccounting::new(&c, policy.max_cpu_time_ms).unwrap();
+    let mut work = prepare_inline_page_with_resources(
+        fixture::page_with_policy(&source, "memory:output", policy),
+        "page",
+        capability(),
+        &c,
+    )
+    .unwrap();
+    let SsrPageProgress::Pending(ticket) = work.advance(&c).unwrap() else {
+        panic!()
+    };
+    let bytes = "b { color: red; margin: 1px }".repeat(128);
+    assert!(work.resource_read_limit(&ticket, &c).unwrap() > bytes.len());
+    assert!(work.resource_read_limit(&ticket, &control()).is_err());
+    let before = cpu.usage_ms(&c).unwrap();
+    if let Err(errors) = work.deliver(&ticket, response(&bytes), &c) {
+        panic!("{errors:?} {:?}", work.resource_failure());
+    }
+    assert!(cpu.usage_ms(&c).unwrap() > before);
+    assert!(cpu.is_idle());
+    assert!(work.resource_read_limit(&ticket, &c).is_err());
+}
+
+#[test]
+fn repeated_public_stylesheet_cannot_change_bytes_during_one_page() {
+    let c = control();
+    let source = instance_source();
+    let mut work = prepare_inline_page_with_resources(
+        fixture::page_with_policy(&source, "memory:output", policy(&source)),
+        "page",
+        capability(),
+        &c,
+    )
+    .unwrap();
+    let SsrPageProgress::Pending(first) = work.advance(&c).unwrap() else {
+        panic!()
+    };
+    work.deliver(&first, response("b { color: red }"), &c)
+        .unwrap();
+    assert!(matches!(
+        work.advance(&c).unwrap(),
+        SsrPageProgress::Rendered { .. }
+    ));
+    let SsrPageProgress::Pending(second) = work.advance(&c).unwrap() else {
+        panic!()
+    };
+    let errors = work
+        .deliver(&second, response("b { color: blue }"), &c)
+        .unwrap_err();
+    assert_eq!(errors[0].code, "cem.ssr.resource_changed");
+    assert_eq!(work.state(), SsrPageState::Refused);
+    assert_eq!(c.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
+}
 #[test]
 fn foreign_page_tickets_and_transport_failure_cannot_replace_or_publish_work() {
     let c = control();

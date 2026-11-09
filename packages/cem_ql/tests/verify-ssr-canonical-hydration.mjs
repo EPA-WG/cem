@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,13 +14,13 @@ const output = path.join(temp, 'rendered.html');
 const builtin = path.join(root, 'packages/cem_ml_transform_cem_ql/templates/ssr-page.cemt');
 const cli = path.join(root, `dist/target/cem_ml_cli/debug/cem-ml${process.platform === 'win32' ? '.exe' : ''}`);
 const template = '{article | {$ datadom.slots.heading}}';
-async function render(body, versions) {
+async function render(body, versions, extra = []) {
     await writeFile(source, `<!doctype html><html><head><title>Canonical SSR</title></head><body>${body}</body></html>`);
     execFileSync(cli, ['transform', source, '--template', builtin, '--template-content-type', 'text/cem-ml',
         '--template-entrypoint', 'ssr:render-page', '--to-content-type', 'text/html', '--out', output,
         ...['page-url=https://ssr.example.test/', `consumer-versions=${versions}`, 'max-depth=8',
             'max-instances=8', 'max-render-passes=8', 'max-resources=16', 'max-bytes=1048576',
-            'wall-ms=60000', 'cpu-ms=10000'].flatMap(value => ['--param', value])]);
+            'wall-ms=60000', 'cpu-ms=10000'].flatMap(value => ['--param', value]), ...extra]);
     return readFile(output, 'utf8');
 }
 let server, browser;
@@ -63,9 +63,18 @@ try {
         '{select @name=choice @slice=choice | {option @value=a | Alpha}{option @value=b | Beta}}',
         '}}</template></cem-element><x-profile></x-profile>',
     ].join(''), 'x-profile=1.9.0');
+    const mirror = path.join(temp, 'mirror');
+    await mkdir(mirror);
+    await writeFile(path.join(mirror, 'theme.css'), 'article { color: rgb(12,34,56) }');
+    const mapped = await render([
+        '<cem-element tag="x-mapped" version="1.2.3"><template id="x-mapped" type="text/cem-ml">',
+        '{style |```@import "./theme.css";```}{article | Mapped}',
+        '</template></cem-element><x-mapped></x-mapped><article>Outside</article>',
+    ].join(''), 'x-mapped=1.9.0', ['--resolver-read-map', `https://ssr.example.test/=${mirror}`]);
     const pages = new Map([
         ['/ssr.html', html], ['/nested.html', nested], ['/direct.html', direct], ['/styled.html', styled],
         ['/foreign.html', foreign], ['/source.html', cemSource], ['/forms.html', forms],
+        ['/mapped.html', mapped],
     ]);
     assert.match(html, /<article><strong\b[^>]*\bslot="heading"[^>]*>Island input<\/strong><\/article>/);
     assert.match(html, /data-cem-ssr-profile="cem-native-inline\/1"/);
@@ -590,9 +599,44 @@ try {
         }
         await page.close();
     }
+    const page = await browser.newPage();
+    page.on('pageerror', error => errors.push(error.message));
+    await page.route('**/*', route => {
+        if (new URL(route.request().url()).origin === origin) return route.continue();
+        requests.push(route.request().url()); return route.abort();
+    });
+    await page.goto(`${origin}/mapped.html`);
+    const mappedResult = await page.evaluate(async () => {
+        const { CemElementRuntime } = await import('/packages/cem-elements/dist/lib/cem-elements.js');
+        const host = document.querySelector('x-mapped');
+        const output = host.querySelector('article');
+        const declaration = document.querySelector('cem-element');
+        const style = declaration.querySelector('style');
+        const initial = getComputedStyle(output).color;
+        const runtime = new CemElementRuntime({ processingWorkerFactory: () => { throw new Error('Use main-thread runtime'); } });
+        runtime.install(window);
+        await runtime.whenDeclarationSettled(declaration);
+        await runtime.whenRenderSettled(host);
+        return {
+            initial, current: getComputedStyle(output).color,
+            outside: getComputedStyle(document.querySelector('body > article')).color,
+            retained: host.querySelector('article') === output && declaration.querySelector('style') === style,
+            imported: style.textContent.includes('@import'),
+            marked: host.querySelector('template[data-cem-ssr-profile]') !== null,
+            diagnostics: runtime.diagnosticsFor(host).map(d => d.code),
+        };
+    });
+    assert.equal(mappedResult.initial, 'rgb(12, 34, 56)');
+    assert.equal(mappedResult.current, mappedResult.initial);
+    assert.notEqual(mappedResult.outside, mappedResult.initial);
+    assert.equal(mappedResult.retained, true);
+    assert.equal(mappedResult.imported, false);
+    assert.equal(mappedResult.marked, true);
+    assert.ok(mappedResult.diagnostics.includes('cem-element.hydration_native_refused'));
+    await page.close();
     assert.deepEqual(errors, []); assert.deepEqual(requests, []);
-    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length;
-    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} stylesheet, ${payloadCases.length} foreign/source and ${formCases.length} form scenarios, zero external requests`);
+    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + 1;
+    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} stylesheet, ${payloadCases.length} foreign/source, ${formCases.length} form and one mapped CSS scenario, zero external requests`);
 } finally {
     await browser?.close();
     if (server) await new Promise(resolve => server.close(resolve));

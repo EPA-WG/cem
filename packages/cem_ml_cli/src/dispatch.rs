@@ -13,10 +13,10 @@ use cem_ml::query::{
     QueryRunRequest, QuerySource,
 };
 use cem_ml::resolver::{
-    is_windows_drive_path, local_file_uri_to_path, local_path_or_file_uri, uri_scheme,
+    is_windows_drive_path, local_file_uri_to_path, local_path_or_file_uri, ssr_resource_url, uri_scheme,
     PreparedResolverWrite, PublicationCapability, ResolveDirection, ResolveListRequest,
     ResolvePurpose, ResolveRequest, ResolvedListEntry, ResolvedRead, ResolvedWrite,
-    ResolverDiagnostic, ResolverRegistry, ResourceResolver,
+    ResolverDiagnostic, ResolverRegistry, ResourceResolver, SsrReadBudget,
 };
 use cem_ml::run_config::{
     self, InputSpec, OutputSpec, ResolverSpec, RunConfig, RunConfigDefaults, ScopeConfig,
@@ -85,12 +85,13 @@ enum CliRequestError {
     Engine(EngineError),
 }
 
-const READ_PURPOSES: [ResolvePurpose; 5] = [
+const READ_PURPOSES: [ResolvePurpose; 6] = [
     ResolvePurpose::Config,
     ResolvePurpose::Input,
     ResolvePurpose::Query,
     ResolvePurpose::Template,
     ResolvePurpose::ModuleMap,
+    ResolvePurpose::SsrResource,
 ];
 
 const WRITE_PURPOSES: [ResolvePurpose; 3] = [
@@ -199,29 +200,37 @@ impl LocalMirrorResolver {
         purpose: ResolvePurpose,
         direction: ResolveDirection,
     ) -> Result<(&LocalMirrorMapping, String), ResolverDiagnostic> {
-        let Some(mapping) = self
-            .mappings
+        self.mappings
             .iter()
-            .find(|mapping| uri.starts_with(&mapping.uri_prefix))
-        else {
-            return Err(ResolverDiagnostic::UnsupportedResolver {
+            .find_map(|mapping| {
+                let suffix = uri.strip_prefix(&mapping.uri_prefix)?;
+                if purpose == ResolvePurpose::SsrResource
+                    && (ssr_resource_url(&mapping.uri_prefix).is_err()
+                        || !(mapping.uri_prefix.ends_with('/')
+                            || suffix.is_empty()
+                            || suffix.starts_with('/')))
+                {
+                    return None;
+                }
+                Some((mapping, suffix.trim_start_matches('/').to_owned()))
+            })
+            .ok_or_else(|| ResolverDiagnostic::UnsupportedResolver {
                 uri: uri.to_owned(),
                 purpose,
                 direction,
-            });
-        };
-        Ok((
-            mapping,
-            uri.strip_prefix(&mapping.uri_prefix)
-                .unwrap_or_default()
-                .trim_start_matches('/')
-                .to_owned(),
-        ))
+            })
     }
 }
 
 impl ResourceResolver for LocalMirrorResolver {
     fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+        if request.purpose == ResolvePurpose::SsrResource {
+            return Err(ResolverDiagnostic::UnsupportedResolver {
+                uri: request.uri.clone(),
+                purpose: request.purpose,
+                direction: request.direction,
+            });
+        }
         let (path, resolved_uri) = self.local_path(request)?;
         fs::read(&path)
             .map(|bytes| ResolvedRead {
@@ -233,6 +242,44 @@ impl ResourceResolver for LocalMirrorResolver {
                 uri: resolved_uri,
                 message: error.to_string(),
             })
+    }
+
+    fn read_ssr_resource(
+        &self,
+        request: &ResolveRequest,
+        budget: &SsrReadBudget<'_>,
+    ) -> Result<ResolvedRead, ResolverDiagnostic> {
+        budget.check(request)?;
+        let fail = |message: &str| ResolverDiagnostic::Io {
+            uri: request.uri.clone(),
+            message: message.into(),
+        };
+        let (mapping, suffix) = self.mapping_for(&request.uri, request.purpose, request.direction)?;
+        let root = mapping
+            .local_root
+            .canonicalize()
+            .map_err(|_| fail("Cannot open SSR read-map root"))?;
+        let path = local_mirror_path(&root, &suffix).map_err(|message| fail(&message))?
+            .canonicalize()
+            .map_err(|_| fail("Cannot open mapped SSR resource"))?;
+        if !path.starts_with(&root) {
+            return Err(fail("SSR resource escapes its read-map root"));
+        }
+        let metadata = path.metadata().map_err(|_| fail("Cannot inspect mapped SSR resource"))?;
+        if !metadata.is_file() {
+            return Err(fail("SSR read maps require a regular resource file"));
+        }
+        if metadata.len() > budget.max_bytes as u64 {
+            return Err(fail("Original SSR resource byte budget exceeded"));
+        }
+        budget.check(request)?;
+        let file = fs::File::open(path).map_err(|_| fail("Cannot open mapped SSR resource"))?;
+        let bytes = budget.read_from(request, file)?;
+        Ok(ResolvedRead {
+            uri: request.uri.clone(),
+            bytes,
+            content_type: request.content_type_hint.clone(),
+        })
     }
 
     fn write(
@@ -1385,7 +1432,7 @@ fn register_resolver_mappings(
     for scheme in resolver.schemes() {
         for purpose in purposes {
             registry.register(scheme.clone(), *purpose, direction, resolver.clone());
-            if direction == ResolveDirection::Read {
+            if direction == ResolveDirection::Read && *purpose != ResolvePurpose::SsrResource {
                 registry.register(
                     scheme.clone(),
                     *purpose,

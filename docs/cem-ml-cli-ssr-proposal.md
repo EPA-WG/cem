@@ -14,8 +14,9 @@ Browser adoption supports standalone and nested participants in the bounded
 profile described in the lifecycle contract. It covers passive HTML, SVG and
 MathML, inert CEM source payloads and resource-free declaration and instance
 stylesheets. Standalone participants can also hydrate declaration-owned scalar
-slices and resource-free native forms. External-resource CLI admission,
-additional page-source forms, the proposed `ssr` shorthand and the
+slices and resource-free native forms. The CLI can load external CSS imports
+through explicit public-URL read maps. Additional resource types and page-source
+forms, the proposed `ssr` shorthand and the
 general page compiler remain future work.
 
 **Applies to:** `cem-ml`, CEMT transform graphs, `cem-elements`, Edge/SSR
@@ -950,15 +951,34 @@ owned by the normal CLI publication transaction. The retained render artifact
 has no destination because a graph may export it more than once.
 
 The supported input is an already-admitted native HTML document with unique
-inline declarations. The coordinator discovers nested participants. This
-builtin admits inline CSS and native payload source leases but grants no
-external CSS/payload/declaration reads, source adapters,
-static fallback, browser execution or page-module registry. Those capabilities
-require explicit further admission, not a larger numeric resource budget.
-Ordinary source loading remains in the common command engine. The CPU receipt
-measures bridge preparation, lifecycle work, readiness and synchronous exports
-on the original operation; it does not claim to measure earlier command-source
-acquisition or parser CPU. The original wall deadline includes that time.
+inline declarations. The coordinator discovers nested participants, retains
+native payload source leases and handles inline declaration and instance CSS.
+To fulfill CSS `@import` tickets, add a public-URL read map to either CLI form.
+For example, `--resolver-read-map https://example.test/guide/=/work/cem/styles/`
+maps `https://example.test/guide/theme.css` to `/work/cem/styles/theme.css`.
+The effective document base resolves the first import and each stylesheet's
+public URL resolves its nested imports. Read maps use regular files under the
+configured root and keep local paths out of the retained resource identity.
+Use query-free stylesheet URLs with local maps. The shared CSS parser's
+64-level and 4,096-event import limits still apply.
+The ordinary CLI HTML ingress still requires a separate admission decision for
+authored `<base href>` elements. Inline imports in the direct CLI profile use
+the deployed page URL.
+
+The SSR reader checks the remaining page byte allowance and the original
+operation's cancellation, wall time and CPU budget while acquiring bytes.
+The coordinator checks and parses each delivery through the shared native CSS
+importer under that same operation. The readiness identity includes the
+admitted public URLs and response hashes. A changed response during one page
+operation, a refused read, or a parser error aborts the page before export.
+The CPU receipt covers bridge preparation, external stylesheet acquisition
+and parsing, lifecycle work, readiness and synchronous exports. Initial command
+source loading and parsing still run in the common engine before the receipt
+starts. Elapsed accounting includes that earlier work.
+
+The external-resource profile covers mapped CSS imports for CLI publication.
+Network SSR, external declarations and payload adapters, and browser adoption
+of resource-dependent CSS remain separate admission steps.
 
 Config graphs use the same template, entrypoint and literal `{param}` controls.
 A transform may have both a `text/html` export and an

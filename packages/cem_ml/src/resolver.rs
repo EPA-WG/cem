@@ -7,7 +7,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::io;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -59,6 +59,7 @@ mod source_uri_tests {
 pub enum ResolvePurpose {
     Config,
     Input,
+    SsrResource,
     Query,
     Template,
     ModuleMap,
@@ -72,6 +73,7 @@ impl ResolvePurpose {
         match self {
             Self::Config => "config",
             Self::Input => "input",
+            Self::SsrResource => "ssrResource",
             Self::Query => "query",
             Self::Template => "template",
             Self::ModuleMap => "moduleMap",
@@ -151,6 +153,144 @@ pub struct ResolvedRead {
     pub uri: String,
     pub bytes: Vec<u8>,
     pub content_type: Option<String>,
+}
+
+/// Bounds for synchronous host acquisition under the active SSR CPU phase.
+pub struct SsrReadBudget<'a> {
+    pub control: &'a crate::operation_control::OperationControl,
+    pub cpu: &'a crate::operation_control::cpu::NativeCpuAccounting,
+    pub scope: crate::operation_control::ExecutionScopeId,
+    pub max_bytes: usize,
+    pub max_wall_time_ms: u64,
+}
+
+impl SsrReadBudget<'_> {
+    pub fn check(&self, request: &ResolveRequest) -> Result<(), ResolverDiagnostic> {
+        ensure_resolver_control_active(
+            self.control,
+            self.scope,
+            &request.uri,
+            request.purpose,
+            request.direction,
+        )?;
+        let fail = |message: String| ResolverDiagnostic::Io {
+            uri: request.uri.clone(),
+            message,
+        };
+        self.cpu.usage_ms(self.control).map_err(fail)?;
+        let elapsed = self
+            .control
+            .active_elapsed_ms(crate::operation_control::ROOT_EXECUTION_SCOPE_ID)
+            .map_err(|error| fail(error.to_string()))?;
+        if elapsed >= self.max_wall_time_ms {
+            return Err(fail(
+                "Original SSR resource wall-time budget exhausted".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn read_from(
+        &self,
+        request: &ResolveRequest,
+        mut reader: impl Read,
+    ) -> Result<Vec<u8>, ResolverDiagnostic> {
+        let mut bytes = Vec::new();
+        let mut chunk = [0; 8192];
+        loop {
+            self.check(request)?;
+            let remaining = self.max_bytes - bytes.len();
+            let read_limit = chunk.len().min(remaining.saturating_add(1));
+            let count = match reader.read(&mut chunk[..read_limit]) {
+                Ok(count) => count,
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                Err(error) => {
+                    return Err(ResolverDiagnostic::Io {
+                        uri: request.uri.clone(),
+                        message: error.to_string(),
+                    })
+                }
+            };
+            self.check(request)?;
+            if count > remaining {
+                return Err(ResolverDiagnostic::Io {
+                    uri: request.uri.clone(),
+                    message: "Original SSR resource byte budget exceeded".into(),
+                });
+            }
+            if count == 0 {
+                return Ok(bytes);
+            }
+            bytes.extend_from_slice(&chunk[..count]);
+        }
+    }
+}
+
+#[cfg(all(test, any(target_os = "linux", windows)))]
+mod ssr_read_tests {
+    use super::*;
+    use crate::operation_control::{
+        cpu::NativeCpuAccounting, OperationControl, ROOT_EXECUTION_SCOPE_ID,
+    };
+
+    #[test]
+    fn bounded_read_checks_bytes_cancellation_and_the_original_wall_clock() {
+        let request = ResolveRequest::new(
+            "https://ssr.test/theme.css",
+            ResolvePurpose::SsrResource,
+            ResolveDirection::Read,
+        );
+        let control = OperationControl::default();
+        let cpu = Arc::new(NativeCpuAccounting::new(&control, 1000).unwrap());
+        let guard = cpu.begin(&control).unwrap();
+        let mut budget = SsrReadBudget {
+            control: &control,
+            cpu: &cpu,
+            scope: ROOT_EXECUTION_SCOPE_ID,
+            max_bytes: 3,
+            max_wall_time_ms: 1000,
+        };
+        let mut reader = io::Cursor::new(b"longer");
+        let error = budget.read_from(&request, &mut reader).unwrap_err();
+        assert!(error.to_string().contains("byte budget"));
+        assert_eq!(reader.position(), 4);
+
+        struct OnRead<F>(F);
+        impl<F: FnMut()> Read for OnRead<F> {
+            fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+                (self.0)();
+                Ok(0)
+            }
+        }
+        budget.max_wall_time_ms = control.active_elapsed_ms(ROOT_EXECUTION_SCOPE_ID).unwrap() + 10;
+        let error = budget
+            .read_from(
+                &request,
+                OnRead(|| std::thread::sleep(std::time::Duration::from_millis(25))),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("wall-time budget"));
+        budget.max_wall_time_ms = 1000;
+        let error = budget
+            .read_from(&request, OnRead(|| control.abort_signal().abort()))
+            .unwrap_err();
+        assert!(matches!(error, ResolverDiagnostic::Cancelled { .. }));
+        guard.finish().unwrap();
+    }
+}
+
+/// Logical public stylesheet identity for bounded SSR transport.
+pub fn ssr_resource_url(raw: &str) -> Result<String, &'static str> {
+    let mut url = url::Url::parse(raw).map_err(|_| "Invalid public SSR resource URL")?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err("SSR resource reads require a public HTTP(S) URL without credentials");
+    }
+    url.set_fragment(None);
+    Ok(url.into())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -559,6 +699,20 @@ impl std::error::Error for ResolverDiagnostic {}
 pub trait ResourceResolver: Send + Sync {
     fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic>;
 
+    /// SSR must opt in to a bounded synchronous read. An ordinary resolver
+    /// does not acquire authority to read on a page's behalf.
+    fn read_ssr_resource(
+        &self,
+        request: &ResolveRequest,
+        _budget: &SsrReadBudget<'_>,
+    ) -> Result<ResolvedRead, ResolverDiagnostic> {
+        Err(ResolverDiagnostic::UnsupportedResolver {
+            uri: request.uri.clone(),
+            purpose: request.purpose,
+            direction: request.direction,
+        })
+    }
+
     fn read_with_abort(
         &self,
         request: &ResolveRequest,
@@ -783,6 +937,37 @@ impl ResolverRegistry {
             ResolveDirection::Read,
         )?;
         Ok(resolved)
+    }
+
+    pub fn read_ssr_resource(
+        &self,
+        request: &ResolveRequest,
+        budget: &SsrReadBudget<'_>,
+    ) -> Result<ResolvedRead, ResolverDiagnostic> {
+        let unsupported = || ResolverDiagnostic::UnsupportedResolver {
+            uri: request.uri.clone(),
+            purpose: request.purpose,
+            direction: request.direction,
+        };
+        if request.purpose != ResolvePurpose::SsrResource
+            || request.direction != ResolveDirection::Read
+        {
+            return Err(unsupported());
+        }
+        budget.check(request)?;
+        let scheme = request_scheme(request)?;
+        let resolver = self
+            .resolver_for(scheme, request.purpose, request.direction)
+            .ok_or_else(unsupported)?;
+        let response = resolver.read_ssr_resource(request, budget)?;
+        budget.check(request)?;
+        if response.bytes.len() > budget.max_bytes {
+            return Err(ResolverDiagnostic::Io {
+                uri: request.uri.clone(),
+                message: "Original SSR resource byte budget exceeded".into(),
+            });
+        }
+        Ok(response)
     }
 
     pub fn write(

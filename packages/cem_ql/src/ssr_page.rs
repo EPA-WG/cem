@@ -16,6 +16,7 @@ use crate::{
 };
 use cem_ml::operation_control::cpu::{NativeCpuAccounting, NativeCpuGuard};
 use cem_ml::{
+    content_cache::ContentHash,
     diagnostics::Diagnostic,
     import::element_tree::{retain_html_elements, RetainedElementImport},
     operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID},
@@ -121,6 +122,12 @@ struct PageResources {
     fingerprint: String,
     stale: AtomicBool,
     declarations: BTreeMap<String, Arc<CoordinatedStylesheets>>,
+    inputs: BTreeMap<String, ResourceInput>,
+}
+#[derive(PartialEq, Eq, serde::Serialize)]
+struct ResourceInput {
+    resolved_uri: String,
+    content: ContentHash,
 }
 impl PageResources {
     fn check(&self, control: &OperationControl) -> Result<(), String> {
@@ -261,6 +268,7 @@ fn prepare_resources(
             fingerprint,
             stale: AtomicBool::new(false),
             declarations: BTreeMap::new(),
+            inputs: BTreeMap::new(),
         }),
         control,
         cpu,
@@ -835,6 +843,36 @@ impl InlinePageCoordinator {
             }
         }
     }
+    /// Remaining bytes on the current ticket, before a synchronous host read.
+    pub fn resource_read_limit(
+        &self,
+        request: &SsrCssRequest,
+        control: &OperationControl,
+    ) -> Result<usize, Vec<Diagnostic>> {
+        self.check(control)?;
+        let pending = self.pending.as_ref().ok_or_else(|| {
+            self.fail(
+                "cem.ssr.resource_ticket_stale",
+                "Page has no outstanding resource request",
+                None,
+            )
+        })?;
+        pending.css.match_request(request).map_err(|_| {
+            self.fail(
+                "cem.ssr.resource_ticket_stale",
+                "Resource ticket is stale or foreign",
+                None,
+            )
+        })?;
+        pending.css.remaining_response_bytes().map_err(|_| {
+            self.fail(
+                "cem.ssr.settle_budget",
+                "Page resource byte budget exhausted",
+                None,
+            )
+        })
+    }
+
     pub fn deliver(
         &mut self,
         request: &SsrCssRequest,
@@ -871,7 +909,35 @@ impl InlinePageCoordinator {
             }
         };
         let result = (|| {
-            self.check(control)?;
+            let limit = self.resource_read_limit(request, control)?;
+            let uri = &request.request().resolution.resolved_url;
+            if response.bytes.len() > limit || uri.len() > 4096 || response.uri.len() > 4096 {
+                return Err(self.fail(
+                    "cem.ssr.settle_budget",
+                    "Page resource response exceeds native bounds",
+                    None,
+                ));
+            }
+            let witness = ResourceInput {
+                resolved_uri: response.uri.clone(),
+                content: ContentHash::from_blake3(&response.bytes),
+            };
+            let resources = self.resources.as_ref().unwrap();
+            if resources
+                .inputs
+                .get(uri)
+                .is_some_and(|previous| previous != &witness)
+                || resources.inputs.values().any(|previous| {
+                    previous.resolved_uri == witness.resolved_uri
+                        && previous.content != witness.content
+                })
+            {
+                return Err(self.fail(
+                    "cem.ssr.resource_changed",
+                    "Stylesheet response changed within the original page operation",
+                    None,
+                ));
+            }
             self.pending
                 .as_mut()
                 .unwrap()
@@ -883,7 +949,13 @@ impl InlinePageCoordinator {
                         "Native page resource response refused",
                         None,
                     )
-                })
+                })?;
+            self.resources
+                .as_mut()
+                .unwrap()
+                .inputs
+                .insert(uri.clone(), witness);
+            Ok(())
         })();
         let measured = guard
             .map(NativeCpuGuard::finish)

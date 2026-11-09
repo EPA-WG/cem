@@ -14,7 +14,11 @@ use cem_ml::{
     diagnostics::Diagnostic,
     engine::EngineContext,
     lifecycle::LoadedInputAstStream,
-    operation_control::{cpu::NativeCpuAccounting, OperationControl},
+    operation_control::{cpu::NativeCpuAccounting, MemoryPermit, OperationControl},
+    resolver::{
+        ssr_resource_url, ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead,
+        SsrReadBudget,
+    },
     schema::registry::{SchemaRegistry, HTML_SCHEMA_URI},
     source_map::SourceMapStack,
     ssr_artifact::{CemSsrPageArtifact, SsrExecutionIdentity, SsrSettlePolicy, SsrSourceMapMode},
@@ -32,8 +36,8 @@ use cem_ml::{
     },
 };
 use cem_ql::ssr_page::{
-    prepare_inline_page_with_resources, ReadyInlinePage, SsrPageProgress, SsrReadinessContext,
-    SSR_READY_RENDER_PLAN,
+    prepare_inline_page_with_resources, InlinePageCoordinator, ReadyInlinePage, SsrPageProgress,
+    SsrReadinessContext, SSR_READY_RENDER_PLAN,
 };
 use std::{
     any::Any,
@@ -129,6 +133,7 @@ pub(super) fn render(
         max_cpu_time_ms: number("cpu-ms")?,
         allow_static_fallback: false,
     };
+    let wall_limit = policy.max_wall_time_ms;
     if !request.secondary_inputs.is_empty() {
         return Err("Inline SSR accepts one native HTML page input".into());
     }
@@ -156,6 +161,10 @@ pub(super) fn render(
         policy.max_cpu_time_ms,
     )?);
     let guard = cpu.begin(runtime.operation_control)?;
+    let resolver_stamp = format!(
+        "ssr-bounded-read-map/1:{}",
+        ContentHash::from_blake3(runtime.resolver_policy.cache_stamp().as_bytes()).hex,
+    );
     let prepared: Result<(CemSsrPageArtifact, SsrReadinessContext), String> = (|| {
         let source=match &request.primary_input.body {
             TransformArtifactBody::HtmlDomProjection(source)=>source.clone(),
@@ -205,7 +214,7 @@ pub(super) fn render(
             &[
                 source.source_text.as_bytes(),
                 params.identity_bytes(),
-                b"native-inline-no-transport/1",
+                resolver_stamp.as_bytes(),
             ]
             .concat(),
         );
@@ -230,7 +239,7 @@ pub(super) fn render(
                     ContentHash::from_blake3(BUILTIN_TEMPLATE.as_bytes()).hex,
                 )]),
                 policy: content(&policy_bytes),
-                resolution: content(b"native-inline-no-transport/1"),
+                resolution: content(resolver_stamp.as_bytes()),
                 scope: content(&serde_json::to_vec(scope).map_err(|e| e.to_string())?),
                 inputs: RENDER_DEPENDENCY_INPUTS
                     .iter()
@@ -259,19 +268,19 @@ pub(super) fn render(
     })();
     guard.finish()?;
     let (page, context) = prepared?;
-    // Scoped URL resolution grants no transport. Pending external tickets
-    // are refused below; inline CSS/payloads retain their native source leases.
+    // URL resolution selects the public identity. Only a registered bounded
+    // SSR reader may deliver bytes for a native stylesheet ticket.
     use cem_ml::module_resolution::{
         CemModuleUrlContext, CemModuleUrlFrame, CemModuleUrlResolutionCapability,
         CemResolutionContextHandle, CemScopedModuleUrlResolver,
     };
-    let handle = CemResolutionContextHandle::new("native-inline-no-transport/1");
+    let handle = CemResolutionContextHandle::new("native-inline-page/1");
     let resolver = CemScopedModuleUrlResolver::new().with_context(
         handle.clone(),
         CemModuleUrlContext {
             identity: "native-inline-page/1".into(),
-            resolver_identity: "native-inline-no-transport/1".into(),
-            resource_policy_stamp: "native-inline-no-transport/1".into(),
+            resolver_identity: resolver_stamp.clone(),
+            resource_policy_stamp: resolver_stamp,
             frames: vec![CemModuleUrlFrame::new(
                 "page",
                 &page.route().document_base_url,
@@ -288,8 +297,31 @@ pub(super) fn render(
             .map_err(diagnostics)?
         {
             SsrPageProgress::Quiescent => break,
-            SsrPageProgress::Pending(_) => {
-                return Err("This SSR builtin grants no external resource reads".into())
+            SsrPageProgress::Pending(ticket) => {
+                let guard = cpu.begin(runtime.operation_control)?;
+                let response = coordinator
+                    .resource_read_limit(&ticket, runtime.operation_control)
+                    .map_err(diagnostics)
+                    .and_then(|max_bytes| {
+                        read_stylesheet(ticket.request(), &runtime, &cpu, max_bytes, wall_limit)
+                    });
+                let measured = guard.finish();
+                let (response, _buffer) = match measured.and(response) {
+                    Ok(response) => response,
+                    Err(error) => {
+                        let _ =
+                            coordinator.fail_resource(&ticket, &error, runtime.operation_control);
+                        return Err(resource_error(
+                            &coordinator,
+                            format!("cem.ssr.resource_read: {error}"),
+                        ));
+                    }
+                };
+                if let Err(errors) =
+                    coordinator.deliver(&ticket, response, runtime.operation_control)
+                {
+                    return Err(resource_error(&coordinator, diagnostics(errors)));
+                }
             }
             SsrPageProgress::Rendered { .. } => {}
         }
@@ -316,6 +348,68 @@ pub(super) fn render(
         },
         diagnostics: vec![],
     })
+}
+
+fn read_stylesheet(
+    ticket: &cem_ml::css_imports::CssImportRequest,
+    runtime: &TransformTemplateRuntimeContext<'_>,
+    cpu: &NativeCpuAccounting,
+    max_bytes: usize,
+    max_wall_time_ms: u64,
+) -> Result<(ResolvedRead, MemoryPermit), String> {
+    if ticket.resolution.resolved_url.len() > 4096 {
+        return Err("Public SSR resource URL exceeds native bounds".into());
+    }
+    let url = ssr_resource_url(&ticket.resolution.resolved_url)?;
+    let mut request =
+        ResolveRequest::new(&url, ResolvePurpose::SsrResource, ResolveDirection::Read)
+            .with_content_type_hint("text/css");
+    request.base_uri = ticket.resolution.resolved_referrer_url.clone();
+    let decision = runtime
+        .resolver_policy
+        .decide(&request)
+        .map_err(|error| error.to_string())?;
+    if decision.effective_uri != url {
+        return Err("SSR resource policy must preserve the stylesheet's public URL".into());
+    }
+    let budget = SsrReadBudget {
+        control: runtime.operation_control,
+        cpu,
+        scope: runtime.execution_scope,
+        max_bytes,
+        max_wall_time_ms,
+    };
+    let response = runtime
+        .resolver_registry
+        .read_ssr_resource(&request, &budget)
+        .map_err(|error| error.to_string())?;
+    if response.uri != url {
+        return Err("SSR read-map response changed the stylesheet's public URL".into());
+    }
+    let buffer = runtime
+        .operation_control
+        .charge_memory(
+            runtime.execution_scope,
+            response.bytes.capacity() as u64,
+            Some(ticket.source.clone()),
+        )
+        .map_err(|error| error.to_string())?;
+    Ok((response, buffer))
+}
+
+fn resource_error(coordinator: &InlinePageCoordinator, message: String) -> String {
+    if let Some(error) = coordinator.resource_failure() {
+        if let Some(location) = &error.location {
+            format!(
+                "{}:{}:{}: {error}",
+                location.source_uri, location.range.line, location.range.column
+            )
+        } else {
+            error.to_string()
+        }
+    } else {
+        message
+    }
 }
 #[derive(Debug)]
 struct ReadyArtifact {
@@ -431,7 +525,7 @@ impl TransformArtifactExporter for ReadyExporter {
                 (REPORT_CONTENT_TYPE,None)=> {
                     let page=artifact.ready.page();
                     let participants=artifact.ready.participants().iter().map(|p|serde_json::json!({"tag":p.tag(),"instanceId":p.instance_id(),"depth":p.depth()})).collect::<Vec<_>>();
-                    let report=serde_json::json!({"schema":"https://cem.dev/ns/ssr-report/1","readiness":"native-ready","hydrationReady":false,"route":page.route(),"renderInputIdentity":page.render_input_identity().map_err(|e|format!("{e:?}"))?.hex,"usage":observation.usage(),"previousExportBytes":artifact.exported_bytes.load(Ordering::Relaxed),"participants":participants});
+                    let report=serde_json::json!({"schema":"https://cem.dev/ns/ssr-report/1","readiness":"native-ready","hydrationReady":false,"route":page.route(),"renderInputIdentity":artifact.ready.render_input_identity().hex,"usage":observation.usage(),"previousExportBytes":artifact.exported_bytes.load(Ordering::Relaxed),"participants":participants});
                     (TransformEncoding::Json,serde_json::to_vec(&report).map_err(|e|e.to_string())?)
                 },
                 _=>return Err("SSR requires an explicit text/html or application/vnd.cem.ssr-report+json export identity".into()),

@@ -23,6 +23,10 @@ budgets. It shares the native readiness proof and atomic publication writer;
 HTML and readiness-report outputs are named export boundaries. See the
 [supported command and limits](../../docs/cem-ml-cli-ssr-proposal.md#80-implemented-native-inline-cliexport-slice).
 
+For external CSS imports, pass `--resolver-read-map` with an HTTP(S) URL
+prefix and a local directory. Both direct transforms and config graphs use the
+remaining SSR resource budget and keep the public stylesheet URL as its base.
+
 Use Nx for native build and command verification:
 
 ```bash

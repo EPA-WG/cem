@@ -9,7 +9,7 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-The latest completion is [browser hydration for live slices and local forms](archive/todo-completed-ssr-live-state-hydration-2026-11-09.md).
+The latest completion is [CLI admission for external stylesheet imports](archive/todo-completed-ssr-cli-resource-admission-2026-11-09.md).
 The [completion index](archive/todo-completed-index-2026-11-09.md) links the
 evidence for the retired checklist entries. Current execution is in the
 [SSR follow-ups](#browser-and-cli-ssr-follow-ups).
@@ -292,12 +292,17 @@ The native coordinator, readiness proof and named CLI exports are complete.
 Browser adoption covers passive inline HTML, SVG and MathML, inert native
 CEM source payloads, nested participants and resource-free scoped CSS.
 Standalone stateful participants support named scalar slices and local forms.
+The CLI publishes scoped CSS from explicitly mapped stylesheet imports.
 The [SSR completion index](archive/todo-completed-index-2026-11-09.md#ssr)
 links the corresponding design and verification records.
 
-- [ ] Extend CLI host admission to external resources, further page-source forms
-      and fan-out route/output preflight. Account for acquisition and parser CPU
-      under the original operation's proof and ledger.
+- [ ] Admit further page-source forms and authored base URLs. Extend
+      original-operation CPU accounting to initial page acquisition and parsing.
+- [ ] Preflight multi-page routes and output paths before rendering. Prove
+      deterministic and atomic fan-out for HTML and readiness reports.
+- [ ] Admit external declarations and payload sources through their native
+      adapters. Extend the resource proof to explicit network policies and
+      resource-dependent browser adoption.
 - [ ] Extend stateful browser admission to nested and styled groups. Verify form
       and slice ownership across participants and preserve group atomicity.
 

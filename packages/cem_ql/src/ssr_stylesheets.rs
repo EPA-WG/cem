@@ -455,6 +455,21 @@ impl SsrStylesheetCoordinator {
         }
         Ok(())
     }
+    pub(crate) fn remaining_response_bytes(&self) -> Result<usize, String> {
+        let page = self
+            .input
+            .as_ref()
+            .ok_or("Missing CSS input")?
+            .prepared()
+            .page();
+        let remaining = page
+            .policy()
+            .max_total_bytes
+            .checked_sub(page.usage().total_bytes)
+            .and_then(|n| n.checked_sub(self.bytes))
+            .ok_or("CSS aggregate byte budget exceeded")?;
+        Ok(remaining.min(cem_ml::import::MAX_DOCUMENT_BYTES as u64) as usize)
+    }
     pub fn deliver(
         &mut self,
         request: &SsrCssRequest,
@@ -467,24 +482,17 @@ impl SsrStylesheetCoordinator {
         }
         let result = (|| {
             self.check(control)?;
+            let remaining = self.remaining_response_bytes()?;
             let page = self.input.as_ref().unwrap().prepared().page();
-            let remaining = page
-                .policy()
-                .max_total_bytes
-                .checked_sub(page.usage().total_bytes)
-                .and_then(|n| n.checked_sub(self.bytes))
-                .ok_or("CSS aggregate byte budget exceeded")?;
-            if response.bytes.len() as u64 > remaining {
+            if response.bytes.len() > remaining {
                 return Err("CSS aggregate byte budget exceeded".into());
             }
             let delivered = response.bytes.len() as u64;
             let load = &mut self.loads[request.slot];
             let closure = load.closure.as_mut().unwrap();
             let response_policy = CssImportResponsePolicy {
-                max_response_bytes: remaining.try_into().unwrap_or(usize::MAX),
-                max_total_bytes: closure
-                    .received_bytes()
-                    .saturating_add(remaining.try_into().unwrap_or(usize::MAX)),
+                max_response_bytes: remaining,
+                max_total_bytes: closure.received_bytes().saturating_add(remaining),
             };
             closure
                 .complete_response_with_control(

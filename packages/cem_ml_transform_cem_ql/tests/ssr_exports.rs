@@ -5,12 +5,24 @@ use cem_ml::{
         TransformRequest, TransformSchedulerScopeIds, TransformTemplateEntrypoint,
         TransformTemplateKind,
     },
+    operation_control::OperationControl,
     real::RealCemMlEngine,
+    resolver::{
+        ResolveDirection, ResolvePolicyDenial, ResolvePolicyRequestKey, ResolvePurpose,
+        ResolveRequest, ResolvedRead, ResolvedWrite, ResolverDiagnostic, ResourceResolver,
+        SsrReadBudget,
+    },
     run_config::ScopeConfig,
 };
 use cem_ml_transform_cem_ql::engine_context_with_cem_ql_template_adapter;
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
 const TEMPLATE: &str = include_str!("../templates/ssr-page.cemt");
 fn request(target: &str) -> TransformRequest {
     let identity = |t: &str| FormatIdentity {
@@ -80,6 +92,114 @@ fn immutable_builtin_and_no_transport_profile_cannot_be_bypassed() {
         .diagnostics
         .iter()
         .any(|d| d.severity.is_hard_violation()));
+}
+
+struct MeasuredStylesheet {
+    original: OperationControl,
+    burn_ms: u64,
+    reads: Arc<AtomicU64>,
+    completed_cpu_ms: Arc<AtomicU64>,
+}
+
+impl ResourceResolver for MeasuredStylesheet {
+    fn read(&self, _: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+        panic!("SSR must use the bounded resolver entrypoint");
+    }
+    fn read_ssr_resource(
+        &self,
+        request: &ResolveRequest,
+        budget: &SsrReadBudget<'_>,
+    ) -> Result<ResolvedRead, ResolverDiagnostic> {
+        assert!(self.original.same_operation(budget.control));
+        assert_eq!(request.uri, "https://ssr.test/guide/external.css");
+        assert_eq!(request.base_uri.as_deref(), Some("https://ssr.test/guide/"));
+        assert!(budget.max_bytes < 1_048_576);
+        self.reads.fetch_add(1, Ordering::Relaxed);
+        let target = budget.cpu.usage_ms(budget.control).unwrap() + self.burn_ms;
+        while budget
+            .cpu
+            .usage_ms(budget.control)
+            .is_ok_and(|usage| usage < target)
+        {
+            std::hint::spin_loop();
+        }
+        budget.check(request)?;
+        let bytes = budget.read_from(request, b"section { color: red }".as_slice())?;
+        self.completed_cpu_ms.store(
+            budget.cpu.usage_ms(budget.control).unwrap(),
+            Ordering::Relaxed,
+        );
+        Ok(ResolvedRead {
+            uri: request.uri.clone(),
+            bytes,
+            content_type: Some("text/css".into()),
+        })
+    }
+    fn write(&self, _: &ResolveRequest, _: &[u8]) -> Result<ResolvedWrite, ResolverDiagnostic> {
+        panic!("SSR stylesheet acquisition must not write");
+    }
+}
+
+#[test]
+fn stylesheet_acquisition_cpu_is_in_the_original_report_and_can_exhaust_it() {
+    for (burn, limit, denied) in [(12, 10_000, false), (150, 100, false), (12, 10_000, true)] {
+        let mut r = request("application/vnd.cem.ssr-report+json");
+        r.data.bytes = String::from_utf8(r.data.bytes)
+            .unwrap()
+            .replace(
+                "{section | {x-child}}",
+                "{style |```@import 'external.css';```}{section | {x-child}}",
+            )
+            .into_bytes();
+        r.params.insert("cpu-ms".into(), json!(limit));
+        let reads = Arc::new(AtomicU64::new(0));
+        let completed = Arc::new(AtomicU64::new(0));
+        r.context.resolver_registry.register(
+            "https",
+            ResolvePurpose::SsrResource,
+            ResolveDirection::Read,
+            MeasuredStylesheet {
+                original: r.context.operation_control.clone(),
+                burn_ms: burn,
+                reads: reads.clone(),
+                completed_cpu_ms: completed.clone(),
+            },
+        );
+        if denied {
+            r.context.resolver_policy.register_denial(
+                ResolvePolicyRequestKey::new(
+                    "https://ssr.test/guide/external.css",
+                    ResolvePurpose::SsrResource,
+                    ResolveDirection::Read,
+                ),
+                ResolvePolicyDenial::new("fixture denies this stylesheet"),
+            );
+        }
+        let output = RealCemMlEngine::new().transform(r).unwrap();
+        let diagnostics = output
+            .diagnostics
+            .iter()
+            .map(|d| d.message.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        if denied {
+            assert_eq!(reads.load(Ordering::Relaxed), 0);
+            assert!(
+                diagnostics.contains("fixture denies this stylesheet"),
+                "{diagnostics}"
+            );
+        } else {
+            assert_eq!(reads.load(Ordering::Relaxed), 1, "{diagnostics}");
+            let completed = completed.load(Ordering::Relaxed);
+            if burn > limit {
+                assert_eq!(completed, 0);
+                assert!(diagnostics.contains("CPU"), "{diagnostics}");
+            } else {
+                assert!(completed >= burn);
+                assert!(output.primary["usage"]["cpuTimeMs"].as_u64().unwrap() >= completed);
+            }
+        }
+    }
 }
 
 #[test]

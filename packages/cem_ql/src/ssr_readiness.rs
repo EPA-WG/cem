@@ -41,6 +41,7 @@ impl SsrReadinessContext {
 pub struct ReadyInlinePage {
     settled: QuiescentInlinePage,
     context: SsrReadinessContext,
+    render_input: ContentHash,
 }
 impl std::fmt::Debug for ReadyInlinePage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -69,14 +70,16 @@ impl QuiescentInlinePage {
             .as_ref()
             .ok_or_else(|| refused("cpu_unavailable"))?;
         let guard = cpu.begin(control).map_err(cpu_error)?;
-        let result = validate(&self, &self.elements.tree, context, control);
+        let result = validate(&self, &self.elements.tree, context, control)
+            .and_then(|_| render_input(&self, context));
         let measured = guard.finish().map_err(cpu_error);
-        result?;
+        let render_input = result?;
         measured?;
         cpu.usage_ms(control).map_err(cpu_error)?;
         Ok(ReadyInlinePage {
             settled: self,
             context: context.clone(),
+            render_input,
         })
     }
 }
@@ -89,6 +92,10 @@ impl ReadyInlinePage {
     }
     pub fn participants(&self) -> &[SettledParticipant] {
         &self.settled.participants
+    }
+    /// Final deterministic input identity including the closed resource reads.
+    pub fn render_input_identity(&self) -> &ContentHash {
+        &self.render_input
     }
     pub fn validate_current(
         &self,
@@ -109,7 +116,11 @@ impl ReadyInlinePage {
             {
                 return Err(refused("context_stale"));
             }
-            validate(&self.settled, tree, context, control)
+            validate(&self.settled, tree, context, control)?;
+            if render_input(&self.settled, context)? != self.render_input {
+                return Err(refused("resource_identity"));
+            }
+            Ok(())
         })();
         let measured = guard.finish().map_err(cpu_error);
         result?;
@@ -126,6 +137,26 @@ impl ReadyInlinePage {
         }
         Ok(SsrReadinessObservation { usage })
     }
+}
+fn render_input(
+    settled: &QuiescentInlinePage,
+    context: &SsrReadinessContext,
+) -> Result<ContentHash, Vec<Diagnostic>> {
+    let Some(resources) = settled
+        .resources
+        .as_ref()
+        .filter(|resources| !resources.inputs.is_empty())
+    else {
+        return Ok(context.input.clone());
+    };
+    let metadata = serde_json::to_vec(&(
+        "cem SSR resource inputs/1",
+        &context.input,
+        &resources.fingerprint,
+        &resources.inputs,
+    ))
+    .map_err(|_| refused("resource_identity"))?;
+    Ok(ContentHash::from_blake3(&metadata))
 }
 fn refused(reason: &str) -> Vec<Diagnostic> {
     vec![Diagnostic {
