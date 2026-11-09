@@ -3705,6 +3705,83 @@ fn graph_ssr_page_ingress(
     Ok(policy.map(|policy| (policy, !shared)))
 }
 
+fn preflight_graph_ssr_routes(
+    request: &TransformGraphRequest,
+    artifacts: &BTreeMap<String, Arc<TransformTemplateDataArtifact>>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    use crate::ssr_route::{
+        inline_page_document, preflight_inline_ssr_routes, ssr_builtin_parameter,
+        SsrPageRouteRequest, SSR_PAGE_ENTRYPOINT, SSR_ROUTE_BATCH_LIMIT,
+    };
+
+    let stages = request
+        .stages
+        .iter()
+        .filter(|stage| stage.template_entrypoint.name.as_deref() == Some(SSR_PAGE_ENTRYPOINT))
+        .collect::<Vec<_>>();
+    let Some(first) = stages.first() else { return };
+    let fail = |message| ssr_ingress_diagnostic(&first.template.uri, message);
+    if stages.len() > SSR_ROUTE_BATCH_LIMIT {
+        diagnostics.push(Diagnostic {
+            code: "cem.ssr.route_limit".into(),
+            severity: Severity::Error,
+            message: format!("SSR route batch exceeds the {SSR_ROUTE_BATCH_LIMIT} route limit"),
+            ..Diagnostic::default()
+        });
+        return;
+    }
+    // Native callers may already use a single derived HTML projection.
+    // Batch routes require owners present before any graph stage executes.
+    if stages.len() == 1 && !artifacts.contains_key(&first.primary_input) {
+        return;
+    }
+    let policy = match request.context.template_adapter_registry.ssr_page_ingress(
+        &first.template,
+        &first.template_entrypoint,
+        &first.params,
+    ) {
+        Ok(Some(policy)) => policy,
+        Ok(None) => {
+            diagnostics.push(fail(
+                "No trusted SSR adapter admitted the page routes".into(),
+            ));
+            return;
+        }
+        Err(message) => {
+            diagnostics.push(fail(message));
+            return;
+        }
+    };
+    let result =
+        policy.run(
+            &request.context.operation_control,
+            &first.template.uri,
+            |_, _| {
+                let mut routes = Vec::with_capacity(stages.len());
+                for stage in stages {
+                    let page = artifacts.get(&stage.primary_input)
+                .and_then(|artifact| inline_page_document(&artifact.body))
+                .ok_or("SSR graph preflight requires native page inputs before any stage renders")?;
+                    if !stage.secondary_inputs.is_empty() {
+                        return Err("Inline SSR accepts one native page input per route".into());
+                    }
+                    let url = ssr_builtin_parameter(&stage.params, "page-url")
+                        .and_then(Value::as_str)
+                        .ok_or("SSR parameter `page-url` must be a string")?;
+                    routes.push(SsrPageRouteRequest::new(page, url, None));
+                }
+                Ok(preflight_inline_ssr_routes(&routes)
+                    .err()
+                    .unwrap_or_default())
+            },
+        );
+    match result {
+        Ok(errors) => diagnostics.extend(errors),
+        Err(message) => diagnostics.push(fail(message)),
+    }
+}
+
 fn collect_transform_graph_join(
     join: &TransformGraphJoin,
     artifacts: &BTreeMap<String, Arc<TransformTemplateDataArtifact>>,
@@ -14320,6 +14397,17 @@ impl CemMlEngine for RealCemMlEngine {
 
         if has_hard_transform_diagnostic(&diagnostics) {
             request.context.ensure_active()?;
+            return Ok(TransformGraphResponse {
+                artifacts: exported,
+                module_asset_manifest: request.module_asset_manifest.clone(),
+                diagnostics,
+                scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+            });
+        }
+
+        preflight_graph_ssr_routes(&request, &artifacts, &mut diagnostics);
+        request.context.ensure_active()?;
+        if has_hard_transform_diagnostic(&diagnostics) {
             return Ok(TransformGraphResponse {
                 artifacts: exported,
                 module_asset_manifest: request.module_asset_manifest.clone(),

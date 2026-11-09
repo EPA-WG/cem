@@ -2177,6 +2177,61 @@ fn transform_graph_request_from_args(
     Ok((request, config_source_uri))
 }
 
+fn preflight_ssr_graph_publication(
+    request: &eng::TransformGraphRequest,
+    config_uri: &str,
+    report: &cli::ReportOptions,
+) -> io::Result<()> {
+    let stages = request
+        .stages
+        .iter()
+        .filter_map(|stage| {
+            (stage.template_entrypoint.name.as_deref()
+                == Some(cem_ml_transform_cem_ql::ssr::ENTRYPOINT))
+            .then_some(stage.id.as_str())
+        })
+        .collect::<BTreeSet<_>>();
+    if stages.is_empty() {
+        return Ok(());
+    }
+    let mut destinations = Vec::new();
+    for export in &request.exports {
+        let Some(destination) = export.destination.as_deref() else {
+            if stages.len() > 1 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Multi-page SSR requires a file destination for every export",
+                ));
+            }
+            continue;
+        };
+        destinations.push(PathBuf::from(destination));
+        // SSR exports retain provenance and publish a sidecar at this address.
+        if stages.contains(export.input.as_str()) {
+            if let Some(sidecar) = transform_graph_source_map_ref(Some(destination), true) {
+                destinations.push(PathBuf::from(sidecar));
+            }
+        }
+    }
+    destinations
+        .extend(report_file_targets(report, REPORT_BASENAME_TRANSFORM).map(|(path, _)| path));
+    let sources = std::iter::once(PathBuf::from(config_uri))
+        .chain(
+            request
+                .imports
+                .iter()
+                .map(|import| PathBuf::from(&import.input.uri)),
+        )
+        .chain(
+            request
+                .stages
+                .iter()
+                .map(|stage| PathBuf::from(&stage.template.uri)),
+        )
+        .collect::<Vec<_>>();
+    crate::publication::preflight_ssr_destinations(&destinations, &sources)
+}
+
 fn validate_ssr_cli_output(args: &cli::TransformArgs) -> Result<(), CliRequestError> {
     if args.output_color_type.as_deref().is_some_and(|v| v != "none") {
         return Err(CliRequestError::Usage("SSR deploy HTML requires --output-color-type none; colored source is a separate presentation export".into()));
@@ -4966,29 +5021,38 @@ fn write_report_files(
     Ok(())
 }
 
+fn report_file_targets<'a>(
+    report_opts: &'a cli::ReportOptions,
+    basename: &'a str,
+) -> impl Iterator<Item = (PathBuf, cli::ReportFormat)> + 'a {
+    [
+        (report_opts.report.as_deref(), report_opts.report_format),
+        (report_opts.report_json.as_deref(), cli::ReportFormat::Json),
+        (report_opts.report_md.as_deref(), cli::ReportFormat::Md),
+    ]
+    .into_iter()
+    .filter_map(move |(path, format)| {
+        Some((
+            resolve_report_target(path?, basename, report_format_extension(format)),
+            format,
+        ))
+    })
+}
+
 fn stage_report_files(
     batch: &mut PublicationBatch,
     report: &cem_ml::report::Report,
     report_opts: &cli::ReportOptions,
     basename: &str,
 ) {
-    let mut stage = |path: &Path, format: cli::ReportFormat| {
+    for (path, format) in report_file_targets(report_opts, basename) {
         let body = render_report_format(report, format);
         batch.push(
-            resolve_report_target(path, basename, report_format_extension(format)),
+            path,
             "report destination",
             ResolvePurpose::Report,
             body.into_bytes(),
         );
-    };
-    if let Some(path) = report_opts.report.as_deref() {
-        stage(path, report_opts.report_format);
-    }
-    if let Some(path) = report_opts.report_json.as_deref() {
-        stage(path, cli::ReportFormat::Json);
-    }
-    if let Some(path) = report_opts.report_md.as_deref() {
-        stage(path, cli::ReportFormat::Md);
     }
 }
 
@@ -7741,6 +7805,13 @@ fn run_transform_graph<E: CemMlEngine + ?Sized>(
         let manifest = &req.module_asset_manifest;
         let _ = writeln!(s.stdout, "{}:{}", manifest.hash_scheme, manifest.hash);
         return Outcome::ok();
+    }
+    if let Err(error) = preflight_ssr_graph_publication(&req, &config_source_uri, &args.report) {
+        let _ = writeln!(
+            s.stderr,
+            "cem-ml: SSR publication preflight failed: {error}"
+        );
+        return Outcome::code(EXIT_IO);
     }
     match engine.transform_graph(req) {
         Ok(resp) => {

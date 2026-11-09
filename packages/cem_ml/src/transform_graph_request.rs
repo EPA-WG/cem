@@ -297,25 +297,63 @@ impl<'a> FilesystemTransformGraphResourceProvider<'a> {
         }
     }
 
-    /// Lower concrete page routes before their local bodies are acquired.
+    /// Expand literal and glob page sources without opening their bodies.
     pub fn lower_with_ssr_page_ingress(
         &self,
         graph: &TransformGraphConfig,
     ) -> Result<TransformGraphRequest, TransformGraphRequestError> {
         let mut pages = BTreeMap::new();
+        let mut count = 0;
         for stage in graph.nodes.iter().filter(|node| {
             node.kind == TransformGraphNodeKind::Transform
                 && node.entrypoint.as_deref().map(str::trim)
                     == Some(crate::ssr_route::SSR_PAGE_ENTRYPOINT)
         }) {
             let (input, _) = primary_ref(graph, stage, &self.config_uri)?;
-            if let Some(import) = graph.nodes.iter().find(|node| {
-                node.id == input && node.kind == TransformGraphNodeKind::Import && !node.opaque
-            }) {
-                if let Some(src) = import.src.as_deref().filter(|src| !src.contains('*')) {
-                    pages.insert(input, self.resolved(src));
-                }
+            if pages.contains_key(&input) {
+                continue;
             }
+            let import = graph
+                .nodes
+                .iter()
+                .find(|node| {
+                    node.id == input && node.kind == TransformGraphNodeKind::Import && !node.opaque
+                })
+                .ok_or_else(|| {
+                    config_error(
+                        &self.config_uri,
+                        "cem.ssr.page_ingress",
+                        "SSR graph stages require a direct, non-opaque page import",
+                    )
+                })?;
+            let src = required_field(
+                &self.config_uri,
+                import,
+                import.src.as_deref(),
+                "src",
+                "import",
+            )?;
+            let resolved = self.resolved(src);
+            local_path_or_file_uri(Path::new(&resolved), "SSR page import").map_err(|error| {
+                config_error(&self.config_uri, "cem.ssr.page_ingress", error.to_string())
+            })?;
+            let sources = if src.contains('*') {
+                self.local_import_paths(src)?
+            } else {
+                vec![resolved]
+            };
+            count += sources.len();
+            if count > crate::ssr_route::SSR_ROUTE_BATCH_LIMIT {
+                return Err(config_error(
+                    &self.config_uri,
+                    "cem.ssr.route_limit",
+                    format!(
+                        "SSR route batch exceeds the {} route limit",
+                        crate::ssr_route::SSR_ROUTE_BATCH_LIMIT
+                    ),
+                ));
+            }
+            pages.insert(input, sources);
         }
         lower_graph_request(self.context, graph, self, &self.config_uri, false, pages)
     }
@@ -990,7 +1028,7 @@ fn lower_graph_request(
     provider: &dyn TransformGraphResourceProvider,
     config_uri: &str,
     preserve_source_offsets: bool,
-    deferred_ssr_pages: BTreeMap<String, String>,
+    deferred_ssr_pages: BTreeMap<String, Vec<String>>,
 ) -> Result<TransformGraphRequest, TransformGraphRequestError> {
     let mut lowerer = TransformGraphRequestLowerer::new(
         &context.operation_control, &context.template_adapter_registry, graph, provider, config_uri,
@@ -1080,7 +1118,8 @@ struct TransformGraphRequestLowerer<'a> {
     provider: &'a dyn TransformGraphResourceProvider,
     config_uri: &'a str,
     imports: Vec<TransformGraphImport>,
-    deferred_ssr_pages: BTreeMap<String, String>,
+    deferred_ssr_pages: BTreeMap<String, Vec<String>>,
+    deferred_ssr_import_ids: BTreeSet<String>,
     joins: Vec<TransformGraphJoin>,
     conversions: Vec<TransformGraphConversion>,
     stages: Vec<TransformGraphStage>,
@@ -1124,6 +1163,7 @@ impl<'a> TransformGraphRequestLowerer<'a> {
             config_uri,
             imports: Vec::new(),
             deferred_ssr_pages: BTreeMap::new(),
+            deferred_ssr_import_ids: BTreeSet::new(),
             joins: Vec::new(),
             conversions: Vec::new(),
             stages: Vec::new(),
@@ -1158,37 +1198,77 @@ impl<'a> TransformGraphRequestLowerer<'a> {
         &mut self,
         context: &EngineContext,
     ) -> Result<(), TransformGraphRequestError> {
-        for import in self
-            .imports
-            .iter_mut()
-            .filter(|import| self.deferred_ssr_pages.contains_key(&import.id))
-        {
-            let fail = |message| config_error(&import.input.uri, "cem.ssr.page_ingress", message);
-            let mut policy = None;
-            for stage in self
-                .stages
-                .iter()
-                .filter(|stage| stage.primary_input == import.id)
+        if self.deferred_ssr_import_ids.is_empty() {
+            return Ok(());
+        }
+        let mut policies = BTreeMap::new();
+        let mut operation_limits = None;
+        let mut route_count = 0;
+        for stage in &self.stages {
+            if !self.deferred_ssr_import_ids.contains(&stage.primary_input)
+                || stage.template_entrypoint.name.as_deref()
+                    != Some(crate::ssr_route::SSR_PAGE_ENTRYPOINT)
             {
-                let Some(candidate) = context
-                    .template_adapter_registry
-                    .ssr_page_ingress(&stage.template, &stage.template_entrypoint, &stage.params)
-                    .map_err(fail)?
-                else {
-                    continue;
-                };
-                if policy.is_some_and(|previous| previous != candidate) {
-                    return Err(fail(
-                        "SSR stages sharing a page require the same ingress limits".into(),
-                    ));
-                }
-                policy = Some(candidate);
+                continue;
             }
-            let policy = policy
+            route_count += 1;
+            if route_count > crate::ssr_route::SSR_ROUTE_BATCH_LIMIT {
+                return Err(config_error(
+                    self.config_uri,
+                    "cem.ssr.route_limit",
+                    format!(
+                        "SSR route batch exceeds the {} route limit",
+                        crate::ssr_route::SSR_ROUTE_BATCH_LIMIT
+                    ),
+                ));
+            }
+            let fail = |message| config_error(&stage.template.uri, "cem.ssr.page_ingress", message);
+            let policy = context
+                .template_adapter_registry
+                .ssr_page_ingress(&stage.template, &stage.template_entrypoint, &stage.params)
+                .map_err(fail)?
                 .ok_or_else(|| fail("No trusted SSR adapter admitted the deferred page".into()))?;
+            let limits = (policy.cpu_ms, policy.wall_ms);
+            if operation_limits.is_some_and(|previous| previous != limits) {
+                return Err(fail(
+                    "SSR graph pages require one original CPU and wall-time budget".into(),
+                ));
+            }
+            operation_limits = Some(limits);
+            if policies
+                .insert(stage.primary_input.as_str(), policy)
+                .is_some_and(|previous| previous != policy)
+            {
+                return Err(fail(
+                    "SSR stages sharing a page require the same ingress limits".into(),
+                ));
+            }
+        }
+        if policies.len() != self.deferred_ssr_import_ids.len() {
+            return Err(config_error(
+                self.config_uri,
+                "cem.ssr.page_ingress",
+                "Every deferred page needs a trusted SSR stage",
+            ));
+        }
+        let mut remaining = crate::ssr_route::SSR_BATCH_SOURCE_BYTES;
+        for import in &mut self.imports {
+            let Some(mut policy) = policies.get(import.id.as_str()).copied() else {
+                continue;
+            };
+            let fail = |message| config_error(&import.input.uri, "cem.ssr.page_ingress", message);
+            let limited_by_batch = remaining < policy.max_bytes;
+            policy.max_bytes = policy.max_bytes.min(remaining);
             let bytes = policy.read_local_page(self.control, Path::new(&import.input.uri));
             context.ensure_active()?;
-            import.input.bytes = bytes.map_err(fail)?;
+            import.input.bytes = bytes.map_err(|message| {
+                if limited_by_batch {
+                    fail(format!("Original SSR batch source byte budget has {remaining} bytes left: {message}"))
+                } else {
+                    fail(message)
+                }
+            })?;
+            remaining -= import.input.bytes.len() as u64;
         }
         Ok(())
     }
@@ -1215,17 +1295,21 @@ impl<'a> TransformGraphRequestLowerer<'a> {
                 Ok(normalize_folder_address(&self.provider.output_uri(root)?))
             })
             .transpose()?;
-        let resources = if let Some(uri) = self.deferred_ssr_pages.get(&node.id) {
-            vec![TransformGraphResource {
-                uri: uri.clone(),
-                bytes: Vec::new(),
-                identity: None,
-                content_type: None,
-            }]
+        let deferred = self.deferred_ssr_pages.get(&node.id);
+        let resources = if let Some(uris) = deferred {
+            uris.iter()
+                .map(|uri| TransformGraphResource {
+                    uri: uri.clone(),
+                    bytes: Vec::new(),
+                    identity: None,
+                    content_type: None,
+                })
+                .collect()
         } else {
             self.provider
                 .import_resources(src, node.content_type.as_deref())?
         };
+        let deferred = deferred.is_some();
         let count = resources.len();
         let mut variants = Vec::with_capacity(count);
         for (index, resource) in resources.into_iter().enumerate() {
@@ -1242,7 +1326,8 @@ impl<'a> TransformGraphRequestLowerer<'a> {
                 node.content_type.clone(),
                 node.schema.clone(),
             );
-            if self.deferred_ssr_pages.contains_key(&node.id) {
+            if deferred {
+                self.deferred_ssr_import_ids.insert(id.clone());
                 crate::ssr_route::set_ssr_source_defaults(
                     &mut input.root_scope,
                     &input.uri,

@@ -315,9 +315,14 @@ links the corresponding design and verification records.
         ranges, including original-operation CPU and unsafe input refusal.
   - [x] Verify direct and config CLI publication for both formats and plain
         Markdown refusal. Exercise the resulting page in Chromium.
-- [ ] Preflight multi-page routes and output paths before rendering. Prove
+- [x] Preflight multi-page routes and output paths before rendering. Prove
       deterministic and atomic fan-out for HTML and readiness reports. Extend
       bounded acquisition to glob-expanded page imports.
+  - [x] Verify sorted glob fan-out, source byte limits, and all HTML,
+        readiness report, and source-map outputs across repeated runs.
+  - [x] Verify route and destination collisions fail before rendering and a
+        later page failure or commit cancellation preserves every existing
+        output.
 - [ ] Admit external declarations and payload sources through their native
       adapters. Extend the resource proof to explicit network policies and
       resource-dependent browser adoption.

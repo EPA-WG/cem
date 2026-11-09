@@ -222,6 +222,251 @@ fn config_page(
         .unwrap()
 }
 
+fn batch_fixture() -> PathBuf {
+    let root = fixture();
+    fs::create_dir(root.join("pages")).unwrap();
+    for name in ["z", "a"] {
+        fs::copy(
+            root.join("page.html"),
+            root.join(format!("pages/{name}.html")),
+        )
+        .unwrap();
+    }
+    root
+}
+
+fn batch_config(page_url: &str, report_path: &str) -> String {
+    let bindings = params()
+        .into_iter()
+        .map(|param| {
+            let (name, value) = param.split_once('=').unwrap();
+            let value = if name == "page-url" { page_url } else { value };
+            format!("{{param @name=\"{name}\" @value='{value}'}}")
+        })
+        .collect::<String>();
+    format!(
+        r#"{{run |
+        {{import @id=pages @src="pages/*.html" @root="pages" |
+          {{transform @id=ready @src="ssr.cemt" @template-content-type="text/cem-ml" @entrypoint="ssr:render-page" |
+            {bindings}
+            {{export @id=html @out="out/{page}.html" @content-type="text/html"}}
+            {{export @id=report @out="{report_path}" @content-type="application/vnd.cem.ssr-report+json"}}
+          }}
+        }}
+        }}"#,
+        page = "{page}",
+    )
+}
+
+fn batch_cli(root: &std::path::Path, page_url: &str, report_path: &str) -> std::process::Output {
+    run_batch_config(root, batch_config(page_url, report_path), &[])
+}
+
+fn run_batch_config(
+    root: &std::path::Path,
+    config: String,
+    extra: &[&str],
+) -> std::process::Output {
+    fs::write(root.join("batch.cem"), config).unwrap();
+    Command::new(env!("CARGO_BIN_EXE_cem-ml"))
+        .current_dir(root)
+        .args(["transform", "--config", "batch.cem", "--source-map-summary"])
+        .args(extra)
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn ssr_glob_fan_out_publishes_all_pages_and_bounds_each_read() {
+    let root = batch_fixture();
+    let page_url = "https://ssr.test/guide/{page}/";
+    let report_path = "out/{page}.json";
+    let run = || {
+        let output = batch_cli(&root, page_url, report_path);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let summary = String::from_utf8_lossy(&output.stdout);
+        assert!(summary.find("out/a.html.map").unwrap() < summary.find("out/z.html.map").unwrap());
+        ["a", "z"].map(|page| {
+            let html = fs::read(root.join(format!("out/{page}.html"))).unwrap();
+            let report: serde_json::Value =
+                serde_json::from_slice(&fs::read(root.join(format!("out/{page}.json"))).unwrap())
+                    .unwrap();
+            assert_eq!(
+                report["route"]["pageUrl"],
+                format!("https://ssr.test/guide/{page}/")
+            );
+            assert!(report["route"]["sourceUri"]
+                .as_str()
+                .unwrap()
+                .ends_with(&format!("/pages/{page}.html")));
+            (html, report["renderInputIdentity"].clone())
+        })
+    };
+    assert_eq!(run(), run());
+    let paths = [
+        "a.html",
+        "a.html.map",
+        "a.json",
+        "a.json.map",
+        "z.html",
+        "z.html.map",
+        "z.json",
+        "z.json.map",
+    ];
+    let outputs = || paths.map(|path| fs::read(root.join("out").join(path)).unwrap());
+    let previous = outputs();
+
+    let late = root.join("pages/z.html");
+    let source = fs::read_to_string(&late).unwrap();
+    fs::write(
+        &late,
+        source.replace(
+            "{article | Published}",
+            "{style |```@import 'missing.css';```}{article | Published}",
+        ),
+    )
+    .unwrap();
+    let failed = batch_cli(&root, page_url, report_path);
+    assert!(!failed.status.success());
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("missing.css"));
+    assert_eq!(outputs(), previous);
+    fs::File::create(late).unwrap().set_len(1_048_577).unwrap();
+    let failed = batch_cli(&root, page_url, report_path);
+    assert!(!failed.status.success());
+    assert!(String::from_utf8_lossy(&failed.stderr)
+        .contains("page byte budget exceeded before opening"));
+    assert_eq!(outputs(), previous);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn ssr_glob_bounds_total_acquisition_before_parsing_any_page() {
+    let root = batch_fixture();
+    for name in ["a", "b", "c", "d", "z"] {
+        fs::File::create(root.join(format!("pages/{name}.html")))
+            .unwrap()
+            .set_len(16 * 1024 * 1024)
+            .unwrap();
+    }
+    let config = batch_config("https://ssr.test/guide/{page}/", "out/{page}.json")
+        .replace("1048576", "16777216");
+    let output = run_batch_config(&root, config, &[]);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr).replace('\\', "/");
+    assert!(
+        stderr.contains("SSR batch source byte budget has 0 bytes left")
+            && stderr.contains("pages/z.html"),
+        "{stderr}"
+    );
+    assert!(!root.join("out").exists());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn ssr_batch_rejects_routes_and_destinations_before_first_render() {
+    let root = batch_fixture();
+    let first = root.join("pages/a.html");
+    let source = fs::read_to_string(&first).unwrap();
+    fs::write(
+        &first,
+        source.replace(
+            "{article | Published}",
+            "{style |```@import 'must-not-read.css';```}{article | Published}",
+        ),
+    )
+    .unwrap();
+    fs::create_dir(root.join("out")).unwrap();
+    fs::write(root.join("out/a.html"), "previous").unwrap();
+
+    let duplicate = batch_cli(&root, "https://ssr.test/same/", "out/{page}.json");
+    let stderr = String::from_utf8_lossy(&duplicate.stderr);
+    assert!(
+        !duplicate.status.success() && stderr.contains("cem.ssr.page_url_duplicate"),
+        "{stderr}"
+    );
+    assert!(!stderr.contains("must-not-read.css"), "{stderr}");
+
+    let late = root.join("pages/z.html");
+    let page = fs::read_to_string(&late).unwrap();
+    fs::write(
+        &late,
+        page.replace("<head>", r#"<head><base href="data:text/html,blocked">"#),
+    )
+    .unwrap();
+    let invalid_base = batch_cli(&root, "https://ssr.test/guide/{page}/", "out/{page}.json");
+    let stderr = String::from_utf8_lossy(&invalid_base.stderr);
+    assert!(
+        !invalid_base.status.success() && stderr.contains("cem.ssr.base_url_invalid"),
+        "{stderr}"
+    );
+    assert!(!stderr.contains("must-not-read.css"), "{stderr}");
+    fs::write(late, page).unwrap();
+
+    let sidecar = batch_cli(
+        &root,
+        "https://ssr.test/guide/{page}/",
+        "out/{page}.html.map",
+    );
+    let stderr = String::from_utf8_lossy(&sidecar.stderr);
+    assert!(
+        !sidecar.status.success() && stderr.contains("duplicated"),
+        "{stderr}"
+    );
+    assert!(!stderr.contains("must-not-read.css"), "{stderr}");
+    let report_collision = run_batch_config(
+        &root,
+        batch_config("https://ssr.test/guide/{page}/", "out/{page}.json"),
+        &["--report-json", "out/a.json"],
+    );
+    let stderr = String::from_utf8_lossy(&report_collision.stderr);
+    assert!(
+        !report_collision.status.success() && stderr.contains("duplicated"),
+        "{stderr}"
+    );
+    assert!(!stderr.contains("must-not-read.css"), "{stderr}");
+
+    let nested = batch_cli(
+        &root,
+        "https://ssr.test/guide/{page}/",
+        "out/{page}.html.map/ready.json",
+    );
+    let stderr = String::from_utf8_lossy(&nested.stderr);
+    assert!(
+        !nested.status.success() && stderr.contains("has another output as its parent"),
+        "{stderr}"
+    );
+    assert!(!stderr.contains("must-not-read.css"), "{stderr}");
+
+    let source_alias = batch_cli(&root, "https://ssr.test/guide/{page}/", "pages/{page}.html");
+    let stderr = String::from_utf8_lossy(&source_alias.stderr);
+    assert!(
+        !source_alias.status.success() && stderr.contains("aliases a source file"),
+        "{stderr}"
+    );
+    assert!(!stderr.contains("must-not-read.css"), "{stderr}");
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink("out", root.join("alias")).unwrap();
+        let alias = batch_cli(&root, "https://ssr.test/guide/{page}/", "alias/{page}.html");
+        let stderr = String::from_utf8_lossy(&alias.stderr);
+        assert!(
+            !alias.status.success() && stderr.contains("duplicated"),
+            "{stderr}"
+        );
+        assert!(!stderr.contains("must-not-read.css"), "{stderr}");
+    }
+    assert_eq!(
+        fs::read_to_string(root.join("out/a.html")).unwrap(),
+        "previous"
+    );
+    assert_eq!(fs::read_dir(root.join("out")).unwrap().count(), 1);
+    fs::remove_dir_all(root).unwrap();
+}
+
 #[test]
 fn page_profiles_work_in_direct_and_config_cli() {
     let root = fixture();

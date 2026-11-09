@@ -13,7 +13,6 @@ use cem_ml::{
     },
     diagnostics::Diagnostic,
     engine::EngineContext,
-    lifecycle::LoadedInputAstStream,
     operation_control::{cpu::NativeCpuAccounting, MemoryPermit, OperationControl},
     resolver::{
         ssr_resource_url, ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead,
@@ -23,7 +22,8 @@ use cem_ml::{
     source_map::SourceMapStack,
     ssr_artifact::{CemSsrPageArtifact, SsrExecutionIdentity, SsrSettlePolicy, SsrSourceMapMode},
     ssr_route::{
-        preflight_ssr_page_routes, SsrBaseSelection, SsrPageIngressPolicy, SsrPageRouteRequest,
+        inline_page_document, preflight_inline_ssr_routes, ssr_builtin_parameter,
+        SsrPageIngressPolicy, SsrPageRouteRequest,
     },
     transform_artifact::{
         CemtEvaluatorValue, TransformArtifactBody, TransformArtifactExportRequest,
@@ -123,8 +123,7 @@ pub(super) fn page_ingress_policy(
         );
     }
     let number = |name: &str| {
-        let qualified = format!("{ENTRYPOINT}.{name}");
-        let value = params.get(name).or_else(|| params.get(&qualified));
+        let value = ssr_builtin_parameter(params, name);
         positive_integer(
             name,
             value.and_then(serde_json::Value::as_u64),
@@ -203,13 +202,11 @@ pub(super) fn render(
         ContentHash::from_blake3(runtime.resolver_policy.cache_stamp().as_bytes()).hex,
     );
     let prepared: Result<(CemSsrPageArtifact, SsrReadinessContext), String> = (|| {
-        let source=match &request.primary_input.body {
-            TransformArtifactBody::HtmlDomProjection(source)=>source.clone(),
-            TransformArtifactBody::Lifecycle(owner)=>match owner.as_ref() {
-                LoadedInputAstStream::HtmlDocument(source)=>Arc::new(source.clone()),
-                _=>return Err("Inline SSR requires the shared native HTML ingress".into()),
-            },
-            _=>return Err("Inline SSR requires the shared native HTML ingress; encoded text/JSON is not a native handoff".into()),
+        let source = match &request.primary_input.body {
+            TransformArtifactBody::HtmlDomProjection(owner) => owner.clone(),
+            body => Arc::new(inline_page_document(body)
+                .ok_or("Inline SSR requires the shared native HTML ingress; encoded text/JSON is not a native handoff")?
+                .clone()),
         };
         let page_url = string(params.value("page-url"), "page-url")?;
         let versions = match params.value("consumer-versions") {
@@ -242,15 +239,9 @@ pub(super) fn render(
             _ => return Err("SSR consumer-versions must be an explicit record".into()),
         };
         let routes =
-            preflight_ssr_page_routes(&[SsrPageRouteRequest::new(&source, &page_url, None)])
+            preflight_inline_ssr_routes(&[SsrPageRouteRequest::new(&source, &page_url, None)])
                 .map_err(diagnostics)?;
         let route = &routes[0];
-        if let SsrBaseSelection::HtmlBase { used_fallback, .. } = route.base_selection() {
-            let base = route.document_base_url();
-            if used_fallback || !(base.starts_with("https://") || base.starts_with("http://")) {
-                return Err("SSR publication requires an effective HTTP(S) authored base".into());
-            }
-        }
         let content = |bytes: &[u8]| DependencyVersion::Content(ContentHash::from_blake3(bytes));
         let parameter_hash = ContentHash::from_blake3(params.identity_bytes());
         let policy_bytes = serde_json::to_vec(&policy).map_err(|e| e.to_string())?;

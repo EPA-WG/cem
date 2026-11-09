@@ -986,7 +986,7 @@ The coordinator checks and parses each delivery through the shared native CSS
 importer under that same operation. The readiness identity includes the
 admitted public URLs and response hashes. A changed response during one page
 operation, a refused read, or a parser error aborts the page before export.
-The direct CLI and concrete config imports acquire regular local page files
+The direct CLI and literal or glob-expanded config imports acquire regular local page files
 under the original operation. The file size is checked before opening and
 the bounded reader checks byte, wall and CPU budgets while reading.
 The CPU receipt then includes native source parsing, typed page conversion,
@@ -994,8 +994,7 @@ bridge preparation,
 external stylesheet acquisition and parsing, lifecycle work, readiness and
 synchronous exports. For native callers that supply bytes, measurement starts
 at parsing. Config and template acquisition are outside the measured CPU
-phases. Glob acquisition and derived graph inputs still use their existing
-paths.
+phases. Config SSR routes require direct, non-opaque local page imports.
 
 The external-resource profile covers mapped CSS imports for CLI publication.
 Network SSR, external declarations and payload adapters, and browser adoption
@@ -1084,93 +1083,50 @@ filesystem write.
 
 ### 8.2 Directory fan-out with matching routes
 
-Existing graph imports and `{path}`/`{file}` bindings can express a directory
-tree without making the renderer accept a directory as a document:
+The config graph expands a local glob in sorted order before opening page
+bodies. Each page uses its declared byte allowance, and the batch admits at most
+1,024 routes and 64 MiB of page source bytes. All pages use one original CPU and
+wall-time budget. Route preflight checks every native page and authored base
+before any transform stage renders.
 
 ```cem
 {run |
-  {import @id=pages @src="packages/cem-elements/demo/*.html"
-      @content-type="text/html"
-      @schema="https://cem.dev/ns/data/html/1" |
-    {convert @id=page-ast
-        @content-type="application/vnd.cem.dom+cem-bin"
-        @schema="https://cem.dev/ns/projection/dom/1"
-        @converter="html-to-cem-dom-projection-rust" |
-      {transform @id=ssr
-          @src="builtin:cem-elements/ssr-page.cemt"
-          @template-content-type="application/vnd.cem.transform+cem"
-          @template-schema="https://cem.dev/ns/transform/cem/1"
-          @entrypoint=render-page |
-        {param
-            @name=pageUrl
-            @value="https://docs.example.test/demo/{file}"}
-        {convert @id=html
-            @content-type="text/html"
-            @schema="https://cem.dev/ns/data/html/1"
-            @converter="ssr-page-to-html-cemt" |
-          {export @out="dist/demo/{file}"
-              @content-type="text/html"
-              @schema="https://cem.dev/ns/data/html/1"}
-        }
-      }
+  {import @id=pages @src="pages/*.html" @root="pages" |
+    {transform @id=ready @src="ssr-page.cemt"
+        @template-content-type="text/cem-ml" @entrypoint="ssr:render-page" |
+      {param @name=page-url @value="https://docs.example.test/guide/{page}/"}
+      {param @name=consumer-versions @value="x-card=1.9.0"}
+      {param @name=max-depth @value=8}
+      {param @name=max-instances @value=64}
+      {param @name=max-render-passes @value=64}
+      {param @name=max-resources @value=32}
+      {param @name=max-bytes @value=1048576}
+      {param @name=wall-ms @value=60000}
+      {param @name=cpu-ms @value=10000}
+      {export @id=html @out="dist/{page}/index.html" @content-type="text/html"}
+      {export @id=report @out="dist/{page}/readiness.json"
+          @content-type="application/vnd.cem.ssr-report+json"}
     }
   }
 }
 ```
 
-The CLI lowers the glob to a sorted set of exact source URI, page URL, and
-output destination tuples before lifecycle work begins. Duplicate page URLs or
-output destinations fail preflight. Outputs commit atomically only after all
-required pages succeed.
+Use the packaged `ssr-page.cemt` bytes for the transform. Multi-page exports
+require local files. Preflight checks duplicate public URLs, aliased local
+outputs, source overwrites, and collisions with generated `.map` sidecars
+or requested CLI diagnostics reports. HTML, readiness reports, and their
+sidecars stage in one publication transaction. Publication begins after all
+pages render and all exports succeed. A failed or cancelled commit rolls back
+earlier writes. Readiness timings remain measured observations.
 
 ### 8.3 `.cem.md` to clean route and `index.html`
 
-For a source named `guide.cem.md`, the logical page name is `guide`, while the
-legacy `{stem}` remains `guide.cem`. The shared graph lowerer now provides
-`{page}` by stripping one nonempty registered suffix (`.html`, `.cem`, or
-`.cem.md`, ASCII case-insensitive), without repeated extension removal. Unknown
-suffixes remain intact. This binding is available in ordinary template paths,
-parameters and output destinations; the SSR stages and CEM-enabled Markdown
-adapter in this example still require implementation.
-
-```cem
-{run |
-  {import @id=pages @src="content/*.cem.md"
-      @content-type="text/markdown; charset=utf-8; variant=CEM"
-      @schema="https://cem.dev/ns/page/cem-markdown/1" |
-    {convert @id=html-source
-        @content-type="text/html"
-        @schema="https://cem.dev/ns/data/html/1"
-        @converter="cem-markdown-to-html-rust" |
-      {convert @id=page-ast
-          @content-type="application/vnd.cem.dom+cem-bin"
-          @schema="https://cem.dev/ns/projection/dom/1"
-          @converter="html-to-cem-dom-projection-rust" |
-        {transform @id=ssr
-            @src="builtin:cem-elements/ssr-page.cemt"
-            @template-content-type="application/vnd.cem.transform+cem"
-            @template-schema="https://cem.dev/ns/transform/cem/1"
-            @entrypoint=render-page |
-          {param
-              @name=pageUrl
-              @value="https://docs.example.test/{page}/"}
-          {convert @id=html
-              @content-type="text/html"
-              @schema="https://cem.dev/ns/data/html/1"
-              @converter="ssr-page-to-html-cemt" |
-            {export @out="dist/{page}/index.html"
-                @content-type="text/html"
-                @schema="https://cem.dev/ns/data/html/1"}
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-Here `pageUrl` and `out` intentionally do not match as strings, yet relative
-links resolve exactly as they would at the deployed clean URL.
+The same graph accepts `@src="content/*.cem.md" @root="content"`. Omit the input
+identity for suffix-based opt-in or declare the CEM Markdown profile explicitly.
+For `guide.cem.md`, `{page}` is `guide`, while the legacy `{stem}` is `guide.cem`.
+The shared lowerer strips one nonempty registered suffix. The public route
+`https://docs.example.test/guide/` and the output file
+`dist/guide/index.html` remain separate.
 
 ### 8.4 CEM-ML page input
 

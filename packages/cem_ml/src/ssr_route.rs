@@ -277,6 +277,60 @@ impl<'a> SsrPageRoute<'a> {
 
 /// Hard ceiling on one atomic preflight, independent of execution/settle budgets.
 pub const SSR_ROUTE_BATCH_LIMIT: usize = 1024;
+pub(crate) const SSR_BATCH_SOURCE_BYTES: u64 = 64 * 1024 * 1024;
+
+pub fn ssr_builtin_parameter<'a>(
+    params: &'a BTreeMap<String, serde_json::Value>,
+    name: &str,
+) -> Option<&'a serde_json::Value> {
+    params
+        .get(name)
+        .or_else(|| params.get(&format!("{SSR_PAGE_ENTRYPOINT}.{name}")))
+}
+
+pub fn inline_page_document(
+    body: &crate::transform_artifact::TransformArtifactBody,
+) -> Option<&HtmlDocumentAst> {
+    use crate::{lifecycle::LoadedInputAstStream, transform_artifact::TransformArtifactBody};
+    match body {
+        TransformArtifactBody::HtmlDomProjection(source) => Some(source),
+        TransformArtifactBody::Lifecycle(owner) => match owner.as_ref() {
+            LoadedInputAstStream::HtmlDocument(source) => Some(source),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+pub fn preflight_inline_ssr_routes<'a>(
+    requests: &[SsrPageRouteRequest<'a>],
+) -> Result<Vec<SsrPageRoute<'a>>, Vec<Diagnostic>> {
+    let routes = preflight_ssr_page_routes(requests)?;
+    let errors = routes
+        .iter()
+        .enumerate()
+        .filter_map(|(index, route)| match route.base_selection {
+            SsrBaseSelection::HtmlBase { used_fallback, .. }
+                if used_fallback
+                    || !matches!(route.document_base_url.scheme(), "http" | "https") =>
+            {
+                Some(route_error(
+                    route.request,
+                    index,
+                    "cem.ssr.base_url_invalid",
+                    "SSR publication requires an effective HTTP(S) authored base",
+                    route.base_source_map.clone(),
+                ))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if errors.is_empty() {
+        Ok(routes)
+    } else {
+        Err(errors)
+    }
+}
 
 /// Validate the entire batch before a caller starts execution. No reads, writes,
 /// resolver admission or JavaScript execution occur here. No partial success.

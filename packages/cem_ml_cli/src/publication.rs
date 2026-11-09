@@ -63,15 +63,138 @@ impl PublicationBatch {
         }
         ensure_active(context)?;
 
-        for index in 0..prepared.len() {
-            if let Err(error) = prepared[index].commit() {
-                for participant in prepared.iter_mut().rev() {
-                    let _ = participant.rollback();
-                }
-                return Err(error);
+        let result = (|| {
+            for participant in &mut prepared {
+                ensure_active(context)?;
+                participant.commit()?;
+            }
+            ensure_active(context)
+        })();
+        if result.is_err() {
+            for participant in prepared.iter_mut().rev() {
+                let _ = participant.rollback();
             }
         }
-        Ok(())
+        result
+    }
+}
+
+/// Check SSR's complete local output plan without staging any files.
+pub(crate) fn preflight_ssr_destinations(
+    destinations: &[PathBuf],
+    protected_sources: &[PathBuf],
+) -> io::Result<()> {
+    let mut keys = BTreeSet::new();
+    let mut sources = BTreeSet::new();
+    for source in protected_sources {
+        if let Some(path) = local_destination(source, "SSR source")? {
+            sources.insert(path_key(fs::canonicalize(path)?));
+        }
+    }
+    for destination in destinations {
+        let path = local_destination(destination, "SSR output")?.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::Unsupported,
+                "SSR graph publication requires local file destinations",
+            )
+        })?;
+        let key = path_key(preflight_local_file(&path)?);
+        if sources.contains(&key) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "SSR publication destination `{}` aliases a source file",
+                    destination.display()
+                ),
+            ));
+        }
+        if !keys.insert(key) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "SSR publication destination `{}` is duplicated",
+                    destination.display()
+                ),
+            ));
+        }
+    }
+    for key in &keys {
+        if key.ancestors().skip(1).any(|parent| keys.contains(parent)) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "SSR publication destination `{}` has another output as its parent",
+                    key.display()
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn path_key(path: PathBuf) -> PathBuf {
+    #[cfg(windows)]
+    {
+        PathBuf::from(path.to_string_lossy().to_lowercase())
+    }
+    #[cfg(not(windows))]
+    {
+        path
+    }
+}
+
+fn preflight_local_file(path: &Path) -> io::Result<PathBuf> {
+    let absolute = std::path::absolute(path)?;
+    let invalid = || {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "SSR output `{}` requires a regular file with directory parents",
+                path.display()
+            ),
+        )
+    };
+    match fs::symlink_metadata(&absolute) {
+        Ok(metadata) if !metadata.is_file() => return Err(invalid()),
+        Ok(_) => return fs::canonicalize(&absolute),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+
+    // Resolve existing directory aliases, then append the as-yet missing names.
+    let mut missing = vec![absolute.file_name().ok_or_else(invalid)?];
+    for parent in absolute.ancestors().skip(1) {
+        match fs::metadata(parent) {
+            Ok(metadata) if metadata.is_dir() => {
+                let mut canonical = fs::canonicalize(parent)?;
+                canonical.extend(missing.into_iter().rev());
+                return Ok(canonical);
+            }
+            Ok(_) => return Err(invalid()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                if fs::symlink_metadata(parent).is_ok() {
+                    return Err(invalid());
+                }
+                missing.push(parent.file_name().ok_or_else(invalid)?);
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Err(invalid())
+}
+
+fn replaceable_destination(path: &Path) -> io::Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_file() || metadata.file_type().is_symlink() => Ok(true),
+        Ok(_) => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "publication destination `{}` is not a regular file",
+                path.display()
+            ),
+        )),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
     }
 }
 
@@ -257,12 +380,13 @@ impl PreparedLocalWrite {
             ".{file_name}.cem-backup-{}-{staging_id}",
             std::process::id()
         ));
+        let had_original = replaceable_destination(destination)?;
         fs::write(&staged, bytes)?;
         Ok(Self {
             destination: destination.to_path_buf(),
             staged,
             backup,
-            had_original: destination.exists(),
+            had_original,
             committed: false,
         })
     }
@@ -271,11 +395,11 @@ impl PreparedLocalWrite {
         if self.committed {
             return Err(io::Error::other("publication write was already committed"));
         }
-        if !self.had_original && self.destination.exists() {
+        if self.had_original != replaceable_destination(&self.destination)? {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 format!(
-                    "publication destination `{}` appeared after transaction preflight",
+                    "publication destination `{}` changed after transaction preflight",
                     self.destination.display()
                 ),
             ));
@@ -300,10 +424,10 @@ impl PreparedLocalWrite {
             // From this point on, Drop must preserve or retry restoration of the
             // backup instead of treating the transaction as successfully finalized.
             self.committed = false;
-            if self.destination.exists() {
+            if fs::symlink_metadata(&self.destination).is_ok() {
                 fs::remove_file(&self.destination)?;
             }
-            if self.had_original && self.backup.exists() {
+            if self.had_original && fs::symlink_metadata(&self.backup).is_ok() {
                 fs::rename(&self.backup, &self.destination)?;
             }
         } else if self.staged.exists() {
@@ -321,7 +445,11 @@ impl Drop for PreparedLocalWrite {
             }
         } else {
             let _ = fs::remove_file(&self.staged);
-            if self.had_original && self.backup.exists() && !self.destination.exists() {
+            if self.had_original
+                && fs::symlink_metadata(&self.backup).is_ok()
+                && fs::symlink_metadata(&self.destination)
+                    .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
+            {
                 let _ = fs::rename(&self.backup, &self.destination);
             }
         }
@@ -356,20 +484,35 @@ mod tests {
         }
     }
 
-    #[derive(Debug)]
-    struct FailingTransactionalResolver;
-
-    #[derive(Debug)]
-    struct FailingPreparedWrite {
-        uri: String,
+    #[derive(Debug, Clone)]
+    enum FixtureCommit {
+        Fail,
+        Abort(cem_ml::scheduler::AbortSignal),
     }
 
-    impl PreparedResolverWrite for FailingPreparedWrite {
+    #[derive(Debug)]
+    struct TransactionalResolver(FixtureCommit);
+
+    #[derive(Debug)]
+    struct PreparedFixtureWrite {
+        uri: String,
+        behavior: FixtureCommit,
+    }
+
+    impl PreparedResolverWrite for PreparedFixtureWrite {
         fn commit(&mut self) -> Result<ResolvedWrite, ResolverDiagnostic> {
-            Err(ResolverDiagnostic::TransactionState {
-                uri: self.uri.clone(),
-                message: "fixture commit failure".to_owned(),
-            })
+            match &self.behavior {
+                FixtureCommit::Fail => Err(ResolverDiagnostic::TransactionState {
+                    uri: self.uri.clone(),
+                    message: "fixture commit failure".to_owned(),
+                }),
+                FixtureCommit::Abort(signal) => {
+                    signal.abort();
+                    Ok(ResolvedWrite {
+                        uri: self.uri.clone(),
+                    })
+                }
+            }
         }
 
         fn rollback(&mut self) -> Result<(), ResolverDiagnostic> {
@@ -377,7 +520,7 @@ mod tests {
         }
     }
 
-    impl ResourceResolver for FailingTransactionalResolver {
+    impl ResourceResolver for TransactionalResolver {
         fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
             Err(ResolverDiagnostic::UnsupportedResolver {
                 uri: request.uri.clone(),
@@ -405,8 +548,9 @@ mod tests {
             request: &ResolveRequest,
             _bytes: &[u8],
         ) -> Result<Box<dyn PreparedResolverWrite>, ResolverDiagnostic> {
-            Ok(Box::new(FailingPreparedWrite {
+            Ok(Box::new(PreparedFixtureWrite {
                 uri: request.uri.clone(),
+                behavior: self.0.clone(),
             }))
         }
     }
@@ -541,7 +685,7 @@ mod tests {
             "fixture",
             ResolvePurpose::Output,
             ResolveDirection::Write,
-            FailingTransactionalResolver,
+            TransactionalResolver(FixtureCommit::Fail),
         );
         let mut batch = PublicationBatch::new();
         batch.push(
@@ -558,5 +702,48 @@ mod tests {
         );
         assert!(batch.commit(&context).is_err());
         assert_eq!(fs::read(local).unwrap(), b"original");
+    }
+    #[test]
+    fn cancellation_during_last_commit_restores_previous_destinations() {
+        let root = fixture_dir("late-abort");
+        let first = root.join("first.html");
+        let second = root.join("second.json");
+        fs::write(&first, b"original html").unwrap();
+        fs::write(&second, b"original report").unwrap();
+        let mut context = EngineContext::default();
+        let signal = context.abort_signal().clone();
+        context.resolver_registry.register(
+            "fixture",
+            ResolvePurpose::Output,
+            ResolveDirection::Write,
+            TransactionalResolver(FixtureCommit::Abort(signal)),
+        );
+        let mut batch = PublicationBatch::new();
+        batch.push(
+            &first,
+            "html",
+            ResolvePurpose::Output,
+            b"replacement".to_vec(),
+        );
+        batch.push(
+            &second,
+            "report",
+            ResolvePurpose::Output,
+            b"replacement".to_vec(),
+        );
+        batch.push(
+            "fixture://output/last",
+            "output",
+            ResolvePurpose::Output,
+            Vec::new(),
+        );
+        assert_eq!(
+            batch.commit(&context).unwrap_err().kind(),
+            io::ErrorKind::Interrupted
+        );
+        assert_eq!(fs::read(&first).unwrap(), b"original html");
+        assert_eq!(fs::read(&second).unwrap(), b"original report");
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 2);
+        fs::remove_dir_all(root).unwrap();
     }
 }
