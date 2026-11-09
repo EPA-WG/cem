@@ -71,18 +71,23 @@ fn named_html_export_renders_nested_native_participants_and_retains_islands() {
 }
 
 #[test]
-fn authored_base_keeps_the_ordinary_html_source_policy() {
+fn ssr_admissions_keep_the_ordinary_html_source_policy() {
     use cem_ml::validation::html::{validate_html_source_bytes, HtmlSourceValidationRequest};
 
-    let diagnostics = validate_html_source_bytes(HtmlSourceValidationRequest {
-        bytes: br#"<!doctype html><html><head><base href="/assets/"></head><body></body></html>"#,
-        source_uri: "file:///source/page.html",
-        content_type: Some("text/html"),
-    });
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.code == "cem.html.external_resource_rejected"
-            && diagnostic.severity.is_hard_violation()
-    }));
+    for bytes in [
+        br#"<!doctype html><html><head><base href="/assets/"></head><body></body></html>"#.as_slice(),
+        br#"<!doctype html><html><head></head><body><cem-element tag="x-parent" version="1.2.3" src="./external.html#x-parent"></cem-element></body></html>"#.as_slice(),
+    ] {
+        let diagnostics = validate_html_source_bytes(HtmlSourceValidationRequest {
+            bytes,
+            source_uri: "file:///source/page.html",
+            content_type: Some("text/html"),
+        });
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.html.external_resource_rejected"
+                && diagnostic.severity.is_hard_violation()
+        }));
+    }
 }
 
 #[test]
@@ -305,14 +310,17 @@ fn immutable_builtin_and_no_transport_profile_cannot_be_bypassed() {
         .any(|d| d.severity.is_hard_violation()));
 }
 
-struct MeasuredStylesheet {
+struct MeasuredResource {
+    uri: &'static str,
+    content_type: &'static str,
+    body: &'static [u8],
     original: OperationControl,
     burn_ms: u64,
     reads: Arc<AtomicU64>,
     completed_cpu_ms: Arc<AtomicU64>,
 }
 
-impl ResourceResolver for MeasuredStylesheet {
+impl ResourceResolver for MeasuredResource {
     fn read(&self, _: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
         panic!("SSR must use the bounded resolver entrypoint");
     }
@@ -322,7 +330,11 @@ impl ResourceResolver for MeasuredStylesheet {
         budget: &SsrReadBudget<'_>,
     ) -> Result<ResolvedRead, ResolverDiagnostic> {
         assert!(self.original.same_operation(budget.control));
-        assert_eq!(request.uri, "https://ssr.test/guide/external.css");
+        assert_eq!(request.uri, self.uri);
+        assert_eq!(
+            request.content_type_hint.as_deref(),
+            Some(self.content_type)
+        );
         assert_eq!(request.base_uri.as_deref(), Some("https://ssr.test/guide/"));
         assert!(budget.max_bytes < 1_048_576);
         self.reads.fetch_add(1, Ordering::Relaxed);
@@ -335,7 +347,7 @@ impl ResourceResolver for MeasuredStylesheet {
             std::hint::spin_loop();
         }
         budget.check(request)?;
-        let bytes = budget.read_from(request, b"section { color: red }".as_slice())?;
+        let bytes = budget.read_from(request, self.body)?;
         self.completed_cpu_ms.store(
             budget.cpu.usage_ms(budget.control).unwrap(),
             Ordering::Relaxed,
@@ -343,25 +355,51 @@ impl ResourceResolver for MeasuredStylesheet {
         Ok(ResolvedRead {
             uri: request.uri.clone(),
             bytes,
-            content_type: Some("text/css".into()),
+            content_type: Some(self.content_type.into()),
         })
     }
     fn write(&self, _: &ResolveRequest, _: &[u8]) -> Result<ResolvedWrite, ResolverDiagnostic> {
-        panic!("SSR stylesheet acquisition must not write");
+        panic!("SSR resource acquisition must not write");
     }
 }
 
 #[test]
 fn stylesheet_acquisition_cpu_is_in_the_original_report_and_can_exhaust_it() {
-    for (burn, limit, denied) in [(12, 10_000, false), (150, 100, false), (12, 10_000, true)] {
-        let mut r = request("application/vnd.cem.ssr-report+json");
-        r.data.bytes = String::from_utf8(r.data.bytes)
-            .unwrap()
-            .replace(
+    verify_resource_cpu(
+        "https://ssr.test/guide/external.css",
+        "text/css",
+        b"section { color: red }",
+        |source| {
+            source.replace(
                 "{section | {x-child}}",
                 "{style |```@import 'external.css';```}{section | {x-child}}",
             )
-            .into_bytes();
+        },
+    );
+}
+
+#[test]
+fn external_declaration_acquisition_cpu_is_in_the_original_report_and_can_exhaust_it() {
+    verify_resource_cpu(
+        "https://ssr.test/guide/external.html",
+        "text/html",
+        br#"<cem-element tag="x-parent" version="1.2.3"><template id="x-parent" type="text/cem-ml">{section | {x-child}}</template></cem-element>"#,
+        |source| source.replace(
+            r#"><template id="x-parent" type="text/cem-ml">{section | {x-child}}</template>"#,
+            r#" src="./external.html#x-parent">"#,
+        ),
+    );
+}
+
+fn verify_resource_cpu(
+    uri: &'static str,
+    content_type: &'static str,
+    body: &'static [u8],
+    change: impl Fn(&str) -> String,
+) {
+    for (burn, limit, denied) in [(12, 10_000, false), (150, 100, false), (12, 10_000, true)] {
+        let mut r = request("application/vnd.cem.ssr-report+json");
+        r.data.bytes = change(std::str::from_utf8(&r.data.bytes).unwrap()).into_bytes();
         r.params.insert("cpu-ms".into(), json!(limit));
         let reads = Arc::new(AtomicU64::new(0));
         let completed = Arc::new(AtomicU64::new(0));
@@ -369,7 +407,10 @@ fn stylesheet_acquisition_cpu_is_in_the_original_report_and_can_exhaust_it() {
             "https",
             ResolvePurpose::SsrResource,
             ResolveDirection::Read,
-            MeasuredStylesheet {
+            MeasuredResource {
+                uri,
+                content_type,
+                body,
                 original: r.context.operation_control.clone(),
                 burn_ms: burn,
                 reads: reads.clone(),
@@ -379,11 +420,11 @@ fn stylesheet_acquisition_cpu_is_in_the_original_report_and_can_exhaust_it() {
         if denied {
             r.context.resolver_policy.register_denial(
                 ResolvePolicyRequestKey::new(
-                    "https://ssr.test/guide/external.css",
+                    uri,
                     ResolvePurpose::SsrResource,
                     ResolveDirection::Read,
                 ),
-                ResolvePolicyDenial::new("fixture denies this stylesheet"),
+                ResolvePolicyDenial::new("fixture denies this resource"),
             );
         }
         let output = RealCemMlEngine::new().transform(r).unwrap();
@@ -396,7 +437,7 @@ fn stylesheet_acquisition_cpu_is_in_the_original_report_and_can_exhaust_it() {
         if denied {
             assert_eq!(reads.load(Ordering::Relaxed), 0);
             assert!(
-                diagnostics.contains("fixture denies this stylesheet"),
+                diagnostics.contains("fixture denies this resource"),
                 "{diagnostics}"
             );
         } else {

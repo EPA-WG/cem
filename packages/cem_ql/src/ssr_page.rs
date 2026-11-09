@@ -1,5 +1,7 @@
 //! Parent-first native first-connection worklist. Quiescence remains partial;
 //! passive and explicit resource profiles share one document registry.
+#[path = "ssr_declaration.rs"]
+mod external_declaration;
 #[path = "ssr_readiness.rs"]
 mod readiness;
 use crate::{
@@ -27,6 +29,8 @@ use cem_ml::{
     schema::registry::HTML_NAMESPACE_URI,
     ssr_artifact::{CemSsrPageArtifact, SsrLifecycleState, SsrPartialReason},
 };
+pub(crate) use external_declaration::ExternalDeclarationLease;
+pub use external_declaration::SsrDeclarationReader;
 pub use readiness::{
     ReadyInlinePage, SsrReadinessContext, SsrReadinessObservation, SSR_READY_RENDER_PLAN,
 };
@@ -124,10 +128,12 @@ struct PageResources {
     declarations: BTreeMap<String, Arc<CoordinatedStylesheets>>,
     inputs: BTreeMap<String, ResourceInput>,
 }
-#[derive(PartialEq, Eq, serde::Serialize)]
+#[derive(Clone, PartialEq, Eq, serde::Serialize)]
 struct ResourceInput {
     resolved_uri: String,
     content: ContentHash,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    declaration_bytes: Option<usize>,
 }
 impl PageResources {
     fn check(&self, control: &OperationControl) -> Result<(), String> {
@@ -179,7 +185,7 @@ pub fn prepare_inline_page(
     prefix: &str,
     control: &OperationControl,
 ) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
-    prepare_measured(page, prefix, None, control)
+    prepare_measured(page, prefix, None, None, control)
 }
 pub fn prepare_inline_page_with_resources(
     page: CemSsrPageArtifact,
@@ -187,7 +193,17 @@ pub fn prepare_inline_page_with_resources(
     capability: cem_ml::module_resolution::CemModuleUrlResolutionCapability,
     control: &OperationControl,
 ) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
-    prepare_measured(page, prefix, Some(capability), control)
+    prepare_measured(page, prefix, Some(capability), None, control)
+}
+/// Prepare the same page registry with a host-owned, bounded declaration reader.
+pub fn prepare_inline_page_with_declaration_reads(
+    page: CemSsrPageArtifact,
+    prefix: &str,
+    capability: cem_ml::module_resolution::CemModuleUrlResolutionCapability,
+    read: &mut SsrDeclarationReader<'_>,
+    control: &OperationControl,
+) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
+    prepare_measured(page, prefix, Some(capability), Some(read), control)
 }
 fn cpu_error(_: String) -> Vec<Diagnostic> {
     vec![Diagnostic {
@@ -201,6 +217,7 @@ fn prepare_measured(
     page: CemSsrPageArtifact,
     prefix: &str,
     capability: Option<cem_ml::module_resolution::CemModuleUrlResolutionCapability>,
+    read: Option<&mut SsrDeclarationReader<'_>>,
     control: &OperationControl,
 ) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
     let cpu = if NativeCpuAccounting::supported() {
@@ -215,11 +232,12 @@ fn prepare_measured(
         .map(|cpu| cpu.begin(control))
         .transpose()
         .map_err(cpu_error)?;
-    let result = if let Some(capability) = capability {
-        prepare_resources(page, prefix, capability, control, cpu)
-    } else {
-        prepare_inline_page_mode(page, prefix, None, control, cpu)
-    };
+    let result = capability
+        .map(|capability| prepare_resources(&page, capability, control))
+        .transpose()
+        .and_then(|resources| {
+            prepare_inline_page_mode(page, prefix, resources, read, control, cpu)
+        });
     let measured = guard
         .map(NativeCpuGuard::finish)
         .transpose()
@@ -230,18 +248,16 @@ fn prepare_measured(
     Ok(coordinator)
 }
 fn prepare_resources(
-    page: CemSsrPageArtifact,
-    prefix: &str,
+    page: &CemSsrPageArtifact,
     capability: cem_ml::module_resolution::CemModuleUrlResolutionCapability,
     control: &OperationControl,
-    cpu: Option<Arc<NativeCpuAccounting>>,
-) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
+) -> Result<PageResources, Vec<Diagnostic>> {
     let fingerprint = capability
         .cache_identity()
         .filter(|id| !id.is_empty() && id.len() <= crate::instance_island::LIMITS.max_bytes)
         .ok_or_else(|| {
             problem(
-                &page,
+                page,
                 None,
                 None,
                 "cem.ssr.css_authority_unavailable",
@@ -251,7 +267,7 @@ fn prepare_resources(
     let payload_sources = Arc::new(
         cem_ml::import::element_tree::RetainedCemPayloadSourcePool::new(control).map_err(|_| {
             problem(
-                &page,
+                page,
                 None,
                 None,
                 "cem.ssr.page_bounds",
@@ -259,25 +275,20 @@ fn prepare_resources(
             )
         })?,
     );
-    prepare_inline_page_mode(
-        page,
-        prefix,
-        Some(PageResources {
-            payload_sources,
-            capability,
-            fingerprint,
-            stale: AtomicBool::new(false),
-            declarations: BTreeMap::new(),
-            inputs: BTreeMap::new(),
-        }),
-        control,
-        cpu,
-    )
+    Ok(PageResources {
+        payload_sources,
+        capability,
+        fingerprint,
+        stale: AtomicBool::new(false),
+        declarations: BTreeMap::new(),
+        inputs: BTreeMap::new(),
+    })
 }
 fn prepare_inline_page_mode(
     page: CemSsrPageArtifact,
     prefix: &str,
-    resources: Option<PageResources>,
+    mut resources: Option<PageResources>,
+    mut read: Option<&mut SsrDeclarationReader<'_>>,
     control: &OperationControl,
     cpu: Option<Arc<NativeCpuAccounting>>,
 ) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
@@ -372,6 +383,7 @@ fn prepare_inline_page_mode(
     let mut pending = vec![0];
     let mut definitions = BTreeMap::new();
     let mut registry_owner = None;
+    let mut usage = page.usage();
     while let Some(id) = pending.pop() {
         check(&page, control)?;
         let node = tree.node(id).unwrap();
@@ -398,8 +410,44 @@ fn prepare_inline_page_mode(
                     "Inline declaration inventory exceeds its bound",
                 ));
             }
-            let definition =
-                compile_inline_definition(&page, &elements, id, control, resources.is_some())?;
+            let definition = if let Some(src) = attr(tree, id, "src") {
+                let (Some(resources), Some(read)) = (resources.as_mut(), read.as_deref_mut())
+                else {
+                    return Err(problem(
+                        &page,
+                        Some(tree),
+                        Some(id),
+                        "cem.ssr.declaration_authority_unavailable",
+                        "External declarations require a bounded explicit reader",
+                    ));
+                };
+                if usage.resources >= page.policy().max_resources {
+                    return Err(fail(
+                        "cem.ssr.settle_budget",
+                        "External declaration resource budget exhausted",
+                    ));
+                }
+                let remaining = page.policy().max_total_bytes - usage.total_bytes;
+                let definition = external_declaration::read_definition(
+                    &page, tree, id, &src, read, remaining, control,
+                )?;
+                let lease = definition.external.as_ref().unwrap();
+                if resources
+                    .inputs
+                    .insert(lease.uri().into(), lease.input.clone())
+                    .is_some()
+                {
+                    return Err(fail(
+                        "cem.ssr.declaration_identity_conflict",
+                        "External declaration URLs must be unique in the page registry",
+                    ));
+                }
+                usage.resources += 1;
+                usage.total_bytes += lease.bytes() as u64;
+                definition
+            } else {
+                compile_inline_definition(&page, &elements, id, control, resources.is_some())?
+            };
             if definition.tag == "cem-element" || definitions.contains_key(&definition.tag) {
                 return Err(fail(
                     "cem.ssr.declaration_identity_conflict",
@@ -419,7 +467,6 @@ fn prepare_inline_page_mode(
             .max_wall_time_ms
             .min(page.policy().max_cpu_time_ms)
     };
-    let usage = page.usage();
     let refused = fail(
         "cem.ssr.settle_budget",
         "Page preparation budget was refused",
@@ -921,6 +968,7 @@ impl InlinePageCoordinator {
             let witness = ResourceInput {
                 resolved_uri: response.uri.clone(),
                 content: ContentHash::from_blake3(&response.bytes),
+                declaration_bytes: None,
             };
             let resources = self.resources.as_ref().unwrap();
             if resources

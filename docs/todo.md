@@ -323,8 +323,18 @@ links the corresponding design and verification records.
   - [x] Verify route and destination collisions fail before rendering and a
         later page failure or commit cancellation preserves every existing
         output.
-- [ ] Admit external declarations and payload sources through their native
-      adapters. Extend the resource proof to explicit network policies and
+- [x] Admit resource-free external declarations through bounded native reads.
+  - [x] Verify a mapped body-registry declaration resolves against the page
+        base, retains source provenance and contributes to the readiness proof.
+  - [x] Verify missing authority, mismatched declarations and exhausted budgets
+        preserve published output.
+  - [x] Verify Chromium shows the published range and retains it when browser
+        adoption lacks an external declaration proof.
+- [ ] Admit external payload sources through their native adapter. Retain the
+      source lease, origin ranges and original-operation resource accounting.
+- [ ] Extend external declaration admission to canonical XHTML and scoped
+      stylesheet closures. Resolve nested reads from the declaration URL.
+- [ ] Extend the resource proof to explicit network policies and
       resource-dependent browser adoption.
 - [ ] Extend stateful browser admission to nested and styled groups. Verify form
       and slice ownership across participants and preserve group atomicity.

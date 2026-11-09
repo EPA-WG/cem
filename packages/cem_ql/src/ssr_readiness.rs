@@ -513,6 +513,32 @@ fn validate(
     }
     let mut resources = 0u32;
     let mut bytes = settled.page.authored_page_byte_length();
+    for (tag, definition) in &settled.definitions {
+        let Some(lease) = &definition.external else {
+            continue;
+        };
+        let witness = settled
+            .resources
+            .as_ref()
+            .and_then(|resources| resources.inputs.get(lease.uri()));
+        if witness != Some(&lease.input)
+            || !lease.control.same_operation(control)
+            || lease.tree.source_uri() != lease.uri()
+            || !html(&lease.tree, lease.declaration, "cem-element")
+            || !html(&lease.tree, definition.template, "template")
+            || lease.tree.source_parent(definition.template) != Some(lease.declaration)
+            || super::attr(&lease.tree, lease.declaration, "tag").as_ref() != Some(tag)
+            || super::attr(&lease.tree, lease.declaration, "version") != definition.version
+        {
+            return Err(refused("source_lease"));
+        }
+        resources = resources
+            .checked_add(1)
+            .ok_or_else(|| refused("accounting"))?;
+        bytes = bytes
+            .checked_add(lease.bytes() as u64)
+            .ok_or_else(|| refused("accounting"))?;
+    }
     for participant in &settled.participants {
         let input = participant.pass.input();
         resources = resources
@@ -619,7 +645,10 @@ fn validate(
         if !Arc::ptr_eq(
             input.prepared().declaration_lease_identity(),
             &definition.retained,
-        ) {
+        ) || definition.external.as_ref().is_some_and(|lease| {
+            !std::ptr::eq(input.prepared().template_source_tree(), lease.tree.as_ref())
+                || input.prepared().template_node() != definition.template
+        }) {
             return Err(refused("declaration_changed"));
         }
         let source = input.bindings().native_payload_source.as_ref();

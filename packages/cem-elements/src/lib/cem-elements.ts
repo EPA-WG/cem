@@ -4080,6 +4080,8 @@ export class CemElementRuntime {
                         || host.firstElementChild !== memberIsland || declaration.mode !== 'cem-ml'
                         || declaration.cemMlSource === null || declaration.behavior || declaration.pinnedDeclaration
                         || declaration.linkBaseUrl
+                        // The browser has no receipt for the server's external declaration bytes.
+                        || declaration.sourceRef?.kind === 'url'
                         || (members.size > 1 && declaration.sourceRef?.kind !== 'inline')) {
                         throw new Error('cem.ssr.resume_profile_unsupported');
                     }

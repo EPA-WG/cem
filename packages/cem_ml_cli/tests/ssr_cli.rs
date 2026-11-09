@@ -82,6 +82,127 @@ fn direct_cli_lowers_to_native_proof_and_publishes_uncolored_html() {
     fs::remove_dir_all(root).unwrap();
 }
 
+fn external_declaration_fixture() -> (PathBuf, &'static str, &'static str) {
+    let root = fixture();
+    let page = r#"<!doctype html><html><head><base href="/assets/"><title>SSR</title></head><body><cem-element tag="x-card" version="1.2.3" src="./card.html#x-card"></cem-element><x-card></x-card></body></html>"#;
+    let declaration = r#"<cem-element tag="x-card" version="1.2.3"><template id="x-card" type="text/cem-ml">{article | External}</template></cem-element>"#;
+    fs::write(root.join("page.html"), page).unwrap();
+    fs::create_dir(root.join("mirror")).unwrap();
+    fs::write(root.join("mirror/card.html"), declaration).unwrap();
+    (root, page, declaration)
+}
+
+#[test]
+fn direct_cli_loads_mapped_external_declaration() {
+    let (root, _, _) = external_declaration_fixture();
+    let read_map = format!("https://ssr.test/assets/={}", root.join("mirror").display());
+    let out = direct(&root, "text/html", &["--resolver-read-map", &read_map]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let html = fs::read_to_string(root.join("out.html")).unwrap();
+    assert!(html.contains("<article>External</article>"), "{html}");
+    assert!(html.contains(r#"src="./card.html#x-card""#), "{html}");
+    assert!(html.contains("data-cem-island="));
+    assert!(!html.contains(root.join("mirror").to_str().unwrap()));
+
+    let map: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.join("out.html.map")).unwrap()).unwrap();
+    let spans = map["outputSpans"].as_array().unwrap();
+    let text_start = html.find("External</article>").unwrap() as u64;
+    let span = spans.iter().find(|span| {
+        let range = &span["outputRange"];
+        let start = range["start"].as_u64().unwrap_or(u64::MAX);
+        let len = range["len"].as_u64().unwrap_or(0);
+        start <= text_start && text_start - start < len
+    });
+    assert!(
+        span.is_some_and(|span| span
+            .to_string()
+            .contains("https://ssr.test/assets/card.html")),
+        "{span:?}"
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn config_cli_proves_declaration_bytes_and_preserves_exports_on_refusal() {
+    let (root, page, declaration) = external_declaration_fixture();
+    let read_map = format!("https://ssr.test/assets/={}", root.join("mirror").display());
+    let read_args = ["--resolver-read-map", &read_map];
+    let remote = root.join("mirror/card.html");
+    let publish = || {
+        let output = config_cli(&root, &read_args);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice::<serde_json::Value>(&fs::read(root.join("page-out.json")).unwrap())
+            .unwrap()
+    };
+    let first = publish();
+    assert_eq!(first["usage"]["resources"], 1);
+    assert_eq!(first["usage"]["totalBytes"], page.len() + declaration.len());
+    fs::write(&remote, declaration.replace("External", "New text")).unwrap();
+    let second = publish();
+    assert_ne!(first["renderInputIdentity"], second["renderInputIdentity"]);
+    assert_eq!(first["usage"]["totalBytes"], second["usage"]["totalBytes"]);
+
+    let paths = ["page-out.html", "page-out.html.map", "page-out.json"];
+    let published = paths.map(|path| fs::read(root.join(path)).unwrap());
+    let assert_refused = |output: std::process::Output, code: &str| {
+        assert!(!output.status.success());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains(code), "{stderr}");
+    };
+    assert_refused(config_cli(&root, &[]), "cem.ssr.resource_read");
+    for (bytes, code) in [
+        (
+            declaration.replace("1.2.3", "1.2.4"),
+            "cem.ssr.external_declaration_identity",
+        ),
+        (
+            declaration.replace("{article", "{style |```b {color:red}```}{article"),
+            "cem.ssr.inline_template_unsupported",
+        ),
+        (
+            format!("{declaration}<img src=\"./tracking.png\">"),
+            "cem.html.external_resource_rejected",
+        ),
+        (" ".repeat(65_537), "cem.ssr.resource_read"),
+    ] {
+        fs::write(&remote, bytes).unwrap();
+        assert_refused(config_cli(&root, &read_args), code);
+    }
+    fs::write(&remote, declaration).unwrap();
+    fs::write(
+        root.join("page.html"),
+        page.replace("#x-card", "#unrelated"),
+    )
+    .unwrap();
+    assert_refused(
+        config_cli(&root, &read_args),
+        "cem.ssr.external_declaration_unsupported",
+    );
+    fs::write(
+        root.join("page.html"),
+        page.replace("<x-card>", r#"<img src="./outside.png"><x-card>"#),
+    )
+    .unwrap();
+    assert_refused(
+        config_cli(&root, &read_args),
+        "cem.html.external_resource_rejected",
+    );
+    assert_eq!(
+        paths.map(|path| fs::read(root.join(path)).unwrap()),
+        published
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
 fn stylesheet_fixture() -> PathBuf {
     let root = fixture();
     let page = root.join("page.html");

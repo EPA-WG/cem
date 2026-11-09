@@ -38,8 +38,8 @@ use cem_ml::{
     },
 };
 use cem_ql::ssr_page::{
-    prepare_inline_page_with_resources, InlinePageCoordinator, ReadyInlinePage, SsrPageProgress,
-    SsrReadinessContext, SSR_READY_RENDER_PLAN,
+    prepare_inline_page_with_declaration_reads, InlinePageCoordinator, ReadyInlinePage,
+    SsrPageProgress, SsrReadinessContext, SSR_READY_RENDER_PLAN,
 };
 use std::{
     any::Any,
@@ -299,8 +299,8 @@ pub(super) fn render(
     })();
     guard.finish()?;
     let (page, context) = prepared?;
-    // URL resolution selects the public identity. Only a registered bounded
-    // SSR reader may deliver bytes for a native stylesheet ticket.
+    // URL resolution selects public identities. Only a registered bounded SSR
+    // reader may deliver declaration and stylesheet bytes.
     use cem_ml::module_resolution::{
         CemModuleUrlContext, CemModuleUrlFrame, CemModuleUrlResolutionCapability,
         CemResolutionContextHandle, CemScopedModuleUrlResolver,
@@ -319,9 +319,16 @@ pub(super) fn render(
         },
     );
     let capability = CemModuleUrlResolutionCapability::new(Arc::new(resolver), handle);
-    let mut coordinator =
-        prepare_inline_page_with_resources(page, "ssr", capability, runtime.operation_control)
-            .map_err(diagnostics)?;
+    let mut coordinator = prepare_inline_page_with_declaration_reads(
+        page,
+        "ssr",
+        capability,
+        &mut |request, max_bytes, source| {
+            read_ssr_resource(request, source, &runtime, &cpu, max_bytes, wall_limit)
+        },
+        runtime.operation_control,
+    )
+    .map_err(diagnostics)?;
     loop {
         match coordinator
             .advance(runtime.operation_control)
@@ -396,12 +403,30 @@ fn read_stylesheet(
         ResolveRequest::new(&url, ResolvePurpose::SsrResource, ResolveDirection::Read)
             .with_content_type_hint("text/css");
     request.base_uri = ticket.resolution.resolved_referrer_url.clone();
+    read_ssr_resource(
+        &request,
+        Some(&ticket.source),
+        runtime,
+        cpu,
+        max_bytes,
+        max_wall_time_ms,
+    )
+}
+
+fn read_ssr_resource(
+    request: &ResolveRequest,
+    source: Option<&SourceMapStack>,
+    runtime: &TransformTemplateRuntimeContext<'_>,
+    cpu: &NativeCpuAccounting,
+    max_bytes: usize,
+    max_wall_time_ms: u64,
+) -> Result<(ResolvedRead, MemoryPermit), String> {
     let decision = runtime
         .resolver_policy
-        .decide(&request)
+        .decide(request)
         .map_err(|error| error.to_string())?;
-    if decision.effective_uri != url {
-        return Err("SSR resource policy must preserve the stylesheet's public URL".into());
+    if decision.effective_uri != request.uri {
+        return Err("SSR resource policy must preserve the public URL".into());
     }
     let budget = SsrReadBudget {
         control: runtime.operation_control,
@@ -412,17 +437,17 @@ fn read_stylesheet(
     };
     let response = runtime
         .resolver_registry
-        .read_ssr_resource(&request, &budget)
+        .read_ssr_resource(request, &budget)
         .map_err(|error| error.to_string())?;
-    if response.uri != url {
-        return Err("SSR read-map response changed the stylesheet's public URL".into());
+    if response.uri != request.uri {
+        return Err("SSR resource response changed the public URL".into());
     }
     let buffer = runtime
         .operation_control
         .charge_memory(
             runtime.execution_scope,
             response.bytes.capacity() as u64,
-            Some(ticket.source.clone()),
+            source.cloned(),
         )
         .map_err(|error| error.to_string())?;
     Ok((response, buffer))

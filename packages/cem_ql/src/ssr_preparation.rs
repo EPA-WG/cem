@@ -25,6 +25,7 @@ pub struct PreparedInlineDce {
     elements: RetainedElementImport,
     declaration: AstNodeId,
     template: AstNodeId,
+    external_template_source: Option<Arc<RetainedCemTree>>,
     instance: AstNodeId,
     tag: String,
     retained: Arc<RetainedTemplate>,
@@ -58,6 +59,11 @@ impl PreparedInlineDce {
     }
     pub fn template_node(&self) -> AstNodeId {
         self.template
+    }
+    pub fn template_source_tree(&self) -> &RetainedCemTree {
+        self.external_template_source
+            .as_deref()
+            .unwrap_or(&self.elements.tree)
     }
     pub fn instance_node(&self) -> AstNodeId {
         self.instance
@@ -238,6 +244,7 @@ fn prepare_inline_dce_mode(
         elements,
         declaration,
         template,
+        external_template_source: None,
         instance,
         tag,
         retained,
@@ -366,7 +373,7 @@ fn compile_source(
             .iter()
             .map(|name| (*name).into())
             .collect(),
-        source_uri: Some(page.route().source_uri.clone()),
+        source_uri: Some(tree.source_uri().into()),
         ..Default::default()
     };
     let compiled =
@@ -399,7 +406,7 @@ fn compile_source(
         || compiled.module_map.is_some()
         || crate::declaration_artifact::has_external_template_imports(
             source.text(),
-            &page.route().source_uri,
+            tree.source_uri(),
         )
     {
         return Err(problem(
@@ -423,6 +430,7 @@ pub(crate) struct InlineDefinition {
     pub retained: Arc<RetainedTemplate>,
     pub shared_scope: Option<String>,
     pub stylesheet_coordination: bool,
+    pub external: Option<Arc<super::ssr_page::ExternalDeclarationLease>>,
 }
 pub(crate) fn compile_inline_definition(
     page: &CemSsrPageArtifact,
@@ -449,6 +457,7 @@ pub(crate) fn compile_inline_definition(
         retained,
         shared_scope: header.root.get("scope").cloned(),
         stylesheet_coordination,
+        external: None,
     })
 }
 pub(crate) struct InlineParticipantSelection {
@@ -516,6 +525,7 @@ pub(crate) fn prepare_inline_participant(
         elements,
         declaration: definition.declaration,
         template: definition.template,
+        external_template_source: definition.external.as_ref().map(|lease| lease.tree.clone()),
         instance,
         tag: definition.tag,
         retained: definition.retained,

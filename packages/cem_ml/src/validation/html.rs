@@ -907,7 +907,7 @@ pub(crate) fn html_document_ast_from_ssr_page(
 
 fn parse_html_document(
     request: HtmlSourceValidationRequest<'_>,
-    admit_ssr_base: bool,
+    ssr_page: bool,
 ) -> (Option<HtmlDocumentAst>, Vec<Diagnostic>) {
     let parameters =
         parse_content_type_parameters(request.content_type.unwrap_or(HTML_CONTENT_TYPE));
@@ -959,7 +959,7 @@ fn parse_html_document(
         &line_index,
         &tokens,
         facts,
-        admit_ssr_base,
+        ssr_page,
     )
 }
 
@@ -969,7 +969,7 @@ fn html_document_from_tokens(
     line_index: &LineIndex,
     tokens: &[SchemaToken],
     mut facts: Vec<HtmlFact>,
-    admit_ssr_base: bool,
+    ssr_page: bool,
 ) -> (Option<HtmlDocumentAst>, Vec<Diagnostic>) {
     let mime_charset = source_info.parameters.get("charset").cloned();
     let build = build_html_events(
@@ -979,8 +979,8 @@ fn html_document_from_tokens(
         mime_charset.as_deref(),
         &mut facts,
     );
-    if admit_ssr_base {
-        admit_single_ssr_base(&build.events, &mut facts);
+    if ssr_page {
+        apply_ssr_page_resource_policy(&build.events, &mut facts);
     }
     let mode = if build.document_observed {
         HtmlDocumentMode::Document
@@ -1046,56 +1046,73 @@ fn html_document_from_tokens(
     (Some(ast), diagnostics)
 }
 
-fn admit_single_ssr_base(events: &[HtmlEventAst], facts: &mut Vec<HtmlFact>) {
+fn apply_ssr_page_resource_policy(events: &[HtmlEventAst], facts: &mut Vec<HtmlFact>) {
     let mut bases = events.iter().filter(|event| {
         event.kind == HtmlEventKind::StartElement
             && event.namespace == HtmlNamespace::Html
             && event.local_name.as_deref() == Some("base")
     });
-    let Some(base) = bases.next() else { return };
-    let inside_head = base.depth == 2
-        && events[..base.index]
-            .iter()
-            .rev()
-            .find(|event| event.depth < base.depth)
-            .is_some_and(|event| {
-                event.kind == HtmlEventKind::StartElement
-                    && event.namespace == HtmlNamespace::Html
-                    && event.local_name.as_deref() == Some("head")
-            });
-    if inside_head
-        && bases.next().is_none()
-        && matches!(base.attributes.as_slice(), [href] if href.local_name == "href" && href.value.is_some())
-    {
-        // The HTML fact stream retains only the first occurrence per kind.
-        // Replace the base fact with the next resource violation if one exists.
-        if let Some(index) = facts.iter().position(|fact| {
-            fact.kind == HtmlFactKind::ExternalResourceRejected
-                && fact.source_range == Some(base.source_range)
-        }) {
-            let next_resource = events[base.index + 1..].iter().find(|event| {
-                event.kind == HtmlEventKind::StartElement
-                    && event.local_name.as_deref().is_some_and(|name| {
-                        html_start_tag_requires_resource_policy(
-                            name, event.namespace, &event.attributes,
-                        )
-                    })
-            });
-            if let Some(event) = next_resource {
-                facts[index].source_range = Some(event.source_range);
-                facts[index].value = event.local_name.clone();
-            } else {
-                facts.remove(index);
-            }
+    let mut admitted_base = None;
+    if let Some(base) = bases.next() {
+        let inside_head = base.depth == 2
+            && events[..base.index]
+                .iter()
+                .rev()
+                .find(|event| event.depth < base.depth)
+                .is_some_and(|event| {
+                    event.kind == HtmlEventKind::StartElement
+                        && event.namespace == HtmlNamespace::Html
+                        && event.local_name.as_deref() == Some("head")
+                });
+        if inside_head
+            && bases.next().is_none()
+            && matches!(base.attributes.as_slice(), [href] if href.local_name == "href" && href.value.is_some())
+        {
+            admitted_base = Some(base.index);
+        } else {
+            push_fact_once(
+                facts,
+                HtmlFactKind::ExternalResourceRejected,
+                Some(base.source_range),
+                "SSR accepts a single base element with only href in the document head",
+                Some("base".into()),
+            );
         }
+    }
+
+    // The fact stream deduplicates by kind. Find the first resource violation
+    // after excluding only the admitted base and direct body declaration stubs.
+    let Some(index) = facts.iter().position(|fact| fact.kind == HtmlFactKind::ExternalResourceRejected) else {
+        return;
+    };
+    let mut in_body = false;
+    let violation = events.iter().find(|event| {
+        if event.depth <= 1 {
+            in_body = event.depth == 1
+                && event.kind == HtmlEventKind::StartElement
+                && event.namespace == HtmlNamespace::Html
+                && event.local_name.as_deref() == Some("body");
+        }
+        let declaration_stub = in_body && event.depth == 2
+            && event.namespace == HtmlNamespace::Html
+            && event.local_name.as_deref() == Some("cem-element")
+            && event.attributes.iter().all(|attr| {
+                !attr.duplicate && attr.value.is_some()
+                    && ["tag", "version", "src", "xmlns"].contains(&attr.local_name.as_str())
+            });
+        event.kind == HtmlEventKind::StartElement
+            && Some(event.index) != admitted_base
+            && !declaration_stub
+            && event.local_name.as_deref().is_some_and(|name| {
+                html_start_tag_requires_resource_policy(name, event.namespace, &event.attributes)
+                    || name == "base" && event.namespace == HtmlNamespace::Html
+            })
+    });
+    if let Some(event) = violation {
+        facts[index].source_range = Some(event.source_range);
+        facts[index].value = event.local_name.clone();
     } else {
-        push_fact_once(
-            facts,
-            HtmlFactKind::ExternalResourceRejected,
-            Some(base.source_range),
-            "SSR accepts a single base element with only href in the document head",
-            Some("base".into()),
-        );
+        facts.remove(index);
     }
 }
 

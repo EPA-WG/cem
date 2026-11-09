@@ -982,23 +982,46 @@ consumer retains the ordinary HTML resource policy.
 
 The SSR reader checks the remaining page byte allowance and the original
 operation's cancellation, wall time and CPU budget while acquiring bytes.
-The coordinator checks and parses each delivery through the shared native CSS
-importer under that same operation. The readiness identity includes the
-admitted public URLs and response hashes. A changed response during one page
-operation, a refused read, or a parser error aborts the page before export.
+The coordinator parses each delivery through its native importer under that
+same operation. The readiness identity includes the admitted public URLs and
+response hashes. A changed response during one page operation, a refused
+read, or a parser error aborts the page before export.
 The direct CLI and literal or glob-expanded config imports acquire regular local page files
 under the original operation. The file size is checked before opening and
 the bounded reader checks byte, wall and CPU budgets while reading.
 The CPU receipt then includes native source parsing, typed page conversion,
-bridge preparation,
-external stylesheet acquisition and parsing, lifecycle work, readiness and
-synchronous exports. For native callers that supply bytes, measurement starts
+bridge preparation, external declaration and stylesheet acquisition and
+parsing, lifecycle work, readiness and synchronous exports. For native callers that supply bytes, measurement starts
 at parsing. Config and template acquisition are outside the measured CPU
 phases. Config SSR routes require direct, non-opaque local page imports.
 
-The external-resource profile covers mapped CSS imports for CLI publication.
-Network SSR, external declarations and payload adapters, and browser adoption
-of resource-dependent CSS remain separate admission steps.
+An authored HTML page can also load a CEM-ML declaration through the same
+read map. Put an empty `<cem-element>` directly in the page body registry and
+give it an exact version and an explicit URL with a fragment that matches
+its tag.
+
+```html
+<cem-element tag="x-card" version="1.2.3" src="./card.html#x-card"></cem-element>
+```
+
+In this example, `card.html` is a standalone UTF-8 `text/html` fragment with one
+declaration. The public response must have the same tag and version.
+
+```html
+<cem-element tag="x-card" version="1.2.3">
+  <template id="x-card" type="text/cem-ml">{article | Card content}</template>
+</cem-element>
+```
+
+The effective document base resolves the URL. The reader uses the public
+URL without the fragment and enforces both the remaining page budget and a
+64 KiB declaration limit. The native adapter retains source ranges from the
+public resource. The declaration template must be free of stylesheet,
+module-map and external template import dependencies. The CLI publishes the
+original `src` and the settled range. Browser hydration keeps the server range
+in place when the declaration came from an external URL. External payloads,
+network read policies and browser adoption of resource-dependent pages are
+separate admission steps.
 
 Config graphs use the same template, entrypoint and literal `{param}` controls.
 A transform may have both a `text/html` export and an
