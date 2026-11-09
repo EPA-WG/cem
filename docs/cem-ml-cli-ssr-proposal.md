@@ -15,8 +15,8 @@ profile described in the lifecycle contract. It covers passive HTML, SVG and
 MathML, inert CEM source payloads and resource-free declaration and instance
 stylesheets. Standalone participants can also hydrate declaration-owned scalar
 slices and resource-free native forms. The CLI can load external CSS imports
-through explicit public-URL read maps. Additional resource types and page-source
-forms, the proposed `ssr` shorthand and the
+through explicit public-URL read maps or pinned network grants. Additional
+resource types and page-source forms, the proposed `ssr` shorthand and the
 general page compiler remain future work.
 
 **Applies to:** `cem-ml`, CEMT transform graphs, `cem-elements`, Edge/SSR
@@ -1049,8 +1049,24 @@ The native CEM payload adapter preserves byte ranges from the public file
 and keeps embedded expressions inert. The exported island contains the
 payload as literal text, so include only content intended for the published
 page. Its external-payload marker keeps the server range in place until
-browser adoption has its own resource proof. Network read policies and
-browser adoption of resource-dependent pages are separate admission steps.
+browser adoption has its own resource proof.
+
+The direct CLI and config CLI accept repeatable `--ssr-network-read URL=IP`
+flags for exact resource URLs. Supply a separate grant for each declaration,
+payload and nested stylesheet read. Use the resource URL without its
+declaration fragment. HTTPS keeps the URL's hostname for certificate
+verification and connects to the supplied IP. Plain HTTP requires a literal
+loopback URL with the same pinned address. The CLI supplies these grants at
+invocation time.
+
+A matching local read map takes precedence. The network transport performs
+an exact HTTP/1.1 GET with ambient DNS, proxies, redirects and retries
+disabled. It accepts
+a complete HTTP 200 response with the expected media type and identity
+content encoding. Reads share the original page resource, byte, wall-time
+and CPU allowances. The readiness proof incorporates the grant policy and
+the content hashes of admitted responses. Browser adoption of
+resource-dependent pages requires its own resource proof.
 
 Config graphs use the same template, entrypoint and literal `{param}` controls.
 A transform may have both a `text/html` export and an

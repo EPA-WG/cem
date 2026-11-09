@@ -317,6 +317,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "tokio",
  "yaml-rust2",
 ]
 

@@ -166,6 +166,13 @@ pub struct SsrReadBudget<'a> {
 
 impl SsrReadBudget<'_> {
     pub fn check(&self, request: &ResolveRequest) -> Result<(), ResolverDiagnostic> {
+        self.remaining_wall_time(request).map(|_| ())
+    }
+
+    pub fn remaining_wall_time(
+        &self,
+        request: &ResolveRequest,
+    ) -> Result<std::time::Duration, ResolverDiagnostic> {
         ensure_resolver_control_active(
             self.control,
             self.scope,
@@ -182,12 +189,11 @@ impl SsrReadBudget<'_> {
             .control
             .active_elapsed_ms(crate::operation_control::ROOT_EXECUTION_SCOPE_ID)
             .map_err(|error| fail(error.to_string()))?;
-        if elapsed >= self.max_wall_time_ms {
-            return Err(fail(
-                "Original SSR resource wall-time budget exhausted".into(),
-            ));
-        }
-        Ok(())
+        self.max_wall_time_ms
+            .checked_sub(elapsed)
+            .filter(|remaining| *remaining > 0)
+            .map(std::time::Duration::from_millis)
+            .ok_or_else(|| fail("Original SSR resource wall-time budget exhausted".into()))
     }
 
     pub fn read_from(
@@ -713,6 +719,11 @@ pub trait ResourceResolver: Send + Sync {
         })
     }
 
+    /// Stable host-policy identity for SSR transports with explicit grants.
+    fn ssr_read_policy_stamp(&self) -> Option<&str> {
+        None
+    }
+
     fn read_with_abort(
         &self,
         request: &ResolveRequest,
@@ -937,6 +948,20 @@ impl ResolverRegistry {
             ResolveDirection::Read,
         )?;
         Ok(resolved)
+    }
+
+    pub fn ssr_read_policy_stamp(&self) -> String {
+        self.resolvers
+            .iter()
+            .filter(|(key, _)| {
+                key.purpose == ResolvePurpose::SsrResource && key.direction == ResolveDirection::Read
+            })
+            .filter_map(|(key, resolver)| {
+                resolver
+                    .ssr_read_policy_stamp()
+                    .map(|stamp| format!("{}:{}:{stamp}", key.scheme, stamp.len()))
+            })
+            .collect()
     }
 
     pub fn read_ssr_resource(

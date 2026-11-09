@@ -74,3 +74,4 @@ The [active checklist](../todo.md) records remaining execution work.
 - [Mapped external declarations for native SSR](todo-completed-ssr-external-declarations-2026-11-09.md)
 - [Mapped external CEM-ML payloads for SSR](todo-completed-ssr-external-payloads-2026-11-09.md)
 - [Canonical XHTML declarations and scoped CSS for SSR](todo-completed-ssr-xhtml-declarations-2026-11-09.md)
+- [Endpoint-pinned SSR network reads](todo-completed-ssr-network-policy-2026-11-09.md)

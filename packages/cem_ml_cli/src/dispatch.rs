@@ -1431,12 +1431,13 @@ fn register_cli_resolvers(
             }
         }
     }
-    register_resolver_mappings(
+    let mirrored = register_resolver_mappings(
         registry,
         read_mappings,
         ResolveDirection::Read,
         &READ_PURPOSES,
     );
+    crate::ssr_network::register(registry, &c.ssr_network_reads, &mirrored);
     register_resolver_mappings(
         registry,
         write_mappings,
@@ -1461,12 +1462,10 @@ fn register_resolver_mappings(
     mappings: Vec<LocalMirrorMapping>,
     direction: ResolveDirection,
     purposes: &[ResolvePurpose],
-) {
-    if mappings.is_empty() {
-        return;
-    }
+) -> BTreeSet<String> {
     let resolver = LocalMirrorResolver::new(mappings);
-    for scheme in resolver.schemes() {
+    let schemes = resolver.schemes();
+    for scheme in &schemes {
         for purpose in purposes {
             registry.register(scheme.clone(), *purpose, direction, resolver.clone());
             if direction == ResolveDirection::Read && *purpose != ResolvePurpose::SsrResource {
@@ -1479,6 +1478,7 @@ fn register_resolver_mappings(
             }
         }
     }
+    schemes
 }
 
 fn mapping_from_cli(mapping: &cli::ResolverMap) -> LocalMirrorMapping {

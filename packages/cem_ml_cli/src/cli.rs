@@ -1,3 +1,4 @@
+pub use crate::ssr_network::NetworkReadGrant;
 use clap::ArgGroup;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
@@ -304,6 +305,14 @@ pub struct ContextOptions {
         help = "Resolve matching remote/custom read URIs from a local directory; repeatable"
     )]
     pub resolver_read_maps: Vec<ResolverMap>,
+
+    #[arg(
+        long = "ssr-network-read",
+        value_name = "URL=IP",
+        action = clap::ArgAction::Append,
+        help = "Grant an exact SSR resource URL at a pinned IP address; repeatable"
+    )]
+    pub ssr_network_reads: Vec<NetworkReadGrant>,
 
     #[arg(
         long = "resolver-write-map",

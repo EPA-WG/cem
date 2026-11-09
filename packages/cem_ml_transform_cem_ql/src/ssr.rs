@@ -197,10 +197,15 @@ pub(super) fn render(
         policy.max_cpu_time_ms,
     )?);
     let guard = cpu.begin(runtime.operation_control)?;
-    let resolver_stamp = format!(
+    let mut resolver_stamp = format!(
         "ssr-bounded-read-map/1:{}",
         ContentHash::from_blake3(runtime.resolver_policy.cache_stamp().as_bytes()).hex,
     );
+    let network_stamp = runtime.resolver_registry.ssr_read_policy_stamp();
+    if !network_stamp.is_empty() {
+        resolver_stamp.push_str(":network/1:");
+        resolver_stamp.push_str(&ContentHash::from_blake3(network_stamp.as_bytes()).hex);
+    }
     let prepared: Result<(CemSsrPageArtifact, SsrReadinessContext), String> = (|| {
         let source = match &request.primary_input.body {
             TransformArtifactBody::HtmlDomProjection(owner) => owner.clone(),

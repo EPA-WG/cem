@@ -344,8 +344,12 @@ links the corresponding design and verification records.
         Keep declaration, nested stylesheet and instance referrers distinct.
   - [x] Verify XML, version, scope and CSS refusals preserve published output.
   - [x] Verify Chromium applies the closed stylesheet to the rendered hosts.
-- [ ] Extend the resource proof to explicit network policies and
-      resource-dependent browser adoption.
+- [x] Admit exact, endpoint-pinned SSR network read grants through the CLI.
+  - [x] Verify bounded network reads for declarations, stylesheets and payloads.
+        Include policy and content identity in the readiness proof.
+  - [x] Verify no transport for ungranted URLs, no redirects or mirror fallbacks,
+        and atomic refusal on response, byte and wall-time failures.
+- [ ] Extend browser adoption to pages with verified external resources.
 - [ ] Extend stateful browser admission to nested and styled groups. Verify form
       and slice ownership across participants and preserve group atomicity.
 

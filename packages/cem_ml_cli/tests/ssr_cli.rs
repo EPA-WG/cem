@@ -82,6 +82,300 @@ fn direct_cli_lowers_to_native_proof_and_publishes_uncolored_html() {
     fs::remove_dir_all(root).unwrap();
 }
 
+#[test]
+fn cli_accepts_explicit_pinned_ssr_network_grants() {
+    let root = fixture();
+    let output = direct(
+        &root,
+        "text/html",
+        &[
+            "--ssr-network-read",
+            "https://ssr.test/styles.css=192.0.2.10",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+struct SsrHttpFixture {
+    origin: String,
+    requests: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    stop: std::sync::mpsc::Sender<()>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl SsrHttpFixture {
+    fn start(response: impl Fn(&str) -> String + Send + 'static) -> Self {
+        use std::{
+            io::{BufRead, BufReader, Write},
+            net::TcpListener,
+            sync::{mpsc, Arc, Mutex},
+            thread,
+            time::Duration,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        listener.set_nonblocking(true).unwrap();
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let seen = requests.clone();
+        let (stop, stopped) = mpsc::channel();
+        let thread = thread::spawn(move || loop {
+            match listener.accept() {
+                Ok((mut stream, _)) => {
+                    stream
+                        .set_read_timeout(Some(Duration::from_secs(2)))
+                        .unwrap();
+                    let target = {
+                        let mut reader = BufReader::new(&stream);
+                        let mut line = String::new();
+                        if !reader.read_line(&mut line).is_ok_and(|bytes| bytes > 0) {
+                            continue;
+                        }
+                        let mut words = line.split_ascii_whitespace();
+                        assert_eq!(words.next(), Some("GET"));
+                        let target = words.next().unwrap().to_owned();
+                        loop {
+                            line.clear();
+                            if !reader.read_line(&mut line).is_ok_and(|bytes| bytes > 0)
+                                || line == "\r\n"
+                            {
+                                break;
+                            }
+                        }
+                        target
+                    };
+                    seen.lock().unwrap().push(target.clone());
+                    let _ = stream.write_all(response(&target).as_bytes());
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    if stopped.recv_timeout(Duration::from_millis(5)).is_ok() {
+                        break;
+                    }
+                }
+                Err(error) => panic!("{error}"),
+            }
+        });
+        Self {
+            origin,
+            requests,
+            stop,
+            thread: Some(thread),
+        }
+    }
+
+    fn grant(&self, path: &str) -> String {
+        format!("{}{path}=127.0.0.1", self.origin)
+    }
+
+    fn requests(&self) -> Vec<String> {
+        self.requests.lock().unwrap().clone()
+    }
+}
+
+impl Drop for SsrHttpFixture {
+    fn drop(&mut self) {
+        let _ = self.stop.send(());
+        self.thread.take().unwrap().join().unwrap();
+    }
+}
+
+fn http_ok(content_type: &str, body: &str) -> String {
+    format!("HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len())
+}
+
+#[test]
+fn config_cli_proves_granted_network_declaration_css_and_payload_reads() {
+    const XHTML: &str = r#"<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="x-card" version="1.2.3"><template id="x-card" type="text/cem-ml">{style |```@import './style.css';```}{article | Network}</template></cem-element>"#;
+    const CSS: &str = "article { color: rgb(1, 2, 3) }";
+    const PAYLOAD: &str = "{item | External payload}";
+    let new_style = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let change = new_style.clone();
+    let server = SsrHttpFixture::start(move |path| match path {
+        "/card.xhtml" => http_ok("application/xhtml+xml; charset=utf-8", XHTML),
+        "/style.css" if change.load(std::sync::atomic::Ordering::Relaxed) => {
+            http_ok("text/css", "article { color: rgb(2, 3, 4) }")
+        }
+        "/style.css" => http_ok("text/css", CSS),
+        "/payload.cem" => http_ok("text/cem-ml", PAYLOAD),
+        _ => "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into(),
+    });
+    let root = fixture();
+    let page = format!(
+        r#"<!doctype html><html><head><base href="{}/"><title>SSR</title></head><body><cem-element tag="x-card" version="1.2.3" src="./card.xhtml#x-card"></cem-element><x-card><template type="text/cem-ml" data-cem-payload-src="./payload.cem"></template></x-card></body></html>"#,
+        server.origin,
+    );
+    fs::write(root.join("page.html"), &page).unwrap();
+    let declaration = server.grant("/card.xhtml");
+    let css = server.grant("/style.css");
+    let payload = server.grant("/payload.cem");
+    let publish = |grants: &[&str]| {
+        let args = grants
+            .iter()
+            .flat_map(|grant| ["--ssr-network-read", *grant])
+            .collect::<Vec<_>>();
+        let output = config_cli(&root, &args);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice::<serde_json::Value>(&fs::read(root.join("page-out.json")).unwrap())
+            .unwrap()
+    };
+    let first = publish(&[&declaration, &css, &payload]);
+    assert_eq!(first["usage"]["resources"], 4);
+    assert_eq!(
+        first["usage"]["totalBytes"],
+        page.len() + XHTML.len() + CSS.len() + PAYLOAD.len()
+    );
+    assert_eq!(
+        server.requests(),
+        ["/card.xhtml", "/payload.cem", "/style.css"]
+    );
+    let html = fs::read_to_string(root.join("page-out.html")).unwrap();
+    assert!(html.contains("<article>Network</article>"), "{html}");
+    assert!(html.contains(PAYLOAD), "{html}");
+    assert!(html.contains("color:rgb(1, 2, 3)"), "{html}");
+    let reordered = publish(&[&payload, &declaration, &css]);
+    assert_eq!(
+        first["renderInputIdentity"],
+        reordered["renderInputIdentity"]
+    );
+    let changed_policy = publish(&[&payload, &declaration, &css, &server.grant("/unused.css")]);
+    assert_ne!(
+        first["renderInputIdentity"],
+        changed_policy["renderInputIdentity"]
+    );
+    new_style.store(true, std::sync::atomic::Ordering::Relaxed);
+    let changed_response = publish(&[&declaration, &css, &payload]);
+    assert_ne!(first["renderInputIdentity"], changed_response["renderInputIdentity"]);
+    assert_eq!(first["usage"]["totalBytes"], changed_response["usage"]["totalBytes"]);
+    assert_eq!(server.requests().len(), 12);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn config_cli_refuses_unsafe_network_responses_without_replacing_outputs() {
+    let server = SsrHttpFixture::start(|path| {
+        match path {
+        "/redirect.cem" => "HTTP/1.1 302 Found\r\nLocation: /target.cem\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into(),
+        "/mime.cem" => http_ok("text/plain", "{item | Wrong MIME}"),
+        "/encoded.cem" => "HTTP/1.1 200 OK\r\nContent-Type: text/cem-ml\r\nContent-Encoding: gzip\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into(),
+        "/large.cem" => http_ok("text/cem-ml", &" ".repeat(32_769)),
+        "/chunked.cem" => format!("HTTP/1.1 200 OK\r\nContent-Type: text/cem-ml\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n8001\r\n{}\r\n0\r\n\r\n", " ".repeat(32_769)),
+        "/slow.cem" => {
+            std::thread::sleep(std::time::Duration::from_millis(2500));
+            http_ok("text/cem-ml", "{item | Too late}")
+        }
+        _ => http_ok("text/cem-ml", "{item | Fixture}"),
+    }
+    });
+    let root = fixture();
+    assert!(config_cli(&root, &[]).status.success());
+    let names = [
+        "page-out.html",
+        "page-out.html.map",
+        "page-out.json",
+        "page-out.json.map",
+    ];
+    let previous = names.map(|name| fs::read(root.join(name)).unwrap());
+    let publish_input = |path| {
+        fs::write(root.join("page.html"), format!(
+            r#"<!doctype html><html><head><base href="{}/"><title>SSR</title></head><body><cem-element tag="x-card" version="1.2.3"><template id="x-card" type="text/cem-ml">{{article | Network}}</template></cem-element><x-card><template type="text/cem-ml" data-cem-payload-src=".{path}"></template></x-card></body></html>"#,
+            server.origin
+        )).unwrap();
+    };
+    let refuse = |args: &[&str], message: &str| {
+        let output = config_cli(&root, args);
+        assert!(!output.status.success());
+        let diagnostics = String::from_utf8_lossy(&output.stderr);
+        assert!(diagnostics.contains(message), "{diagnostics}");
+        assert_eq!(
+            names.map(|name| fs::read(root.join(name)).unwrap()),
+            previous
+        );
+    };
+
+    publish_input("/target.cem");
+    refuse(&[], "cem.ssr.resource_read");
+    let target = server.grant("/target.cem");
+    let redirect = server.grant("/redirect.cem");
+    refuse(&["--ssr-network-read", &redirect], "exact URL grant");
+    assert!(server.requests().is_empty());
+    fs::create_dir(root.join("mirror")).unwrap();
+    let mapping = format!("{}/={}", server.origin, root.join("mirror").display());
+    refuse(
+        &[
+            "--resolver-read-map",
+            &mapping,
+            "--ssr-network-read",
+            &target,
+        ],
+        "Cannot open mapped SSR resource",
+    );
+    assert!(server.requests().is_empty());
+
+    for (path, diagnostic) in [
+        ("/redirect.cem", "HTTP 200"),
+        ("/mime.cem", "requested Content-Type"),
+        ("/encoded.cem", "identity content encoding"),
+        ("/large.cem", "byte budget"),
+        ("/chunked.cem", "byte budget"),
+    ] {
+        publish_input(path);
+        refuse(
+            &[
+                "--ssr-network-read",
+                &server.grant(path),
+                "--ssr-network-read",
+                &target,
+            ],
+            diagnostic,
+        );
+    }
+    publish_input("/slow.cem");
+    let limits = params().map(|param| {
+        if param.starts_with("wall-ms=") {
+            "wall-ms=1800"
+        } else {
+            param
+        }
+    });
+    let slow = config_page_with_params(
+        &root,
+        "page.html",
+        r#"@content-type="text/html""#,
+        &limits,
+        &["--ssr-network-read", &server.grant("/slow.cem")],
+    );
+    assert!(!slow.status.success());
+    let diagnostics = String::from_utf8_lossy(&slow.stderr);
+    assert!(
+        diagnostics.contains("Original SSR resource wall-time budget exhausted"),
+        "{diagnostics}"
+    );
+    assert_eq!(
+        names.map(|name| fs::read(root.join(name)).unwrap()),
+        previous
+    );
+    assert_eq!(
+        server.requests(),
+        [
+            "/redirect.cem",
+            "/mime.cem",
+            "/encoded.cem",
+            "/large.cem",
+            "/chunked.cem",
+            "/slow.cem"
+        ]
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
 fn external_declaration_fixture() -> (PathBuf, &'static str, &'static str) {
     let root = fixture();
     let page = r#"<!doctype html><html><head><base href="/assets/"><title>SSR</title></head><body><cem-element tag="x-card" version="1.2.3" src="./card.html#x-card"></cem-element><x-card></x-card></body></html>"#;
@@ -607,8 +901,18 @@ fn config_page(
     identity: &str,
     args: &[&str],
 ) -> std::process::Output {
+    config_page_with_params(root, source, identity, &params(), args)
+}
+
+fn config_page_with_params(
+    root: &std::path::Path,
+    source: &str,
+    identity: &str,
+    params: &[&str],
+    args: &[&str],
+) -> std::process::Output {
     let mut bindings = String::new();
-    for param in &params() {
+    for param in params {
         let (k, v) = param.split_once('=').unwrap();
         bindings.push_str(&format!("{{param @name=\"{k}\" @value='{v}'}}"));
     }

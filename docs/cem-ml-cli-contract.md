@@ -841,18 +841,23 @@ implementations:
 - WASM hosts expose callback-backed read/write resolvers for browser, worker, or Node
   embedding through `onResolveRead` and `onResolveWrite`; Rust-side WASM entrypoints
   install `JsResourceResolver` into the execution context for selected URI schemes.
-- The CLI stays local-only by default and installs opt-in local mirror resolvers from
+- The CLI installs opt-in local mirror resolvers from
   `--resolver-read-map URI-PREFIX=DIR`, `--resolver-write-map URI-PREFIX=DIR`, or
-  run-config `resolvers` entries. These maps do not fetch network resources; they map a
-  remote/custom URI prefix to a local filesystem root. Read maps do not imply write
-  permission, and write maps do not imply read permission. CLI read maps also install
-  list support for resolver-backed transform import globs.
+  run-config `resolvers` entries. These grants map a remote/custom URI prefix
+  to a local filesystem root for their specified direction. CLI read maps also
+  install list support for resolver-backed transform import globs.
+- SSR resource acquisition supports repeatable `--ssr-network-read URL=IP`
+  grants for exact resource URLs. A matching read map takes precedence.
+  The grants apply only to bounded SSR reads and participate in the SSR
+  readiness identity. See the [SSR resource profile](cem-ml-cli-ssr-proposal.md#80-implemented-native-inline-cliexport-slice).
 
 Every resolver operation carries a purpose so hosts can apply policy by capability:
 
 - `config` reads the run configuration document before parsing it.
 - `input` reads configured, positional, or fixture-materialized document inputs.
 - `query` reads file-backed query source for the canonical query command.
+- `ssrResource` reads admitted declarations, stylesheets and payloads within
+  the original SSR operation.
 - `moduleMap` reads root-scope module-map JSON and establishes the base URI for relative
   schema-source identities.
 - `output` writes primary output or per-output conversion artifacts.
