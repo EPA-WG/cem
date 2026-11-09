@@ -3932,10 +3932,20 @@ export class CemElementRuntime {
             this.renderSettled.set(instance, Promise.resolve());
             return;
         }
-        const nativeIsland = directDataIslands(instance)[0];
-        if (!this.initializedInstances.has(instance) && nativeIsland?.hasAttribute(NATIVE_SSR_PROFILE_ATTR)) {
-            this.connectCanonicalSsrInstance(instance, compiled, nativeIsland);
-            return;
+        if (!this.initializedInstances.has(instance)) {
+            let owner: { host: HTMLElement; island: HTMLTemplateElement } | undefined;
+            for (let host: HTMLElement | null = instance; host; host = host.parentElement) {
+                if (!host.localName.includes('-')) continue;
+                const island = directDataIslands(host)[0];
+                if (island?.hasAttribute(NATIVE_SSR_PROFILE_ATTR)) owner = { host, island };
+            }
+            if (owner) {
+                const declaration = this.declarationForInstance(owner.host);
+                if (declaration) this.connectCanonicalSsrInstance(owner.host, declaration, owner.island);
+                const pending = this.renderSettled.get(owner.host);
+                if (owner.host !== instance && pending) this.renderSettled.set(instance, pending);
+                return;
+            }
         }
         this.installDeclarationStylesheets(compiled);
         const island = this.ensureDataIsland(instance);
@@ -4008,87 +4018,154 @@ export class CemElementRuntime {
     }
 
     private connectCanonicalSsrInstance(instance: HTMLElement, compiled: CompiledDeclaration, island: HTMLTemplateElement): void {
-        if (this.canonicalSsrAdmissions.has(instance)) return;
+        if (this.canonicalSsrAdmissions.has(instance) || this.initializedInstances.has(instance)) return;
         const Observer = instance.ownerDocument.defaultView?.MutationObserver;
         let changed = false;
         const observer = Observer && new Observer(() => { changed = true; });
-        observer?.observe(instance, { subtree: true, childList: true, attributes: true, characterData: true });
-        observer?.observe(island.content, { subtree: true, childList: true, attributes: true, characterData: true });
-        observer?.observe(compiled.declarationElement, { subtree: true, childList: true, attributes: true, characterData: true });
-        for (const template of compiled.declarationElement.querySelectorAll('template')) {
-            observer?.observe(template.content, { subtree: true, childList: true, attributes: true, characterData: true });
-        }
+        const observe = (node: Node) => observer?.observe(node, {
+            subtree: true, childList: true, attributes: true, characterData: true,
+        });
+        observe(instance);
+        observe(island.content);
+        observe(compiled.declarationElement);
+        for (const template of directTemplateChildren(compiled.declarationElement)) observe(template.content);
         const entry = { cancel: () => { changed = true; observer?.disconnect(); } };
+        const members = new Map([[instance, island]]);
         this.canonicalSsrAdmissions.set(instance, entry);
         const pending = (async () => {
+            // Passive inline declarations can upgrade their hosts in either order
+            // during the same custom element reaction turn.
+            await Promise.resolve();
+            if (this.canonicalSsrAdmissions.get(instance) !== entry) return;
+            const groupPending = this.renderSettled.get(instance);
             try {
+                for (const nested of instance.querySelectorAll<HTMLTemplateElement>(
+                    `template[${DATA_ISLAND_ATTR}="${DATA_ISLAND_VALUE}"][${NATIVE_SSR_PROFILE_ATTR}]`,
+                )) {
+                    if (nested === island) continue;
+                    const host = nested.parentElement;
+                    if (!host || members.has(host) || members.size >= 64 || this.canonicalSsrAdmissions.has(host)) {
+                        throw new Error('cem.ssr.resume_participants');
+                    }
+                    members.set(host, nested);
+                    this.canonicalSsrAdmissions.set(host, entry);
+                    if (groupPending) this.renderSettled.set(host, groupPending);
+                    observe(nested.content);
+                }
                 const defaultScope = DEFAULT_SCOPE_POLICY_STAMP + (this.retainedStylesheets ? RETAINED_STYLESHEET_SCOPE_STAMP : '');
-                if (!observer || directDataIslands(instance).length !== 1 || instance.firstElementChild !== island
-                    || compiled.mode !== 'cem-ml' || compiled.cemMlSource === null || compiled.behavior
-                    || compiled.pinnedDeclaration || compiled.linkBaseUrl || compiled.declaredSlices.length || compiled.stylesheets.length
-                    || this.scopePolicyStamp !== defaultScope || this.privacyPolicyStamp !== DEFAULT_PRIVACY_POLICY_STAMP)
+                const source = compiled.cemMlSource;
+                if (!observer || source === null || this.scopePolicyStamp !== defaultScope
+                    || this.privacyPolicyStamp !== DEFAULT_PRIVACY_POLICY_STAMP) {
                     throw new Error('cem.ssr.resume_profile_unsupported');
-                const decision = await this.renderSupport(compiled.declarationScope).admitCanonicalSsrInstance(
-                    instance, compiled.producedTag, compiled.declarationVersion ?? '', compiled.cemMlSource, this.nativeValueLimits);
-                if (this.canonicalSsrAdmissions.get(instance) !== entry || !instance.isConnected || compiled.declarationScope.disposed
-                    || this.declarationForInstance(instance) !== compiled) return;
-                if (changed || observer.takeRecords().length) throw new Error('cem.ssr.resume_stale');
-                const bounds = directRenderBounds(instance);
-                if (!bounds) throw new Error('cem.ssr.resume_bounds');
-                const contextRoot = directIslandContextRoot(island);
-                if (!contextRoot || Object.entries(DATA_ISLAND_NAMESPACE_BINDINGS).some(([prefix, namespace]) =>
-                    contextRoot.getAttribute(`xmlns:${prefix}`) !== namespace)
-                    || DATA_ISLAND_SECTION_ORDER.some(name => !directIslandSection(island, name))) {
-                    throw new Error('cem.ssr.resume_dom_targets');
+                }
+                const nestedDeclarations = new Map<string, { tag: string; version: string; source: string }>();
+                const participants = Array.from(members, ([host, memberIsland]) => {
+                    const declaration = this.declarationForInstance(host);
+                    if (!declaration || (host === instance && declaration !== compiled)
+                        || declaration.declarationScope !== compiled.declarationScope
+                        || this.initializedInstances.has(host) || directDataIslands(host).length !== 1
+                        || host.firstElementChild !== memberIsland || declaration.mode !== 'cem-ml'
+                        || declaration.cemMlSource === null || declaration.behavior || declaration.pinnedDeclaration
+                        || declaration.linkBaseUrl || declaration.declaredSlices.length || declaration.stylesheets.length
+                        || (members.size > 1 && declaration.sourceRef?.kind !== 'inline')) {
+                        throw new Error('cem.ssr.resume_profile_unsupported');
+                    }
+                    const element = declaration.declarationElement;
+                    const templates = directTemplateChildren(element);
+                    if (declaration.sourceRef?.kind === 'inline') {
+                        const shape = analyzeDeclarationElement(element);
+                        const template = templates[0];
+                        if (!element.isConnected || !shape.ok || shape.src || shape.tag !== declaration.producedTag
+                            || shape.version !== declaration.declarationVersion || !template || templateMode(template) !== 'cem-ml'
+                            || templateSourceText(template) !== declaration.cemMlSource
+                            || element.getAttribute('link-base')?.trim() === 'source'
+                            || element.getAttribute('capability')?.trim() || template.getAttribute('capability')?.trim()) {
+                            throw new Error('cem.ssr.resume_stale_declaration');
+                        }
+                    }
+                    observe(element);
+                    for (const template of templates) observe(template.content);
+                    if (host !== instance) {
+                        nestedDeclarations.set(declaration.producedTag, {
+                            tag: declaration.producedTag, version: declaration.declarationVersion ?? '',
+                            source: declaration.cemMlSource,
+                        });
+                    }
+                    return { host, island: memberIsland, declaration };
+                });
+                const decisions = await this.renderSupport(compiled.declarationScope).admitCanonicalSsrInstance(
+                    instance, compiled.producedTag, compiled.declarationVersion ?? '', source, this.nativeValueLimits,
+                    [...members.keys()], [...nestedDeclarations.values()],
+                );
+                if (this.canonicalSsrAdmissions.get(instance) !== entry || !instance.isConnected) return;
+                if (changed || observer.takeRecords().length || compiled.declarationScope.disposed
+                    || participants.some(({ host, declaration }) => !host.isConnected || !instance.contains(host)
+                        || this.canonicalSsrAdmissions.get(host) !== entry || this.declarationForInstance(host) !== declaration)) {
+                    throw new Error('cem.ssr.resume_stale');
                 }
                 const document = instance.ownerDocument;
                 const identities = nativeSsrIds.get(document) ?? new Map<string, WeakRef<HTMLElement>>();
                 for (const [id, owner] of identities) if (!owner.deref()) identities.delete(id);
-                const owner = identities.get(decision.instanceId)?.deref();
-                if ((owner && owner !== instance) || (!owner && identities.size >= 64)) throw new Error('cem.ssr.resume_instance_identity');
-                identities.set(decision.instanceId, new WeakRef(instance));
-                nativeSsrIds.set(document, identities);
-                // All semantics came from native admission of the captured island.
-                // Seed the established browser lifecycle from its input mirrors,
-                // never from rendered output, including form or loading views.
+                let identityCount = identities.size;
+                const targets = participants.map(({ host, island: memberIsland, declaration }, index) => {
+                    const decision = decisions[index];
+                    const bounds = directRenderBounds(host);
+                    const root = bounds && firstRenderedElementBetween(bounds);
+                    if (!bounds || (decision.decision === 'adopt' && !root)) throw new Error('cem.ssr.resume_bounds');
+                    const contextRoot = directIslandContextRoot(memberIsland);
+                    if (!contextRoot || Object.entries(DATA_ISLAND_NAMESPACE_BINDINGS).some(([prefix, namespace]) =>
+                        contextRoot.getAttribute(`xmlns:${prefix}`) !== namespace)
+                        || DATA_ISLAND_SECTION_ORDER.some(name => !directIslandSection(memberIsland, name))) {
+                        throw new Error('cem.ssr.resume_dom_targets');
+                    }
+                    const owner = identities.get(decision.instanceId)?.deref();
+                    if (owner ? owner !== host : ++identityCount > 64) throw new Error('cem.ssr.resume_instance_identity');
+                    const snapshot = this.snapshotFromCapturedForms(host, declaration, memberIsland, '0', undefined,
+                        { formData: {}, validationState: {}, sliceMirrors: {} }, false, decision.instanceId);
+                    snapshot.declarationVersion = decision.declarationVersion ?? undefined;
+                    return { host, island: memberIsland, declaration, decision, bounds, root, snapshot };
+                });
+
+                // Validate every target before changing any island or attaching a lifecycle.
                 observer.disconnect();
-                this.instanceIds.set(instance, decision.instanceId);
-                this.dataRevisions.set(instance, 0);
-                this.renderBounds.set(instance, bounds);
-                const snapshot = this.snapshotFromCapturedForms(instance, compiled, island, '0', undefined,
-                    { formData: {}, validationState: {}, sliceMirrors: {} }, false);
-                snapshot.declarationVersion = decision.declarationVersion ?? undefined;
-                this.hydrationSnapshots.set(instance, snapshot);
-                if (decision.decision === 'adopt') {
-                    const root = firstRenderedElementBetween(bounds);
-                    if (!root) throw new Error('cem.ssr.resume_bounds');
-                    root.setAttribute(RENDER_TEMPLATE_ARTIFACT_ID_ATTR, compiled.artifactId);
-                    root.setAttribute(RENDER_DATA_REVISION_ATTR, '0');
-                    root.setAttribute(SOURCE_FIDELITY_ATTR, 'declaration-only');
-                    this.hydratedServerRenders.add(instance);
-                } else {
-                    this.recordDiagnostics(instance, [renderDiagnostic(
-                        decision.declarationVersion === null ? 'cem-element.hydration_declaration_version_missing' : 'cem-element.hydration_declaration_version_incompatible',
-                        'The understood canonical island requires rendering with the current declaration version', instance.localName, 'warning')]);
+                nativeSsrIds.set(document, identities);
+                for (const { host, island: memberIsland, declaration, decision, bounds, root, snapshot } of targets) {
+                    identities.set(decision.instanceId, new WeakRef(host));
+                    this.instanceIds.set(host, decision.instanceId);
+                    this.dataRevisions.set(host, 0);
+                    this.renderBounds.set(host, bounds);
+                    this.hydrationSnapshots.set(host, snapshot);
+                    if (decision.decision === 'adopt' && root) {
+                        root.setAttribute(RENDER_TEMPLATE_ARTIFACT_ID_ATTR, declaration.artifactId);
+                        root.setAttribute(RENDER_DATA_REVISION_ATTR, '0');
+                        root.setAttribute(SOURCE_FIDELITY_ATTR, 'declaration-only');
+                        this.hydratedServerRenders.add(host);
+                    } else {
+                        const code = decision.declarationVersion === null ? 'cem-element.hydration_declaration_version_missing'
+                            : 'cem-element.hydration_declaration_version_incompatible';
+                        this.recordDiagnostics(host, [renderDiagnostic(code,
+                            'The understood canonical island requires rendering with the current declaration version', host.localName, 'warning')]);
+                    }
+                    writeDataIslandHydrationData(memberIsland, snapshot);
+                    memberIsland.removeAttribute(NATIVE_SSR_PROFILE_ATTR);
+                    this.initializedInstances.add(host);
+                    this.canonicalSsrAdmissions.delete(host);
                 }
-                writeDataIslandHydrationData(island, snapshot);
-                island.removeAttribute(NATIVE_SSR_PROFILE_ATTR);
-                this.initializedInstances.add(instance);
-                this.canonicalSsrAdmissions.delete(instance);
-                this.connectProducedInstance(instance, compiled);
-                await this.renderSettled.get(instance);
+                for (const { host, declaration } of targets) this.connectProducedInstance(host, declaration);
+                await Promise.all(targets.map(({ host }) => this.renderSettled.get(host)));
             } catch (error) {
                 if (this.canonicalSsrAdmissions.get(instance) !== entry || !instance.isConnected) return;
-                this.frozenSerializedInstances.add(instance);
-                this.initializedInstances.add(instance);
-                this.recordDiagnostics(instance, [renderDiagnostic('cem-element.hydration_native_refused',
-                    error instanceof Error ? error.message : String(error), instance.localName)]);
+                for (const host of members.keys()) {
+                    if (!host.isConnected || this.canonicalSsrAdmissions.get(host) !== entry) continue;
+                    this.frozenSerializedInstances.add(host);
+                    this.initializedInstances.add(host);
+                    this.recordDiagnostics(host, [renderDiagnostic('cem-element.hydration_native_refused',
+                        error instanceof Error ? error.message : String(error), host.localName)]);
+                }
             } finally {
                 observer?.disconnect();
-                if (this.canonicalSsrAdmissions.get(instance) === entry) {
-                    this.canonicalSsrAdmissions.delete(instance);
-                    const latest = this.declarationForInstance(instance);
-                    if (instance.isConnected && latest && latest !== compiled) this.connectProducedInstance(instance, latest);
+                for (const host of members.keys()) {
+                    if (this.canonicalSsrAdmissions.get(host) === entry) this.canonicalSsrAdmissions.delete(host);
                 }
             }
         })();
@@ -8468,6 +8545,7 @@ export class CemElementRuntime {
         state: InstanceState | undefined,
         forms: CapturedRenderedForms,
         persist = true,
+        instanceId = this.instanceId(instance),
     ): DataIslandSnapshot {
         const slices = { ...(state?.slices ?? {}) };
         for (const [name, mirror] of Object.entries(forms.sliceMirrors)) {
@@ -8477,7 +8555,7 @@ export class CemElementRuntime {
         }
         const snapshot: DataIslandSnapshot = {
             version: SNAPSHOT_SCHEMA_VERSION,
-            instanceId: this.instanceId(instance),
+            instanceId,
             producedTag: compiled.producedTag,
             declarationTag: compiled.declarationTag,
             ...(compiled.declarationVersion === null

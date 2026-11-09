@@ -5,11 +5,12 @@ use crate::{
     instance_island as island,
     render::{
         compile_template, project_render_plan_with_control, render_compiled_template_with_control,
-        CompileTemplateOptions, RenderPlanNode,
+        CompileTemplateOptions, RenderPlanAttribute, RenderPlanNode,
     },
 };
 use cem_ml::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
-use std::collections::BTreeMap;
+use cem_ml::schema::registry::HTML_NAMESPACE_URI;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const PROFILE: &str = "cem-native-inline/1";
 pub const PROFILE_ATTRIBUTE: &str = "data-cem-ssr-profile";
@@ -25,6 +26,33 @@ pub struct NativeSsrResume {
     pub decision: ResumeDecision,
     pub instance_id: String,
     pub declaration_version: Option<String>,
+    pub source_key: String,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NestedDeclaration {
+    pub tag: String,
+    pub version: String,
+    pub source: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct NativeSsrGroup {
+    pub participants: Vec<NativeSsrResume>,
+}
+
+struct Group<'a> {
+    declarations: BTreeMap<&'a str, (&'a str, &'a str)>,
+    registry: BTreeSet<String>,
+    ids: BTreeSet<String>,
+    participants: Vec<NativeSsrResume>,
+    remaining_source_bytes: usize,
+}
+
+struct ParentInput<'a> {
+    attributes: BTreeMap<String, String>,
+    payload: &'a [RenderPlanNode],
 }
 pub fn versions_compatible(a: &str, b: &str) -> bool {
     if !cem_ml::schema::document_model::is_canonical_semver(a)
@@ -70,184 +98,298 @@ pub fn admit(
     source: &str,
     c: &OperationControl,
 ) -> Result<NativeSsrResume, String> {
-    if source.len() > 1024 * 1024 || tag.len() > 256 || current_version.len() > 1024 {
+    admit_group(host, tag, current_version, source, &[], c)
+        .map(|mut group| group.participants.remove(0))
+}
+
+pub fn admit_group(
+    host: &Item,
+    tag: &str,
+    current_version: &str,
+    source: &str,
+    nested: &[NestedDeclaration],
+    c: &OperationControl,
+) -> Result<NativeSsrGroup, String> {
+    let mut source_bytes = source.len();
+    if nested.len() >= 64 || tag.len() > 256 || current_version.len() > 1024 {
+        return Err(fail());
+    }
+    let mut group = Group {
+        declarations: BTreeMap::new(),
+        registry: BTreeSet::new(),
+        ids: BTreeSet::new(),
+        participants: vec![],
+        remaining_source_bytes: 1024 * 1024,
+    };
+    for declaration in nested {
+        source_bytes = source_bytes.saturating_add(declaration.source.len());
+        if !declaration.tag.contains('-')
+            || declaration.tag == "cem-element"
+            || declaration.tag.len() > 256
+            || declaration.version.len() > 1024
+            || group
+                .declarations
+                .insert(
+                    &declaration.tag,
+                    (&declaration.version, &declaration.source),
+                )
+                .is_some()
+        {
+            return Err(fail());
+        }
+        group.registry.insert(declaration.tag.clone());
+    }
+    if source_bytes > 1024 * 1024 {
         return Err(fail());
     }
     island::bounded_root(host, c)?;
-    if !island::is_element(host, tag, "http://www.w3.org/1999/xhtml") {
-        return Err(fail());
-    }
-    let children = island::children(host)?;
-    let templates = children
-        .iter()
-        .enumerate()
-        .filter(|(_, i)| island::is_element(i, "template", "http://www.w3.org/1999/xhtml"))
-        .collect::<Vec<_>>();
-    let [(ti, template)] = templates.as_slice() else {
-        return Err(fail());
-    };
-    if !children[..*ti].iter().all(whitespace)
-        || island::attrs(template)?
-            != BTreeMap::from([
-                ("data-cem-island".into(), "instance".into()),
-                (PROFILE_ATTRIBUTE.into(), PROFILE.into()),
-            ])
-    {
-        return Err(fail());
-    }
-    let roots = island::elements(template)?;
-    let [root] = roots.as_slice() else {
-        return Err(fail());
-    };
-    let parts = island::elements(root)?;
-    let hydration = parts.first().ok_or_else(fail)?;
-    let fields = island::hydration_fields(hydration)?;
-    let instance_id = fields
-        .get("instanceId")
-        .filter(|s| !s.is_empty() && s.len() <= 256 && !s.chars().any(char::is_control))
-        .ok_or_else(fail)?
-        .clone();
-    let data = island::bind_root(root, &instance_id, c, None, true)?;
-    // This first browser profile has no external declarations, CSS, CEM source,
-    // resource capabilities or portable live state. Never downgrade their admission.
-    if island::attrs(&parts[3])?
-        .get("content-type")
-        .map(String::as_str)
-        != Some("text/html")
-        || parts[4..]
+    group.admit_member(host, tag, current_version, source, None, 0, c)?;
+    Ok(NativeSsrGroup {
+        participants: group.participants,
+    })
+}
+
+impl Group<'_> {
+    fn admit_member(
+        &mut self,
+        host: &Item,
+        tag: &str,
+        current_version: &str,
+        source: &str,
+        parent: Option<ParentInput<'_>>,
+        depth: usize,
+        c: &OperationControl,
+    ) -> Result<(), String> {
+        c.check_scope(ROOT_EXECUTION_SCOPE_ID).map_err(|_| fail())?;
+        self.remaining_source_bytes = self
+            .remaining_source_bytes
+            .checked_sub(source.len())
+            .ok_or_else(fail)?;
+        if self.participants.len() >= 64
+            || depth > 64
+            || !island::is_element(host, tag, HTML_NAMESPACE_URI)
+        {
+            return Err(fail());
+        }
+        let source_key = host
+            .view()
+            .and_then(|view| view.provenance())
+            .and_then(|source| source.source_key)
+            .ok_or_else(fail)?;
+        let children = island::children(host)?;
+        let templates = children
             .iter()
-            .any(|p| !island::elements(p).is_ok_and(|v| v.is_empty()))
-    {
-        return Err(fail());
-    }
-    let mut saved = BTreeMap::new();
-    for a in island::elements(&parts[1])? {
-        let a = island::attrs(&a)?;
-        saved.insert(
-            a.get("name").ok_or_else(fail)?.clone(),
-            a.get("value").ok_or_else(fail)?.clone(),
+            .enumerate()
+            .filter(|(_, i)| island::is_element(i, "template", HTML_NAMESPACE_URI))
+            .collect::<Vec<_>>();
+        let [(ti, template)] = templates.as_slice() else {
+            return Err(fail());
+        };
+        if !children[..*ti].iter().all(whitespace)
+            || island::attrs(template)?
+                != BTreeMap::from([
+                    ("data-cem-island".into(), "instance".into()),
+                    (PROFILE_ATTRIBUTE.into(), PROFILE.into()),
+                ])
+        {
+            return Err(fail());
+        }
+        let roots = island::elements(template)?;
+        let [root] = roots.as_slice() else {
+            return Err(fail());
+        };
+        let parts = island::elements(root)?;
+        let hydration = parts.first().ok_or_else(fail)?;
+        let fields = island::hydration_fields(hydration)?;
+        let instance_id = fields
+            .get("instanceId")
+            .filter(|s| !s.trim().is_empty() && s.len() <= 256 && !s.chars().any(char::is_control))
+            .ok_or_else(fail)?
+            .clone();
+        if !self.ids.insert(instance_id.clone()) {
+            return Err(fail());
+        }
+        let data = island::bind_root(root, &instance_id, c, None, true)?;
+        // This first browser profile has no external declarations, CSS, CEM source,
+        // resource capabilities or portable live state. Never downgrade their admission.
+        if island::attrs(&parts[3])?
+            .get("content-type")
+            .map(String::as_str)
+            != Some("text/html")
+            || parts[4..]
+                .iter()
+                .any(|p| !island::elements(p).is_ok_and(|v| v.is_empty()))
+        {
+            return Err(fail());
+        }
+        let mut saved = BTreeMap::new();
+        for a in island::elements(&parts[1])? {
+            let a = island::attrs(&a)?;
+            saved.insert(
+                a.get("name").ok_or_else(fail)?.clone(),
+                a.get("value").ok_or_else(fail)?.clone(),
+            );
+        }
+        let mut actual = island::attrs(host)?;
+        let host_attrs = actual
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect::<Vec<_>>();
+        cem_ml::validation::html::validate_passive_html_attributes(tag, &host_attrs)
+            .map_err(|_| fail())?;
+        actual.remove("data-cem-render-scope");
+        if actual != saved {
+            return Err(fail());
+        }
+        let payload = island::children(&parts[3])?;
+        passive_nodes(&payload, c)?;
+        if let Some(parent) = parent {
+            if parent.attributes != actual {
+                return Err(fail());
+            }
+            compare(parent.payload, &payload, depth, c, None)?;
+        }
+        let starts = children
+            .iter()
+            .enumerate()
+            .filter(|(_, i)| marker(i, "cem-render-start"))
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        let ends = children
+            .iter()
+            .enumerate()
+            .filter(|(_, i)| marker(i, "cem-render-end"))
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        let ([start], [end]) = (starts.as_slice(), ends.as_slice()) else {
+            return Err(fail());
+        };
+        if start <= ti
+            || end <= start
+            || !children[*ti + 1..*start].iter().all(whitespace)
+            || !children[*end + 1..].iter().all(whitespace)
+        {
+            return Err(fail());
+        }
+        let output = &children[*start + 1..*end];
+        let artifact = compile_template(
+            source,
+            &CompileTemplateOptions {
+                host_bindings: data.bindings.keys().cloned().collect(),
+                source_uri: Some("cem-resume:declaration".into()),
+                ..Default::default()
+            },
         );
-    }
-    let mut actual = island::attrs(host)?;
-    let host_attrs = actual
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.as_str()))
-        .collect::<Vec<_>>();
-    cem_ml::validation::html::validate_passive_html_attributes(tag, &host_attrs)
-        .map_err(|_| fail())?;
-    actual.remove("data-cem-render-scope");
-    if actual != saved {
-        return Err(fail());
-    }
-    let starts = children
-        .iter()
-        .enumerate()
-        .filter(|(_, i)| marker(i, "cem-render-start"))
-        .map(|(i, _)| i)
-        .collect::<Vec<_>>();
-    let ends = children
-        .iter()
-        .enumerate()
-        .filter(|(_, i)| marker(i, "cem-render-end"))
-        .map(|(i, _)| i)
-        .collect::<Vec<_>>();
-    let ([start], [end]) = (starts.as_slice(), ends.as_slice()) else {
-        return Err(fail());
-    };
-    if start <= ti
-        || end <= start
-        || !children[*ti + 1..*start].iter().all(whitespace)
-        || !children[*end + 1..].iter().all(whitespace)
-    {
-        return Err(fail());
-    }
-    passive_nodes(&island::children(&parts[3])?, c)?;
-    passive_nodes(&children[*start + 1..*end], c)?;
-    let artifact = compile_template(
-        source,
-        &CompileTemplateOptions {
-            host_bindings: data.bindings.keys().cloned().collect(),
-            source_uri: Some("cem-resume:declaration".into()),
-            ..Default::default()
-        },
-    );
-    if !artifact.stylesheets.is_empty()
-        || artifact.module_map.is_some()
-        || artifact.requires_legacy_runtime_resources()
-        || artifact
+        if !artifact.stylesheets.is_empty()
+            || artifact.module_map.is_some()
+            || artifact.requires_legacy_runtime_resources()
+            || artifact
+                .diagnostics
+                .iter()
+                .any(|d| d.severity.is_hard_violation())
+        {
+            return Err(fail());
+        }
+        let version = fields.get("declarationVersion").cloned();
+        let plan =
+            render_compiled_template_with_control(&artifact, &data, c, ROOT_EXECUTION_SCOPE_ID);
+        if plan
             .diagnostics
             .iter()
             .any(|d| d.severity.is_hard_violation())
-    {
-        return Err(fail());
-    }
-    let version = fields.get("declarationVersion").cloned();
-    let plan = render_compiled_template_with_control(&artifact, &data, c, ROOT_EXECUTION_SCOPE_ID);
-    if plan
-        .diagnostics
-        .iter()
-        .any(|d| d.severity.is_hard_violation())
-    {
-        return Err(fail());
-    }
-    let mut plan = project_render_plan_with_control(
-        &plan,
-        crate::eval::QueryContextScope(0),
-        &island::LIMITS,
-        c,
-        ROOT_EXECUTION_SCOPE_ID,
-    )
-    .map_err(|_| fail())?;
-    crate::ssr_render::admit_output_mode(&mut plan.nodes, false, None).map_err(|_| fail())?;
-    let mut pending: Vec<_> = plan.nodes.iter().collect();
-    while let Some(node) = pending.pop() {
-        if let RenderPlanNode::Element {
-            tag,
-            namespace,
-            children,
-            ..
-        } = node
         {
-            if !profile_tag(tag) || namespace.as_deref() != Some("http://www.w3.org/1999/xhtml") {
+            return Err(fail());
+        }
+        let mut plan = project_render_plan_with_control(
+            &plan,
+            crate::eval::QueryContextScope(0),
+            &island::LIMITS,
+            c,
+            ROOT_EXECUTION_SCOPE_ID,
+        )
+        .map_err(|_| fail())?;
+        crate::ssr_render::admit_output_mode(&mut plan.nodes, false, Some(&self.registry))
+            .map_err(|_| fail())?;
+        let mut pending: Vec<_> = plan.nodes.iter().collect();
+        while let Some(node) = pending.pop() {
+            if let RenderPlanNode::Element {
+                tag,
+                namespace,
+                children,
+                ..
+            } = node
+            {
+                if (!profile_tag(tag) && !self.registry.contains(tag))
+                    || namespace.as_deref() != Some(HTML_NAMESPACE_URI)
+                {
+                    return Err(fail());
+                }
+                pending.extend(children);
+            }
+        }
+        if !version
+            .as_deref()
+            .is_some_and(|v| versions_compatible(v, current_version))
+        {
+            if !self.registry.is_empty() {
                 return Err(fail());
             }
-            pending.extend(children);
+            passive_nodes(output, c)?;
+            self.participants.push(NativeSsrResume {
+                decision: ResumeDecision::RenderOnLoad,
+                instance_id,
+                declaration_version: version,
+                source_key,
+            });
+            return Ok(());
         }
-    }
-    if !version
-        .as_deref()
-        .is_some_and(|v| versions_compatible(v, current_version))
-    {
-        return Ok(NativeSsrResume {
-            decision: ResumeDecision::RenderOnLoad,
+        for a in &plan.host_attribute_updates {
+            if actual.get(&a.name) != Some(&a.value) {
+                return Err(fail());
+            }
+        }
+        if !plan
+            .nodes
+            .iter()
+            .any(|n| matches!(n, RenderPlanNode::Element { .. }))
+        {
+            return Err(fail());
+        }
+        self.participants.push(NativeSsrResume {
+            decision: ResumeDecision::Adopt,
             instance_id,
             declaration_version: version,
+            source_key,
         });
+        compare(&plan.nodes, output, depth, c, Some(self))
     }
-    for a in &plan.host_attribute_updates {
-        if actual.get(&a.name) != Some(&a.value) {
+}
+
+fn plan_attributes(attributes: &[RenderPlanAttribute]) -> Result<BTreeMap<String, String>, String> {
+    let mut result = BTreeMap::new();
+    for attribute in attributes {
+        if attribute.namespace.as_deref() == Some("http://www.w3.org/2000/xmlns/") {
+            continue;
+        }
+        if attribute
+            .namespace
+            .as_deref()
+            .is_some_and(|s| !s.is_empty())
+            || result
+                .insert(attribute.name.clone(), attribute.value.clone())
+                .is_some()
+        {
             return Err(fail());
         }
     }
-    compare(&plan.nodes, &children[*start + 1..*end], 0, c)?;
-    if !plan
-        .nodes
-        .iter()
-        .any(|n| matches!(n, RenderPlanNode::Element { .. }))
-    {
-        return Err(fail());
-    }
-    Ok(NativeSsrResume {
-        decision: ResumeDecision::Adopt,
-        instance_id,
-        declaration_version: version,
-    })
+    Ok(result)
 }
 fn compare(
     expected: &[RenderPlanNode],
     actual: &[Item],
     depth: usize,
     c: &OperationControl,
+    mut group: Option<&mut Group<'_>>,
 ) -> Result<(), String> {
     c.check_scope(ROOT_EXECUTION_SCOPE_ID).map_err(|_| fail())?;
     if depth > 64 {
@@ -283,37 +425,38 @@ fn compare(
                 children,
                 ..
             } => {
-                if tag.contains('-')
-                    || tag == "template"
-                    || tag == "style"
-                    || !island::is_element(
-                        item,
-                        tag,
-                        namespace
-                            .as_deref()
-                            .filter(|s| !s.is_empty())
-                            .unwrap_or("http://www.w3.org/1999/xhtml"),
-                    )
-                {
+                if !island::is_element(
+                    item,
+                    tag,
+                    namespace
+                        .as_deref()
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or(HTML_NAMESPACE_URI),
+                ) {
                     return Err(fail());
                 }
-                let attributes: Vec<_> = attributes
-                    .iter()
-                    .filter(|a| a.namespace.as_deref() != Some("http://www.w3.org/2000/xmlns/"))
-                    .collect();
-                let attrs = attributes
-                    .iter()
-                    .map(|a| {
-                        if a.namespace.as_deref().is_some_and(|s| !s.is_empty()) {
-                            return Err(fail());
-                        }
-                        Ok((a.name.clone(), a.value.clone()))
-                    })
-                    .collect::<Result<BTreeMap<_, _>, String>>()?;
-                if attrs.len() != attributes.len() || attrs != island::attrs(item)? {
-                    return Err(fail());
+                let attributes = plan_attributes(attributes)?;
+                if tag.contains('-') {
+                    let group = group.as_deref_mut().ok_or_else(fail)?;
+                    let (version, source) =
+                        *group.declarations.get(tag.as_str()).ok_or_else(fail)?;
+                    let input = ParentInput {
+                        attributes,
+                        payload: children,
+                    };
+                    group.admit_member(item, tag, version, source, Some(input), depth + 1, c)?;
+                } else {
+                    if !profile_tag(tag) || tag == "style" || attributes != island::attrs(item)? {
+                        return Err(fail());
+                    }
+                    compare(
+                        children,
+                        &island::children(item)?,
+                        depth + 1,
+                        c,
+                        group.as_deref_mut(),
+                    )?;
                 }
-                compare(children, &island::children(item)?, depth + 1, c)?;
             }
             RenderPlanNode::Comment { text: expected, .. }
                 if kind(item).as_deref() == Some("comment")
@@ -334,9 +477,7 @@ fn passive_nodes(roots: &[Item], c: &OperationControl) -> Result<(), String> {
             Some("element") => {
                 let tag = island::field(&node, "name").ok_or_else(fail)?;
                 // Inert nested templates have a separate DOM mutation root.
-                if !profile_tag(&tag)
-                    || !island::is_element(&node, &tag, "http://www.w3.org/1999/xhtml")
-                {
+                if !profile_tag(&tag) || !island::is_element(&node, &tag, HTML_NAMESPACE_URI) {
                     return Err(fail());
                 }
                 let attributes = island::attrs(&node)?;

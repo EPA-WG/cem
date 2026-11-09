@@ -683,19 +683,26 @@ server readiness gate. For a compatible version it compares the retained range
 with a fresh native projection of the current declaration and admitted island.
 The comparison does not publish a second render or capture output as payload.
 
-The host rechecks that the declaration, DOM, connection and instance identity
-are current before committing. A match keeps existing rendered nodes, seeds the
-established browser lifecycle and allows normal later invalidation. Missing,
-malformed or incompatible declaration versions use the admitted payload to
-render on load. Unknown island/profile versions, inconsistent or unsafe input,
-duplicate instance IDs, changed ranges and stale captures remain frozen. No
-instance resource or behavior work starts while admission is pending.
+The host rechecks the declarations, DOM, connections and instance identities
+before committing. A match keeps existing rendered nodes and attaches the browser
+lifecycle for later invalidation. For a standalone participant, a missing,
+malformed or incompatible declaration version renders on load from the admitted
+payload. Unknown island or profile versions, inconsistent input, duplicate
+identities, changed ranges and stale captures freeze admission.
 
-The first adoption profile uses the default browser policies and passive CEM-ML
-light DOM with HTML payloads. Nested declarations, scoped CSS, foreign markup,
-CEM source payloads, live slices, form controls and external capabilities still
-require parity/admission work. Adoption records only declaration-level source
-fidelity on the retained browser root. No server byte coordinates are invented.
+Nested participants use one captured tree. At each nested position in the
+parent's fresh projection, native admission compares the expected child tag,
+attributes and HTML payload with the child host and its island. The child's
+declaration and range must also pass admission. The browser validates every
+publication target and captures every input mirror before writing hydration
+metadata or connecting a participant. A failed child, including one with an
+incompatible declaration version, freezes the whole group. A nested child
+receives its own lifecycle only after the group has been admitted.
+
+This profile covers default browser policies and passive inline CEM-ML light
+DOM with HTML payloads. Scoped CSS, foreign markup, CEM source payloads, live
+slices, form controls and external capabilities still require separate admission.
+The retained browser root records declaration-level source fidelity.
 
 Structured-clone `DataIslandSnapshot` records remain valid processing-boundary
 transport for workers, Edge, or other non-DOM hosts. They are derived from the

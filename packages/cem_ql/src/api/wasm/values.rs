@@ -564,14 +564,35 @@ fn finish_capture(id:u32,limits_json:&str,literal:bool)->Result<Vec<u8>,JsValue>
     crate::eval::portable::encode_values(&ItemStream::once(value), &limits).map_err(|e|JsValue::from_str(&e))
 }
 #[wasm_bindgen(js_name = "admitCanonicalSsrHost")]
-pub fn admit_canonical_ssr_host(bytes:&[u8],tag:&str,version:&str,source:&str)->Result<String,JsValue> {
-    let _native=cem_ml::runtime_admission::admit(false).map_err(JsValue::from_str)?;
-    let _memory=cem_ml::runtime_memory::admit_input(bytes.len().saturating_add(source.len()).saturating_add(tag.len()).saturating_add(version.len())).map_err(|e|JsValue::from_str(e.0))?;
-    let control=cem_ml::operation_control::OperationControl::default();
-    let values=crate::eval::portable::decode_values_with_control(bytes,&crate::instance_island::LIMITS,&control,cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID).map_err(|e|JsValue::from_str(&e.to_string()))?;
-    let [host]=values.items.as_slice() else {return Err(JsValue::from_str("cem.ssr.resume_host"))};
-    let admitted=crate::ssr_browser_resume::admit(host,tag,version,source,&control).map_err(|e|JsValue::from_str(&e))?;
-    serde_json::to_string(&admitted).map_err(|e|JsValue::from_str(&e.to_string()))
+pub fn admit_canonical_ssr_host(
+    bytes: &[u8], tag: &str, version: &str, source: &str, nested_json: Option<String>,
+) -> Result<String, JsValue> {
+    use crate::ssr_browser_resume::{admit, admit_group, NestedDeclaration};
+
+    let _native = cem_ml::runtime_admission::admit(false).map_err(JsValue::from_str)?;
+    let nested_bytes = nested_json.as_ref().map_or(0, String::len);
+    if nested_bytes > 2 * 1024 * 1024 {
+        return Err(JsValue::from_str("cem.ssr.resume_declaration_bounds"));
+    }
+    let input_bytes = [bytes.len(), source.len(), tag.len(), version.len(), nested_bytes]
+        .into_iter().fold(0usize, usize::saturating_add);
+    let _memory = cem_ml::runtime_memory::admit_input(input_bytes).map_err(|e| JsValue::from_str(e.0))?;
+    let control = cem_ml::operation_control::OperationControl::default();
+    let values = crate::eval::portable::decode_values_with_control(
+        bytes, &crate::instance_island::LIMITS, &control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+    ).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let [host] = values.items.as_slice() else { return Err(JsValue::from_str("cem.ssr.resume_host")) };
+    let serialized = if let Some(json) = nested_json {
+        let declarations: Vec<NestedDeclaration> = serde_json::from_str(&json)
+            .map_err(|_| JsValue::from_str("cem.ssr.resume_declarations"))?;
+        let group = admit_group(host, tag, version, source, &declarations, &control)
+            .map_err(|e| JsValue::from_str(&e))?;
+        serde_json::to_string(&group)
+    } else {
+        let host = admit(host, tag, version, source, &control).map_err(|e| JsValue::from_str(&e))?;
+        serde_json::to_string(&host)
+    };
+    serialized.map_err(|e| JsValue::from_str(&e.to_string()))
 }
 #[wasm_bindgen(js_name = "disposeDomPayloadCapture")]
 pub fn dispose_dom_capture(id: u32) -> bool {

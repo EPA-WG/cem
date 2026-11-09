@@ -15,13 +15,27 @@ fn host_case(version: Option<&str>, text: &str, case: &str) -> cem_ql::eval::Ite
     )
     .unwrap();
     let mut seq = 0;
-    let mut push = |parent, kind, ns: &str, name: &str, value: &str| {
+    let mut push = |parent, kind: &str, ns: &str, name: &str, value: &str| {
         seq += 1;
         c.push(parent, &format!("n-{seq}"), kind, ns, name, value)
             .unwrap()
     };
     push(0, "document", "", "", "");
-    let h = push(0, "element", "http://www.w3.org/1999/xhtml", "x-card", "");
+    let h = push_host(&mut push, 0, "x-card", "ssr-1", version, text, case);
+    let tree = c.finish_literal_namespaces().unwrap();
+    RetainedCemNode::new(tree, h).unwrap().query_item()
+}
+
+fn push_host(
+    push: &mut impl FnMut(u32, &str, &str, &str, &str) -> u32,
+    parent: u32,
+    tag: &str,
+    instance_id: &str,
+    version: Option<&str>,
+    text: &str,
+    case: &str,
+) -> u32 {
+    let h = push(parent, "element", "http://www.w3.org/1999/xhtml", tag, "");
     if case == "host-input" {
         push(h, "attribute", "", "title", "Changed");
     }
@@ -83,7 +97,7 @@ fn host_case(version: Option<&str>, text: &str, case: &str) -> cem_ql::eval::Ite
         if i == 0 {
             let mut fields = vec![
                 ("version", island_version),
-                ("instanceId", "ssr-1"),
+                ("instanceId", instance_id),
                 ("outputTarget", "light-dom"),
             ];
             if let Some(v) = version {
@@ -126,7 +140,25 @@ fn host_case(version: Option<&str>, text: &str, case: &str) -> cem_ql::eval::Ite
     }
     push(h, "comment", "", "", "cem-render-start");
     let b = push(h, "element", "http://www.w3.org/1999/xhtml", "b", "");
-    if case == "slot" {
+    if case.starts_with("nested") {
+        push_host(
+            push,
+            b,
+            "x-child",
+            if case == "nested-duplicate" {
+                instance_id
+            } else {
+                "ssr-2"
+            },
+            Some(if case == "nested-version" {
+                "2.0.0"
+            } else {
+                "1.2.3"
+            }),
+            text,
+            "",
+        );
+    } else if case == "slot" {
         let e = push(b, "element", "http://www.w3.org/1999/xhtml", "em", "");
         push(e, "attribute", "", "slot", "heading");
         push(e, "text", "", "", text);
@@ -137,9 +169,53 @@ fn host_case(version: Option<&str>, text: &str, case: &str) -> cem_ql::eval::Ite
     if case == "range" {
         push(h, "comment", "", "", "cem-render-start");
     }
-    drop(push);
-    let tree = c.finish_literal_namespaces().unwrap();
-    RetainedCemNode::new(tree, h).unwrap().query_item()
+    h
+}
+
+#[test]
+fn nested_group_requires_fresh_output_and_parent_owned_inputs_for_every_child() {
+    use cem_ql::ssr_browser_resume::{admit_group, NestedDeclaration};
+
+    let control = OperationControl::default();
+    let declaration = NestedDeclaration {
+        tag: "x-child".into(),
+        version: "1.9.0".into(),
+        source: "{b | Nested}".into(),
+    };
+    let run = |case, text, source| {
+        admit_group(
+            &host_case(Some("1.2.3"), text, case),
+            "x-card",
+            "1.9.0",
+            source,
+            std::slice::from_ref(&declaration),
+            &control,
+        )
+    };
+    let source = "{b | {x-child | {em | Input}}}";
+    let admitted = run("nested", "Nested", source).unwrap();
+    assert_eq!(
+        admitted
+            .participants
+            .iter()
+            .map(|p| p.instance_id.as_str())
+            .collect::<Vec<_>>(),
+        ["ssr-1", "ssr-2"]
+    );
+    for (case, text, source) in [
+        ("nested", "Tampered", source),
+        ("nested", "Nested", "{b | {x-child | {em | Wrong input}}}"),
+        (
+            "nested",
+            "Nested",
+            "{b | {x-child @title=Wrong | {em | Input}}}",
+        ),
+        ("nested", "Nested", "{section | {x-child | {em | Input}}}"),
+        ("nested-duplicate", "Nested", source),
+        ("nested-version", "Nested", source),
+    ] {
+        assert!(run(case, text, source).is_err(), "{case} {source}");
+    }
 }
 #[test]
 fn compatible_output_requires_fresh_native_render_agreement() {

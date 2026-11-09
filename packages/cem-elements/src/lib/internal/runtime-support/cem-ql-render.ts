@@ -1525,9 +1525,18 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         } finally { disposeDomPayloadCapture(handle); }
     }
 
-    const admitCanonicalSsrInstance = nativeCheckpointWork(async (host: HTMLElement, tag: string, version: string, source: string, limits: CemValueArtifactLimits): Promise<{ decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null }> => {
+    const admitCanonicalSsrInstance = nativeCheckpointWork(async (
+        host: HTMLElement, tag: string, version: string, source: string, limits: CemValueArtifactLimits,
+        members: readonly HTMLElement[], nested: readonly { tag: string; version: string; source: string }[],
+    ): Promise<readonly { decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null }[]> => {
         const captured = await captureDomPayloadOperation(host, limits, true);
-        return JSON.parse(admitCanonicalSsrHost(new Uint8Array(captured.artifact), tag, version, source));
+        const { participants } = JSON.parse(admitCanonicalSsrHost(
+            new Uint8Array(captured.artifact), tag, version, source, JSON.stringify(nested),
+        )) as { participants: { decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null; sourceKey: string }[] };
+        if (participants.length !== members.length || participants.some((decision, index) => decision.sourceKey !== domKey(members[index]))) {
+            throw new Error('cem.ssr.resume_participants');
+        }
+        return participants;
     });
     return { domain, native, processCheckpointControl, captureDomPayload, admitCanonicalSsrInstance,
         highlightSource,

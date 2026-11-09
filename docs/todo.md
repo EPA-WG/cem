@@ -990,6 +990,15 @@ through Phase 9 release governance.
             coordinate nested participants and scoped CSS, then add foreign
             markup and native CEM source payloads. Verify live state, form
             controls, node identity and retained ranges before widening admission.
+        - [x] Admit passive nested participants as one group. Native fixtures
+              verify child position, input, version and identity. All 19
+              CLI-to-Chromium cases pass against the optimized package, including
+              10 nested cases, with zero external requests. A child serving as
+              the parent's rendered root keeps its own input mirror.
+              [Archive](archive/todo-completed-ssr-nested-hydration-2026-11-09.md).
+        - [ ] Prove and reuse retained declaration and instance stylesheet
+              closures with nested adoption. Check scope and style node identity
+              in Chromium and refuse missing, modified or unresolved styles.
       - [ ] Extend CLI host admission to external resources, further page-source
             forms and fan-out route/output preflight; account acquisition/parser
             CPU explicitly while preserving the same native proof and ledger.
