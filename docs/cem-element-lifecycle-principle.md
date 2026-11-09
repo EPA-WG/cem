@@ -699,10 +699,20 @@ metadata or connecting a participant. A failed child, including one with an
 incompatible declaration version, freezes the whole group. A nested child
 receives its own lifecycle only after the group has been admitted.
 
-This profile covers default browser policies and passive inline CEM-ML light
-DOM with HTML payloads. Scoped CSS, foreign markup, CEM source payloads, live
-slices, form controls and external capabilities still require separate admission.
-The retained browser root records declaration-level source fidelity.
+The profile admits private and shared declaration styles and explicit instance
+styles when their closures are resource free. A portable native key binds each
+stylesheet to its declaration or instance, occurrence, scope and source bytes.
+The CLI emits literal HTML style text. The browser rebuilds the closure from
+the live declaration or canonical payload, compares every managed occurrence,
+and checks that the installed CSSOM rules still match the admitted text. Normal
+stylesheet ownership then takes over the same style nodes and sheets.
+
+An absent, disabled, changed or unresolved stylesheet freezes the group. Shared
+stylesheets require their matching declaration owners in the admitted group.
+Styled groups require compatible declaration versions for every participant.
+Foreign markup, CEM source payloads, live slices, form controls and external
+capabilities still require separate admission. The retained browser root records
+declaration-level source fidelity.
 
 Structured-clone `DataIslandSnapshot` records remain valid processing-boundary
 transport for workers, Edge, or other non-DOM hosts. They are derived from the

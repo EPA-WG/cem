@@ -358,7 +358,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
 
     async function processRetainedTemplateStylesheetOperation(
         artifactId: number, input: CemProcessingStylesheetInput, consumer: string,
-        declarationIdentity: string, loadId = 0
+        declarationIdentity: string, loadId = 0, portableOwner?: string,
     ): Promise<CemProcessingStylesheetResult<number>> {
         await ensureRuntimeReady();
         if (input.action === 'release') return releaseRetainedTemplateStylesheets(artifactId, consumer, loadId);
@@ -371,7 +371,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
                 new Uint8Array(input.bytes), input.finalUrl, input.contentType ?? ''));
         }
         return stylesheetResult(beginTemplateStylesheet(artifactId, JSON.stringify({ consumer,
-            index: input.index, baseUrl: input.baseUrl, context: input.context, scope: input.scope, declarationIdentity })));
+            index: input.index, baseUrl: input.baseUrl, context: input.context, scope: input.scope, declarationIdentity, portableOwner })));
     }
 
     function stylesheetResult(json: string): CemProcessingStylesheetResult<number> {
@@ -1528,11 +1528,20 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
     const admitCanonicalSsrInstance = nativeCheckpointWork(async (
         host: HTMLElement, tag: string, version: string, source: string, limits: CemValueArtifactLimits,
         members: readonly HTMLElement[], nested: readonly { tag: string; version: string; source: string }[],
-    ): Promise<readonly { decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null }[]> => {
+        declarations: readonly HTMLElement[],
+    ) => {
         const captured = await captureDomPayloadOperation(host, limits, true);
+        const styleInputs = [];
+        let declarationBytes = 0;
+        for (const declaration of declarations) {
+            const { artifact } = await captureDomPayloadOperation(declaration, limits, true);
+            declarationBytes += artifact.byteLength;
+            if (declarationBytes > limits.maxBytes) throw new Error('cem.ssr.resume_declaration_bounds');
+            styleInputs.push(new Uint8Array(artifact));
+        }
         const { participants } = JSON.parse(admitCanonicalSsrHost(
-            new Uint8Array(captured.artifact), tag, version, source, JSON.stringify(nested),
-        )) as { participants: { decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null; sourceKey: string }[] };
+            new Uint8Array(captured.artifact), tag, version, source, JSON.stringify(nested), styleInputs,
+        )) as { participants: { decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null; sourceKey: string; instanceStylesheets: boolean }[] };
         if (participants.length !== members.length || participants.some((decision, index) => decision.sourceKey !== domKey(members[index]))) {
             throw new Error('cem.ssr.resume_participants');
         }

@@ -11,7 +11,7 @@ import {
 } from './stylesheet-installation.js';
 
 type Result = Awaited<CemStylesheetInstallation['ready']>;
-type SourceOptions = Pick<CemStylesheetInstallationOptions, 'host' | 'artifact' | 'baseUrl' | 'occurrences' | 'read'>;
+type SourceOptions = Pick<CemStylesheetInstallationOptions, 'host' | 'artifact' | 'baseUrl' | 'occurrences' | 'read' | 'portableClosed'>;
 type RegistryScope = CemStylesheetInstallationOptions['occurrences'][number]['scope'];
 
 export interface CemStylesheetSource extends SourceOptions {

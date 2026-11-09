@@ -51,6 +51,7 @@ pub(super) struct StylesheetLoad {
     abort: AbortSignal,
     compiled_imports: Option<Arc<cem_ml::compiled_css_imports::CompiledCssImports>>,
     imported: usize,
+    portable_owner: Option<String>,
 }
 
 pub enum StylesheetLoadProgress {
@@ -62,6 +63,14 @@ impl RetainedTemplate {
     pub fn begin_stylesheet_load(
         &mut self,
         options: StylesheetLoadOptions,
+    ) -> Result<u32, StylesheetLoadError> {
+        self.begin_stylesheet_load_with_owner(options, None)
+    }
+
+    pub(crate) fn begin_stylesheet_load_with_owner(
+        &mut self,
+        options: StylesheetLoadOptions,
+        portable_owner: Option<String>,
     ) -> Result<u32, StylesheetLoadError> {
         if options.consumer.is_empty() {
             return Err("stylesheet consumer identity must not be empty".into());
@@ -117,6 +126,7 @@ impl RetainedTemplate {
                 abort,
                 compiled_imports,
                 imported: 0,
+                portable_owner,
             },
         );
         Ok(id)
@@ -158,12 +168,15 @@ impl RetainedTemplate {
             Ok(Some(request)) => Ok(StylesheetLoadProgress::Pending(request)),
             Ok(None) => {
                 let load = self.loads.remove(&id).unwrap();
-                let result = self.retain_stylesheet(
+                let closure = Arc::new(load.closure);
+                let portable = load.portable_owner.filter(|_| is_resource_free_stylesheet(&closure));
+                let result = self.retain_stylesheet_with_profile(
                     &load.options.consumer,
                     load.options.index,
-                    Arc::new(load.closure),
+                    closure,
                     &load.options.scope,
-                    &load.options.declaration_identity,
+                    portable.as_deref().unwrap_or(&load.options.declaration_identity),
+                    portable.is_some(),
                 );
                 if result.is_err() {
                     load.abort.abort();

@@ -21,6 +21,7 @@ struct Begin {
     base_url: String,
     context: CemModuleUrlContext,
     scope: Scope,
+    portable_owner: Option<String>,
 }
 #[derive(serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
@@ -108,7 +109,7 @@ pub fn begin(artifact_id: u32, options_json: &str) -> String {
             handle,
         );
         let consumer = options.consumer.clone();
-        let id = owner.begin_stylesheet_load(StylesheetLoadOptions {
+        let id = owner.begin_stylesheet_load_with_owner(StylesheetLoadOptions {
             consumer: options.consumer,
             index: options.index,
             declaration_identity: options.declaration_identity,
@@ -123,7 +124,7 @@ pub fn begin(artifact_id: u32, options_json: &str) -> String {
                     context: None,
                 },
             },
-        })?;
+        }, options.portable_owner)?;
         progress(id, owner.advance_stylesheet_load(id, &consumer)?)
     })
 }

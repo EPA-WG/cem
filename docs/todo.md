@@ -996,9 +996,26 @@ through Phase 9 release governance.
               10 nested cases, with zero external requests. A child serving as
               the parent's rendered root keeps its own input mirror.
               [Archive](archive/todo-completed-ssr-nested-hydration-2026-11-09.md).
-        - [ ] Prove and reuse retained declaration and instance stylesheet
+        - [x] Prove and reuse retained declaration and instance stylesheet
               closures with nested adoption. Check scope and style node identity
               in Chromium and refuse missing, modified or unresolved styles.
+              All 31 CLI-to-Chromium cases pass against the optimized package,
+              including 12 stylesheet cases with worker and main-thread reuse.
+              [Archive](archive/todo-completed-ssr-scoped-css-hydration-2026-11-09.md).
+          - [x] Verify portable native identity for resource-free retained CSS
+                across server and browser source origins, including refusal
+                of styles that require resource resolution.
+          - [x] Verify CLI stylesheet adoption in Chromium for private and
+                shared declaration styles and explicit instance styles,
+                including node and CSSOM identity, refusal of missing or changed
+                CSS, refusal of a CSSOM edit that preserves the raw text,
+                and refusal of an unadmitted shared stylesheet owner. Verify
+                reuse through worker and main-thread stylesheet ownership.
+          - [x] Verify the shared HTML writer preserves derived style text
+                and refuses a raw closing tag split across text nodes.
+        - [ ] Prove browser adoption of passive foreign markup and admitted
+              native CEM source payloads, including retained names, source
+              ownership and agreement with the CLI output.
       - [ ] Extend CLI host admission to external resources, further page-source
             forms and fan-out route/output preflight; account acquisition/parser
             CPU explicitly while preserving the same native proof and ledger.

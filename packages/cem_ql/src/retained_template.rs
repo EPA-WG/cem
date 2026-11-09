@@ -5,6 +5,7 @@ pub use stylesheet_loads::{StylesheetLoadError, StylesheetLoadOptions, Styleshee
 
 use crate::{eval::DataReaderCache, render::TemplateArtifact};
 use cem_ml::{
+    content_cache::ContentHash,
     css_emission::{
         derive_css_stylesheet_identity, emit_css_import_closure, CssClosureEmission,
         CssManagedScope, CssStylesheetIdentity,
@@ -16,6 +17,11 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
+
+pub(crate) fn is_resource_free_stylesheet(closure: &CssImportClosure) -> bool {
+    matches!(closure.sheets(), [sheet] if sheet.resources.references.is_empty())
+        && closure.state() == CssImportState::Ready
+}
 
 /// Source identity for a retained sheet occurrence, without exposing its tree.
 pub struct RetainedStylesheetSource<'a> {
@@ -153,6 +159,29 @@ impl RetainedTemplate {
         scope: &CssManagedScope,
         declaration_identity: &str,
     ) -> Result<Arc<RetainedStylesheet>, String> {
+        self.retain_stylesheet_with_profile(consumer, index, closure, scope, declaration_identity, false)
+    }
+
+    pub fn retain_closed_ssr_stylesheet(
+        &mut self,
+        consumer: &str,
+        index: usize,
+        closure: Arc<CssImportClosure>,
+        scope: &CssManagedScope,
+        owner: &str,
+    ) -> Result<Arc<RetainedStylesheet>, String> {
+        self.retain_stylesheet_with_profile(consumer, index, closure, scope, owner, true)
+    }
+
+    fn retain_stylesheet_with_profile(
+        &mut self,
+        consumer: &str,
+        index: usize,
+        closure: Arc<CssImportClosure>,
+        scope: &CssManagedScope,
+        owner: &str,
+        closed: bool,
+    ) -> Result<Arc<RetainedStylesheet>, String> {
         if consumer.is_empty() {
             return Err("stylesheet consumer identity must not be empty".into());
         }
@@ -170,13 +199,24 @@ impl RetainedTemplate {
                 "stylesheet closure does not belong to the retained template source".into(),
             );
         }
-        self.validate_stylesheet_scope(index, scope, declaration_identity)?;
-        let identity = derive_css_stylesheet_identity(
-            &closure,
-            scope,
-            declaration_identity,
-            &format!("style:{index}"),
-        )?;
+        self.validate_stylesheet_scope(index, scope, owner)?;
+        let occurrence = format!("style:{index}");
+        let mut identity = derive_css_stylesheet_identity(&closure, scope, owner, &occurrence)?;
+        if closed {
+            if !is_resource_free_stylesheet(&closure) || owner.chars().any(char::is_control) {
+                return Err("Closed SSR stylesheets require a resource-free source and bounded owner".into());
+            }
+            let (kind, name) = match scope {
+                CssManagedScope::Private { tag, .. } => ("private", tag.as_str()),
+                CssManagedScope::Shared { name, .. } => ("shared", name.as_str()),
+                CssManagedScope::Instance => ("instance", ""),
+            };
+            // Closed CSS is independent of the server's source file and browser URL.
+            let key = format!("cem-ssr-closed-owner/1\0{owner}\0{occurrence}\0{kind}\0{name}");
+            identity.owner_key = format!("cem-style-1-{}", ContentHash::from_blake3(key.as_bytes()).hex);
+            let key = format!("{}\0{}", identity.owner_key, source.css());
+            identity.cache_key = format!("cem-ssr-closed-css-1-{}", ContentHash::from_blake3(key.as_bytes()).hex);
+        }
         let key = identity.cache_key.clone();
         let retained = match self.stylesheets.get(&key).filter(|entry| entry.active()) {
             Some(entry) => entry.clone(),

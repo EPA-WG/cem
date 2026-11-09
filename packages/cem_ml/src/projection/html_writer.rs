@@ -112,18 +112,19 @@ fn node(
                 }
                 attributes.push(extra.clone());
             }
-            CemTreeAstNode::Element {
-                name: name(
-                    n.name.as_ref().ok_or("DOM element has no name")?,
-                    &aliases,
-                    false,
-                )?,
-                attributes,
-                children: n
-                    .children
+            let expanded = n.name.as_ref().ok_or("DOM element has no name")?;
+            let children = if expanded.namespace_uri == HTML && expanded.local_name == "style" {
+                style_text(tree, &n.children, c)?
+            } else {
+                n.children
                     .iter()
                     .map(|id| node(tree, *id, &aliases, depth + 1, c, output_attributes))
-                    .collect::<Result<_, _>>()?,
+                    .collect::<Result<_, _>>()?
+            };
+            CemTreeAstNode::Element {
+                name: name(expanded, &aliases, false)?,
+                attributes,
+                children,
                 source,
             }
         }
@@ -159,6 +160,35 @@ fn node(
         }
     })
 }
+
+fn style_text(
+    tree: &RetainedCemTree,
+    children: &[AstNodeId],
+    c: &OperationControl,
+) -> Result<Vec<CemTreeAstNode>, String> {
+    let mut text = String::new();
+    let mut projected = Vec::with_capacity(children.len());
+    for id in children {
+        c.check_scope(ROOT_EXECUTION_SCOPE_ID)
+            .map_err(|e| e.code().to_owned())?;
+        let child = tree
+            .node(*id)
+            .filter(|node| node.kind == CemTreeNodeKind::Text)
+            .ok_or("HTML style requires literal text children")?;
+        text.push_str(&child.value);
+        projected.push(CemTreeAstNode::RawText {
+            data: child.value.clone(),
+            source: child.source.clone(),
+        });
+    }
+    // HTML's raw text tokenizer does not decode character references. Check
+    // the whole body because an end tag can span adjacent native text nodes.
+    if text.contains('\0') || text.to_ascii_lowercase().contains("</style") {
+        return Err("Unsafe HTML style raw text".into());
+    }
+    Ok(projected)
+}
+
 pub fn stream(
     tree: Arc<RetainedCemTree>,
     original: &HtmlDocumentAst,
@@ -223,6 +253,44 @@ pub fn stream_with_output_attributes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn derived_html_style_text_is_literal_and_cannot_close_its_owner() {
+        let capture = |parts: &[&str]| {
+            let mut capture = crate::import::dom::DomCapture::new(
+                "cem-dom://writer/style",
+                "",
+                "",
+                Default::default(),
+            )
+            .unwrap();
+            capture.push(0, "doc", "document", "", "", "").unwrap();
+            let style = capture
+                .push(0, "style", "element", HTML, "style", "")
+                .unwrap();
+            for (index, part) in parts.iter().enumerate() {
+                capture
+                    .push(style, &format!("text-{index}"), "text", "", "", part)
+                    .unwrap();
+            }
+            let tree = capture.finish().unwrap();
+            node(
+                &tree,
+                style,
+                &BTreeMap::new(),
+                0,
+                &OperationControl::default(),
+                &BTreeMap::new(),
+            )
+        };
+        let CemTreeAstNode::Element { children, .. } = capture(&["a > b {content:'<&'}"]).unwrap()
+        else {
+            panic!("style")
+        };
+        assert!(
+            matches!(&children[0], CemTreeAstNode::RawText { data, .. } if data == "a > b {content:'<&'}")
+        );
+        assert!(capture(&["a {content:'</st", "yle>'}"]).is_err());
+    }
     #[test]
     fn dom_writer_projection_preserves_html_names_doctype_raw_text_and_source_owner() {
         use crate::{

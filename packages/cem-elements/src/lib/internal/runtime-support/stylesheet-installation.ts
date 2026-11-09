@@ -29,6 +29,7 @@ export interface CemStylesheetInstallationOptions<TScope extends Begin['scope'] 
     baseUrl: string;
     context: CemModuleUrlContextWire;
     occurrences: ReadonlyArray<{ index: number; scope: TScope }>;
+    portableClosed?: boolean;
     /** Reject partial loads instead of committing valid siblings. Check compilation diagnostics before installation. */
     requireComplete?: boolean;
     /** Transport supplies bytes; native import owns resolution and response policy. */
@@ -109,7 +110,8 @@ export function installRetainedStylesheets<TScope extends Begin['scope']>(option
             for (const occurrence of occurrences) {
                 let loadId: string | undefined;
                 try {
-                    let result = await operation({ action: 'begin', artifact, consumer, baseUrl, context, ...occurrence });
+                    let result = await operation({ action: 'begin', artifact, consumer, baseUrl, context, ...occurrence,
+                        ...(options.portableClosed ? { portableClosed: true } : {}) });
                     if ('loadId' in result) loadId = result.loadId;
                     while (result.status === 'pending') {
                         const request = result.request;

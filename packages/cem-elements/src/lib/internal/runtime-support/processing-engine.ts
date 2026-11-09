@@ -447,8 +447,10 @@ export class CemProcessingEngine {
                 throw new Error('stylesheet load owner changed; restart the load');
             }
         }
+        const instance = artifact.input.instanceStylesheetIdentity;
+        const portableOwner = input.action === 'begin' && input.portableClosed ? instance ?? artifact.input.producedTag : undefined;
         const result = await this.bindings.processRetainedTemplateStylesheet(artifact.wasmArtifactId, input, consumer,
-            artifact.input.instanceStylesheetIdentity ?? artifact.handle.registrationIdentity, loadId);
+            instance ?? artifact.handle.registrationIdentity, loadId, portableOwner);
         if (this.disposed || this.artifacts.get(key) !== artifact) {
             // The compilation can still be shared by another logical artifact.
             if (!this.disposed && 'loadId' in result) {

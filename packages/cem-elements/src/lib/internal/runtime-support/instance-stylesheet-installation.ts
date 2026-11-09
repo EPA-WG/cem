@@ -10,7 +10,7 @@ export interface InstanceStylesheetInstallation {
 }
 
 /** Own native loads and host-local style nodes independently of rendered content. */
-export type InstanceStylesheetInstallationOptions = Pick<CemStylesheetInstallationOptions, 'host' | 'context' | 'baseUrl' | 'read'> & {
+export type InstanceStylesheetInstallationOptions = Pick<CemStylesheetInstallationOptions, 'host' | 'context' | 'baseUrl' | 'read' | 'portableClosed'> & {
     element: HTMLElement;
     instanceId: string;
     sources: Array<{ css: string; scope: null }>;

@@ -1899,6 +1899,7 @@ export class CemElementRuntime {
     private readonly publicationControllers = new WeakMap<HTMLElement, AbortController>();
     private readonly stylesheetReady = new WeakSet<HTMLElement>();
     private readonly instanceStylesheets = new WeakMap<HTMLElement, { key: string; installation: InstanceStylesheetInstallation; reported: boolean }>();
+    private readonly portableSsrInstanceStyles = new WeakSet<HTMLElement>();
     private readonly reportedStylesheetDiagnostics = new WeakSet<object>();
     private readonly processingPoolPolicy?: CemProcessingPoolPolicy;
     private readonly controlInputPolicy: CemControlInputPolicy;
@@ -4066,7 +4067,7 @@ export class CemElementRuntime {
                         || this.initializedInstances.has(host) || directDataIslands(host).length !== 1
                         || host.firstElementChild !== memberIsland || declaration.mode !== 'cem-ml'
                         || declaration.cemMlSource === null || declaration.behavior || declaration.pinnedDeclaration
-                        || declaration.linkBaseUrl || declaration.declaredSlices.length || declaration.stylesheets.length
+                        || declaration.linkBaseUrl || declaration.declaredSlices.length
                         || (members.size > 1 && declaration.sourceRef?.kind !== 'inline')) {
                         throw new Error('cem.ssr.resume_profile_unsupported');
                     }
@@ -4093,9 +4094,10 @@ export class CemElementRuntime {
                     }
                     return { host, island: memberIsland, declaration };
                 });
+                const declarations = [...new Set(participants.map(({ declaration }) => declaration.declarationElement))];
                 const decisions = await this.renderSupport(compiled.declarationScope).admitCanonicalSsrInstance(
                     instance, compiled.producedTag, compiled.declarationVersion ?? '', source, this.nativeValueLimits,
-                    [...members.keys()], [...nestedDeclarations.values()],
+                    [...members.keys()], [...nestedDeclarations.values()], declarations,
                 );
                 if (this.canonicalSsrAdmissions.get(instance) !== entry || !instance.isConnected) return;
                 if (changed || observer.takeRecords().length || compiled.declarationScope.disposed
@@ -4104,11 +4106,23 @@ export class CemElementRuntime {
                     throw new Error('cem.ssr.resume_stale');
                 }
                 const document = instance.ownerDocument;
+                const admittedDeclarations = new Set(participants.map(({ declaration }) => declaration));
+                const sharedScopes = new Set(participants.flatMap(({ declaration }) => declaration.sharedStyleScope ? [declaration.sharedStyleScope] : []));
+                if ([...(this.declarationsByDocument.get(document)?.values() ?? [])].some(declaration =>
+                    declaration.sharedStyleScope && sharedScopes.has(declaration.sharedStyleScope) && !admittedDeclarations.has(declaration))) {
+                    throw new Error('cem.ssr.resume_shared_stylesheet_owner');
+                }
                 const identities = nativeSsrIds.get(document) ?? new Map<string, WeakRef<HTMLElement>>();
                 for (const [id, owner] of identities) if (!owner.deref()) identities.delete(id);
                 let identityCount = identities.size;
                 const targets = participants.map(({ host, island: memberIsland, declaration }, index) => {
                     const decision = decisions[index];
+                    const styleNodes = [
+                        ...declaration.declarationElement.querySelectorAll<HTMLStyleElement>(':scope > style[data-cem-declaration-style]'),
+                        ...host.querySelectorAll<HTMLStyleElement>(':scope > style[data-cem-instance-style]'),
+                    ];
+                    if (styleNodes.some(style => !matchesLiveSsrStylesheet(style))
+                        || (!this.retainedStylesheets && styleNodes.length > 0)) throw new Error('cem.ssr.resume_stylesheets');
                     const bounds = directRenderBounds(host);
                     const root = bounds && firstRenderedElementBetween(bounds);
                     if (!bounds || (decision.decision === 'adopt' && !root)) throw new Error('cem.ssr.resume_bounds');
@@ -4134,6 +4148,7 @@ export class CemElementRuntime {
                     this.instanceIds.set(host, decision.instanceId);
                     this.dataRevisions.set(host, 0);
                     this.renderBounds.set(host, bounds);
+                    if (decision.instanceStylesheets) this.portableSsrInstanceStyles.add(host);
                     this.hydrationSnapshots.set(host, snapshot);
                     if (decision.decision === 'adopt' && root) {
                         root.setAttribute(RENDER_TEMPLATE_ARTIFACT_ID_ATTR, declaration.artifactId);
@@ -4735,6 +4750,7 @@ export class CemElementRuntime {
                 declaration: compiled, scope: compiled.declarationScope, ownership: styleOwnership(compiled),
                 host: this.processingHost(compiled), artifact, occurrences, baseUrl: compiled.resourceBaseUrl,
                 read: transport.read ?? readRetainedStylesheet,
+                portableClosed: !!compiled.declarationElement.querySelector(':scope > style[data-cem-style-key^="cem-ssr-closed-css-1-"]'),
             });
         })().catch(error => {
             // A failed source compilation may be retried on a later connection.
@@ -4792,6 +4808,7 @@ export class CemElementRuntime {
                 artifactId: `instance-css:${key}`, scopePolicyStamp: this.scopePolicyStamp,
                 host: this.processingHost(compiled), baseUrl: compiled.resourceBaseUrl,
                 read: this.retainedStylesheets?.read ?? readRetainedStylesheet,
+                portableClosed: this.portableSsrInstanceStyles.has(instance),
             }) };
             this.instanceStylesheets.set(instance, state);
         }
@@ -5269,7 +5286,8 @@ export class CemElementRuntime {
                     : prepareInstanceStylesheets({ element: instance, instanceId: snapshot.instanceId,
                     sources, context, signal: registry.signal, artifactId: `instance-css:${key}`,
                     scopePolicyStamp: this.scopePolicyStamp, host: this.processingHost(compiled),
-                    baseUrl: compiled.resourceBaseUrl, read: this.retainedStylesheets?.read ?? readRetainedStylesheet });
+                    baseUrl: compiled.resourceBaseUrl, read: this.retainedStylesheets?.read ?? readRetainedStylesheet,
+                    portableClosed: this.portableSsrInstanceStyles.has(instance) });
                 try {
                     const [declarationCss, instanceCss] = await Promise.all([registry.ready, styles.ready]);
                     if (!current()) throw new Error('superseded CSS/DOM render');
@@ -10870,13 +10888,32 @@ function parseDataRevision(value: string): number {
 function directLiveNodeCount(element: Element): number {
     return Array.from(element.childNodes).filter((node) => {
         if (node.nodeType === 1) {
-            return (node as Element).localName !== 'template' && !isXsltParameter(node);
+            const child = node as Element;
+            return child.localName !== 'template' && !isXsltParameter(node)
+                && !(child.localName === 'style' && child.hasAttribute('data-cem-declaration-style')
+                    && child.hasAttribute('data-cem-style-key') && child.hasAttribute('data-cem-style-index'));
         }
         if (node.nodeType === 3) {
             return (node.textContent?.trim() ?? '').length > 0;
         }
         return node.nodeType !== 8;
     }).length;
+}
+
+function matchesLiveSsrStylesheet(style: HTMLStyleElement): boolean {
+    const live = style.sheet;
+    const Sheet = style.ownerDocument.defaultView?.CSSStyleSheet;
+    if (!Sheet || !live || style.disabled || live.disabled) return false;
+    try {
+        // Native admission checked the literal bytes. Also verify the installed
+        // rule list, since CSSOM edits need not change the element's text.
+        const expected = new Sheet();
+        expected.replaceSync(style.textContent ?? '');
+        return live.cssRules.length === expected.cssRules.length
+            && Array.from(live.cssRules).every((rule, index) => rule.cssText === expected.cssRules[index].cssText);
+    } catch {
+        return false;
+    }
 }
 
 function cssAttributeString(value: string): string {

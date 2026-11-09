@@ -399,7 +399,7 @@ export type CemProcessingStylesheetInput = {
     artifact: CemProcessingArtifactHandle;
     consumer: string;
 } & (
-    | { action: 'begin'; index: number; baseUrl: string; context: CemModuleUrlContextWire;
+    | { action: 'begin'; index: number; baseUrl: string; context: CemModuleUrlContextWire; portableClosed?: boolean;
         scope: { kind: 'private'; tag: string } | { kind: 'shared'; name: string } | { kind: 'instance' } }
     | { action: 'deliver'; loadId: string; requestId: number; bytes: ArrayBuffer;
         finalUrl: string; contentType?: string }

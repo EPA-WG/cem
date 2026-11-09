@@ -408,13 +408,32 @@ impl SsrStylesheetCoordinator {
             let load = &mut self.loads[slot];
             let closure = Arc::new(load.closure.take().unwrap());
             let owner = if load.declaration { 0 } else { 1 };
-            let record = self.owners[owner].retain_stylesheet(
-                "ssr-page",
-                load.index,
-                closure,
-                &load.scope,
-                &load.identity,
-            )?;
+            let record = if crate::retained_template::is_resource_free_stylesheet(&closure) {
+                let identity = if load.declaration {
+                    self.input
+                        .as_ref()
+                        .ok_or("Missing CSS owner")?
+                        .prepared()
+                        .tag()
+                } else {
+                    &load.identity
+                };
+                self.owners[owner].retain_closed_ssr_stylesheet(
+                    "ssr-page",
+                    load.index,
+                    closure,
+                    &load.scope,
+                    identity,
+                )
+            } else {
+                self.owners[owner].retain_stylesheet(
+                    "ssr-page",
+                    load.index,
+                    closure,
+                    &load.scope,
+                    &load.identity,
+                )
+            }?;
             if !record.emission()?.diagnostics.is_empty() {
                 return Err("Unsupported managed stylesheet syntax".into());
             }
@@ -706,61 +725,70 @@ impl CoordinatedStylesheets {
         declaration: bool,
         origin: &SourceMapStack,
     ) -> Result<Vec<RenderPlanNode>, String> {
-        use crate::instance_island::construct::{attribute, element};
         records
             .iter()
             .enumerate()
             .map(|(index, record)| {
                 let source = if declaration {
-                    origin.clone()
+                    origin
                 } else {
-                    self.maps[index].clone()
+                    &self.maps[index]
                 };
-                let css = record.emission()?.css();
-                if css.to_ascii_lowercase().contains("</style") || css.contains('\0') {
-                    return Err("Unsafe stylesheet raw-text export".into());
-                }
-                let attributes = if declaration {
-                    let shared = match &record.identity().scope {
-                        CssManagedScope::Shared { name, .. } => Some(name),
-                        _ => None,
-                    };
-                    let mut attrs = vec![
-                        attribute(
-                            "data-cem-declaration-style",
-                            if shared.is_some() {
-                                "shared"
-                            } else {
-                                "private"
-                            },
-                            &source,
-                        ),
-                        attribute("data-cem-style-index", &index.to_string(), &source),
-                        attribute("data-cem-style-key", &record.identity().cache_key, &source),
-                    ];
-                    if let Some(name) = shared {
-                        attrs.push(attribute("data-cem-style-scope", name, &source));
-                    }
-                    attrs
-                } else {
-                    vec![attribute(
-                        "data-cem-instance-style",
-                        &index.to_string(),
-                        &source,
-                    )]
-                };
-                Ok(element(
-                    "style",
-                    cem_ml::schema::registry::HTML_NAMESPACE_URI,
-                    None,
-                    attributes,
-                    vec![RenderPlanNode::Text {
-                        text: css,
-                        source_map: source.clone(),
-                    }],
-                    &source,
-                ))
+                stylesheet_markup(record, index, declaration, source)
             })
             .collect()
     }
+}
+
+pub(crate) fn stylesheet_markup(
+    record: &RetainedStylesheet,
+    index: usize,
+    declaration: bool,
+    source: &SourceMapStack,
+) -> Result<RenderPlanNode, String> {
+    use crate::instance_island::construct::{attribute, element};
+    let css = record.emission()?.css();
+    if css.to_ascii_lowercase().contains("</style") || css.contains('\0') {
+        return Err("Unsafe stylesheet raw-text export".into());
+    }
+    let attributes = if declaration {
+        let shared = match &record.identity().scope {
+            CssManagedScope::Shared { name, .. } => Some(name),
+            _ => None,
+        };
+        let mut attrs = vec![
+            attribute(
+                "data-cem-declaration-style",
+                if shared.is_some() {
+                    "shared"
+                } else {
+                    "private"
+                },
+                source,
+            ),
+            attribute("data-cem-style-index", &index.to_string(), source),
+            attribute("data-cem-style-key", &record.identity().cache_key, source),
+        ];
+        if let Some(name) = shared {
+            attrs.push(attribute("data-cem-style-scope", name, source));
+        }
+        attrs
+    } else {
+        vec![attribute(
+            "data-cem-instance-style",
+            &index.to_string(),
+            source,
+        )]
+    };
+    Ok(element(
+        "style",
+        cem_ml::schema::registry::HTML_NAMESPACE_URI,
+        None,
+        attributes,
+        vec![RenderPlanNode::Text {
+            text: css,
+            source_map: source.clone(),
+        }],
+        source,
+    ))
 }

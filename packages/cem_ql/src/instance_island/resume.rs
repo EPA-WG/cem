@@ -11,6 +11,8 @@ use crate::{
 use cem_ml::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
 use cem_ml::schema::registry::HTML_NAMESPACE_URI;
 use std::collections::{BTreeMap, BTreeSet};
+#[path = "resume_stylesheets.rs"]
+mod stylesheets;
 
 pub const PROFILE: &str = "cem-native-inline/1";
 pub const PROFILE_ATTRIBUTE: &str = "data-cem-ssr-profile";
@@ -27,6 +29,7 @@ pub struct NativeSsrResume {
     pub instance_id: String,
     pub declaration_version: Option<String>,
     pub source_key: String,
+    pub instance_stylesheets: bool,
 }
 
 #[derive(serde::Deserialize)]
@@ -44,6 +47,7 @@ pub struct NativeSsrGroup {
 
 struct Group<'a> {
     declarations: BTreeMap<&'a str, (&'a str, &'a str)>,
+    declaration_nodes: BTreeMap<String, &'a Item>,
     registry: BTreeSet<String>,
     ids: BTreeSet<String>,
     participants: Vec<NativeSsrResume>,
@@ -110,12 +114,29 @@ pub fn admit_group(
     nested: &[NestedDeclaration],
     c: &OperationControl,
 ) -> Result<NativeSsrGroup, String> {
+    admit_group_with_styles(host, tag, current_version, source, nested, &[], c)
+}
+
+pub fn admit_group_with_styles(
+    host: &Item,
+    tag: &str,
+    current_version: &str,
+    source: &str,
+    nested: &[NestedDeclaration],
+    declaration_nodes: &[Item],
+    c: &OperationControl,
+) -> Result<NativeSsrGroup, String> {
     let mut source_bytes = source.len();
-    if nested.len() >= 64 || tag.len() > 256 || current_version.len() > 1024 {
+    if nested.len() >= 64
+        || declaration_nodes.len() > 64
+        || tag.len() > 256
+        || current_version.len() > 1024
+    {
         return Err(fail());
     }
     let mut group = Group {
         declarations: BTreeMap::new(),
+        declaration_nodes: BTreeMap::new(),
         registry: BTreeSet::new(),
         ids: BTreeSet::new(),
         participants: vec![],
@@ -141,6 +162,19 @@ pub fn admit_group(
     }
     if source_bytes > 1024 * 1024 {
         return Err(fail());
+    }
+    for declaration in declaration_nodes {
+        island::bounded_root(declaration, c)?;
+        let declared = island::attrs(declaration)?.remove("tag").ok_or_else(fail)?;
+        if !island::is_element(declaration, "cem-element", HTML_NAMESPACE_URI)
+            || (declared != tag && !group.registry.contains(&declared))
+            || group
+                .declaration_nodes
+                .insert(declared, declaration)
+                .is_some()
+        {
+            return Err(fail());
+        }
     }
     island::bounded_root(host, c)?;
     group.admit_member(host, tag, current_version, source, None, 0, c)?;
@@ -210,12 +244,8 @@ impl Group<'_> {
             return Err(fail());
         }
         let data = island::bind_root(root, &instance_id, c, None, true)?;
-        // This first browser profile has no external declarations, CSS, CEM source,
-        // resource capabilities or portable live state. Never downgrade their admission.
-        if island::attrs(&parts[3])?
-            .get("content-type")
-            .map(String::as_str)
-            != Some("text/html")
+        let payload_attrs = island::attrs(&parts[3])?;
+        if payload_attrs.get("content-type").map(String::as_str) != Some("text/html")
             || parts[4..]
                 .iter()
                 .any(|p| !island::elements(p).is_ok_and(|v| v.is_empty()))
@@ -242,12 +272,58 @@ impl Group<'_> {
             return Err(fail());
         }
         let payload = island::children(&parts[3])?;
-        passive_nodes(&payload, c)?;
-        if let Some(parent) = parent {
+        let explicit = payload_attrs
+            .get("data-cem-explicit-payload")
+            .is_some_and(|value| value == "true");
+        let mut payload_styles = stylesheets::PayloadStyles::default();
+        let declaration = self.declaration_nodes.get(tag).copied();
+        let shared_scope = declaration
+            .map(stylesheets::declaration_scope)
+            .transpose()?
+            .flatten();
+        if let Some(scope) = &shared_scope {
+            if actual.get("scope") != Some(scope) {
+                return Err(fail());
+            }
+        }
+        if actual.contains_key("data-cem-css-context") {
+            return Err(fail());
+        }
+        passive_nodes(
+            &payload,
+            c,
+            (explicit && declaration.is_some()).then_some(&mut payload_styles),
+        )?;
+        if let Some(mut parent) = parent {
+            if !parent.attributes.contains_key("scope") {
+                if let Some(scope) = &shared_scope {
+                    parent.attributes.insert("scope".into(), scope.clone());
+                }
+            }
             if parent.attributes != actual {
                 return Err(fail());
             }
-            compare(parent.payload, &payload, depth, c, None)?;
+            let mut expected_payload = parent.payload;
+            if explicit {
+                let [RenderPlanNode::Element {
+                    tag,
+                    attributes,
+                    children,
+                    ..
+                }] = expected_payload
+                else {
+                    return Err(fail());
+                };
+                let attributes = plan_attributes(attributes)?;
+                if tag != "template"
+                    || !(attributes.is_empty()
+                        || attributes == BTreeMap::from([("type".into(), "text/html".into())]))
+                {
+                    return Err(fail());
+                }
+                expected_payload = children;
+            }
+            compare(expected_payload, &payload, depth, c, None, explicit)?;
         }
         let starts = children
             .iter()
@@ -264,14 +340,11 @@ impl Group<'_> {
         let ([start], [end]) = (starts.as_slice(), ends.as_slice()) else {
             return Err(fail());
         };
-        if start <= ti
-            || end <= start
-            || !children[*ti + 1..*start].iter().all(whitespace)
-            || !children[*end + 1..].iter().all(whitespace)
-        {
+        if start <= ti || end <= start || !children[*ti + 1..*start].iter().all(whitespace) {
             return Err(fail());
         }
         let output = &children[*start + 1..*end];
+        let instance_stylesheets = payload_styles.verify(&instance_id, &children[*end + 1..], c)?;
         let artifact = compile_template(
             source,
             &CompileTemplateOptions {
@@ -280,8 +353,7 @@ impl Group<'_> {
                 ..Default::default()
             },
         );
-        if !artifact.stylesheets.is_empty()
-            || artifact.module_map.is_some()
+        if artifact.module_map.is_some()
             || artifact.requires_legacy_runtime_resources()
             || artifact
                 .diagnostics
@@ -290,6 +362,8 @@ impl Group<'_> {
         {
             return Err(fail());
         }
+        stylesheets::verify_declaration(declaration, tag, shared_scope.as_deref(), &artifact, c)?;
+        let styled = instance_stylesheets || !artifact.stylesheets.is_empty();
         let version = fields.get("declarationVersion").cloned();
         let plan =
             render_compiled_template_with_control(&artifact, &data, c, ROOT_EXECUTION_SCOPE_ID);
@@ -308,6 +382,7 @@ impl Group<'_> {
             ROOT_EXECUTION_SCOPE_ID,
         )
         .map_err(|_| fail())?;
+        crate::ssr_css::strip_sources(&mut plan.nodes, &payload_styles.maps);
         crate::ssr_render::admit_output_mode(&mut plan.nodes, false, Some(&self.registry))
             .map_err(|_| fail())?;
         let mut pending: Vec<_> = plan.nodes.iter().collect();
@@ -324,22 +399,25 @@ impl Group<'_> {
                 {
                     return Err(fail());
                 }
-                pending.extend(children);
+                if !self.registry.contains(tag) {
+                    pending.extend(children);
+                }
             }
         }
         if !version
             .as_deref()
             .is_some_and(|v| versions_compatible(v, current_version))
         {
-            if !self.registry.is_empty() {
+            if styled || !self.registry.is_empty() {
                 return Err(fail());
             }
-            passive_nodes(output, c)?;
+            passive_nodes(output, c, None)?;
             self.participants.push(NativeSsrResume {
                 decision: ResumeDecision::RenderOnLoad,
                 instance_id,
                 declaration_version: version,
                 source_key,
+                instance_stylesheets,
             });
             return Ok(());
         }
@@ -360,8 +438,9 @@ impl Group<'_> {
             instance_id,
             declaration_version: version,
             source_key,
+            instance_stylesheets,
         });
-        compare(&plan.nodes, output, depth, c, Some(self))
+        compare(&plan.nodes, output, depth, c, Some(self), false)
     }
 }
 
@@ -390,6 +469,7 @@ fn compare(
     depth: usize,
     c: &OperationControl,
     mut group: Option<&mut Group<'_>>,
+    allow_style: bool,
 ) -> Result<(), String> {
     c.check_scope(ROOT_EXECUTION_SCOPE_ID).map_err(|_| fail())?;
     if depth > 64 {
@@ -446,7 +526,10 @@ fn compare(
                     };
                     group.admit_member(item, tag, version, source, Some(input), depth + 1, c)?;
                 } else {
-                    if !profile_tag(tag) || tag == "style" || attributes != island::attrs(item)? {
+                    if !profile_tag(tag)
+                        || (tag == "style" && !allow_style)
+                        || attributes != island::attrs(item)?
+                    {
                         return Err(fail());
                     }
                     compare(
@@ -455,6 +538,7 @@ fn compare(
                         depth + 1,
                         c,
                         group.as_deref_mut(),
+                        allow_style,
                     )?;
                 }
             }
@@ -469,13 +553,21 @@ fn compare(
     Ok(())
 }
 
-fn passive_nodes(roots: &[Item], c: &OperationControl) -> Result<(), String> {
-    let mut pending = roots.to_vec();
+fn passive_nodes(
+    roots: &[Item],
+    c: &OperationControl,
+    mut styles: Option<&mut stylesheets::PayloadStyles>,
+) -> Result<(), String> {
+    let mut pending = roots.iter().rev().cloned().collect::<Vec<_>>();
     while let Some(node) = pending.pop() {
         c.check_scope(ROOT_EXECUTION_SCOPE_ID).map_err(|_| fail())?;
         match kind(&node).as_deref() {
             Some("element") => {
                 let tag = island::field(&node, "name").ok_or_else(fail)?;
+                if island::is_element(&node, "style", HTML_NAMESPACE_URI) {
+                    styles.as_deref_mut().ok_or_else(fail)?.push(&node)?;
+                    continue;
+                }
                 // Inert nested templates have a separate DOM mutation root.
                 if !profile_tag(&tag) || !island::is_element(&node, &tag, HTML_NAMESPACE_URI) {
                     return Err(fail());
@@ -487,7 +579,7 @@ fn passive_nodes(roots: &[Item], c: &OperationControl) -> Result<(), String> {
                     .collect::<Vec<_>>();
                 cem_ml::validation::html::validate_passive_html_projection(&tag, &pairs)
                     .map_err(|_| fail())?;
-                pending.extend(island::children(&node)?);
+                pending.extend(island::children(&node)?.into_iter().rev());
             }
             Some("text" | "whitespace" | "comment") => {}
             _ => return Err(fail()),

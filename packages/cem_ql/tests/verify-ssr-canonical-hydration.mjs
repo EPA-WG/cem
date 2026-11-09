@@ -34,10 +34,22 @@ try {
     ].join(''), 'x-parent=1.9.0,x-child=1.9.0');
     const nested = await renderNested(`{section | ${childSource}}`);
     const direct = await renderNested(childSource);
-    const pages = new Map([['/ssr.html', html], ['/nested.html', nested], ['/direct.html', direct]]);
+    const styled = await render([
+        '<cem-element tag="x-parent" version="1.2.3"><template id="x-parent" type="text/cem-ml">',
+        '{style |```section {color:rgb(7,31,55)}```}',
+        `{section | ${childSource} {$ datadom.slots.heading}}</template></cem-element>`,
+        '<cem-element tag="x-child" scope="ssr-test" version="1.2.3"><template id="x-child" type="text/cem-ml">',
+        '{style @scope=ssr-test |```@keyframes pulse {from {opacity:.5} to {opacity:1}} article {font-size:23px;animation:pulse 60s}```}',
+        `${template}</template></cem-element>`,
+        '<x-parent><template><style>section {background-color:rgb(29,47,71)}</style><strong slot="heading">Styled input</strong></template></x-parent>',
+        '<section>Outside scope</section>',
+    ].join(''), 'x-parent=1.9.0,x-child=1.9.0');
+    const pages = new Map([['/ssr.html', html], ['/nested.html', nested], ['/direct.html', direct], ['/styled.html', styled]]);
     assert.match(html, /<article><strong\b[^>]*\bslot="heading"[^>]*>Island input<\/strong><\/article>/);
     assert.match(html, /data-cem-ssr-profile="cem-native-inline\/1"/);
     assert.match(nested, /<article><em\b[^>]*\bslot="heading"[^>]*>Nested input<\/em><\/article>/);
+    assert.equal((styled.match(/data-cem-style-key="cem-ssr-closed-css-1-/g) ?? []).length, 2);
+    assert.match(styled, /data-cem-instance-style="0"/);
     server = http.createServer(async (req, res) => {
         try {
             const pathname = new URL(req.url, 'http://localhost').pathname;
@@ -221,9 +233,100 @@ try {
         }
         await page.close();
     }
+    const cssCases = ['compatible', 'compatible-worker', 'missing-declaration-style', 'changed-declaration-style', 'wrong-style-key',
+        'missing-instance-style', 'changed-instance-style', 'unresolved-payload-style', 'unadmitted-shared-owner',
+        'disabled-style', 'changed-cssom', 'stale-style'];
+    for (const scenario of cssCases) {
+        const page = await browser.newPage();
+        page.on('pageerror', error => errors.push(error.message));
+        await page.route('**/*', route => {
+            if (new URL(route.request().url()).origin === origin) return route.continue();
+            requests.push(route.request().url()); return route.abort();
+        });
+        await page.goto(`${origin}/styled.html`);
+        const result = await page.evaluate(async scenario => {
+            const { CemElementRuntime } = await import('/packages/cem-elements/dist/lib/cem-elements.js');
+            const parent = document.querySelector('x-parent');
+            const child = parent.querySelector('x-child');
+            const section = parent.querySelector('section');
+            const article = child.querySelector('article');
+            const declarations = [...document.querySelectorAll('cem-element')];
+            const styles = [...declarations.map(d => d.querySelector('style')), parent.querySelector(':scope > style[data-cem-instance-style]')];
+            const sheets = styles.map(style => style.sheet);
+            const initial = [getComputedStyle(section).color, getComputedStyle(section).backgroundColor, getComputedStyle(article).fontSize];
+            const islands = [parent, child].map(host => host.querySelector(':scope > template[data-cem-island]'));
+            if (scenario === 'missing-declaration-style') styles[1].remove();
+            if (scenario === 'changed-declaration-style') styles[1].textContent = '@scope (x-child) { article {font-size:32px} }';
+            if (scenario === 'wrong-style-key') styles[0].setAttribute('data-cem-style-key', 'wrong-key');
+            if (scenario === 'missing-instance-style') styles[2].remove();
+            if (scenario === 'changed-instance-style') styles[2].textContent = '@scope { section {background-color:black} }';
+            if (scenario === 'unresolved-payload-style') islands[0].content.querySelector('style').textContent = '@import "https://ssr.example.test/unresolved.css";';
+            if (scenario === 'disabled-style') styles[1].sheet.disabled = true;
+            if (scenario === 'changed-cssom') styles[2].sheet.insertRule('section {background-color:black}', 0);
+            if (scenario === 'unadmitted-shared-owner') {
+                const extra = document.createElement('cem-element');
+                extra.setAttribute('tag', 'x-extra');
+                extra.setAttribute('scope', 'ssr-test');
+                extra.innerHTML = '<template type="text/cem-ml">{style @scope=ssr-test |```@import "https://ssr.example.test/unadmitted.css";```}{span | Extra}</template>';
+                document.body.append(extra);
+            }
+            const before = parent.innerHTML;
+            const beforeDeclarations = declarations.map(d => d.innerHTML);
+            const runtime = scenario === 'compatible-worker' ? new CemElementRuntime()
+                : new CemElementRuntime({ processingWorkerFactory: () => { throw new Error('Use main-thread runtime'); } });
+            if (scenario === 'stale-style') {
+                const support = runtime.renderSupport.bind(runtime);
+                runtime.renderSupport = scope => {
+                    const bindings = support(scope);
+                    return { ...bindings, admitCanonicalSsrInstance: async (...args) => {
+                        const decision = await bindings.admitCanonicalSsrInstance(...args);
+                        styles[1].textContent = '@scope (x-child) { article {font-size:42px} }';
+                        return decision;
+                    } };
+                };
+            }
+            runtime.install(window);
+            await Promise.all(declarations.map(node => runtime.whenDeclarationSettled(node)));
+            await Promise.all([parent, child].map(host => runtime.whenRenderSettled(host)));
+            const afterStyles = [...declarations.map(d => d.querySelector('style')), parent.querySelector(':scope > style[data-cem-instance-style]')];
+            return {
+                retained: parent.querySelector('section') === section && parent.querySelector('x-child') === child && child.querySelector('article') === article,
+                unchanged: parent.innerHTML === before && declarations.every((d, i) => d.innerHTML === beforeDeclarations[i]),
+                sameStyles: afterStyles.every((style, i) => style === styles[i] && style.sheet === sheets[i]),
+                counts: [...declarations.map(d => d.querySelectorAll('style').length), parent.querySelectorAll(':scope > style').length],
+                marks: islands.map(island => island.hasAttribute('data-cem-ssr-profile')),
+                diagnostics: [parent, child].map(host => runtime.diagnosticsFor(host).map(d => d.code)),
+                colors: [getComputedStyle(section).color, getComputedStyle(section).backgroundColor],
+                outside: getComputedStyle(document.body.querySelector(':scope > section')).backgroundColor,
+                childFont: getComputedStyle(article).fontSize,
+                animation: getComputedStyle(article).animationName,
+                initial,
+                mode: runtime.processingHost(runtime.declarationForInstance(parent)).mode,
+            };
+        }, scenario);
+        const detail = `${scenario} ${JSON.stringify(result)}`;
+        assert.equal(result.retained, true, detail);
+        if (scenario === 'compatible' || scenario === 'compatible-worker') {
+            assert.deepEqual(result.marks, [false, false], detail);
+            assert.deepEqual(result.diagnostics, [[], []], detail);
+            assert.deepEqual(result.counts, [1, 1, 1], detail);
+            assert.equal(result.sameStyles, true, detail);
+            assert.deepEqual(result.initial, ['rgb(7, 31, 55)', 'rgb(29, 47, 71)', '23px'], detail);
+            assert.deepEqual(result.colors, ['rgb(7, 31, 55)', 'rgb(29, 47, 71)'], detail);
+            assert.equal(result.outside, 'rgba(0, 0, 0, 0)', detail);
+            assert.equal(result.childFont, '23px', detail);
+            assert.match(result.animation, /^pulse-cem-/);
+            assert.equal(result.mode, scenario === 'compatible-worker' ? 'worker' : 'main-thread', detail);
+        } else {
+            assert.deepEqual(result.marks, [true, true], detail);
+            assert.ok(result.diagnostics.every(codes => codes.includes('cem-element.hydration_native_refused')), detail);
+            if (scenario !== 'stale-style') assert.equal(result.unchanged, true, detail);
+        }
+        await page.close();
+    }
     assert.deepEqual(errors, []); assert.deepEqual(requests, []);
-    const total = cases.length + nestedCases.length;
-    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested scenarios, zero external requests`);
+    const total = cases.length + nestedCases.length + cssCases.length;
+    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested and ${cssCases.length} stylesheet scenarios, zero external requests`);
 } finally {
     await browser?.close();
     if (server) await new Promise(resolve => server.close(resolve));

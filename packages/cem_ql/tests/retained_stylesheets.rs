@@ -63,6 +63,46 @@ fn scope() -> CssManagedScope {
 }
 
 #[test]
+fn closed_ssr_styles_have_portable_identity_and_refuse_resources() {
+    let css = "@keyframes pulse {from {opacity:0} to {opacity:1}} p {animation:pulse 1s}";
+    let compile = |url: &str, css: &str| {
+        let mut owner = template(css);
+        let resolver = CemModuleUrlResolutionCapability::new(
+            Arc::new(CemScopedModuleUrlResolver::new()),
+            CemResolutionContextHandle::new("closed-ssr"),
+        );
+        let closure = CssImportClosure::new(
+            owner.artifact().stylesheets[0].css_tree().clone(),
+            url,
+            resolver,
+            Default::default(),
+            AbortSignal::new(),
+        )
+        .unwrap();
+        let record = owner.retain_closed_ssr_stylesheet(
+            "consumer",
+            0,
+            Arc::new(closure),
+            &scope(),
+            "cem-card",
+        )?;
+        Ok::<_, String>((owner, record))
+    };
+    let (_server_owner, server) = compile("file:///source/page.html", css).unwrap();
+    let (_browser_owner, browser) = compile("https://example.test/rendered/", css).unwrap();
+    assert_eq!(server.identity(), browser.identity());
+    assert_eq!(
+        server.emission().unwrap().css(),
+        browser.emission().unwrap().css()
+    );
+    assert!(compile(
+        "https://example.test/",
+        "p {background:url(https://example.test/bg.svg)}"
+    )
+    .is_err());
+}
+
+#[test]
 fn matching_consumers_share_emission_and_release_the_last_owner() {
     let mut owner = template(".card {background:url(icon)}");
     let a = closure(&owner, "./icon.svg", AbortSignal::new());
