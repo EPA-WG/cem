@@ -242,6 +242,7 @@ type WasmRenderNode = (
 interface WasmRenderAttribute {
     nativeValueIndex?: number | null;
     name: string;
+    namespace?: string | null;
     value: string;
 }
 
@@ -291,7 +292,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         renderTemplateWithNativeValues,
         renderTemplateWithNativeValuesAndAdmission,
         beginDomPayloadCapture, appendDomPayloadNode, finishDomPayloadCapture, disposeDomPayloadCapture,
-        finishDomLiteralNamespaceCapture, admitCanonicalSsrHost,
+        finishDomLiteralNamespaceCapture, admitCapturedCanonicalSsrHost,
         importCemDocumentValue,
         exportCemJsonValue,
         importNativeValueArtifact,
@@ -1417,7 +1418,9 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
             namespace: fromDom && node.namespace === 'http://www.w3.org/1999/xhtml' ? null : node.namespace ?? null,
             tag: node.tag,
             attributes: (node.attributes ?? []).map((attribute) => ({
-                name: attribute.name,
+                name: attribute.namespace === 'http://www.w3.org/1999/xlink'
+                    ? `xlink:${attribute.name.slice(attribute.name.lastIndexOf(':') + 1)}`
+                    : attribute.name,
                 value: attribute.value,
                 ...(attribute.nativeValueIndex != null && artifact ? { nativeValue: { kind: 'cem-native-value-v1' as const, ...artifact, index: attribute.nativeValueIndex } } : {}),
             })),
@@ -1497,6 +1500,14 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
     const captureDomPayload = nativeCheckpointWork((container: Element, limits: CemValueArtifactLimits) =>
         captureDomPayloadOperation(container, limits));
     async function captureDomPayloadOperation(container: Element, limits: CemValueArtifactLimits, literalNamespaces = false): Promise<NativeCemValue> {
+        return withDomCapture(container, limits, (handle, policy) => {
+            const artifact = (literalNamespaces ? finishDomLiteralNamespaceCapture(handle, policy) : finishDomPayloadCapture(handle, policy)).slice().buffer as ArrayBuffer;
+            return {kind: 'cem-native-value-v1', artifact, index: 0, contentHash: edgeContentAddress('sanitized-snapshot', artifact).digest};
+        });
+    }
+    async function withDomCapture<T>(
+        container: Element, limits: CemValueArtifactLimits, finish: (handle: number, policy: string) => T,
+    ): Promise<T> {
         await ensureRuntimeReady();
         const policy = JSON.stringify(limits);
         const handle = beginDomPayloadCapture(domSourceUri, container.ownerDocument.documentURI, container.baseURI, policy);
@@ -1520,8 +1531,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
                     pending.push({children: children.values(), parent: id});
                 }
             }
-            const artifact = (literalNamespaces ? finishDomLiteralNamespaceCapture(handle, policy) : finishDomPayloadCapture(handle, policy)).slice().buffer as ArrayBuffer;
-            return {kind: 'cem-native-value-v1', artifact, index: 0, contentHash: edgeContentAddress('sanitized-snapshot', artifact).digest};
+            return finish(handle, policy);
         } finally { disposeDomPayloadCapture(handle); }
     }
 
@@ -1530,8 +1540,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         members: readonly HTMLElement[], nested: readonly { tag: string; version: string; source: string }[],
         declarations: readonly HTMLElement[],
     ) => {
-        const captured = await captureDomPayloadOperation(host, limits, true);
-        const styleInputs = [];
+        const styleInputs: Uint8Array[] = [];
         let declarationBytes = 0;
         for (const declaration of declarations) {
             const { artifact } = await captureDomPayloadOperation(declaration, limits, true);
@@ -1539,9 +1548,9 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
             if (declarationBytes > limits.maxBytes) throw new Error('cem.ssr.resume_declaration_bounds');
             styleInputs.push(new Uint8Array(artifact));
         }
-        const { participants } = JSON.parse(admitCanonicalSsrHost(
-            new Uint8Array(captured.artifact), tag, version, source, JSON.stringify(nested), styleInputs,
-        )) as { participants: { decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null; sourceKey: string; instanceStylesheets: boolean }[] };
+        const proof = await withDomCapture(host, limits, handle =>
+            admitCapturedCanonicalSsrHost(handle, tag, version, source, JSON.stringify(nested), styleInputs));
+        const { participants } = JSON.parse(proof) as { participants: { decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null; sourceKey: string; instanceStylesheets: boolean }[] };
         if (participants.length !== members.length || participants.some((decision, index) => decision.sourceKey !== domKey(members[index]))) {
             throw new Error('cem.ssr.resume_participants');
         }

@@ -4026,8 +4026,13 @@ export class CemElementRuntime {
         const observe = (node: Node) => observer?.observe(node, {
             subtree: true, childList: true, attributes: true, characterData: true,
         });
+        const observeIsland = (template: HTMLTemplateElement) => {
+            observe(template.content);
+            const source = islandCemPayloadTemplate(template);
+            if (source) observe(source.content);
+        };
         observe(instance);
-        observe(island.content);
+        observeIsland(island);
         observe(compiled.declarationElement);
         for (const template of directTemplateChildren(compiled.declarationElement)) observe(template.content);
         const entry = { cancel: () => { changed = true; observer?.disconnect(); } };
@@ -4051,7 +4056,7 @@ export class CemElementRuntime {
                     members.set(host, nested);
                     this.canonicalSsrAdmissions.set(host, entry);
                     if (groupPending) this.renderSettled.set(host, groupPending);
-                    observe(nested.content);
+                    observeIsland(nested);
                 }
                 const defaultScope = DEFAULT_SCOPE_POLICY_STAMP + (this.retainedStylesheets ? RETAINED_STYLESHEET_SCOPE_STAMP : '');
                 const source = compiled.cemMlSource;
@@ -4239,9 +4244,8 @@ export class CemElementRuntime {
     }
 
     /**
-     * Establish per-instance mutation observation. The single observer watches two
-     * targets: the host element's attributes (replacing `observedAttributes` /
-     * `attributeChangedCallback`) and the inert data-island content. Either kind of
+     * Establish per-instance mutation observation for host attributes, the inert
+     * data island and any CEM source template's separate content fragment. Each
      * mutation invalidates the instance and schedules an async re-render that reads the
      * live attributes/state fresh. Observing every attribute means a change to any
      * attribute — declared or not, even ones only resolvable after the async render —
@@ -4259,12 +4263,15 @@ export class CemElementRuntime {
         }
         observer.disconnect();
         observer.observe(instance, { attributes: true });
-        observer.observe(island.content, {
+        const options = {
             childList: true,
             subtree: true,
             characterData: true,
             attributes: true,
-        });
+        };
+        observer.observe(island.content, options);
+        const source = islandCemPayloadTemplate(island);
+        if (source) observer.observe(source.content, options);
     }
 
     private invalidateProducedInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
@@ -6157,6 +6164,12 @@ export class CemElementRuntime {
 
     private handleInstanceMutations(instance: HTMLElement, compiled: CompiledDeclaration, island: HTMLTemplateElement,
         state: InstanceState, records: MutationRecord[]): void {
+        const payload = directIslandSection(island, DATA_ISLAND_SECTIONS.payload);
+        if (records.some(record => record.target === payload
+            || (record.type === 'childList' && record.target === payload?.parentNode)
+            || (record.type === 'attributes' && record.attributeName === 'type' && record.target.parentNode === payload))) {
+            this.observeInstance(instance, island, state);
+        }
         if (this.retainedStylesheets && records.some(record => record.target === instance
             && record.type === 'attributes' && record.attributeName === STYLE_CONTEXT_ATTR)) {
             reconcileStylesheetContextMarker(instance);
@@ -10397,6 +10410,15 @@ function canonicalDataIslandPayloadType(value: string | null): string | null {
 function isCemMlPayloadTemplate(element: Element): boolean {
     const type = element.getAttribute('type')?.trim().toLowerCase();
     return type === 'cem-ml' || type === DATA_ISLAND_CEM_ML_CONTENT_TYPE;
+}
+
+function islandCemPayloadTemplate(island: HTMLTemplateElement): HTMLTemplateElement | undefined {
+    const payload = directIslandSection(island, DATA_ISLAND_SECTIONS.payload);
+    if (!payload || canonicalDataIslandPayloadType(payload.getAttribute('content-type')) !== DATA_ISLAND_CEM_ML_CONTENT_TYPE) {
+        return undefined;
+    }
+    return directTemplateChildren(payload).find(template =>
+        template.namespaceURI === XHTML_NAMESPACE && isCemMlPayloadTemplate(template));
 }
 
 function containsActiveIslandPayload(payload: Element): boolean {

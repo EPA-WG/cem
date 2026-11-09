@@ -558,19 +558,58 @@ fn finish_capture(id:u32,limits_json:&str,literal:bool)->Result<Vec<u8>,JsValue>
     let (capture, _memory, _) = DOM_CAPTURES.with(|s| s.borrow_mut().remove(&id)).ok_or_else(||JsValue::from_str("Unknown DOM capture"))?;
     let limits = limits(limits_json).map_err(|e| JsValue::from_str(&e))?;
     let tree = if literal {capture.finish_literal_namespaces()} else {capture.finish()}.map_err(|e|JsValue::from_str(&e))?;
+    let value = captured_container(tree)?;
+    crate::eval::portable::encode_values(&ItemStream::once(value), &limits).map_err(|e|JsValue::from_str(&e))
+}
+fn captured_container(tree: std::sync::Arc<cem_ml::parser::tree::RetainedCemTree>) -> Result<crate::eval::Item, JsValue> {
     let children = &tree.node(0).ok_or_else(||JsValue::from_str("Missing DOM capture document"))?.children;
     let [container] = children.as_slice() else { return Err(JsValue::from_str("DOM payload capture requires one container")); };
-    let value = crate::eval::RetainedCemNode::new(tree.clone(), *container).ok_or_else(||JsValue::from_str("Missing DOM capture container"))?.query_item();
-    crate::eval::portable::encode_values(&ItemStream::once(value), &limits).map_err(|e|JsValue::from_str(&e))
+    crate::eval::RetainedCemNode::new(tree.clone(), *container)
+        .map(|node| node.query_item())
+        .ok_or_else(||JsValue::from_str("Missing DOM capture container"))
 }
 #[wasm_bindgen(js_name = "admitCanonicalSsrHost")]
 pub fn admit_canonical_ssr_host(
     bytes: &[u8], tag: &str, version: &str, source: &str, nested_json: Option<String>,
     declarations: Option<js_sys::Array>,
 ) -> Result<String, JsValue> {
+    let _native = cem_ml::runtime_admission::admit(false).map_err(JsValue::from_str)?;
+    prove_canonical_ssr_host(bytes.len(), |control| {
+        let values = decode_ssr_capture(bytes, control)?;
+        let [host] = values.items.as_slice() else { return Err(JsValue::from_str("cem.ssr.resume_host")) };
+        Ok(host.clone())
+    }, tag, version, source, nested_json, declarations)
+}
+
+#[wasm_bindgen(js_name = "admitCapturedCanonicalSsrHost")]
+pub fn admit_captured_canonical_ssr_host(
+    id: u32, tag: &str, version: &str, source: &str, nested_json: String,
+    declarations: js_sys::Array,
+) -> Result<String, JsValue> {
+    let _native = cem_ml::runtime_admission::admit(false).map_err(JsValue::from_str)?;
+    let (capture, _memory, _) = DOM_CAPTURES.with(|s| s.borrow_mut().remove(&id))
+        .ok_or_else(|| JsValue::from_str("Unknown DOM capture"))?;
+    prove_canonical_ssr_host(0, |_| {
+        captured_container(capture.finish_literal_namespaces().map_err(|e| JsValue::from_str(&e))?)
+    }, tag, version, source, Some(nested_json), Some(declarations))
+}
+
+fn decode_ssr_capture(
+    bytes: &[u8], control: &cem_ml::operation_control::OperationControl,
+) -> Result<ItemStream, JsValue> {
+    crate::eval::portable::decode_values_with_control(
+        bytes, &crate::instance_island::LIMITS, control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+    ).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+fn prove_canonical_ssr_host(
+    host_bytes: usize,
+    host: impl FnOnce(&cem_ml::operation_control::OperationControl) -> Result<crate::eval::Item, JsValue>,
+    tag: &str, version: &str, source: &str, nested_json: Option<String>,
+    declarations: Option<js_sys::Array>,
+) -> Result<String, JsValue> {
     use crate::ssr_browser_resume::{admit, admit_group_with_styles, NestedDeclaration};
 
-    let _native = cem_ml::runtime_admission::admit(false).map_err(JsValue::from_str)?;
     let nested_bytes = nested_json.as_ref().map_or(0, String::len);
     if nested_bytes > 2 * 1024 * 1024 {
         return Err(JsValue::from_str("cem.ssr.resume_declaration_bounds"));
@@ -588,29 +627,25 @@ pub fn admit_canonical_ssr_host(
             captures.push(capture);
         }
     }
-    let input_bytes = [bytes.len(), source.len(), tag.len(), version.len(), nested_bytes, declaration_bytes]
+    let input_bytes = [host_bytes, source.len(), tag.len(), version.len(), nested_bytes, declaration_bytes]
         .into_iter().fold(0usize, usize::saturating_add);
     let _memory = cem_ml::runtime_memory::admit_input(input_bytes).map_err(|e| JsValue::from_str(e.0))?;
     let control = cem_ml::operation_control::OperationControl::default();
-    let decode = |bytes: &[u8]| crate::eval::portable::decode_values_with_control(
-        bytes, &crate::instance_island::LIMITS, &control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
-    ).map_err(|e| JsValue::from_str(&e.to_string()));
-    let values = decode(bytes)?;
-    let [host] = values.items.as_slice() else { return Err(JsValue::from_str("cem.ssr.resume_host")) };
+    let host = host(&control)?;
     let serialized = if let Some(json) = nested_json {
         let declarations: Vec<NestedDeclaration> = serde_json::from_str(&json)
             .map_err(|_| JsValue::from_str("cem.ssr.resume_declarations"))?;
         let mut nodes = Vec::new();
         for capture in captures {
-            let mut captured = decode(&capture.to_vec())?.items;
+            let mut captured = decode_ssr_capture(&capture.to_vec(), &control)?.items;
             if captured.len() != 1 { return Err(JsValue::from_str("cem.ssr.resume_declarations")); }
             nodes.push(captured.remove(0));
         }
-        let group = admit_group_with_styles(host, tag, version, source, &declarations, &nodes, &control)
+        let group = admit_group_with_styles(&host, tag, version, source, &declarations, &nodes, &control)
             .map_err(|e| JsValue::from_str(&e))?;
         serde_json::to_string(&group)
     } else {
-        let host = admit(host, tag, version, source, &control).map_err(|e| JsValue::from_str(&e))?;
+        let host = admit(&host, tag, version, source, &control).map_err(|e| JsValue::from_str(&e))?;
         serde_json::to_string(&host)
     };
     serialized.map_err(|e| JsValue::from_str(&e.to_string()))

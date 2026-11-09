@@ -117,6 +117,35 @@ fn push_host(
             }
         }
         if i == 3 {
+            if case.starts_with("source-") {
+                push(p, "attribute", "", "content-type", "text/cem-ml");
+                push(
+                    p,
+                    "attribute",
+                    "",
+                    "schema",
+                    cem_ml::schema::registry::CEM_ML_SCHEMA_URI,
+                );
+                push(p, "attribute", "", "data-cem-explicit-payload", "true");
+                let envelope = push(p, "element", "http://www.w3.org/1999/xhtml", "template", "");
+                push(envelope, "attribute", "", "type", "text/cem-ml");
+                if case == "source-markup" {
+                    push(envelope, "element", "http://www.w3.org/1999/xhtml", "p", "");
+                } else {
+                    push(
+                        envelope,
+                        "text",
+                        "",
+                        "",
+                        if case == "source-malformed" {
+                            "{unclosed |"
+                        } else {
+                            "{item | {$ 1 div 0}}"
+                        },
+                    );
+                }
+                continue;
+            }
             push(p, "attribute", "", "content-type", "text/html");
             push(
                 p,
@@ -125,6 +154,10 @@ fn push_host(
                 "schema",
                 cem_ml::schema::registry::HTML_SCHEMA_URI,
             );
+            if case.starts_with("foreign") {
+                push_foreign(push, p, false, false);
+                continue;
+            }
             let b = push(
                 p,
                 "element",
@@ -140,7 +173,9 @@ fn push_host(
     }
     push(h, "comment", "", "", "cem-render-start");
     let b = push(h, "element", "http://www.w3.org/1999/xhtml", "b", "");
-    if case.starts_with("nested") {
+    if case.starts_with("foreign") {
+        push_foreign(push, b, case == "foreign-range", case == "foreign-active");
+    } else if case.starts_with("nested") {
         push_host(
             push,
             b,
@@ -156,7 +191,11 @@ fn push_host(
                 "1.2.3"
             }),
             text,
-            "",
+            if case == "nested-source" {
+                "source-valid"
+            } else {
+                ""
+            },
         );
     } else if case == "slot" {
         let e = push(b, "element", "http://www.w3.org/1999/xhtml", "em", "");
@@ -170,6 +209,138 @@ fn push_host(
         push(h, "comment", "", "", "cem-render-start");
     }
     h
+}
+
+fn push_foreign(
+    push: &mut impl FnMut(u32, &str, &str, &str, &str) -> u32,
+    parent: u32,
+    changed: bool,
+    active: bool,
+) {
+    const SVG: &str = "http://www.w3.org/2000/svg";
+    const MATH: &str = "http://www.w3.org/1998/Math/MathML";
+    let svg = push(parent, "element", SVG, "svg", "");
+    push(svg, "attribute", "", "slot", "heading");
+    push(svg, "attribute", "", "viewBox", "0 0 24 24");
+    push(
+        svg,
+        "attribute",
+        "http://www.w3.org/XML/1998/namespace",
+        "lang",
+        "en",
+    );
+    let gradient = push(svg, "element", SVG, "linearGradient", "");
+    push(gradient, "attribute", "", "id", "paint");
+    let use_node = push(svg, "element", SVG, "use", "");
+    push(
+        use_node,
+        "attribute",
+        "http://www.w3.org/1999/xlink",
+        "href",
+        if active {
+            "https://external.test/a.svg"
+        } else if changed {
+            "#changed"
+        } else {
+            "#paint"
+        },
+    );
+    let math = push(parent, "element", MATH, "math", "");
+    push(math, "attribute", "", "slot", "heading");
+    let identifier = push(math, "element", MATH, "mi", "");
+    push(identifier, "text", "", "", "x");
+}
+
+#[test]
+fn passive_foreign_ranges_compare_expanded_names_and_namespaced_attributes() {
+    let control = OperationControl::default();
+    let resume = |case| {
+        admit(
+            &host_case(Some("1.2.3"), "", case),
+            "x-card",
+            "1.9.0",
+            "{b | {$ datadom.slots.heading}}",
+            &control,
+        )
+    };
+    assert_eq!(resume("foreign").unwrap().decision, ResumeDecision::Adopt);
+    assert!(resume("foreign-range").is_err());
+    assert!(resume("foreign-active").is_err());
+}
+
+#[test]
+fn cem_source_resume_requires_fresh_capture_and_keeps_expressions_inert() {
+    use cem_ql::eval::{
+        portable::{decode_values, encode_values},
+        ItemStream,
+    };
+
+    let control = OperationControl::default();
+    let resume = |host: &_| admit(host, "x-card", "1.9.0", "{b | Ready}", &control);
+    let host = host_case(Some("1.2.3"), "Ready", "source-valid");
+    assert_eq!(resume(&host).unwrap().decision, ResumeDecision::Adopt);
+    assert!(admit(&host, "x-card", "2.0.0", "{b | Ready}", &control).is_err());
+    let limits = Default::default();
+    let bytes = encode_values(&ItemStream::once(host), &limits).unwrap();
+    let restored = decode_values(&bytes, &limits).unwrap();
+    assert!(resume(&restored.items[0]).is_err());
+    for case in ["source-malformed", "source-markup"] {
+        assert!(
+            resume(&host_case(Some("1.2.3"), "Ready", case)).is_err(),
+            "{case}"
+        );
+    }
+}
+
+#[test]
+fn captured_cem_source_keeps_the_dom_owner_and_unknown_coordinates() {
+    use cem_ml::{
+        import::element_tree::retain_captured_cem_payload,
+        source_map::{FrameSpan, TransformKind},
+        value::artifact::CemValueArtifactLimits,
+    };
+    let uri = "cem-dom://runtime/payload";
+    let mut capture = DomCapture::new(uri, "", "", Default::default()).unwrap();
+    capture.push(0, "document", "document", "", "", "").unwrap();
+    let envelope = capture
+        .push(
+            0,
+            "template",
+            "element",
+            "http://www.w3.org/1999/xhtml",
+            "template",
+            "",
+        )
+        .unwrap();
+    capture
+        .push(envelope, "type", "attribute", "", "type", "text/cem-ml")
+        .unwrap();
+    capture
+        .push(envelope, "body", "text", "", "", "{item | Captured}")
+        .unwrap();
+    let tree = capture.finish().unwrap();
+    let control = OperationControl::default();
+    let source =
+        retain_captured_cem_payload(tree.clone(), envelope, &control, &Default::default()).unwrap();
+    assert!(source.matches_canonical_source(&tree, envelope));
+    assert!(source.matches_operation(&control));
+    let derived = source.tree();
+    let item = derived.node(0).unwrap().children[0];
+    let map = derived.node_source_map(item).unwrap();
+    assert!(map.frames.iter().any(|frame| {
+        matches!(&frame.transform, TransformKind::SourceBoundary { uri: source } if source == uri)
+            && matches!(&frame.span, FrameSpan::Multi(spans) if spans.is_empty())
+    }));
+    assert!(retain_captured_cem_payload(
+        tree,
+        envelope,
+        &control,
+        &CemValueArtifactLimits {
+            max_bytes: 4,
+            ..Default::default()
+        },
+    )
+    .is_err());
 }
 
 #[test]
@@ -216,6 +387,16 @@ fn nested_group_requires_fresh_output_and_parent_owned_inputs_for_every_child() 
     ] {
         assert!(run(case, text, source).is_err(), "{case} {source}");
     }
+    let source = "{b | {x-child | {template @type=cem-ml | ```{item | {$ 1 div 0}}```}}}";
+    assert_eq!(
+        run("nested-source", "Nested", source)
+            .unwrap()
+            .participants
+            .len(),
+        2
+    );
+    let wrong_source = source.replace("div 0", "div 1");
+    assert!(run("nested-source", "Nested", &wrong_source).is_err());
 }
 #[test]
 fn compatible_output_requires_fresh_native_render_agreement() {

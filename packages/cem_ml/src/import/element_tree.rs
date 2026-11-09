@@ -4,8 +4,8 @@ use super::*;
 #[path = "cem_payload.rs"]
 mod cem_payload;
 pub use cem_payload::{
-    canonical_cem_payload_type, retain_inline_cem_payload, RetainedCemPayloadSource,
-    RetainedCemPayloadSourcePool,
+    canonical_cem_payload_type, retain_captured_cem_payload, retain_inline_cem_payload,
+    RetainedCemPayloadSource, RetainedCemPayloadSourcePool,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -65,14 +65,17 @@ pub fn retain_html_elements(
 }
 
 pub struct InlineCemTemplateSource {
-    owner: Arc<html_parser::HtmlDocumentAst>,
+    owner: Option<Arc<html_parser::HtmlDocumentAst>>,
     text: String,
     segments: Vec<(ByteRange, html_parser::HtmlSourceRange, bool)>,
     mapped: Option<Vec<(ByteRange, SourceMapStack)>>,
 }
 impl InlineCemTemplateSource {
     fn same_native_source(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.owner, &other.owner)
+        self.owner
+            .as_ref()
+            .zip(other.owner.as_ref())
+            .is_some_and(|(a, b)| Arc::ptr_eq(a, b))
             && self.text == other.text
             && self.mapped == other.mapped
             && self.segments.len() == other.segments.len()
@@ -125,7 +128,7 @@ impl InlineCemTemplateSource {
                 original.byte_length = end - start;
             }
             // Entity/line-ending changes map conservatively to the authored run.
-            if let Some(map) = self.owner.source_map_for_range(original) {
+            if let Some(map) = self.owner.as_ref()?.source_map_for_range(original) {
                 for frame in map.frames {
                     if !result.frames.contains(&frame) {
                         result.frames.push(frame);
@@ -251,7 +254,7 @@ impl RetainedElementImport {
             return Err("Unclosed HTML source template".into());
         }
         Ok(InlineCemTemplateSource {
-            owner,
+            owner: Some(owner),
             text,
             segments,
             mapped: None,
@@ -437,7 +440,14 @@ pub(super) fn retained_inline_text(
     if crate::parser::tree_apply::retained_source(tree).is_none() {
         return Err("Mapped inline source requires native application lineage".into());
     }
-    let owner = original_html_owner(tree)?;
+    literal_inline_text(tree, node, Some(original_html_owner(tree)?))
+}
+
+fn literal_inline_text(
+    tree: &Arc<RetainedCemTree>,
+    node: AstNodeId,
+    owner: Option<Arc<html_parser::HtmlDocumentAst>>,
+) -> Result<InlineCemTemplateSource, String> {
     let mut text = String::new();
     let mut mapped = vec![];
     for id in &tree.node(node).ok_or("Missing inline source")?.children {

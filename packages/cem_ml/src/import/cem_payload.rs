@@ -92,7 +92,7 @@ impl RetainedCemPayloadSourcePool {
             return Err("Payload source pool belongs to the original operation".into());
         }
         let result =
-            retain_inline_cem_payload_mode(original, template, control, limits, Some(self))?;
+            retain_inline_cem_payload_mode(original, template, control, limits, Some(self), false)?;
         let mut entries = self
             .entries
             .lock()
@@ -194,14 +194,31 @@ pub fn retain_inline_cem_payload(
     control: &OperationControl,
     limits: &CemValueArtifactLimits,
 ) -> Result<Arc<RetainedCemPayloadSource>, String> {
-    retain_inline_cem_payload_mode(original, template, control, limits, None)
+    retain_inline_cem_payload_mode(original, template, control, limits, None, false)
 }
+
+/// Parse the literal text of a canonical source envelope directly from its
+/// live DOM capture. The retained view preserves capture maps and unknown
+/// coordinates. An encoded copy cannot supply the native capture owner.
+pub fn retain_captured_cem_payload(
+    original: Arc<RetainedCemTree>,
+    template: AstNodeId,
+    control: &OperationControl,
+    limits: &CemValueArtifactLimits,
+) -> Result<Arc<RetainedCemPayloadSource>, String> {
+    if !crate::import::dom::has_live_capture_owner(&original) {
+        return Err("CEM payload requires a live DOM capture owner".into());
+    }
+    retain_inline_cem_payload_mode(original, template, control, limits, None, true)
+}
+
 fn retain_inline_cem_payload_mode(
     original: Arc<RetainedCemTree>,
     template: AstNodeId,
     control: &OperationControl,
     limits: &CemValueArtifactLimits,
     pool: Option<&RetainedCemPayloadSourcePool>,
+    capture: bool,
 ) -> Result<Arc<RetainedCemPayloadSource>, String> {
     let check = || {
         control
@@ -219,7 +236,11 @@ fn retain_inline_cem_payload_mode(
         max_values: limits.max_values.min(16_384),
         max_depth: limits.max_depth.min(64).min(policy.stack_depth as usize),
     };
-    let owner = super::original_html_owner(&original)?;
+    let owner = if capture {
+        None
+    } else {
+        Some(super::original_html_owner(&original)?)
+    };
     let node = original.node(template).ok_or("Missing source template")?;
     if !node.name.as_ref().is_some_and(|n| {
         n.namespace_uri == crate::schema::registry::HTML_NAMESPACE_URI && n.local_name == "template"
@@ -234,7 +255,8 @@ fn retain_inline_cem_payload_mode(
                 .map(|_| attr.value.as_str())
         })
     });
-    if kind.and_then(canonical_cem_payload_type).is_none() {
+    if kind.and_then(canonical_cem_payload_type).is_none() || capture && kind != Some("text/cem-ml")
+    {
         return Err("CEM payload requires its actual canonical source type".into());
     }
     // The retained semantic tree already owns decoded HTML text. Check its
@@ -268,13 +290,17 @@ fn retain_inline_cem_payload_mode(
                 .source_key(*id)
                 .is_some_and(|key| key.starts_with("cem-derived:"))
         });
-    let source = if derived {
+    let source = if capture {
+        super::literal_inline_text(&original, template, None)?
+    } else if derived {
         super::retained_inline_text(&original, template)?
     } else {
         let range = original
             .source_node_range(template)
             .ok_or("Missing source coordinates")?;
         let event = owner
+            .as_ref()
+            .ok_or("Missing authored HTML owner")?
             .events
             .iter()
             .position(|event| {
@@ -294,6 +320,9 @@ fn retain_inline_cem_payload_mode(
         };
         imported.inline_cem_template_source(template)?
     };
+    let source_uri = owner
+        .as_ref()
+        .map_or(original.source_uri(), |owner| owner.source.uri.as_str());
     if source.text().len() > limits.max_bytes {
         return Err("CEM payload source bounds exceeded".into());
     }
@@ -343,7 +372,7 @@ fn retain_inline_cem_payload_mode(
             .ok_or("Missing native source selection key")?;
         let mut semantics = CemTreeSemantics {
             source_fingerprint: Some(source_fingerprint(
-                &owner.source.uri,
+                source_uri,
                 source.text().as_bytes(),
                 &["inline-cem-payload/1", &source_key],
             )),
@@ -417,7 +446,7 @@ fn retain_inline_cem_payload_mode(
             )
             .map_err(|e| e.code().to_owned())?;
         let ast = ast.clone();
-        let uri = owner.source.uri.clone();
+        let uri = source_uri.to_owned();
         let native = Arc::new(Owner {
             _source: source,
             _original: original.clone(),

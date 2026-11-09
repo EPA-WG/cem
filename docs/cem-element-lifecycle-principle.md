@@ -692,7 +692,7 @@ identities, changed ranges and stale captures freeze admission.
 
 Nested participants use one captured tree. At each nested position in the
 parent's fresh projection, native admission compares the expected child tag,
-attributes and HTML payload with the child host and its island. The child's
+attributes and payload with the child host and its island. The child's
 declaration and range must also pass admission. The browser validates every
 publication target and captures every input mirror before writing hydration
 metadata or connecting a participant. A failed child, including one with an
@@ -710,9 +710,22 @@ stylesheet ownership then takes over the same style nodes and sheets.
 An absent, disabled, changed or unresolved stylesheet freezes the group. Shared
 stylesheets require their matching declaration owners in the admitted group.
 Styled groups require compatible declaration versions for every participant.
-Foreign markup, CEM source payloads, live slices, form controls and external
-capabilities still require separate admission. The retained browser root records
-declaration-level source fidelity.
+
+Passive SVG and MathML retain their expanded names and attributes. Admission
+applies the shared passive foreign-content rules and compares the captured DOM
+with the freshly projected range. A changed range or an active foreign element
+or attribute freezes adoption.
+
+A canonical CEM source payload requires a compatible declaration version and
+one literal inert source template. The native importer parses its captured text
+under the same operation and checks the lease against the exact capture owner
+and envelope. Transported values cannot grant this lease. Capture maps retain
+their runtime URI with unknown authored coordinates. The payload stays inert
+during proof and subsequent rendering. Observing its separate template fragment
+catches edits during proof and invalidates the connected instance on later edits.
+
+Live slices, form controls and external capabilities still require separate
+admission. The retained browser root records declaration-level source fidelity.
 
 Structured-clone `DataIslandSnapshot` records remain valid processing-boundary
 transport for workers, Edge, or other non-DOM hosts. They are derived from the

@@ -9,26 +9,10 @@ Completed work and verification evidence are preserved in the
 Earlier history remains linked from that snapshot. Historical checkbox states
 do not reopen completed work; adopted contracts remain in their design documents.
 
-Latest completion: [Amsterdam presentation delivery](archive/todo-completed-amsterdam-delivery-2026-11-04.md).
-Previous native completion: [native-owned node/executable receiver frames](archive/todo-completed-native-receiver-frames-2026-11-01.md).
-The [reduced native input and island frames](archive/todo-completed-application-frames-2026-11-01.md)
-remain the preceding stage.
-The [worker/fallback application checkpoint handoff](archive/todo-completed-application-handoff-2026-11-01.md)
-remains the preceding stage.
-The [native-provisioned application installation](archive/todo-completed-application-endpoints-2026-11-01.md)
-remains the preceding stage.
-The [original application source handoff and opt-in WASM contracts](archive/todo-completed-application-source-handoff-2026-11-01.md)
-remain the preceding stage.
-The [imported/native-rule and custom-profile transport](archive/todo-completed-rule-profile-transport-2026-11-01.md)
-remains the preceding stage.
-The [native-provisioned query endpoints and TODO cleanup](archive/todo-completed-query-endpoints-2026-11-01.md)
-remain the preceding stage.
-The [source-backed query execution owners](archive/todo-completed-query-execution-owners-2026-11-01.md)
-remain the preceding stage.
-The [shared query transport/checkpoint handoff](archive/todo-completed-query-resource-handoff-2026-11-01.md)
-and [native query owner adapters](archive/todo-completed-native-query-owner-adapters-2026-10-31.md)
-are also complete. The [pre-cleanup snapshot](archive/todo-snapshot-2026-11-01.md)
-preserves the previous nested checklist; its completed foundations are not new work.
+The latest completion is [browser adoption of foreign markup and inert CEM source](archive/todo-completed-ssr-foreign-source-hydration-2026-11-09.md).
+The [completion index](archive/todo-completed-index-2026-11-09.md) links the
+evidence for the retired checklist entries. Current execution is in the
+[SSR follow-ups](#browser-and-cli-ssr-follow-ups).
 
 Preserve accepted Studio functionality and presentation samples while addressing
 the remaining shared-library and release diagnostics. Examples remain ordinary projects
@@ -54,10 +38,8 @@ changes, aliases and expression-valued attributes remain source-only. Keep
 credential recovery refusal, the aggregate 4 MiB checkpoint budget and separate
 physical-device/spoken AT acceptance.
 
-Execution priority (2026-11-04): Amsterdam presentation delivery is accepted and
-archived. Continue the unfinished native/release follow-ups in their listed
-order. Preserve the frozen delivery artifacts and existing runtime contracts;
-completed capabilities are foundations, not tasks to reimplement.
+Amsterdam presentation delivery is accepted and archived. Use the SSR follow-ups
+for the current native work and the conditional diagnostic items on recurrence.
 
 ## Amsterdam presentation samples: active Studio priority
 
@@ -71,7 +53,7 @@ Completed on explicit owner confirmation, including rehearsal acceptance,
 material freeze and archive. The [final handoff](presentation/declarative-amsterdam-2026-handoff.md)
 and [completed actions](archive/todo-completed-amsterdam-delivery-2026-11-04.md#amsterdam-presentation-setup-and-rehearsal)
 retain publication, slide/kit identities, verification and historical limitations.
-Continue with the first unfinished native/release follow-up below.
+Continue with the [browser and CLI SSR follow-ups](#browser-and-cli-ssr-follow-ups).
 
 ## Later work: shared foundations, diagnostics and release
 
@@ -83,148 +65,9 @@ may be promoted with a link to its required checkpoint and a bounded regression.
 
 ## Native and release follow-ups
 
-Completed follow-up: [Playground native-editing diagnostic and regression repair](archive/todo-completed-playground-native-editing-2026-11-04.md).
-The blanket zero-child assertion conflicted with the documented terminal caret
-BR. Exact native DOM/source/selection/undo checks now pass with the existing
-runtime: all 20 demo-element and ten canonical source-editor stories, lint and
-typecheck pass. No runtime, declarations, styles or deadlines changed.
-
-Presentation delivery is complete; these follow-ups can now proceed in order.
-Keep original assertions, deadlines and baseline evidence for each repair.
-
-Completed follow-up: [Node output URI binding](archive/todo-completed-node-output-paths-2026-11-04.md).
-Shared Rust lowering now binds relative/absolute output paths to runtime URIs
-without changing declared paths, config-base policy or authority checks. All
-30 focused native checks, 61 Node tests, browser command-service verification,
-WASM/CLI builds and lint pass. Refused CSV preserves prior output; repair
-publishes. Forged destinations still reject before callbacks and invalid commit
-URIs roll back. Frozen presentation delivery bytes remain unchanged.
-
-Completed follow-up: [linked preparation source provenance](archive/todo-completed-linked-preparation-provenance-2026-11-04.md).
-The fixture now distinguishes original lexical evidence from the URI-enriched
-retained query view, requiring exact original frames/spans and the correct owner
-boundary. Existing boundaries retain priority. All 51 linked lifecycle tests,
-11 evidence checks and seven retained-provenance checks pass. The three previous
-failures were a fixture expectation mismatch; native runtime, evidence-forgery
-refusals, context/publication guards and budgets remain unchanged. The original
-46/49 baseline remains in the [CSV verification archive](archive/todo-completed-csv-parser-contracts-2026-10-24.md#verification).
-
-Completed follow-up: [optional Studio sample generation](archive/todo-completed-studio-sample-isolation-2026-11-04.md).
-The canonical generator emits the optional graph into `generated/schema-assets/`
-with correct input/output bases. Nx outputs no longer overlap the strict default
-sample directory. Both native-CLI regressions and Studio lint pass: all 65 default
-generated files remain unchanged, all 107 sample outputs match between profiles,
-and unexpected generated files still fail. Default → optional → default preserves
-both deployments. Frozen presentation delivery bytes remain unchanged.
-
-Completed diagnostic capture: [worker allocation phase investigation](archive/todo-completed-worker-allocation-diagnostics-2026-11-04.md).
-The timeout did not recur: the broader run's allocation completed in 279 ms and
-static refusal passed. Bounded payload-free traces now distinguish readiness,
-headroom and group admission; all 48 host/diagnostic units, 23 generation tests,
-build and lint pass. At that checkpoint, the broader browser invocation passed
-94/104, with ten theme-control count failures repaired in the follow-up below.
-Historical timeout attribution remains conditional; no timing repair is claimed.
-
-Completed follow-up: [canonical theme recovery control inventory](archive/todo-completed-theme-control-fixtures-2026-11-05.md).
-The fixture now checks six exact choices plus one trigger per switch, accessible
-labels/roles and original control/editor identities after handoff. Fresh
-Presentation selection preserves independent storage and the edited draft.
-All ten targeted theme stories, the final 104-case checkpoint/source-paint/
-editor-provider cohort and lint pass. An earlier 103/104 invocation exposed a separate
-`worker-method` allocation timeout; its original deadline and failed receipt
-remain preserved. Bounded allocation tracing now also covers this driver.
-Runtime/declarations, token ownership and frozen presentation bytes are unchanged.
-
-Completed follow-up: [retained CLI schema typecheck inputs](archive/todo-completed-cli-typecheck-inputs-2026-11-05.md).
-The CLI build retains its exact native-generated TypeScript source and restores
-it with `dist/` from cache, without hashing derived source as authored input.
-Standalone runtime typechecking now prepares the CLI dependency automatically.
-The real forced typecheck and a 5/5-task cache replay pass after deleting that
-source. Full CLI verification passes all 61 Node tests, Chromium acceptance,
-cold/cache/version checks and strict publication types. Its in-memory consumer
-compile preserves all 373 packaged runtime files; lint passes with its existing
-warning. Native schema ownership, runtime/UI/recovery policy and frozen materials
-remain unchanged.
-
-Completed follow-up: [Studio release-verifier scheduling](archive/todo-completed-release-scheduling-2026-11-05.md).
-Nx now runs protected Studio browser tasks and deployment writers alone within
-one invocation while preserving unrelated concurrency. The real scheduler
-regression rejects the old overlap and passes for 50 protected workloads at
-parallelism four, requiring unrelated probes to overlap. At parallelism three,
-source/deployed task intervals do not overlap: all five cold-source-paint cases
-and deployed Login/Supplier workflows pass. Source tests pass 243/245, with both
-complete live Login cases refusing checkpoint capture at the existing node cap;
-both also fail unchanged in isolation. This is not a green full release. Original
-30-second/five-second bounds, privacy assertions and 4 MiB budget remain intact;
-historical overlapping 276/283 and isolated rerun evidence stays in the archive.
-Independent Nx processes/raw commands are outside this scheduling boundary.
-
-- [x] Add a real Nx scheduler regression using resolved Studio browser/writer
-      metadata: reject protected-workload overlap at parallelism four while
-      requiring unrelated build probes to overlap. Completed with the
-      [scheduling repair](archive/todo-completed-release-scheduling-2026-11-05.md).
-
-Completed follow-up: [Login checkpoint DOM headroom](archive/todo-completed-login-checkpoint-headroom-2026-11-05.md).
-The navigation view now retains only consumed tree fields and stable route keys;
-complete descriptors remain in the service for selection, listings and export.
-The failing-first navigation retention regression and worker/fallback live Login
-acceptance pass, retaining two privacy refusals, three recoveries and twelve edits
-each. The complete source suite passes all 368 tests across nine files; lint,
-typecheck and 336-file production determinism also pass. Existing witness coverage,
-32,768-node/depth-64 caps, 4 MiB budget and original deadlines remain unchanged.
-The earlier 243/245 and isolated 2/2 failures are preserved in the archives.
-Frozen presentation delivery bytes remain unchanged.
-
-- [x] Add bounded Login recovery phase node counts and a navigation view-retention
-      regression preserving full service descriptors, public routes and retained
-      editor/preview identity. See the
-      [completed repair](archive/todo-completed-login-checkpoint-headroom-2026-11-05.md).
-
-Completed follow-up: [native conversion fixture intent](archive/todo-completed-native-conversion-fixture-2026-11-05.md).
-The `.busy` expression was already retained through a native owning value node;
-the fixture incorrectly required a literal compatibility value. It now requires
-the exact owning expression, original body/source span and braced normalized
-event, while quoted CEM/XML/HTML values remain literal through canonical round
-trips. All six conversion cases pass in both native feature profiles. The eight
-related integration suites then passed 36/37 per profile; the legacy-binary
-fixture follow-up below closes that separate baseline. Parser/runtime/codec, example bytes,
-recovery contracts and frozen presentation delivery bytes remain unchanged.
-
-- [x] Strengthen the cross-surface fixture's native ownership, exact `.busy`
-      source/event evidence and quoted CEM/XML/HTML literal round trips, and
-      reconcile conversion documentation with the native-slot contract. See the
-      [completed correction](archive/todo-completed-native-conversion-fixture-2026-11-05.md).
-
-Completed follow-up: [stripped WASM size investigation](archive/todo-completed-stripped-wasm-size-2026-11-05.md).
-Fresh matched artifacts pass the unchanged strict artifact verifier: browser and
-Node WASM are 24,544,191 stripped versus 24,860,843 default bytes, saving 316,652
-bytes per target. Native CLI saves 18,290,384 bytes. Cargo features, linked named
-functions, four omitted debugger exports, capability refusal, native symbols and
-negative Rust imports independently verify omission while core controls remain.
-The initial installed pair had mismatched command declarations and only default's
-current optimization report. Historical 27,264,508/27,033,499-byte evidence remains
-unattributed; no source/runtime/optimizer change or weaker assertion is claimed.
-The [measurement receipt](stripped-wasm-profile-measurements.json) records hashes,
-producer freshness and the tested source cohort. Its historical native-test
-failure is resolved by the compatibility follow-up below; frozen delivery bytes remain unchanged.
-
-Completed follow-up: [genuine legacy CEMB fixtures](archive/todo-completed-legacy-cemb-fixtures-2026-11-05.md).
-Eight frozen binaries come from unchanged historical v2/v3/v4 native encoders,
-with source/producer hashes and exact original field/source observations. Legacy
-literals retain their values, ID bindings and empty native slots; references
-retain pending/empty targets, duplicates, self/cyclic edges and original frames.
-The stale modern-header relabeling positives are replaced by genuine bytes;
-intentional malformed-version, integrity, structural-truncation and count-limit
-refusals remain strict. All 58 cases across ten related suites pass in each native
-feature profile. Decoder/runtime code, wire formats, budgets, published runtimes
-and frozen delivery bytes remain unchanged. Full release-graph verification is
-separate from this native cohort.
-
-- [x] Generate a historical native v2/v3/v4 CEMB compatibility corpus, pin exact
-      source/producer/hash evidence and replace relabeled-modern positive fixtures;
-      retain complete source/graph and malformed-body refusal checks. See the
-      [fixture documentation](../packages/cem_ml/tests/fixtures/cemb-legacy/README.md).
-
+The [completion index](archive/todo-completed-index-2026-11-09.md#studio-and-release)
+collects the completed native and Studio diagnostics. Use the original
+assertions, deadlines and baseline evidence for any recurrence.
 
 ### Historical presentation-adjacent diagnostics
 
@@ -240,55 +83,6 @@ separate from this native cohort.
       [diagnostic capture](archive/todo-completed-worker-allocation-diagnostics-2026-11-04.md)
       and [theme fixture verification](archive/todo-completed-theme-control-fixtures-2026-11-05.md#verification-and-allocation-follow-up).
 
-- [x] Diagnose and repair the held-worker DOM stylesheet readiness timeout.
-      The fixture held the host's later artifact-reacquisition preflight after
-      releasing initial adoption. Release now opens the gate, with exact replay
-      input assertions and bounded, payload-free failure capture. All original
-      readiness/hydration/reconnect/style/diagnostic checks and the 30-second
-      deadline remain. See the [diagnosis and evidence](archive/todo-completed-held-css-worker-timeout-2026-11-05.md).
-
-- [x] Verify disposal readiness before the held CSS reply, then drain that late
-      native reply, require worker termination and retain empty render/style
-      assertions. Final sequential stylesheet cohort passes **44/44** across six
-      files; lint passes with zero errors and the existing 818 warnings. This
-      changes fixture code only; production runtime and frozen delivery remain
-      unchanged. The conditional fresh-allocation follow-up stays separate.
-
-- [x] Audit and correct the five Studio project schema-definition errors.
-      `id` now uses a string with its unchanged stable-ID regex; both path
-      attributes retain `cemml:path` and the reserved-directory facet without
-      invalid `/` and `../` prefix declarations. Native regressions compile the
-      schema without diagnostics and preserve ID/path refusals and projections.
-      All **18/18** native cases pass in both feature profiles; the package gate
-      passes. See the [audit and evidence](archive/todo-completed-studio-strict-schema-audit-2026-11-05.md).
-
-- [x] Fix the schema metadata ARIA warning using original-owner expanded
-      namespaces. Metadata retains its vocabulary semantics; embedded HTML, SVG
-      and MathML keep ARIA checks, and foreign/missing captures grant no exemption.
-      Studio schema strict CLI validation now exits **0** with zero diagnostics;
-      an invalid HTML role still exits **1** with its exact ARIA warning.
-      All five new native cases pass in both feature profiles. See the
-      [correction and evidence](archive/todo-completed-schema-metadata-aria-2026-11-05.md).
-
-- [x] Add Node/browser WASM command-service regressions for the actual Studio
-      schema and invalid HTML role control, then rebuild and verify the package.
-      Both cases fail against the original runtime; the rebuilt full runtime
-      suite passes **30/30**, complete XSLT checks pass, and package ABI/types,
-      658 integrity records and 32 schema packages verify. Studio's **18/18**
-      native project cases and package structure gate also pass. The broader
-      **342/343** native validation result remains separate below.
-
-- [x] Audit and correct the Markdown events-projection fixture's stale JSON
-      `byteRange` assertion. Both typed CEM projections now require every native
-      event's exact source URI/range, order, kind, tag and text, plus original
-      hash-bound writer provenance. Unicode/CRLF, nested markup and inert CEM-like
-      text are covered; original package admission, unsafe-source refusal and
-      coloring/owner checks remain. The full native validation cohort passes
-      **343/343**, and all **16/16** Markdown cases pass without default features.
-      Production parser/projection/provenance code and frozen delivery remain
-      unchanged. See the [fixture audit and evidence](archive/todo-completed-markdown-projection-fixture-2026-11-05.md).
-
-
 ## Declarative UI Architecture Correction
 
 ### Remaining declarative UI migration
@@ -303,23 +97,6 @@ the [declarative UI principle](declarative-ui-principle.md) and
       behavior. One initial aggregate timeout remains unexplained; the unchanged
       source/packed gate, 20 reloads under load and final full gate pass. Passing
       repeats do not establish a cause or a specific slider fix.
-
-- [x] Audit the two historical suggestions-controller cases with unchanged
-      assertions/deadlines: both pass in the fresh focused run, and the unchanged
-      controller suite passes 15/15. A controlled late-initial-preparation case
-      reproduces a fixture ownership race: replacement controllers both use query
-      revision `1`, allowing an old preparation to replace the admitted row map.
-      Monotonic fixture preparation tokens now preserve the admitted binding
-      while keeping native query revisions unchanged. Added bounded, payload-free
-      failure capture and verified it with a temporary missing-map control.
-      Final related browser cohort passes **38/38**; lint has zero errors and the
-      existing 818 warnings. See the
-      [audit and evidence](archive/todo-completed-suggestions-controller-audit-2026-11-05.md).
-
-- [x] Add a controlled late-initial-preparation regression across trusted
-      controller replacement. The native revision-`1` collision fails before the
-      fixture correction, then preserves the exact admitted row map and opens
-      normally for both production field providers in worker/fallback modes.
 
 - [ ] Conditional suggestions-controller follow-up: if
       `ProductionFieldsExternalSourcesAndTrustedAncestorResume` or
@@ -337,25 +114,7 @@ the [declarative UI principle](declarative-ui-principle.md) and
       266/266 with unchanged deadlines and assertions. No runtime cause is
       attributed. Preserve this distinction in subsequent acceptance reports.
 
-
-
 ### Native-surface delivery follow-ups
-
-- [x] Add a repeatable Chromium accessibility-tree probe for both pinned ARIA
-      profiles through actual worker/fallback native export. Compare single,
-      ordered/repeated and reversed targets to literal HTML controls; retain DOM
-      sequences and observe invalid-state relation exposure without inferring
-      spoken announcements or OS accessibility mappings from CDP evidence.
-      Provide persistent fixture URLs for actual manual browser/AT runs and
-      verify that serve mode without recording unperformed AT acceptance.
-      Completed 2026-11-05: six worker/fallback export cases and all twelve
-      invalid-state AX comparisons pass in Chromium 148.0.7778.96 on Ubuntu
-      26.04/WSL2. Native DOM retains all ordered/repeated targets; CDP matches
-      literal HTML, exposing error-message targets only while invalid. Manual
-      serve mode advertises twelve URLs; two complementary pages pass browser
-      smoke checks without overwriting acceptance. Lint passes with zero errors
-      and the existing 818 warnings. Frozen delivery remains unchanged.
-      [Audit](archive/todo-completed-aria-browser-relations-2026-11-05.md).
 
 - [ ] On recurrence of the ARIA probe's draft-worker initialization timeout,
       use its failed-request path and initialization phase/counters to attribute
@@ -374,7 +133,6 @@ the [declarative UI principle](declarative-ui-principle.md) and
       The repeatable browser probe and persistent manual fixtures above are
       ready. CDP evidence does not establish OS API mappings or spoken output;
       the documented Windows/macOS/Linux AT rows remain pending actual runs.
-
 
 ## Autocomplete and suggestions design for CEM inputs
 
@@ -417,18 +175,7 @@ physical-device or spoken assistive-technology coverage.
       not rewrite numeric values; token edits must preserve caret, separators and
       composition; one provider owns each adopted surface.
 
-
 ## Studio startup failure watch
-
-- [x] Record the captured public search `ERR_QUIC_PROTOCOL_ERROR` and
-      `ERR_NETWORK_CHANGED` failures on `c0833c4c…`, then verify the complete
-      publication using an explicit HTTP/2 browser transport profile. Keep the
-      default transport, all behavior assertions and deadlines unchanged; record
-      the profile in the acceptance receipt and retain both default failures.
-      Completed 2026-11-04: full public target passes under the explicit HTTP/2
-      profile, with normal public TLS validation and all 1,206 hashes and browser
-      suites. This establishes that profile's acceptance, not default transport
-      reliability. [Readback](declarative-amsterdam-2026/site-public-c0833c4c-readback.json).
 
 - [ ] On recurrence, attribute the public presentation Site Studio startup variance observed on
       version `c0833c4c-6820-4014-a44a-65aba2901282`: the first combined public
@@ -445,17 +192,6 @@ physical-device or spoken assistive-technology coverage.
       view settlement); these repeats do not establish the old timeout's cause.
       [Capture audit](archive/todo-completed-studio-startup-capture-2026-11-05.md).
 
-- [x] Add bounded, monotonic Studio startup/network/dedicated-worker capture
-      to public application verification; preserve the 30-second readiness limit,
-      transport defaults, TLS validation and full navigation/offline assertions.
-      Verify capture on a controlled delayed response and compare fresh public
-      default/HTTP2 startups against frozen publication identities.
-      Completed 2026-11-05: 26/26 host/capture tests, including a real unchanged
-      30-second held-worker response; Site lint passes. Both fresh full application
-      workflows pass with normal public TLS and five accepted startup-file pins;
-      frozen presentation bytes unchanged. No runtime or deployment change.
-      [Archive](archive/todo-completed-studio-startup-capture-2026-11-05.md).
-
 - [ ] On recurrence, attribute the historical aggregate fallback entry-module
       fetch failure before changing the loader or test lifecycle. The old cohort
       passed 273/274 and an isolated rerun passed; current observed and fresh-cache
@@ -465,7 +201,6 @@ physical-device or spoken assistive-technology coverage.
       regression, then repair and rerun the complete cohort. Passing repeats and
       a later HTTP 200 do not establish the historical cause. Preserve recovery
       assertions/deadlines, credential refusal, user storage and the 4 MiB budget.
-
 
 ## Browser failures observed during placement verification
 
@@ -487,18 +222,6 @@ repeats alone do not attribute a historical failure.
       cause is inferred from these passing controls; use the actual failed
       phase/state on recurrence. [Audit](archive/todo-completed-placement-journey-audit-2026-11-05.md).
 
-- [x] Audit the unchanged data-table/set-URL journeys and native pointer-tap
-      case, then add bounded, passive phase/failure capture that survives the
-      original story timeout. Verify it with a controlled failure and run the
-      related cohort under load; keep all assertions and deadlines unchanged,
-      and retain historical attribution separately if no failure recurs.
-      Completed 2026-11-05: 3/3 capture units; controlled original runner timeout
-      retains the last 32 records, discarded count and live fixture state. The
-      control is removed; original assertion/readiness/native-action calls are
-      unchanged. Final 35/35 browser plays, both lint targets (zero errors), and
-      strict declarative verification pass. Frozen delivery remains unchanged.
-      [Archive](archive/todo-completed-placement-journey-audit-2026-11-05.md).
-
 - [ ] Investigate runtime aggregate instability on recurrence. The historical
       action-cutover run passed 311/312 stories: `Payload Css Readiness And
       Hydration` expected one style but observed zero; its complete 12-story
@@ -508,7 +231,6 @@ repeats alone do not attribute a historical failure.
       galleries passed in isolation and the complete source/packed rerun passed.
       Use the verifier's component, URL, missing-host and runtime diagnostics;
       preserve the readiness assertion and reproduce before changing behavior.
-
 
 ## Legacy Demo Case Coverage (after presentation delivery)
 
@@ -540,7 +262,6 @@ These historical investigations remain behind presentation functionality.
       deadline. Traced follow-up workloads pass without reproducing the failure;
       see the [HTTP observation](browser-stabilization-review.tmp.md#http-startup-observation-without-a-reproduced-failure).
 
-
 ## Deferred Roadmap Work
 
 The Edge/SSR host fixtures belong to Phase 3.5 after the browser substrate is
@@ -565,463 +286,19 @@ through Phase 9 release governance.
       refusals and source/client parity, without executing arbitrary page
       JavaScript. Keep this behind the current Studio sample priorities.
 
-- [x] SSR Phase A routing increment: add normalized `{page}` bindings to the
-      shared native graph lowerer for `.html`, `.cem` and compound `.cem.md`
-      filenames. Strip exactly one registered suffix, preserve legacy bindings
-      and explicit source/content-type identities, and retain unknown-binding
-      and duplicate-output refusals. Add failing native/provider and actual CLI
-      fan-out/collision fixtures before implementation, plus Node/WASM service
-      and executable regressions against the old packaged runtime, and a browser
-      worker graph/publication fixture; do not claim SSR rendering
-      or CEM-enabled Markdown admission from this routing-only increment.
-      Completed 2026-11-05: native failing-first vectors/provider/preflight tests
-      pass in both requested feature profiles; 19 graph-request, 34 CLI config,
-      eight template-conformance and two new executable tests pass. Rebuilt WASM
-      passes 30 runtime tests plus native XSLT contracts; Node passes 63/63 and
-      browser workers commit all three exact routed exports. Both lint targets
-      pass. Legacy bindings, refusal codes, budgets and frozen delivery remain.
-      [Archive](archive/todo-completed-ssr-page-binding-2026-11-05.md).
+### Browser and CLI SSR follow-ups
 
-- [x] SSR Phase A route preflight: retain distinct source URI, deployed page URL,
-      effective document base and output URI. Validate page URLs and duplicate
-      normalized routes before execution; keep output paths out of render identity
-      and preserve explicit resolver/read-map authority and source-map ownership.
-      Add failing native HTML-owner/base-selection, URL normalization/refusal,
-      batch-collision and render-identity fixtures before implementation; compare
-      static base URL results with Chromium without executing authored scripts.
-      Cover resolver denial/read-map ownership, mapped/generated base provenance,
-      URL identity changes and explicit refusal of unsupported HTML page profiles.
-      Completed 2026-11-05: 14 native cases pass in default and actual stripped
-      profiles; 16 HTML-owner, 19 graph and three XML Base regressions pass.
-      Chromium 148 and Chrome 155 each pass 16 static URL observations, including
-      explicit invalid-base refusal and a CSP-blocking control. WASM and lint
-      checks pass; resolver/source-map ownership and frozen delivery remain.
-      The route contract does not add an SSR command, artifact or hydration claim.
-      [Archive](archive/todo-completed-ssr-route-preflight-2026-11-05.md).
+The native coordinator, readiness proof and named CLI exports are complete.
+Browser adoption covers passive inline HTML, SVG and MathML, inert native
+CEM source payloads, nested participants and resource-free scoped CSS.
+The [SSR completion index](archive/todo-completed-index-2026-11-09.md#ssr)
+links the corresponding design and verification records.
 
-- [x] SSR artifact contract: retain the existing native DOM projection owner in
-      a typed SSR envelope with explicit lifecycle/adoption identity and bounded
-      policy. Add native artifact/report/cache fixtures before wiring the shared
-      page lifecycle; unrendered or partial output must not claim hydration readiness.
-      Add failing native owner-retention/route-binding, bounded-policy/usage,
-      partial/adoption refusal, explicit report and cache-input identity fixtures.
-      Check provenance, native extension handoff and sensitivity to source,
-      dependency/policy/version changes while excluding physical output paths.
-      Completed 2026-11-05: nine failing-first cases expanded to 14 native tests,
-      passing in default and actual stripped profiles. Fourteen route, five
-      dependency-identity and 32 native artifact/exporter regressions pass; WASM,
-      Clippy and focused formatting/lint gates pass. Native owners/provenance and
-      frozen delivery remain; only unrendered/partial states are constructible.
-      The command, coordinator, wire codec and settled adoption proof remain open.
-      [Archive](archive/todo-completed-ssr-artifact-contract-2026-11-05.md).
-
-- [x] SSR shared lifecycle preparation: prepare one inline declaration and one
-      active autonomous DCE from the retained route/artifact contracts. Add
-      failing native owner-retention, decoded-source/provenance, inert/foreign,
-      ambiguity, unsupported/resume, cancellation and bound fixtures before
-      implementation. Add browser text vectors, character-reference versus literal
-      line-ending cases, unsupported entity decode refusals, customized built-in
-      refusals and tokenizer/compiler diagnostic origin regressions. Reuse native
-      CEM trees and the existing RetainedTemplate compiler owner; keep the page
-      unchanged and return non-adoptable Partial(Incomplete).
-      Completed 2026-11-05: 13 preparation tests pass in default and actual
-      stripped profiles; 24 common-import, 33 SSR-contract, 28 renderer and five
-      declaration-artifact cases pass (cohorts overlap). Five Chromium template
-      text vectors, Clippy, focused lint and existing WASM template/CSS consumers
-      pass. The optimized default core is 24,234,163 bytes under the unchanged
-      25 MiB limit, with matching public import/export descriptors. Original
-      owners/control/provenance and frozen delivery remain. No island capture,
-      rendered output or adoption proof is claimed.
-      [Archive](archive/todo-completed-ssr-inline-preparation-2026-11-05.md).
-
-- [x] SSR first-connection island preparation for the admitted HTML profile:
-      capture the prepared instance's original author payload and attributes into the canonical native data-island
-      lifecycle/domain owners. Extract reusable pieces from existing native island
-      admission where needed; do not enable the whole experimental component
-      profile or invent a parallel island/data model. Add failing native topology,
-      slot/order, ownership/source-map, cancellation and marked-island resume
-      fixtures before implementation. Keep preparation non-adoptable.
-      Add explicit failing fixtures for native canonical topology and original
-      payload/attribute owners, live versus explicit inert capture, empty/mixed
-      payloads, slot order, DOMStringMap keys, unsupported CEM/foreign/CSS inputs,
-      sensitive attributes, bounds, cancellation/completed scopes, source/page
-      provenance separation and output-independent instance identity. Compare
-      supported capture shapes with browser DOM without authored script execution.
-      Completed 2026-11-05: 12 failing-first cases expanded to 15 capture tests,
-      passing in default and actual stripped profiles. Thirteen shared island
-      tests and 13 earlier preparation cases pass in both profiles; the isolated
-      component receiver passes 17 cases. Common import, provenance and renderer
-      regressions pass, and Chromium matches ten passive capture observations.
-      Clippy, focused lint and existing WASM template/CSS consumers pass; the
-      optimized default core is 24,179,963 bytes under the unchanged 25 MiB limit,
-      with matching public import/export descriptors. Original native owners,
-      control, source provenance and frozen delivery remain. No page AST apply,
-      declaration evaluation or adoption claim is made.
-      [Archive](archive/todo-completed-ssr-island-preparation-2026-11-05.md).
-
-- [x] SSR retained rendering and AST application (one passive HTML instance):
-      use the prepared shared native island bindings and retained declaration owner to generate the existing
-      render plan and apply it outside the canonical island using common
-      namespace/ownership rules. Add native
-      source-map, rendered-boundary and original-owner preservation fixtures;
-      compare the single-inline-DCE result with the browser lifecycle.
-      Add failing native generic AST transaction and single-DCE fixtures before
-      implementation: exact source/IR owners, decoded untouched content, inert
-      island/range order, text/attribute/slot projection, namespaces and source
-      maps, empty output, sensitive/active output and host-update refusals, cancellation and bounded
-      work. Compare supported output and payload topology with the browser runtime
-      using explicit observation fixtures; keep partial output non-adoptable.
-      Completed 2026-11-06: four generic transaction tests pass in default and
-      actual stripped profiles; 17 native application cases pass in both. Earlier
-      capture/preparation, artifact and renderer regressions pass. Seven browser
-      observations match all payloads and six rendered cases; one explicitly
-      records the existing browser slot-record/native-node ingress difference.
-      Applied native ownership, maps, namespaces and memory-permit lifetimes are
-      retained, with one render pass and `Partial(Incomplete)` only. Host writes,
-      broader domain admission, settling, HTML export and adoption remain below.
-      Clippy, focused lint and optimized WASM consumers pass. The default core is
-      24,220,012 bytes under the unchanged 25 MiB limit, with matching named
-      import/export descriptors. Frozen presentation checksum remains unchanged.
-      [Archive](archive/todo-completed-ssr-render-application-2026-11-06.md).
-
-- [x] SSR shared host/island commit: apply generated host defaults and selected
-      attribute writes in one native transaction with canonical attributes and
-      dataset updates. Add failing shared transaction fixtures before extending
-      `cem.ssr.host_updates_unavailable`; preserve source authority and rollback.
-      Add failing native host-commit fixtures for missing defaults versus supplied
-      empty values, selected/repeated writes, same-pass dataset reads, ordered
-      attributes, source maps, payload reference identity, atomic attribute/child
-      replacement, sensitive/reserved/active names, bounds and original control.
-      Extend explicit browser observations for supported host/island commits;
-      keep non-adoptable state and expose existing browser divergences. Add a
-      failing native pure-cache fixture retaining host-write source maps and
-      rejecting older host-write cache records without that provenance.
-      Completed 2026-11-06: 11 host-commit cases and seven generic AST transaction
-      tests pass in default and actual stripped profiles; four native output-cache
-      cases pass. Existing module defaults (6), template rendering (55), capture,
-      preparation and isolated component receiver (17) pass. Source-owned mapped
-      writes, canonical attributes/dataset and children publish atomically in one
-      pass; original payload references and partial/non-adoptable status remain.
-      Browser snapshot and slot ingress gaps remain explicitly tracked below.
-      Focused lint, both native Clippy targets and optimized WASM consumers pass;
-      default core is 24,209,768 bytes under the unchanged 25 MiB budget, with
-      matching named descriptors. All 12 browser observation contracts pass with
-      the five documented bridge differences. Frozen delivery is unchanged.
-      [Archive](archive/todo-completed-ssr-host-island-commit-2026-11-06.md).
-
-- [x] Browser host/island commit bridge: stage renderer host writes and canonical
-      attribute/dataset updates through the shared native transaction before
-      browser publication; retain processing revision and rollback guards without
-      scheduling recursive rendering. Extend failing native/browser commit
-      fixtures; current browser snapshots can retain pre-write attributes.
-      Add failing native coalesced write-control fixtures and real-browser cases
-      for equal host/island values, unchanged processing revision, original payload
-      identity, empty/default/selected writes, rejected/stale patches, rollback,
-      worker recovery, literal prototype-like keys and retained CSS publication.
-      Keep native planned deltas as
-      control metadata and use existing canonical DOM writers and patch ownership.
-      Completed 2026-11-06: native write controls pass 4/4 in default and actual
-      stripped profiles; publication/CSS queue/processing units pass 54/54. All
-      four browser publication modes prove rollback, bounded recovery, current
-      revision, stale-input refusal and payload identity. Shared observations
-      pass 13/13 with 12 full matches and only the retained-slot difference.
-      Build, focused lint, native regressions and optimized WASM consumers pass;
-      the core is 24,193,342 bytes with matching named descriptors. Original
-      processing revision and frozen delivery remain; SSR stays partial.
-      [Archive](archive/todo-completed-browser-host-island-publication-2026-11-06.md).
-
-- [x] SSR browser retained-slot parity: replace the current browser slot metadata
-      ingress with shared native retained-node input before claiming direct slot
-      insertion parity or hydration. Add failing native/browser boundary fixtures;
-      preserve the intentional refusal of ordinary record insertion.
-  - [x] Native DOM capture fixtures: decoded text/attributes, stable source keys,
-        original parents, namespace and unknown-line provenance, bounded input
-        and failed capture disposal; opaque CEMV slot transport retains owners.
-  - [x] Browser retained-slot fixtures: native/browser parity, repeated named
-        slots, payload mutation, original DOM identity and worker/fallback paths;
-        ordinary records remain invalid inserted content.
-      Completed 2026-11-06: native capture passes 4/4 and opaque slot transport
-      passes 2/2, both in default and actual stripped profiles. The stripped SSR
-      suite passes 58/58; focused processing/worker-loss units pass 87/87. All
-      four slot profiles and four host/island publication profiles pass; all
-      14 shared native/browser observations match, with no divergences.
-      Runtime DOM provenance and original payload ownership remain; styles use
-      the existing owner, transient captures are disposed and native retirement
-      counts unfinished captures. Paired build, native Clippy, focused lint and
-      optimized WASM consumers pass. Core: 24,219,668 bytes, 28 imports/175
-      exports, including four additive capture functions. Frozen presentation
-      remains unchanged; SSR stays partial and adoption remains gated.
-      [Archive](archive/todo-completed-browser-native-slots-2026-11-06.md).
-
-- [x] SSR additional source/domain admission: support CEM-ML source payloads
-      through the shared native import boundary, bounded passive foreign DOM and
-      resource-free instance CSS through existing native closure/stylesheet owners.
-      Keep explicit source authority, envelope identity and source maps; never relabel
-      unsupported payloads as HTML. Add failing native adapter/admission fixtures
-      before extending the current passive HTML profile.
-  - [x] Canonical CEM-ML source payload admission: add native fixtures for
-        mapped/entity-decoded source, namespaces, original envelope authority,
-        invalid syntax, lowered bounds/cancellation and source-owner refusal.
-        Retain the source template in the canonical payload; reuse its admitted
-        native AST across host publication without evaluating payload code.
-        Add a shared native/browser observation that exports inert template
-        contents and proves source code stays inert after one SSR pass.
-        Completed 2026-11-07: source preparation derives a bounded native AST
-        while keeping its original template authoritative. The shared receiver
-        only consumes explicit native proof; host publication reuses the AST
-        under the original source-admission operation. Portable imitation,
-        unbound namespaces and fresh-operation replay are refused. Source gate
-        passes 130 native checks across default/stripped profiles, 17 native
-        component receiver cases, 8 browser profiles and all 15 shared complete
-        observations. Paired build, focused lint/Clippy and optimized WASM
-        consumers pass. Core: 24,015,219 bytes, 28 imports/175 exports; frozen
-        presentation unchanged. SSR stays partial; broader profiles stay open.
-        [Archive](archive/todo-completed-ssr-cem-source-admission-2026-11-07.md).
-  - [x] CEM-ML ingress normalization: add failing native attribute-only edit
-        and shorthand fixtures, preserve original text/parents/source maps and
-        operation authority, and prove canonical type in native bindings and
-        saved islands. Cover case/whitespace variants, unchanged canonical input,
-        lowered bounds and refusal of a forged canonical view. Add shared
-        native/browser shorthand observations before extending acceptance.
-        Completed 2026-11-08: native attribute-only edits produce a canonical
-        source view while keeping authored spelling/content authoritative.
-        Case/trim matching is aligned in shared browser ingress. Receivers
-        require the exact admitted canonical view and original operation;
-        equivalent native trees and portable graphs cannot replace it. The
-        source gate passes 154 native checks across default/stripped profiles,
-        17 native component cases, 8 browser profiles and all 17 shared complete
-        observations. Paired build, focused lint/Clippy and optimized WASM
-        consumers pass. Core: 24,027,304 bytes, 28 imports/175 exports. Frozen
-        presentation remains; foreign/CSS admission and adoption stay gated.
-        [Archive](archive/todo-completed-ssr-cem-ingress-normalization-2026-11-08.md).
-  - [x] Foreign payload and CSS closure fixtures: preserve passive SVG/MathML
-        expanded names, case-sensitive attributes, source identity/maps and slot
-        order; admit explicit HTML payload CSS through retained native owners,
-        preserve scoped emission and inert nested templates, refuse external
-        resources, active content, implicit styles and operation replay. Verify
-        default/stripped native profiles and shared browser observations.
-  - [x] Complete bounded passive SVG/MathML and resource-free instance CSS
-        admission through retained native owners.
-        Completed 2026-11-08: shared HTML import preserves foreign casing and
-        expanded names. Explicit HTML payload CSS retains original source maps,
-        uses the existing instance closure/emitter and publishes a managed suffix
-        with host/island state. Unsupported resource/integration profiles remain
-        refused; nested templates stay inert. Source gate passes 200 native
-        checks across default/stripped profiles, 8 browser profiles and all 19
-        complete observations with no divergences. Shared receiver units pass
-        19/19 per profile; component receiver passes 17/17. Paired build,
-        Clippy, focused formatting and optimized WASM consumers pass. Core:
-        23,969,473 bytes, 28 imports/175 exports. Frozen presentation unchanged;
-        SSR remains partial and hydration adoption stays gated.
-        [Archive](archive/todo-completed-ssr-foreign-css-admission-2026-11-08.md).
-
-- [ ] SSR coordinator and completion: admit scoped/resource closures and multiple
-      participants, settle nested work under the original operation/budget policy,
-      then validate declaration versions and prove complete islands, fresh
-      identity/policy and valid output ranges.
-      Only that native proof may enable adoption. Wire command lowering, exports
-      and browser hydration/parity through the same core after those gates pass.
-  - [x] Resource coordination: admit declaration CSS and resource-bearing
-        instance closures with explicit shared resolver/loader authority and
-        original-operation budgets. Add native pending/ready/refused/cancelled
-        closure fixtures before permitting transport or publication.
-      - [x] Controlled import fixtures: retain original native CSS owners and
-            operation memory through final tree release; cover byte/value/depth
-            ceilings, cancellation and failed admission without leaked permits.
-      - [x] Atomic multi-element application fixtures: preserve independent
-            declaration/instance sources, maps and child order; reject duplicate,
-            nested or invalid targets and release all allocations on refusal.
-      - [x] Inline CSS coordinator fixtures: explicit stable resolver authority,
-            declaration/instance pending and ready states, redirects and relative
-            URLs, token/source/operation replay, MIME/integrity/cancellation,
-            aggregate byte/resource ceilings and atomic publication only when
-            the complete native batch is current and ready.
-        Completed 2026-11-08: explicit inline CSS preparation and opaque ordered
-        native request tickets coordinate declaration/instance owners under the
-        original source, operation and resolver authority. Shared import checks
-        MIME/integrity/redirects; roots, references and imported bytes share page
-        ceilings. Native workspace/arena permits follow retained trees. A closed
-        current batch alone authorizes runtime CSS metadata and atomic declaration
-        append/instance publication; authored reserved writes remain refused.
-        Elapsed admission uses the original active clock with a conservative
-        wall/CPU bound, including transport wait; precise CPU completion remains
-        open. The source gate passes 234 native checks across both profiles,
-        8 browser profiles and all 19 existing complete observations. Coordinator
-        cases pass 14/14 per profile; receiver units pass 19/19 per profile and
-        component receiver passes 17/17. Paired build, Clippy, focused formatting
-        and optimized WASM consumers pass. Core: 23,999,276 bytes, 28 imports/175
-        exports. Frozen presentation unchanged; SSR stays partial and adoption
-        remains gated.
-        [Archive](archive/todo-completed-ssr-stylesheet-coordination-2026-11-08.md).
-  - [x] Nested lifecycle: prepare multiple participants and settle nested work
-        under one operation, preserving ownership and resource/render ceilings.
-        Add failing native ordering, exhaustion and cancellation fixtures first.
-      - [x] Native continuation fixtures: preserve original import handles and
-            page authority across exact application lineage; give generated
-            nodes explicit runtime provenance without authored coordinates and
-            refuse stale/foreign continuation sources. Refuse an existing DOM
-            projection instead of silently rebuilding its original HTML source.
-      - [x] Passive participant worklist fixtures: root declaration inventory,
-            parent-first discovery, source/generated descendants and siblings,
-            inert payload exclusion, deterministic instance IDs, shared
-            instance/depth/render ceilings, original-operation cancellation,
-            ownership preservation and terminal cleanup.
-      - [x] Shared passive page observations: compare active host order, complete
-            public rendered subtrees and canonical payload source with the
-            browser runtime, including generated/source descendants and inert
-            template contents and authored metadata inside canonical payloads.
-            Keep instance identity checks native and explicit.
-            Verification: 260 native checks across default/stripped profiles,
-            all 22 complete observations and 8 browser regression profiles pass.
-            Paired build, Clippy, focused formatting and WASM consumers pass;
-            23,990,533-byte core retains 28 imports/175 exports. Frozen presentation
-            unchanged. Quiescence stays partial; nested resource admission and
-            final readiness proof remain open.
-            [Archive](archive/todo-completed-ssr-passive-page-coordination-2026-11-08.md).
-      - [x] Integrate multiple/nested participants with page-wide declaration CSS,
-            CEM-ML payload source leases and pending resource tickets before
-            widening the passive coordinator profile. Keep final page readiness
-            and adoption gated.
-          - [x] Declaration lease fixtures: share one closed native declaration
-                CSS owner across siblings/nested instances; publish it once and
-                keep instance CSS identities and request tickets independent.
-          - [x] Payload source continuation fixtures: import copied/projected
-                CEM-ML envelopes from retained native text and producer maps;
-                preserve aliases, non-execution, canonical ownership and lifetime.
-                Verify projected instance CSS retains producer maps and has no
-                fabricated authored line coordinates. Share a parsed payload view
-                only for identical native producer maps/content/metadata under
-                the original operation; keep each host's canonical lease distinct.
-                Recheck lowered limits and actual source type on cache hits, and
-                keep identical text from distinct authored origins separate.
-          - [x] Page resource fixtures: enforce aggregate roots/references/bytes
-                across participants; reject stale/foreign tickets and operations,
-                cancellation, transport failures with native source locations,
-                and resolver revision changes; release all staged source/CSS
-                permits on failure and at final-owner retirement.
-                Verification: 284 native checks across default/stripped profiles,
-                including 12 resource-sharing cases per profile; stripped SSR
-                109/109, component receiver 17/17 and shared receiver 19/19 per
-                profile pass. All 22 existing complete observations and 8 browser
-                regression profiles match. Paired build, Clippy, focused formatting
-                and optimized WASM consumers pass. Core: 23,996,553 bytes, 28
-                imports/175 exports. Frozen presentation unchanged. Scoped/module
-                registries remain refused; quiescence stays partial and adoption
-                awaits final completion proof.
-                [Archive](archive/todo-completed-ssr-page-resource-sharing-2026-11-08.md).
-  - [x] Completion proof: validate declaration versions, complete islands,
-        closed/current source and CSS leases, identity/policy freshness, owned
-        output/style ranges and precise CPU accounting before declaring ready.
-      - [x] CPU fixtures: measure synchronous native phases with original-operation
-            thread CPU counters; exclude transport wait, reject overlap/foreign
-            controls and unfinished guards, retain cumulative usage across handles
-            and sequential threads,
-            and refuse missing clocks or exhausted budgets without renewal.
-      - [x] Version/island fixtures: carry canonical declaration versions through
-            native islands; prove compatibility bands, strict complete topology,
-            missing/malformed versions and unsupported runtime protocol refusals.
-            Update the legacy preparation fixture to an exact 1.0.0 declaration
-            so its existing source-map and refusal checks exercise valid input.
-      - [x] Readiness fixtures: bind a nonportable proof to the exact final native
-            tree and complete current execution/policy context; validate original
-            source/CSS leases, nested output substitutions, host attributes,
-            canonical islands, declaration/instance styles and owned ranges.
-            Refuse pending work, cancellation, stale resolver revisions, replaced
-            trees, opaque dependencies, duplicate IDs, changed/removed/reordered
-            island content and grafted output-range suffixes.
-            Verification: 312 native checks across default/stripped profiles,
-            including 4 CPU, 7 readiness integration and 3 focused version/island/
-            range cases per profile pass. Native proof binds exact current tree,
-            compiled declaration owners, closed source/CSS leases, complete
-            context, version bands, range provenance and original-operation CPU.
-            Generic artifacts remain partial; export/hydration wiring is next.
-            All 22 existing observations and 8 browser regression profiles match.
-            Stripped SSR 116/116, component receiver 17/17 and shared receiver
-            19/19 per profile pass. Paired build, Clippy, focused formatting and
-            WASM consumers pass. Core: 23,967,363 bytes, 28 imports/175 exports.
-            Linux CPU counters exercised; Windows bindings not executed on this
-            host; unsupported clocks cannot issue readiness. Frozen presentation
-            unchanged.
-            [Archive](archive/todo-completed-ssr-readiness-proof-2026-11-08.md).
-  - [ ] Adoption wiring: only after that proof, connect CLI lowering, exports
-        and browser hydration/parity to the same native core.
-      - [x] Wire native CLI transform lowering and named exports to the readiness
-            proof for the bounded inline HTML profile. Native bridge 6/6 and
-            proof-export 3/3 per profile, adapter 109/109, CLI 4/4 plus 34/34
-            existing config checks, shared writer/URI 2/2 per profile, source
-            admission 312/312 and final browser 22/22 pass. Paired core/runtime,
-            Clippy and WASM consumers pass. Core: 23,951,463 bytes, 28 imports /
-            175 exports; frozen presentation unchanged.
-            [Archive](archive/todo-completed-ssr-cli-exports-2026-11-08.md).
-        - [x] Add native bridge fixtures for immutable builtin selection, explicit
-              page URL/budgets/consumer versions, nested inline rendering, fresh
-              HTML/report exports, cancellation and unsupported export refusal.
-        - [x] Add CLI fixtures exercising direct/config lowering, uncolored HTML,
-              report output and atomic refusal without publishing partial files.
-        - [x] Add shared DOM writer fixtures for namespace-qualified islands,
-              HTML/SVG names, raw text, doctype and retained source maps; use the
-              existing HTML formatter rather than an SSR-specific serializer.
-        - [x] Add host URI fixtures for relative local inputs, escaped file names
-              and unchanged registered URI schemes before native source ingress.
-        - [x] Add inline CSS/native payload export fixtures while refusing every
-              pending external resource ticket without invoking host transport.
-        - [x] Verify CLI-emitted HTML in Chromium for standards mode, nested
-              output and inert canonical island prefixes without running a
-              second SSR implementation or claiming hydration parity.
-      - [x] Wire browser adoption to the readiness-checked CLI HTML artifact for
-            the bounded passive CEM-ML and HTML payload profile.
-            Canonical browser 9/9 against the paired optimized core, including
-            unmarked snapshot reload, with zero external requests. Canonical
-            native 6/6, stripped SSR 122/122, component-runtime 17/17, and
-            CLI 4/4 pass. Frozen presentation unchanged.
-            [Archive](archive/todo-completed-ssr-browser-hydration-2026-11-09.md).
-        - [x] Add native DOM-capture fixtures for explicit lexical namespace
-              admission while preserving source ownership and ordinary captures.
-        - [x] Add native canonical-resume fixtures for complete islands, version
-              bands/fallback, exact retained output and host input agreement,
-              unsafe/unknown regions, cancellation and bounded passive profiles.
-        - [x] Verify the profile marker is emitted only by the readiness-checked
-              HTML exporter, without changing the retained native island.
-        - [x] Add browser CLI-output fixtures for retained node adoption, version
-              fallback from payload only, frozen invalid islands, stale admission
-              and reconnect, including resuming the resulting browser snapshot
-              through the existing unmarked path.
-      - [ ] Extend browser adoption parity against the same CLI HTML artifact:
-            coordinate nested participants and scoped CSS, then add foreign
-            markup and native CEM source payloads. Verify live state, form
-            controls, node identity and retained ranges before widening admission.
-        - [x] Admit passive nested participants as one group. Native fixtures
-              verify child position, input, version and identity. All 19
-              CLI-to-Chromium cases pass against the optimized package, including
-              10 nested cases, with zero external requests. A child serving as
-              the parent's rendered root keeps its own input mirror.
-              [Archive](archive/todo-completed-ssr-nested-hydration-2026-11-09.md).
-        - [x] Prove and reuse retained declaration and instance stylesheet
-              closures with nested adoption. Check scope and style node identity
-              in Chromium and refuse missing, modified or unresolved styles.
-              All 31 CLI-to-Chromium cases pass against the optimized package,
-              including 12 stylesheet cases with worker and main-thread reuse.
-              [Archive](archive/todo-completed-ssr-scoped-css-hydration-2026-11-09.md).
-          - [x] Verify portable native identity for resource-free retained CSS
-                across server and browser source origins, including refusal
-                of styles that require resource resolution.
-          - [x] Verify CLI stylesheet adoption in Chromium for private and
-                shared declaration styles and explicit instance styles,
-                including node and CSSOM identity, refusal of missing or changed
-                CSS, refusal of a CSSOM edit that preserves the raw text,
-                and refusal of an unadmitted shared stylesheet owner. Verify
-                reuse through worker and main-thread stylesheet ownership.
-          - [x] Verify the shared HTML writer preserves derived style text
-                and refuses a raw closing tag split across text nodes.
-        - [ ] Prove browser adoption of passive foreign markup and admitted
-              native CEM source payloads, including retained names, source
-              ownership and agreement with the CLI output.
-      - [ ] Extend CLI host admission to external resources, further page-source
-            forms and fan-out route/output preflight; account acquisition/parser
-            CPU explicitly while preserving the same native proof and ledger.
-            Current builtin grants no transport and does not claim those profiles.
-            [CLI/export completion archive](archive/todo-completed-ssr-cli-exports-2026-11-08.md).
-
+- [ ] Extend browser adoption to live slices and form controls. Prove state,
+      privacy, node identity and retained range parity.
+- [ ] Extend CLI host admission to external resources, further page-source forms
+      and fan-out route/output preflight. Account for acquisition and parser CPU
+      under the original operation's proof and ledger.
 
 ## Component gallery source-link maintenance (after Studio presentation work)
 

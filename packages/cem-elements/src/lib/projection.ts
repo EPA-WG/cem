@@ -26,6 +26,7 @@ import { ingestContractVersion, type DispositionDecision, type RunMode } from '.
 
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink';
+const XML_NAMESPACE = 'http://www.w3.org/XML/1998/namespace';
 const ATTRIBUTE_DECLARATION_TAG = 'attribute';
 const SLICE_DECLARATION_TAG = 'slice';
 const RENDER_NODE_ID_ATTR = 'data-cem-render-node-id';
@@ -3330,13 +3331,13 @@ function syncAttributes(
 }
 
 export function setRenderPlanAttribute(element: Element, name: string, value: string): void {
-    const xlinkLocalName = xlinkAttributeLocalName(name);
-    if (xlinkLocalName) {
+    const expanded = renderAttributeExpandedName(name);
+    if (expanded) {
         const existing = element.getAttributeNode(name);
-        if (existing && existing.namespaceURI !== XLINK_NAMESPACE) {
+        if (existing && existing.namespaceURI !== expanded.namespace) {
             element.removeAttribute(name);
         }
-        element.setAttributeNS(XLINK_NAMESPACE, name, value);
+        element.setAttributeNS(expanded.namespace, name, value);
         return;
     }
     const addedSelected = name === 'selected' && !element.hasAttribute(name);
@@ -3465,23 +3466,23 @@ function syncReboundCheckedControl(
 }
 
 function renderPlanAttributeValue(element: Element, name: string): string | null {
-    const xlinkLocalName = xlinkAttributeLocalName(name);
-    return xlinkLocalName
-        ? element.getAttributeNS(XLINK_NAMESPACE, xlinkLocalName)
+    const expanded = renderAttributeExpandedName(name);
+    return expanded
+        ? element.getAttributeNS(expanded.namespace, expanded.localName)
         : element.getAttribute(name);
 }
 
 function renderPlanAttributeNode(element: Element, name: string): Attr | null {
-    const xlinkLocalName = xlinkAttributeLocalName(name);
-    return xlinkLocalName
-        ? element.getAttributeNodeNS(XLINK_NAMESPACE, xlinkLocalName)
+    const expanded = renderAttributeExpandedName(name);
+    return expanded
+        ? element.getAttributeNodeNS(expanded.namespace, expanded.localName)
         : element.getAttributeNode(name);
 }
 
 function removeRenderPlanAttribute(element: Element, name: string): void {
-    const xlinkLocalName = xlinkAttributeLocalName(name);
-    if (xlinkLocalName) {
-        element.removeAttributeNS(XLINK_NAMESPACE, xlinkLocalName);
+    const expanded = renderAttributeExpandedName(name);
+    if (expanded) {
+        element.removeAttributeNS(expanded.namespace, expanded.localName);
     }
     const removedSelected = name === 'selected' && element.hasAttribute(name);
     const preserveChecked = protectNativeCheckedEdit(element, name);
@@ -3496,8 +3497,14 @@ function removeRenderPlanAttribute(element: Element, name: string): void {
     }
 }
 
-function xlinkAttributeLocalName(name: string): string | null {
-    return name.startsWith('xlink:') && name.length > 'xlink:'.length ? name.slice('xlink:'.length) : null;
+function renderAttributeExpandedName(name: string): { namespace: string; localName: string } | undefined {
+    if (name.startsWith('xlink:') && name.length > 'xlink:'.length) {
+        return { namespace: XLINK_NAMESPACE, localName: name.slice('xlink:'.length) };
+    }
+    if (name.startsWith('xml:') && name.length > 'xml:'.length) {
+        return { namespace: XML_NAMESPACE, localName: name.slice('xml:'.length) };
+    }
+    return undefined;
 }
 
 function isAttributeElement(value: Element | ReadonlyMap<string, string>): value is Element {

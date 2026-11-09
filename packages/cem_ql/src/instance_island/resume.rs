@@ -8,6 +8,7 @@ use crate::{
         CompileTemplateOptions, RenderPlanAttribute, RenderPlanNode,
     },
 };
+use cem_ml::import::element_tree::{canonical_cem_payload_type, retain_captured_cem_payload};
 use cem_ml::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
 use cem_ml::schema::registry::HTML_NAMESPACE_URI;
 use std::collections::{BTreeMap, BTreeSet};
@@ -243,12 +244,35 @@ impl Group<'_> {
         if !self.ids.insert(instance_id.clone()) {
             return Err(fail());
         }
-        let data = island::bind_root(root, &instance_id, c, None, true)?;
-        let payload_attrs = island::attrs(&parts[3])?;
-        if payload_attrs.get("content-type").map(String::as_str) != Some("text/html")
-            || parts[4..]
-                .iter()
-                .any(|p| !island::elements(p).is_ok_and(|v| v.is_empty()))
+        let payload_part = parts.get(3).ok_or_else(fail)?;
+        let payload_attrs = island::attrs(payload_part)?;
+        let payload = island::children(payload_part)?;
+        let explicit = payload_attrs
+            .get("data-cem-explicit-payload")
+            .is_some_and(|value| value == "true");
+        let source_payload = match payload_attrs.get("content-type").map(String::as_str) {
+            Some("text/html") => None,
+            Some("text/cem-ml") if explicit => {
+                let [template] = payload.as_slice() else {
+                    return Err(fail());
+                };
+                let native = crate::eval::retained_cem_node(template).ok_or_else(fail)?;
+                Some(
+                    retain_captured_cem_payload(
+                        native.owner().clone(),
+                        native.node_id(),
+                        c,
+                        &island::LIMITS,
+                    )
+                    .map_err(|_| fail())?,
+                )
+            }
+            _ => return Err(fail()),
+        };
+        let data = island::bind_root(root, &instance_id, c, source_payload.as_ref(), true)?;
+        if parts[4..]
+            .iter()
+            .any(|p| !island::elements(p).is_ok_and(|v| v.is_empty()))
         {
             return Err(fail());
         }
@@ -271,10 +295,6 @@ impl Group<'_> {
         if actual != saved {
             return Err(fail());
         }
-        let payload = island::children(&parts[3])?;
-        let explicit = payload_attrs
-            .get("data-cem-explicit-payload")
-            .is_some_and(|value| value == "true");
         let mut payload_styles = stylesheets::PayloadStyles::default();
         let declaration = self.declaration_nodes.get(tag).copied();
         let shared_scope = declaration
@@ -289,11 +309,13 @@ impl Group<'_> {
         if actual.contains_key("data-cem-css-context") {
             return Err(fail());
         }
-        passive_nodes(
-            &payload,
-            c,
-            (explicit && declaration.is_some()).then_some(&mut payload_styles),
-        )?;
+        if source_payload.is_none() {
+            passive_nodes(
+                &payload,
+                c,
+                (explicit && declaration.is_some()).then_some(&mut payload_styles),
+            )?;
+        }
         if let Some(mut parent) = parent {
             if !parent.attributes.contains_key("scope") {
                 if let Some(scope) = &shared_scope {
@@ -314,16 +336,42 @@ impl Group<'_> {
                 else {
                     return Err(fail());
                 };
-                let attributes = plan_attributes(attributes)?;
-                if tag != "template"
-                    || !(attributes.is_empty()
-                        || attributes == BTreeMap::from([("type".into(), "text/html".into())]))
-                {
+                if tag != "template" {
                     return Err(fail());
                 }
-                expected_payload = children;
+                let mut attributes = plan_attributes(attributes)?;
+                if source_payload.is_some() {
+                    if attributes
+                        .get("type")
+                        .and_then(|kind| canonical_cem_payload_type(kind))
+                        != Some("text/cem-ml")
+                    {
+                        return Err(fail());
+                    }
+                    attributes.insert("type".into(), "text/cem-ml".into());
+                    if attributes != island::attrs(&payload[0])? {
+                        return Err(fail());
+                    }
+                    compare(
+                        children,
+                        &island::children(&payload[0])?,
+                        depth,
+                        c,
+                        None,
+                        false,
+                    )?;
+                } else {
+                    if !(attributes.is_empty()
+                        || attributes == BTreeMap::from([("type".into(), "text/html".into())]))
+                    {
+                        return Err(fail());
+                    }
+                    expected_payload = children;
+                }
             }
-            compare(expected_payload, &payload, depth, c, None, explicit)?;
+            if source_payload.is_none() {
+                compare(expected_payload, &payload, depth, c, None, explicit)?;
+            }
         }
         let starts = children
             .iter()
@@ -394,8 +442,9 @@ impl Group<'_> {
                 ..
             } = node
             {
-                if (!profile_tag(tag) && !self.registry.contains(tag))
-                    || namespace.as_deref() != Some(HTML_NAMESPACE_URI)
+                if namespace.as_deref() == Some(HTML_NAMESPACE_URI)
+                    && !profile_tag(tag)
+                    && !self.registry.contains(tag)
                 {
                     return Err(fail());
                 }
@@ -408,7 +457,7 @@ impl Group<'_> {
             .as_deref()
             .is_some_and(|v| versions_compatible(v, current_version))
         {
-            if styled || !self.registry.is_empty() {
+            if styled || source_payload.is_some() || !self.registry.is_empty() {
                 return Err(fail());
             }
             passive_nodes(output, c, None)?;
@@ -505,30 +554,37 @@ fn compare(
                 children,
                 ..
             } => {
-                if !island::is_element(
-                    item,
-                    tag,
-                    namespace
-                        .as_deref()
-                        .filter(|s| !s.is_empty())
-                        .unwrap_or(HTML_NAMESPACE_URI),
-                ) {
+                let namespace = namespace
+                    .as_deref()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or(HTML_NAMESPACE_URI);
+                if !island::is_element(item, tag, namespace) {
                     return Err(fail());
                 }
-                let attributes = plan_attributes(attributes)?;
-                if tag.contains('-') {
+                if namespace != HTML_NAMESPACE_URI {
+                    island::payload::validate_foreign(item, namespace, tag)?;
+                    compare_foreign_attributes(attributes, item)?;
+                    compare(
+                        children,
+                        &island::children(item)?,
+                        depth + 1,
+                        c,
+                        None,
+                        false,
+                    )?;
+                } else if tag.contains('-') {
                     let group = group.as_deref_mut().ok_or_else(fail)?;
                     let (version, source) =
                         *group.declarations.get(tag.as_str()).ok_or_else(fail)?;
                     let input = ParentInput {
-                        attributes,
+                        attributes: plan_attributes(attributes)?,
                         payload: children,
                     };
                     group.admit_member(item, tag, version, source, Some(input), depth + 1, c)?;
                 } else {
                     if !profile_tag(tag)
                         || (tag == "style" && !allow_style)
-                        || attributes != island::attrs(item)?
+                        || plan_attributes(attributes)? != island::attrs(item)?
                     {
                         return Err(fail());
                     }
@@ -553,6 +609,30 @@ fn compare(
     Ok(())
 }
 
+fn compare_foreign_attributes(
+    expected: &[RenderPlanAttribute],
+    actual: &Item,
+) -> Result<(), String> {
+    const XMLNS: &str = "http://www.w3.org/2000/xmlns/";
+    let mut attributes = BTreeMap::new();
+    for attr in expected {
+        let namespace = attr.namespace.as_deref().unwrap_or_default();
+        if namespace != XMLNS
+            && attributes
+                .insert(
+                    (namespace.to_owned(), attr.name.clone()),
+                    attr.value.clone(),
+                )
+                .is_some()
+        {
+            return Err(fail());
+        }
+    }
+    let mut actual = island::expanded_attrs(actual)?;
+    actual.retain(|(namespace, _), _| namespace != XMLNS);
+    (attributes == actual).then_some(()).ok_or_else(fail)
+}
+
 fn passive_nodes(
     roots: &[Item],
     c: &OperationControl,
@@ -564,6 +644,12 @@ fn passive_nodes(
         match kind(&node).as_deref() {
             Some("element") => {
                 let tag = island::field(&node, "name").ok_or_else(fail)?;
+                let namespace = island::field(&node, "namespace").ok_or_else(fail)?;
+                if namespace != HTML_NAMESPACE_URI {
+                    island::payload::validate_foreign(&node, &namespace, &tag)?;
+                    pending.extend(island::children(&node)?.into_iter().rev());
+                    continue;
+                }
                 if island::is_element(&node, "style", HTML_NAMESPACE_URI) {
                     styles.as_deref_mut().ok_or_else(fail)?.push(&node)?;
                     continue;

@@ -14,6 +14,15 @@ pub struct DomCapture {
     limits: CemValueArtifactLimits,
     failed: bool,
 }
+
+struct DomCaptureOwner;
+
+/// The native capture owner is local to this runtime. Value transport keeps
+/// the observed nodes and maps, but cannot mint this source admission boundary.
+pub(super) fn has_live_capture_owner(tree: &RetainedCemTree) -> bool {
+    tree.native_owner()
+        .is_some_and(|owner| owner.is::<DomCaptureOwner>())
+}
 impl DomCapture {
     pub fn new(
         uri: &str,
@@ -215,7 +224,13 @@ impl DomCapture {
         if self.failed || self.ast.nodes.is_empty() {
             return Err("Incomplete DOM capture".into());
         }
-        RetainedCemTree::new(self.ast, self.uri, "", self.semantics, None)
+        RetainedCemTree::new(
+            self.ast,
+            self.uri,
+            "",
+            self.semantics,
+            Some(Arc::new(DomCaptureOwner)),
+        )
     }
     /// Explicit literal-XML vocabulary within an HTML DOM capture. Resolve
     /// prefixed names at the import boundary; ordinary captures stay unchanged.

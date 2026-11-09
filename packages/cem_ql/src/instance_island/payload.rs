@@ -35,36 +35,7 @@ pub(super) fn slots(
             Some("element") => {
                 let namespace = field(&item, "namespace").ok_or(INVALID)?;
                 if namespace != HTML {
-                    let raw = item
-                        .view()
-                        .and_then(|v| v.field("attributes"))
-                        .ok_or(INVALID)?;
-                    let values = raw
-                        .iter()
-                        .map(|a| {
-                            Ok((
-                                field(a, "namespace").ok_or(INVALID)?,
-                                field(a, "name").ok_or(INVALID)?,
-                                field(a, "value").ok_or(INVALID)?,
-                            ))
-                        })
-                        .collect::<Result<Vec<_>, String>>()?;
-                    let pairs = values
-                        .iter()
-                        .map(|(ns, n, v)| (ns.as_str(), n.as_str(), v.as_str()))
-                        .collect::<Vec<_>>();
-                    cem_ml::validation::html::validate_passive_foreign_projection(
-                        &namespace,
-                        &field(&item, "name").ok_or(INVALID)?,
-                        &pairs,
-                        children(&item)?.iter().any(|item| {
-                            !matches!(
-                                field(item, "kind").as_deref(),
-                                Some("text" | "whitespace" | "cdata" | "raw-text" | "comment")
-                            ) || field(item, "value").is_some_and(|text| text.contains('<'))
-                        }),
-                    )
-                    .map_err(|_| INVALID)?;
+                    validate_foreign(&item, &namespace, &field(&item, "name").ok_or(INVALID)?)?;
                     pending.extend(children(&item)?);
                     continue;
                 }
@@ -99,6 +70,26 @@ pub(super) fn slots(
         }
     }
     index_slots(payload, control)
+}
+
+pub(super) fn validate_foreign(item: &Item, namespace: &str, name: &str) -> Result<(), String> {
+    let attributes = expanded_attrs(item)?;
+    let pairs = attributes
+        .iter()
+        .map(|((namespace, name), value)| (namespace.as_str(), name.as_str(), value.as_str()))
+        .collect::<Vec<_>>();
+    cem_ml::validation::html::validate_passive_foreign_projection(
+        namespace,
+        name,
+        &pairs,
+        children(item)?.iter().any(|item| {
+            !matches!(
+                field(item, "kind").as_deref(),
+                Some("text" | "whitespace" | "cdata" | "raw-text" | "comment")
+            ) || field(item, "value").is_some_and(|text| text.contains('<'))
+        }),
+    )
+    .map_err(|_| INVALID.into())
 }
 
 pub(crate) fn index_slots(

@@ -44,7 +44,20 @@ try {
         '<x-parent><template><style>section {background-color:rgb(29,47,71)}</style><strong slot="heading">Styled input</strong></template></x-parent>',
         '<section>Outside scope</section>',
     ].join(''), 'x-parent=1.9.0,x-child=1.9.0');
-    const pages = new Map([['/ssr.html', html], ['/nested.html', nested], ['/direct.html', direct], ['/styled.html', styled]]);
+    const foreign = await render([
+        `<cem-element tag="x-foreign" version="1.2.3"><template id="x-foreign" type="text/cem-ml">${template}</template></cem-element>`,
+        '<x-foreign><svg slot="heading" viewBox="0 0 24 24" xml:lang="en">',
+        '<defs><path id="shape" d="M0 0h1"></path><linearGradient id="paint"></linearGradient></defs>',
+        '<use xlink:href="#shape"></use></svg><math slot="heading"><mi>x</mi></math></x-foreign>',
+    ].join(''), 'x-foreign=1.9.0');
+    const cemSource = await render([
+        '<cem-element tag="x-source" version="1.2.3"><template id="x-source" type="text/cem-ml">{article | Visible}</template></cem-element>',
+        '<x-source><template type="cem-ml">{item | {$ 1 div 0}}</template></x-source>',
+    ].join(''), 'x-source=1.9.0');
+    const pages = new Map([
+        ['/ssr.html', html], ['/nested.html', nested], ['/direct.html', direct], ['/styled.html', styled],
+        ['/foreign.html', foreign], ['/source.html', cemSource],
+    ]);
     assert.match(html, /<article><strong\b[^>]*\bslot="heading"[^>]*>Island input<\/strong><\/article>/);
     assert.match(html, /data-cem-ssr-profile="cem-native-inline\/1"/);
     assert.match(nested, /<article><em\b[^>]*\bslot="heading"[^>]*>Nested input<\/em><\/article>/);
@@ -324,9 +337,115 @@ try {
         }
         await page.close();
     }
+    const payloadCases = [
+        'foreign-compatible', 'foreign-range', 'foreign-active',
+        'source-compatible', 'source-invalid', 'source-markup', 'source-incompatible', 'source-stale',
+    ];
+    for (const scenario of payloadCases) {
+        const page = await browser.newPage();
+        page.on('pageerror', error => errors.push(error.message));
+        await page.route('**/*', route => {
+            if (new URL(route.request().url()).origin === origin) return route.continue();
+            requests.push(route.request().url()); return route.abort();
+        });
+        const foreign = scenario.startsWith('foreign');
+        await page.goto(`${origin}/${foreign ? 'foreign' : 'source'}.html`);
+        const result = await page.evaluate(async ({ scenario, foreign }) => {
+            const { CemElementRuntime } = await import('/packages/cem-elements/dist/lib/cem-elements.js');
+            const host = document.querySelector(foreign ? 'x-foreign' : 'x-source');
+            const declaration = document.querySelector('cem-element');
+            const island = host.querySelector('template[data-cem-island]');
+            const article = host.querySelector('article');
+            const svg = article.querySelector('svg');
+            const math = article.querySelector('math');
+            const envelope = island.content.querySelector('template');
+            const xlink = 'http://www.w3.org/1999/xlink';
+            const xml = 'http://www.w3.org/XML/1998/namespace';
+            const expandedNames = () => {
+                const current = host.querySelector('article');
+                const svg = current.querySelector('svg');
+                return [svg.namespaceURI, svg.getAttribute('viewBox'), svg.getAttributeNS(xml, 'lang'),
+                    svg.querySelector('[id="paint"]').localName, svg.querySelector('use').getAttributeNS(xlink, 'href'),
+                    current.querySelector('math').namespaceURI];
+            };
+            if (scenario === 'foreign-range') svg.setAttribute('viewBox', '0 0 48 48');
+            if (scenario === 'foreign-active') {
+                island.content.querySelector('use').setAttributeNS(xlink, 'xlink:href', 'https://ssr.example.test/active.svg');
+            }
+            if (scenario === 'source-invalid') envelope.content.textContent = '{unclosed |';
+            if (scenario === 'source-markup') envelope.content.append(document.createElement('p'));
+            if (scenario === 'source-incompatible') declaration.setAttribute('version', '2.0.0');
+            const runtime = new CemElementRuntime({ processingWorkerFactory: () => { throw new Error('Use main-thread runtime'); } });
+            if (scenario === 'source-stale') {
+                const support = runtime.renderSupport.bind(runtime);
+                runtime.renderSupport = scope => {
+                    const bindings = support(scope);
+                    return { ...bindings, admitCanonicalSsrInstance: async (...args) => {
+                        const decision = await bindings.admitCanonicalSsrInstance(...args);
+                        envelope.content.textContent = '{item | Changed during admission}';
+                        return decision;
+                    } };
+                };
+            }
+            const before = host.innerHTML;
+            runtime.install(window);
+            await runtime.whenDeclarationSettled(declaration);
+            await runtime.whenRenderSettled(host);
+            const result = {
+                retained: host.querySelector('article') === article && article.querySelector('svg') === svg
+                    && article.querySelector('math') === math && island.content.querySelector('template') === envelope,
+                unchanged: host.innerHTML === before,
+                marked: island.hasAttribute('data-cem-ssr-profile'),
+                diagnostics: runtime.diagnosticsFor(host).map(d => d.code),
+            };
+            if (scenario === 'foreign-compatible') {
+                result.expandedNames = expandedNames();
+                island.content.querySelector('mi').textContent = 'y';
+                await new Promise(resolve => setTimeout(resolve, 0));
+                await runtime.whenRenderSettled(host);
+                result.updated = host.querySelector('article mi')?.textContent;
+                result.updatedNames = expandedNames();
+            }
+            if (scenario === 'source-compatible') {
+                result.literal = envelope.content.textContent;
+                result.output = article.textContent;
+                const renderToken = runtime.renderTokens.get(host);
+                envelope.content.textContent = '{item | Updated {$ 1 div 0}}';
+                await new Promise(resolve => setTimeout(resolve, 0));
+                await runtime.whenRenderSettled(host);
+                result.invalidated = runtime.renderTokens.get(host) > renderToken;
+                result.updated = host.querySelector('article')?.textContent;
+                result.afterEdit = runtime.diagnosticsFor(host).map(d => d.code);
+            }
+            return result;
+        }, { scenario, foreign });
+        const detail = `${scenario} ${JSON.stringify(result)}`;
+        assert.equal(result.retained, true, detail);
+        if (scenario.endsWith('-compatible')) {
+            assert.equal(result.marked, false, detail);
+            assert.deepEqual(result.diagnostics, [], detail);
+            if (foreign) {
+                assert.deepEqual(result.expandedNames, ['http://www.w3.org/2000/svg', '0 0 24 24', 'en',
+                    'linearGradient', '#shape', 'http://www.w3.org/1998/Math/MathML'], detail);
+                assert.deepEqual(result.updatedNames, result.expandedNames, detail);
+                assert.equal(result.updated, 'y', detail);
+            } else {
+                assert.equal(result.literal, '{item | {$ 1 div 0}}', detail);
+                assert.equal(result.output, 'Visible', detail);
+                assert.equal(result.invalidated, true, detail);
+                assert.equal(result.updated, 'Visible', detail);
+                assert.deepEqual(result.afterEdit, [], detail);
+            }
+        } else {
+            assert.equal(result.marked, true, detail);
+            assert.ok(result.diagnostics.includes('cem-element.hydration_native_refused'), detail);
+            if (scenario !== 'source-stale') assert.equal(result.unchanged, true, detail);
+        }
+        await page.close();
+    }
     assert.deepEqual(errors, []); assert.deepEqual(requests, []);
-    const total = cases.length + nestedCases.length + cssCases.length;
-    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested and ${cssCases.length} stylesheet scenarios, zero external requests`);
+    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length;
+    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} stylesheet and ${payloadCases.length} foreign/source scenarios, zero external requests`);
 } finally {
     await browser?.close();
     if (server) await new Promise(resolve => server.close(resolve));

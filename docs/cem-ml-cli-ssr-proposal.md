@@ -11,8 +11,9 @@ implemented, including version/island/lease/range checks and original-operation
 CPU accounting. The packaged `ssr:render-page` builtin connects native CLI
 `transform` lowering to that proof and explicit HTML/report exports (§8.0).
 Browser adoption supports standalone and nested participants in the bounded
-passive HTML profile described in the lifecycle contract, including resource-free
-declaration and instance stylesheets. Broader browser parity, external-resource CLI
+profile described in the lifecycle contract. It covers passive HTML, SVG and
+MathML, inert CEM source payloads and resource-free declaration and instance
+stylesheets. Live slices and form controls, external-resource CLI
 admission, additional page-source forms, the proposed `ssr` shorthand and the
 general page compiler remain future work.
 

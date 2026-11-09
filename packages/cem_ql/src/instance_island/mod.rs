@@ -111,6 +111,14 @@ fn field(item: &Item, name: &str) -> Option<String> {
     }
 }
 fn attrs(item: &Item) -> Result<BTreeMap<String, String>, String> {
+    expanded_attrs(item)?.into_iter().filter_map(|((namespace, name), value)| match namespace.as_str() {
+        "http://www.w3.org/2000/xmlns/" => None,
+        "" => Some(Ok((name, value))),
+        _ => Some(Err(INVALID.into())),
+    }).collect()
+}
+
+fn expanded_attrs(item: &Item) -> Result<BTreeMap<(String, String), String>, String> {
     let mut result = BTreeMap::new();
     for attribute in item
         .view()
@@ -118,14 +126,10 @@ fn attrs(item: &Item) -> Result<BTreeMap<String, String>, String> {
         .field("attributes")
         .ok_or(INVALID)?
     {
-        if field(&attribute, "namespace").as_deref() == Some("http://www.w3.org/2000/xmlns/") {
-            continue;
-        }
-        if field(&attribute, "kind").as_deref() != Some("attribute")
-            || field(&attribute, "namespace").as_deref() != Some("")
-        {
+        if field(&attribute, "kind").as_deref() != Some("attribute") {
             return Err(INVALID.into());
         }
+        let namespace = field(&attribute, "namespace").ok_or(INVALID)?;
         let name = field(&attribute, "name").ok_or(INVALID)?;
         let view = attribute.view().ok_or(INVALID)?;
         let values = view
@@ -138,7 +142,7 @@ fn attrs(item: &Item) -> Result<BTreeMap<String, String>, String> {
         let Some(AtomValue::String(value)) = value.atom() else {
             return Err(INVALID.into());
         };
-        if result.insert(name, value).is_some() {
+        if result.insert((namespace, name), value).is_some() {
             return Err(INVALID.into());
         }
     }
