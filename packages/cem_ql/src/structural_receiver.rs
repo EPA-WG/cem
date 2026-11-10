@@ -68,6 +68,11 @@ pub struct FreshStructuralHost {
     _runtime_resource: Option<cem_ml::runtime_admission::NativeResourceLease>,
 }
 impl FreshStructuralHost {
+    #[cfg(feature = "application-source-runtime")]
+    pub(crate) fn application_control(&self) -> &OperationControl {
+        &self.control
+    }
+
     #[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
     pub(crate) fn belongs_to_application_runtime(
         &self,

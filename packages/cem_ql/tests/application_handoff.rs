@@ -14,6 +14,10 @@ mod typed_producer;
 mod nested_receivers;
 
 #[cfg(feature = "application-source-runtime")]
+#[path = "application_handoff/stylesheets.rs"]
+mod stylesheets;
+
+#[cfg(feature = "application-source-runtime")]
 #[test]
 fn native_receiver_frame_requires_original_input_and_available_preparation() {
     use cem_ql::{
@@ -428,6 +432,10 @@ fn native_application_worker_fixture_has_original_sources_and_real_consumers() {
         std::fs::write(dir.join("nested.pin.json"), serde_json::to_vec(&nested.pin).unwrap()).unwrap();
         std::fs::write(dir.join("nested.inputs"), nested_input).unwrap();
         std::fs::write(dir.join("nested.bad.inputs"), bad_nested).unwrap();
+        let (styled, styled_input) = fixture::build_styled();
+        std::fs::write(dir.join("styled.cemah"), styled.bytes).unwrap();
+        std::fs::write(dir.join("styled.pin.json"), serde_json::to_vec(&styled.pin).unwrap()).unwrap();
+        std::fs::write(dir.join("styled.inputs"), styled_input).unwrap();
         for (name, view, cart) in [
             ("edited", "{view @items={#data} @count=4 @choice=ok}", "{cart @title=Coffee | {item @quantity=4}}"),
             ("later", fixture::VIEW, "{cart @title=Cocoa | {item @quantity=2}}"),

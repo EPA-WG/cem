@@ -3,9 +3,7 @@
 use super::{render_loaded, MAX_INPUT_BYTES};
 use crate::{
     declaration_artifact::{admit_declaration_metadata, DeclarationArtifactMetadata},
-    retained_template::{
-        RetainedStylesheet, RetainedTemplate, StylesheetLoadOptions, StylesheetLoadProgress,
-    },
+    retained_template::{RetainedStylesheet, RetainedTemplate, StylesheetLoadOptions},
     template_artifact::CompiledTemplateArtifact,
 };
 use cem_ml::{
@@ -250,30 +248,24 @@ impl CompiledDeclarationOwner {
             .ok_or("compiled stylesheet identity exhausted")?;
         let attempt = format!("compiled-style:{}", self.next_consumer);
         let retained = self.retained.as_mut().unwrap();
-        let scope = match &retained
-            .artifact()
-            .stylesheets
-            .get(index)
-            .ok_or("unknown compiled stylesheet occurrence")?
-            .scope
-        {
-            Some(name) => CssManagedScope::Shared {
-                name: name.clone(),
-                context: None,
-            },
-            None => CssManagedScope::Private {
-                tag: self.metadata.tag.clone(),
-                context: None,
-            },
-        };
+        let scope = declaration_stylesheet_scope(
+            &self.metadata.tag,
+            retained
+                .artifact()
+                .stylesheets
+                .get(index)
+                .ok_or("unknown compiled stylesheet occurrence")?
+                .scope
+                .as_deref(),
+        );
         let handle = CemResolutionContextHandle::new("compiled-declaration-style");
         let capability = CemModuleUrlResolutionCapability::new(
             Arc::new(CemScopedModuleUrlResolver::new().with_context(handle.clone(), context)),
             handle,
         );
         cem_ml::runtime_inventory::note_mutation();
-        let id = retained
-            .begin_stylesheet_load(StylesheetLoadOptions {
+        let record = retained.load_compiled_stylesheet(
+            StylesheetLoadOptions {
                 consumer: attempt.clone(),
                 index,
                 scope,
@@ -281,29 +273,9 @@ impl CompiledDeclarationOwner {
                 base_url: self.metadata.resource_base_url.clone(),
                 capability,
                 response_policy: Default::default(),
-            })
-            .map_err(|_| "compiled stylesheet policy refused")?;
-        let result = match retained.advance_stylesheet_load(id, &attempt) {
-            Ok(result) => result,
-            Err(_) => {
-                retained.release_stylesheet_generation(&attempt, id);
-                return Err("compiled stylesheet policy refused".into());
-            }
-        };
-        let record = match result {
-            StylesheetLoadProgress::Ready(record) => record,
-            StylesheetLoadProgress::Pending(_) => {
-                retained.release_stylesheet_generation(&attempt, id);
-                return Err(
-                    "compiled stylesheet needs a closed import artifact; source fallback refused"
-                        .into(),
-                );
-            }
-        };
-        if record.emission().map_err(str::to_owned)?.css().len() > MAX_INPUT_BYTES {
-            retained.release_stylesheet_generation(&attempt, id);
-            return Err("compiled stylesheet output limit exceeded".into());
-        }
+            },
+            MAX_INPUT_BYTES,
+        )?;
         if let Some((previous, _)) = self.leases.insert(key, (attempt, record.clone())) {
             retained.release_stylesheet_consumer(&previous);
         } else {
@@ -318,13 +290,7 @@ impl CompiledDeclarationOwner {
         context: &str,
     ) -> Result<String, String> {
         let record = self.stylesheet_native(consumer, index, context)?;
-        let emission = record.emission().map_err(str::to_owned)?;
-        // Same native CSS identity/scoping output as the full processing host.
-        let diagnostics=emission.diagnostics.iter().map(|diagnostic| {
-            let source=record.source(diagnostic.sheet)?;
-            Ok(serde_json::json!({"code":diagnostic.diagnostic.code,"message":diagnostic.diagnostic.message,"severity":"warning","sheet":diagnostic.sheet,"sourceUri":source.source_uri,"stylesheetUrl":source.stylesheet_url,"line":diagnostic.diagnostic.range.line,"column":diagnostic.diagnostic.range.column,"offset":diagnostic.diagnostic.range.offset,"length":diagnostic.diagnostic.range.length}))
-        }).collect::<Result<Vec<_>,&str>>().map_err(str::to_owned)?;
-        Ok(serde_json::json!({"status":"ready","loadId":"compiled","css":emission.css(),"identity":{"ownerKey":record.identity().owner_key,"cacheKey":record.identity().cache_key,"contextMarker":record.identity().context_marker},"diagnostics":diagnostics}).to_string())
+        Ok(stylesheet_receipt(&record)?.to_string())
     }
     pub fn release_native(&mut self, consumer: &str) -> Result<usize, String> {
         self.active()?;
@@ -358,6 +324,31 @@ impl CompiledDeclarationOwner {
             .ok_or_else(|| "compiled declaration owner is disposed".into())
     }
 }
+pub(crate) fn declaration_stylesheet_scope(tag: &str, scope: Option<&str>) -> CssManagedScope {
+    match scope {
+        Some(name) => CssManagedScope::Shared {
+            name: name.into(),
+            context: None,
+        },
+        None => CssManagedScope::Private {
+            tag: tag.into(),
+            context: None,
+        },
+    }
+}
+
+pub(crate) fn stylesheet_receipt(record: &RetainedStylesheet) -> Result<serde_json::Value, String> {
+    let emission = record.emission().map_err(str::to_owned)?;
+    // Same native CSS identity/scoping output as the full processing host.
+    let diagnostics=emission.diagnostics.iter().map(|diagnostic| {
+            let source=record.source(diagnostic.sheet)?;
+            Ok(serde_json::json!({"code":diagnostic.diagnostic.code,"message":diagnostic.diagnostic.message,"severity":"warning","sheet":diagnostic.sheet,"sourceUri":source.source_uri,"stylesheetUrl":source.stylesheet_url,"line":diagnostic.diagnostic.range.line,"column":diagnostic.diagnostic.range.column,"offset":diagnostic.diagnostic.range.offset,"length":diagnostic.diagnostic.range.length}))
+        }).collect::<Result<Vec<_>,&str>>().map_err(str::to_owned)?;
+    Ok(
+        serde_json::json!({"status":"ready","loadId":"compiled","css":emission.css(),"identity":{"ownerKey":record.identity().owner_key,"cacheKey":record.identity().cache_key,"contextMarker":record.identity().context_marker},"diagnostics":diagnostics}),
+    )
+}
+
 impl Drop for CompiledDeclarationOwner {
     fn drop(&mut self) {
         self.dispose_native();

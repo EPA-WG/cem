@@ -1975,6 +1975,26 @@ the receiver and its referenced data, render from the fresh owners, and exercise
 consumed writes, stale edits, credential refusal, tampered packets and journals,
 and the aggregate byte limit. Production admission remains a separate gate.
 
+## Application-owned declaration styles
+
+A bootstrap can stage all stylesheet occurrences in its verified application
+with `PreparedApplication::with_stylesheet_policy`. It supplies an original
+native resolver capability and response bounds. Each declaration contributes
+its pinned artifact, base URL, metadata identity and scope. The shared retained
+stylesheet loader replays closed imports under the supplied policy. Source
+imports that would need a fetch and denied resources refuse the candidate.
+
+The complete style set joins the same publication and generation census as the
+rendering owners. It is bounded to 64 occurrences and 1 MiB of serialized CSS
+and metadata. A changed resolver fingerprint fences the publication. Candidate
+failure drops its styles before any session is returned. A restored application
+stages its styles again through its fresh bootstrap.
+
+`applicationSourceStylesheetsV1` uses the original session token and returns
+owned CSS, scope and identity metadata in declaration order. The browser
+ownership adapter and shared behavior, provider and source contracts remain
+separate integration steps.
+
 ## Native publication generation enrollment
 
 [`cem_ml::runtime_admission::generation`](../packages/cem_ml/src/runtime_admission/generation.rs)

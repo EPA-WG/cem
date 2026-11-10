@@ -19,6 +19,11 @@ const [nestedSource, nestedPins, nestedInput, badNestedInput] = await Promise.al
     readFile(resolve(output, 'nested.inputs')),
     readFile(resolve(output, 'nested.bad.inputs')),
 ]);
+const [styledSource, styledPins, styledInput] = await Promise.all([
+    readFile(resolve(output, 'styled.cemah')),
+    readFile(resolve(output, 'styled.pin.json'), 'utf8'),
+    readFile(resolve(output, 'styled.inputs')),
+]);
 
 async function verify(heap) {
     const url = pathToFileURL(resolve(output, 'application_source_probe.js'));
@@ -78,6 +83,28 @@ async function verify(heap) {
         reader.probeApplicationUnprovision();
     }
 
+    reader.probeApplicationProvision(styledPins, styledInput);
+    assert.throws(() => reader.applicationSourceOpenV1(styledSource, styledPins), /application.endpoint.refused/);
+    reader.probeApplicationUnprovision();
+    reader.probeApplicationProvisionStyled(styledPins, styledInput, true);
+    assert.throws(() => reader.applicationSourceOpenV1(styledSource, styledPins), /application.endpoint.refused/);
+    reader.probeApplicationUnprovision();
+    reader.probeApplicationProvisionStyled(styledPins, styledInput, false);
+    const styled = reader.applicationSourceOpenV1(styledSource, styledPins);
+    const styleTag = 'cem-receiver-frame';
+    const [style] = JSON.parse(reader.applicationSourceStylesheetsV1(styled, styleTag));
+    assert.equal(style.index, 0);
+    assert.match(style.stylesheet.css, /--imported:ready/);
+    assert.match(style.stylesheet.css, /--original:ready/);
+    assert.ok(style.stylesheet.identity.cacheKey);
+    assert.throws(() => reader.applicationSourceStylesheetsV1({ ...styled }, styleTag), /application.endpoint.refused/);
+    const styledReceiver = reader.probeApplicationReceiverInput(styled);
+    assert.equal(reader.applicationSourceRenderReceiverV1(styled, styledReceiver, 'styled'), '<p>Tea/3/ok/styled</p>');
+    reader.probeApplicationRetire();
+    assert.throws(() => reader.applicationSourceStylesheetsV1(styled, styleTag), /application.endpoint.refused/);
+    reader.applicationSourceReleaseV1(styled);
+    reader.probeApplicationUnprovision();
+
     return wasm.memory;
 }
 
@@ -90,7 +117,7 @@ if (isMainThread) {
         worker.once('error', reject);
         worker.once('exit', code => code === 0 ? resolve() : reject(Error(`reader worker exited ${code}`)));
     });
-    console.log(`Application sources, typed producers and nested receivers passed in two fresh heaps and a real worker; ${source.length} source bytes.`);
+    console.log(`Application sources, receivers and retained declaration styles passed in two fresh heaps and a real worker; ${source.length} source bytes.`);
 } else {
     await verify('worker');
     parentPort.close();

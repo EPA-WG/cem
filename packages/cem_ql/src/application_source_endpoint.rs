@@ -29,6 +29,8 @@ use std::{
 mod frames;
 #[cfg(feature = "application-source-runtime")]
 mod receiver_checkpoint;
+#[cfg(feature = "application-source-runtime")]
+mod styles;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 #[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
@@ -124,6 +126,10 @@ pub struct PreparedApplication {
     _registry: Arc<RegistryOwner>,
     compilations: BTreeMap<String, Arc<FreshDependencyDatatypeCompilation>>,
     retained: Vec<RetainedApplicationOwner>,
+    #[cfg(feature = "application-source-runtime")]
+    needs_styles: bool,
+    #[cfg(feature = "application-source-runtime")]
+    styles: Option<styles::ApplicationStyles>,
 }
 impl PreparedApplication {
     pub fn stage(
@@ -153,6 +159,12 @@ impl PreparedApplication {
         if !sources.matches_publication(&host, &staged) {
             return Err(INVALID.into());
         }
+        #[cfg(feature = "application-source-runtime")]
+        let needs_styles = staged
+            .envelope()
+            .component_order()
+            .iter()
+            .any(|tag| staged.envelope().artifact(tag).is_some_and(|artifact| !artifact.stylesheets.is_empty()));
         Ok(Self {
             host,
             sources,
@@ -161,9 +173,38 @@ impl PreparedApplication {
             _registry: registry,
             compilations,
             retained,
+            #[cfg(feature = "application-source-runtime")]
+            needs_styles,
+            #[cfg(feature = "application-source-runtime")]
+            styles: None,
         })
     }
+    /// The original bootstrap supplies a live resolver for the entire pinned
+    /// declaration set. A failed occurrence leaves the candidate unpublished.
+    #[cfg(feature = "application-source-runtime")]
+    pub fn with_stylesheet_policy(
+        mut self,
+        capability: cem_ml::module_resolution::CemModuleUrlResolutionCapability,
+        response_policy: cem_ml::css_imports::CssImportResponsePolicy,
+    ) -> Result<Self, String> {
+        if self.styles.is_some() {
+            return Err(INVALID.into());
+        }
+        if self.needs_styles {
+            self.styles = Some(styles::ApplicationStyles::stage(
+                self.staged.as_ref().ok_or(INVALID)?.envelope(),
+                capability,
+                response_policy,
+                self.host.application_control(),
+            )?);
+        }
+        Ok(self)
+    }
     fn owners_live(&self) -> bool {
+        #[cfg(feature = "application-source-runtime")]
+        if self.needs_styles && !self.styles.as_ref().is_some_and(styles::ApplicationStyles::current) {
+            return false;
+        }
         self.compilations.values().all(|o| o.is_live(&self.host))
             && self.retained.iter().all(|o| o.is_live_on(&self.host))
     }
@@ -174,6 +215,10 @@ impl PreparedApplication {
         self.slot.current(&self.host)
     }
     fn publish(&mut self, endpoint: &Arc<ApplicationSourceEndpoint>) -> Result<(), String> {
+        #[cfg(feature = "application-source-runtime")]
+        if let Some(styles) = &mut self.styles {
+            styles.enroll(&endpoint.generation.upgrade().ok_or(INVALID)?)?;
+        }
         let staged = self.staged.take().ok_or(INVALID)?;
         staged.enroll_source_endpoint(endpoint, &self.host)?;
         self.slot.publish(&mut self.host, staged)?;

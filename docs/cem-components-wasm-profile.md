@@ -460,8 +460,11 @@ producers can supply typed values to original valueless receiver attributes
 under the installed datatype profile. Their input tokens remain tied to the
 live producer and scope. Nested receiver inputs use the original schema's child
 edges and field rules, and expose validated descendants through
-`datadom.receiver`. Declaration/CSS/provider ownership, generated application
-bootstraps and production component admission remain gated.
+`datadom.receiver`. A native bootstrap can stage the pinned declarations'
+compiled CSS under its current resolver policy. The application session exposes
+that retained output through its original token. Browser stylesheet ownership,
+shared behaviors and providers, generated application bootstraps and production
+component admission remain separate integration steps.
 
 
 Do not equate downloaded code with an active native generation. Register every

@@ -55,6 +55,27 @@ const COUNT_BODY:&str="{attribute @name=count @type=cart-count}{p | {$count}/{$d
 pub fn hash(b: &[u8]) -> String {
     cem_ml::content_cache::ContentHash::from_blake3(b).header_value()
 }
+#[allow(dead_code)]
+pub fn style_capability(redirected: bool) -> cem_ml::module_resolution::CemModuleUrlResolutionCapability {
+    use cem_ml::module_resolution::{
+        CemModuleUrlContext, CemModuleUrlFrame, CemModuleUrlResolutionCapability,
+        CemResolutionContextHandle, CemScopedModuleUrlResolver,
+    };
+    let handle = CemResolutionContextHandle::new("application-fixture-style");
+    let mut frame = CemModuleUrlFrame::new("root", "https://runtime.test/app/");
+    if redirected {
+        frame.specifiers.resources = serde_json::from_value(serde_json::json!({
+            "./theme.css": {"target": "./changed.css"}
+        })).unwrap();
+    }
+    let context = CemModuleUrlContext {
+        identity: "application-fixture".into(), resolver_identity: "fixture".into(),
+        resource_policy_stamp: "fixture-css-policy".into(), frames: vec![frame],
+    };
+    CemModuleUrlResolutionCapability::new(
+        Arc::new(CemScopedModuleUrlResolver::new().with_context(handle.clone(), context)), handle,
+    )
+}
 pub fn elements(t: &RetainedCemTree, kind: &str) -> BTreeMap<String, u32> {
     t.ast()
         .nodes
@@ -553,6 +574,10 @@ pub fn nested_typed_sources(view: &str) -> (transport::BuiltApplicationSources, 
     build_sources(COUNT_BODY, ReceiverProfile::NestedTyped, view, NESTED_RECEIVER, CART, false)
 }
 #[cfg(not(target_arch = "wasm32"))]
+pub fn build_styled() -> (transport::BuiltApplicationSources, Vec<u8>) {
+    build_sources(COUNT_BODY, ReceiverProfile::Styled, VIEW, RECEIVER, CART, false)
+}
+#[cfg(not(target_arch = "wasm32"))]
 pub fn prepared_sources(
     view: &str,
     receiver: &str,
@@ -567,6 +592,7 @@ enum ReceiverProfile {
     Typed,
     Nested,
     NestedTyped,
+    Styled,
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn build_reserved() -> (transport::BuiltApplicationSources, Vec<u8>) {
@@ -630,7 +656,12 @@ fn build_sources(
         } else {
             body.into()
         };
-        cem_ql::declaration_artifact::build_declaration_artifact(&format!("<cem-element tag=\"{tag}\"><template id=\"{tag}\" type=\"text/cem-ml\">{body}</template></cem-element>"),&format!("file:///runtime/{tag}.xhtml"),cem_ql::template_artifact::TemplateArtifactSourceMapMode::Prod,None).unwrap()
+        let uri = if matches!(profile, ReceiverProfile::Styled) && tag == "cem-receiver-frame" {
+            format!("https://runtime.test/app/{tag}.xhtml")
+        } else {
+            format!("file:///runtime/{tag}.xhtml")
+        };
+        cem_ql::declaration_artifact::build_declaration_artifact(&format!("<cem-element tag=\"{tag}\"><template id=\"{tag}\" type=\"text/cem-ml\">{body}</template></cem-element>"),&uri,cem_ql::template_artifact::TemplateArtifactSourceMapMode::Prod,None).unwrap()
     };
     let mut base = app::EnvelopeBuilder::new(&hash(b"registry")).unwrap();
     let node = base
@@ -658,7 +689,7 @@ fn build_sources(
     );
     let profiles = match profile {
         ReceiverProfile::Pending => vec![],
-        ReceiverProfile::Lexical | ReceiverProfile::Nested => vec![executable_profile(&mut module, root, false)],
+        ReceiverProfile::Lexical | ReceiverProfile::Nested | ReceiverProfile::Styled => vec![executable_profile(&mut module, root, false)],
         ReceiverProfile::Typed | ReceiverProfile::NestedTyped => vec![executable_profile(&mut module, root, true)],
     };
     let graph = cem_ql::datatype_module_capsule::v2::export(
@@ -715,7 +746,17 @@ fn build_sources(
     } else {
         "{attribute @name=items @type=cart-lines @maxItems=2}{attribute @name=count @type=cart-count}{attribute @name=choice @type=app-value}{p | {$items.attributes.value}/{$count}/{$choice}/{$instanceID}}"
     };
-    let frame=mixed::build(declaration("cem-receiver-frame",frame_body),owner.clone(),BTreeMap::from([("cart-lines".into(),mixed::ReceiverContract::Node(node_pin.clone())),("cart-count".into(),mixed::ReceiverContract::Scalar(scalar_contract)),("app-value".into(),mixed::ReceiverContract::Executable{root:"value".into(),target:owner.roots()["value"].clone()})]),&control).unwrap();
+    let frame = if matches!(profile, ReceiverProfile::Styled) {
+        let body = format!("{{style | ``` @import './theme.css'; :host {{ --original: ready; }} ```}}{frame_body}");
+        cem_ql::declaration_artifact::build_declaration_imports(
+            declaration("cem-receiver-frame", &body), &mut |request| Ok(cem_ml::resolver::ResolvedRead {
+                uri: request.resolution.resolved_url.clone(),
+                bytes: b":host { --imported: ready; }".to_vec(),
+                content_type: Some("text/css; mode=stylesheet".into()),
+            }),
+        ).unwrap()
+    } else { declaration("cem-receiver-frame", frame_body) };
+    let frame=mixed::build(frame,owner.clone(),BTreeMap::from([("cart-lines".into(),mixed::ReceiverContract::Node(node_pin.clone())),("cart-count".into(),mixed::ReceiverContract::Scalar(scalar_contract)),("app-value".into(),mixed::ReceiverContract::Executable{root:"value".into(),target:owner.roots()["value"].clone()})]),&control).unwrap();
     let b = v4::build(
         parent,
         vec![mixed, count, frame],

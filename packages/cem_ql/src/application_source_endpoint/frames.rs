@@ -95,7 +95,7 @@ pub(super) fn receiver_artifact<'a>(
     let requirements = demand.declarations.get(tag).ok_or(INVALID)?;
     if !requirements.host_bindings.contains("instanceID")
         || requirements.capability.is_some()
-        || !requirements.stylesheets.is_empty()
+        || !cfg!(feature = "application-source-runtime") && !requirements.stylesheets.is_empty()
         || !requirements.unresolved.is_empty()
         || !requirements.data_imports.is_empty()
         || !demand.component_dependencies[tag].is_empty()
@@ -357,7 +357,7 @@ impl ApplicationSourceSession {
             let requirements = app.envelope().requirements();
             let demand = requirements.declarations.get(tag).ok_or(INVALID)?;
             if declaration.capability.is_some()
-                || !artifact.stylesheets.is_empty()
+                || !cfg!(feature = "application-source-runtime") && !artifact.stylesheets.is_empty()
                 || !demand.unresolved.is_empty()
                 || !demand.data_imports.is_empty()
                 || requirements

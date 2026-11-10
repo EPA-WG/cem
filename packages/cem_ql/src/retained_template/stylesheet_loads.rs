@@ -60,6 +60,30 @@ pub enum StylesheetLoadProgress {
 }
 
 impl RetainedTemplate {
+    /// Complete one compiled occurrence without falling back to a source read.
+    #[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
+    pub(crate) fn load_compiled_stylesheet(
+        &mut self,
+        options: StylesheetLoadOptions,
+        max_output_bytes: usize,
+    ) -> Result<Arc<RetainedStylesheet>, String> {
+        let consumer = options.consumer.clone();
+        let id = self.begin_stylesheet_load(options).map_err(|_| "compiled stylesheet policy refused")?;
+        let result = match self.advance_stylesheet_load(id, &consumer) {
+            Ok(StylesheetLoadProgress::Ready(record)) => match record.emission() {
+                Ok(emission) if emission.css().len() <= max_output_bytes => Ok(record),
+                _ => Err("compiled stylesheet output limit exceeded".into()),
+            },
+            Ok(StylesheetLoadProgress::Pending(_)) =>
+                Err("compiled stylesheet needs a closed import artifact; source fallback refused".into()),
+            Err(_) => Err("compiled stylesheet policy refused".into()),
+        };
+        if result.is_err() {
+            self.release_stylesheet_generation(&consumer, id);
+        }
+        result
+    }
+
     pub fn begin_stylesheet_load(
         &mut self,
         options: StylesheetLoadOptions,

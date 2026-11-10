@@ -16,7 +16,10 @@ use cem_ql::application_source_endpoint::{
 };
 use std::sync::{Arc, Mutex};
 
-struct MutableBootstrap(Arc<Mutex<Arc<installed::Inputs>>>);
+struct MutableBootstrap {
+    inputs: Arc<Mutex<Arc<installed::Inputs>>>,
+    redirected_styles: Option<bool>,
+}
 
 impl ApplicationBootstrap for MutableBootstrap {
     fn prepare(
@@ -25,8 +28,15 @@ impl ApplicationBootstrap for MutableBootstrap {
         generation: &Arc<NativeGeneration>,
         control: OperationControl,
     ) -> Result<PreparedApplication, String> {
-        let inputs = self.0.lock().map_err(|_| "fixture inputs")?.clone();
-        installed::Bootstrap { inputs }.prepare(sources, generation, control)
+        let inputs = self.inputs.lock().map_err(|_| "fixture inputs")?.clone();
+        let staged = installed::Bootstrap { inputs }.prepare(sources, generation, control)?;
+        match self.redirected_styles {
+            Some(redirected) => staged.with_stylesheet_policy(
+                installed::style_capability(redirected),
+                Default::default(),
+            ),
+            None => Ok(staged),
+        }
     }
 }
 
@@ -60,6 +70,19 @@ fn original_inputs() -> Result<Arc<installed::Inputs>, JsValue> {
 // Fixture-only provisioning. Library ABI installation remains Rust-only.
 #[wasm_bindgen(js_name=probeApplicationProvision)]
 pub fn provision(pins: &str, input: &[u8]) -> Result<(), JsValue> {
+    provision_fixture(pins, input, None)
+}
+
+#[wasm_bindgen(js_name = probeApplicationProvisionStyled)]
+pub fn provision_styled(pins: &str, input: &[u8], redirected: bool) -> Result<(), JsValue> {
+    provision_fixture(pins, input, Some(redirected))
+}
+
+fn provision_fixture(
+    pins: &str,
+    input: &[u8],
+    redirected_styles: Option<bool>,
+) -> Result<(), JsValue> {
     let error = |e: String| JsValue::from_str(&e);
     if pins.len() > 16384 {
         return Err(error("fixture pins".into()));
@@ -70,8 +93,16 @@ pub fn provision(pins: &str, input: &[u8]) -> Result<(), JsValue> {
     let inputs = Arc::new(Mutex::new(
         installed::Inputs::restore(input, &control).map_err(error)?,
     ));
-    let code = ApplicationBootstrapOwner::new(&g, control, pin, MutableBootstrap(inputs.clone()))
-        .map_err(error)?;
+    let code = ApplicationBootstrapOwner::new(
+        &g,
+        control,
+        pin,
+        MutableBootstrap {
+            inputs: inputs.clone(),
+            redirected_styles,
+        },
+    )
+    .map_err(error)?;
     let endpoint = ApplicationSourceEndpoint::new(&code).map_err(error)?;
     wasm::install(&endpoint).map_err(error)?;
     DEPLOYMENT.with(|s| {

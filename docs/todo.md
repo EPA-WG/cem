@@ -469,6 +469,12 @@ Deferred execution gates, in order within this workstream:
 - [ ] Bind compiled declarations, retained CSS and shared behavior/provider/source
   ownership to that ABI. Prove worker/fallback edits, credential refusal and
   generation handoff without substituting the full tooling bootstrap.
+  - [x] Stage pinned declaration CSS under the original native bootstrap policy.
+        Native and reduced WASM fixtures cover compiled imports, denied policy,
+        publication retirement and fresh stylesheet owners. Native checkpoint
+        recovery restages CSS under the replacement bootstrap.
+  - [ ] Connect the application stylesheet route to shared browser ownership
+        and complete behavior, provider and source handoff.
 
 - [ ] Generate app-build dependencies and GraphQL schema/operation contracts,
   including variable/response validation and compact runtime input checks. Map

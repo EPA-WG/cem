@@ -262,6 +262,15 @@ pub fn capture(owner: &JsValue) -> Result<Vec<u8>, JsValue> {
     let _entry = runtime_admission::admit(false).map_err(error)?;
     with_session(owner, |s| s.capture()).map_err(error)
 }
+#[cfg(feature = "application-source-runtime")]
+#[wasm_bindgen(js_name = applicationSourceStylesheetsV1)]
+pub fn stylesheets(owner: &JsValue, tag: &str) -> Result<String, JsValue> {
+    let _entry = runtime_admission::admit(false).map_err(error)?;
+    if tag.len() > 256 {
+        return Err(error(INVALID));
+    }
+    with_session(owner, |session| session.stylesheets_json(tag)).map_err(error)
+}
 #[wasm_bindgen(js_name = applicationSourceReleaseV1)]
 pub fn release(owner: &JsValue) -> Result<(), JsValue> {
     let _entry = runtime_admission::admit(true).map_err(error)?;
