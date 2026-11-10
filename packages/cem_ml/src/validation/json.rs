@@ -12,6 +12,7 @@ use crate::validation::generic_data::{
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(any(not(target_arch = "wasm32"), feature = "component-runtime"))]
 pub mod graphql;
 
 const JSON_PACKAGE_ID: &str = "json";

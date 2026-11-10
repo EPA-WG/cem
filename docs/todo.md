@@ -509,6 +509,9 @@ Deferred execution gates, in order within this workstream:
   build and specialize remaining execution/type/source roots. Audit linked symbols
   and optional-module handoff before claiming unused language/schema/function
   implementations are absent; source inventories and fingerprints are not proof.
+  - [x] Link the original cart entry and its generated registry, operation
+        document and GraphQL guard into the opt-in runtime. Verify native
+        source attribution, pin refusal and all six responses on fresh WASM heaps.
 
 - [ ] Assemble and measure the compiled-UI + JSON shopping-cart profile first.
   Add declarative shared GraphQL transport only if existing resource capabilities

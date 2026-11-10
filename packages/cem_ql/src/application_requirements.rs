@@ -4,7 +4,7 @@ mod query;
 mod registry;
 pub use registry::SelectedRegistryPlan;
 #[cfg(all(feature = "application-contract-build", not(target_arch = "wasm32")))]
-pub(crate) use registry::{reviewed_function, reviewed_pipeline, selected_execution_units};
+pub(crate) use registry::{registry_rust_source, reviewed_function, reviewed_pipeline, selected_execution_units};
 #[cfg(test)]
 mod tests;
 

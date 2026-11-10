@@ -1,8 +1,9 @@
 //! Fixed operation guards at the native JSON boundary. GraphQL SDL and
 //! executable-document parsing are build dependencies of the application.
 use super::{
-    extract_json_report_with_limits, JsonMemberAst, JsonParseFactKind, JsonSourceValidationRequest,
-    JsonValueAst as Json,
+    extract_json_report_with_limits, json_normalized_charset_for_report, JsonDocumentAst,
+    JsonDocumentSource, JsonEncodingReportAst, JsonMemberAst, JsonParseFactKind, JsonParseReport,
+    JsonSourceValidationRequest, JsonValueAst as Json,
 };
 use crate::{
     content_cache::ContentHash,
@@ -73,6 +74,34 @@ pub enum ResponseKind {
     Errors,
 }
 
+/// A guarded response still owns its original native JSON parse and byte source.
+pub struct ValidatedGraphqlResponse<'a> {
+    kind: ResponseKind,
+    request: JsonSourceValidationRequest<'a>,
+    report: JsonParseReport,
+}
+
+impl ValidatedGraphqlResponse<'_> {
+    pub fn into_retained_tree(
+        self,
+    ) -> Result<std::sync::Arc<crate::parser::tree::RetainedCemTree>, String> {
+        let Self {
+            request, report, ..
+        } = self;
+        let encoding = json_normalized_charset_for_report(&report).to_owned();
+        let encoding_report = JsonEncodingReportAst::from_report(&report);
+        let document = JsonDocumentAst {
+            source: JsonDocumentSource::from_request(request, report.parameters),
+            encoding,
+            encoding_report,
+            parse_facts: Vec::new(),
+            root: report.root,
+            line_ending: report.line_ending,
+        };
+        crate::import::retain_json_document(document, request.bytes, request.source_uri)
+    }
+}
+
 impl GraphqlContracts {
     pub fn new(
         schema: &[u8],
@@ -134,8 +163,12 @@ impl GraphqlContracts {
         control: &OperationControl,
     ) -> Result<(), String> {
         let operation = self.operations.get(operation).ok_or(INVALID)?;
-        let document = decode(bytes, uri, control)?;
-        fields(&operation.variables, object(&document)?, true)?;
+        let report = decode(json_request(bytes, uri), control)?;
+        fields(
+            &operation.variables,
+            object(report.root.as_ref().ok_or(INVALID)?)?,
+            true,
+        )?;
         check(control)
     }
 
@@ -146,9 +179,21 @@ impl GraphqlContracts {
         uri: &str,
         control: &OperationControl,
     ) -> Result<ResponseKind, String> {
+        self.admit_response(operation, bytes, uri, control)
+            .map(|response| response.kind)
+    }
+
+    pub fn admit_response<'a>(
+        &self,
+        operation: &str,
+        bytes: &'a [u8],
+        uri: &'a str,
+        control: &OperationControl,
+    ) -> Result<ValidatedGraphqlResponse<'a>, String> {
         let operation = self.operations.get(operation).ok_or(INVALID)?;
-        let document = decode(bytes, uri, control)?;
-        let envelope = object(&document)?;
+        let request = json_request(bytes, uri);
+        let report = decode(request, control)?;
+        let envelope = object(report.root.as_ref().ok_or(INVALID)?)?;
         if envelope
             .iter()
             .any(|member| !matches!(member.name.as_str(), "data" | "errors" | "extensions"))
@@ -176,7 +221,11 @@ impl GraphqlContracts {
             _ => return Err("cem.graphql.response.data".into()),
         };
         check(control)?;
-        Ok(kind)
+        Ok(ValidatedGraphqlResponse {
+            kind,
+            request,
+            report,
+        })
     }
 }
 
@@ -190,20 +239,26 @@ fn check(control: &OperationControl) -> Result<(), String> {
         .map_err(|_| "cem.graphql.cancelled".into())
 }
 
-fn decode(bytes: &[u8], uri: &str, control: &OperationControl) -> Result<Json, String> {
+fn json_request<'a>(bytes: &'a [u8], uri: &'a str) -> JsonSourceValidationRequest<'a> {
+    JsonSourceValidationRequest {
+        bytes,
+        source_uri: uri,
+        content_type: Some("application/json"),
+    }
+}
+
+fn decode(
+    request: JsonSourceValidationRequest<'_>,
+    control: &OperationControl,
+) -> Result<JsonParseReport, String> {
     check(control)?;
-    if bytes.len() > MAX_JSON_BYTES || uri.is_empty() || uri.len() > 4096 {
+    if request.bytes.len() > MAX_JSON_BYTES
+        || request.source_uri.is_empty()
+        || request.source_uri.len() > 4096
+    {
         return Err("cem.graphql.json.limit".into());
     }
-    let report = extract_json_report_with_limits(
-        JsonSourceValidationRequest {
-            bytes,
-            source_uri: uri,
-            content_type: Some("application/json"),
-        },
-        None,
-        Some((MAX_DEPTH, MAX_VALUES)),
-    );
+    let report = extract_json_report_with_limits(request, None, Some((MAX_DEPTH, MAX_VALUES)));
     if report
         .facts
         .iter()
@@ -212,7 +267,10 @@ fn decode(bytes: &[u8], uri: &str, control: &OperationControl) -> Result<Json, S
         return Err("cem.graphql.json.duplicate".into());
     }
     check(control)?;
-    report.root.ok_or_else(|| "cem.graphql.json.invalid".into())
+    if report.root.is_none() || !report.facts.is_empty() {
+        return Err("cem.graphql.json.invalid".into());
+    }
+    Ok(report)
 }
 
 fn object(value: &Json) -> Result<&[JsonMemberAst], String> {

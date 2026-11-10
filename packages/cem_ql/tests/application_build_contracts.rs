@@ -220,6 +220,11 @@ fn records_cart_entry_and_component_dependencies_without_closing_provider_gaps()
     assert_eq!(again.bytes, manifest.bytes);
     assert_eq!(again.content_hash, manifest.content_hash);
     assert!(!manifest.static_inventory_complete);
+    let recipe = manifest.selected_runtime_source.as_ref().unwrap();
+    assert_eq!(again.selected_runtime_source.as_ref(), Some(recipe));
+    assert!(recipe.contains("SelectedBuiltin::SequenceWhere"));
+    assert!(recipe.contains("SelectedBuiltin::SequenceCount"));
+    assert!(recipe.contains(&manifest.content_hash));
     assert_eq!(
         manifest.content_hash,
         ContentHash::from_blake3(&manifest.bytes).header_value()
@@ -278,6 +283,14 @@ fn records_cart_entry_and_component_dependencies_without_closing_provider_gaps()
     );
     let foreign = compile_application_entry("{cem-outside}", uri, vec![], Prod).unwrap();
     assert!(build(&foreign).is_err());
+    let open = compile_application_entry(
+        "{p | {$ | num:abs(-1)}}",
+        uri,
+        vec!["response".into()],
+        Prod,
+    )
+    .unwrap();
+    assert!(build(&open).unwrap().selected_runtime_source.is_none());
 }
 
 #[test]

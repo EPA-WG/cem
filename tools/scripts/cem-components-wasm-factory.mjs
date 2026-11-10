@@ -1,7 +1,7 @@
 import ts from 'typescript';
 
 /** Isolate the pinned small ABI's bindings; ownership policy lives in cem-elements. */
-export function componentWasmFactory(source) {
+export function componentWasmFactory(source, selectedApplication = false) {
     const ast = ts.createSourceFile('cem_ql.js', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
     const edits = [], functions = [], classes = []; let initializer = false, finalizers = 0;
     for (const statement of ast.statements) {
@@ -25,12 +25,19 @@ export function componentWasmFactory(source) {
         ts.forEachChild(node, visit);
     }
     visit(ast);
+    const expectedFunctions = selectedApplication
+        ? ['compiledDeclarationInventory', 'renderSelectedApplicationResponse', 'selectedApplicationDocument', 'validateSelectedApplicationVariables']
+        : ['compiledDeclarationInventory', 'renderCompiledApplication'];
     if (!initializer || finalizers !== 1 || JSON.stringify(classes) !== '["CompiledDeclarationOwner"]'
-        || JSON.stringify(functions.sort()) !== '["compiledDeclarationInventory","renderCompiledApplication"]'
+        || JSON.stringify(functions.sort()) !== JSON.stringify(expectedFunctions)
         || !source.includes('let wasmModule, wasmInstance, wasm;') || source.includes('cachedDataViewMemory0')
         || !source.includes('cachedUint8ArrayMemory0')) throw new Error('Unsupported component WASM binding shape');
     for (const [start, end, value] of edits.sort((a,b) => b[0]-a[0])) source = source.slice(0,start)+value+source.slice(end);
     source = source.replace('/* @ts-self-types="./cem_ql.d.ts" */','');
+    const applicationMethods = selectedApplication ? `
+        applicationDocument() { active(); return selectedApplicationDocument(); },
+        validateVariables(operation, bytes, uri) { active(); validateSelectedApplicationVariables(operation, bytes, uri); },
+        renderResponse(operation, bytes, uri) { active(); return renderSelectedApplicationResponse(operation, bytes, uri); },` : '';
     return `/* @ts-self-types="./cem_ql_factory.d.ts" */
 // Generated binding isolation only. Shared lifecycle policy: cem-elements.
 export function createCemComponentWasmBindings() {
@@ -46,7 +53,7 @@ ${source}
             finally { initializing = false; }
         },
         open(bytes, metadata, pin) { active(); return new CompiledDeclarationOwner(bytes, metadata, pin); },
-        inventory() { active(); return compiledDeclarationInventory(); },
+        inventory() { active(); return compiledDeclarationInventory(); },${applicationMethods}
         memory() { active(); return wasm.memory; },
         release() {
             active(); const census = JSON.parse(compiledDeclarationInventory());
@@ -58,12 +65,18 @@ ${source}
 }
 `;
 }
-export const componentWasmFactoryTypes = `import type { CompiledDeclarationOwner } from './cem_ql.js';
+export function componentWasmFactoryTypes(selectedApplication = false) {
+    const applicationMethods = selectedApplication ? `
+    applicationDocument(): string;
+    validateVariables(operation: string, bytes: Uint8Array, uri: string): void;
+    renderResponse(operation: string, bytes: Uint8Array, uri: string): string;` : '';
+    return `import type { CompiledDeclarationOwner } from './cem_ql.js';
 export declare function createCemComponentWasmBindings(): {
     initialize(module: WebAssembly.Module): Promise<void>;
     open(bytes: Uint8Array, metadata: string, pin: string): CompiledDeclarationOwner;
-    inventory(): string;
+    inventory(): string;${applicationMethods}
     memory(): WebAssembly.Memory;
     release(): void;
 };
 `;
+}

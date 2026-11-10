@@ -12,9 +12,12 @@ const requiredWasmBindgen = '0.2.122';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const componentRuntime = process.argv.includes('--component-runtime');
 if (process.argv.slice(2).some(arg => arg !== '--component-runtime')) throw new Error('Unknown WASM build option');
-const targetDir = componentRuntime ? 'dist/target/cem_ql_component' : 'dist/target/cem_ql';
+const selectedApplication = process.env.CEM_SELECTED_APPLICATION_DIR !== undefined;
+if (selectedApplication && !componentRuntime) throw new Error('CEM_SELECTED_APPLICATION_DIR requires --component-runtime');
+const targetDir = selectedApplication ? 'dist/target/cem_ql_selected_application'
+    : componentRuntime ? 'dist/target/cem_ql_component' : 'dist/target/cem_ql';
 const wasmInput = `${targetDir}/wasm32-unknown-unknown/release/cem_ql.wasm`;
-const outDir = componentRuntime ? 'packages/cem_ql/dist/wasm-component' : 'packages/cem_ql/dist/wasm';
+const outDir = `packages/cem_ql/dist/${selectedApplication ? 'wasm-selected-application' : componentRuntime ? 'wasm-component' : 'wasm'}`;
 
 run('cargo', [
     'build',
@@ -62,7 +65,7 @@ run('wasm-bindgen', [
 const optimization = optimizeWasm(resolve(repoRoot, outDir, 'cem_ql_bg.wasm'));
 const reportRoot = resolve(repoRoot, 'dist/reports/wasm-optimization');
 mkdirSync(reportRoot, { recursive: true });
-writeFileSync(resolve(reportRoot, componentRuntime ? 'cem-ql-component.json' : 'cem-ql.json'), `${JSON.stringify(optimization, null, 2)}\n`);
+writeFileSync(resolve(reportRoot, selectedApplication ? 'cem-ql-selected-application.json' : componentRuntime ? 'cem-ql-component.json' : 'cem-ql.json'), `${JSON.stringify(optimization, null, 2)}\n`);
 
 // Owned wasm-bindgen classes expose Symbol.dispose; keep ES2022 consumers
 // compatible by declaring its ambient library in the generated artifact.
@@ -70,8 +73,8 @@ const declarations = resolve(repoRoot, outDir, 'cem_ql.d.ts');
 writeFileSync(declarations, `/// <reference lib="esnext.disposable" />\n${readFileSync(declarations, 'utf8')}`);
 
 if (componentRuntime) {
-    writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.js'), componentWasmFactory(readFileSync(resolve(repoRoot, outDir, 'cem_ql.js'), 'utf8')));
-    writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.d.ts'), componentWasmFactoryTypes);
+    writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.js'), componentWasmFactory(readFileSync(resolve(repoRoot, outDir, 'cem_ql.js'), 'utf8'), selectedApplication));
+    writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.d.ts'), componentWasmFactoryTypes(selectedApplication));
 } else {
     // A separate lexical factory leaves the legacy module ABI unchanged.
     writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.js'), cemQlWasmFactory(readFileSync(resolve(repoRoot, outDir, 'cem_ql.js'), 'utf8')));

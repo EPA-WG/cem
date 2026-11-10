@@ -115,11 +115,17 @@ impl SelectedRegistryPlan {
     /// Only closed enum identifiers are emitted, never query text or arbitrary
     /// strings. Include this in a native prototype target with cem-ql available.
     pub fn rust_source(&self) -> String {
-        let entries = self
-            .entries
-            .iter()
-            .map(|entry| format!("        SelectedBuiltin::{},\n", entry.rust_variant()))
-            .collect::<String>();
-        format!("// Generated from {}; no runtime grants or link-closure claim.\nuse cem_ql::selected_registry::{{SelectedBuiltin, SelectedFunctionRegistry}};\npub fn selected_registry() -> SelectedFunctionRegistry {{\n    SelectedFunctionRegistry::new([\n{entries}    ]).expect(\"reviewed generated registry\")\n}}\n",self.requirements_hash)
+        registry_rust_source(&self.entries, &self.requirements_hash)
     }
+}
+
+pub(crate) fn registry_rust_source(
+    entries: &BTreeSet<SelectedBuiltin>,
+    inventory_hash: &str,
+) -> String {
+    let entries = entries
+        .iter()
+        .map(|entry| format!("        SelectedBuiltin::{},\n", entry.rust_variant()))
+        .collect::<String>();
+    format!("// Generated from {inventory_hash}; no runtime grants or link-closure claim.\nuse cem_ql::selected_registry::{{SelectedBuiltin, SelectedFunctionRegistry}};\npub fn selected_registry() -> SelectedFunctionRegistry {{\n    SelectedFunctionRegistry::new([\n{entries}    ]).expect(\"reviewed generated registry\")\n}}\n")
 }

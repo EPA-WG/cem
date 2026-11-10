@@ -1015,13 +1015,41 @@ selections, custom scalars, introspection, subscriptions and OneOf inputs requir
 additional contracts. Runtime code admits the guard against the expected build
 pin and uses CEM's bounded native JSON parser to check variable coercion, response
 shape, error paths and duplicate names. Variable objects are closed to the names
-declared by the operation. The SDL compiler stays in the native
-build tool. Linking the guard into the selected runtime and connecting GraphQL
-transport are the next delivery steps.
+declared by the operation. The SDL compiler stays in the native build tool.
 
 ```bash
 yarn nx run cem_ql:test:application-build-contracts
 ```
+
+## Build-bound GraphQL entry
+
+A standalone entry with one JSON binding and a closed entry inventory also
+produces `selected_application.rs`. This recipe binds the generated registry
+selection, compiled entry pins, GraphQL guard hash and exact operation document.
+Component behavior and provider demands remain visible in the manifest and
+require their own runtime owners.
+
+```bash
+CEM_SELECTED_APPLICATION_DIR="$PWD/dist/cart-contracts" \
+  node tools/scripts/build-cem-ql-wasm.mjs --component-runtime
+yarn nx run cem_ql:test:selected-application-runtime
+```
+
+The build watches the recipe and the three embedded assets. Its output goes to
+`packages/cem_ql/dist/wasm-selected-application`. Each heap admits the compiled
+entry and guard against the generated pins and checks the operation document
+against the hash in the guard. The selected entry exposes
+`selectedApplicationDocument`, `validateSelectedApplicationVariables` and
+`renderSelectedApplicationResponse`. The factory exposes corresponding
+`applicationDocument`, `validateVariables` and `renderResponse` methods. The
+request supplies the operation name, original JSON bytes and source URI. The
+runtime takes the template and pins from the embedded recipe.
+
+Response validation passes the same native JSON parse and source coordinates
+into the existing retained CEM projection. Response admission, projection and rendering
+share the request's operation control. Tests compare guarded and ordinary JSON
+source keys, ranges and maps, and exercise all six original responses on two
+independently instantiated WASM heaps.
 
 ## Remaining delivery boundaries
 
@@ -1031,8 +1059,8 @@ yarn nx run cem_ql:test:application-build-contracts
 - Extend compiled inline CSS admission to imported stylesheet closures before
   removing the CSS source parser. Keep authorized source imports, source-driven
   templates and dynamic styles available through the full/on-demand runtime.
-- Bind the generated app manifest, compiled entry and GraphQL guard into the
-  selected application runtime. Audit linked code and optional-module handoff.
+- Audit linked code and optional-module handoff for the build-bound entry.
+  The manifest records the reviewed registry entries and their source paths.
 - Bind real quantity/remove actions through shared declarative resources and
   GraphQL transport. The native render fixture sends no requests and has no
   interactive action bindings. Register a normal Studio example project with

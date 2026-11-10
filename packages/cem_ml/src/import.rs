@@ -627,6 +627,14 @@ pub fn import_json_bytes(bytes: &[u8], source_uri: &str) -> Result<Arc<RetainedC
     let document = checked(json::json_document_ast_from_source_bytes(json::JsonSourceValidationRequest {
         bytes, source_uri, content_type: Some("application/json"),
     }))?;
+    retain_json_document(document, bytes, source_uri)
+}
+
+pub(crate) fn retain_json_document(
+    document: json::JsonDocumentAst,
+    bytes: &[u8],
+    source_uri: &str,
+) -> Result<Arc<RetainedCemTree>, String> {
     validate_json_limits(&document, MAX_DOCUMENT_VALUES).map_err(|error| error.to_string())?;
     let (ast, semantics) = project_json(&document, MAX_DOCUMENT_VALUES)?;
     retain_projected_native(Arc::new(LoadedInputAstStream::JsonDocument(document)), ast, semantics,

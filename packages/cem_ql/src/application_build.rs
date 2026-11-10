@@ -3,8 +3,9 @@ pub use graphql::{compile_graphql_contracts, MAX_GRAPHQL_SOURCE_BYTES};
 
 use crate::{
     application_requirements::{
-        reviewed_function, reviewed_pipeline, selected_execution_units, template_requirements,
-        ApplicationRequirements, FunctionRequirement, PipelineOperation, TemplateRequirements,
+        registry_rust_source, reviewed_function, reviewed_pipeline, selected_execution_units,
+        template_requirements, ApplicationRequirements, FunctionRequirement, PipelineOperation,
+        TemplateRequirements,
     },
     declaration_closure::references,
     render::CompileTemplateOptions,
@@ -183,6 +184,8 @@ pub struct BuiltDependencyManifest {
     pub bytes: Vec<u8>,
     pub content_hash: String,
     pub static_inventory_complete: bool,
+    /// A standalone compiled JSON entry whose own dispatch and source are closed.
+    pub selected_runtime_source: Option<String>,
 }
 
 /// This is build inventory. Independent runtime owners and link evidence still
@@ -280,9 +283,34 @@ pub fn build_dependency_manifest(
         return Err("application build manifest exceeds 2 MiB".into());
     }
     let content_hash = ContentHash::from_blake3(&bytes).header_value();
+    let selected_runtime_source = entry
+        .zip(manifest.entry_dispatch.as_ref())
+        .filter(|(entry, dispatch)| {
+            entry.template.host_bindings.len() == 1
+                && entry.inventory.unresolved.is_empty()
+                && entry.inventory.data_imports.is_empty()
+                && !dispatch.has_gaps()
+        })
+        .map(|(entry, _)| {
+            let entry_pins = serde_json::to_string(&entry.template).map_err(|e| e.to_string())?;
+            let mut source = registry_rust_source(&selected, &content_hash);
+            source.push_str(&format!(
+                r#"
+pub const ENTRY: &[u8] = include_bytes!("application-entry.bin");
+pub const ENTRY_PINS: &str = {entry_pins:?};
+pub const GUARD: &[u8] = include_bytes!("graphql-contracts.bin");
+pub const GUARD_HASH: &str = {:?};
+pub const OPERATIONS: &str = include_str!("graphql-operations.graphql");
+"#,
+                manifest.graphql.guard_hash
+            ));
+            Ok::<_, String>(source)
+        })
+        .transpose()?;
     Ok(BuiltDependencyManifest {
         bytes,
         content_hash,
         static_inventory_complete,
+        selected_runtime_source,
     })
 }

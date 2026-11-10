@@ -171,6 +171,18 @@
             "options": { "command": "node tools/scripts/verify-query-source-wasm.mjs", "cwd": "{workspaceRoot}" },
             "outputs": ["{workspaceRoot}/dist/fixtures/query-source-wasm"]
         },
+        "test:selected-application-runtime": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": {
+                "commands": [
+                    "cargo test --locked --offline -p cem-ql --no-default-features --features application-contract-build,component-runtime --lib application_runtime",
+                    "node tools/scripts/verify-selected-application.mjs"
+                ],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            }
+        },
         "test:application-build-contracts": {
             "cache": false,
             "executor": "nx:run-commands",

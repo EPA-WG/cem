@@ -17,6 +17,20 @@ use std::sync::Arc;
 pub(crate) mod inputs;
 pub use crate::instance_island as island;
 pub mod owners;
+#[cfg(any(
+    cem_selected_application,
+    all(
+        test,
+        feature = "component-runtime",
+        feature = "application-contract-build"
+    )
+))]
+mod selected;
+#[cfg(cem_selected_application)]
+pub use selected::{
+    render_selected_application_response, selected_application_document,
+    validate_selected_application_variables,
+};
 
 #[cfg(all(test, feature = "component-runtime"))]
 mod tests;
@@ -25,13 +39,17 @@ mod generated {
     // CLI-generated Rust uses the public crate path, also when included here.
     #[allow(unused_imports)]
     use crate as cem_ql;
+    #[cfg(not(cem_selected_application))]
     include!(concat!(env!("OUT_DIR"), "/application_registry.rs"));
+    #[cfg(cem_selected_application)]
+    include!(env!("CEM_SELECTED_APPLICATION_PATH"));
 }
 pub const MAX_INPUT_BYTES: usize = crate::instance_island::LIMITS.max_bytes;
 
 /// A deliberately small prototype boundary: one pinned template and one native
 /// JSON document. It does not promise component ownership, CSS installation,
 /// shared providers or checkpoint handoff. Production defaults use the full ABI.
+#[cfg(any(not(cem_selected_application), test))]
 pub fn render(
     bytes: &[u8],
     pins_json: &str,
@@ -174,7 +192,11 @@ pub(crate) fn project_data(
     .map_err(|_| "compiled declaration native projection refused".into())
 }
 
-#[cfg(all(target_arch = "wasm32", feature = "component-runtime"))]
+#[cfg(all(
+    target_arch = "wasm32",
+    feature = "component-runtime",
+    not(cem_selected_application)
+))]
 #[wasm_bindgen::prelude::wasm_bindgen(js_name = "renderCompiledApplication")]
 pub fn render_wasm(
     bytes: &[u8],

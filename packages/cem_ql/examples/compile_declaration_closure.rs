@@ -136,6 +136,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Compile/validate the entire closure before writing any output.
     let out = Path::new(&args[2]);
     fs::create_dir_all(out)?;
+    // Publish the new link recipe last. A failed write must leave no old
+    // recipe beside a partially replaced set of assets.
+    match fs::remove_file(out.join("selected_application.rs")) {
+        Ok(()) => (),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error.into()),
+    }
     for (tag, built) in &closure.declarations {
         fs::write(out.join(format!("{tag}.bin")), &built.template.bytes)?;
         fs::write(out.join(format!("{tag}.json")), &built.metadata_json)?;
@@ -281,6 +288,9 @@ mod application {
             fs::write(out.join("graphql-operations.graphql"), self.operations)?;
             if let Some(entry) = self.entry {
                 fs::write(out.join("application-entry.bin"), &entry.template().bytes)?;
+            }
+            if let Some(source) = self.manifest.selected_runtime_source {
+                fs::write(out.join("selected_application.rs"), source)?;
             }
             Ok(())
         }

@@ -19,7 +19,8 @@ Studio project is installed by this fixture.
   remove operations. Mutation result aliases preserve the same `data.cart` shape.
   The application build validates the SDL and operations and generates a native
   JSON guard. The contract tests exercise variables and all six response fixtures.
-  See the [application build command](../../../../../docs/cem-components-shopping-cart-profile.md#generated-application-and-graphql-contracts).
+  The [build-bound runtime](../../../../../docs/cem-components-shopping-cart-profile.md#build-bound-graphql-entry)
+  embeds the compiled view, reviewed registry, guard and exact operation document.
 - [cart.json](cart.json), [updated.json](updated.json),
   [removed.json](removed.json), [empty.json](empty.json): initial, changed,
   removed-line and empty-cart API responses. The changed response includes text
