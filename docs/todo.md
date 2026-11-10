@@ -525,6 +525,9 @@ Deferred execution gates, in order within this workstream:
   Register the usable app as an ordinary Studio example project when complete,
   with real quantity/remove actions and build/preview/offline fixtures. No local
   UI JavaScript, fake action buttons or credential-policy bypass counts as done.
+  - [x] Verify the shared HTTP transport sends bounded, host-authorized POST
+        bodies as original bytes and refuses unsafe limits, origins and redirects.
+        Keep mutation scheduling tied to an explicit action in the next step.
 
 - [ ] Extend the baseline with repeated cold/first-use latency, active-worker and
   aggregate host/native memory, all-capabilities/offline totals and clean npm

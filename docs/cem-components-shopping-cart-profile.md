@@ -3,8 +3,8 @@
 Status: native reference fixture, strict artifact admission, shared compiled
 registration, declarative static-closure loading and compiled-form recovery in
 worker/fallback hosts, plus an isolated compiled-template/JSON WASM prototype,
-2026-10-29. A complete shopping-cart browser app, GraphQL transport/validation
-and reduced component integration remain pending.
+2026-10-29. The complete shopping-cart browser app, GraphQL action wiring, and
+reduced component integration remain pending.
 This is the first concrete application case for the
 [component WASM profile](cem-components-wasm-profile.md#application-build-and-deployment-boundary).
 
@@ -1125,6 +1125,19 @@ The specialized artifact's SHA-256 is
 `e3cfafc32916730d498dc620bdef41749f237f7feec76d2514075163fba122be`.
 The audit records named linker evidence for this profile. Dynamic call targets
 and complete native link closure remain open.
+
+### HTTP transport for cart actions
+
+The [shared POST transport](../packages/cem-elements/README.md#explicit-http-post-transport)
+accepts the original request bytes with a host-authorized size limit, cancellation
+and redirect refusal. A loopback test posts the cart's actual operation document
+and quantity variables, checks the original response bytes and confirms a
+redirect target receives no second request.
+
+The cart action integration will bind the selected operation and validated
+variables to a single dispatch, then admit the response through the selected
+runtime's GraphQL guard. Recovery must preserve the action's disposition before
+reacquiring its read resources.
 
 ## Remaining delivery boundaries
 

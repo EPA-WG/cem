@@ -1741,6 +1741,18 @@ Dispose with the view; suspend publications across checkpoint quiescence and
 release only after fresh owners settle. See the
 [shared recovery-status contract](../cem-components/docs/recovery-status-contract.md).
 
+### Explicit HTTP POST transport
+
+An embedding host can call `openCemHttpResource` with a `CemHttpPostRequest` to
+send a nonempty byte body. Supply the resolved HTTP(S) URL, content-type headers,
+an abort signal and a host-authorized `policy.maxRequestBytes` between 1 byte
+and 1 MiB. The transport checks the origin policy and body size before copying
+the caller's byte view. POST uses `redirect: "error"` and Fetch's `no-store`
+cache mode. The response body is a stream of original bytes.
+
+Use this call from an explicit host action. Declarative HTTP reads and checkpoint
+reacquisition use the separate GET/HEAD resource request type.
+
 ### Optional native schema source loading
 
 `CemSchemaAssetPackLoader` is a shared non-UI byte service for the opt-in native

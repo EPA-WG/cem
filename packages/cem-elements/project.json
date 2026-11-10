@@ -569,6 +569,8 @@
                 "{projectRoot}/.storybook/demo-coverage.ts",
                 "{projectRoot}/.storybook/journey-diagnostics.ts",
                 "{projectRoot}/src/**/*.ts",
+                "{workspaceRoot}/packages/cem_ql/fixtures/component-application/shopping-cart/operations.graphql",
+                "{workspaceRoot}/packages/cem_ql/fixtures/component-application/shopping-cart/updated.json",
                 "{workspaceRoot}/packages/cem-demo-element/demo/index.html",
                 "{workspaceRoot}/packages/cem-demo-element/demo/dwarfs.json",
                 "{workspaceRoot}/packages/custom-element/demo/http-request.html",
