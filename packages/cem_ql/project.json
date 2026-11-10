@@ -200,6 +200,15 @@
                 "cwd": "{workspaceRoot}"
             }
         },
+        "test:selected-application-actions": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["test:selected-application-runtime", "build:wasm"],
+            "options": {
+                "command": "node packages/cem_ql/tests/verify-selected-application-actions.mjs",
+                "cwd": "{workspaceRoot}"
+            }
+        },
         "test:application-build-contracts": {
             "cache": false,
             "executor": "nx:run-commands",

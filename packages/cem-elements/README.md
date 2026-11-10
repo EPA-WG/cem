@@ -1753,6 +1753,23 @@ cache mode. The response body is a stream of original bytes.
 Use this call from an explicit host action. Declarative HTTP reads and checkpoint
 reacquisition use the separate GET/HEAD resource request type.
 
+### Guarded GraphQL actions
+
+Use `bindCemGraphqlActions` on an application-owned DOM root with the selected
+WASM guard, the deployed action map, and the current checkpoint publication
+owner. An action map names the operation, the trusted browser event and each
+variable's source. Supported sources are a host binding of the same name, the
+authored `host-command-key` scalar, and a positive numeric control value. The
+generated guard checks the resulting variables against the GraphQL operation.
+
+The binding sends the exact selected document to a same-origin endpoint. The
+guard validates and renders the original response bytes before the host can
+publish them. A publication callback returns true when the guarded response is
+accepted by the current owner. Failed transport, validation or publication
+leaves an unknown journal disposition for trusted reconciliation. Dispose the
+binding on owner retirement to cancel pending work. Reattaching the binding
+installs listeners and does not dispatch a saved command.
+
 ### Optional native schema source loading
 
 `CemSchemaAssetPackLoader` is a shared non-UI byte service for the opt-in native

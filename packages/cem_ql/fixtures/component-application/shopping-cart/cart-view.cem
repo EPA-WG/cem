@@ -25,12 +25,15 @@
                 {cem:otherwise |
                     {ul @aria-label="Cart items" |
                         {cem:for-each @as=line @select=lines |
-                            {li @data-line-id={seq:first(seq:where(line.children, fn(field) => field.attributes.value == "id").children).children.value} |
+                            {cem:variable @name=lineId
+                                @select='seq:first(seq:where(line.children, fn(field) => field.attributes.value == "id").children).children.value'}
+                            {li @data-line-id={lineId} |
                                 {cem-text |
                                     {$ | seq:first(seq:where(line.children, fn(field) => field.attributes.value == "name").children).children.value}
                                 }
-                                {cem-text-field @label=Quantity @min=1 @type=number @value={seq:first(seq:where(line.children, fn(field) => field.attributes.value == "quantity").children).children.value}}
-                                {cem-action @label=Remove @type=button}
+                                {cem-text-field @label=Quantity @min=1 @type=number @value={seq:first(seq:where(line.children, fn(field) => field.attributes.value == "quantity").children).children.value}
+                                    @host-command-change=SetCartLineQuantity @host-command-key={lineId}}
+                                {cem-action @label=Remove @type=button @host-command=RemoveCartLine @host-command-key={lineId}}
             }   }   }   }   }
             {cem:variable @name=shipping
                 @select='seq:first(seq:where(cart.children, fn(field) => field.attributes.value == "shippingEstimate").children)'}

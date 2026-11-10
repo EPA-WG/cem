@@ -17,7 +17,17 @@
     "operations": "operations.graphql",
     "operationNames": ["Cart", "SetCartLineQuantity", "RemoveCartLine"],
     "requestContentType": "application/json",
-    "responseContentTypes": ["application/graphql-response+json", "application/json"]
+    "responseContentTypes": ["application/graphql-response+json", "application/json"],
+    "actions": {
+      "SetCartLineQuantity": {
+        "event": "change",
+        "variables": { "cartId": "binding", "lineId": "key", "quantity": "positive-number" }
+      },
+      "RemoveCartLine": {
+        "event": "click",
+        "variables": { "cartId": "binding", "lineId": "key" }
+      }
+    }
   },
   "responses": ["cart.json", "updated.json", "removed.json", "empty.json", "partial-error.json", "failed.json"]
 }

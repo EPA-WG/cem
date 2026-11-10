@@ -1,4 +1,5 @@
 import type { CemElementRuntime } from './cem-elements.js';
+import type { CemCheckpointOperation } from './checkpoint-publication.js';
 import { cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
 
 export interface CemHostCommandRequest {
@@ -7,6 +8,8 @@ export interface CemHostCommandRequest {
     /** Native/plaintext value, routed link scalar or validated composite identity; never arbitrary event detail. */
     readonly value: string | null;
     readonly isTrusted: boolean;
+    /** An authored scalar identifying the command's item. */
+    readonly commandKey?: string;
     /** Opaque host journal ID, present only for opted-in checkpoint domains. */
     readonly checkpointOperationId?: string;
     /** Native successful string controls, captured only for a form submit command. */
@@ -31,6 +34,7 @@ export interface CemHostView {
 }
 
 const boundaries = new WeakSet<Element>();
+const commandBindings = new WeakSet<Element>();
 const mounts = new WeakMap<Element, CemHostView>();
 const events = ['click', 'input', 'change', 'submit', 'cem-close', 'cem-tree-activate', 'cem-tree-toggle', 'cem-disclosure-toggle', 'cem-tab', 'cem-preview-navigate'] as const;
 
@@ -45,28 +49,21 @@ function ownsBinding(control: Element): boolean {
     return control.hasAttribute('host-command') || events.some(name => control.hasAttribute(`host-command-${name}`));
 }
 
-/** Mount declarative UI with an explicit, revocable set of non-UI host services. */
-export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOptions): CemHostView {
-    const { root, tag } = options;
-    const document = root.ownerDocument;
-    if (!tag.includes('-') || !document.defaultView?.customElements.get(tag)) {
-        throw new TypeError(`Register the declarative view before mounting ${tag}`);
-    }
-    const element = options.element ?? document.createElement(tag);
-    if (options.element && (element.ownerDocument !== document || element.parentElement !== root || element.localName !== tag || boundaries.has(element))) {
-        throw new TypeError('An authored view must be an unowned direct child with the requested tag');
-    }
-    if (!runtime.hasDeclarationFor(element)) throw new TypeError(`No declaration in this runtime for ${tag}`);
+/** Attach explicit command services to an already authorized view boundary. */
+export function bindCemHostCommands(element: Element, options: {
+    commands?: CemHostViewOptions['commands'];
+    current: () => boolean;
+    report: (error: unknown) => void;
+    beginOperation?: () => CemCheckpointOperation | undefined;
+}): () => void {
+    if (commandBindings.has(element)) throw new TypeError('The view already owns command bindings');
     const commands = new Map(Object.entries(options.commands ?? {}));
-    const errors: Error[] = [];
     let active = true;
-    const releaseCheckpointCommands = runtime.registerCheckpointCommands(element);
-    const report = (error: unknown) => {
-        if (active) errors.push(error instanceof Error ? error : new Error(String(error)));
-    };
+    const current = () => active && element.isConnected && options.current();
+    const report = (error: unknown) => { if (active) options.report(error); };
 
     const invoke = (event: Event) => {
-        if (!active || !element.isConnected || !runtime.hasDeclarationFor(element) || event.defaultPrevented) return;
+        if (!current() || event.defaultPrevented) return;
         let control: Element | undefined;
         for (const target of event.composedPath()) {
             if (target === element) break;
@@ -98,13 +95,15 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
             const value = event.type === 'cem-tree-activate' || event.type === 'cem-tree-toggle' || event.type === 'cem-disclosure-toggle' || event.type === 'cem-tab' || event.type === 'cem-preview-navigate' ? activationValue(event) : controlValue(event.target, control) ?? (anchor ? control.getAttribute('value') ?? anchor.getAttribute('href') : null);
             // Input capture (FormData listeners, custom control getters or
             // payload proxy traps) can revoke authority before delivery.
-            if (!active || !element.isConnected || !runtime.hasDeclarationFor(element) || !element.contains(control)
+            if (!current() || !element.contains(control)
                 || event.defaultPrevented && event.type !== 'submit'
                 || control.hasAttribute('disabled') || commands.get(command) !== handler
                 || binding(control, event.type) !== command) return;
             if (anchor) event.preventDefault();
-            const operation = runtime.beginCheckpointOperation(element);
+            const commandKey = control.getAttribute('host-command-key');
+            const operation = options.beginOperation?.();
             const request = Object.freeze({ command, eventType: event.type, value, isTrusted: event.isTrusted,
+                ...(commandKey === null ? {} : { commandKey }),
                 ...(fields ? { fields } : {}), ...(operation ? { checkpointOperationId: operation.operationId } : {}) });
             // Do not queue this call: file pickers/install prompts need the
             // same trusted event stack as the native control activation.
@@ -116,7 +115,45 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
             report(error);
         }
     };
+    // Retained nested views must not fall through to an outer host.
+    boundaries.add(element);
+    commandBindings.add(element);
+    events.forEach(name => element.addEventListener(name, invoke));
+    return () => {
+        if (!active) return;
+        active = false;
+        commandBindings.delete(element);
+        events.forEach(name => element.removeEventListener(name, invoke));
+        commands.clear();
+    };
+}
 
+/** Mount declarative UI with an explicit, revocable set of non-UI host services. */
+export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOptions): CemHostView {
+    const { root, tag } = options;
+    const document = root.ownerDocument;
+    if (!tag.includes('-') || !document.defaultView?.customElements.get(tag)) {
+        throw new TypeError(`Register the declarative view before mounting ${tag}`);
+    }
+    const element = options.element ?? document.createElement(tag);
+    if (options.element && (element.ownerDocument !== document || element.parentElement !== root || element.localName !== tag || boundaries.has(element))) {
+        throw new TypeError('An authored view must be an unowned direct child with the requested tag');
+    }
+    if (!runtime.hasDeclarationFor(element)) throw new TypeError(`No declaration in this runtime for ${tag}`);
+    const errors: Error[] = [];
+    let active = true;
+    const report = (error: unknown) => {
+        if (active) errors.push(error instanceof Error ? error : new Error(String(error)));
+    };
+    const releaseCheckpointCommands = runtime.registerCheckpointCommands(element);
+    runtime.setInstanceSlices(element, options.state ?? {}, { render: Boolean(options.element) });
+    mounts.get(root)?.dispose();
+    const unbind = bindCemHostCommands(element, {
+        commands: options.commands,
+        current: () => runtime.hasDeclarationFor(element),
+        beginOperation: () => runtime.beginCheckpointOperation(element),
+        report,
+    });
     const view: CemHostView = Object.freeze({
         element,
         get errors() { return Object.freeze([...errors]); },
@@ -157,18 +194,11 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
             if (!active) return;
             active = false;
             releaseCheckpointCommands();
-            events.forEach(name => element.removeEventListener(name, invoke));
-            commands.clear();
-            // Preserve the boundary on a retained detached node so it cannot
-            // acquire a parent's command authority if reinserted after disposal.
+            unbind();
             if (!options.element) element.remove();
             if (mounts.get(root) === view) mounts.delete(root);
         },
     });
-    runtime.setInstanceSlices(element, options.state ?? {}, { render: Boolean(options.element) });
-    mounts.get(root)?.dispose();
-    boundaries.add(element);
-    events.forEach(name => element.addEventListener(name, invoke));
     mounts.set(root, view);
     if (!options.element) root.replaceChildren(element);
     return view;

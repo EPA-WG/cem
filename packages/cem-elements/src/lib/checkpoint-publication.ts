@@ -21,11 +21,14 @@ export interface CemCheckpointPublicationOptions {
 }
 export interface CemCheckpointJournalAuthority { runtimeId: string; generation: number; policyStamp: string }
 export interface CemCheckpointOperation { readonly operationId: string; acknowledge(): void }
+export interface CemCheckpointAction extends CemCheckpointOperation { current(): boolean }
 export interface CemCheckpointPublicationOwner {
     readonly acknowledged: boolean;
     invalidate(): void;
     input(): void;
     published(receipt: Omit<CemCheckpointOwnerReceipt, 'acceptedEventSequence'>): void;
+    /** Begin a fresh explicit action on this owner, only with a settled journal. */
+    beginAction(): CemCheckpointAction;
     remove(): void;
     /** Rebind only after this coordinator's original complete resume admission. */
     resume(context: CemCheckpointResumeContext, nativeClient: CemCheckpointNativeClient, seal: CemCheckpointSealer): void;
@@ -173,7 +176,7 @@ export class CemCheckpointPublicationCoordinator {
      * and original resume tickets remain separate mandatory lifecycle steps. */
     recoveryEnrollment(): { participants: readonly import('./internal/runtime-support/native-generation.js').CemNativeGenerationParticipant[]; coverage?: CemNativeGenerationCoverage; current: () => boolean } {
         if (this.combined && !this.combined.disposed) return this.combined.recoveryEnrollment();
-        if ([...this.operations.values()].some(operation => operation.outcome === 'unknown')) throw Error('cem.checkpoint.recovery.unknown');
+        if (this.hasUnknownOperations()) throw Error('cem.checkpoint.recovery.unknown');
         if (!this.ready() || [...this.owners.values()].some(owner => !owner.endpoint?.resume)) throw Error('cem.checkpoint.recovery.unsupported');
         const participant = this.generationParticipant(), epoch = this.resumeEpoch;
         const current = () => !this.disposed && !this.blocked && epoch === this.resumeEpoch && !this.admissions.size && (!this.peerCurrent || this.peerCurrent());
@@ -226,6 +229,11 @@ export class CemCheckpointPublicationCoordinator {
                 owner.publicationPolicy = this.policySequence;
                 owner.publicationRuntime = owner.endpoint?.nativeClient ? nativeCheckpointIdentity(owner.endpoint.nativeClient) : undefined;
                 this.invalidate(); this.schedule();
+            },
+            beginAction: () => {
+                active();
+                if (this.blocked || this.hasUnknownOperations()) throw Error('cem.checkpoint.recovery.unknown');
+                return this.recordOperation(id);
             },
             resume: (context, nativeClient, seal) => {
                 active();
@@ -294,6 +302,14 @@ export class CemCheckpointPublicationCoordinator {
     /** Record before delivering a host operation. No arguments, command names
      * or callbacks enter the journal, and no operation is ever retried. */
     operation(instanceId: string): CemCheckpointOperation {
+        return this.recordOperation(instanceId);
+    }
+
+    private hasUnknownOperations(): boolean {
+        return [...this.operations.values()].some(operation => operation.outcome === 'unknown');
+    }
+
+    private recordOperation(instanceId: string): CemCheckpointAction {
         const owner = this.owners.get(instanceId);
         if (this.disposed || !owner || this.operations.size >= 256 || !Number.isSafeInteger(this.operationSequence + 1)) {
             this.blocked = true; this.invalidate(); throw new Error('cem.checkpoint.operations.limit');
@@ -303,9 +319,10 @@ export class CemCheckpointPublicationCoordinator {
         const record: CemCommitReceipt['operations'][number] = { instanceId, operationId, outcome: 'unknown' };
         this.operations.set(operationId, record); this.invalidate(); this.schedule();
         const source = new WeakRef(owner), policy = this.policySequence;
-        return Object.freeze({ operationId, acknowledge: () => {
-            if (this.disposed || this.policySequence !== policy || this.owners.get(instanceId) !== source.deref()
-                || this.operations.get(operationId) !== record || record.outcome !== 'unknown') return;
+        const current = () => !this.disposed && this.policySequence === policy && this.owners.get(instanceId) === source.deref()
+            && this.operations.get(operationId) === record && record.outcome === 'unknown';
+        return Object.freeze({ operationId, current, acknowledge: () => {
+            if (!current()) return;
             record.outcome = 'acknowledged'; this.invalidate(); this.schedule();
         } });
     }

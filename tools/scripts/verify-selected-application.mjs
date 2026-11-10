@@ -79,6 +79,10 @@ for (let index = 0; index < 2; index++) {
         const html = render(operation, readFileSync(resolve(fixture, `${name}.json`)));
         assert.match(html, expected, name);
         assert.ok(!html.includes('<img'), name);
+        if (name === 'cart') {
+            assert.match(html, /<cem-text-field [^>]*host-command-change="SetCartLineQuantity"[^>]*host-command-key="tea"/);
+            assert.match(html, /<cem-action [^>]*host-command="RemoveCartLine"[^>]*host-command-key="tea"/);
+        }
         if (name === 'removed') assert.ok(!html.includes('Tea'));
         if (name === 'empty' || name === 'failed') assert.ok(!html.includes('<li '));
     }

@@ -2,9 +2,9 @@
 
 Status: native reference fixture, strict artifact admission, shared compiled
 registration, declarative static-closure loading and compiled-form recovery in
-worker/fallback hosts, plus an isolated compiled-template/JSON WASM prototype,
-2026-10-29. The complete shopping-cart browser app, GraphQL action wiring, and
-reduced component integration remain pending.
+worker/fallback hosts, plus an isolated compiled-template/JSON WASM prototype.
+Quantity and removal now have guarded GraphQL action bindings exercised in
+Chromium. The Studio example and reduced browser distribution remain pending.
 This is the first concrete application case for the
 [component WASM profile](cem-components-wasm-profile.md#application-build-and-deployment-boundary).
 
@@ -1134,10 +1134,22 @@ and redirect refusal. A loopback test posts the cart's actual operation document
 and quantity variables, checks the original response bytes and confirms a
 redirect target receives no second request.
 
-The cart action integration will bind the selected operation and validated
-variables to a single dispatch, then admit the response through the selected
-runtime's GraphQL guard. Recovery must preserve the action's disposition before
-reacquiring its read resources.
+The cart binds a committed quantity edit to `SetCartLineQuantity` and native
+button activation to `RemoveCartLine`. Each authored control carries its line
+key. The host supplies the cart identity and the [action map](../packages/cem_ql/fixtures/component-application/shopping-cart/profile.json).
+The shared binding validates variables through the generated guard before
+recording an action or posting. It passes original response bytes to the
+selected guard for validation and native rendering before publication.
+
+The owner journal records the action as unknown before dispatch and acknowledges
+it after the host accepts the guarded response. An unresolved action blocks
+recovery and further action dispatch until the host reconciles the disposition.
+Rebinding to a fresh heap takes original response bytes and installs event
+listeners. Journal records carry no action arguments or callbacks to replay.
+The Chromium fixture exercises the compiled canonical field and action controls
+and counts the loopback POSTs across a fresh selected WASM heap, including
+refused variables, an in-flight action and an invalid response. The fixture uses
+the full component host for widget capabilities.
 
 ## Remaining delivery boundaries
 
@@ -1149,10 +1161,9 @@ reacquiring its read resources.
   templates and dynamic styles available through the full/on-demand runtime.
 - Verify optional module installation through a deployable catalog and loader.
   Extend native link evidence as additional application profiles are assembled.
-- Bind real quantity/remove actions through shared declarative resources and
-  GraphQL transport. The native render fixture sends no requests and has no
-  interactive action bindings. Register a normal Studio example project with
-  working build/preview only when those behaviors exist.
+- Register the cart as a normal Studio example project with its initial read,
+  build and preview. Exercise the action binding during complete worker and
+  fallback retirement and resume in that host.
 - Extend the isolated prototype to the complete compiled-UI + JSON distribution
   with verified native dependency/ABI closure. Verify optional module acquisition, offline
   behavior and worker/fallback recovery with the same app state and semantics.

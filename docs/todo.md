@@ -528,6 +528,9 @@ Deferred execution gates, in order within this workstream:
   - [x] Verify the shared HTTP transport sends bounded, host-authorized POST
         bodies as original bytes and refuses unsafe limits, origins and redirects.
         Keep mutation scheduling tied to an explicit action in the next step.
+  - [x] Wire cart quantity and removal to explicit declarative actions. Verify
+        the generated variable and response guards, journal fencing and zero
+        replay when rebinding a fresh selected heap in the browser fixture.
 
 - [ ] Extend the baseline with repeated cold/first-use latency, active-worker and
   aggregate host/native memory, all-capabilities/offline totals and clean npm

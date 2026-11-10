@@ -3,13 +3,12 @@
 This reference describes a small cart that shows products, quantities, totals
 and service errors. The build compiles its declarative view once; native tests
 reload the binary template and render changing JSON responses without compiling
-the view again. It is a deployment-contract fixture, not a runnable storefront:
-the quantity/remove controls have no transport binding yet, and no server or
-Studio project is installed by this fixture.
+the view again. The browser fixture binds quantity changes and removal to a
+local GraphQL endpoint through the shared guarded action binding. Studio
+project registration and service deployment are separate delivery steps.
 
-- [profile.json](profile.json): explicit app requirements and input files. This
-  reference manifest is consumed by native tests; it is not a finalized loader
-  protocol or proof that unused compiled engines have been removed.
+- [profile.json](profile.json) declares app requirements, input files and the
+  variable sources for each explicit GraphQL action.
 - [cart-view.cem](cart-view.cem): native declarative view using five existing
   `cem-components` members. It traverses the retained native JSON source tree;
   neither JavaScript nor a JSON AST transport reconstructs the view's data.
@@ -29,15 +28,12 @@ Studio project is installed by this fixture.
   cart with a null nullable shipping estimate and its error, and a failed cart
   request. Non-null cart lines/totals remain available in the partial result.
 
-Runtime requirements are compiled native template/expression execution, JSON
-decoding, shared form/action behaviors, DOM updates and ownership/recovery
-controls. The current template wire format still reparses native CSS on reload;
-CSS is retained until a compiled style contract is proven. Other formats and
-authoring tools are demand-loaded candidates. Strict binary admission now works
-without source through the shared worker/fallback processing path. Native
-build-generated metadata and the shared `registerCompiledDeclaration` API now
-register canonical components without downloading source, including form/action
-behaviors. See the [build/registration instructions](../../../../../docs/cem-components-shopping-cart-profile.md#build-generated-declarations).
-Automatic source loading, a complete declarative app bootstrap, compiled CSS
-admission and a smaller WASM remain separate work. No test contacts an API, stores credentials
-or changes credential recovery refusal, checkpoint budgets or deadlines.
+The browser fixture registers the canonical compiled widgets with the shared
+`registerCompiledDeclaration` API and uses the selected WASM guard for the
+entry, variables and responses. It uses a loopback GraphQL stub and checks
+that rebinding a fresh selected heap sends no saved mutation.
+See the [build and registration instructions](../../../../../docs/cem-components-shopping-cart-profile.md#build-generated-declarations).
+
+```sh
+yarn nx run cem_ql:test:selected-application-actions
+```

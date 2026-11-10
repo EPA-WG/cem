@@ -1,6 +1,6 @@
 import { hostAttributeCommitControl, prepareHostAttributePublication, type NativeHostAttributeCommit, type PreparedHostAttributePublication } from './internal/runtime-support/host-attribute-publication.js';
 import { compiledDeclarationWork, readCompiledDeclarationAsset } from './compiled-declaration-assets.js';
-import { openCemHttpResource as defaultLoadHttpResource, streamCemHttpResponseBody as responseBody } from './http-resource-transport.js';
+import { HttpResourceError, openCemHttpResource as defaultLoadHttpResource, readByteStream, streamCemHttpResponseBody as responseBody } from './http-resource-transport.js';
 import { CemRecoveryStatusObserver } from './recovery-status.js';
 import { prepareCemProviderHandoff, type CemProviderHandoff } from './checkpoint-provider-handoff.js';
 import { isCemCredentialControl, prepareCemEditorProviderHandoff } from './form-control-capability.js';
@@ -10394,35 +10394,6 @@ function httpSourceMapRef(sourceId: CemHttpResourceSourceId): SourceMapRef {
     return { fidelity: 'declaration-only', frame: `http:${sourceId.id}` };
 }
 
-async function readByteStream(
-    body: AsyncIterable<Uint8Array>,
-    maxResponseBytes: number,
-    signal: AbortSignal,
-): Promise<Uint8Array> {
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    for await (const chunk of body) {
-        if (signal.aborted) {
-            throw new HttpResourceError('cem-element.http_request_aborted', 'http-request was aborted');
-        }
-        chunks.push(chunk);
-        size += chunk.byteLength;
-        if (size > maxResponseBytes) {
-            throw new HttpResourceError(
-                'cem-element.http_request_response_too_large',
-                `http-request response exceeded ${maxResponseBytes} bytes`,
-            );
-        }
-    }
-    const bytes = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-        bytes.set(chunk, offset);
-        offset += chunk.byteLength;
-    }
-    return bytes;
-}
-
 function httpRequestCacheKey(input: {
     baseUrl: string;
     scope: string;
@@ -10454,16 +10425,6 @@ function stableJson(value: unknown): string {
             .join(',')}}`;
     }
     return JSON.stringify(value);
-}
-
-class HttpResourceError extends Error {
-    readonly code: string;
-
-    constructor(code: string, message: string) {
-        super(message);
-        this.name = 'HttpResourceError';
-        this.code = code;
-    }
 }
 
 function isUrlLikeSpecifier(specifier: string): boolean {
