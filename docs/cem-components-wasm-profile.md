@@ -453,10 +453,11 @@ flat original instances. Rust-only input enrollment issues per-session opaque
 tokens, with native census and cleanup. Source-only checkpoints refuse while
 these input owners remain live. The opt-in Rust adapter now captures a single
 original input and its passive dependency sources and checks their fresh lexical
-bindings during restore. Physical worker and owned fallback recovery still need
-to enroll the capsule and suppress consumed writes. Typed-only producers,
-richer topology, declaration/CSS/provider ownership, generated application
-bootstraps and production component admission remain gated.
+bindings during restore. Worker and owned fallback recovery now enroll the
+capsule in the shared source resource transaction, verify the original native
+seal and terminal journal, and suppress already-consumed writes. Typed-only
+producers, richer topology, declaration/CSS/provider ownership, generated
+application bootstraps and production component admission remain gated.
 
 
 Do not equate downloaded code with an active native generation. Register every

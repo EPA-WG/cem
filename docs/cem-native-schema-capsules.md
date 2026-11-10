@@ -1930,10 +1930,26 @@ The fresh bootstrap registers the decoded source owners, recreates the lexical
 contexts and explicitly authorizes cross-scope references. Restoration checks
 the deployment, the new generation, and those exact fresh owners before
 enrolling a new native input. The wire carries no live scope IDs, grants or
-runtime handles. The worker and owned fallback fixture still releases its
-immutable input before source capture and enrolls a fresh original input after
-rebinding. Enrolling the capsule in physical recovery and suppressing consumed
-writes are separate gates, as are typed-only producers and production admission.
+runtime handles.
+
+The opt-in receiver route of the shared source resource charges the capsule,
+deployment, and retained journal to the same workspace budget. The original
+native session consumes its seal and releases its owners together at retirement.
+The journal must name the original runtime, receiver route, deployment and
+capsule revision, with terminal outcomes. The shared binding transaction carries
+the resulting pin independently of the capsule and supplies the original sealed
+journal to the fresh embedding. The fresh native generation checks both digests
+before decoding, and the Rust bootstrap recreates the scopes and grants before
+the host route can bind. Only the trusted embedding and its private worker
+transport handle this pin.
+
+The restored write journal suppresses operation IDs recorded for the receiver
+route and writes at or before its accepted event sequence. A later input can
+claim a new operation once. The worker and owned fallback fixtures edit both
+the receiver and its referenced data, render from the fresh owners, and exercise
+consumed writes, stale edits, credential refusal, tampered packets and journals,
+and the aggregate byte limit. Typed-only producers and production admission
+remain separate gates.
 
 ## Native publication generation enrollment
 

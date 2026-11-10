@@ -437,7 +437,7 @@ they do not manufacture a datatype or infer a code grant from metadata.
 
 Deferred execution gates, in order within this workstream:
 
-- [ ] Add portable native receiver input/context checkpoint handoff before active
+- [x] Add portable native receiver input/context checkpoint handoff before active
   input recovery. Capture original sources, scopes and input-owner contracts with
   privacy/budget guards; require fresh original input owners and consumed-write
   suppression on resume. Keep source-only capture blocked while input owners
@@ -447,9 +447,10 @@ Deferred execution gates, in order within this workstream:
         node bindings. Native fixtures cover changed input and referenced data,
         stale scopes, expired seals, foreign bytes, credential refusal and
         aggregate limits. See [native-owned receiver frames](cem-native-schema-capsules.md#native-owned-receiver-frames).
-  - [ ] Enroll the input capsule as a recovery resource and test mutable input,
-        fresh scoped bindings and consumed-write suppression in worker and
-        owned fallback handoffs.
+  - [x] Enroll the input capsule as a recovery resource. Worker and owned
+        fallback fixtures confirm the original seal at retirement, restore
+        edited input with fresh scopes and suppress consumed writes. They refuse
+        stale edits, foreign packets, modified journals and excess retained bytes.
 
 - [ ] Extend native-owned frames with explicit typed-only producers and remaining
   child/field instance contracts. Reuse original admission/profile authorities,

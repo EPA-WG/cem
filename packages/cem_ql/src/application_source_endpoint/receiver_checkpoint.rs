@@ -8,6 +8,7 @@ use crate::{
     types::Type,
 };
 use cem_ml::{
+    committed_checkpoint::{self, OperationOutcome},
     content_cache::ContentHash,
     parser::{AstNodeId, CemAstNode},
     schema::native_source::dependencies::NativeDependencySourceSnapshot,
@@ -44,6 +45,7 @@ struct Packet {
 pub struct ReceiverCheckpointSeal {
     digest: ContentHash,
     byte_length: usize,
+    declaration: String,
     origin: Weak<NativeGeneration>,
     epoch: Arc<AtomicUsize>,
     revision: usize,
@@ -53,7 +55,70 @@ pub struct ReceiverCheckpointSeal {
 
 pub struct VerifiedReceiverCheckpoint {
     packet: PacketOwners,
-    seal: ReceiverCheckpointSeal,
+    admission: ReceiverCheckpointAdmission,
+}
+
+enum ReceiverCheckpointAdmission {
+    Local(ReceiverCheckpointSeal),
+    Physical {
+        generation: Weak<NativeGeneration>,
+        control: OperationControl,
+        byte_length: usize,
+    },
+}
+
+impl ReceiverCheckpointAdmission {
+    fn check(&self) -> Result<(), String> {
+        match self {
+            Self::Local(seal) => seal.check(),
+            Self::Physical { control, .. } => check(control),
+        }
+    }
+
+    fn control(&self) -> &OperationControl {
+        match self {
+            Self::Local(seal) => &seal.control,
+            Self::Physical { control, .. } => control,
+        }
+    }
+}
+
+/// This pin is issued by the original native owner. It must reach the fresh
+/// embedding through the original physical recovery transaction, independently
+/// of the packet and journal. Deserializing a caller-supplied pin grants nothing.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReceiverRecoveryPin {
+    receiver: ContentHash,
+    journal: ContentHash,
+    declaration: String,
+    runtime_id: String,
+    instance_id: String,
+}
+
+/// A fresh owner claims a new operation before delivering a write. The original
+/// terminal journal and accepted sequence fence both explicit and implicit replay.
+pub struct ReceiverWriteJournal {
+    sequence: u64,
+    captured_sequence: u64,
+    operations: BTreeSet<String>,
+}
+
+impl ReceiverWriteJournal {
+    pub fn claim_write(&mut self, sequence: u64, operation_id: &str) -> bool {
+        if sequence <= self.captured_sequence
+            || sequence < self.sequence
+            || sequence > 9_007_199_254_740_991
+            || operation_id.is_empty()
+            || operation_id.len() > 1024
+            || operation_id.chars().any(char::is_control)
+            || self.operations.len() >= 256
+        {
+            return false;
+        }
+        self.sequence = sequence;
+        self.operations.insert(operation_id.into())
+    }
 }
 
 struct PacketOwners {
@@ -86,46 +151,160 @@ impl ReceiverCheckpointSeal {
         if bytes.len() > MAX_BYTES || ContentHash::from_blake3(bytes) != self.digest {
             return Err(REFUSED.into());
         }
-        let body = bytes.strip_prefix(MAGIC).ok_or(REFUSED)?;
-        let mut poll = || self.check();
-        cem_ml::native_binary::preflight_messagepack(body, 1_000_000, 64, &mut poll)?;
-        let mut decoder = rmp_serde::Deserializer::from_read_ref(body);
-        decoder.set_max_depth(64);
-        let packet = Packet::deserialize(&mut decoder).map_err(|_| REFUSED)?;
-        if transport::encode(&packet)? != body
-            || packet.sources.len() > MAX_SOURCES
-            || packet
-                .sources
-                .values()
-                .map(|s| s.snapshot.node_count())
-                .sum::<usize>()
-                > MAX_NODES
+        let packet = decode_packet(bytes, &mut || self.check())?;
+        self.check()?;
+        Ok(VerifiedReceiverCheckpoint {
+            packet,
+            admission: ReceiverCheckpointAdmission::Local(self),
+        })
+    }
+
+    pub fn revision(&self) -> String {
+        self.digest.header_value()
+    }
+
+    /// Consume the original local seal immediately before physical retirement.
+    fn confirm_physical_handoff(
+        self,
+        bytes: &[u8],
+        journal: &[u8],
+        runtime_id: &str,
+        instance_id: &str,
+    ) -> Result<ReceiverRecoveryPin, String> {
+        self.check()?;
+        if bytes.len() != self.byte_length
+            || journal.len() > MAX_WORKSPACE_BYTES
+            || ContentHash::from_blake3(bytes) != self.digest
         {
             return Err(REFUSED.into());
         }
-        let sources = packet
-            .sources
-            .into_iter()
-            .map(|(uri, record)| {
-                let source = record.restore(&mut poll)?;
-                NativeDependencySourceSnapshot::check_checkpoint_privacy(
-                    &source.capture,
-                    &source.identity,
-                    &mut poll,
-                )?;
-                Ok((uri, source))
-            })
-            .collect::<Result<_, String>>()?;
-        let packet = PacketOwners {
-            deployment: packet.deployment,
-            tag: packet.tag,
-            input: packet.input,
-            bindings: packet.bindings,
-            sources,
+        let pin = ReceiverRecoveryPin {
+            receiver: self.digest.clone(),
+            journal: ContentHash::from_blake3(journal),
+            declaration: self.declaration.clone(),
+            runtime_id: runtime_id.into(),
+            instance_id: instance_id.into(),
         };
+        pin.read_journal(journal)?;
         self.check()?;
-        Ok(VerifiedReceiverCheckpoint { packet, seal: self })
+        Ok(pin)
     }
+}
+
+impl ReceiverRecoveryPin {
+    fn read_journal(&self, bytes: &[u8]) -> Result<ReceiverWriteJournal, String> {
+        let checkpoint = committed_checkpoint::read_sealed(bytes)?;
+        let receipt = checkpoint.receipt;
+        let owner = receipt
+            .owners
+            .iter()
+            .find(|owner| owner.instance_id == self.instance_id)
+            .ok_or(REFUSED)?;
+        if receipt.runtime_id != self.runtime_id
+            || owner.declaration_identity != self.declaration
+            || owner.data_revision != self.receiver.header_value()
+            || receipt
+                .operations
+                .iter()
+                .any(|op| op.outcome == OperationOutcome::Unknown)
+        {
+            return Err(REFUSED.into());
+        }
+        Ok(ReceiverWriteJournal {
+            sequence: owner.accepted_event_sequence,
+            captured_sequence: owner.accepted_event_sequence,
+            operations: receipt
+                .operations
+                .into_iter()
+                .filter(|op| op.instance_id == self.instance_id)
+                .map(|op| op.operation_id)
+                .collect(),
+        })
+    }
+
+    /// The trusted embedding supplies the original out-of-band pin and the
+    /// actual newly allocated generation. Only passive owners are decoded here.
+    pub fn verify(
+        self,
+        bytes: &[u8],
+        journal: &[u8],
+        previous_runtime_id: &str,
+        generation: &Arc<NativeGeneration>,
+        control: &OperationControl,
+    ) -> Result<(VerifiedReceiverCheckpoint, ReceiverWriteJournal), String> {
+        let _entry = generation.admit().map_err(|_| REFUSED)?;
+        check(control)?;
+        if bytes.len() > MAX_BYTES
+            || journal.len() > MAX_WORKSPACE_BYTES
+            || self.runtime_id != previous_runtime_id
+            || ContentHash::from_blake3(bytes) != self.receiver
+            || ContentHash::from_blake3(journal) != self.journal
+        {
+            return Err(REFUSED.into());
+        }
+        let journal = self.read_journal(journal)?;
+        let packet = decode_packet(bytes, &mut || check(control))?;
+        check(control)?;
+        Ok((
+            VerifiedReceiverCheckpoint {
+                packet,
+                admission: ReceiverCheckpointAdmission::Physical {
+                    generation: Arc::downgrade(generation),
+                    control: control.clone(),
+                    byte_length: bytes.len(),
+                },
+            },
+            journal,
+        ))
+    }
+}
+
+fn decode_packet(
+    bytes: &[u8],
+    poll: &mut dyn FnMut() -> Result<(), String>,
+) -> Result<PacketOwners, String> {
+    let body = bytes.strip_prefix(MAGIC).ok_or(REFUSED)?;
+    cem_ml::native_binary::preflight_messagepack(body, 1_000_000, 64, &mut *poll)?;
+    let mut decoder = rmp_serde::Deserializer::from_read_ref(body);
+    decoder.set_max_depth(64);
+    let packet = Packet::deserialize(&mut decoder).map_err(|_| REFUSED)?;
+    if transport::encode(&packet)? != body
+        || packet.sources.len() > MAX_SOURCES
+        || packet
+            .sources
+            .values()
+            .map(|s| s.snapshot.node_count())
+            .sum::<usize>()
+            > MAX_NODES
+    {
+        return Err(REFUSED.into());
+    }
+    let sources: BTreeMap<String, SourceInput> = packet
+        .sources
+        .into_iter()
+        .map(|(uri, record)| {
+            if uri != record.identity.uri {
+                return Err(REFUSED.into());
+            }
+            let source = record.restore(poll)?;
+            NativeDependencySourceSnapshot::check_checkpoint_privacy(
+                &source.capture,
+                &source.identity,
+                poll,
+            )?;
+            Ok((uri, source))
+        })
+        .collect::<Result<_, String>>()?;
+    if !sources.contains_key(&packet.input.uri) {
+        return Err(REFUSED.into());
+    }
+    Ok(PacketOwners {
+        deployment: packet.deployment,
+        tag: packet.tag,
+        input: packet.input,
+        bindings: packet.bindings,
+        sources,
+    })
 }
 
 impl VerifiedReceiverCheckpoint {
@@ -140,7 +319,7 @@ impl VerifiedReceiverCheckpoint {
     /// Passive input bindings for the trusted bootstrap to install in the
     /// fresh scopes. Registering sources and granting crossings remain explicit.
     pub fn input_context(&self) -> Result<StandaloneExpressionContext, String> {
-        self.seal.check()?;
+        self.admission.check()?;
         let mut context = StandaloneExpressionContext::default();
         for (name, selector) in &self.packet.bindings {
             let root = RetainedCemNode::new(
@@ -314,6 +493,26 @@ fn scoped_bindings(
 }
 
 impl ApplicationSourceSession {
+    /// Validate the original seal on the exact session before retiring it.
+    pub fn confirm_receiver_retirement(
+        &self,
+        seal: ReceiverCheckpointSeal,
+        bytes: &[u8],
+        journal: &[u8],
+        runtime_id: &str,
+        instance_id: &str,
+    ) -> Result<ReceiverRecoveryPin, String> {
+        let _entry = self.enter()?;
+        if !Arc::ptr_eq(&seal.epoch, &self.receiver_checkpoint_epoch)
+            || self.receiver_inputs.load(Ordering::Acquire) != 1
+        {
+            return Err(REFUSED.into());
+        }
+        let pin = seal.confirm_physical_handoff(bytes, journal, runtime_id, instance_id)?;
+        self.check()?;
+        Ok(pin)
+    }
+
     /// Capture one exact current owner. Available bytes include the application
     /// deployment and its pins; callers subtract other retained resources first.
     pub fn capture_receiver_checkpoint(
@@ -421,6 +620,7 @@ impl ApplicationSourceSession {
         let seal = ReceiverCheckpointSeal {
             digest: ContentHash::from_blake3(&bytes),
             byte_length: bytes.len(),
+            declaration: self.prepared.sources.pin().hash.clone(),
             origin: self.endpoint.upgrade().ok_or(REFUSED)?.generation.clone(),
             epoch: self.receiver_checkpoint_epoch.clone(),
             revision,
@@ -440,14 +640,26 @@ impl ApplicationSourceSession {
         available_bytes: usize,
     ) -> Result<ApplicationReceiverInput, String> {
         let _entry = self.enter()?;
-        let VerifiedReceiverCheckpoint { packet, seal } = checkpoint;
-        seal.check()?;
+        let VerifiedReceiverCheckpoint { packet, admission } = checkpoint;
+        admission.check()?;
         let endpoint = self.endpoint.upgrade().ok_or(REFUSED)?;
-        if Weak::ptr_eq(&seal.origin, &endpoint.generation)
-            || packet.deployment != deployment_pin(&self.prepared.sources)?
+        let byte_length = match &admission {
+            ReceiverCheckpointAdmission::Local(seal)
+                if !Weak::ptr_eq(&seal.origin, &endpoint.generation) =>
+            {
+                seal.byte_length
+            }
+            ReceiverCheckpointAdmission::Physical {
+                generation,
+                byte_length,
+                ..
+            } if Weak::ptr_eq(generation, &endpoint.generation) => *byte_length,
+            _ => return Err(REFUSED.into()),
+        };
+        if packet.deployment != deployment_pin(&self.prepared.sources)?
             || checkpoint_artifact(self.prepared.current()?, &packet.tag).is_err()
             || self.receiver_inputs.load(Ordering::Acquire) != 0
-            || seal.byte_length > checkpoint_budget(&self.prepared.sources, available_bytes)?
+            || byte_length > checkpoint_budget(&self.prepared.sources, available_bytes)?
         {
             return Err(REFUSED.into());
         }
@@ -457,8 +669,12 @@ impl ApplicationSourceSession {
             .iter()
             .map(|(uri, source)| (uri.clone(), source))
             .collect();
-        if scoped_bindings(&self.prepared.host, &packet.input, &sources, &seal.control)?
-            != packet.bindings
+        if scoped_bindings(
+            &self.prepared.host,
+            &packet.input,
+            &sources,
+            admission.control(),
+        )? != packet.bindings
         {
             return Err(REFUSED.into());
         }
@@ -473,7 +689,7 @@ impl ApplicationSourceSession {
         )
         .ok_or(REFUSED)?;
         let input = self.register_receiver_input(&packet.tag, root)?;
-        seal.check()?;
+        admission.check()?;
         Ok(input)
     }
 }

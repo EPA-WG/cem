@@ -4,6 +4,7 @@ import { assertNativeGenerationResourceTarget, assertNativeGenerationResourceBud
 const shared = globalThis[Symbol.for('cem.query-source.endpoints.v1')] ??= { endpoints: new WeakMap() };
 const fail = code => { throw Error(`cem.query.resource.${code}`); };
 const MAX_BYTES = 69643, MAX_PINS = 16384;
+const MAX_RECEIVER = 1024 * 1024, MAX_WORKSPACE = 4 * MAX_RECEIVER;
 function source(bytes, pins, limit = MAX_BYTES) {
     if (!(bytes instanceof Uint8Array) || !(bytes.buffer instanceof ArrayBuffer) || !bytes.length || bytes.length > limit
         || typeof pins !== 'string' || pins.length > MAX_PINS || new TextEncoder().encode(pins).length > MAX_PINS) fail('limit');
@@ -13,6 +14,16 @@ function endpointRecord(endpoint) {
     const record = shared.endpoints.get(endpoint);
     if (!record) fail('endpoint');
     return record;
+}
+function receiverCapture(value) {
+    if (typeof value?.revision !== 'string' || !/^cem-bin\/1\+blake3:[0-9a-f]{64}$/.test(value.revision)) fail('receiver');
+    return { bytes: source(value.bytes, '', MAX_RECEIVER), revision: value.revision };
+}
+function receiverRecovery(value) {
+    if (typeof value?.runtimeId !== 'string' || !value.runtimeId || value.runtimeId.length > 1024
+        || typeof value.pin !== 'string' || !value.pin) fail('receiver');
+    return { bytes: source(value.bytes, value.pin, MAX_RECEIVER), journal: source(value.journal, '', MAX_WORKSPACE),
+        pin: value.pin, runtimeId: value.runtimeId };
 }
 /** Native endpoints must first be provisioned by their trusted Rust embedding.
  * Keep the actual Memory weakly; an equal factory/foreign heap cannot substitute
@@ -73,17 +84,19 @@ export function createQuerySourceEndpoint(options) {
         } finally { clearTimeout(timer); if (cancel) signal?.removeEventListener('abort', cancel); }
     }
     const original = owner => { const entry = owners.get(owner); if (!entry || entry.releasing) fail('owner'); return entry; };
+    const open = async (bytes, pins, signal, recovery) => {
+        if (owners.size >= 64) fail('limit');
+        const copy = source(bytes, pins, maxSourceBytes);
+        const value = await bounded(() => recovery ? native.receiver.open(copy, pins, recovery) : native.open(copy, pins),
+            signal, value => native.release(value));
+        if (!live()) { await native.release(value); fail('stale'); }
+        if (owners.size >= 64) { await native.release(value); fail('limit'); }
+        const owner = Object.freeze({ kind: 'cem-query-source-owner' });
+        owners.set(owner, { value, releasing: false }); return owner;
+    };
     const endpoint = Object.freeze({ participant,
         identity: () => physical.deref(), current: () => live() && pending === 0,
-        async open(bytes, pins, signal) {
-            if (owners.size >= 64) fail('limit');
-            const copy = source(bytes, pins, maxSourceBytes);
-            const value = await bounded(() => native.open(copy, pins), signal, value => native.release(value));
-            if (!live()) { await native.release(value); fail('stale'); }
-            if (owners.size >= 64) { await native.release(value); fail('limit'); }
-            const owner = Object.freeze({ kind: 'cem-query-source-owner' });
-            owners.set(owner, { value, releasing: false }); return owner;
-        },
+        open: (bytes, pins, signal) => open(bytes, pins, signal),
         async capture(owner, signal) {
             const entry = original(owner);
             const bytes = await bounded(() => native.capture(entry.value), signal);
@@ -102,7 +115,28 @@ export function createQuerySourceEndpoint(options) {
             owners.clear(); options.close?.();
         },
     });
-    shared.endpoints.set(endpoint, { participant, physical, maxSourceBytes, current: endpoint.current });
+    const receiver = native.receiver && {
+        async capture(owner, signal) {
+            const entry = original(owner);
+            return receiverCapture(await bounded(() => native.receiver.capture(entry.value), signal));
+        },
+        async retire(owner, bytes, journal) {
+            const entry = original(owner);
+            const capsule = source(bytes, '', MAX_RECEIVER), sealedJournal = source(journal, '', MAX_WORKSPACE);
+            entry.releasing = true;
+            try {
+                const pin = await bounded(() => native.receiver.retire(entry.value, capsule, sealedJournal));
+                owners.delete(owner);
+                if (typeof pin !== 'string' || !pin || pin.length > MAX_PINS
+                    || new TextEncoder().encode(pin).length > MAX_PINS) fail('receiver');
+                return pin;
+            } finally {
+                entry.releasing = false;
+            }
+        },
+        open: (bytes, pins, recovery, signal) => open(bytes, pins, signal, receiverRecovery(recovery)),
+    };
+    shared.endpoints.set(endpoint, { participant, physical, maxSourceBytes, receiver, current: endpoint.current });
     return endpoint;
 }
 /** A private MessagePort created/transferred by the trusted Worker owner. The
@@ -136,6 +170,15 @@ export function createQuerySourceWorkerEndpoint(options) {
             open: async (bytes, pins) => { const id = await call('open', { bytes, pins }); if (!Number.isSafeInteger(id) || id < 1) { failed = true; fail('transport'); } return id; },
             capture: id => call('capture', id),
             release: async id => { if (await call('release', id) !== true) { failed = true; fail('transport'); } },
+            receiver: options.receiverRecovery === true ? {
+                capture: id => call('capture-receiver', id),
+                retire: (id, bytes, journal) => call('confirm-receiver', { id, bytes, journal }),
+                open: async (bytes, pins, recovery) => {
+                    const id = await call('open-receiver', { bytes, pins, recovery });
+                    if (!Number.isSafeInteger(id) || id < 1) { failed = true; fail('transport'); }
+                    return id;
+                },
+            } : undefined,
         } });
 }
 /** Worker-side trusted binding adapter. IDs select only this original private
@@ -153,16 +196,25 @@ export function installQuerySourceWorkerTransport(port, native) {
                 if (!Number.isSafeInteger(id) || id <= latest) fail('transport');
                 latest = id;
                 let result;
-                if (op === 'open') {
+                if (op === 'open' || op === 'open-receiver') {
                     if (owners.size >= 64) fail('limit');
                     const bytes = source(value?.bytes, value?.pins, limit);
-                    const owner = await native.open(bytes, value.pins);
+                    const owner = await (op === 'open'
+                        ? native.open(bytes, value.pins)
+                        : native.receiver?.open(bytes, value.pins, receiverRecovery(value.recovery)) ?? fail('receiver'));
                     if (closed) { await native.release(owner); return; }
                     owners.set(++sequence, owner); result = sequence;
                 } else {
-                    if (!owners.has(value)) fail('owner');
-                    const owner = owners.get(value);
+                    const key = op === 'confirm-receiver' ? value?.id : value;
+                    if (!owners.has(key)) fail('owner');
+                    const owner = owners.get(key);
                     if (op === 'capture') result = source(await native.capture(owner), '', limit);
+                    else if (op === 'capture-receiver') result = receiverCapture(await native.receiver?.capture(owner));
+                    else if (op === 'confirm-receiver') {
+                        result = await (native.receiver?.retire(owner,
+                            source(value.bytes, '', MAX_RECEIVER), source(value.journal, '', MAX_WORKSPACE)) ?? fail('receiver'));
+                        owners.delete(key);
+                    }
                     else if (op === 'release') { await native.release(owner); owners.delete(value); result = true; }
                     else fail('transport');
                 }
@@ -186,18 +238,33 @@ export class QuerySourceResource {
         const owner = await options.endpoint.open(bytes, options.pins, signal);
         const resource = new QuerySourceResource();
         resource.#endpoint = options.endpoint; resource.#owner = owner; resource.#bytes = bytes; resource.#pins = options.pins;
-        resource.#options = { current: options.current, target: options.target, peers: options.peers, onBound: options.onBound };
+        if (options.receiverCheckpoint !== undefined
+            && (typeof options.receiverCheckpoint !== 'function' || !record.receiver)) {
+            await options.endpoint.release(owner); fail('receiver');
+        }
+        resource.#options = { current: options.current, target: options.target, peers: options.peers,
+            onBound: options.onBound, receiverCheckpoint: options.receiverCheckpoint };
         try { resource.#enroll(); } catch (error) { await options.endpoint.release(owner); throw error; }
         return resource;
     }
     async prepareRecovery(signal) {
-        this.#snapshot = undefined;
+        this.#clearSnapshot();
         if (this.#closed || this.#options.current() !== true) fail('policy');
         const endpoint = this.#endpoint, owner = this.#owner;
-        const bytes = await endpoint.capture(owner, signal);
+        const receiver = this.#options.receiverCheckpoint ? endpointRecord(endpoint).receiver : undefined;
+        const captured = receiver ? await receiver.capture(owner, signal) : undefined;
+        const bytes = captured?.bytes ?? await endpoint.capture(owner, signal);
         if (this.#closed || this.#endpoint !== endpoint || this.#options.current() !== true || !endpoint.current()
-            || bytes.length !== this.#bytes.length || bytes.some((byte, i) => byte !== this.#bytes[i])) fail('stale');
-        this.#snapshot = { endpoint, owner, released: false };
+            || !captured && (bytes.length !== this.#bytes.length || bytes.some((byte, i) => byte !== this.#bytes[i]))) {
+            captured?.bytes.fill(0);
+            fail('stale');
+        }
+        this.#snapshot = { endpoint, owner, released: false, receiver: captured };
+        return captured?.revision;
+    }
+    #clearSnapshot() {
+        this.#snapshot?.receiver?.bytes.fill(0);
+        this.#snapshot = undefined;
     }
     #enroll() {
         const participant = endpointRecord(this.#endpoint).participant;
@@ -208,18 +275,28 @@ export class QuerySourceResource {
                 && this.#options.current() === true && (snapshot.released || snapshot.endpoint.current())
                 && (!peers || this.#options.peers?.().length === peers.length && peers.every(p => this.#options.peers().includes(p)));
             if (!current()) fail('stale');
-            return { current, peers, retainedBytes: this.#bytes.length + new TextEncoder().encode(this.#pins).length,
+            const receiver = snapshot.receiver;
+            // The original native owner issues the pin only at retirement.
+            const receiverBytes = receiver ? receiver.bytes.length + MAX_PINS : 0;
+            return { current, peers, retainedBytes: this.#bytes.length + new TextEncoder().encode(this.#pins).length + receiverBytes,
                 release: async () => {
                     if (!current() || snapshot.released) fail('stale');
-                    await snapshot.endpoint.release(snapshot.owner);
-                    if (!current()) fail('stale');
+                    if (receiver) receiver.pin = await endpointRecord(snapshot.endpoint).receiver.retire(snapshot.owner,
+                        receiver.bytes, this.#options.receiverCheckpoint());
+                    else await snapshot.endpoint.release(snapshot.owner);
                     snapshot.released = true;
+                    if (!current()) fail('stale');
                 },
                 prepare: async context => {
                     if (!current() || !snapshot.released || context.signal.aborted) fail('stale');
                     const target = this.#options.target(context.generation.runtime), record = endpointRecord(target);
                     assertNativeGenerationResourceTarget(record.participant, context.generation.runtimeId, record.physical.deref());
-                    const owner = await target.open(this.#bytes, this.#pins, context.signal);
+                    if (receiver && !record.receiver) fail('receiver');
+                    const owner = await (receiver ? record.receiver.open(this.#bytes, this.#pins, {
+                        bytes: receiver.bytes, pin: receiver.pin, journal: context.generation.checkpoint,
+                        runtimeId: context.generation.previousRuntimeId,
+                    }, context.signal) : target.open(this.#bytes, this.#pins, context.signal));
+                    if (this.#closed) { await target.release(owner); fail('stale'); }
                     this.#staged = { target, owner };
                     let discarded = false;
                     const discard = () => { if (discarded) return; discarded = true; void this.dispose(); };
@@ -228,7 +305,7 @@ export class QuerySourceResource {
                         bind: () => {
                             if (!context.active() || !current() || discarded || context.signal.aborted) fail('stale');
                             this.#registration.remove(); this.#endpoint = target; this.#owner = owner; this.#staged = undefined; this.#enroll();
-                        }, bound: () => { this.#snapshot = undefined; this.#options.onBound?.(target); }, discard };
+                        }, bound: () => { this.#clearSnapshot(); this.#options.onBound?.(target); }, discard };
                 } };
         }, () => { void this.dispose(); });
     }
@@ -237,7 +314,7 @@ export class QuerySourceResource {
         this.#closed = true; this.#registration?.remove();
         const owner = this.#owner, endpoint = this.#endpoint;
         const released = this.#snapshot?.released && this.#snapshot.owner === owner && this.#snapshot.endpoint === endpoint;
-        this.#bytes.fill(0); this.#pins = ''; this.#snapshot = undefined;
+        this.#bytes.fill(0); this.#pins = ''; this.#clearSnapshot();
         if (!released) await endpoint.release(owner).catch(() => {});
         const staged = this.#staged; this.#staged = undefined;
         if (staged && staged.owner !== owner) await staged.target.release(staged.owner).catch(() => {});

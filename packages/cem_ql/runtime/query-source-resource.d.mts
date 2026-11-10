@@ -15,6 +15,13 @@ export interface QuerySourceNativeBackend {
     open(bytes: Uint8Array, pins: string): unknown | Promise<unknown>;
     capture(owner: unknown): Uint8Array | Promise<Uint8Array>;
     release(owner: unknown): unknown | Promise<unknown>;
+    /** Original Rust embedding routes on the exact native heap. */
+    receiver?: {
+        capture(owner: unknown): { bytes: Uint8Array; revision: string } | Promise<{ bytes: Uint8Array; revision: string }>;
+        /** Confirm the current native seal and release the same owner atomically. */
+        retire(owner: unknown, bytes: Uint8Array, journal: Uint8Array): string | Promise<string>;
+        open(bytes: Uint8Array, pins: string, recovery: { bytes: Uint8Array; pin: string; journal: Uint8Array; runtimeId: string }): unknown | Promise<unknown>;
+    };
 }
 /** Requires prior trusted native provisioning; tokens stay in the original heap. */
 export declare function createQuerySourceWasmBackend(runtime: {
@@ -42,7 +49,7 @@ export interface QuerySourceEndpointOptions {
     close?(): void;
 }
 export declare function createQuerySourceEndpoint(options: QuerySourceEndpointOptions): QuerySourceEndpoint;
-export declare function createQuerySourceWorkerEndpoint(options: Omit<QuerySourceEndpointOptions, 'native' | 'close'> & { port: MessagePort }): QuerySourceEndpoint;
+export declare function createQuerySourceWorkerEndpoint(options: Omit<QuerySourceEndpointOptions, 'native' | 'close'> & { port: MessagePort; receiverRecovery?: boolean }): QuerySourceEndpoint;
 export declare function installQuerySourceWorkerTransport(port: MessagePort, native: QuerySourceNativeBackend): Readonly<{ dispose(): Promise<void> }>;
 export interface QuerySourceResourceOptions {
     endpoint: QuerySourceEndpoint;
@@ -53,10 +60,13 @@ export interface QuerySourceResourceOptions {
     target(runtime: CemNativeGenerationBindingContext['generation']['runtime']): QuerySourceEndpoint;
     peers?(): readonly CemNativeGenerationParticipant[];
     onBound?(endpoint: QuerySourceEndpoint): void;
+    /** Retain the current trusted native-sealed journal for receiver retirement. */
+    receiverCheckpoint?(): Uint8Array;
 }
 export declare class QuerySourceResource {
     #private;
     static open(options: QuerySourceResourceOptions, signal?: AbortSignal): Promise<QuerySourceResource>;
-    prepareRecovery(signal?: AbortSignal): Promise<void>;
+    /** Receiver recovery returns the original native capsule revision. */
+    prepareRecovery(signal?: AbortSignal): Promise<string | undefined>;
     dispose(): Promise<void>;
 }

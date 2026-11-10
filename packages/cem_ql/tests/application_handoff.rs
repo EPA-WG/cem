@@ -410,6 +410,14 @@ fn native_application_worker_fixture_has_original_sources_and_real_consumers() {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("installed.cemah"), bytes.bytes).unwrap();
         std::fs::write(dir.join("installed.inputs"), input).unwrap();
+        for (name, view, cart) in [
+            ("edited", "{view @items={#data} @count=4 @choice=ok}", "{cart @title=Coffee | {item @quantity=4}}"),
+            ("later", fixture::VIEW, "{cart @title=Cocoa | {item @quantity=2}}"),
+            ("private", fixture::VIEW, "{cart @title=Tea @password=private | {item @quantity=3}}"),
+        ] {
+            let (_, input) = fixture::prepared_sources(view, fixture::RECEIVER, cart);
+            std::fs::write(dir.join(format!("installed.{name}.inputs")), input).unwrap();
+        }
         std::fs::write(
             dir.join("installed.pin.json"),
             serde_json::to_vec(&bytes.pin).unwrap(),

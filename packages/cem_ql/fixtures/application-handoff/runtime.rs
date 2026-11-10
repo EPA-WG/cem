@@ -83,6 +83,25 @@ pub struct Inputs {
     pub cart: SourceInput,
 }
 impl Inputs {
+    #[cfg(target_arch = "wasm32")]
+    pub fn from_receiver_checkpoint(
+        checkpoint: &cem_ql::application_source_endpoint::VerifiedReceiverCheckpoint,
+    ) -> Result<Arc<Self>, String> {
+        let source = |uri| {
+            checkpoint.sources().find(|source| source.identity.uri == uri)
+                .map(|source| SourceInput {
+                    identity: source.identity.clone(),
+                    tree: source.tree.clone(),
+                    capture: source.capture.clone(),
+                })
+                .ok_or_else(|| "fixture receiver source".to_string())
+        };
+        Ok(Arc::new(Self {
+            view: source("file:///runtime/view.cem")?,
+            cart: source("file:///runtime/cart-data.cem")?,
+        }))
+    }
+
     pub fn root(&self) -> RetainedCemNode {
         let id = self
             .view

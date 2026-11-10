@@ -37,6 +37,66 @@ pub fn register_receiver_input(
         Ok(token)
     })
 }
+
+/// Rust-only capture on the original opaque session/input pair.
+#[cfg(feature = "application-source-runtime")]
+pub fn capture_receiver_checkpoint(
+    owner: &JsValue,
+    input: &JsValue,
+    sources: &[&transport::SourceInput],
+    available_bytes: usize,
+    control: &OperationControl,
+    may_capture: impl Fn(&transport::SourceInput) -> bool,
+) -> Result<(Vec<u8>, ReceiverCheckpointSeal), String> {
+    SESSIONS.with(|sessions| {
+        let sessions = sessions.try_borrow_mut().map_err(|_| INVALID)?;
+        let entry = sessions.iter().find(|entry| &entry.token == owner).ok_or(INVALID)?;
+        let (_, input) = entry.inputs.iter().find(|(key, _)| key == input).ok_or(INVALID)?;
+        entry.session.capture_receiver_checkpoint(input, sources, available_bytes, control, may_capture)
+    })
+}
+
+/// Confirm and release the exact original session in one native call. The
+/// retained pin belongs to the trusted physical recovery transaction.
+#[cfg(feature = "application-source-runtime")]
+pub fn retire_receiver_checkpoint(
+    owner: &JsValue,
+    seal: ReceiverCheckpointSeal,
+    bytes: &[u8],
+    journal: &[u8],
+    runtime_id: &str,
+    instance_id: &str,
+) -> Result<ReceiverRecoveryPin, String> {
+    let _entry = runtime_admission::admit(false).map_err(|_| INVALID)?;
+    SESSIONS.with(|sessions| {
+        let mut sessions = sessions.try_borrow_mut().map_err(|_| INVALID)?;
+        let index = sessions.iter().position(|entry| &entry.token == owner).ok_or(INVALID)?;
+        let pin = sessions[index].session.confirm_receiver_retirement(seal, bytes, journal, runtime_id, instance_id)?;
+        sessions.swap_remove(index);
+        Ok(pin)
+    })
+}
+
+/// The trusted embedding must prepare the fresh session with the decoded
+/// owners before this function can enroll a new opaque receiver token.
+#[cfg(feature = "application-source-runtime")]
+pub fn restore_receiver_checkpoint(
+    owner: &JsValue,
+    checkpoint: VerifiedReceiverCheckpoint,
+    available_bytes: usize,
+) -> Result<JsValue, String> {
+    SESSIONS.with(|sessions| {
+        let mut sessions = sessions.try_borrow_mut().map_err(|_| INVALID)?;
+        let entry = sessions.iter_mut().find(|entry| &entry.token == owner).ok_or(INVALID)?;
+        if !entry.inputs.is_empty() {
+            return Err(INVALID.into());
+        }
+        let input = entry.session.restore_receiver_checkpoint(checkpoint, available_bytes)?;
+        let token: JsValue = js_sys::Object::freeze(&js_sys::Object::new()).into();
+        entry.inputs.push((token.clone(), input));
+        Ok(token)
+    })
+}
 #[wasm_bindgen(js_name=applicationSourceRenderReceiverV1)]
 pub fn render_receiver(
     owner: &JsValue,

@@ -11,12 +11,12 @@ async function factory(directory) {
     const runtime = module.createCemQlWasmGeneration();
     await runtime.initialize(await readFile(resolve(directory, 'application_source_probe_bg.wasm'))); return runtime;
 }
-function backend(runtime, observe) {
+function backend(runtime, runtimeId, scenario, observe) {
     const native = createApplicationSourceWasmBackend(runtime);
-    let input;
+    let input, owner;
     return { ...native,
         open: (bytes, pins) => {
-            const owner = native.open(bytes, pins);
+            owner = native.open(bytes, pins);
             input = runtime.call('probeApplicationReceiverInput', [owner]);
             observe(owner, input); return owner;
         },
@@ -30,14 +30,34 @@ function backend(runtime, observe) {
             }
             return native.capture(owner);
         },
+        edit: (bytes, pins, edited) => {
+            input = runtime.call('probeApplicationEditReceiver', [owner, input, bytes, pins, edited]);
+            observe(owner, input);
+        },
+        receiver: {
+            capture(owner) {
+                const [bytes, revision] = runtime.call('probeApplicationCaptureReceiver', [owner, input]);
+                return { bytes, revision };
+            },
+            retire(owner, bytes, journal) {
+                if (scenario === 'mutable-foreign-bytes') bytes[bytes.length - 1] ^= 1;
+                return runtime.call('probeApplicationConfirmReceiver', [owner, bytes, journal, runtimeId]);
+            },
+            open(bytes, pins, recovery) {
+                [owner, input] = runtime.call('probeApplicationRestoreReceiver',
+                    [bytes, pins, recovery.bytes, recovery.pin, recovery.journal, recovery.runtimeId]);
+                observe(owner, input);
+                return owner;
+            },
+        },
     };
 }
 const comparableReport = text => text;
-async function frame(runtime, owner, inputOwner, directory) {
+async function frame(runtime, owner, inputOwner, directory, expected = '<p>Tea/3/ok/native-one</p>') {
     assert.throws(() => runtime.call('applicationSourceCaptureV1', [owner]));
     assert.throws(() => runtime.call('applicationSourceRenderReceiverV1', [owner, Object.freeze({ ...inputOwner }), 'native-one']));
     const native = runtime.call('applicationSourceRenderReceiverV1', [owner, inputOwner, 'native-one']);
-    assert.equal(native, '<p>Tea/3/ok/native-one</p>');
+    assert.equal(native, expected);
     const nativeProjection = runtime.call('applicationSourceProjectReceiverV1', [owner, inputOwner, 'native-one']);
     assert.ok(nativeProjection.byteLength > 0);
     assert.throws(() => runtime.call('applicationSourceRenderReceiverV1', [owner, inputOwner, 'bad identity']));
@@ -67,14 +87,17 @@ async function frame(runtime, owner, inputOwner, directory) {
 if (!isMainThread) {
     const runtime = await factory(workerData.directory); let last, lastInput;
     runtime.call('probeApplicationProvision', [workerData.pins, new Uint8Array(await readFile(resolve(workerData.directory, 'installed.inputs')))]);
-    installQuerySourceWorkerTransport(workerData.port, backend(runtime, (id, input) => { last = id; lastInput = input; }));
+    const route = backend(runtime, workerData.runtimeId, workerData.scenario, (id, input) => { last = id; lastInput = input; });
+    installQuerySourceWorkerTransport(workerData.port, route);
     parentPort.on('message', async ({ id, op, args }) => {
         try {
             let value;
             if (op === 'prepare') value = runtime.prepareRetirement(args[0]);
             else if (op === 'dispose') value = runtime.dispose();
             else if (op === 'validate') value = runtime.call('probeApplicationValidate', [last]);
-            else if (op === 'frame') value = await frame(runtime, last, lastInput, workerData.directory);
+            else if (op === 'frame') value = await frame(runtime, last, lastInput, workerData.directory, ...args);
+            else if (op === 'edit') value = route.edit(...args);
+            else if (op === 'claimWrite') value = runtime.call('probeApplicationClaimWrite', [last, ...args]);
             else if(op==='tokens') {assert.throws(()=>runtime.call('applicationSourceCaptureV1',[Object.freeze({...last})]));assert.throws(()=>runtime.call('applicationSourceReleaseV1',[{}]));value=runtime.call('probeApplicationReentrant',[last]);}
             else value = runtime.call(op, args);
             parentPort.postMessage({ id, value });
@@ -86,13 +109,14 @@ if (!isMainThread) {
     const { CemCommittedCheckpointStore } = await import(pathToFileURL(resolve(directory, 'checkpoint-store.js')).href);
     let bytes, pins;
     let allocations = 0, scenarios = 0;
-    async function physical(mode) {
+    async function physical(mode, scenario) {
         const configPins = pins;
         const id = crypto.randomUUID(); let alive = true, endpoint, participant, last, lastInput, worker, port, runtime, sequence = 0;
         const requests = new Map();
+        let route;
         if (mode === 'worker') {
             const channel = new MessageChannel(); port = channel.port1;
-            worker = new Worker(new URL(import.meta.url), { workerData: { directory, pins: configPins, port: channel.port2 }, transferList: [channel.port2] });
+            worker = new Worker(new URL(import.meta.url), { workerData: { directory, pins: configPins, port: channel.port2, runtimeId: id, scenario }, transferList: [channel.port2] });
             await new Promise((resolve, reject) => {
                 const timer = setTimeout(() => reject(Error('worker startup timed out')), 5000);
                 worker.on('error', reject);
@@ -103,14 +127,20 @@ if (!isMainThread) {
                     reply.error ? pending.reject(Error(reply.error)) : pending.resolve(reply.value);
                 });
             });
-        } else { runtime = await factory(directory); runtime.call('probeApplicationProvision', [configPins, new Uint8Array(await readFile(resolve(directory,'installed.inputs')))]); }
+        } else {
+            runtime = await factory(directory);
+            runtime.call('probeApplicationProvision', [configPins, new Uint8Array(await readFile(resolve(directory,'installed.inputs')))]);
+            route = backend(runtime, id, scenario, (id, input) => { last = id; lastInput = input; });
+        }
         const identity = () => mode === 'worker' ? worker : runtime.memory();
         const call = (op, args = []) => {
             if (mode !== 'worker') {
                 if (op === 'prepare') return runtime.prepareRetirement(args[0]);
                 if (op === 'dispose') return runtime.dispose();
                 if (op === 'validate') return runtime.call('probeApplicationValidate', [last]);
-                if (op === 'frame') return frame(runtime, last, lastInput, directory);
+                if (op === 'frame') return frame(runtime, last, lastInput, directory, ...args);
+                if (op === 'edit') return route.edit(...args);
+                if (op === 'claimWrite') return runtime.call('probeApplicationClaimWrite', [last, ...args]);
                 if(op==='tokens') {assert.throws(()=>runtime.call('applicationSourceCaptureV1',[Object.freeze({...last})]));assert.throws(()=>runtime.call('applicationSourceReleaseV1',[{}]));return runtime.call('probeApplicationReentrant',[last]);}
                 return runtime.call(op, args);
             }
@@ -122,13 +152,13 @@ if (!isMainThread) {
         const controller = { id, identity, call,
             participant: () => participant ??= registerNativeGeneration(identity(), id, async (admitted, signal) => {
                 allocations++;
-                const fresh = await physical(mode);
+                const fresh = await physical(mode, scenario);
                 return { identity: fresh.identity(), runtimeId: fresh.id, runtime: fresh,
                     current: () => !signal.aborted && fresh.alive(), discard: () => { void fresh.discard(); } };
             }),
             endpoint: () => endpoint ??= mode === 'worker'
-                ? createQuerySourceWorkerEndpoint({ identity: identity(), participant: controller.participant(), port, maxSourceBytes: 4 * 1024 * 1024, current: () => alive })
-                : createQuerySourceEndpoint({ identity: identity(), participant: controller.participant(), current: () => alive, native: backend(runtime, (id, input) => { last = id; lastInput = input; }) }),
+                ? createQuerySourceWorkerEndpoint({ identity: identity(), participant: controller.participant(), port, maxSourceBytes: 4 * 1024 * 1024, current: () => alive, receiverRecovery: true })
+                : createQuerySourceEndpoint({ identity: identity(), participant: controller.participant(), current: () => alive, native: route }),
             alive: () => alive,
             async retire(handoff, current) {
                 const guard = () => alive && handoff.current() && current();
@@ -160,11 +190,11 @@ if (!isMainThread) {
         };
         return controller;
     }
-    async function checkpoint(controller, outcome = 'acknowledged', pad = 0) {
+    async function checkpoint(controller, outcome = 'acknowledged', pad = 0, revision = 'original-source', operationId = 'terminal-operation') {
         const store = new CemCommittedCheckpointStore(controller.id,pad?4*1024*1024:1024*1024);
         const receipt = { maxBytes:store.maxBytes, runtimeId: controller.id, generation: 1, commitSequence: 1, policyStamp: 'application-source-fixture',
-            owners: [{ instanceId: 'source-route', declarationIdentity: JSON.parse(pins).hash, dataRevision: 'original-source', acceptedEventSequence: 0 }],
-            operations: [{ instanceId: 'source-route', operationId: 'terminal-operation', outcome }] };
+            owners: [{ instanceId: 'source-route', declarationIdentity: JSON.parse(pins).hash, dataRevision: revision, acceptedEventSequence: revision === 'original-source' ? 0 : 1 }],
+            operations: [{ instanceId: 'source-route', operationId, outcome }] };
         if(pad) for(let i=1;i<4;i++)receipt.owners.push({...receipt.owners[0],instanceId:`source-budget-${i}`});
         store.acknowledge(receipt);
         // Transport-valid source-route checkpoint only. No DOM or action is
@@ -176,11 +206,15 @@ if (!isMainThread) {
     for (const variant of ['application']) {
         bytes = new Uint8Array(await readFile(resolve(directory,'installed.cemah')));
         pins = await readFile(resolve(directory,'installed.pin.json'),'utf8');
-    for (const mode of ['fallback', 'worker']) for (const scenario of ['resume', 'stale-checkpoint', 'entered-after-allocation', 'foreign-target', 'expired-owner', 'aggregate-budget']) {
-        const old = await physical(mode); let privateInput = false, bound;
+    for (const mode of ['fallback', 'worker']) for (const scenario of ['resume', 'stale-checkpoint', 'entered-after-allocation', 'foreign-target', 'expired-owner', 'aggregate-budget',
+        'mutable-resume', 'mutable-stale-input', 'mutable-foreign-bytes', 'mutable-modified-journal', 'mutable-private',
+        'mutable-aggregate-budget']) {
+        const old = await physical(mode, scenario); let privateInput = false, bound, journal;
+        const mutable = scenario.startsWith('mutable-');
         const before = allocations, scope = new CemNativeRecoveryScope();
         const resource = await QuerySourceResource.open({ endpoint: old.endpoint(), bytes, pins,
-            current: () => !privateInput, target: fresh => scenario === 'foreign-target' ? old.endpoint() : fresh.endpoint(), onBound: endpoint => { bound = endpoint; } });
+            current: () => !privateInput, target: fresh => scenario === 'foreign-target' ? old.endpoint() : fresh.endpoint(), onBound: endpoint => { bound = endpoint; },
+            receiverCheckpoint: mutable ? () => journal.retain() : undefined });
         let admission, stores = [];
         try {
             const original = comparableReport(await old.call('validate', ['same']));
@@ -196,17 +230,54 @@ if (!isMainThread) {
             await assert.rejects(resource.prepareRecovery(), /policy/);
             assert.throws(() => new CemNativeGenerationGroup([old.participant()]), /stale/);
             assert.equal(allocations, before);
-            privateInput = false; await resource.prepareRecovery();
-            const store = await checkpoint(old,'acknowledged',scenario==='aggregate-budget'?4*1024*1024-4096:0); stores.push(store);
+            privateInput = false;
+            const edit = async name => old.call('edit', [bytes, pins, new Uint8Array(await readFile(resolve(directory, `installed.${name}.inputs`)))]);
+            if (mutable) await edit(scenario === 'mutable-private' ? 'private' : 'edited');
+            if (scenario === 'mutable-private') {
+                await assert.rejects(resource.prepareRecovery(), /refused|native-refusal/);
+                assert.equal(allocations, before); continue;
+            }
+            const editedHtml = '<p>Coffee/4/ok/native-one</p>';
+            if (mutable) await old.call('frame', [editedHtml]);
+            const revision = await resource.prepareRecovery();
+            if (mutable) assert.match(revision, /^cem-bin/);
+            let writes = 0;
+            const deliverWrite = () => writes++;
+            if (mutable) deliverWrite(); // The original terminal write completed once.
+            const workspaceLimit = 4 * 1024 * 1024;
+            const deploymentBytes = bytes.length + new TextEncoder().encode(pins).length;
+            const recoveryPinReserve = 16 * 1024;
+            let pad = scenario === 'aggregate-budget' ? workspaceLimit - 4096 : 0;
+            if (scenario === 'mutable-aggregate-budget') {
+                const base = await checkpoint(old, 'acknowledged', 1, revision); stores.push(base);
+                pad = workspaceLimit - deploymentBytes - base.current().bytes.length - recoveryPinReserve - 64;
+            }
+            const store = await checkpoint(old, 'acknowledged', pad, revision); stores.push(store);
+            if (scenario === 'mutable-aggregate-budget') {
+                assert.ok(deploymentBytes + store.current().bytes.length + recoveryPinReserve <= workspaceLimit);
+            }
             const handoff = store.handoff();
+            journal = handoff;
+            if (scenario === 'mutable-modified-journal') {
+                const alternate = await checkpoint(old, 'not-applied', 0, revision, 'foreign-operation'); stores.push(alternate);
+                journal = alternate.handoff();
+            }
             const ticket = issueNativeGenerationBindingTicket(old.participant(), () => handoff.current() && !privateInput,
                 async context => ({ owner: context.generation.runtime, current: () => !context.signal.aborted && handoff.current() && !privateInput,
                     bind: () => { assert.equal(context.active(), true); }, discard() {} }));
             scope.enroll({ id: old.id, kind: 'command-invocation', prepare: async () => ({ participants: [old.participant()], current: () => handoff.current() && !privateInput }) });
             const coverage = await scope.prepare();
             const group = coverage.createGenerationGroup();
+            if (scenario === 'mutable-stale-input') await edit('later');
+            if (['mutable-stale-input', 'mutable-foreign-bytes'].includes(scenario)) {
+                await assert.rejects(old.retire(handoff, () => !privateInput), /refused|native-refusal/);
+                assert.equal(allocations, before); assert.equal(bound, undefined); continue;
+            }
             const retirement = await old.retire(handoff, () => !privateInput);
-            if(scenario==='aggregate-budget'){await assert.rejects(group.allocate([retirement]),/limit/);assert.equal(allocations,before);continue;}
+            if (scenario.endsWith('aggregate-budget')) {
+                await assert.rejects(group.allocate([retirement]), /limit/);
+                assert.equal(allocations, before); continue;
+            }
             if (scenario === 'stale-checkpoint') {
                 store.invalidate(); await assert.rejects(group.allocate([retirement]), /stale/);
                 assert.equal(allocations, before); assert.equal(bound, undefined); continue;
@@ -215,15 +286,21 @@ if (!isMainThread) {
             retirement.checkpoint.fill(0); // Exposed bytes cannot rewrite private checkpoint/journal state.
             admission = await group.allocate([retirement]);
             if (scenario === 'entered-after-allocation') privateInput = true;
-            if (scenario !== 'resume') {
-                await assert.rejects(resumeNativeGenerationBindings(admission, [ticket]), /stale|target/);
+            if (!['resume', 'mutable-resume'].includes(scenario)) {
+                await assert.rejects(resumeNativeGenerationBindings(admission, [ticket]), /stale|target|refused|native-refusal/);
                 assert.equal(bound, undefined); continue;
             }
             await resumeNativeGenerationBindings(admission, [ticket]);
             const fresh = admission.generations[0].runtime;
             assert.equal(bound, fresh.endpoint());
             assert.deepEqual(comparableReport(await fresh.call('validate', ['same'])), original);
-            assert.deepEqual(await fresh.call('frame'), originalFrame);
+            assert.deepEqual(await fresh.call('frame', mutable ? [editedHtml] : []), mutable ? [...originalFrame.slice(0, 2), editedHtml] : originalFrame);
+            if (mutable) {
+                for (const [sequence, id] of [[1, 'implicit-replay'], [2, 'terminal-operation'], [2, 'new-operation'], [3, 'new-operation']]) {
+                    if (await fresh.call('claimWrite', [sequence, id])) deliverWrite();
+                }
+                assert.equal(writes, 2, 'the original operation replayed or the fresh operation was lost');
+            }
             assert.equal(JSON.parse(new TextDecoder().decode(admission.generations[0].checkpoint)).receipt.operations[0].outcome, 'acknowledged');
             const freshInventory = JSON.parse(await fresh.call('commandNativeResourceInventory'));
             assert.equal(freshInventory.registries.find(r => r.name === 'enrolled-preparations').live, 0);
@@ -236,6 +313,6 @@ if (!isMainThread) {
         } finally { scenarios++; await resource.dispose(); admission?.revoke(); scope.dispose(); await old.discard(); for (const store of stores) store.dispose(); }
     }
     }
-    assert.equal(scenarios, 12);
-    console.log('All 12 physical application handoff scenarios passed, including stale checkpoints, late credential policy and foreign targets.');
+    assert.equal(scenarios, 24);
+    console.log('All 24 physical application handoff scenarios passed, including edited receivers, consumed writes, stale edits, foreign bytes, modified journals and aggregate limits.');
 }

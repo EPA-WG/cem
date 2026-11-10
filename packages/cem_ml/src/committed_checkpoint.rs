@@ -240,18 +240,50 @@ pub fn seal(candidate_json: &str, receipt_json: &str) -> Result<String, &'static
     if candidate_json.len() > max_bytes { return Err("cem.checkpoint.limit"); }
     let candidate: Checkpoint =
         serde_json::from_str(candidate_json).map_err(|_| "cem.checkpoint.format")?;
-    if candidate.version != "cem-committed-checkpoint/1"
-        || candidate.receipt != expected
-        || candidate.owners.len() != expected.owners.len()
+    if candidate.receipt != expected {
+        return Err("cem.checkpoint.receipt");
+    }
+    validate_owners(&candidate)?;
+    let sealed = serde_json::to_string(&candidate).map_err(|_| "cem.checkpoint.format")?;
+    if sealed.len() > max_bytes {
+        return Err("cem.checkpoint.limit");
+    }
+    Ok(sealed)
+}
+
+/// Validate bytes retained by the trusted retirement transaction. Canonical
+/// encoding is a format check; the original handoff still supplies authority.
+pub fn read_sealed(bytes: &[u8]) -> Result<Checkpoint, &'static str> {
+    if bytes.len() > MAX_WORKSPACE_CHECKPOINT_BYTES {
+        return Err("cem.checkpoint.limit");
+    }
+    let checkpoint: Checkpoint =
+        serde_json::from_slice(bytes).map_err(|_| "cem.checkpoint.format")?;
+    if !valid_receipt(&checkpoint.receipt) {
+        return Err("cem.checkpoint.receipt");
+    }
+    validate_owners(&checkpoint)?;
+    if bytes.len() > checkpoint.receipt.max_bytes.unwrap_or(MAX_CHECKPOINT_BYTES)
+        || serde_json::to_vec(&checkpoint).map_err(|_| "cem.checkpoint.format")? != bytes
+    {
+        return Err("cem.checkpoint.format");
+    }
+    Ok(checkpoint)
+}
+
+fn validate_owners(checkpoint: &Checkpoint) -> Result<(), &'static str> {
+    let receipt = &checkpoint.receipt;
+    if checkpoint.version != "cem-committed-checkpoint/1"
+        || checkpoint.owners.len() != receipt.owners.len()
     {
         return Err("cem.checkpoint.receipt");
     }
     let mut owners = BTreeSet::new();
-    for owner in &candidate.owners {
+    for owner in &checkpoint.owners {
         if owner.island.is_empty()
             || owner.island.len() > MAX_CHECKPOINT_BYTES
             || !owners.insert(owner.instance_id.as_str())
-            || !expected
+            || !receipt
                 .owners
                 .iter()
                 .any(|receipt| receipt.instance_id == owner.instance_id)
@@ -259,11 +291,7 @@ pub fn seal(candidate_json: &str, receipt_json: &str) -> Result<String, &'static
             return Err("cem.checkpoint.owner");
         }
     }
-    let sealed = serde_json::to_string(&candidate).map_err(|_| "cem.checkpoint.format")?;
-    if sealed.len() > max_bytes {
-        return Err("cem.checkpoint.limit");
-    }
-    Ok(sealed)
+    Ok(())
 }
 
 pub(crate) fn placement_property(property: &str) -> bool {

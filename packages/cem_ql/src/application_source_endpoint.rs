@@ -34,7 +34,9 @@ pub mod wasm;
 #[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
 pub use frames::ApplicationReceiverInput;
 #[cfg(feature = "application-source-runtime")]
-pub use receiver_checkpoint::{ReceiverCheckpointSeal, VerifiedReceiverCheckpoint};
+pub use receiver_checkpoint::{
+    ReceiverCheckpointSeal, ReceiverRecoveryPin, ReceiverWriteJournal, VerifiedReceiverCheckpoint,
+};
 const INVALID: &str = "cem.application.endpoint.refused";
 pub const MAX_PINS_BYTES: usize = 16 * 1024;
 // Complete applications retain more code/compilation roots than query leaves.
