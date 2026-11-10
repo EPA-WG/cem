@@ -45,7 +45,7 @@ pub(super) fn open(deployment: &BuiltApplicationSources, inputs: Arc<fixture::In
     }
 }
 
-fn restore_inputs(checkpoint: &VerifiedReceiverCheckpoint) -> Arc<fixture::Inputs> {
+pub(super) fn restore_inputs(checkpoint: &VerifiedReceiverCheckpoint) -> Arc<fixture::Inputs> {
     let copy = |input: &SourceInput| SourceInput {
         identity: input.identity.clone(),
         tree: input.tree.clone(),

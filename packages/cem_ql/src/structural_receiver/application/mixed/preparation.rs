@@ -154,7 +154,7 @@ impl MixedPreparationInvocation {
             .map_err(|_| REFUSED)?;
         let diagnostics = values::counts(
             &self.group,
-            receiver,
+            &receiver.local,
             input,
             host,
             raw.ok_or(REFUSED)?.values().len(),

@@ -120,6 +120,68 @@ fn declarations_with_node_counts(
                         "pattern",
                         "whiteSpace",
                     ],
+                    ("field-contracts", "field-contract") if native_types => &[
+                        "name",
+                        "target",
+                        "required-attributes",
+                        "optional-attributes",
+                        "forbidden-attributes",
+                        "forbidden-attribute-values",
+                        "required-one-attributes",
+                        "max-one-attributes",
+                        "accepted-children",
+                        "forbidden-children",
+                        "required-children",
+                        "max-one-children",
+                        "required-one-child",
+                        "max-one-child",
+                        "selected-children",
+                        "ordered-children",
+                        "forbidden-ordered-children",
+                        "first-child",
+                        "last-child",
+                        "forbidden-first-child",
+                        "forbidden-last-child",
+                        "required-child-sequence",
+                        "forbidden-child-sequence",
+                        "exact-child-sequence",
+                        "prefix-child-sequence",
+                        "suffix-child-sequence",
+                        "forbidden-prefix-child-sequence",
+                        "forbidden-suffix-child-sequence",
+                        "exact-children",
+                        "min-children",
+                        "max-children",
+                        "exact-total-children",
+                        "min-total-children",
+                        "max-total-children",
+                        "exact-distinct-children",
+                        "min-distinct-children",
+                        "max-distinct-children",
+                        "exact-selected-children",
+                        "min-selected-children",
+                        "max-selected-children",
+                        "exact-selected-distinct-children",
+                        "min-selected-distinct-children",
+                        "max-selected-distinct-children",
+                        "path-layout-attributes",
+                        "path-layout-prefix",
+                        "path-layout-directory-names",
+                        "path-layout-forbidden-directory-names",
+                        "path-layout-extension",
+                        "path-layout-basenames",
+                        "path-layout-forbidden-basenames",
+                        "when-attribute",
+                        "when-values",
+                        "when-present-attributes",
+                        "when-absent-attributes",
+                        "when-any-present-attributes",
+                        "when-any-absent-attributes",
+                        "when-present-children",
+                        "when-absent-children",
+                        "when-any-present-children",
+                        "when-any-absent-children",
+                    ],
                     ("field-contracts", "field-contract") => &[
                         "name",
                         "target",
@@ -127,6 +189,8 @@ fn declarations_with_node_counts(
                         "min-total-children",
                         "max-total-children",
                     ],
+                    ("field-contract", "choice") if native_types => &["name", "mode"],
+                    ("choice", "case") if native_types => &["name", "attributes", "children"],
                     _ => return Err(INVALID.into()),
                 };
                 let mut fields = BTreeMap::new();
@@ -177,11 +241,28 @@ fn declarations_with_node_counts(
                     }
                     roles.insert(id, role.into());
                 }
+                if native_types
+                    && role == "field-contract"
+                    && !fields.get("target").is_some_and(|value| name(value))
+                {
+                    return Err(INVALID.into());
+                }
+                if native_types
+                    && role == "choice"
+                    && (!fields.get("name").is_some_and(|value| name(value))
+                        || !fields
+                            .get("mode")
+                            .is_some_and(|value| !value.trim().is_empty()))
+                {
+                    return Err(INVALID.into());
+                }
                 let parent = match role {
                     "schema" => "schema",
                     "elements" => "elements",
                     "attributes" => "attributes",
                     "field-contracts" => "field-contracts",
+                    "field-contract" if native_types => "field-contract",
+                    "choice" if native_types => "choice",
                     _ => "leaf",
                 };
                 pending.extend(children.iter().rev().map(|id| (*id, parent)));

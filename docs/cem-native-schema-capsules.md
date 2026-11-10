@@ -1874,14 +1874,24 @@ for it. Each input or typed producer owner holds a real generation resource
 lease. They share a 64-owner session limit and the existing 256-resource
 generation ceiling.
 
-The initial topology profile is one original empty-namespace instance element
-with exact named required/optional attributes. Native consuming-name metadata
-determines namespace admission. Wrong or unfinished names, duplicate/unknown
-attributes, missing required fields, child content and field-contract topology
-refuse before rendering. The original model retains its pending datatype slots;
-this review does not publish the whole schema as ready.
+The receiver checks an original empty-namespace instance and its retained
+literal child elements against the same compiled schema model. It checks
+consuming names, declared child edges, exact attribute ownership and required
+fields. A descendant of a declared element cannot be submitted as a separate
+root to bypass the enclosing rules. Declarative field contracts reuse the
+schema evaluator for attribute presence, literal values, choices, child
+counts and order. A value-dependent field rule refuses an unavailable lexical
+value. Nonliteral body content needs its own admission. The retained model
+keeps its pending datatype slots and is never published as ready by this check.
 Receiver names reuse the shared native input policy: runtime roots such as
 `datadom`, `instanceID` and `island` cannot be shadowed by original input fields.
+
+Nested frames expose `datadom.receiver` with `name`, `attributes` and
+`children` on each element. Child order follows the original source, and
+root attribute aliases keep their existing meaning. Descendant fields use
+their installed receiver contracts. A child-only closed scalar can use its
+original literal schema contract without creating a root alias. Node and
+executable fields still require their installed owners.
 
 Every `render_receiver_native` / `project_receiver_native` call consumes the
 original fields again. Node fields use the existing structural receiver and
@@ -1912,8 +1922,9 @@ The selected registry is still the actual renewed application registry. Calls
 retain native admission through output serialization and recheck the source owner
 afterward. Native callbacks retain their original operation control; the frame's
 five-second scope is checked at receiver boundaries and during rendering. A
-16,384-node input arena, 64 fields, 16,384 total bound values, 1 MiB scalar-value
-allowance and existing output/graph limits bound the initial adapter.
+16,384-node input arena, 64 fields per element, depth 64, 16,384 total bound
+values, 1 MiB scalar-value allowance and existing output/graph limits bound the
+adapter.
 
 The opt-in WASM ABI adds `applicationSourceRenderReceiverV1`,
 `applicationSourceProjectReceiverV1` and
@@ -1941,7 +1952,8 @@ its operation is cancelled or its origin replaces the input or publication.
 The fresh bootstrap registers the decoded source owners, recreates the lexical
 contexts and explicitly authorizes cross-scope references. Restoration checks
 the deployment, the new generation, and those exact fresh owners before
-enrolling a new native input. The wire carries no live scope IDs, grants or
+enrolling a new native input. The scope check includes every original element
+and attribute in a nested instance. The wire carries no live scope IDs, grants or
 runtime handles. An input with typed producer bindings refuses portable capture,
 including after its producer expires.
 
@@ -1961,8 +1973,7 @@ route and writes at or before its accepted event sequence. A later input can
 claim a new operation once. The worker and owned fallback fixtures edit both
 the receiver and its referenced data, render from the fresh owners, and exercise
 consumed writes, stale edits, credential refusal, tampered packets and journals,
-and the aggregate byte limit. Nested child and field contracts and production
-admission remain separate gates.
+and the aggregate byte limit. Production admission remains a separate gate.
 
 ## Native publication generation enrollment
 

@@ -19,6 +19,8 @@ mod sources;
 mod values;
 #[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
 mod frames;
+#[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
+mod topology;
 pub use preparation::{
     MixedPreparationEvidence, MixedPreparationInvocation, MixedPreparationResult,
 };
@@ -57,6 +59,9 @@ pub(super) struct Group {
     contract: Arc<VerifiedMixedReceiverDeclaration>,
     source: Arc<RetainedCemTree>,
     schema_uri: String,
+    model: SchemaDocumentModel,
+    #[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
+    nested_scalars: BTreeMap<String, AttributeValueContract>,
     context: AttributeDatatypeContextLease,
     receivers: BTreeMap<String, Receiver>,
     active: AtomicBool,
@@ -169,10 +174,7 @@ impl LinkedMixedReceivers {
     > {
         let _entry = self.group.enter(host)?;
         self.group.refresh(host)?;
-        let model = cem_ml::schema::document_model::compile_schema_document_model_from_retained(
-            &self.group.schema_uri,
-            &self.group.source,
-        );
+        let model = &self.group.model;
         if model.elements.len() > 1
             || model.elements.values().any(|e| {
                 !e.required_attributes.is_empty()
@@ -284,12 +286,26 @@ pub fn stage(
     if contract.pin().registry_hash != host.registry_hash {
         return Err(REFUSED.into());
     }
-    let receivers = sources::bind(host, &contract, &source, &scalar_sources, &roots)?;
+    let (model, receivers) = sources::bind(host, &contract, &source, &scalar_sources, &roots)?;
+    #[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
+    let nested_scalars = model
+        .attributes
+        .iter()
+        .filter(|(name, _)| !receivers.contains_key(*name))
+        .filter_map(|(name, local)| {
+            sources::local_scalar(local)
+                .ok()
+                .map(|scalar| (name.clone(), scalar))
+        })
+        .collect();
     let result = LinkedMixedReceivers {
         group: Arc::new(Group {
             contract,
             source: source.source,
             schema_uri: source.schema_uri,
+            model,
+            #[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
+            nested_scalars,
             context: host.context.lease(),
             receivers,
             active: AtomicBool::new(true),

@@ -452,7 +452,7 @@ Deferred execution gates, in order within this workstream:
         edited input with fresh scopes and suppress consumed writes. They refuse
         stale edits, foreign packets, modified journals and excess retained bytes.
 
-- [ ] Extend native-owned frames with explicit typed-only producers and remaining
+- [x] Extend native-owned frames with explicit typed-only producers and remaining
   child/field instance contracts. Reuse original admission/profile authorities,
   native schemas and source references; do not infer grants from type labels or
   publish pending schemas as ready. Add native/WASM fixtures for input producer
@@ -461,7 +461,10 @@ Deferred execution gates, in order within this workstream:
         attributes. Rust and reduced WASM fixtures cover original profile and
         source ownership, producer expiry, source attribution and checkpoint
         refusal.
-  - [ ] Admit nested child and field contracts with the original schema topology.
+  - [x] Admit nested child and field contracts with the original schema topology.
+        Rust fixtures cover declared edges, order, counts, child-only scalars,
+        typed and reference values, source attribution and checkpoint rebinding.
+        Reduced WASM covers nested rendering, projection and invalid values.
 
 - [ ] Bind compiled declarations, retained CSS and shared behavior/provider/source
   ownership to that ABI. Prove worker/fallback edits, credential refusal and

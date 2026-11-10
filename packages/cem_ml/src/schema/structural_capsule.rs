@@ -44,8 +44,8 @@ pub fn validate_literal_receiver_source(
     Ok(())
 }
 
-/// Native mixed receiver vocabulary: the literal structural profile plus a
-/// single original reference in an attribute type slot. No reference is run.
+/// Native mixed receiver vocabulary: declarative field contracts and single
+/// original references in attribute type slots. No reference is run.
 pub fn validate_mixed_receiver_source(
     document: &CemDocument,
     schema_uri: &str,

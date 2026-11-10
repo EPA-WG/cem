@@ -40,7 +40,7 @@ fn original(
     }
     Ok(node)
 }
-fn local_scalar(local: &AttributeModel) -> Result<AttributeValueContract, String> {
+pub(super) fn local_scalar(local: &AttributeModel) -> Result<AttributeValueContract, String> {
     let mut model = local.clone();
     model.item_count = None;
     model.min_items = None;
@@ -60,7 +60,7 @@ pub(super) fn bind(
     source: &MixedReceiverSource,
     scalars: &BTreeMap<String, ScalarReceiverSource>,
     roots: &BTreeMap<String, Arc<v3::InstalledDatatypeRoot>>,
-) -> Result<BTreeMap<String, Receiver>, String> {
+) -> Result<(SchemaDocumentModel, BTreeMap<String, Receiver>), String> {
     if source.attributes.len() > 64
         || source.attributes.keys().ne(contract.occurrences().keys())
         || !Arc::ptr_eq(source.source.ast_owner(), source.capture.document())
@@ -244,5 +244,5 @@ pub(super) fn bind(
             },
         );
     }
-    Ok(result)
+    Ok((all, result))
 }

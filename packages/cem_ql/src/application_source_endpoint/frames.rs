@@ -165,7 +165,8 @@ impl ApplicationSourceSession {
         }
         let _entry = self.enter()?;
         let fields = self.with_current_application(|app, host| {
-            app.receivers(host, tag)?.check_frame_input(host, &root)
+            app.receivers(host, tag)?
+                .check_frame_input(host, &root, None)
         })?;
         let app = Arc::downgrade(self.prepared.current()?);
         let limits = crate::instance_island::LIMITS;
@@ -178,9 +179,7 @@ impl ApplicationSourceSession {
             if !Weak::ptr_eq(&app, &producer.app)
                 || producer.tag != tag
                 || !Arc::ptr_eq(root.owner(), &producer.source)
-                || !fields
-                    .values()
-                    .any(|&attribute| attribute == producer.attribute)
+                || !fields.contains_attribute(producer.attribute)
                 || bound
                     .insert(producer.attribute, Arc::downgrade(producer))
                     .is_some()
@@ -314,6 +313,15 @@ impl ApplicationSourceSession {
                     crate::eval::AtomValue::String(instance.into()),
                 )),
             );
+            if let Some(receiver) = &frame.receiver {
+                data = data.with_binding(
+                    "datadom",
+                    crate::eval::ItemStream::once(Item::Record(BTreeMap::from([(
+                        "receiver".into(),
+                        vec![receiver.clone()],
+                    )]))),
+                );
+            }
             app.with_registry(host, |registry, _| {
                 data.selected_registry = Some(Arc::new(registry.clone()));
                 runtime::render_plan_original_data(artifact, data, &control, Some(&frame))

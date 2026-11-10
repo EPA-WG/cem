@@ -10,6 +10,10 @@ mod receiver_checkpoint;
 mod typed_producer;
 
 #[cfg(feature = "application-source-runtime")]
+#[path = "application_handoff/nested_receivers.rs"]
+mod nested_receivers;
+
+#[cfg(feature = "application-source-runtime")]
 #[test]
 fn native_receiver_frame_requires_original_input_and_available_preparation() {
     use cem_ql::{
@@ -418,6 +422,12 @@ fn native_application_worker_fixture_has_original_sources_and_real_consumers() {
         std::fs::write(dir.join("typed.cemah"), typed.bytes).unwrap();
         std::fs::write(dir.join("typed.pin.json"), serde_json::to_vec(&typed.pin).unwrap()).unwrap();
         std::fs::write(dir.join("typed.inputs"), typed_input).unwrap();
+        let (nested, nested_input) = fixture::nested_sources(fixture::NESTED_VIEW);
+        let (_, bad_nested) = fixture::nested_sources(&fixture::NESTED_VIEW.replace("@count=4", "@count=2"));
+        std::fs::write(dir.join("nested.cemah"), nested.bytes).unwrap();
+        std::fs::write(dir.join("nested.pin.json"), serde_json::to_vec(&nested.pin).unwrap()).unwrap();
+        std::fs::write(dir.join("nested.inputs"), nested_input).unwrap();
+        std::fs::write(dir.join("nested.bad.inputs"), bad_nested).unwrap();
         for (name, view, cart) in [
             ("edited", "{view @items={#data} @count=4 @choice=ok}", "{cart @title=Coffee | {item @quantity=4}}"),
             ("later", fixture::VIEW, "{cart @title=Cocoa | {item @quantity=2}}"),

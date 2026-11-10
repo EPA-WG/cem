@@ -448,8 +448,8 @@ admit original scalar schema contracts, native attribute/dataset/slice inputs an
 qualified island projection through the actual live registry. Native/WASM
 acceptance covers malformed sources/domains and fresh physical rebinding.
 [Native-owned receiver frames](cem-native-schema-capsules.md#native-owned-receiver-frames)
-now admit original node references and sealed lexical executable preparation for
-flat original instances. Rust-only input enrollment issues per-session opaque
+admit original node references and sealed lexical executable preparation for
+original instances. Rust-only input enrollment issues per-session opaque
 tokens, with native census and cleanup. Source-only checkpoints refuse while
 these input owners remain live. The opt-in Rust adapter now captures a single
 original input and its passive dependency sources and checks their fresh lexical
@@ -458,9 +458,10 @@ capsule in the shared source resource transaction, verify the original native
 seal and terminal journal, and suppress already-consumed writes. Explicit Rust
 producers can supply typed values to original valueless receiver attributes
 under the installed datatype profile. Their input tokens remain tied to the
-live producer and scope. Nested child and field contracts, declaration/CSS/provider
-ownership, generated application bootstraps and production component admission
-remain gated.
+live producer and scope. Nested receiver inputs use the original schema's child
+edges and field rules, and expose validated descendants through
+`datadom.receiver`. Declaration/CSS/provider ownership, generated application
+bootstraps and production component admission remain gated.
 
 
 Do not equate downloaded code with an active native generation. Register every

@@ -426,13 +426,30 @@ fn scoped_bindings(
             .ok_or(REFUSED)?,
         sources,
     )?;
-    let Some(CemAstNode::Element { attributes, .. }) = root.tree.ast().get(input.node) else {
-        return Err(REFUSED.into());
-    };
-    for node in std::iter::once(input.node).chain(attributes.iter().copied()) {
+    let mut elements = vec![input.node];
+    while let Some(node) = elements.pop() {
         check(control)?;
+        let Some(CemAstNode::Element {
+            attributes,
+            children,
+            ..
+        }) = root.tree.ast().get(node)
+        else {
+            return Err(REFUSED.into());
+        };
         host.receiver_checkpoint_context(root, node, false)
             .ok_or(REFUSED)?;
+        for &attribute in attributes {
+            check(control)?;
+            host.receiver_checkpoint_context(root, attribute, false)
+                .ok_or(REFUSED)?;
+        }
+        elements.extend(
+            children
+                .iter()
+                .copied()
+                .filter(|&id| matches!(root.tree.ast().get(id), Some(CemAstNode::Element { .. }))),
+        );
     }
     for node in root.capture.occurrences() {
         check(control)?;

@@ -113,17 +113,17 @@ pub(super) fn lexical(
 }
 pub(super) fn counts(
     group: &Group,
-    receiver: &Receiver,
+    local: &AttributeModel,
     value: &ReceiverInput,
     host: &FreshStructuralHost,
     count: usize,
 ) -> Result<Vec<Diagnostic>, String> {
-    let data = input(host, &receiver.local.name, value)?;
+    let data = input(host, &local.name, value)?;
     let mut diagnostics = vec![];
     cem_ml::schema::document_model::validate_prepared_attribute_count(
         &group.schema_uri,
         &data.element,
-        &receiver.local,
+        local,
         count,
         data.node,
         &mut diagnostics,
@@ -165,13 +165,35 @@ impl LinkedMixedReceivers {
         name: &str,
         value: &ReceiverInput,
     ) -> Result<ScalarValidation, String> {
-        let _entry = self.group.enter(host)?;
-        self.group.refresh(host)?;
         let receiver = self.group.receivers.get(name).ok_or(REFUSED)?;
         let Binding::Scalar { contract } = &receiver.binding else {
             return Err(REFUSED.into());
         };
-        let original = lexical(host, name, value)?;
+        self.validate_scalar_contract(host, &receiver.local, contract, value)
+    }
+
+    #[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
+    pub(super) fn validate_nested_scalar(
+        &self,
+        host: &mut FreshStructuralHost,
+        name: &str,
+        value: &ReceiverInput,
+    ) -> Result<ScalarValidation, String> {
+        let local = self.group.model.attributes.get(name).ok_or(REFUSED)?;
+        let contract = self.group.nested_scalars.get(name).ok_or(REFUSED)?;
+        self.validate_scalar_contract(host, local, contract, value)
+    }
+
+    fn validate_scalar_contract(
+        &self,
+        host: &mut FreshStructuralHost,
+        local: &AttributeModel,
+        contract: &AttributeValueContract,
+        value: &ReceiverInput,
+    ) -> Result<ScalarValidation, String> {
+        let _entry = self.group.enter(host)?;
+        self.group.refresh(host)?;
+        let original = lexical(host, &local.name, value)?;
         let result = convert_attribute_value_with_check(
             &original.lexical.text,
             contract,
@@ -193,7 +215,7 @@ impl LinkedMixedReceivers {
         };
         report
             .diagnostics
-            .extend(counts(&self.group, receiver, value, host, 1)?);
+            .extend(counts(&self.group, local, value, host, 1)?);
         report.accepted &= !report
             .diagnostics
             .iter()
@@ -241,7 +263,7 @@ impl LinkedMixedReceivers {
         };
         report
             .diagnostics
-            .extend(counts(&self.group, receiver, source, host, 1)?);
+            .extend(counts(&self.group, &receiver.local, source, host, 1)?);
         report.accepted &= !report
             .diagnostics
             .iter()
@@ -293,7 +315,7 @@ impl LinkedMixedReceivers {
                 Err(REFUSED.to_string())
             }
         })??;
-        let diagnostics = counts(&self.group, receiver, source, host, count)?;
+        let diagnostics = counts(&self.group, &receiver.local, source, host, count)?;
         if crate::attribute_validation::diagnostic_cost(&datatype).saturating_add(diagnostics.len())
             > limits.max_diagnostics
         {

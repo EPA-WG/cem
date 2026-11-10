@@ -16154,6 +16154,68 @@ fn collect_choice_cases(document: &CemDocument, choice_id: AstNodeId) -> Vec<Cho
         .collect()
 }
 
+/// Evaluate the original field rules on a retained element after a native
+/// consumer has checked its names, attribute ownership and child edges.
+/// Return incomplete when a value-dependent rule needs a nonliteral value.
+/// This does not validate the attributes' datatype slots or publish the model.
+pub fn validate_retained_field_contracts(
+    original: &super::declaration_references::SchemaDeclarationNode,
+    model: &SchemaDocumentModel,
+    child_sequence: &[String],
+) -> Option<Vec<Diagnostic>> {
+    let node = original.node();
+    let CemAstNode::Element { expanded_name, attributes, .. } = node else {
+        return None;
+    };
+    let local = &expanded_name.local_name;
+    let element = model.element(local)?;
+    let mut diagnostics = Vec::new();
+    if element.field_contracts.is_empty() {
+        return Some(diagnostics);
+    }
+    let mut present = BTreeSet::new();
+    let mut literal = BTreeMap::new();
+    let mut unavailable = BTreeSet::new();
+    for id in attributes {
+        let CemAstNode::Attribute { expanded_name, value, value_nodes, .. } = original.document().get(*id)? else {
+            return None;
+        };
+        let name = &expanded_name.local_name;
+        present.insert(name.clone());
+        if let Some(value) = value.as_ref().filter(|_| value_nodes.is_empty()) {
+            let value = model.attributes.get(name).map_or(Cow::Borrowed(value.as_str()), |attribute| {
+                field_contract_attribute_value(value, attribute)
+            });
+            literal.insert(name.clone(), value.into_owned());
+        } else {
+            unavailable.insert(name.as_str());
+        }
+    }
+    materialize_default_attribute_values(element, &model.attributes, &mut present, &mut literal);
+    let counts = child_element_counts(child_sequence);
+    for contract in &element.field_contracts {
+        if contract.when_attribute.as_deref().is_some_and(|name| unavailable.contains(name))
+            || contract.forbidden_attribute_values.keys().chain(&contract.path_layout_attributes)
+                .any(|name| unavailable.contains(name.as_str()))
+        {
+            return None;
+        }
+    }
+    validate_field_contracts(
+        &model.schema_uri,
+        &model.diagnostic_behaviors,
+        local,
+        element,
+        &present,
+        &literal,
+        &counts,
+        child_sequence,
+        node,
+        &mut diagnostics,
+    );
+    Some(diagnostics)
+}
+
 fn validate_field_contracts(
     schema_uri: &str,
     diagnostic_behaviors: &BTreeMap<String, DiagnosticBehavior>,

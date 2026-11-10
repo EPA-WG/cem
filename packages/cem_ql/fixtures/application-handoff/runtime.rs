@@ -31,6 +31,25 @@ pub const SCALARS:&str="{schema @name=scalars @namespace=https://runtime.test/sc
 pub const VIEW: &str = "{view @items={#data} @count=3 @choice=ok}";
 #[cfg(not(target_arch = "wasm32"))]
 pub const TYPED_VIEW: &str = "{view @items={#data} @count=3 @choice}";
+#[cfg(not(target_arch = "wasm32"))]
+pub const NESTED_VIEW: &str = "{view @items={#data} @count=3 @choice=ok | {group @count=4 | {leaf @choice=leaf @items={#data} @label=detail}} {tail}}";
+#[cfg(not(target_arch = "wasm32"))]
+pub const NESTED_RECEIVER: &str = r#"{schema @name=receivers @namespace=https://runtime.test/receivers/1 |
+    {elements |
+        {element @name=view @optional-attributes="items count choice" @children="group tail"}
+        {element @name=group @required-attributes=count @optional-attributes="items choice" @children=leaf}
+        {element @name=leaf @required-attributes=choice @optional-attributes="items label" @children=leaf}
+        {element @name=tail}}
+    {attributes |
+        {attribute @name=items @type=node @maxItems=2}
+        {attribute @name=count @type=integer @minInclusive=3 @maxInclusive=4}
+        {attribute @name=choice @type={#scalar}}
+        {attribute @name=label @type=string @minLength=3}}
+    {field-contracts |
+        {field-contract @name=order @target=view @exact-child-sequence="group tail"}
+        {field-contract @name=single @target=group @required-children=leaf @max-total-children=1}
+        {field-contract @name=no-root-value @target=group @when-present-attributes=items @forbidden-attributes=count}
+        {field-contract @name=label-at-three @target=group @when-attribute=count @when-values=3 @required-attributes=choice}}}"#;
 pub const CART: &str = "{cart @title=Tea | {item @quantity=3}}";
 const COUNT_BODY:&str="{attribute @name=count @type=cart-count}{p | {$count}/{$datadom.dataset.fruitName}/{$datadom.slices.cart.title}{$datadom.slices.cart.children.children.children.children.value}/{$instanceID}}{section | {$datadom.slots.heading}}";
 pub fn hash(b: &[u8]) -> String {
@@ -526,6 +545,14 @@ pub fn build_typed() -> (transport::BuiltApplicationSources, Vec<u8>) {
     build_sources(COUNT_BODY, ReceiverProfile::Typed, TYPED_VIEW, RECEIVER, CART, false)
 }
 #[cfg(not(target_arch = "wasm32"))]
+pub fn nested_sources(view: &str) -> (transport::BuiltApplicationSources, Vec<u8>) {
+    build_sources(COUNT_BODY, ReceiverProfile::Nested, view, NESTED_RECEIVER, CART, false)
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub fn nested_typed_sources(view: &str) -> (transport::BuiltApplicationSources, Vec<u8>) {
+    build_sources(COUNT_BODY, ReceiverProfile::NestedTyped, view, NESTED_RECEIVER, CART, false)
+}
+#[cfg(not(target_arch = "wasm32"))]
 pub fn prepared_sources(
     view: &str,
     receiver: &str,
@@ -538,6 +565,8 @@ enum ReceiverProfile {
     Pending,
     Lexical,
     Typed,
+    Nested,
+    NestedTyped,
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn build_reserved() -> (transport::BuiltApplicationSources, Vec<u8>) {
@@ -629,8 +658,8 @@ fn build_sources(
     );
     let profiles = match profile {
         ReceiverProfile::Pending => vec![],
-        ReceiverProfile::Lexical => vec![executable_profile(&mut module, root, false)],
-        ReceiverProfile::Typed => vec![executable_profile(&mut module, root, true)],
+        ReceiverProfile::Lexical | ReceiverProfile::Nested => vec![executable_profile(&mut module, root, false)],
+        ReceiverProfile::Typed | ReceiverProfile::NestedTyped => vec![executable_profile(&mut module, root, true)],
     };
     let graph = cem_ql::datatype_module_capsule::v2::export(
         "app",
@@ -681,7 +710,12 @@ fn build_sources(
         &control,
     )
     .unwrap();
-    let frame=mixed::build(declaration("cem-receiver-frame","{attribute @name=items @type=cart-lines @maxItems=2}{attribute @name=count @type=cart-count}{attribute @name=choice @type=app-value}{p | {$items.attributes.value}/{$count}/{$choice}/{$instanceID}}"),owner.clone(),BTreeMap::from([("cart-lines".into(),mixed::ReceiverContract::Node(node_pin.clone())),("cart-count".into(),mixed::ReceiverContract::Scalar(scalar_contract)),("app-value".into(),mixed::ReceiverContract::Executable{root:"value".into(),target:owner.roots()["value"].clone()})]),&control).unwrap();
+    let frame_body = if matches!(profile, ReceiverProfile::Nested | ReceiverProfile::NestedTyped) {
+        "{attribute @name=items @type=cart-lines @maxItems=2}{attribute @name=count @type=cart-count}{attribute @name=choice @type=app-value}{p | {$items.attributes.value}/{$count}/{$choice}/{$datadom.receiver.children.attributes.count}/{$datadom.receiver.children.children.attributes.choice}/{$datadom.receiver.children.children.attributes.items.attributes.value}/{$datadom.receiver.children.children.attributes.label}/{$instanceID}}"
+    } else {
+        "{attribute @name=items @type=cart-lines @maxItems=2}{attribute @name=count @type=cart-count}{attribute @name=choice @type=app-value}{p | {$items.attributes.value}/{$count}/{$choice}/{$instanceID}}"
+    };
+    let frame=mixed::build(declaration("cem-receiver-frame",frame_body),owner.clone(),BTreeMap::from([("cart-lines".into(),mixed::ReceiverContract::Node(node_pin.clone())),("cart-count".into(),mixed::ReceiverContract::Scalar(scalar_contract)),("app-value".into(),mixed::ReceiverContract::Executable{root:"value".into(),target:owner.roots()["value"].clone()})]),&control).unwrap();
     let b = v4::build(
         parent,
         vec![mixed, count, frame],
@@ -708,11 +742,13 @@ fn build_sources(
         },
         scalars: BTreeMap::from([("cart-count".into(), scalar_source())]),
     };
-    let mixed = source(elements(&receiver.tree, "attribute"));
-    let frame = source(elements(&receiver.tree, "attribute"));
+    let mut frame_fields = elements(&receiver.tree, "attribute");
+    frame_fields.remove("label"); // This original scalar belongs only to a child.
+    let mixed = source(frame_fields.clone());
+    let frame = source(frame_fields.clone());
     let count = source(BTreeMap::from([(
         "count".into(),
-        elements(&receiver.tree, "attribute")["count"],
+        frame_fields["count"],
     )]));
     let g = NativeGeneration::claim(Arc::new(
         cem_ml::runtime_admission::NativeAdmission::default(),

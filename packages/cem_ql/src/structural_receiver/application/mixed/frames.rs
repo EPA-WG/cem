@@ -1,5 +1,5 @@
-//! Original flat-instance admission and per-render mixed receiver consumption.
-use super::*;
+//! Per-render consumption of original mixed receiver values.
+use super::{topology::FrameElement, *};
 use crate::{
     datatype_validation::ValidationRuntime,
     eval::{Item, ItemStream, RetainedCemNode},
@@ -71,6 +71,7 @@ fn sourced(
 pub(crate) struct ReceiverFrame<'a> {
     owner: &'a LinkedMixedReceivers,
     values: BTreeMap<String, ItemStream>,
+    pub(crate) receiver: Option<Item>,
 }
 impl OriginalReceiverFrame for ReceiverFrame<'_> {
     fn bindings(&self, artifact: &TemplateArtifact) -> Result<&BTreeMap<String, ItemStream>, ()> {
@@ -84,120 +85,6 @@ impl OriginalReceiverFrame for ReceiverFrame<'_> {
     }
 }
 impl LinkedMixedReceivers {
-    pub(crate) fn check_frame_input(
-        &self,
-        host: &mut FreshStructuralHost,
-        root: &RetainedCemNode,
-    ) -> Result<BTreeMap<String, AstNodeId>, String> {
-        let _entry = self.group.enter(host)?;
-        self.group.refresh(host)?;
-        if self
-            .group
-            .receivers
-            .keys()
-            .any(|name| !crate::application_runtime::inputs::name_allowed(name))
-        {
-            return Err(REFUSED.into());
-        }
-        if host.registered_source_scope(root.owner()).is_none()
-            || root.owner().ast().nodes.len() > 16_384
-        {
-            return Err(REFUSED.into());
-        }
-        let CemAstNode::Element {
-            expanded_name,
-            attributes,
-            children,
-            ..
-        } = root.node()
-        else {
-            return Err(REFUSED.into());
-        };
-        let declaration =
-            SchemaDeclarationNode::new(root.owner().ast_owner().clone(), root.node_id())
-                .ok_or(REFUSED)?;
-        if cem_ml::schema::declaration_references::SchemaDeclarationHost::input_expanded_name(
-            &host.inner,
-            &declaration,
-        )
-        .is_none_or(|name| !name.namespace_uri.is_empty())
-        {
-            return Err(REFUSED.into());
-        }
-        if !expanded_name.namespace_uri.is_empty() || attributes.len() > 64 {
-            return Err(REFUSED.into());
-        }
-        let model = cem_ml::schema::document_model::compile_schema_document_model_from_retained(
-            &self.group.schema_uri,
-            &self.group.source,
-        );
-        let element = model
-            .elements
-            .get(&expanded_name.local_name)
-            .ok_or(REFUSED)?;
-        if model.elements.len() != 1
-            || !element.child_elements.is_empty()
-            || element.allow_any_child
-            || !element.field_contracts.is_empty()
-            || element
-                .required_attributes
-                .iter()
-                .chain(&element.optional_attributes)
-                .any(|n| !self.group.receivers.contains_key(n))
-            || children.iter().any(|id| match root.owner().ast().get(*id) {
-                Some(CemAstNode::Comment { .. }) => false,
-                Some(CemAstNode::Text { data, .. } | CemAstNode::Whitespace { data, .. }) => {
-                    !data.trim().is_empty()
-                }
-                _ => true,
-            })
-        {
-            return Err(REFUSED.into());
-        }
-        let mut fields = BTreeMap::new();
-        for id in attributes {
-            let Some(CemAstNode::Attribute { expanded_name, .. }) = root.owner().ast().get(*id)
-            else {
-                return Err(REFUSED.into());
-            };
-            let name = &expanded_name.local_name;
-            let declaration =
-                SchemaDeclarationNode::new(root.owner().ast_owner().clone(), *id).ok_or(REFUSED)?;
-            if cem_ml::schema::declaration_references::SchemaDeclarationHost::input_expanded_name(
-                &host.inner,
-                &declaration,
-            )
-            .is_none_or(|name| !name.namespace_uri.is_empty())
-            {
-                return Err(REFUSED.into());
-            }
-            if !expanded_name.namespace_uri.is_empty()
-                || !(element.required_attributes.contains(name)
-                    || element.optional_attributes.contains(name))
-                || fields.insert(name.clone(), *id).is_some()
-            {
-                return Err(REFUSED.into());
-            }
-            values::input(
-                host,
-                name,
-                &ReceiverInput {
-                    source: root.owner().clone(),
-                    attribute: *id,
-                },
-            )?;
-        }
-        if !element
-            .required_attributes
-            .iter()
-            .all(|n| fields.contains_key(n))
-        {
-            return Err(REFUSED.into());
-        }
-        self.group.refresh(host)?;
-        Ok(fields)
-    }
-
     pub(crate) fn produce_typed_frame_value(
         &self,
         host: &mut FreshStructuralHost,
@@ -206,8 +93,8 @@ impl LinkedMixedReceivers {
         values: Vec<Item>,
         control: &OperationControl,
     ) -> Result<(AstNodeId, AttributeDatatypeContextLease, ExternalTypedValue), String> {
-        let fields = self.check_frame_input(host, root)?;
-        let attribute = *fields.get(field).ok_or(REFUSED)?;
+        let element = self.check_topology(host, root, Some(control), false)?;
+        let attribute = *element.attributes.get(field).ok_or(REFUSED)?;
         if !matches!(root.owner().ast().get(attribute),
             Some(CemAstNode::Attribute { value: None, value_nodes, .. }) if value_nodes.is_empty())
         {
@@ -277,33 +164,90 @@ impl LinkedMixedReceivers {
         &'a self,
         host: &mut FreshStructuralHost,
         root: &RetainedCemNode,
-        mut typed: BTreeMap<AstNodeId, ExternalTypedValue>,
+        typed: BTreeMap<AstNodeId, ExternalTypedValue>,
         control: &OperationControl,
     ) -> Result<ReceiverFrame<'a>, String> {
-        let fields = self.check_frame_input(host, root)?;
+        let topology = self.check_frame_input(host, root, Some(control))?;
+        let limits = crate::instance_island::LIMITS;
+        let mut budget = Consumption {
+            typed,
+            control,
+            remaining_values: limits.max_values,
+            remaining_bytes: limits.max_bytes,
+        };
+        let mut values = self.consume_fields(host, root, &topology, &mut budget)?;
+        let model = self.group.model.element(&topology.name).ok_or(REFUSED)?;
+        let receiver = if !model.child_elements.is_empty()
+            || model.allow_any_child
+            || !model.field_contracts.is_empty()
+        {
+            budget.claim_values(1)?;
+            let children = self.consume_children(host, root, &topology, &mut budget)?;
+            Some(frame_record(&topology.name, values.clone(), children))
+        } else {
+            None
+        };
+        if !budget.typed.is_empty() {
+            return Err(REFUSED.into());
+        }
+        for name in self.group.receivers.keys() {
+            values.entry(name.clone()).or_default();
+        }
+        self.check(host)?;
+        Ok(ReceiverFrame {
+            owner: self,
+            values,
+            receiver,
+        })
+    }
+
+    fn consume_children(
+        &self,
+        host: &mut FreshStructuralHost,
+        root: &RetainedCemNode,
+        element: &FrameElement,
+        budget: &mut Consumption<'_>,
+    ) -> Result<Vec<Item>, String> {
+        element
+            .children
+            .iter()
+            .map(|child| {
+                budget.check()?;
+                budget.claim_values(1)?;
+                let fields = self.consume_fields(host, root, child, budget)?;
+                let children = self.consume_children(host, root, child, budget)?;
+                Ok(frame_record(&child.name, fields, children))
+            })
+            .collect()
+    }
+
+    fn consume_fields(
+        &self,
+        host: &mut FreshStructuralHost,
+        root: &RetainedCemNode,
+        element: &FrameElement,
+        budget: &mut Consumption<'_>,
+    ) -> Result<BTreeMap<String, ItemStream>, String> {
         let mut values = BTreeMap::new();
-        let mut remaining_values = crate::instance_island::LIMITS.max_values;
-        let mut remaining_bytes = crate::instance_island::LIMITS.max_bytes;
-        for (name, receiver) in &self.group.receivers {
-            control
-                .check_scope(ROOT_EXECUTION_SCOPE_ID)
-                .map_err(|_| REFUSED)?;
-            let Some(id) = fields.get(name) else {
-                values.insert(name.clone(), ItemStream::empty());
-                continue;
-            };
+        for (name, id) in &element.attributes {
+            budget.check()?;
+            let binding = self
+                .group
+                .receivers
+                .get(name)
+                .map(|receiver| &receiver.binding);
             let input = ReceiverInput {
                 source: root.owner().clone(),
                 attribute: *id,
             };
-            let items = match &receiver.binding {
-                Binding::Node { .. } => {
+            let items = match binding {
+                Some(Binding::Node { .. }) => {
                     let report = self.validate_node(host, name, &input)?;
                     if !report.complete || report.failed {
                         return Err(REFUSED.into());
                     }
                     let mut items = vec![];
-                    if report.targets.len() > remaining_values {
+                    if report.targets.len() > budget.remaining_values {
                         return Err(REFUSED.into());
                     }
                     for target in report.targets {
@@ -316,8 +260,12 @@ impl LinkedMixedReceivers {
                     }
                     ItemStream::from_items(items)
                 }
-                Binding::Scalar { .. } => {
-                    let report = self.validate_scalar(host, name, &input)?;
+                Some(Binding::Scalar { .. }) | None => {
+                    let report = if binding.is_some() {
+                        self.validate_scalar(host, name, &input)?
+                    } else {
+                        self.validate_nested_scalar(host, name, &input)?
+                    };
                     if !report.accepted {
                         return Err(REFUSED.into());
                     }
@@ -334,12 +282,18 @@ impl LinkedMixedReceivers {
                         Some(datatype),
                     )?)
                 }
-                Binding::Executable { .. } => {
-                    let values = if let Some(value) = typed.remove(id) {
-                        if value.byte_len() > remaining_bytes {
+                Some(Binding::Executable { .. }) => {
+                    let values = if let Some(value) = budget.typed.remove(id) {
+                        if value.byte_len() > budget.remaining_bytes {
                             return Err(REFUSED.into());
                         }
-                        self.validate_frame_typed(host, name, &input, &value, remaining_values)?;
+                        self.validate_frame_typed(
+                            host,
+                            name,
+                            &input,
+                            &value,
+                            budget.remaining_values,
+                        )?;
                         value.values().to_vec()
                     } else {
                         let invocation = self.preparation_invocation(
@@ -347,8 +301,8 @@ impl LinkedMixedReceivers {
                             name,
                             input,
                             PreparationLimits {
-                                max_lexical_bytes: remaining_bytes,
-                                max_output_values: remaining_values,
+                                max_lexical_bytes: budget.remaining_bytes,
+                                max_output_values: budget.remaining_values,
                                 ..PreparationLimits::default()
                             },
                         )?;
@@ -377,9 +331,7 @@ impl LinkedMixedReceivers {
                     )
                 }
             };
-            remaining_values = remaining_values
-                .checked_sub(items.items.len())
-                .ok_or(REFUSED)?;
+            budget.claim_values(items.items.len())?;
             for value in &items.items {
                 if let Some(
                     crate::eval::AtomValue::String(text)
@@ -387,21 +339,53 @@ impl LinkedMixedReceivers {
                     | crate::eval::AtomValue::AnyUri(text),
                 ) = value.atom()
                 {
-                    remaining_bytes = remaining_bytes.checked_sub(text.len()).ok_or(REFUSED)?;
+                    budget.remaining_bytes = budget
+                        .remaining_bytes
+                        .checked_sub(text.len())
+                        .ok_or(REFUSED)?;
                 }
             }
-            control
-                .check_scope(ROOT_EXECUTION_SCOPE_ID)
-                .map_err(|_| REFUSED)?;
+            budget.check()?;
             values.insert(name.clone(), items);
         }
-        if !typed.is_empty() {
-            return Err(REFUSED.into());
-        }
-        self.check(host)?;
-        Ok(ReceiverFrame {
-            owner: self,
-            values,
-        })
+        Ok(values)
     }
+}
+
+struct Consumption<'a> {
+    typed: BTreeMap<AstNodeId, ExternalTypedValue>,
+    control: &'a OperationControl,
+    remaining_values: usize,
+    remaining_bytes: usize,
+}
+
+impl Consumption<'_> {
+    fn check(&self) -> Result<(), String> {
+        self.control
+            .check_scope(ROOT_EXECUTION_SCOPE_ID)
+            .map_err(|_| REFUSED.into())
+    }
+    fn claim_values(&mut self, count: usize) -> Result<(), String> {
+        self.remaining_values = self.remaining_values.checked_sub(count).ok_or(REFUSED)?;
+        Ok(())
+    }
+}
+
+fn frame_record(name: &str, attributes: BTreeMap<String, ItemStream>, children: Vec<Item>) -> Item {
+    Item::Record(BTreeMap::from([
+        (
+            "name".into(),
+            vec![Item::Atomic(crate::eval::AtomValue::String(name.into()))],
+        ),
+        (
+            "attributes".into(),
+            vec![Item::Record(
+                attributes
+                    .into_iter()
+                    .map(|(name, value)| (name, value.items))
+                    .collect(),
+            )],
+        ),
+        ("children".into(), children),
+    ]))
 }

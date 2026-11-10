@@ -13,6 +13,12 @@ const [typedSource, typedPins, typedInput] = await Promise.all([
     readFile(resolve(output, 'typed.pin.json'), 'utf8'),
     readFile(resolve(output, 'typed.inputs')),
 ]);
+const [nestedSource, nestedPins, nestedInput, badNestedInput] = await Promise.all([
+    readFile(resolve(output, 'nested.cemah')),
+    readFile(resolve(output, 'nested.pin.json'), 'utf8'),
+    readFile(resolve(output, 'nested.inputs')),
+    readFile(resolve(output, 'nested.bad.inputs')),
+]);
 
 async function verify(heap) {
     const url = pathToFileURL(resolve(output, 'application_source_probe.js'));
@@ -55,6 +61,23 @@ async function verify(heap) {
     reader.applicationSourceReleaseV1(owner);
     reader.probeApplicationUnprovision();
 
+    for (const input of [nestedInput, badNestedInput]) {
+        reader.probeApplicationProvision(nestedPins, input);
+        const owner = reader.applicationSourceOpenV1(nestedSource, nestedPins);
+        const receiver = reader.probeApplicationReceiverInput(owner);
+        const render = () => reader.applicationSourceRenderReceiverV1(owner, receiver, 'nested');
+        const project = () => reader.applicationSourceProjectReceiverV1(owner, receiver, 'nested');
+        if (input === nestedInput) {
+            assert.equal(render(), '<p>Tea/3/ok/4/leaf/Tea/detail/nested</p>');
+            assert.ok(project().length);
+        } else {
+            assert.throws(render, /application.endpoint.refused/);
+            assert.throws(project, /application.endpoint.refused/);
+        }
+        reader.applicationSourceReleaseV1(owner);
+        reader.probeApplicationUnprovision();
+    }
+
     return wasm.memory;
 }
 
@@ -67,7 +90,7 @@ if (isMainThread) {
         worker.once('error', reject);
         worker.once('exit', code => code === 0 ? resolve() : reject(Error(`reader worker exited ${code}`)));
     });
-    console.log(`Application sources and typed receiver producers passed in two fresh heaps and a real worker; ${source.length} source bytes.`);
+    console.log(`Application sources, typed producers and nested receivers passed in two fresh heaps and a real worker; ${source.length} source bytes.`);
 } else {
     await verify('worker');
     parentPort.close();
