@@ -31,7 +31,11 @@ run(process.execPath, ['packages/cem_ql/tests/application-source-wasm.mjs', outp
 
 if (transport) {
     writeFileSync(resolve(output,'application_factory.js'),cemQlWasmFactory(readFileSync(resolve(output,'application_source_probe.js'),'utf8')));
-    const store=readFileSync(resolve(root,'packages/cem-elements/src/lib/committed-checkpoint.ts'),'utf8');
-    writeFileSync(resolve(output,'checkpoint-store.js'),ts.transpileModule(store,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);
+    const hostModule = name => ts.transpileModule(readFileSync(resolve(root, 'packages/cem-elements/src/lib', name), 'utf8'),
+        { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
+    writeFileSync(resolve(output, 'checkpoint-store.js'), hostModule('committed-checkpoint.ts'));
+    writeFileSync(resolve(output, 'checkpoint-resume.js'), hostModule('checkpoint-resume.ts')
+        .replace('./committed-checkpoint.js', './checkpoint-store.js')
+        .replace('./internal/runtime-support/native-generation.js', '../../../packages/cem_ql/runtime/native-generation.mjs'));
     run(process.execPath,['packages/cem_ql/tests/application-resource-wasm.mjs',output]);
 }

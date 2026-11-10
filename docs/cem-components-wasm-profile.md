@@ -462,9 +462,11 @@ live producer and scope. Nested receiver inputs use the original schema's child
 edges and field rules, and expose validated descendants through
 `datadom.receiver`. A native bootstrap can stage the pinned declarations'
 compiled CSS under its current resolver policy. The application session exposes
-that retained output through its original token. Browser stylesheet ownership,
-shared behaviors and providers, generated application bootstraps and production
-component admission remain separate integration steps.
+that retained output through its original token and the shared browser stylesheet
+service. The [shared checkpoint transaction](cem-native-schema-capsules.md#application-source-and-shared-provider-renewal)
+keeps fresh application and schema source owners current through behavior and
+provider renewal. Reduced declaration capability admission, generated
+application bootstraps and production component admission remain separate.
 
 
 Do not equate downloaded code with an active native generation. Register every

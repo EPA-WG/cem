@@ -107,6 +107,7 @@ if (!isMainThread) {
 } else {
     const directory = resolve(process.argv[2]);
     const { CemCommittedCheckpointStore } = await import(pathToFileURL(resolve(directory, 'checkpoint-store.js')).href);
+    const { issueCheckpointResumeTicket, resumeCemCheckpointOwners } = await import(pathToFileURL(resolve(directory, 'checkpoint-resume.js')).href);
     let bytes, pins;
     let allocations = 0, scenarios = 0;
     async function physical(mode, scenario) {
@@ -325,4 +326,78 @@ if (!isMainThread) {
     }
     assert.equal(scenarios, 24);
     console.log('All 24 physical application handoff scenarios passed, including edited receivers, consumed writes, stale edits, foreign bytes, modified journals and aggregate limits.');
+
+    for (const mode of ['fallback', 'worker']) for (const scenario of ['repeat', 'release-during-renew', 'credentials-during-renew']) {
+        const original = await physical(mode, scenario);
+        const generations = [original], admissions = [], stores = [];
+        let previous = original, journal, bound, allowed = true;
+        const resource = await QuerySourceResource.open({
+            endpoint: original.endpoint(), bytes, pins, current: () => allowed, target: fresh => fresh.endpoint(),
+            receiverCheckpoint: () => journal.retain(), onBound: endpoint => { bound = endpoint; },
+        });
+        try {
+            const edited = new Uint8Array(await readFile(resolve(directory, 'installed.edited.inputs')));
+            await original.call('edit', [bytes, pins, edited]);
+            for (let cycle = 0; cycle < (scenario === 'repeat' ? 2 : 1); cycle++) {
+                const revision = await resource.prepareRecovery();
+                const store = await checkpoint(previous, 'acknowledged', 0, revision);
+                stores.push(store);
+                journal = store.handoff();
+                let rendered = false, renewed = false, discarded = false;
+                const ticket = issueCheckpointResumeTicket(previous.id, store.current(), journal.current, new Map([['source-route', {
+                    witness: () => journal.current,
+                    async prepare(context) {
+                        const fresh = context.runtime;
+                        assert.equal(context.active(), false);
+                        await assert.rejects(resource.stylesheets('cem-count'), /owner|stale/);
+                        return {
+                            owner: { resume: context.renewOwners }, current: journal.current,
+                            bind: () => { assert.equal(context.active(), true); },
+                            async renew() {
+                                assert.equal(bound, fresh.endpoint());
+                                assert.equal((await resource.stylesheets('cem-count')).receipt, '[]');
+                                const frame = await fresh.call('frame', ['<p>Coffee/4/ok/native-one</p>']);
+                                assert.match(frame[2], /Coffee\/4/);
+                                rendered = true;
+                                if (scenario === 'release-during-renew') await resource.dispose();
+                                if (scenario === 'credentials-during-renew') allowed = false;
+                            },
+                            renewed: () => { renewed = true; },
+                            discard: () => { discarded = true; },
+                        };
+                    },
+                }]]));
+                const group = new CemNativeGenerationGroup([previous.participant()]);
+                const retired = await previous.retire(journal, () => allowed);
+                const admission = await group.allocate([retired]);
+                admissions.push(admission);
+                const fresh = admission.generations[0].runtime;
+                generations.push(fresh);
+                const resumed = await resumeCemCheckpointOwners(admission, [ticket]);
+                const resume = resumed.owners[0].owner.resume();
+                if (scenario !== 'repeat') {
+                    await assert.rejects(resume, /source-stale/);
+                    assert.equal(rendered, true);
+                    assert.equal(renewed, false);
+                    assert.equal(discarded, true);
+                    assert.equal(fresh.alive(), false);
+                    break;
+                }
+                await resume;
+                assert.equal(rendered && renewed, true);
+                if (cycle) {
+                    admissions[cycle - 1].revoke();
+                    assert.equal((await resource.stylesheets('cem-count')).isCurrent(), true,
+                        'Revoking a predecessor discarded the newer native source');
+                }
+                previous = fresh;
+            }
+        } finally {
+            await resource.dispose();
+            for (const admission of admissions.reverse()) admission.revoke();
+            await Promise.all(generations.map(generation => generation.discard()));
+            for (const store of stores) store.dispose();
+        }
+        console.log(`Application semantic handoff ${mode}/${scenario} passed.`);
+    }
 }

@@ -409,7 +409,8 @@ export async function resumeNativeGenerationBindings(admission, tickets, timeout
             const prepared = await Promise.race([pending, new Promise((_, reject) => { timer = setTimeout(() => reject(Error('cem.runtime.allocation.timeout')), remaining); })]);
             clearTimeout(timer); timer = undefined;
             if (!prepared || !object(prepared.owner) || typeof prepared.current !== 'function' || typeof prepared.discard !== 'function' || typeof prepared.bind !== 'function') { discard(prepared); fail('binding'); }
-            staged.push({ owner: prepared.owner, current: prepared.current, discard: () => discard(prepared), bind: prepared.bind, bound: prepared.bound });
+            staged.push({ owner: prepared.owner, current: prepared.current, discard: () => discard(prepared),
+                bind: prepared.bind, bound: prepared.bound, boundCurrent: prepared.boundCurrent });
             if (!current()) fail('binding-stale');
         }
         if (!current() || staged.some(prepared => prepared.current() !== true) || performance.now() >= deadline) fail('binding-stale');
@@ -419,6 +420,7 @@ export async function resumeNativeGenerationBindings(admission, tickets, timeout
             prepared.bind();
         }
         for (const prepared of staged) prepared.bound?.();
+        if (revoked || !authority.current() || staged.some(prepared => prepared.boundCurrent && prepared.boundCurrent() !== true)) fail('binding-stale');
         return Object.freeze({ revoke: authority.revoke });
     } catch (error) { authority.revoke(); throw error; }
     finally { clearTimeout(timer); }

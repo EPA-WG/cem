@@ -2007,8 +2007,24 @@ committed lease. Equal native identities share installed style nodes, and
 session release and host disconnection remove their leases. The browser test in
 `cem_ql:test:application-styles-browser` exercises both a real Worker and an owned
 fallback heap with the native closed import fixture. Callers stage fresh CSS
-after source recovery. Shared behavior, provider and source handoff remains
-separate.
+after source recovery.
+
+## Application source and shared provider renewal
+
+Application source bindings use the same generation transaction as the shared
+behavior and provider checkpoint adapters. Original source resources stage
+before semantic owners and bind before providers renew. Application and schema
+asset routes supply a synchronous witness for the exact fresh owner and its
+current policy. The transaction checks those witnesses after binding, after
+each asynchronous renewal and before accepting the renewed cohort. A late
+release or credential-policy refusal revokes the entire fresh group. Revoking
+an earlier admission after a second handoff leaves the newer source owner live.
+
+The application resource fixture runs the shared checkpoint transaction with
+real worker and owned fallback WASM sessions. It restores edited native input
+through two recoveries and exercises source release and credential entry during
+renewal. The reduced frame endpoint still requires separate admission for
+capability-bearing declarations and their provider/source inputs.
 
 ## Native publication generation enrollment
 

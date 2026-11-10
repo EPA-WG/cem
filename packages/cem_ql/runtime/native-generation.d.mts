@@ -75,6 +75,8 @@ export interface CemPreparedGenerationBinding {
     readonly discard: () => void;
     readonly bind: () => void;
     readonly bound?: () => void;
+    /** Synchronous, side-effect-free witness for the exact newly bound owner. */
+    readonly boundCurrent?: () => boolean;
 }
 /** @internal Original shared host adapters; never exposed to authored data. */
 export declare function issueNativeGenerationBindingTicket(participant: CemNativeGenerationParticipant, current: () => boolean,

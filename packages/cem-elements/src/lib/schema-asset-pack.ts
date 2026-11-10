@@ -518,7 +518,14 @@ export class CemSchemaAssetPackRecoveryBinding {
                             this.registration?.remove(); this.loader = fresh;
                             this.staged = undefined;
                             this.enroll(target.participant);
-                        }, bound: () => { this.onBound?.(target.participant); previous.dispose(); }, discard };
+                        },
+                        bound: () => { this.onBound?.(target.participant); previous.dispose(); },
+                        boundCurrent: () => {
+                            if (discarded || this.closed || this.loader !== fresh || this.admitted() !== true || context.signal.aborted) return false;
+                            try { fresh.assertRecoveryParticipant(target.participant); return true; } catch { return false; }
+                        },
+                        discard,
+                    };
                 } };
         }, () => this.dispose());
     }

@@ -167,7 +167,8 @@ export function createQuerySourceEndpoint(options) {
         },
         open: (bytes, pins, recovery, signal) => open(bytes, pins, signal, receiverRecovery(recovery)),
     };
-    shared.endpoints.set(endpoint, { participant, physical, maxSourceBytes, receiver, current: endpoint.current });
+    shared.endpoints.set(endpoint, { participant, physical, maxSourceBytes, receiver, current: endpoint.current,
+        owns: owner => live() && owners.get(owner)?.releasing === false });
     return endpoint;
 }
 /** A private MessagePort created/transferred by the trusted Worker owner. The
@@ -341,15 +342,29 @@ export class QuerySourceResource {
                         runtimeId: context.generation.previousRuntimeId,
                     }, context.signal) : target.open(this.#bytes, this.#pins, context.signal));
                     if (this.#closed) { await target.release(owner); fail('stale'); }
-                    this.#staged = { target, owner };
+                    const staged = { target, owner };
+                    this.#staged = staged;
                     let discarded = false;
-                    const discard = () => { if (discarded) return; discarded = true; void this.dispose(); };
-                    if (!current() || context.signal.aborted) { discard(); fail('stale'); }
-                    return { owner: this, current: () => !discarded && current() && !context.signal.aborted,
+                    const isBound = () => this.#endpoint === target && this.#owner === owner;
+                    const candidateCurrent = () => !discarded && !context.signal.aborted && record.owns(owner);
+                    const stagedCurrent = () => this.#staged === staged && candidateCurrent() && current();
+                    const discard = () => {
+                        if (discarded) return;
+                        discarded = true;
+                        // Revoking a predecessor after another handoff must not
+                        // close the same stable route's newer native owner.
+                        if (this.#staged === staged || isBound()) void this.dispose();
+                    };
+                    if (!stagedCurrent()) { discard(); fail('stale'); }
+                    return { owner: this, current: stagedCurrent,
                         bind: () => {
-                            if (!context.active() || !current() || discarded || context.signal.aborted) fail('stale');
+                            if (!context.active() || !stagedCurrent()) fail('stale');
                             this.#registration.remove(); this.#endpoint = target; this.#owner = owner; this.#staged = undefined; this.#enroll();
-                        }, bound: () => { this.#clearSnapshot(); this.#options.onBound?.(target); }, discard };
+                        },
+                        bound: () => { this.#clearSnapshot(); this.#options.onBound?.(target); },
+                        boundCurrent: () => isBound() && !this.#closed && candidateCurrent() && this.#options.current() === true,
+                        discard,
+                    };
                 } };
         }, () => { void this.dispose(); });
     }

@@ -107,6 +107,23 @@ describe('fresh generation semantic owner transaction', () => {
         expect(events).toEqual(['bind:editor', 'bind:tree', 'bound:editor', 'bound:tree', 'renew:editor', 'renew:tree']);
         resumed.revoke();
     });
+    it('requires the exact bound source through asynchronous provider renewal', async () => {
+        const events: string[] = [];
+        let current = true;
+        const f = await fixture(undefined, id => ({
+            boundCurrent: id === 'editor' ? () => current : undefined,
+            renew: async () => {
+                events.push(`renew:${id}`);
+                await Promise.resolve();
+                current = false;
+            },
+            renewed: () => events.push(`renewed:${id}`),
+        }));
+        await resumeCemCheckpointOwners(f.admission, [f.ticket]);
+        await expect(f.contexts[0].renewOwners()).rejects.toThrow('source-stale');
+        expect(events).toEqual(['renew:editor']);
+        expect(f.alive()).toBe(false);
+    });
     it('rejects late host edits before any peer binds and revokes every fresh owner', async () => {
         const bind = vi.fn(), f = await fixture(undefined, () => ({ bind }));
         await resumeCemCheckpointOwners(f.admission, [f.ticket]); f.invalidate();

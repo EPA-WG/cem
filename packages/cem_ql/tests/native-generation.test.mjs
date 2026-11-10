@@ -283,6 +283,20 @@ test('failed resource staging revokes the complete fresh group without binding a
     assert.equal(bound, 0); assert.equal(discarded, 1); assert.ok(a.calls.includes('discard'));
 });
 
+test('a source withdrawn by a bound callback revokes the host-only handoff', async () => {
+    const { issueNativeGenerationBindingTicket, resumeNativeGenerationBindings } = await import('../runtime/native-generation.mjs');
+    const a = source();
+    let present = true, discarded = false;
+    const ticket = issueNativeGenerationBindingTicket(a.participant, () => true, async () => ({
+        owner: {}, current: () => true, bind() { /* The host route is already staged. */ },
+        bound: () => { present = false; }, boundCurrent: () => present, discard: () => { discarded = true; },
+    }));
+    const admission = await new CemNativeGenerationGroup([a.participant]).allocate([a.retire()]);
+    await assert.rejects(resumeNativeGenerationBindings(admission, [ticket]), /binding-stale/);
+    assert.equal(discarded, true);
+    assert.ok(a.calls.includes('discard'));
+});
+
 test('late resource preparation is cleaned once after the shared deadline', async () => {
     const { registerNativeGenerationResource, releaseNativeGenerationResources, issueNativeGenerationBindingTicket, resumeNativeGenerationBindings } =
         await import('../runtime/native-generation.mjs');

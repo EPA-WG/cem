@@ -478,7 +478,12 @@ Deferred execution gates, in order within this workstream:
         owned fallback heap, including sharing, replacement refusal, empty
         replacement, owner retirement and host disconnection. The source
         recovery fixture checks old receipt expiry and fresh owner reads.
-  - [ ] Complete shared behavior, provider and source handoff.
+  - [x] Bind the application source route into shared behavior/provider
+        checkpoint renewal. Worker and fallback fixtures exercise edited native
+        inputs, late release or credential refusal, and repeated recovery.
+        Compiled form and schema asset recovery gates also pass.
+  - [ ] Admit capability-bearing compiled declarations through their actual
+        behavior, provider and source contracts in the reduced application.
 
 - [ ] Generate app-build dependencies and GraphQL schema/operation contracts,
   including variable/response validation and compact runtime input checks. Map

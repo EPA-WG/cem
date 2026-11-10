@@ -13,6 +13,8 @@ export interface CemPreparedCheckpointOwner {
     readonly bind?: () => void;
     /** Release browser claim holds only after every participating route binds. */
     readonly bound?: () => void;
+    /** The exact newly bound source must remain live through provider renewal. */
+    readonly boundCurrent?: () => boolean;
     /** Reacquire sources/relationships on the complete fresh binding set. */
     readonly renew?: () => Promise<void>;
     /** Recheck every peer after asynchronous provider work, before completing the handoff. */
@@ -148,7 +150,9 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
     const controller = new AbortController();
     const parked: (() => void)[] = [];
     const activationWitnesses: (() => boolean)[] = [];
-    const staged: { current: () => boolean; discard: () => void; bind?: () => void; bound?: () => void; renew?: () => Promise<void>; renewed?: () => void }[] = [];
+    const boundSources: (() => boolean)[] = [];
+    const staged: { current: () => boolean; discard: () => void; bind?: () => void; bound?: () => void;
+        renew?: () => Promise<void>; renewed?: () => void }[] = [];
     let active = false, revoked = false, timer: ReturnType<typeof setTimeout> | undefined;
     const discarded = new WeakSet<CemPreparedCheckpointOwner>();
     const discard = (prepared: CemPreparedCheckpointOwner) => {
@@ -159,7 +163,7 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
     const dispose = () => {
         if (revoked) return;
         revoked = true; active = false; controller.abort();
-        activationWitnesses.length = 0;
+        activationWitnesses.length = 0; boundSources.length = 0;
         for (const release of parked.splice(0).reverse()) { try { release(); } catch { /* All peers still discard. */ } }
         for (const prepared of staged.splice(0)) { try { prepared.discard(); } catch { /* Continue all owner cleanup. */ } }
     };
@@ -182,10 +186,14 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
         && records.every(record => complete ? record.current() : record.epochCurrent());
     activationWitnesses.push(...records.map(record => record.current));
     let bound = false, binding = false;
+    const checkBound = () => {
+        if (!active || revoked || !fresh.current()) fail('stale');
+        if (boundSources.some(current => current() !== true)) fail('source-stale');
+    };
     const bindOwners = () => {
         if (!active || revoked || !fresh.current() || binding) fail('stale');
-        if (bound) return;
         try {
+            if (bound) { checkBound(); return; }
             if (activationWitnesses.some(witness => !witness()) || staged.some(owner => owner.current() !== true)) fail('stale');
             binding = true;
             for (const owner of staged) {
@@ -193,6 +201,7 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
                 owner.bind?.();
             }
             for (const owner of staged) owner.bound?.();
+            checkBound();
             bound = true; activationWitnesses.length = 0;
             for (const owner of staged) { owner.bind = undefined; owner.bound = undefined; }
         } catch (error) { revoke(); throw error; }
@@ -211,13 +220,14 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
             });
             try {
                 await Promise.race([(async () => {
+                    checkBound();
                     for (const owner of staged) {
-                        if (!active || revoked || !fresh.current()) fail('stale');
-                        await owner.renew?.();
+                        if (owner.renew) { await owner.renew(); checkBound(); }
                     }
-                    if (!active || revoked || !fresh.current()) fail('stale');
                     for (const owner of staged) owner.renewed?.();
+                    checkBound();
                     for (const release of parked.splice(0).reverse()) release();
+                    checkBound();
                 })(), abortedRenewal, new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(Error('cem.checkpoint.resume.timeout')), timeoutMs); })]);
             } catch (error) { revoke(); throw error; }
             finally { clearTimeout(timeout); stop(); }
@@ -248,6 +258,7 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
             clearTimeout(timer); timer = undefined;
             if (revoked) { discard(prepared); fail('stale'); }
             staged.push({ current: prepared.current, discard: prepared.discard, bind: prepared.bind, bound: prepared.bound });
+            if (prepared.boundCurrent) boundSources.push(prepared.boundCurrent);
             if (!prepared.owner || typeof prepared.current !== 'function' || typeof prepared.discard !== 'function' || typeof prepared.bind !== 'function') fail('adapter');
             if (!binding.current() || !current()) fail('stale');
         }
@@ -272,7 +283,9 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
             if (revoked) { discard(prepared); fail('stale'); }
             // Only bound cleanup/current controls survive; no preparation object
             // or predecessor source/runtime ownership chain is retained.
-            staged.push({ current: prepared.current, discard: prepared.discard, bind: prepared.bind, bound: prepared.bound, renew: prepared.renew, renewed: prepared.renewed });
+            staged.push({ current: prepared.current, discard: prepared.discard, bind: prepared.bind, bound: prepared.bound,
+                renew: prepared.renew, renewed: prepared.renewed });
+            if (prepared.boundCurrent) boundSources.push(prepared.boundCurrent);
             if (!prepared.owner || typeof prepared.owner !== 'object' || typeof prepared.current !== 'function' || typeof prepared.discard !== 'function') fail('adapter');
             owners.push(Object.freeze({ instanceId: owner.receipt.instanceId, runtimeId: generation.runtimeId, owner: prepared.owner }));
             if (!current()) fail('stale');
