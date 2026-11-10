@@ -139,6 +139,8 @@ struct ResourceInput {
     declaration_bytes: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     payload_bytes: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stylesheet: Option<(usize, String)>,
 }
 impl ResourceInput {
     fn from_payload(input: &cem_ml::import::element_tree::ExternalCemPayloadInput) -> Self {
@@ -147,6 +149,7 @@ impl ResourceInput {
             content: input.content.clone(),
             declaration_bytes: None,
             payload_bytes: Some(input.byte_length),
+            stylesheet: None,
         }
     }
 }
@@ -1032,6 +1035,14 @@ impl InlinePageCoordinator {
                 content: ContentHash::from_blake3(&response.bytes),
                 declaration_bytes: None,
                 payload_bytes: None,
+                stylesheet: Some((
+                    response.bytes.len(),
+                    response
+                        .content_type
+                        .clone()
+                        .or_else(|| request.request().resolution.content_type_hint.clone())
+                        .unwrap_or_else(|| "text/css".into()),
+                )),
             };
             let resources = self.resources.as_ref().unwrap();
             if resources

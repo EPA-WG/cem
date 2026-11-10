@@ -766,13 +766,25 @@ pub(crate) fn stylesheet_markup(
     declaration: bool,
     source: &SourceMapStack,
 ) -> Result<RenderPlanNode, String> {
-    use crate::instance_island::construct::{attribute, element};
     let css = record.emission()?.css();
+    let identity = record.identity();
+    stylesheet_markup_with_identity(css, &identity.scope, &identity.cache_key, index, declaration, source)
+}
+
+pub(crate) fn stylesheet_markup_with_identity(
+    css: String,
+    scope: &CssManagedScope,
+    key: &str,
+    index: usize,
+    declaration: bool,
+    source: &SourceMapStack,
+) -> Result<RenderPlanNode, String> {
+    use crate::instance_island::construct::{attribute, element};
     if css.to_ascii_lowercase().contains("</style") || css.contains('\0') {
         return Err("Unsafe stylesheet raw-text export".into());
     }
     let attributes = if declaration {
-        let shared = match &record.identity().scope {
+        let shared = match scope {
             CssManagedScope::Shared { name, .. } => Some(name),
             _ => None,
         };
@@ -787,7 +799,7 @@ pub(crate) fn stylesheet_markup(
                 source,
             ),
             attribute("data-cem-style-index", &index.to_string(), source),
-            attribute("data-cem-style-key", &record.identity().cache_key, source),
+            attribute("data-cem-style-key", key, source),
         ];
         if let Some(name) = shared {
             attrs.push(attribute("data-cem-style-scope", name, source));

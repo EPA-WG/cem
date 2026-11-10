@@ -1074,8 +1074,17 @@ WASM validates the fetched bytes before declaration registration or island
 adoption. The native comparison render must agree with the live range.
 Missing resources, changed bytes or stale DOM leave the server-rendered
 nodes and markers in place. This profile covers standalone passive external
-declarations and CEM-ML payloads. External stylesheet closures, cross-origin
-transport and resource-dependent stateful groups remain separate work.
+declarations and CEM-ML payloads.
+
+The HTML export also attaches import receipts to declaration elements and
+instance islands. Browser adoption replays same-origin stylesheet imports
+through the native CSS loader with the original occurrence order, public URL
+bases, and scope. Each imported sheet has a 256 KiB limit and the comparison
+group shares a 1 MiB import byte limit. Native output must match the published
+style text and the browser checks the installed CSS rules before retaining the
+style nodes and render range. Missing, changed or redirected imports leave the
+server output in place. Other CSS URLs, cross-origin reads, and styled stateful
+groups require separate admission.
 
 Config graphs use the same template, entrypoint and literal `{param}` controls.
 A transform may have both a `text/html` export and an

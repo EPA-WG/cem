@@ -15,7 +15,7 @@ pub use keyframes::{
     CssKeyframesRule,
 };
 mod ownership;
-pub use ownership::{derive_css_stylesheet_identity, CssStylesheetIdentity};
+pub use ownership::{css_stylesheet_cache_key, derive_css_stylesheet_identity, CssStylesheetIdentity};
 mod closure;
 pub use closure::{
     emit_css_import_closure, CssClosureDiagnostic, CssClosureEmission, CssClosureFragment,

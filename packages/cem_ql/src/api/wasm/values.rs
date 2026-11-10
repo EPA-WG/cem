@@ -578,7 +578,7 @@ pub fn admit_canonical_ssr_host(
         let values = decode_ssr_capture(bytes, control)?;
         let [host] = values.items.as_slice() else { return Err(JsValue::from_str("cem.ssr.resume_host")) };
         Ok(host.clone())
-    }, tag, version, source, nested_json, declarations, None)
+    }, tag, version, source, nested_json, declarations, None, None)
 }
 
 #[wasm_bindgen(js_name = "verifyCanonicalSsrDeclaration")]
@@ -601,14 +601,14 @@ pub fn verify_canonical_ssr_declaration(
 #[wasm_bindgen(js_name = "admitCapturedCanonicalSsrHost")]
 pub fn admit_captured_canonical_ssr_host(
     id: u32, tag: &str, version: &str, source: &str, nested_json: String,
-    declarations: js_sys::Array, payloads: Option<js_sys::Array>,
+    declarations: js_sys::Array, payloads: Option<js_sys::Array>, stylesheets: Option<js_sys::Array>,
 ) -> Result<String, JsValue> {
     let _native = cem_ml::runtime_admission::admit(false).map_err(JsValue::from_str)?;
     let (capture, _memory, _) = DOM_CAPTURES.with(|s| s.borrow_mut().remove(&id))
         .ok_or_else(|| JsValue::from_str("Unknown DOM capture"))?;
     prove_canonical_ssr_host(0, |_| {
         captured_container(capture.finish_literal_namespaces().map_err(|e| JsValue::from_str(&e))?)
-    }, tag, version, source, Some(nested_json), Some(declarations), payloads)
+    }, tag, version, source, Some(nested_json), Some(declarations), payloads, stylesheets)
 }
 
 fn decode_ssr_capture(
@@ -625,8 +625,9 @@ fn prove_canonical_ssr_host(
     tag: &str, version: &str, source: &str, nested_json: Option<String>,
     declarations: Option<js_sys::Array>,
     payloads: Option<js_sys::Array>,
+    stylesheets: Option<js_sys::Array>,
 ) -> Result<String, JsValue> {
-    use crate::ssr_browser_resume::{admit, admit_group_with_resource_reads, NestedDeclaration};
+    use crate::ssr_browser_resume::{admit, admit_group_with_stylesheet_reads, NestedDeclaration};
 
     let nested_bytes = nested_json.as_ref().map_or(0, String::len);
     if nested_bytes > 2 * 1024 * 1024 {
@@ -668,7 +669,23 @@ fn prove_canonical_ssr_host(
             }
         }
     }
-    let input_bytes = [host_bytes, source.len(), tag.len(), version.len(), nested_bytes, declaration_bytes, payload_bytes]
+    let mut css_inputs = std::collections::BTreeMap::new();
+    let mut css_bytes = 0usize;
+    if let Some(entries) = stylesheets {
+        let fail = || JsValue::from_str("cem.ssr.resume_stylesheet_bounds");
+        use crate::ssr_browser_resources::{MAX_STYLESHEET_BYTES, MAX_STYLESHEET_TOTAL_BYTES};
+        if entries.length() > 64 { return Err(fail()); }
+        for entry in entries.iter() {
+            let entry = entry.dyn_into::<js_sys::Array>()?;
+            if entry.length() != 2 { return Err(fail()); }
+            let url = entry.get(0).as_string().filter(|s| s.len() <= 4096).ok_or_else(fail)?;
+            let bytes = entry.get(1).dyn_into::<js_sys::Uint8Array>()?;
+            css_bytes = css_bytes.saturating_add(bytes.length() as usize);
+            if bytes.length() as usize > MAX_STYLESHEET_BYTES || css_bytes > MAX_STYLESHEET_TOTAL_BYTES
+                || css_inputs.insert(url, bytes).is_some() { return Err(fail()); }
+        }
+    }
+    let input_bytes = [host_bytes, source.len(), tag.len(), version.len(), nested_bytes, declaration_bytes, payload_bytes, css_bytes]
         .into_iter().fold(0usize, usize::saturating_add);
     let _memory = cem_ml::runtime_memory::admit_input(input_bytes).map_err(|e| JsValue::from_str(e.0))?;
     let control = cem_ml::operation_control::OperationControl::default();
@@ -683,7 +700,8 @@ fn prove_canonical_ssr_host(
             nodes.push(captured.remove(0));
         }
         let payload_reads = payload_inputs.into_iter().map(|(key, bytes)| (key, bytes.to_vec())).collect();
-        let group = admit_group_with_resource_reads(&host, tag, version, source, &declarations, &nodes, payload_reads, &control)
+        let stylesheet_reads = css_inputs.into_iter().map(|(url, bytes)| (url, bytes.to_vec())).collect();
+        let group = admit_group_with_stylesheet_reads(&host, tag, version, source, &declarations, &nodes, payload_reads, stylesheet_reads, &control)
             .map_err(|e| JsValue::from_str(&e))?;
         serde_json::to_string(&group)
     } else {

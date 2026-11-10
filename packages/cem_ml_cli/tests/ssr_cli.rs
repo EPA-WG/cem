@@ -561,6 +561,7 @@ fn config_cli_admits_canonical_xhtml_and_resolves_declaration_styles_from_its_ur
         assert!(!css.contains("@import"), "{css}");
     }
     assert!(html.contains("@import './instance.css'"));
+    assert_eq!(html.matches("data-cem-ssr-stylesheets=").count(), 2);
     let report: serde_json::Value =
         serde_json::from_slice(&fs::read(root.join("page-out.json")).unwrap()).unwrap();
     assert_eq!(report["usage"]["resources"], 6);

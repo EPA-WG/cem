@@ -801,6 +801,121 @@ try {
         }
         await page.close();
     }
+    const cssFiles = new Map([
+        ['components/card.xhtml', ['application/xhtml+xml', [
+            '<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="x-css-proof" version="1.2.3" scope="proof">',
+            '<template id="x-css-proof" type="text/cem-ml">',
+            "{style @scope=proof |```@import './styles/main.css';```}{article | Verified styles}",
+            '</template></cem-element>',
+        ].join('')]],
+        ['components/styles/main.css', ['text/css', "@import '../color.css'; article {padding:3px}"]],
+        ['components/color.css', ['text/css; charset=utf-8', 'article {color:rgb(17,34,51)} /* first */']],
+        ['instance.css', ['text/css', 'article {background-color:rgb(29,47,71)}']],
+    ]);
+    const cssRoot = path.join(temp, 'css-proof');
+    await mkdir(path.join(cssRoot, 'components/styles'), { recursive: true });
+    for (const [name, [, body]] of cssFiles) await writeFile(path.join(cssRoot, name), body);
+    const cssBase = `${origin}/verified-css/`;
+    const instanceInput = '<x-css-proof><template><style>@import "./instance.css";</style></template></x-css-proof>';
+    const cssProof = await render([
+        '<cem-element tag="x-css-proof" version="1.2.3" scope="proof" src="./components/card.xhtml#x-css-proof"></cem-element>',
+        instanceInput, '<article>Outside scope</article>',
+    ].join(''), 'x-css-proof=1.9.0', ['--resolver-read-map', `${cssBase}=${cssRoot}`], `<base href="${cssBase}">`);
+    assert.equal((cssProof.match(/data-cem-ssr-stylesheets=/gu) ?? []).length, 2);
+    pages.set('/css-proof.html', cssProof);
+    const inlineCssProof = await render([
+        '<cem-element tag="x-css-proof" version="1.2.3" scope="proof">',
+        '<template id="x-css-proof" type="text/cem-ml">',
+        "{style @scope=proof |```@import './components/styles/main.css';```}{article | Verified styles}",
+        '</template></cem-element>', instanceInput, '<article>Outside scope</article>',
+    ].join(''), 'x-css-proof=1.9.0', ['--resolver-read-map', `${cssBase}=${cssRoot}`], `<base href="${cssBase}">`);
+    pages.set('/css-inline-proof.html', inlineCssProof);
+    const importCases = ['matching', 'inline-matching', 'worker-matching', 'missing', 'changed', 'wrong-mime',
+        'redirect', 'missing-manifest', 'tampered-style', 'tampered-context', 'stale-base'];
+    for (const scenario of importCases) {
+        const page = await browser.newPage();
+        page.on('pageerror', error => errors.push(error.message));
+        const reads = [];
+        await page.route('**/*', route => {
+            const url = new URL(route.request().url());
+            if (url.origin !== origin) {
+                requests.push(url.href);
+                return route.abort();
+            }
+            if (!url.href.startsWith(cssBase)) return route.continue();
+            const name = url.href.slice(cssBase.length);
+            reads.push(name);
+            const file = cssFiles.get(name);
+            if (!file || (scenario === 'missing' && name === 'instance.css')) return route.fulfill({ status: 404 });
+            if (scenario === 'redirect' && name === 'components/color.css') {
+                return route.fulfill({ status: 302, headers: { location: '/verified-css/replacement.css' } });
+            }
+            const [contentType, body] = file;
+            return route.fulfill({
+                contentType: scenario === 'wrong-mime' && name === 'components/color.css' ? 'text/plain' : contentType,
+                body: scenario === 'changed' && name === 'components/color.css' ? body.replace('first', 'other') : body,
+            });
+        });
+        await page.goto(`${origin}/${scenario === 'inline-matching' ? 'css-inline-proof' : 'css-proof'}.html`);
+        const result = await page.evaluate(async scenario => {
+            const { CemElementRuntime } = await import('/packages/cem-elements/dist/lib/cem-elements.js');
+            const host = document.querySelector('x-css-proof');
+            const declaration = document.querySelector('cem-element');
+            const island = host.querySelector('template[data-cem-island]');
+            const article = host.querySelector('article');
+            const style = declaration.querySelector('style');
+            if (scenario === 'missing-manifest') island.removeAttribute('data-cem-ssr-stylesheets');
+            if (scenario === 'tampered-style') style.sheet.insertRule('article { margin: 2px }');
+            if (scenario === 'tampered-context') host.setAttribute('data-cem-css-context', 'foreign');
+            const nodes = [...host.childNodes];
+            const before = host.outerHTML;
+            const initial = [getComputedStyle(article).color, getComputedStyle(article).backgroundColor];
+            const context = host.getAttribute('data-cem-css-context');
+            const runtime = scenario === 'worker-matching' ? new CemElementRuntime()
+                : new CemElementRuntime({ processingWorkerFactory: () => { throw new Error('Use main-thread runtime'); } });
+            if (scenario === 'stale-base') {
+                const support = runtime.renderSupport.bind(runtime);
+                runtime.renderSupport = scope => {
+                    const bindings = support(scope);
+                    return { ...bindings, admitCanonicalSsrInstance: async (...args) => {
+                        const decision = await bindings.admitCanonicalSsrInstance(...args);
+                        document.querySelector('base').href = '/another-base/';
+                        return decision;
+                    } };
+                };
+            }
+            runtime.install(window);
+            await runtime.whenDeclarationSettled(declaration);
+            await runtime.whenRenderSettled(host);
+            return {
+                retained: host.childNodes.length === nodes.length && nodes.every((node, index) => host.childNodes[index] === node)
+                    && declaration.querySelector('style') === style,
+                current: [getComputedStyle(article).color, getComputedStyle(article).backgroundColor], initial,
+                outside: getComputedStyle(document.querySelector('body > article')).color,
+                contextRetained: host.getAttribute('data-cem-css-context') === context,
+                unchanged: host.outerHTML === before,
+                marked: island.hasAttribute('data-cem-ssr-profile'),
+                diagnostics: [...runtime.diagnosticsFor(host), ...runtime.diagnosticsFor(declaration)].map(d => d.code),
+            };
+        }, scenario);
+        const detail = `${scenario} ${JSON.stringify(result)}`;
+        assert.equal(result.retained, true, detail);
+        assert.equal(result.contextRetained, true, detail);
+        assert.deepEqual(result.current, result.initial, detail);
+        if (scenario.endsWith('matching')) {
+            assert.equal(result.marked, false, detail);
+            assert.deepEqual(result.diagnostics, [], detail);
+            assert.deepEqual(result.current, ['rgb(17, 34, 51)', 'rgb(29, 47, 71)'], detail);
+            assert.notEqual(result.outside, result.current[0], detail);
+            assert.deepEqual(reads, [...cssFiles.keys()].slice(scenario === 'inline-matching' ? 1 : 0));
+        } else {
+            assert.equal(result.marked, true, detail);
+            assert.equal(result.unchanged, true, detail);
+            assert.ok(result.diagnostics.includes('cem-element.hydration_native_refused'), detail);
+            assert.ok(!reads.includes('replacement.css'), detail);
+        }
+        await page.close();
+    }
     const xhtml = await browser.newPage();
     xhtml.on('pageerror', error => errors.push(error.message));
     const xhtmlReads = [];
@@ -860,8 +975,8 @@ try {
         await page.close();
     }
     assert.deepEqual(errors, []); assert.deepEqual(requests, []);
-    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + authoredPages.length + resourceCases.length + 4;
-    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} stylesheet, ${payloadCases.length} foreign/source, ${formCases.length} form, two authored source profiles plus verified resources, mapped CSS, declarations and payloads, zero off-origin requests`);
+    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + authoredPages.length + resourceCases.length + importCases.length + 4;
+    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} inline stylesheet, ${importCases.length} CSS import, ${payloadCases.length} foreign/source, ${formCases.length} form, two authored source profiles plus verified resources, mapped CSS, declarations and payloads, zero off-origin requests`);
 } finally {
     await browser?.close();
     if (server) await new Promise(resolve => server.close(resolve));

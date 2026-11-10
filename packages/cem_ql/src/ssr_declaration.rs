@@ -168,6 +168,7 @@ pub(super) fn read_definition(
             content: ContentHash::from_blake3(&response.bytes),
             declaration_bytes: Some(response.bytes.len()),
             payload_bytes: None,
+            stylesheet: None,
         },
         tree: elements.tree.clone(),
         declaration,
@@ -273,7 +274,6 @@ pub(crate) fn verify_browser_declaration(
         },
     );
     if artifact.module_map.is_some()
-        || !artifact.stylesheets.is_empty()
         || artifact.requires_legacy_runtime_resources()
         || artifact
             .diagnostics

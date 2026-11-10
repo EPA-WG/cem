@@ -708,12 +708,14 @@ incompatible declaration version, freezes the whole group. A nested child
 receives its own lifecycle only after the group has been admitted.
 
 The profile admits private and shared declaration styles and explicit instance
-styles when their closures are resource free. A portable native key binds each
+styles with resource-free closures or verified same-origin imports. A native key binds each
 stylesheet to its declaration or instance, occurrence, scope and source bytes.
 The CLI emits literal HTML style text. The browser rebuilds the closure from
 the live declaration or canonical payload, compares every managed occurrence,
-and checks that the installed CSSOM rules still match the admitted text. Normal
-stylesheet ownership then takes over the same style nodes and sheets.
+and checks that the installed CSSOM rules still match the admitted text. For
+imports, the browser checks each response against its published byte identity
+and rebuilds the native import order and scope before adopting the existing
+styles. A later live render uses normal stylesheet ownership.
 
 An absent, disabled, changed or unresolved stylesheet freezes the group. Shared
 stylesheets require their matching declaration owners in the admitted group.

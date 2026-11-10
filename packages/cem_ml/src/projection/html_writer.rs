@@ -224,7 +224,7 @@ pub fn stream_with_output_attribute_lists(
     output_attributes: &BTreeMap<AstNodeId, Vec<CemTreeAstAttribute>>,
 ) -> Result<CemTreeAstStream, String> {
     if output_attributes.len() > 128
-        || output_attributes.values().map(Vec::len).sum::<usize>() > 192
+        || output_attributes.values().map(Vec::len).sum::<usize>() > 320
         || output_attributes.keys().any(|id| {
             tree.node(*id)
                 .is_none_or(|n| n.kind != CemTreeNodeKind::Element)

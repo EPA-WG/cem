@@ -586,6 +586,13 @@ impl TransformArtifactExporter for ReadyExporter {
                             source:tree.node_source_map(id).unwrap_or_default(),
                         });
                     }
+                    for (id, manifest) in artifact.ready.browser_stylesheet_manifests() {
+                        attributes.entry(id).or_default().push(cem_ml::projection::CemTreeAstAttribute {
+                            name:cem_ql::ssr_browser_resources::STYLESHEETS_ATTRIBUTE.into(),
+                            value:Some(manifest),value_nodes:vec![],
+                            source:tree.node_source_map(id).unwrap_or_default(),
+                        });
+                    }
                     let stream=Arc::new(cem_ml::projection::html_dom_writer_stream_with_output_attribute_lists(tree.clone(),artifact.ready.page().source_document(),&artifact.control,&attributes)?);
                     let output=execute_conversion_output_pipeline_from_cem_tree_with_environment(&environment,&contract.pipeline,stream,artifact.ready.page().source_map().cloned(),vec![],descriptor.id.as_str(),None,Some(&artifact.ready.page().route().source_uri));
                     if output.diagnostics.iter().any(|d|d.severity.is_hard_violation()) {return Err(diagnostics(output.diagnostics))}

@@ -355,11 +355,17 @@ links the corresponding design and verification records.
         fetched bytes are bound to the live native proof.
   - [x] Verify Chromium retains exact nodes for missing, changed, redirected
         and tampered resources, and adopts matching passive ranges in place.
-- [ ] Rebuild verified external CSS closures for browser adoption.
+- [x] Rebuild verified external CSS closures for browser adoption.
+  - [x] Verify native replay resolves nested imports against each owning URL,
+        verifies response identities and rejects incomplete or unrelated receipts.
+  - [x] Verify Chromium preserves rendered and stylesheet nodes for matching,
+        missing, changed, redirected and tampered imports.
 - [ ] Extend stateful browser admission to nested and styled groups. Verify form
       and slice ownership across participants and preserve group atomicity.
 - [ ] Define explicit cross-origin browser read grants for external resources
       and verify transport, identity, and refusal behavior.
+- [ ] Define browser identity checks for non-import CSS resources such as
+      fonts and images referenced through `url()`.
 
 ## Component gallery source-link maintenance (after Studio presentation work)
 

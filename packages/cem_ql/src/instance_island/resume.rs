@@ -1,6 +1,6 @@
 //! Fresh native admission of a captured canonical SSR host. Serialized readiness
 //! flags and hashes confer no authority: compatible output is recomputed locally.
-use crate::ssr_browser_resources::{SourceReceipt, PAYLOAD_ATTRIBUTE};
+use crate::ssr_browser_resources::{SourceReceipt, PAYLOAD_ATTRIBUTE, STYLESHEETS_ATTRIBUTE};
 use crate::{
     eval::{AtomValue, Item},
     instance_island as island,
@@ -20,6 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod controls;
 #[path = "resume_stylesheets.rs"]
 mod stylesheets;
+use stylesheets::StylesheetReads;
 
 pub const PROFILE: &str = "cem-native-inline/1";
 pub const PROFILE_ATTRIBUTE: &str = "data-cem-ssr-profile";
@@ -61,6 +62,8 @@ struct Group<'a> {
     participants: Vec<NativeSsrResume>,
     remaining_source_bytes: usize,
     payload_reads: BTreeMap<String, Vec<u8>>,
+    stylesheet_reads: StylesheetReads,
+    declaration_contexts: BTreeMap<String, Option<String>>,
 }
 
 struct ParentInput<'a> {
@@ -157,6 +160,23 @@ pub fn admit_group_with_resource_reads(
     payload_reads: BTreeMap<String, Vec<u8>>,
     c: &OperationControl,
 ) -> Result<NativeSsrGroup, String> {
+    admit_group_with_stylesheet_reads(
+        host, tag, current_version, source, nested, declaration_nodes,
+        payload_reads, BTreeMap::new(), c,
+    )
+}
+
+pub fn admit_group_with_stylesheet_reads(
+    host: &Item,
+    tag: &str,
+    current_version: &str,
+    source: &str,
+    nested: &[NestedDeclaration],
+    declaration_nodes: &[Item],
+    payload_reads: BTreeMap<String, Vec<u8>>,
+    stylesheet_reads: BTreeMap<String, Vec<u8>>,
+    c: &OperationControl,
+) -> Result<NativeSsrGroup, String> {
     let mut source_bytes = source.len();
     if nested.len() >= 64
         || declaration_nodes.len() > 64
@@ -165,6 +185,17 @@ pub fn admit_group_with_resource_reads(
     {
         return Err(fail());
     }
+    let stylesheet_reads = if stylesheet_reads.is_empty() {
+        StylesheetReads::default()
+    } else {
+        let host = crate::eval::retained_cem_node(host).ok_or_else(fail)?;
+        let owner = host.owner();
+        StylesheetReads::new(
+            owner.document_uri().ok_or_else(fail)?,
+            owner.base_uri().ok_or_else(fail)?,
+            stylesheet_reads,
+        )?
+    };
     let mut group = Group {
         declarations: BTreeMap::new(),
         declaration_nodes: BTreeMap::new(),
@@ -173,6 +204,8 @@ pub fn admit_group_with_resource_reads(
         participants: vec![],
         remaining_source_bytes: 1024 * 1024,
         payload_reads,
+        stylesheet_reads,
+        declaration_contexts: BTreeMap::new(),
     };
     for declaration in nested {
         source_bytes = source_bytes.saturating_add(declaration.source.len());
@@ -180,6 +213,7 @@ pub fn admit_group_with_resource_reads(
             || declaration.tag == "cem-element"
             || declaration.tag.len() > 256
             || declaration.version.len() > 1024
+            || (declaration.tag == tag && (declaration.source != source || declaration.version != current_version))
             || group
                 .declarations
                 .insert(
@@ -210,7 +244,7 @@ pub fn admit_group_with_resource_reads(
     }
     island::bounded_root(host, c)?;
     group.admit_member(host, tag, current_version, source, None, 0, c)?;
-    if !group.payload_reads.is_empty() {
+    if !group.payload_reads.is_empty() || !group.stylesheet_reads.all_used() {
         return Err(fail());
     }
     Ok(NativeSsrGroup {
@@ -298,6 +332,7 @@ impl Group<'_> {
         };
         let mut template_attrs = island::attrs(template)?;
         let payload_receipt = template_attrs.remove(PAYLOAD_ATTRIBUTE);
+        let stylesheet_manifest = template_attrs.remove(STYLESHEETS_ATTRIBUTE);
         let payload_bytes = self.payload_reads.remove(&source_key);
         if payload_receipt.is_some() != payload_bytes.is_some()
             || !children[..*ti].iter().all(whitespace)
@@ -403,9 +438,7 @@ impl Group<'_> {
                 return Err(fail());
             }
         }
-        if actual.contains_key("data-cem-css-context") {
-            return Err(fail());
-        }
+        let style_context = actual.remove("data-cem-css-context");
         if source_payload.is_none() {
             passive_nodes(
                 &payload,
@@ -489,7 +522,13 @@ impl Group<'_> {
             return Err(fail());
         }
         let output = &children[*start + 1..*end];
-        let instance_stylesheets = payload_styles.verify(&instance_id, &children[*end + 1..], c)?;
+        let instance_stylesheets = payload_styles.verify(
+            &instance_id,
+            &children[*end + 1..],
+            stylesheet_manifest.as_deref(),
+            &mut self.stylesheet_reads,
+            c,
+        )?;
         let artifact = compile_template(
             source,
             &CompileTemplateOptions {
@@ -507,7 +546,15 @@ impl Group<'_> {
         {
             return Err(fail());
         }
-        stylesheets::verify_declaration(declaration, tag, shared_scope.as_deref(), &artifact, c)?;
+        if !self.declaration_contexts.contains_key(tag) {
+            let context = stylesheets::verify_declaration(
+                declaration, tag, shared_scope.as_deref(), &artifact, &mut self.stylesheet_reads, c,
+            )?;
+            self.declaration_contexts.insert(tag.into(), context);
+        }
+        if self.declaration_contexts[tag] != style_context {
+            return Err(fail());
+        }
         let styled = instance_stylesheets || !artifact.stylesheets.is_empty();
         let defaults = crate::render::canonical_slice_defaults(&artifact).map_err(|_| fail())?;
         let entries = island::elements(&parts[4])?;

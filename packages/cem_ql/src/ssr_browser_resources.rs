@@ -3,7 +3,11 @@ use cem_ml::{content_cache::ContentHash, resolver::ssr_resource_url};
 
 pub const DECLARATION_ATTRIBUTE: &str = "data-cem-ssr-declaration";
 pub const PAYLOAD_ATTRIBUTE: &str = "data-cem-ssr-payload";
+pub const STYLESHEETS_ATTRIBUTE: &str = "data-cem-ssr-stylesheets";
 pub const MAX_DECLARATION_BYTES: usize = 64 * 1024;
+pub const MAX_STYLESHEET_BYTES: usize = 256 * 1024;
+pub const MAX_STYLESHEET_TOTAL_BYTES: usize = 1024 * 1024;
+pub const MAX_STYLESHEET_MANIFEST_BYTES: usize = 64 * 1024;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -35,16 +39,35 @@ impl SourceReceipt {
             return Err(fail());
         }
         let receipt: Self = serde_json::from_str(raw).map_err(|_| fail())?;
-        if receipt.url.len() > 4096
-            || ssr_resource_url(&receipt.url).as_deref() != Ok(receipt.url.as_str())
-            || receipt.content_type != content_type
-            || receipt.byte_length != bytes.len()
-            || receipt.hash != ContentHash::from_blake3(bytes).hex
-        {
-            return Err(fail());
-        }
+        receipt.check_bytes(bytes, content_type, limit)?;
         Ok(receipt)
     }
+
+    pub(crate) fn check_bytes(
+        &self,
+        bytes: &[u8],
+        content_type: &str,
+        limit: usize,
+    ) -> Result<(), String> {
+        if self.url.len() > 4096
+            || ssr_resource_url(&self.url).as_deref() != Ok(self.url.as_str())
+            || self.content_type != content_type
+            || self.byte_length > limit
+            || self.byte_length != bytes.len()
+            || self.hash != ContentHash::from_blake3(bytes).hex
+        {
+            return Err("cem.ssr.resume_resource_identity".into());
+        }
+        Ok(())
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct StylesheetReceipt {
+    pub owner_key: String,
+    pub context: String,
+    pub sources: Vec<SourceReceipt>,
 }
 
 pub fn declaration_content_type(uri: &str) -> &'static str {

@@ -39,6 +39,9 @@ impl RetainedStylesheet {
     pub fn identity(&self) -> &CssStylesheetIdentity {
         &self.identity
     }
+    pub(crate) fn import_closure(&self) -> &CssImportClosure {
+        &self.closure
+    }
     pub fn source(&self, sheet: usize) -> Result<RetainedStylesheetSource<'_>, &'static str> {
         self.emission()?;
         let sheet = self

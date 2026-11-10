@@ -1540,6 +1540,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         members: readonly HTMLElement[], nested: readonly { tag: string; version: string; source: string }[],
         declarations: readonly HTMLElement[],
         payloads: readonly { host: HTMLElement; bytes: Uint8Array }[],
+        stylesheets?: [string, Uint8Array][],
     ) => {
         const styleInputs: Uint8Array[] = [];
         let declarationBytes = 0;
@@ -1551,7 +1552,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         }
         const proof = await withDomCapture(host, limits, handle =>
             admitCapturedCanonicalSsrHost(handle, tag, version, source, JSON.stringify(nested), styleInputs,
-                payloads.map(({host, bytes}) => [domKey(host), bytes])));
+                payloads.map(({host, bytes}) => [domKey(host), bytes]), stylesheets));
         const { participants } = JSON.parse(proof) as { participants: { decision: 'adopt' | 'render-on-load'; instanceId: string; declarationVersion: string | null; sourceKey: string; instanceStylesheets: boolean; stateful: boolean }[] };
         if (participants.length !== members.length || participants.some((decision, index) => decision.sourceKey !== domKey(members[index]))) {
             throw new Error('cem.ssr.resume_participants');

@@ -110,7 +110,8 @@ import {
     decideCemDeclarationTemplateLanguage,
     type CemDeclarationTemplateLanguage,
 } from './legacy-xslt/template-language.js';
-import { fetchSsrSource, readSsrSourceReceipt, SSR_DECLARATION_RECEIPT, SSR_PAYLOAD_RECEIPT } from './ssr-resource-proof.js';
+import { collectSsrStylesheetReceipts, fetchSsrSource, readSsrSourceReceipt,
+    SSR_DECLARATION_RECEIPT, SSR_PAYLOAD_RECEIPT, SSR_STYLESHEETS_RECEIPT } from './ssr-resource-proof.js';
 import { analyzeExternalDeclarationSourceFormat } from './external-declaration-source.js';
 import {
     CemDeclarationScopeError,
@@ -1903,6 +1904,7 @@ export class CemElementRuntime {
     private readonly stylesheetReady = new WeakSet<HTMLElement>();
     private readonly instanceStylesheets = new WeakMap<HTMLElement, { key: string; installation: InstanceStylesheetInstallation; reported: boolean }>();
     private readonly portableSsrInstanceStyles = new WeakSet<HTMLElement>();
+    private readonly verifiedSsrStylesheetContexts = new WeakMap<HTMLElement, string | null>();
     private readonly reportedStylesheetDiagnostics = new WeakSet<object>();
     private readonly processingPoolPolicy?: CemProcessingPoolPolicy;
     private readonly controlInputPolicy: CemControlInputPolicy;
@@ -4020,7 +4022,7 @@ export class CemElementRuntime {
             return;
         }
         this.ensureInstanceScope(instance, compiled);
-        if (this.retainedStylesheets) reconcileStylesheetContextMarker(instance);
+        if (this.retainedStylesheets && !this.verifiedSsrStylesheetContexts.has(instance)) reconcileStylesheetContextMarker(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
         this.observeInstance(instance, island, state);
         if (this.hydratedServerRenders.has(instance) && hasCemPlacementRelationships(instance)) {
@@ -4046,7 +4048,8 @@ export class CemElementRuntime {
                     this.renderInstance(instance, compiled);
                     return;
                 }
-                if (this.retainedStylesheets || (compiled.mode === 'dom' && !compiled.stylesheetsReady)) {
+                if ((this.retainedStylesheets && !this.verifiedSsrStylesheetContexts.has(instance))
+                    || (compiled.mode === 'dom' && !compiled.stylesheetsReady)) {
                     const token = this.nextRenderToken(instance);
                     const ready = this.retainedStylesheets
                         ? this.ensureRetainedStylesheets(instance, compiled) : this.ensureDomStylesheets(compiled);
@@ -4171,6 +4174,16 @@ export class CemElementRuntime {
                 });
                 const declarations = [...new Set(participants.map(({ declaration }) => declaration.declarationElement))];
                 const base = instance.ownerDocument.baseURI;
+                const cssReceipts = collectSsrStylesheetReceipts([...declarations, ...members.values()]);
+                const cssReads: [string, Uint8Array][] = [];
+                if (cssReceipts.length) {
+                    if (!this.retainedStylesheets) throw new Error('cem.ssr.resume_stylesheets');
+                    resourceDeadline = setTimeout(() => resourceAbort.abort(), 5000);
+                    for (const receipt of cssReceipts) {
+                        const bytes = await fetchSsrSource(instance.ownerDocument, receipt, ['text/css'], resourceAbort.signal);
+                        cssReads.push([receipt.url, bytes]);
+                    }
+                }
                 const payloads: { host: HTMLElement; bytes: Uint8Array }[] = [];
                 let payloadBytes = 0;
                 for (const { host, island: memberIsland } of participants) {
@@ -4186,8 +4199,9 @@ export class CemElementRuntime {
                 const decisions = await this.renderSupport(compiled.declarationScope).admitCanonicalSsrInstance(
                     instance, compiled.producedTag, compiled.declarationVersion ?? '', source, this.nativeValueLimits,
                     [...members.keys()], [...nestedDeclarations.values()], declarations, payloads,
+                    cssReads.length ? cssReads : undefined,
                 );
-                const resourceDependent = payloads.length > 0 || compiled.sourceRef?.kind === 'url';
+                const resourceDependent = cssReads.length > 0 || payloads.length > 0 || compiled.sourceRef?.kind === 'url';
                 if (resourceDependent && decisions.some(decision => decision.decision !== 'adopt' || decision.stateful)) {
                     throw new Error('cem.ssr.resume_resource_profile');
                 }
@@ -4261,7 +4275,8 @@ export class CemElementRuntime {
                     this.instanceIds.set(host, decision.instanceId);
                     this.dataRevisions.set(host, 0);
                     this.renderBounds.set(host, bounds);
-                    if (decision.instanceStylesheets) this.portableSsrInstanceStyles.add(host);
+                    if (decision.instanceStylesheets && !memberIsland.hasAttribute(SSR_STYLESHEETS_RECEIPT)) this.portableSsrInstanceStyles.add(host);
+                    if (cssReads.length) this.verifiedSsrStylesheetContexts.set(host, host.getAttribute(STYLE_CONTEXT_ATTR));
                     this.hydrationSnapshots.set(host, snapshot);
                     if (decision.stateful && baseline) {
                         baseline.commit();
@@ -4282,6 +4297,7 @@ export class CemElementRuntime {
                     writeDataIslandHydrationData(memberIsland, snapshot);
                     memberIsland.removeAttribute(NATIVE_SSR_PROFILE_ATTR);
                     memberIsland.removeAttribute(SSR_PAYLOAD_RECEIPT);
+                    memberIsland.removeAttribute(SSR_STYLESHEETS_RECEIPT);
                     this.initializedInstances.add(host);
                     this.canonicalSsrAdmissions.delete(host);
                 }
@@ -4913,6 +4929,7 @@ export class CemElementRuntime {
     }
 
     private async ensureRetainedStylesheets(instance: HTMLElement, compiled: CompiledDeclaration): Promise<void> {
+        this.verifiedSsrStylesheetContexts.delete(instance);
         let connection = this.stylesheetConnections.get(instance);
         if (!connection || connection.signal.aborted) {
             connection = stylesheetRegistry(instance.ownerDocument).connect({ element: instance, declaration: compiled,
@@ -6316,7 +6333,10 @@ export class CemElementRuntime {
         }
         if (this.retainedStylesheets && records.some(record => record.target === instance
             && record.type === 'attributes' && record.attributeName === STYLE_CONTEXT_ATTR)) {
-            reconcileStylesheetContextMarker(instance);
+            const verified = this.verifiedSsrStylesheetContexts.get(instance);
+            if (verified === undefined) reconcileStylesheetContextMarker(instance);
+            else if (verified === null) instance.removeAttribute(STYLE_CONTEXT_ATTR);
+            else if (instance.getAttribute(STYLE_CONTEXT_ATTR) !== verified) instance.setAttribute(STYLE_CONTEXT_ATTR, verified);
         }
         const scopeMutated = records.some(
             (record) =>
@@ -8505,7 +8525,7 @@ export class CemElementRuntime {
     }
 
     private installDeclarationStylesheets(compiled: CompiledDeclaration): void {
-        if (this.retainedStylesheets) return;
+        if (this.retainedStylesheets || compiled.declarationElement.hasAttribute(SSR_STYLESHEETS_RECEIPT)) return;
         if (hasStaticTemplateImport(compiled.cemMlSource ?? '') && !compiled.moduleClosureReady) return;
         if (!compiled.stylesheetsReady) {
             return;

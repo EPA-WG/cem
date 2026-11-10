@@ -136,6 +136,27 @@ impl ReadyInlinePage {
         });
         declarations.chain(payloads).collect()
     }
+    pub fn browser_stylesheet_manifests(&self) -> Vec<(AstNodeId, String)> {
+        let Some(resources) = &self.settled.resources else {
+            return vec![];
+        };
+        let mut manifests = Vec::new();
+        for (tag, css) in &resources.declarations {
+            if let Some(definition) = self.settled.definitions.get(tag) {
+                if let Some(manifest) = stylesheet_manifest(css.declaration_records(), resources) {
+                    manifests.push((definition.declaration, manifest));
+                }
+            }
+        }
+        for participant in &self.settled.participants {
+            if let Some(manifest) =
+                stylesheet_manifest(participant.pass.input().instance_stylesheets(), resources)
+            {
+                manifests.push((participant.island, manifest));
+            }
+        }
+        manifests
+    }
     /// Final deterministic input identity including the closed resource reads.
     pub fn render_input_identity(&self) -> &ContentHash {
         &self.render_input
@@ -180,6 +201,68 @@ impl ReadyInlinePage {
         }
         Ok(SsrReadinessObservation { usage })
     }
+}
+
+fn stylesheet_manifest(
+    records: &[Arc<crate::retained_template::RetainedStylesheet>],
+    resources: &PageResources,
+) -> Option<String> {
+    use crate::ssr_browser_resources::{
+        SourceReceipt, StylesheetReceipt, MAX_STYLESHEET_BYTES, MAX_STYLESHEET_MANIFEST_BYTES,
+    };
+    use cem_ml::css_resources::CssResourceKind;
+    let mut manifests = Vec::new();
+    for record in records {
+        let closure = record.import_closure();
+        if crate::retained_template::is_resource_free_stylesheet(closure) {
+            manifests.push(None);
+            continue;
+        }
+        // Browser replay currently covers imports. Other URL-bearing CSS keeps
+        // its native SSR output and requires a separate browser resource proof.
+        if closure.edges().is_empty()
+            || closure.sheets().iter().any(|sheet| {
+                sheet.resources.references.iter().any(|reference| {
+                    !matches!(reference.kind, CssResourceKind::Import { .. })
+                })
+            })
+        {
+            return None;
+        }
+        let mut sources = Vec::new();
+        for edge in closure.edges() {
+            let parent = &closure.sheets()[edge.parent_sheet];
+            let url = &closure.sheets()[edge.child_sheet].url;
+            let reference = parent
+                .resources
+                .references
+                .iter()
+                .find(|r| r.node_id == edge.import_node)?;
+            let resolved = reference.resolution.as_ref().ok()?;
+            let input = resources.inputs.get(url)?;
+            let (bytes, mime) = input.stylesheet.as_ref()?;
+            if url != &resolved.resolved_url
+                || url != &input.resolved_uri
+                || *bytes > MAX_STYLESHEET_BYTES
+                || mime.len() > 128
+            {
+                return None;
+            }
+            if !sources.iter().any(|receipt: &SourceReceipt| &receipt.url == url) {
+                sources.push(SourceReceipt::new(url, mime, *bytes, &input.content));
+            }
+        }
+        manifests.push(Some(StylesheetReceipt {
+            owner_key: record.identity().owner_key.clone(),
+            context: record.identity().context_marker.clone()?,
+            sources,
+        }));
+    }
+    if manifests.iter().all(Option::is_none) {
+        return None;
+    }
+    let raw = serde_json::to_string(&manifests).ok()?;
+    (raw.len() <= MAX_STYLESHEET_MANIFEST_BYTES).then_some(raw)
 }
 fn render_input(
     settled: &QuiescentInlinePage,

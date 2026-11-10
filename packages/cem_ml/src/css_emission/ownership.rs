@@ -82,8 +82,36 @@ pub fn derive_css_stylesheet_identity(
         field(&mut hash, value);
     }
     let owner_key = format!("cem-style-1-{}", hash.finalize().to_hex());
+    let cache_key = css_stylesheet_cache_key(closure, &owner_key)?;
+    let scope = match scope {
+        CssManagedScope::Private { tag, .. } => CssManagedScope::Private {
+            tag: tag.clone(),
+            context: context_marker.clone(),
+        },
+        CssManagedScope::Shared { name, .. } => CssManagedScope::Shared {
+            name: name.clone(),
+            context: context_marker.clone(),
+        },
+        CssManagedScope::Instance => CssManagedScope::Instance,
+    };
+    Ok(CssStylesheetIdentity {
+        context_marker,
+        owner_key,
+        cache_key,
+        scope,
+    })
+}
+
+/// The closed occurrence key includes the ordered native source fingerprints.
+pub fn css_stylesheet_cache_key(
+    closure: &CssImportClosure,
+    owner_key: &str,
+) -> Result<String, &'static str> {
+    if closure.state() != CssImportState::Ready || closure.failure().is_some() {
+        return Err("stylesheet key requires a ready, active import closure");
+    }
     let mut hash = blake3::Hasher::new_derive_key("cem compiled stylesheet cache/1");
-    field(&mut hash, &owner_key);
+    field(&mut hash, owner_key);
     hash.update(&(closure.sheets().len() as u64).to_le_bytes());
     for sheet in closure.sheets() {
         field(&mut hash, &sheet.url);
@@ -106,22 +134,5 @@ pub fn derive_css_stylesheet_identity(
             hash.update(&value.to_le_bytes());
         }
     }
-    let cache_key = format!("cem-css-cache-1-{}", hash.finalize().to_hex());
-    let scope = match scope {
-        CssManagedScope::Private { tag, .. } => CssManagedScope::Private {
-            tag: tag.clone(),
-            context: context_marker.clone(),
-        },
-        CssManagedScope::Shared { name, .. } => CssManagedScope::Shared {
-            name: name.clone(),
-            context: context_marker.clone(),
-        },
-        CssManagedScope::Instance => CssManagedScope::Instance,
-    };
-    Ok(CssStylesheetIdentity {
-        context_marker,
-        owner_key,
-        cache_key,
-        scope,
-    })
+    Ok(format!("cem-css-cache-1-{}", hash.finalize().to_hex()))
 }
