@@ -4,8 +4,9 @@ Status: native reference fixture, strict artifact admission, shared compiled
 registration, declarative static-closure loading and compiled-form recovery in
 worker/fallback hosts, plus an isolated compiled-template/JSON WASM prototype.
 Quantity and removal now have guarded GraphQL action bindings exercised in
-Chromium. Studio ships an editable snapshot example. An interactive Studio
-preview and the reduced browser distribution remain pending.
+Chromium. Studio ships an editable snapshot example and an optional interactive
+preview deployment. Native application resume and the reduced browser
+distribution remain pending.
 This is the first concrete application case for the
 [component WASM profile](cem-components-wasm-profile.md#application-build-and-deployment-boundary).
 
@@ -1168,6 +1169,15 @@ response and generates `generated/cart.html` through the ordinary native graph.
 The sandboxed preview shows a read-only snapshot. A saved clone can change
 the input and rebuild independently. See the [sample guide](../examples/projects/shopping-cart/README.md).
 
+The optional `@epa-wg/cem-studio:build:cart-preview` target emits
+`packages/cem-studio/dist/cart-preview`. It grants the shared preview host one
+pinned application and the same-origin `/graphql` service. **Interactive cart**
+parses the application manifest, selects that grant and uses the native guard and existing action journal inside
+the script-free frame. The parent owns network requests. View/schema/operation
+changes refuse before service dispatch, and the WASM digest is checked before
+initialization. The browser verifier runs the deployed Studio against a loopback
+GraphQL service, including malformed-response refusal and blocked further writes.
+
 ## Remaining delivery boundaries
 
 - Extend app-build function/resource closure generation and optional module
@@ -1178,9 +1188,10 @@ the input and rebuild independently. See the [sample guide](../examples/projects
   templates and dynamic styles available through the full/on-demand runtime.
 - Verify optional module installation through a deployable catalog and loader.
   Extend native link evidence as additional application profiles are assembled.
-- Connect the selected runtime and its guarded actions to a Studio preview host
-  with an authorized service. Exercise complete worker and fallback retirement
-  and resume in that host.
+- Add a native application resume adapter and original response/source owners
+  to the preview's recovery membership. Exercise complete worker and fallback
+  retirement, offline recovery and mutation disposition. The interactive host
+  currently refuses recovery with `cem.preview.application.resume_unsupported`.
 - Extend the isolated prototype to the complete compiled-UI + JSON distribution
   with verified native dependency/ABI closure. Verify optional module acquisition, offline
   behavior and worker/fallback recovery with the same app state and semantics.

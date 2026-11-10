@@ -571,6 +571,13 @@ Archive updates leave saved and trashed projects intact.
 Clone the project to edit the response and build a separate snapshot.
 See the [Shopping cart guide](../../examples/projects/shopping-cart/README.md).
 
+The optional `build:cart-preview` deployment adds **Interactive cart** through
+the shared application preview host. Serve `dist/cart-preview` with a
+same-origin `/graphql` service matching the sample schema and operations.
+The deployment supplies fixed runtime/source pins and action grants. Project
+content selects the application ID. Use `verify:cart-preview` to exercise the
+packaged Studio against the loopback service fixture.
+
 Login includes parse, validation, inspection, HTML conversion, form-method
 validation and paired HTML/CEM semantic query configurations. The queries share
 `queries/semantics.xpath` and the 21 named values in `expected/semantics.json`.

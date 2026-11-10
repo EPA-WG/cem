@@ -1,6 +1,7 @@
 import type { CemElementRuntime } from './cem-elements.js';
 import type { CemCheckpointOperation } from './checkpoint-publication.js';
 import { cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
+import { isDomInstance } from './dom-realm.js';
 
 export interface CemHostCommandRequest {
     readonly command: string;
@@ -67,7 +68,7 @@ export function bindCemHostCommands(element: Element, options: {
         let control: Element | undefined;
         for (const target of event.composedPath()) {
             if (target === element) break;
-            if (!(target instanceof Element)) continue;
+            if (!isDomInstance(target, 'Element')) continue;
             // Never route a nested view's command through its parent, even when
             // the nested command name is not available to that child.
             if (boundaries.has(target)) return;
@@ -83,11 +84,12 @@ export function bindCemHostCommands(element: Element, options: {
         if (!handler || control.hasAttribute('disabled')) return;
         const commandControl = control;
         const anchor = event.type === 'click' ? event.composedPath().find((target): target is Element =>
-            target instanceof Element && commandControl.contains(target) && target.matches('a[href], area[href]')) : undefined;
+            isDomInstance(target, 'Element') && commandControl.contains(target) && target.matches('a[href], area[href]')) : undefined;
         if (anchor) {
             // A handled link delegates primary activation to the host service.
             // Modified activation keeps native browsing and never invokes it twice.
-            if (event instanceof MouseEvent && (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)) return;
+            const mouse = event as MouseEvent;
+            if (mouse.button !== undefined && (mouse.button !== 0 || mouse.ctrlKey || mouse.metaKey || mouse.shiftKey || mouse.altKey)) return;
         }
         if (event.type === 'submit') event.preventDefault();
         try {
@@ -205,7 +207,7 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
 }
 
 function activationValue(event: Event): string {
-    const detail: unknown = event instanceof CustomEvent ? event.detail : undefined;
+    const detail: unknown = (event as CustomEvent).detail;
     // Read only an own data property: never evaluate accessors, stringify live
     // objects or forward arbitrary event detail across the host-service boundary.
     const value: unknown = detail && typeof detail === 'object' && !Array.isArray(detail)
@@ -217,7 +219,7 @@ function activationValue(event: Event): string {
 }
 
 function formFields(event: Event, control: Element, view: Element): Readonly<Record<string, readonly string[]>> {
-    if (!(control instanceof HTMLFormElement) || event.target !== control) {
+    if (!isDomInstance(control, 'HTMLFormElement') || event.target !== control) {
         throw new TypeError('A host submit command must be declared on its native form');
     }
     // A form can acquire external controls through `form=id`. Do not silently
@@ -227,8 +229,9 @@ function formFields(event: Event, control: Element, view: Element): Readonly<Rec
         while (owner && !boundaries.has(owner)) owner = owner.parentElement;
         if (owner !== view) throw new TypeError('Host form controls must belong to the same view');
     }
-    const submitter = event instanceof SubmitEvent ? event.submitter : null;
+    const submitter = (event as SubmitEvent).submitter ?? null;
     const fields: Record<string, string[]> = Object.create(null);
+    const FormData = control.ownerDocument.defaultView!.FormData;
     for (const [name, value] of new FormData(control, submitter)) {
         if (typeof value !== 'string') throw new TypeError('Host form commands accept only string values');
         (fields[name] ??= []).push(value);
@@ -242,9 +245,9 @@ function controlValue(target: EventTarget | null, boundary: Element): string | n
     if (plaintext !== undefined) return plaintext;
     // Icons and labels are native activation descendants, not value owners.
     // Stop at the bound command so unrelated ancestor controls cannot supply data.
-    for (let owner = target instanceof Element ? target : null; owner; owner = owner === boundary ? null : owner.parentElement) {
-        if (owner instanceof HTMLButtonElement || owner instanceof HTMLInputElement || owner instanceof HTMLTextAreaElement || owner instanceof HTMLSelectElement) return owner.value;
-        if (owner instanceof HTMLElement && (owner.constructor as typeof HTMLElement & { formAssociated?: boolean }).formAssociated) {
+    for (let owner = isDomInstance(target, 'Element') ? target : null; owner; owner = owner === boundary ? null : owner.parentElement) {
+        if (isDomInstance(owner, 'HTMLButtonElement') || isDomInstance(owner, 'HTMLInputElement') || isDomInstance(owner, 'HTMLTextAreaElement') || isDomInstance(owner, 'HTMLSelectElement')) return owner.value;
+        if (isDomInstance(owner, 'HTMLElement') && (owner.constructor as typeof HTMLElement & { formAssociated?: boolean }).formAssociated) {
             const value = (owner as HTMLElement & { value?: unknown }).value;
             if (typeof value === 'string') return value;
         }

@@ -1,5 +1,6 @@
 import { CemElementRuntime, type CemElementRuntimeOptions } from './cem-elements.js';
 import { createCemDeclarationScope, type CemDeclarationScope } from './declaration-scope.js';
+import { mountCemGraphqlPreview, type CemPreviewApplication, type CemPreviewApplicationHost } from './graphql-preview.js';
 
 export interface CemLivePreviewResource { uri: string; contentType: string; text: string }
 /** Explicit transport envelope. Resource bodies stay original text until shared native import. */
@@ -7,13 +8,14 @@ export interface CemLivePreviewResources {
     resources: readonly CemLivePreviewResource[];
     declarations?: readonly { tag: string; uri: string }[];
     styles?: readonly string[];
+    application?: { readonly id: string; readonly invocation?: string };
 }
 export interface CemLivePreviewOptions extends CemLivePreviewResources {
     source: string;
     sourceUri: string;
     onError?: (message: string) => void;
     /** Trusted parent setup, outside the authored resource transport envelope. */
-    runtimeOptions?: Pick<CemElementRuntimeOptions, 'checkpointPublication' | 'recoveryScope' | 'processingWorkerFactory' | 'processingPoolPolicy' | 'processingPackageHostConfiguration' | 'processingNativeWork'> & { dispose?: () => void };
+    runtimeOptions?: Pick<CemElementRuntimeOptions, 'checkpointPublication' | 'recoveryScope' | 'processingWorkerFactory' | 'processingPoolPolicy' | 'processingPackageHostConfiguration' | 'processingNativeWork'> & { applicationHost?: CemPreviewApplicationHost; dispose?: () => void };
 }
 export interface CemLivePreview {
     readonly ready: Promise<void>;
@@ -38,6 +40,7 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
     // A caller cannot retarget a mounted preview by mutating its setup object.
     options = { ...options, declarations: options.declarations?.map(value => ({ ...value })),
         styles: options.styles ? [...options.styles] : undefined,
+        application: options.application ? { ...options.application } : undefined,
         runtimeOptions: options.runtimeOptions ? { ...options.runtimeOptions } : undefined };
     const sourceUri = new URL(options.sourceUri).href;
     if (encoder.encode(options.source).length > 256 * 1024 || options.resources.length > 128 || (options.declarations?.length ?? 0) > 128 || (options.styles?.length ?? 0) > 128) throw new RangeError('cem.preview.limit');
@@ -55,6 +58,9 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
         return resource;
     };
     let active = true, settled = false;
+    const lifetime = new AbortController();
+    let application: CemPreviewApplication | undefined;
+    let disposeApplication: (() => void) | undefined;
     let scope: CemDeclarationScope | undefined;
     let previewDocument: Document | undefined;
     let resize: ResizeObserver | undefined;
@@ -62,7 +68,7 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
     // Reserve membership before frame loading yields. A preparing group must
     // not omit a child whose native runtime has not finished starting yet.
     const pendingEnrollment = options.runtimeOptions?.recoveryScope?.enroll({ id: `cem-preview-loading:${crypto.randomUUID()}`,
-        kind: 'live-preview', prepare: async () => { throw Error('cem.preview.recovery.pending'); } });
+        kind: 'live-preview', prepare: async () => { throw Error(application ? 'cem.preview.application.resume_unsupported' : 'cem.preview.recovery.pending'); } });
     const current = () => { if (!active || !frame.isConnected) throw new Error('cem.preview.disposed'); };
     const ready = (async () => {
         frame.setAttribute('sandbox', 'allow-same-origin');
@@ -125,15 +131,30 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
             check(runtime, declaration);
         }
         current();
-        // An authored template input boundary, not an external-data DOM parser.
-        const wrapper = document.createElement('cem-element'); wrapper.setAttribute('tag', 'cem-live-view');
-        const template = document.createElement('template'); template.id = 'cem-live-view'; template.setAttribute('type', 'text/cem-ml');
-        template.content.append(document.createTextNode(options.source)); wrapper.append(template);
-        resources.set(sourceUri, { uri: sourceUri, contentType: 'application/xhtml+xml', text: wrapper.outerHTML });
-        const declaration = document.createElement('cem-element'); declaration.setAttribute('tag', 'cem-live-view');
-        declaration.setAttribute('src', `${sourceUri}#cem-live-view`); document.head.append(declaration); runtime.registerDeclaration(declaration);
-        await runtime.prepareDeclarationStylesheets(declaration); check(runtime, declaration); current();
-        const view = document.createElement('cem-live-view'); document.body.append(view);
+        if (options.application) {
+            const host = options.runtimeOptions?.applicationHost;
+            if (!host) throw Error('cem.preview.application.unauthorized');
+            const prepared = await host({ id: options.application.id, source: options.source, sourceUri,
+                resources: [...resources.values()] }, lifetime.signal);
+            if (lifetime.signal.aborted) { prepared.dispose(); current(); }
+            application = prepared;
+            current();
+            const root = document.createElement('div');
+            document.body.append(root);
+            disposeApplication = await mountCemGraphqlPreview(root, application, lifetime.signal,
+                message => { if (active) options.onError?.(message); });
+            current();
+        } else {
+            // An authored template input boundary, not an external-data DOM parser.
+            const wrapper = document.createElement('cem-element'); wrapper.setAttribute('tag', 'cem-live-view');
+            const template = document.createElement('template'); template.id = 'cem-live-view'; template.setAttribute('type', 'text/cem-ml');
+            template.content.append(document.createTextNode(options.source)); wrapper.append(template);
+            resources.set(sourceUri, { uri: sourceUri, contentType: 'application/xhtml+xml', text: wrapper.outerHTML });
+            const declaration = document.createElement('cem-element'); declaration.setAttribute('tag', 'cem-live-view');
+            declaration.setAttribute('src', `${sourceUri}#cem-live-view`); document.head.append(declaration); runtime.registerDeclaration(declaration);
+            await runtime.prepareDeclarationStylesheets(declaration); check(runtime, declaration); current();
+            const view = document.createElement('cem-live-view'); document.body.append(view);
+        }
         resize = new ResizeObserver(() => {
             if (!active || !frame.isConnected) return;
             const bodyStyle = window.getComputedStyle(document.body);
@@ -148,10 +169,13 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
             if (!child) break;
             visited.add(child); await runtime.whenRenderSettled(child); check(runtime, child);
         }
-        pendingEnrollment?.remove(); settled = true;
+        // The selected application has no native resume adapter yet. Keep the
+        // refusing membership so whole-host recovery cannot omit its heap.
+        if (!application) pendingEnrollment?.remove();
+        settled = true;
     })();
     const controller = Object.freeze({ ready, checkpoint() {
-        if (!active || !settled || !previewDocument || scope?.disposed) return undefined;
+        if (!active || !settled || !previewDocument || scope?.disposed || application) return undefined;
         const document = previewDocument, srcdoc = frame.srcdoc;
         return () => active && settled && !scope?.disposed && frame.isConnected && mounts.get(frame) === controller
             && frame.contentDocument === document && frame.srcdoc === srcdoc
@@ -160,6 +184,7 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
     }, dispose() {
         if (!active) return;
         active = false; cancelLoad?.(); cancelLoad = undefined;
+        lifetime.abort(); disposeApplication?.(); application?.dispose();
         pendingEnrollment?.remove();
         resize?.disconnect(); previewDocument?.body.replaceChildren(); scope?.dispose(); resources.clear();
         options.runtimeOptions?.dispose?.();
@@ -167,7 +192,7 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
     } });
     mounts.set(frame, controller);
     // Consumers may dispose before awaiting readiness.
-    void ready.catch(() => undefined);
+    void ready.catch(() => controller.dispose());
     return controller;
 }
 async function* stream(text: string): AsyncIterable<Uint8Array> { yield encoder.encode(text); }

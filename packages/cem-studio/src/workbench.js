@@ -962,9 +962,11 @@ export async function createCemStudioWorkbench(options) {
                         outcome = { result: error.result, presentation: error.presentation, output: error.output, outputs: error.outputs, admission: error.admission, parsed: error.parsed };
                     }
                     const live = !example.binarySource && persisted.currentEntry?.tags?.includes('live-preview')
-                        && persisted.project.resources.find(resource => resource.id === example.resourceId)?.role === 'template'
+                        && (persisted.project.resources.find(resource => resource.id === example.resourceId)?.role === 'template'
+                            || persisted.currentEntry.tags.some(tag => tag.startsWith('preview-application:')))
                         && outcome.result.exitCode === 0
                         ? await createCemStudioLivePreview({ source: persisted.text, sourceUri: example.referenceUri, dependencies: persisted.dependencies,
+                            application: persisted.currentEntry.tags.find(tag => tag.startsWith('preview-application:'))?.slice('preview-application:'.length),
                             components: persisted.currentEntry.tags.filter(tag => tag.startsWith('preview-component:')).map(tag => tag.slice('preview-component:'.length)) }) : undefined;
                     const latest = await readPersisted();
                     const operation = outcome.parsed.commandPath[0];

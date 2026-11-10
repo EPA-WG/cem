@@ -949,6 +949,10 @@
         "@epa-wg/cem-elements/dist/lib/ssr-resource-proof.js": {
             "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/ssr-resource-proof.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/graphql-preview.js": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/graphql-preview.js",
+            "contentType": "text/javascript"
         }
     }
 }

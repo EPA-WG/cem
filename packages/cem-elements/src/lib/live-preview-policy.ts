@@ -35,3 +35,13 @@ export function validateLivePreviewNodes(nodes: readonly RenderPlanNode[]): void
         validateLivePreviewNodes(node.children);
     }
 }
+
+/** Inspect an inert native HTML projection before connecting its widgets. */
+export function validateLivePreviewDom(root: ParentNode): void {
+    for (const child of root.children) {
+        element(child.localName, child.namespaceURI);
+        for (const attr of child.attributes) attribute(attr.name, attr.value);
+        validateLivePreviewDom(child);
+        if (child.localName === 'template') validateLivePreviewDom((child as HTMLTemplateElement).content);
+    }
+}

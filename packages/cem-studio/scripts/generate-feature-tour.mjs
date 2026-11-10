@@ -12,8 +12,11 @@ const generatedRoot = resolve(projectRoot, 'generated/feature-tour');
 const operationFixturesRoot = resolve(projectRoot, 'fixtures/portable-operations');
 const check = process.argv.includes('--check');
 const schemaAssetsGraph = process.argv.includes('--schema-assets-graph');
-if (check && schemaAssetsGraph) throw new Error('Check the default Feature Tour separately from optional graph emission');
-const graphRoot = schemaAssetsGraph ? resolve(projectRoot, 'generated/schema-assets') : generatedRoot;
+const cartPreviewGraph = process.argv.includes('--cart-preview-graph');
+const optionalGraph = schemaAssetsGraph || cartPreviewGraph;
+if (schemaAssetsGraph && cartPreviewGraph || check && optionalGraph) throw new Error('Select one optional graph or check the default Feature Tour');
+const graphRoot = schemaAssetsGraph ? resolve(projectRoot, 'generated/schema-assets')
+    : cartPreviewGraph ? resolve(projectRoot, 'dist/cart-preview-inputs') : generatedRoot;
 const seed = Object.freeze({
     id: 'cem-ml-feature-tour-seed',
     name: 'CEM-ML Feature Tour',
@@ -577,7 +580,7 @@ const graph = `{run |\n${[
 ].join('\n\n')}\n}\n`;
 generated.set('feature-tour.cem', Buffer.from(graph));
 
-if (schemaAssetsGraph) {
+if (optionalGraph) {
     await mkdir(graphRoot, { recursive: true });
     await writeFile(resolve(graphRoot, 'feature-tour.cem'), graph);
     console.log('Generated optional Feature Tour graph; default generated inputs unchanged.');
@@ -732,13 +735,13 @@ function graphCopyNode(id, source, output, contentType) {
 // Build input paths, not parsed application source. Both profiles use the same
 // sample inventory; resolve each literal from the graph that actually owns it.
 function graphSource(path) {
-    return schemaAssetsGraph ? workspacePath(resolve(generatedRoot, path), graphRoot) : path;
+    return optionalGraph ? workspacePath(resolve(generatedRoot, path), graphRoot) : path;
 }
 
 function graphDestination(path) {
-    if (!schemaAssetsGraph) return path;
+    if (!optionalGraph) return path;
     const withinDeployment = relative(resolve(projectRoot, 'dist/static'), resolve(generatedRoot, path));
-    return workspacePath(resolve(projectRoot, 'dist/schema-assets', withinDeployment), graphRoot);
+    return workspacePath(resolve(projectRoot, cartPreviewGraph ? 'dist/cart-preview' : 'dist/schema-assets', withinDeployment), graphRoot);
 }
 
 function cemAttribute(value) {

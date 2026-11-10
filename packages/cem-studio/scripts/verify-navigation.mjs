@@ -9,6 +9,7 @@ import { verifyCsvInventory } from './verify-csv-inventory.mjs';
 import { verifyXmlXhtmlProjects } from './verify-xml-xhtml-projects.mjs';
 import { verifyHtmlCemCard } from './verify-html-cem-card.mjs';
 import { verifyShoppingCart } from './verify-shopping-cart.mjs';
+import { createInteractiveCartService, verifyInteractiveCart } from './verify-interactive-cart.mjs';
 import { verifySvgMathmlProjects } from './verify-svg-mathml-projects.mjs';
 import { verifyStylesheetProjects } from './verify-stylesheet-projects.mjs';
 import { verifyDataQueryProjects } from './verify-data-query-projects.mjs';
@@ -42,9 +43,12 @@ const catalogCommandsOnly = process.argv.includes('--catalog-commands-only');
 const catalogProject = process.argv.find(argument => argument.startsWith('--catalog-project='))?.slice('--catalog-project='.length);
 if (catalogProject && !catalogProjectsOnly) throw new Error('Catalog project filtering requires the project census scope.');
 const schemaAssets = process.argv.includes('--schema-assets');
+const cartPreview = process.argv.includes('--cart-preview');
 if ([csvOnly, documentsOnly, markdownOnly, htmlCemOnly, shoppingCartOnly, svgMathmlOnly, stylesheetsOnly, dataQueriesOnly, transformationsSchemasOnly, moduleConfigsOnly, nativeProjectionsOnly, catalogDocsOnly, catalogProjectsOnly, catalogCommandsOnly].filter(Boolean).length > 1) throw new Error('Select one project verification scope.');
 if (schemaAssets && !csvOnly) throw new Error('The optional profile replay requires --csv-only.');
-const server = await startStaticServer(resolve(projectRoot, schemaAssets ? 'dist/schema-assets' : 'dist/static'));
+if (cartPreview && !shoppingCartOnly) throw new Error('Cart preview requires the shopping cart verification scope.');
+const cartService = cartPreview ? await createInteractiveCartService() : undefined;
+const server = await startStaticServer(resolve(projectRoot, cartPreview ? 'dist/cart-preview' : schemaAssets ? 'dist/schema-assets' : 'dist/static'), cartService);
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 const page = await context.newPage();
@@ -134,6 +138,7 @@ try {
         console.log('Studio SVG/MathML projects: native families, namespace repairs, exact foreign-content previews and independent offline builds passed.');
     } else if (shoppingCartOnly) {
         await verifyShoppingCart({ page, context, url: server.url });
+        if (cartService) await verifyInteractiveCart({ page, url: server.url, service: cartService });
         assert.deepEqual(errors, []);
     } else if (htmlCemOnly) {
         const htmlCemCard = await verifyHtmlCemCard({ page, context, url: server.url });
@@ -422,11 +427,12 @@ try {
     throw error;
 } finally { await browser.close(); await server.close(); }
 
-async function startStaticServer(root) {
+async function startStaticServer(root, service) {
     const security = JSON.parse(await readFile(resolve(root, 'security-headers.json'), 'utf8'));
     return new Promise((resolveServer, reject) => {
         const server = createServer(async (request, response) => {
             try {
+                if (service && await service.handle(request, response)) return;
                 const requestPath = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
                 const candidate = resolve(root, `.${requestPath === '/' ? '/index.html' : requestPath}`);
                 const rootPrefix = root.endsWith(sep) ? root : `${root}${sep}`;

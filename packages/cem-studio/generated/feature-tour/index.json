@@ -377,14 +377,14 @@
     {
       "id": "shopping-cart",
       "name": "Shopping cart",
-      "description": "Read a saved GraphQL cart response and build a script-free HTML preview of its products, quantities and total.",
-      "version": "1.0.0",
+      "description": "Build a saved cart snapshot and preview the guarded cart application with an authorized same-origin GraphQL service.",
+      "version": "1.1.0",
       "collections": [
         "content-types-documents-ui",
         "content-types-data"
       ],
       "archive": "./examples/shopping-cart.cem-studio.json",
-      "sha256": "a6aaed317b36171a0e23d6f89d5a897ca97faa983047051d2838c38cd424a53b"
+      "sha256": "8fcacd4c1ab1ed023e4eb8c16d3c8410bd3bc00f43209c9a12eeb01d340fd737"
     },
     {
       "id": "supplier-pipeline",

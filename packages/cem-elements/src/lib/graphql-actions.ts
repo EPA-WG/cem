@@ -34,6 +34,8 @@ export interface CemGraphqlQueryOptions {
 
 export interface CemGraphqlActionOptions {
     readonly root: HTMLElement;
+    /** Trusted service origin for a parent-owned script-free frame. */
+    readonly baseUrl?: string;
     /** Same-origin endpoint supplied by the host's deployed application profile. */
     readonly endpoint: string;
     readonly actions: Readonly<Record<string, CemGraphqlActionRoute>>;
@@ -106,7 +108,7 @@ export async function readCemGraphqlQuery(options: CemGraphqlQueryOptions): Prom
  * binds listeners only. There is no API for dispatching a saved operation. */
 export function bindCemGraphqlActions(options: CemGraphqlActionOptions): () => void {
     const { root, endpoint, actions, guard, owner, publish, reportError } = options;
-    const baseUrl = root.ownerDocument.URL;
+    const baseUrl = options.baseUrl ?? root.ownerDocument.URL;
     const resolvedUrl = graphqlTarget(endpoint, baseUrl).href;
     const document = JSON.stringify(guard.applicationDocument());
     const bindings = new Map(Object.entries(options.bindings));

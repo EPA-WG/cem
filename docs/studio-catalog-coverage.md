@@ -6,9 +6,9 @@ Run `yarn nx run @epa-wg/cem-studio:verify:catalog-audit` after changing them.
 
 Declared catalog/documentation coverage; native/worker/deployed verification and current resource admission remain separate evidence.
 
-There are **23 authored projects**, **295 authored source resources**
-and **248 authored configurations**. The inventory names
-**253 workflows**, including five generated portable workbenches;
+There are **23 authored projects**, **297 authored source resources**
+and **249 authored configurations**. The inventory names
+**254 workflows**, including five generated portable workbenches;
 32 generated package validations are represented by the native package matrix.
 The starter owns no configurations. Source resources include reference fixtures
 and documentation: their presence does not establish executable format support.
@@ -34,7 +34,7 @@ and documentation: their presence does not establish executable format support.
 | `portable-config` | [README](../examples/projects/portable-config/README.md) | 17 | 21 | 2 | `convert`, `inspect`, `parse`, `transform`, `validate` |
 | `relax-ng` | [README](../examples/projects/relax-ng/README.md) | 9 | 10 | 3 | `convert`, `parse`, `validate` |
 | `scss-stylesheet` | [README](../examples/projects/scss-stylesheet/README.md) | 10 | 7 | 1 | `convert`, `parse`, `transform`, `validate` |
-| `shopping-cart` | [README](../examples/projects/shopping-cart/README.md) | 7 | 1 | 0 | `transform` |
+| `shopping-cart` | [README](../examples/projects/shopping-cart/README.md) | 9 | 2 | 0 | `parse`, `transform` |
 | `supplier-pipeline` | [README](../examples/projects/supplier-pipeline/README.md) | 12 | 6 | 1 | `parse`, `query`, `transform`, `validate` |
 | `svg-diagram` | [README](../examples/projects/svg-diagram/README.md) | 9 | 6 | 1 | `convert`, `inspect`, `query`, `transform`, `validate` |
 | `xhtml-document` | [README](../examples/projects/xhtml-document/README.md) | 8 | 5 | 1 | `inspect`, `query`, `transform`, `validate` |
@@ -43,8 +43,8 @@ and documentation: their presence does not establish executable format support.
 
 ## Generated projects
 
-The selectable catalog has **24 projects** with **285 declared configurations**
-and **623 stored resources**. The starter adds 2 resources.
+The selectable catalog has **24 projects** with **286 declared configurations**
+and **626 stored resources**. The starter adds 2 resources.
 The legacy Feature Tour seed shares the Schema examples workflows and is not
 counted twice. Declared configurations are not a uniform UI execution guarantee.
 
@@ -63,7 +63,7 @@ negotiation does not require a source-project configuration.
 
 | Operation | Browser availability | Declared configurations |
 | --- | --- | --- |
-| `parse` | `available` | 24 |
+| `parse` | `available` | 25 |
 | `validate` | `available` | 116 |
 | `check` | `available` | 0 |
 | `inspect` | `available` | 38 |
@@ -91,7 +91,7 @@ authored identities, not a second package registry.
 | `cem-ast-projection` | `native-projections` | `native-projections`, `schema-examples` | 2/2 |
 | `cem-data-island` | — | `schema-examples` | 1/1 |
 | `cem-dom-projection` | `native-projections` | `native-projections`, `schema-examples` | 2/2 |
-| `cem-element-template` | `html-cem-card`, `login` | `html-cem-card`, `login`, `schema-examples` | 1/1 |
+| `cem-element-template` | `html-cem-card`, `login`, `shopping-cart` | `html-cem-card`, `login`, `schema-examples` | 1/1 |
 | `cem-events-projection` | `native-projections` | `native-projections`, `schema-examples` | 2/2 |
 | `cem-ml` | `html-cem-card`, `login`, `native-projections` | `html-cem-card`, `login`, `native-projections`, `schema-examples` | 1/4 |
 | `cem-native-template` | `cem-transform`, `cemql-orders`, `css-stylesheet`, `csv-inventory`, `html-cem-card`, `json-yaml-report`, `login`, `mathml-formula`, `portable-config`, `scss-stylesheet`, `shopping-cart`, `supplier-pipeline`, `svg-diagram`, `xhtml-document`, `xslt-transform` | `cem-transform`, `cemql-orders`, `schema-examples` | 1/5 |
@@ -102,7 +102,7 @@ authored identities, not a second package registry.
 | `css-selector` | `css-selector` | `css-selector`, `schema-examples` | 1/1 |
 | `csv` | `csv-inventory`, `supplier-pipeline` | `csv-inventory`, `schema-examples`, `supplier-pipeline` | 1/1 |
 | `html` | `cem-transform`, `css-selector`, `css-stylesheet`, `csv-inventory`, `html-cem-card`, `json-yaml-report`, `login`, `markdown-site`, `mathml-formula`, `module-maps`, `portable-config`, `scss-stylesheet`, `shopping-cart`, `supplier-pipeline`, `svg-diagram`, `xhtml-document`, `xslt-transform` | `css-selector`, `html-cem-card`, `login`, `schema-examples` | 1/1 |
-| `json` | `cem-transform`, `cemql-orders`, `css-selector`, `csv-inventory`, `html-cem-card`, `json-schema`, `json-yaml-report`, `login`, `markdown-site`, `mathml-formula`, `module-maps`, `shopping-cart`, `supplier-pipeline`, `svg-diagram`, `xhtml-document`, `xpath-catalog` | `cemql-orders`, `json-schema`, `json-yaml-report`, `schema-examples` | 1/2 |
+| `json` | `cem-transform`, `cemql-orders`, `css-selector`, `csv-inventory`, `html-cem-card`, `json-schema`, `json-yaml-report`, `login`, `markdown-site`, `mathml-formula`, `module-maps`, `shopping-cart`, `supplier-pipeline`, `svg-diagram`, `xhtml-document`, `xpath-catalog` | `cemql-orders`, `json-schema`, `json-yaml-report`, `schema-examples`, `shopping-cart` | 1/2 |
 | `json-schema` | `json-schema` | `json-schema`, `schema-examples` | 1/1 |
 | `markdown` | `cem-schema`, `cem-transform`, `cemql-orders`, `css-selector`, `css-stylesheet`, `csv-inventory`, `html-cem-card`, `json-schema`, `json-yaml-report`, `login`, `markdown-site`, `mathml-formula`, `module-maps`, `native-projections`, `portable-config`, `relax-ng`, `scss-stylesheet`, `shopping-cart`, `supplier-pipeline`, `svg-diagram`, `xhtml-document`, `xpath-catalog`, `xslt-transform` | `markdown-site`, `schema-examples` | 1/1 |
 | `mathml` | `mathml-formula` | `mathml-formula`, `schema-examples` | 3/3 |

@@ -1,9 +1,12 @@
 {
   "id": "shopping-cart",
   "name": "Shopping cart",
-  "version": "1.0.0",
-  "description": "Read a saved GraphQL cart response and build a script-free HTML preview of its products, quantities and total.",
-  "collections": ["content-types-documents-ui", "content-types-data"],
+  "version": "1.1.0",
+  "description": "Build a saved cart snapshot and preview the guarded cart application with an authorized same-origin GraphQL service.",
+  "collections": [
+    "content-types-documents-ui",
+    "content-types-data"
+  ],
   "sources": [
     {
       "id": "cart-response",
@@ -52,6 +55,22 @@
       "role": "data"
     },
     {
+      "id": "cart-live-view",
+      "source": "packages/cem_ql/fixtures/component-application/shopping-cart/cart-view.cem",
+      "path": "views/cart.cem",
+      "contentType": "application/vnd.cem.element-template+cem",
+      "schema": "https://cem.dev/ns/template/cem-element/1",
+      "role": "template"
+    },
+    {
+      "id": "cart-application",
+      "source": "packages/cem_ql/fixtures/component-application/shopping-cart/profile.json",
+      "path": "application.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
       "id": "readme",
       "source": "examples/projects/shopping-cart/README.md",
       "path": "README.md",
@@ -66,17 +85,66 @@
       "name": "Build and preview cart",
       "kind": "transformation-graph",
       "source": "cart-graph",
-      "dependencies": ["cart-response", "cart-snapshot", "cart-expected"],
+      "dependencies": [
+        "cart-response",
+        "cart-snapshot",
+        "cart-expected"
+      ],
       "description": "Read the saved Cart response, render the native CEMT snapshot and preview generated/cart.html.",
       "entryArtifact": "generated/cart.html",
       "argv": [
-        "transform", "--config", "$source",
-        "--config-content-type", "application/cem",
-        "--config-schema", "https://cem.dev/ns/cli/transform-config/1",
-        "--scope-budget", "queueSize=1024"
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
       ],
-      "expectedGraphOutputs": { "generated/cart.html": "cart-expected" },
-      "expectedProvenance": ["templates/snapshot.cemt"]
+      "expectedGraphOutputs": {
+        "generated/cart.html": "cart-expected"
+      },
+      "expectedProvenance": [
+        "templates/snapshot.cemt"
+      ]
+    },
+    {
+      "id": "live-cart",
+      "name": "Interactive cart",
+      "kind": "inspection",
+      "source": "cart-application",
+      "dependencies": [
+        "cart-live-view",
+        "cart-schema",
+        "cart-operations"
+      ],
+      "description": "Read the current cart and use quantity and removal actions through the deployment-authorized GraphQL preview host.",
+      "tags": [
+        "live-preview",
+        "preview-application:shopping-cart-graphql",
+        "preview-component:cem-action",
+        "preview-component:cem-alert",
+        "preview-component:cem-card",
+        "preview-component:cem-text",
+        "preview-component:cem-text-field"
+      ],
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/json",
+        "--schema",
+        "https://cem.dev/ns/data/json/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "SetCartLineQuantity",
+        "RemoveCartLine"
+      ]
     }
   ]
 }

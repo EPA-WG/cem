@@ -1,4 +1,4 @@
-import { CemElementRuntime, CemNativeRecoveryScope, CemSchemaAssetDemandGroup, isolateCemFallbackGeneration, processingSchemaAssetBinding, cemSchemaAssetGenerationTarget } from '@epa-wg/cem-elements';
+import { CemElementRuntime, CemNativeRecoveryScope, CemSchemaAssetDemandGroup, createCemGraphqlPreviewHost, isolateCemFallbackGeneration, processingSchemaAssetBinding, cemSchemaAssetGenerationTarget } from '@epa-wg/cem-elements';
 import { prepareCemStudioRuntime } from './startup.js';
 import { createCemStudioNavigation } from './navigation.js';
 import '@epa-wg/custom-element';
@@ -25,6 +25,8 @@ const recoveryScope = new CemNativeRecoveryScope();
 const deploymentResponse = await fetch(new URL('./build.json', mounted.baseUrl));
 if (!deploymentResponse.ok || deploymentResponse.redirected) throw Error('CEM Studio deployment metadata is unavailable');
 const deployment = await deploymentResponse.json();
+const previewApplicationHost = deployment.previewApplications
+    ? createCemGraphqlPreviewHost(mounted.baseUrl.href, deployment.previewApplications) : undefined;
 /** @type {CemSchemaAssetDemandGroup | undefined} */
 let packageDemand;
 /** @type {object | undefined} */
@@ -52,7 +54,7 @@ const processingNativeWork = demandGroup && ((host, work, cleanup) => cleanup ? 
 })));
 const validator = await prepareCemStudioRuntime({
     createValidator: () => createCemStudioBrowserValidator({ recoveryScope, packageDemand, packageHostConfiguration }),
-    installComponents: () => installCemStudioShellComponents({ runtime: new CemElementRuntime({ declarationTag: 'cem-studio-component-declaration', recoveryScope,
+    installComponents: () => installCemStudioShellComponents({ runtime: new CemElementRuntime({ declarationTag: 'cem-studio-component-declaration', recoveryScope, previewApplicationHost,
         processingPackageHostConfiguration: packageHostConfiguration && JSON.stringify(packageHostConfiguration),
         processingNativeWork, loadHttpResource: packageDemand?.loadResource }) }),
     serial: Boolean(packageDemand),

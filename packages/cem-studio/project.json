@@ -467,7 +467,7 @@
                 },
                 "{projectRoot}/scripts/example-projects.mjs",
                 "{workspaceRoot}/examples/projects/**/*",
-                "{workspaceRoot}/packages/cem_ql/fixtures/component-application/shopping-cart/{cart.json,operations.graphql,schema.graphql}",
+                "{workspaceRoot}/packages/cem_ql/fixtures/component-application/shopping-cart/{cart.json,cart-view.cem,operations.graphql,profile.json,schema.graphql}",
                 "{workspaceRoot}/packages/cem-components/src/components/cem-card/cem-card.xhtml",
                 "{workspaceRoot}/examples/cem-ml/login.cem",
                 "{workspaceRoot}/examples/semantic/login.html",
@@ -1064,6 +1064,16 @@
             ],
             "outputs": []
         },
+        "build:cart-preview": {
+            "parallelism": false,
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build", { "projects": ["cem_ql"], "target": "test:selected-application-runtime" }],
+            "options": {
+                "command": "node scripts/build-cart-preview.mjs",
+                "cwd": "{projectRoot}"
+            }
+        },
         "build:schema-assets": {
             "parallelism": false,
             "cache": true,
@@ -1236,6 +1246,16 @@
             "dependsOn": ["verify:determinism"],
             "options": {
                 "command": "node scripts/verify-navigation.mjs --shopping-cart-only",
+                "cwd": "{projectRoot}"
+            }
+        },
+        "verify:cart-preview": {
+            "parallelism": false,
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build:cart-preview"],
+            "options": {
+                "command": "node scripts/verify-navigation.mjs --shopping-cart-only --cart-preview",
                 "cwd": "{projectRoot}"
             }
         },

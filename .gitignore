@@ -64,6 +64,7 @@ vitest.config.*.timestamp*
 # Derived inputs for the optional Studio deployment graph.
 /packages/cem-studio/generated/schema-assets/
 /packages/cem-studio/studio.schema-assets.generated.cem
+/packages/cem-studio/studio.cart-preview.generated.cem
 
 # Local Cloudflare Worker development state.
 /.wrangler/

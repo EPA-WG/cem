@@ -192,7 +192,7 @@ function decodeUtf8(bytes, mayEndMidSequence) {
 
 let livePreviewTheme;
 /** Resource transport only. Shared cem-elements owns the preview DOM and interaction. */
-export async function createCemStudioLivePreview({ source, sourceUri, dependencies = [], components = [] }) {
+export async function createCemStudioLivePreview({ source, sourceUri, dependencies = [], components = [], application }) {
     const { sourceBytes } = assertCemStudioSourceSet(new TextEncoder().encode(source), dependencies);
     if (sourceBytes > CEM_STUDIO_LIMITS.inlinePreviewBytes) {
         return { kind: 'download', label: 'Live view', contentType: 'application/cem', byteLength: sourceBytes, reason: 'The live template exceeds the inline preview limit.' };
@@ -222,7 +222,8 @@ export async function createCemStudioLivePreview({ source, sourceUri, dependenci
     }))];
     assertCemStudioSourceSet(new TextEncoder().encode(source), resources.map(resource => ({ bytes: new TextEncoder().encode(resource.text) })));
     return Object.freeze({ kind: 'live-cem', label: 'Live CEM view', source, sourceUri,
-        resourceSet: JSON.stringify({ resources, styles: ['cem-preview://shared/theme.css'], declarations: tags.map(tag => ({ tag, uri: `cem-preview://shared/components/${tag}/${tag}.xhtml#${tag}` })) }) });
+        resourceSet: JSON.stringify({ resources, ...(application ? { application: { id: application, invocation: crypto.randomUUID() } } : {}),
+            styles: ['cem-preview://shared/theme.css'], declarations: tags.map(tag => ({ tag, uri: `cem-preview://shared/components/${tag}/${tag}.xhtml#${tag}` })) }) });
 }
 async function readPreviewLibrary(url, uri, contentType) {
     const response = await fetch(url, { headers: { Accept: contentType } });

@@ -60,5 +60,5 @@ export declare function createCemStudioPreview(options: {
 export declare function redactCemStudioSecrets(value: unknown): string;
 
 export declare function createCemStudioLivePreview(options: {
-    source: string; sourceUri: string; components?: readonly string[]; dependencies: readonly { path: string; contentType: string; bytes: Uint8Array }[];
+    source: string; sourceUri: string; application?: string; components?: readonly string[]; dependencies: readonly { path: string; contentType: string; bytes: Uint8Array }[];
 }): Promise<CemStudioPreview>;

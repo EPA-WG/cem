@@ -1775,6 +1775,16 @@ leaves an unknown journal disposition for trusted reconciliation. Dispose the
 binding on owner retirement to cancel pending work. Reattaching the binding
 installs listeners and does not dispatch a saved command.
 
+`createCemGraphqlPreviewHost` installs deployment-owned application grants for
+live frames through `CemElementRuntimeOptions.previewApplicationHost`. A grant
+pins the primary source, required dependencies and WASM, and supplies fixed same-origin
+service and factory URLs. The authored preview selects its application ID.
+The shared frame adapter loads the guard, reads the query and routes trusted
+controls through the existing action journal. Disposal aborts requests and
+releases the selected heap. Interactive application recovery reports
+`cem.preview.application.resume_unsupported` until a native resume adapter is
+installed.
+
 ### Optional native schema source loading
 
 `CemSchemaAssetPackLoader` is a shared non-UI byte service for the opt-in native

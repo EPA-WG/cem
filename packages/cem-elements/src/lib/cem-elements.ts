@@ -649,6 +649,8 @@ export interface CemElementRuntimeOptions {
     declarationScope?: CemDeclarationScope;
     /** Script-free preview: restrict output and deny ambient storage/location resources. */
     restrictedPreview?: boolean;
+    /** Deployment-owned application services for script-free preview frames. */
+    previewApplicationHost?: import('./graphql-preview.js').CemPreviewApplicationHost;
     /** Environment ceiling for UTF-8 control input; scopes may only lower it. Default: 8 MiB. */
     controlInputBytes?: number;
     nativeValueLimits?: Partial<CemValueArtifactLimits>;
@@ -1958,6 +1960,7 @@ export class CemElementRuntime {
     private moduleContextSequence = 0;
 
     constructor(options: CemElementRuntimeOptions = {}) {
+        this.previewApplicationHost = options.previewApplicationHost;
         this.ssrCrossOriginReads = compileSsrCrossOriginReads(options.ssrCrossOriginReads);
         this.checkpointPublication = options.checkpointPublication;
         this.ariaReferenceProfile = resolveAriaReferenceProfile(options.ariaReferenceProfile);
@@ -2016,10 +2019,11 @@ export class CemElementRuntime {
     }
 
     private readonly recoveryScope?: import('./internal/runtime-support/native-generation.js').CemNativeRecoveryScope;
+    private readonly previewApplicationHost?: import('./graphql-preview.js').CemPreviewApplicationHost;
     /** Trusted browser lifecycle setup, never taken from a resource-set envelope. */
-    previewRuntimeOptions(): Pick<CemElementRuntimeOptions, 'checkpointPublication' | 'recoveryScope' | 'processingWorkerFactory' | 'processingPoolPolicy' | 'processingPackageHostConfiguration' | 'processingNativeWork'> & { dispose(): void } {
+    previewRuntimeOptions(): Pick<CemElementRuntimeOptions, 'checkpointPublication' | 'recoveryScope' | 'processingWorkerFactory' | 'processingPoolPolicy' | 'processingPackageHostConfiguration' | 'processingNativeWork'> & { applicationHost?: import('./graphql-preview.js').CemPreviewApplicationHost; dispose(): void } {
         const publication = this.checkpointPublication?.fork();
-        return { checkpointPublication: publication, recoveryScope: this.recoveryScope,
+        return { checkpointPublication: publication, recoveryScope: this.recoveryScope, applicationHost: this.previewApplicationHost,
             processingPackageHostConfiguration: this.processingPackageHostConfiguration,
             processingNativeWork: this.processingNativeWork,
             processingWorkerFactory: this.processingWorkerFactory, processingPoolPolicy: this.processingPoolPolicy,

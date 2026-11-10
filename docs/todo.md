@@ -538,6 +538,9 @@ Deferred execution gates, in order within this workstream:
   - [ ] Connect the interactive selected application to an authorized Studio
         preview host and verify complete worker and fallback recovery and
         offline behavior.
+    - [x] Add the trusted application host and optional Studio cart preview
+          deployment. Verify guarded initial reads, quantity/removal, source
+          pin refusal, frame isolation and disposal in the browser.
 
 - [ ] Extend the baseline with repeated cold/first-use latency, active-worker and
   aggregate host/native memory, all-capabilities/offline totals and clean npm
