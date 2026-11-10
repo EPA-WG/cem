@@ -157,7 +157,8 @@ if (!isMainThread) {
                     current: () => !signal.aborted && fresh.alive(), discard: () => { void fresh.discard(); } };
             }),
             endpoint: () => endpoint ??= mode === 'worker'
-                ? createQuerySourceWorkerEndpoint({ identity: identity(), participant: controller.participant(), port, maxSourceBytes: 4 * 1024 * 1024, current: () => alive, receiverRecovery: true })
+                ? createQuerySourceWorkerEndpoint({ identity: identity(), participant: controller.participant(), port, maxSourceBytes: 4 * 1024 * 1024,
+                    current: () => alive, receiverRecovery: true, applicationStylesheets: true })
                 : createQuerySourceEndpoint({ identity: identity(), participant: controller.participant(), current: () => alive, native: route }),
             alive: () => alive,
             async retire(handoff, current) {
@@ -239,6 +240,9 @@ if (!isMainThread) {
             }
             const editedHtml = '<p>Coffee/4/ok/native-one</p>';
             if (mutable) await old.call('frame', [editedHtml]);
+            const styles = await resource.stylesheets('cem-count');
+            assert.equal(styles.receipt, '[]');
+            assert.equal(styles.isCurrent(), true);
             const revision = await resource.prepareRecovery();
             if (mutable) assert.match(revision, /^cem-bin/);
             let writes = 0;
@@ -274,6 +278,8 @@ if (!isMainThread) {
                 assert.equal(allocations, before); assert.equal(bound, undefined); continue;
             }
             const retirement = await old.retire(handoff, () => !privateInput);
+            assert.equal(styles.signal.aborted, true);
+            assert.equal(styles.isCurrent(), false);
             if (scenario.endsWith('aggregate-budget')) {
                 await assert.rejects(group.allocate([retirement]), /limit/);
                 assert.equal(allocations, before); continue;
@@ -293,6 +299,10 @@ if (!isMainThread) {
             await resumeNativeGenerationBindings(admission, [ticket]);
             const fresh = admission.generations[0].runtime;
             assert.equal(bound, fresh.endpoint());
+            const replacementStyles = await resource.stylesheets('cem-count');
+            assert.equal(replacementStyles.receipt, '[]');
+            assert.equal(replacementStyles.isCurrent(), true);
+            assert.notEqual(replacementStyles.signal, styles.signal);
             assert.deepEqual(comparableReport(await fresh.call('validate', ['same'])), original);
             assert.deepEqual(await fresh.call('frame', mutable ? [editedHtml] : []), mutable ? [...originalFrame.slice(0, 2), editedHtml] : originalFrame);
             if (mutable) {

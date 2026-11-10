@@ -1991,9 +1991,24 @@ failure drops its styles before any session is returned. A restored application
 stages its styles again through its fresh bootstrap.
 
 `applicationSourceStylesheetsV1` uses the original session token and returns
-owned CSS, scope and identity metadata in declaration order. The browser
-ownership adapter and shared behavior, provider and source contracts remain
-separate integration steps.
+owned CSS, scope and identity metadata in declaration order. The application
+source transport carries this bounded receipt on its original owner. A trusted
+worker binding enables `applicationStylesheets` on its private endpoint.
+`QuerySourceResource.stylesheets` reads the current native owner after each
+binding, including after physical recovery. The receipt's browser signal
+expires when that owner releases or its endpoint closes.
+
+`prepareApplicationStylesheets` stages the current session's declaration CSS
+for a host through `DeclarationStyleOwnership`. It uses the host tag for the
+native lookup. The caller commits the resulting entry through the shared
+stylesheet group, optionally with a prepared DOM patch, or releases it on
+cancellation. Failed or superseded preparation preserves the previous
+committed lease. Equal native identities share installed style nodes, and
+session release and host disconnection remove their leases. The browser test in
+`cem_ql:test:application-styles-browser` exercises both a real Worker and an owned
+fallback heap with the native closed import fixture. Callers stage fresh CSS
+after source recovery. Shared behavior, provider and source handoff remains
+separate.
 
 ## Native publication generation enrollment
 

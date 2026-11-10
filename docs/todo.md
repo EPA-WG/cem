@@ -473,8 +473,12 @@ Deferred execution gates, in order within this workstream:
         Native and reduced WASM fixtures cover compiled imports, denied policy,
         publication retirement and fresh stylesheet owners. Native checkpoint
         recovery restages CSS under the replacement bootstrap.
-  - [ ] Connect the application stylesheet route to shared browser ownership
-        and complete behavior, provider and source handoff.
+  - [x] Connect the application stylesheet route to shared browser ownership.
+        Chromium exercises native CSS and closed imports in a Worker and an
+        owned fallback heap, including sharing, replacement refusal, empty
+        replacement, owner retirement and host disconnection. The source
+        recovery fixture checks old receipt expiry and fresh owner reads.
+  - [ ] Complete shared behavior, provider and source handoff.
 
 - [ ] Generate app-build dependencies and GraphQL schema/operation contracts,
   including variable/response validation and compact runtime input checks. Map

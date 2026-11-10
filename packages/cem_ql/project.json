@@ -147,6 +147,12 @@
             "options": { "command": "node tools/scripts/verify-application-source-wasm.mjs --resource-transport", "cwd": "{workspaceRoot}" },
             "outputs": ["{workspaceRoot}/dist/fixtures/application-source-wasm"]
         },
+        "test:application-styles-browser": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["test:application-resource-wasm"],
+            "options": { "command": "node packages/cem_ql/tests/verify-application-styles-browser.mjs", "cwd": "{workspaceRoot}" }
+        },
         "test:application-source-wasm": {
             "cache": false,
             "executor": "nx:run-commands",

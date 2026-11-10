@@ -5,6 +5,7 @@ const shared = globalThis[Symbol.for('cem.query-source.endpoints.v1')] ??= { end
 const fail = code => { throw Error(`cem.query.resource.${code}`); };
 const MAX_BYTES = 69643, MAX_PINS = 16384;
 const MAX_RECEIVER = 1024 * 1024, MAX_WORKSPACE = 4 * MAX_RECEIVER;
+const MAX_STYLESHEET_RECEIPT = 1024 * 1024;
 function source(bytes, pins, limit = MAX_BYTES) {
     if (!(bytes instanceof Uint8Array) || !(bytes.buffer instanceof ArrayBuffer) || !bytes.length || bytes.length > limit
         || typeof pins !== 'string' || pins.length > MAX_PINS || new TextEncoder().encode(pins).length > MAX_PINS) fail('limit');
@@ -25,6 +26,15 @@ function receiverRecovery(value) {
     return { bytes: source(value.bytes, value.pin, MAX_RECEIVER), journal: source(value.journal, '', MAX_WORKSPACE),
         pin: value.pin, runtimeId: value.runtimeId };
 }
+function stylesheetTag(tag) {
+    if (typeof tag !== 'string' || !tag || tag.length > 256 || new TextEncoder().encode(tag).length > 256) fail('stylesheet');
+    return tag;
+}
+function stylesheetReceipt(receipt) {
+    if (typeof receipt !== 'string' || receipt.length > MAX_STYLESHEET_RECEIPT
+        || new TextEncoder().encode(receipt).length > MAX_STYLESHEET_RECEIPT) fail('stylesheet');
+    return receipt;
+}
 /** Native endpoints must first be provisioned by their trusted Rust embedding.
  * Keep the actual Memory weakly; an equal factory/foreign heap cannot substitute
  * it, and native tokens never become numeric runtime or worker wire handles. */
@@ -44,6 +54,9 @@ function wasmBackend(runtime, prefix, maxSourceBytes) {
         open: (bytes, pins) => call(`${prefix}OpenV1`, [bytes, pins]),
         capture: owner => call(`${prefix}CaptureV1`, [owner]),
         release: owner => call(`${prefix}ReleaseV1`, [owner]),
+        ...(prefix === 'applicationSource' && {
+            stylesheets: (owner, tag) => call('applicationSourceStylesheetsV1', [owner, tag]),
+        }),
     });
 }
 /** Original binding functions must be supplied by the shared physical owner.
@@ -52,6 +65,7 @@ export function createQuerySourceEndpoint(options) {
     const { participant, identity, current, native, timeoutMs = 5000 } = options;
     assertNativeGenerationResourceTarget(participant, undefined, identity);
     if (typeof current !== 'function' || !native || ['open', 'capture', 'release'].some(k => typeof native[k] !== 'function')
+        || (native.stylesheets !== undefined && typeof native.stylesheets !== 'function')
         || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) fail('endpoint');
     const maxSourceBytes = options.maxSourceBytes ?? native.maxSourceBytes ?? MAX_BYTES;
     if (!Number.isSafeInteger(maxSourceBytes) || maxSourceBytes < 1 || maxSourceBytes > 4 * 1024 * 1024) fail('limit');
@@ -92,7 +106,7 @@ export function createQuerySourceEndpoint(options) {
         if (!live()) { await native.release(value); fail('stale'); }
         if (owners.size >= 64) { await native.release(value); fail('limit'); }
         const owner = Object.freeze({ kind: 'cem-query-source-owner' });
-        owners.set(owner, { value, releasing: false }); return owner;
+        owners.set(owner, { value, releasing: false, styles: native.stylesheets && new AbortController() }); return owner;
     };
     const endpoint = Object.freeze({ participant,
         identity: () => physical.deref(), current: () => live() && pending === 0,
@@ -102,17 +116,33 @@ export function createQuerySourceEndpoint(options) {
             const bytes = await bounded(() => native.capture(entry.value), signal);
             return source(bytes, '', maxSourceBytes);
         },
+        async stylesheets(owner, tag) {
+            const entry = original(owner);
+            if (!entry.styles) fail('stylesheet');
+            const signal = entry.styles.signal;
+            const checkedTag = stylesheetTag(tag);
+            const receipt = stylesheetReceipt(await bounded(() => native.stylesheets(entry.value, checkedTag)));
+            const isCurrent = () => !signal.aborted && !entry.releasing && live();
+            if (!isCurrent()) fail('stale');
+            return { receipt, signal, isCurrent };
+        },
         async release(owner, signal) {
             const entry = original(owner); entry.releasing = true;
-            await bounded(() => native.release(entry.value), signal, undefined, true);
-            owners.delete(owner);
+            try {
+                await bounded(() => native.release(entry.value), signal, undefined, true);
+                owners.delete(owner);
+            } finally { entry.styles?.abort(); }
         },
         dispose() {
             if (closed) return;
             closed = true;
-            for (const entry of owners.values()) if (!entry.releasing)
-                void Promise.resolve().then(() => native.release(entry.value)).catch(() => { failed = true; });
-            owners.clear(); options.close?.();
+            const entries = [...owners.values()];
+            owners.clear();
+            for (const entry of entries) {
+                if (!entry.releasing) void Promise.resolve().then(() => native.release(entry.value)).catch(() => { failed = true; });
+                entry.styles?.abort();
+            }
+            options.close?.();
         },
     });
     const receiver = native.receiver && {
@@ -127,6 +157,7 @@ export function createQuerySourceEndpoint(options) {
             try {
                 const pin = await bounded(() => native.receiver.retire(entry.value, capsule, sealedJournal));
                 owners.delete(owner);
+                entry.styles?.abort();
                 if (typeof pin !== 'string' || !pin || pin.length > MAX_PINS
                     || new TextEncoder().encode(pin).length > MAX_PINS) fail('receiver');
                 return pin;
@@ -170,6 +201,7 @@ export function createQuerySourceWorkerEndpoint(options) {
             open: async (bytes, pins) => { const id = await call('open', { bytes, pins }); if (!Number.isSafeInteger(id) || id < 1) { failed = true; fail('transport'); } return id; },
             capture: id => call('capture', id),
             release: async id => { if (await call('release', id) !== true) { failed = true; fail('transport'); } },
+            stylesheets: options.applicationStylesheets === true ? (id, tag) => call('stylesheets', { id, tag }) : undefined,
             receiver: options.receiverRecovery === true ? {
                 capture: id => call('capture-receiver', id),
                 retire: (id, bytes, journal) => call('confirm-receiver', { id, bytes, journal }),
@@ -205,11 +237,13 @@ export function installQuerySourceWorkerTransport(port, native) {
                     if (closed) { await native.release(owner); return; }
                     owners.set(++sequence, owner); result = sequence;
                 } else {
-                    const key = op === 'confirm-receiver' ? value?.id : value;
+                    const key = op === 'confirm-receiver' || op === 'stylesheets' ? value?.id : value;
                     if (!owners.has(key)) fail('owner');
                     const owner = owners.get(key);
                     if (op === 'capture') result = source(await native.capture(owner), '', limit);
-                    else if (op === 'capture-receiver') result = receiverCapture(await native.receiver?.capture(owner));
+                    else if (op === 'stylesheets' && native.stylesheets) {
+                        result = stylesheetReceipt(await native.stylesheets(owner, stylesheetTag(value.tag)));
+                    } else if (op === 'capture-receiver') result = receiverCapture(await native.receiver?.capture(owner));
                     else if (op === 'confirm-receiver') {
                         result = await (native.receiver?.retire(owner,
                             source(value.bytes, '', MAX_RECEIVER), source(value.journal, '', MAX_WORKSPACE)) ?? fail('receiver'));
@@ -246,6 +280,16 @@ export class QuerySourceResource {
             onBound: options.onBound, receiverCheckpoint: options.receiverCheckpoint };
         try { resource.#enroll(); } catch (error) { await options.endpoint.release(owner); throw error; }
         return resource;
+    }
+    async stylesheets(tag) {
+        const endpoint = this.#endpoint, owner = this.#owner;
+        const current = () => !this.#closed && this.#endpoint === endpoint && this.#owner === owner
+            && this.#options.current() === true;
+        if (!current()) fail('policy');
+        const result = await endpoint.stylesheets(owner, tag);
+        const isCurrent = () => current() && result.isCurrent();
+        if (!isCurrent()) fail('stale');
+        return { receipt: result.receipt, signal: result.signal, isCurrent };
     }
     async prepareRecovery(signal) {
         this.#clearSnapshot();
