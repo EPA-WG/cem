@@ -5,6 +5,7 @@ import { readFile, readdir, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promis
 import { resolve, extname, join } from 'node:path';
 import { tmpdir, release } from 'node:os';
 import { chromium, firefox, webkit } from 'playwright';
+import { canonicalSourcesInPage, verifyCanonicalSources } from '../cem-components/canonical-source-checks.mjs';
 import { verifyFieldsetPage } from '../cem-components/fieldset-page-checks.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -25,6 +26,7 @@ const iconsOnly = process.argv.includes('--icons-only');
 const surfacesOnly = process.argv.includes('--surfaces-only');
 const sheetOnly = process.argv.includes('--sheet-only');
 const fieldsetOnly = process.argv.includes('--fieldset-only');
+const canonicalSourcesOnly = process.argv.includes('--canonical-sources-only');
 const navigationContentOnly = process.argv.includes('--navigation-content-only');
 const passiveOnly = process.argv.includes('--passive-only');
 const passiveComponent = process.argv.find(value => value.startsWith('--passive-component='))?.slice('--passive-component='.length);
@@ -61,7 +63,9 @@ try {
     if (nativeDatalistOnly && historyOnly) throw new Error('Choose one evidence mode');
     if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' || evidenceOutput)) throw new Error('Browser evidence flags require --native-datalist-only or --history-only');
     browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
-    if (!installedOnly && recoveryStatusOnly) await verifyRecoveryStatus(`${origin}/packages/cem-components/playgrounds/`);
+    let sourceViewerPages;
+    if (!installedOnly && canonicalSourcesOnly) sourceViewerPages = await verifyCanonicalSourceViewers(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && recoveryStatusOnly) await verifyRecoveryStatus(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && treeOnly) await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`, ['cem-tree']);
     else if (!installedOnly && compactStudioOnly) await verifyCompactStudio(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && sourceEditorOnly) await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`, ['cem-source-editor']);
@@ -115,7 +119,11 @@ try {
         await mkdir(target, { recursive: true });
         execFileSync('tar', ['-xzf', join(temporary, output[0].filename), '--strip-components=1', '-C', target]);
     }
-    if (recoveryStatusOnly) await verifyRecoveryStatus(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    if (canonicalSourcesOnly) {
+        const installedViewerPages = await verifyCanonicalSourceViewers(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (sourceViewerPages) assert.deepEqual(installedViewerPages, sourceViewerPages, 'Installed pages must preserve the source viewer inventory');
+    }
+    else if (recoveryStatusOnly) await verifyRecoveryStatus(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (treeOnly) await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, ['cem-tree']);
     else if (compactStudioOnly) await verifyCompactStudio(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (sourceEditorOnly) await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, ['cem-source-editor']);
@@ -173,7 +181,8 @@ try {
             console.log(JSON.stringify(report, null, 2));
         }
     }
-    if (treeOnly) console.log(`Tree galleries: normal, sparse and condensed geometry in all five themes verified from ${verifiedLocations}.`);
+    if (canonicalSourcesOnly) console.log(`Canonical XHTML source viewers verified from ${verifiedLocations}.`);
+    else if (treeOnly) console.log(`Tree galleries: normal, sparse and condensed geometry in all five themes verified from ${verifiedLocations}.`);
     else if (compactStudioOnly) console.log(`Compact Studio accordion/data-view properties, all nine affected galleries and the canonical bundle verified from ${verifiedLocations}.`);
     else if (disclosureDataOnly) console.log(`Disclosure, sorting, pagination and passive table delivery verified from ${verifiedLocations}.`);
     else if (layoutOnly) console.log(`Passive layout, content state, property controls, galleries and bundle verified from ${verifiedLocations}.`);
@@ -993,6 +1002,51 @@ async function verifyFieldset(baseUrl) {
     } finally { await context.close(); }
     await verifyGalleries(baseUrl, ['cem-fieldset']);
     await verifyBundle(new URL('cem-bundle.html', baseUrl).href);
+}
+
+async function verifyCanonicalSourceViewers(baseUrl) {
+    const componentDirectory = join(root, 'packages/cem-components/src/components');
+    const folders = await readdir(componentDirectory, { withFileTypes: true });
+    const fixtures = [];
+    for (const { name: tag } of folders.filter(folder => folder.isDirectory())) {
+        const expectedSource = await readFile(join(componentDirectory, tag, `${tag}.xhtml`), 'utf8');
+        for (const suffix of ['', '-gallery']) {
+            const url = new URL(`${tag}${suffix}.html`, baseUrl);
+            const response = await fetch(url);
+            assert.equal(response.status, 200, `${url}: playground response`);
+            const html = await response.text();
+            const imports = JSON.parse(html.match(/<script type="importmap">([\s\S]*?)<\/script>/u)?.[1] ?? '{}').imports;
+            const sources = canonicalSourcesInPage(html, imports, url);
+            if (suffix && !sources.length) continue;
+            assert.deepEqual(sources.map(source => source.tag), [tag], `${url}: matching canonical source`);
+            const expectedUrl = new URL(`../src/components/${tag}/${tag}.xhtml`, baseUrl).href;
+            assert.equal(new URL(sources[0].path, url).href, expectedUrl, `${url}: declaration belongs to this package`);
+            fixtures.push({ url, sources, expectedSource });
+        }
+    }
+    let cursor = 0;
+    let completed = 0;
+    const failures = [];
+    const results = await Promise.allSettled(Array.from({ length: 3 }, async () => {
+        const context = await browser.newContext();
+        try {
+            while (cursor < fixtures.length) {
+                const { url, sources, expectedSource } = fixtures[cursor++];
+                const page = await context.newPage();
+                try {
+                    await page.goto(url.href, { waitUntil: 'domcontentloaded' });
+                    await verifyCanonicalSources(page, sources, expectedSource);
+                    if (++completed % 25 === 0) console.log(`Verified ${completed}/${fixtures.length} canonical source viewers at ${baseUrl}`);
+                } catch (error) {
+                    failures.push(new Error(`Canonical source viewer failed at ${url}`, { cause: error }));
+                } finally { await page.close(); }
+            }
+        } finally { await context.close(); }
+    }));
+    failures.push(...results.filter(result => result.status === 'rejected').map(result => result.reason));
+    if (failures.length) throw new AggregateError(failures, `Canonical source viewers failed at ${baseUrl}`);
+    console.log(`Verified ${fixtures.length} canonical source viewers at ${baseUrl}`);
+    return fixtures.map(({ url }) => url.pathname.split('/').at(-1)).sort();
 }
 
 async function verifyGalleries(baseUrl, tags) {

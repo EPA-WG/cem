@@ -58,4 +58,4 @@ window.cemPlaygroundRuntime = runtime;
 }
 }
 </template></cem-element>
-<cem-element><template type="text/cem-ml">{cem-module-url @slice=source @src="@epa-wg/cem-components/components/cem-workspace/cem-workspace.xhtml"}{cem:if @test=datadom.slices.source | {cem-demo-element @legend="Canonical source" @src={datadom.slices.source} @type=xml @demo=false}}</template></cem-element></main></template></cem-gallery-page></body></html>
+<cem-element><template type="text/cem-ml">{cem-module-url @slice=source @src="@epa-wg/cem-components/components/cem-workspace/cem-workspace.xhtml"}{cem:if @test=datadom.slices.source | {p | {a @href={datadom.slices.source} | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src={datadom.slices.source} @type=xml @demo=false}}</template></cem-element></main></template></cem-gallery-page></body></html>

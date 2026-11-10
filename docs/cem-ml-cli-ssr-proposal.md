@@ -720,7 +720,9 @@ remains `Partial(Incomplete)` at one render pass. A general revisioned settle
 coordinator, complete hydration stamps, removal writes and ready proof remain
 pending.
 
-The current profile accepts mapped passive lower-case HTML attribute writes.
+The current profile accepts mapped passive lower-case HTML attribute writes,
+including the public theme selectors `data-cem-density` and
+`data-cem-spacing`.
 Unmapped writes, namespace changes, internal `data-cem-*` marker writes, active
 handlers, resource-policy requirements, reserved aliases and sensitive controls
 fail before AST application. Existing 64-host-attribute, 1 MiB island lexical/work

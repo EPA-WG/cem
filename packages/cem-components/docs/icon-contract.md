@@ -59,11 +59,11 @@ and `glyph` for the image or font content. Image aspect ratio is preserved.
 - [Full examples and variation matrix](../playgrounds/cem-icon-gallery.html)
 - [Colocated stories](../src/components/cem-icon/cem-icon.stories.ts)
 
-This declaration replaces the frozen icon registry entry. Resolve the package
-export before appending the template fragment:
+This declaration replaces the frozen icon registry entry. Resolve the XHTML
+document through the folder import map, then append the template fragment.
 
 ```cem
-{cem-module-url @slice=iconUrl @src="@epa-wg/cem-components/components/cem-icon"}
+{cem-module-url @slice=iconUrl @src="@epa-wg/cem-components/components/cem-icon/cem-icon.xhtml"}
 {cem:if @test="datadom.slices.iconUrl" |
   {cem-element @tag=cem-icon @src="{$datadom.slices.iconUrl}#cem-icon"}
 }

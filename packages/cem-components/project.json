@@ -242,6 +242,7 @@
                 "{projectRoot}/playgrounds/**/*",
                 "{projectRoot}/demo.css",
                 "{workspaceRoot}/tools/scripts/verify-cem-component-playgrounds.mjs",
+                "{workspaceRoot}/tools/cem-components/canonical-source-checks.mjs",
                 "{projectRoot}/package.json",
                 "{projectRoot}/src/components/**/*.xhtml",
                 {

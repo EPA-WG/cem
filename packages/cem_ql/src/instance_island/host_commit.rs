@@ -189,11 +189,7 @@ pub(crate) fn prepare_host_commit_with_stylesheets(
         if bytes > ceiling {
             return Err(BOUNDS.into());
         }
-        if update.source_map().frames.is_empty()
-            || update.name.starts_with("data-cem-")
-                && !(index >= trusted_start && update.name == "data-cem-css-context")
-            || update.name == "xmlns"
-        {
+        if update.source_map().frames.is_empty() {
             return Err(REFUSED.into());
         }
         cem_ml::validation::html::validate_passive_html_attributes(
@@ -373,11 +369,7 @@ fn coalesced_host_writes_mode(
             return Err(BOUNDS.into());
         }
         let name = update.name.to_ascii_lowercase();
-        if name.is_empty()
-            || name.starts_with("data-cem-")
-                && !(index >= trusted_start && name == "data-cem-css-context")
-            || name == "xmlns"
-        {
+        if reserved_host_write(&name, index >= trusted_start) {
             return Err(REFUSED.into());
         }
         if let Some(position) = indices
@@ -393,6 +385,14 @@ fn coalesced_host_writes_mode(
         }
     }
     Ok(indices)
+}
+
+fn reserved_host_write(name: &str, trusted_stylesheet: bool) -> bool {
+    name.is_empty()
+        || name == "xmlns"
+        || name.starts_with("data-cem-")
+            && !matches!(name, "data-cem-density" | "data-cem-spacing")
+            && !(trusted_stylesheet && name == "data-cem-css-context")
 }
 
 #[cfg(test)]

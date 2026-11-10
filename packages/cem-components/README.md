@@ -667,14 +667,17 @@ specifiers such as
 `cem-module-url`; the folder import map does not expand extensionless component
 names into files. Declaration imports append `#cem-text` to select a template;
 source viewers load the whole XHTML document without a fragment. See the [demo protocol](../../docs/component-development-pattern.md#full-examples-and-variation-matrix-required).
+Run `yarn nx run @epa-wg/cem-components:verify-playgrounds --args=--canonical-sources-only`
+to verify the viewers against workspace declarations and isolated npm archives.
 
 The [icon-button contract](docs/icon-button-contract.md) includes legacy icon-link
 navigation, image and font icons, slotted labels, and disabled links.
 
 ### Standalone icon
 
-`cem-icon` now ships as a canonical XHTML declaration. Load it explicitly through
-`components/cem-icon` or the release bundle; all registration uses the shared runtime loader. It supports the legacy source formats and size/direction
+`cem-icon` ships as a canonical XHTML declaration. The folder import map
+resolves `@epa-wg/cem-components/components/cem-icon/cem-icon.xhtml#cem-icon`.
+The release bundle also includes the declaration. The icon supports the legacy source formats and size/direction
 variants while preserving the `name` alias and decorative/labeled semantics.
 See the [icon contract](./docs/icon-contract.md) and
 [Full examples and variation matrix](./playgrounds/cem-icon-gallery.html).

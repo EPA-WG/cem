@@ -42,6 +42,7 @@ The [active checklist](../todo.md) records remaining execution work.
 - [Studio startup capture](todo-completed-studio-startup-capture-2026-11-05.md)
 - [October 10 placement verification](todo-snapshot-2026-10-10.md#browser-failures-observed-during-placement-verification)
 - [Placement journey audit](todo-completed-placement-journey-audit-2026-11-05.md)
+- [Gallery canonical source links](todo-completed-gallery-source-links-2026-11-10.md)
 
 ## SSR
 

@@ -99,6 +99,26 @@ fn data_defaults_are_visible_to_the_same_render_and_committed_dataset() {
     );
 }
 #[test]
+fn public_theme_selectors_publish_as_host_attributes_and_dataset_defaults() {
+    for (input, spacing) in [("", "normal"), ("data-cem-spacing='sparse'", "sparse")] {
+        let r = apply(
+            "{attribute @name=data-cem-density | super-compact}{attribute @name=data-cem-spacing | normal}{p | {$ datadom.dataset.cemDensity}}",
+            input,
+        );
+        let host = attrs(r.application().tree(), r.application().output_target())
+            .into_iter()
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(host["data-cem-density"], "super-compact");
+        assert_eq!(host["data-cem-spacing"], spacing);
+        assert_eq!(sections(&r).1["cemDensity"], "super-compact");
+        assert_eq!(sections(&r).1["cemSpacing"], spacing);
+        assert_eq!(
+            cem_ql::render::render_plan_to_html(r.projected_plan()),
+            "<p>super-compact</p>"
+        );
+    }
+}
+#[test]
 fn selected_writes_replace_in_place_and_append_new_names_once() {
     let r = apply(
         r#"{attribute @name=label @select='"Selected"'}{attribute @name=data-mode @select='"new"'}{p | {$ datadom.attributes.label}}"#,
@@ -159,6 +179,7 @@ fn unsafe_host_writes_refuse_without_publishing_either_half() {
         "{attribute @name=type | password}{p | Hello}",
         "{attribute @name=dataset | reserved}{p | Hello}",
         "{attribute @name=data-cem-island | instance}{p | Hello}",
+        "{attribute @name=data-cem-css-context | forged}{p | Hello}",
     ] {
         let input = prepare(template, "");
         let tree = input.prepared().elements().tree.clone();

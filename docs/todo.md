@@ -389,7 +389,13 @@ links the corresponding design and verification records.
 
 ## Component gallery source-link maintenance (after Studio presentation work)
 
-- [ ] Migrate remaining extensionless canonical-source `cem-module-url` references to full declaration paths under the folder import-map convention. Add source/isolated-package fixtures without assuming a template has only id/type attributes. The current artifact-tree increment repairs and verifies cem-media-preview; a filtered passive-component gate keeps that verification scoped while this older bulk maintenance remains separate.
+- [x] Finish the canonical-source link migration under the folder import-map convention.
+  - [x] Audit property and gallery document specifiers and update remaining
+        extensionless examples.
+  - [x] Verify source and isolated-package viewers fetch and display the
+        matching XHTML. Include a declaration template with extra attributes.
+  - [x] Verify native host publication accepts the gallery’s public density
+        and spacing defaults while still refusing runtime-owned marker writes.
 
 ## Component application WASM profile (separate target)
 
