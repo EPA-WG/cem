@@ -73,6 +73,11 @@ pub struct NativeFunctionRegistry {
 }
 
 impl NativeFunctionRegistry {
+    #[cfg(feature = "application-source-runtime")]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.functions.is_empty()
+    }
+
     pub fn register(
         &mut self,
         name: impl Into<String>,

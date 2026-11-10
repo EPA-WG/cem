@@ -10,9 +10,9 @@ use cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID;
 /// Original registered input on one exact installed publication. Rust issues
 /// this owner; serialized nodes, scopes and type labels cannot construct it.
 pub struct ApplicationReceiverInput {
-    app: Weak<LinkedApplication>,
-    tag: String,
-    root: crate::eval::RetainedCemNode,
+    pub(super) app: Weak<LinkedApplication>,
+    pub(super) tag: String,
+    pub(super) root: crate::eval::RetainedCemNode,
     _lease: NativeResourceLease,
     owners: Arc<AtomicUsize>,
 }
@@ -20,6 +20,25 @@ impl Drop for ApplicationReceiverInput {
     fn drop(&mut self) {
         self.owners.fetch_sub(1, Ordering::AcqRel);
     }
+}
+
+pub(super) fn receiver_artifact<'a>(
+    app: &'a LinkedApplication,
+    tag: &str,
+) -> Result<&'a TemplateArtifact, String> {
+    let artifact = app.envelope().artifact(tag).ok_or(INVALID)?;
+    let demand = app.envelope().requirements();
+    let requirements = demand.declarations.get(tag).ok_or(INVALID)?;
+    if !requirements.host_bindings.contains("instanceID")
+        || requirements.capability.is_some()
+        || !requirements.stylesheets.is_empty()
+        || !requirements.unresolved.is_empty()
+        || !requirements.data_imports.is_empty()
+        || !demand.component_dependencies[tag].is_empty()
+    {
+        return Err(INVALID.into());
+    }
+    Ok(artifact)
 }
 
 impl ApplicationSourceSession {
@@ -32,7 +51,7 @@ impl ApplicationSourceSession {
             return Err(INVALID.into());
         }
         let _entry = self.enter()?;
-        self.with_application(|app, host| {
+        self.with_current_application(|app, host| {
             app.receivers(host, tag)?
                 .check_frame_input(host, &root)
                 .map(|_| ())
@@ -51,6 +70,8 @@ impl ApplicationSourceSession {
                 (n < 64).then_some(n + 1)
             })
             .map_err(|_| INVALID)?;
+        #[cfg(feature = "application-source-runtime")]
+        self.receiver_checkpoint_epoch.fetch_add(1, Ordering::AcqRel);
         Ok(ApplicationReceiverInput {
             app,
             tag: tag.into(),
@@ -126,19 +147,8 @@ impl ApplicationSourceSession {
             cem_ml::scheduler::ScopePolicy::host_root().with_timeout_ms(Some(5000)),
         )
         .map_err(|_| INVALID)?;
-        let plan = self.with_application(|app, host| {
-            let artifact = app.envelope().artifact(&input.tag).ok_or(INVALID)?;
-            let demand = app.envelope().requirements();
-            let requirements = demand.declarations.get(&input.tag).ok_or(INVALID)?;
-            if !requirements.host_bindings.contains("instanceID")
-                || requirements.capability.is_some()
-                || !requirements.stylesheets.is_empty()
-                || !requirements.unresolved.is_empty()
-                || !requirements.data_imports.is_empty()
-                || demand.component_dependencies[&input.tag].len() > 0
-            {
-                return Err(INVALID.into());
-            }
+        let plan = self.with_current_application(|app, host| {
+            let artifact = receiver_artifact(app, &input.tag)?;
             control
                 .check_scope(ROOT_EXECUTION_SCOPE_ID)
                 .map_err(|_| INVALID)?;
@@ -183,7 +193,7 @@ impl ApplicationSourceSession {
             cem_ml::scheduler::ScopePolicy::host_root().with_timeout_ms(Some(5000)),
         )
         .map_err(|e| e.to_string())?;
-        self.with_application(|app, host| {
+        self.with_current_application(|app, host| {
             let declaration = app.envelope().declaration(tag).ok_or(INVALID)?;
             let artifact = app.envelope().artifact(tag).ok_or(INVALID)?;
             let requirements = app.envelope().requirements();

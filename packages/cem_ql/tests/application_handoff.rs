@@ -2,6 +2,10 @@
 mod fixture;
 
 #[cfg(feature = "application-source-runtime")]
+#[path = "application_handoff/receiver_checkpoint.rs"]
+mod receiver_checkpoint;
+
+#[cfg(feature = "application-source-runtime")]
 #[test]
 fn native_receiver_frame_requires_original_input_and_available_preparation() {
     use cem_ql::{

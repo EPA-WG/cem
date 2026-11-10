@@ -237,9 +237,30 @@ pub(crate) fn original_claims(
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Record {
-    identity: SourceIdentity,
-    snapshot: NativeDependencySourceSnapshot,
+pub(crate) struct Record {
+    pub(crate) identity: SourceIdentity,
+    pub(crate) snapshot: NativeDependencySourceSnapshot,
+}
+impl Record {
+    pub(crate) fn restore(
+        self,
+        poll: &mut dyn FnMut() -> Result<(), String>,
+    ) -> Result<SourceInput, String> {
+        let capture = self.snapshot.restore(&self.identity, poll)?;
+        let tree = RetainedCemTree::from_shared(
+            capture.document().clone(),
+            &self.identity.uri,
+            "",
+            Default::default(),
+            None,
+        )
+        .map_err(|_| INVALID)?;
+        Ok(SourceInput {
+            identity: self.identity,
+            tree,
+            capture,
+        })
+    }
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -529,23 +550,7 @@ pub fn verify(
         if uri != record.identity.uri {
             return Err(INVALID.into());
         }
-        let capture = record.snapshot.restore(&record.identity, &mut poll)?;
-        let tree = RetainedCemTree::from_shared(
-            capture.document().clone(),
-            &uri,
-            "",
-            Default::default(),
-            None,
-        )
-        .map_err(|_| INVALID)?;
-        sources.insert(
-            uri,
-            SourceInput {
-                identity: record.identity,
-                tree,
-                capture,
-            },
-        );
+        sources.insert(uri, record.restore(&mut poll)?);
     }
     for c in &s.claims {
         poll()?;

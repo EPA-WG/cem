@@ -198,6 +198,30 @@ impl FreshStructuralHost {
             .filter(|tree| Arc::ptr_eq(tree, source))?;
         self.inner.scope(&self.inner.source_reference(node))
     }
+    #[cfg(feature = "application-source-runtime")]
+    pub(crate) fn receiver_checkpoint_context(
+        &self,
+        source: &crate::application_source_transport::SourceInput,
+        node: u32,
+        lexical: bool,
+    ) -> Option<&StandaloneExpressionContext> {
+        let root = self.registered_source_scope(&source.tree)?;
+        let (scope, context) = self.inner.original_source_context(&source.capture, node)?;
+        let owner = if lexical {
+            self.inner.lexical_scope_parent(scope)
+        } else {
+            Some(scope)
+        };
+        (owner == Some(root)).then_some(context)
+    }
+    #[cfg(feature = "application-source-runtime")]
+    pub(crate) fn receiver_checkpoint_crossing(
+        &self,
+        from: DeclarationScope,
+        to: DeclarationScope,
+    ) -> bool {
+        from == to || self.grants.contains(&(from, to))
+    }
     pub fn set_context(
         &mut self,
         scope: DeclarationScope,

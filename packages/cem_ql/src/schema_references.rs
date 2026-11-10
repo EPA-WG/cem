@@ -303,6 +303,27 @@ impl CemQlSchemaDeclarationHost {
     pub fn reference_scope_policy(&self, scope: DeclarationScope) -> Option<&ReferenceScopePolicy> {
         Some(&self.scope_record(scope)?.policy)
     }
+    #[cfg(feature = "application-source-runtime")]
+    pub(crate) fn original_source_context(
+        &self,
+        capture: &Arc<cem_ml::schema::machine::LexicallyScopedDocument>,
+        node: AstNodeId,
+    ) -> Option<(DeclarationScope, &StandaloneExpressionContext)> {
+        let owner = capture.document();
+        let original = self.captured_namespaces.get(&(Arc::as_ptr(owner) as usize))?;
+        if !Arc::ptr_eq(original, capture) {
+            return None;
+        }
+        let scope = self.source_scope(&SchemaDeclarationNode::new(owner.clone(), node)?)?;
+        let record = self.scope_record(scope)?;
+        let default = ReferenceScopePolicy::schema_defaults().ok()?;
+        if record.policy.limits != default.limits
+            || record.policy.unresolved.disposition() != default.unresolved.disposition()
+        {
+            return None;
+        }
+        Some((scope, record.context.as_ref()?))
+    }
     pub fn lexical_scope_parent(&self, scope: DeclarationScope) -> Option<DeclarationScope> {
         self.scope_record(scope)?.lexical_parent
     }

@@ -443,9 +443,13 @@ Deferred execution gates, in order within this workstream:
   suppression on resume. Keep source-only capture blocked while input owners
   remain live. Add mutable-input, stale-scope and foreign-input worker/fallback
   checkpoint fixtures; immutable deployment fixture draining is not this proof.
-  - [ ] Add original input/context capsule and recovery-resource fixtures for
-    changed input and referenced data, fresh scoped bindings, native seal expiry,
-    foreign recovery packets, credential refusal and shared aggregate budgets.
+  - [x] Capture and rebind one original receiver input with scoped native
+        node bindings. Native fixtures cover changed input and referenced data,
+        stale scopes, expired seals, foreign bytes, credential refusal and
+        aggregate limits. See [native-owned receiver frames](cem-native-schema-capsules.md#native-owned-receiver-frames).
+  - [ ] Enroll the input capsule as a recovery resource and test mutable input,
+        fresh scoped bindings and consumed-write suppression in worker and
+        owned fallback handoffs.
 
 - [ ] Extend native-owned frames with explicit typed-only producers and remaining
   child/field instance contracts. Reuse original admission/profile authorities,

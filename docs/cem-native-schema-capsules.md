@@ -1915,17 +1915,25 @@ cleanup remains available behind closed admission or expired code, and releasing
 the session drops every remaining input owner. Native census revisions and real
 resource leases cover these owners without another untracked registry.
 
-**Input checkpoint capture remains gated.** Source capture returns
+Source-only capture returns
 `cem.application.receiver_checkpoint.unavailable` while any native input owner
-is live, including a stale owner retained after replacement. A code/source packet
-cannot silently omit application input. Portable input/context capture and
-typed-only producer handoff need their own adapters before production adoption.
-The physical acceptance fixture explicitly releases its immutable deployment
-input before source capture and enrolls a fresh original input after rebinding;
-it does not claim mutable input recovery. Both workers and owned fallback heaps
-exercise render/projection, token refusal, live-input checkpoint refusal,
-retirement cleanup and fresh input enrollment. Credential refusal and the
-aggregate checkpoint budget remain unchanged; component admission is still gated.
+is live, including a stale owner retained after replacement. A separate Rust
+adapter captures one current original input, its passive dependency sources and
+its original named native node bindings. This profile uses default reference
+policies and direct named node references. Capture requires embedding approval
+for each source and applies credential checks, source and node limits, and the
+remaining workspace checkpoint budget, including the deployment and its pins.
+A short-lived, single-use native seal binds the exact bytes and expires when
+its operation is cancelled or its origin replaces the input or publication.
+
+The fresh bootstrap registers the decoded source owners, recreates the lexical
+contexts and explicitly authorizes cross-scope references. Restoration checks
+the deployment, the new generation, and those exact fresh owners before
+enrolling a new native input. The wire carries no live scope IDs, grants or
+runtime handles. The worker and owned fallback fixture still releases its
+immutable input before source capture and enrolls a fresh original input after
+rebinding. Enrolling the capsule in physical recovery and suppressing consumed
+writes are separate gates, as are typed-only producers and production admission.
 
 ## Native publication generation enrollment
 

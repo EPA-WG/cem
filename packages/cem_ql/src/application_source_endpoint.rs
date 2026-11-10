@@ -27,10 +27,14 @@ use std::{
 
 #[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
 mod frames;
+#[cfg(feature = "application-source-runtime")]
+mod receiver_checkpoint;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 #[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
 pub use frames::ApplicationReceiverInput;
+#[cfg(feature = "application-source-runtime")]
+pub use receiver_checkpoint::{ReceiverCheckpointSeal, VerifiedReceiverCheckpoint};
 const INVALID: &str = "cem.application.endpoint.refused";
 pub const MAX_PINS_BYTES: usize = 16 * 1024;
 // Complete applications retain more code/compilation roots than query leaves.
@@ -286,6 +290,8 @@ impl ApplicationSourceEndpoint {
             prepared,
             _slot: slot,
             receiver_inputs: Arc::new(AtomicUsize::new(0)),
+            #[cfg(feature = "application-source-runtime")]
+            receiver_checkpoint_epoch: Arc::new(AtomicUsize::new(0)),
         })
     }
 }
@@ -301,6 +307,8 @@ pub struct ApplicationSourceSession {
     prepared: PreparedApplication,
     _slot: SessionSlot,
     receiver_inputs: Arc<AtomicUsize>,
+    #[cfg(feature = "application-source-runtime")]
+    receiver_checkpoint_epoch: Arc<AtomicUsize>,
 }
 impl ApplicationSourceSession {
     fn enter(&self) -> Result<cem_ml::runtime_admission::OwnedNativeEntry, String> {
@@ -354,6 +362,15 @@ impl ApplicationSourceSession {
         &mut self,
         run: impl FnOnce(&LinkedApplication, &mut FreshStructuralHost) -> Result<T, String>,
     ) -> Result<T, String> {
+        // Arbitrary host access can change scopes, including before unwinding.
+        #[cfg(feature = "application-source-runtime")]
+        self.receiver_checkpoint_epoch.fetch_add(1, Ordering::AcqRel);
+        self.with_current_application(run)
+    }
+    fn with_current_application<T>(
+        &mut self,
+        run: impl FnOnce(&LinkedApplication, &mut FreshStructuralHost) -> Result<T, String>,
+    ) -> Result<T, String> {
         self.check()?;
         let g = self
             .endpoint
@@ -376,6 +393,8 @@ impl ApplicationSourceSession {
         drop(endpoint);
         self.check()?;
         self.prepared = candidate;
+        #[cfg(feature = "application-source-runtime")]
+        self.receiver_checkpoint_epoch.fetch_add(1, Ordering::AcqRel);
         Ok(())
     }
 }

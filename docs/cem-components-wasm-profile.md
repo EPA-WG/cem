@@ -450,10 +450,13 @@ acceptance covers malformed sources/domains and fresh physical rebinding.
 [Native-owned receiver frames](cem-native-schema-capsules.md#native-owned-receiver-frames)
 now admit original node references and sealed lexical executable preparation for
 flat original instances. Rust-only input enrollment issues per-session opaque
-tokens, with native census and cleanup. Source checkpoints refuse while these
-input owners remain live, pending portable input/context handoff. Typed-only
-producers, richer topology, declaration/CSS/provider ownership, generated
-application bootstraps and production component admission remain gated.
+tokens, with native census and cleanup. Source-only checkpoints refuse while
+these input owners remain live. The opt-in Rust adapter now captures a single
+original input and its passive dependency sources and checks their fresh lexical
+bindings during restore. Physical worker and owned fallback recovery still need
+to enroll the capsule and suppress consumed writes. Typed-only producers,
+richer topology, declaration/CSS/provider ownership, generated application
+bootstraps and production component admission remain gated.
 
 
 Do not equate downloaded code with an active native generation. Register every
