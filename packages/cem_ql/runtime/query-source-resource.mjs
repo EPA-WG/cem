@@ -5,7 +5,7 @@ const shared = globalThis[Symbol.for('cem.query-source.endpoints.v1')] ??= { end
 const fail = code => { throw Error(`cem.query.resource.${code}`); };
 const MAX_BYTES = 69643, MAX_PINS = 16384;
 const MAX_RECEIVER = 1024 * 1024, MAX_WORKSPACE = 4 * MAX_RECEIVER;
-const MAX_STYLESHEET_RECEIPT = 1024 * 1024;
+const MAX_RECEIPT_BYTES = 1024 * 1024;
 function source(bytes, pins, limit = MAX_BYTES) {
     if (!(bytes instanceof Uint8Array) || !(bytes.buffer instanceof ArrayBuffer) || !bytes.length || bytes.length > limit
         || typeof pins !== 'string' || pins.length > MAX_PINS || new TextEncoder().encode(pins).length > MAX_PINS) fail('limit');
@@ -26,14 +26,20 @@ function receiverRecovery(value) {
     return { bytes: source(value.bytes, value.pin, MAX_RECEIVER), journal: source(value.journal, '', MAX_WORKSPACE),
         pin: value.pin, runtimeId: value.runtimeId };
 }
-function stylesheetTag(tag) {
-    if (typeof tag !== 'string' || !tag || tag.length > 256 || new TextEncoder().encode(tag).length > 256) fail('stylesheet');
+function receiptTag(tag, code) {
+    if (typeof tag !== 'string' || !tag || tag.length > 256 || new TextEncoder().encode(tag).length > 256) fail(code);
     return tag;
 }
-function stylesheetReceipt(receipt) {
-    if (typeof receipt !== 'string' || receipt.length > MAX_STYLESHEET_RECEIPT
-        || new TextEncoder().encode(receipt).length > MAX_STYLESHEET_RECEIPT) fail('stylesheet');
+function receiptText(receipt, code) {
+    if (typeof receipt !== 'string' || receipt.length > MAX_RECEIPT_BYTES
+        || new TextEncoder().encode(receipt).length > MAX_RECEIPT_BYTES) fail(code);
     return receipt;
+}
+function browserFrameInput(value) {
+    const { tag, instance, bytes } = value ?? {};
+    if (typeof instance !== 'string' || !instance || instance.length > 1024
+        || new TextEncoder().encode(instance).length > 1024) fail('browser-frame');
+    return { tag: receiptTag(tag, 'browser-frame'), instance, bytes: source(bytes, '', MAX_RECEIPT_BYTES) };
 }
 /** Native endpoints must first be provisioned by their trusted Rust embedding.
  * Keep the actual Memory weakly; an equal factory/foreign heap cannot substitute
@@ -56,6 +62,7 @@ function wasmBackend(runtime, prefix, maxSourceBytes) {
         release: owner => call(`${prefix}ReleaseV1`, [owner]),
         ...(prefix === 'applicationSource' && {
             stylesheets: (owner, tag) => call('applicationSourceStylesheetsV1', [owner, tag]),
+            renderBrowserIsland: (owner, { tag, bytes, instance }) => call('applicationSourceRenderBrowserIslandV1', [owner, tag, bytes, instance]),
         }),
     });
 }
@@ -66,6 +73,7 @@ export function createQuerySourceEndpoint(options) {
     assertNativeGenerationResourceTarget(participant, undefined, identity);
     if (typeof current !== 'function' || !native || ['open', 'capture', 'release'].some(k => typeof native[k] !== 'function')
         || (native.stylesheets !== undefined && typeof native.stylesheets !== 'function')
+        || (native.renderBrowserIsland !== undefined && typeof native.renderBrowserIsland !== 'function')
         || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) fail('endpoint');
     const maxSourceBytes = options.maxSourceBytes ?? native.maxSourceBytes ?? MAX_BYTES;
     if (!Number.isSafeInteger(maxSourceBytes) || maxSourceBytes < 1 || maxSourceBytes > 4 * 1024 * 1024) fail('limit');
@@ -106,8 +114,18 @@ export function createQuerySourceEndpoint(options) {
         if (!live()) { await native.release(value); fail('stale'); }
         if (owners.size >= 64) { await native.release(value); fail('limit'); }
         const owner = Object.freeze({ kind: 'cem-query-source-owner' });
-        owners.set(owner, { value, releasing: false, styles: native.stylesheets && new AbortController() }); return owner;
+        const lifetime = native.stylesheets || native.renderBrowserIsland ? new AbortController() : undefined;
+        owners.set(owner, { value, releasing: false, lifetime }); return owner;
     };
+    async function readReceipt(owner, read) {
+        const entry = original(owner);
+        if (!entry.lifetime) fail('owner');
+        const signal = entry.lifetime.signal;
+        const receipt = await bounded(() => read(entry.value));
+        const isCurrent = () => !signal.aborted && !entry.releasing && live();
+        if (!isCurrent()) fail('stale');
+        return { receipt, signal, isCurrent };
+    }
     const endpoint = Object.freeze({ participant,
         identity: () => physical.deref(), current: () => live() && pending === 0,
         open: (bytes, pins, signal) => open(bytes, pins, signal),
@@ -117,21 +135,21 @@ export function createQuerySourceEndpoint(options) {
             return source(bytes, '', maxSourceBytes);
         },
         async stylesheets(owner, tag) {
-            const entry = original(owner);
-            if (!entry.styles) fail('stylesheet');
-            const signal = entry.styles.signal;
-            const checkedTag = stylesheetTag(tag);
-            const receipt = stylesheetReceipt(await bounded(() => native.stylesheets(entry.value, checkedTag)));
-            const isCurrent = () => !signal.aborted && !entry.releasing && live();
-            if (!isCurrent()) fail('stale');
-            return { receipt, signal, isCurrent };
+            if (!native.stylesheets) fail('stylesheet');
+            const checkedTag = receiptTag(tag, 'stylesheet');
+            return readReceipt(owner, async value => receiptText(await native.stylesheets(value, checkedTag), 'stylesheet'));
+        },
+        async renderBrowserIsland(owner, input) {
+            if (!native.renderBrowserIsland) fail('browser-frame');
+            const checked = browserFrameInput(input);
+            return readReceipt(owner, async value => receiptText(await native.renderBrowserIsland(value, checked), 'browser-frame'));
         },
         async release(owner, signal) {
             const entry = original(owner); entry.releasing = true;
             try {
                 await bounded(() => native.release(entry.value), signal, undefined, true);
                 owners.delete(owner);
-            } finally { entry.styles?.abort(); }
+            } finally { entry.lifetime?.abort(); }
         },
         dispose() {
             if (closed) return;
@@ -140,7 +158,7 @@ export function createQuerySourceEndpoint(options) {
             owners.clear();
             for (const entry of entries) {
                 if (!entry.releasing) void Promise.resolve().then(() => native.release(entry.value)).catch(() => { failed = true; });
-                entry.styles?.abort();
+                entry.lifetime?.abort();
             }
             options.close?.();
         },
@@ -157,7 +175,7 @@ export function createQuerySourceEndpoint(options) {
             try {
                 const pin = await bounded(() => native.receiver.retire(entry.value, capsule, sealedJournal));
                 owners.delete(owner);
-                entry.styles?.abort();
+                entry.lifetime?.abort();
                 if (typeof pin !== 'string' || !pin || pin.length > MAX_PINS
                     || new TextEncoder().encode(pin).length > MAX_PINS) fail('receiver');
                 return pin;
@@ -203,6 +221,7 @@ export function createQuerySourceWorkerEndpoint(options) {
             capture: id => call('capture', id),
             release: async id => { if (await call('release', id) !== true) { failed = true; fail('transport'); } },
             stylesheets: options.applicationStylesheets === true ? (id, tag) => call('stylesheets', { id, tag }) : undefined,
+            renderBrowserIsland: options.applicationBrowserFrames === true ? (id, input) => call('browser-frame', { id, input }) : undefined,
             receiver: options.receiverRecovery === true ? {
                 capture: id => call('capture-receiver', id),
                 retire: (id, bytes, journal) => call('confirm-receiver', { id, bytes, journal }),
@@ -238,12 +257,14 @@ export function installQuerySourceWorkerTransport(port, native) {
                     if (closed) { await native.release(owner); return; }
                     owners.set(++sequence, owner); result = sequence;
                 } else {
-                    const key = op === 'confirm-receiver' || op === 'stylesheets' ? value?.id : value;
+                    const key = ['confirm-receiver', 'stylesheets', 'browser-frame'].includes(op) ? value?.id : value;
                     if (!owners.has(key)) fail('owner');
                     const owner = owners.get(key);
                     if (op === 'capture') result = source(await native.capture(owner), '', limit);
                     else if (op === 'stylesheets' && native.stylesheets) {
-                        result = stylesheetReceipt(await native.stylesheets(owner, stylesheetTag(value.tag)));
+                        result = receiptText(await native.stylesheets(owner, receiptTag(value.tag, 'stylesheet')), 'stylesheet');
+                    } else if (op === 'browser-frame' && native.renderBrowserIsland) {
+                        result = receiptText(await native.renderBrowserIsland(owner, browserFrameInput(value.input)), 'browser-frame');
                     } else if (op === 'capture-receiver') result = receiverCapture(await native.receiver?.capture(owner));
                     else if (op === 'confirm-receiver') {
                         result = await (native.receiver?.retire(owner,
@@ -283,11 +304,17 @@ export class QuerySourceResource {
         return resource;
     }
     async stylesheets(tag) {
+        return this.#readReceipt((endpoint, owner) => endpoint.stylesheets(owner, tag));
+    }
+    async renderBrowserIsland(input) {
+        return this.#readReceipt((endpoint, owner) => endpoint.renderBrowserIsland(owner, input));
+    }
+    async #readReceipt(read) {
         const endpoint = this.#endpoint, owner = this.#owner;
         const current = () => !this.#closed && this.#endpoint === endpoint && this.#owner === owner
             && this.#options.current() === true;
         if (!current()) fail('policy');
-        const result = await endpoint.stylesheets(owner, tag);
+        const result = await read(endpoint, owner);
         const isCurrent = () => current() && result.isCurrent();
         if (!isCurrent()) fail('stale');
         return { receipt: result.receipt, signal: result.signal, isCurrent };

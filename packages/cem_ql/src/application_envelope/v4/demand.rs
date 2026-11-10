@@ -106,7 +106,9 @@ pub(super) fn compose(
         requirements.roots.clone(),
         work,
     )?;
-    let plan = requirements.selected_registry_plan()?;
+    // The strict parent and mixed verifiers already checked declaration gaps.
+    // An inert reviewed browser demand does not affect native function selection.
+    let plan = requirements.plan_native_registry()?;
     let mut entries = plan.registry().entries().collect::<BTreeSet<_>>();
     let mut query_functions = BTreeSet::new();
     for value in base.contracts.values() {

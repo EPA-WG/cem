@@ -484,6 +484,12 @@ Deferred execution gates, in order within this workstream:
         Compiled form and schema asset recovery gates also pass.
   - [ ] Admit capability-bearing compiled declarations through their actual
         behavior, provider and source contracts in the reduced application.
+    - [x] Admit one closed navigation landmark through a pinned native frame
+          and the existing browser listener owner. Native and reduced WASM
+          verify grant and output refusal. Chromium verifies worker/fallback
+          input behavior, replacement and listener retirement.
+    - [ ] Bind a provider-backed declaration's original input and source owners
+          into a reduced frame and verify recovery with fresh providers.
 
 - [ ] Generate app-build dependencies and GraphQL schema/operation contracts,
   including variable/response validation and compact runtime input checks. Map

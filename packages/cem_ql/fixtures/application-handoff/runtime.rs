@@ -577,6 +577,17 @@ pub fn nested_typed_sources(view: &str) -> (transport::BuiltApplicationSources, 
 pub fn build_styled() -> (transport::BuiltApplicationSources, Vec<u8>) {
     build_sources(COUNT_BODY, ReceiverProfile::Styled, VIEW, RECEIVER, CART, false)
 }
+#[cfg(all(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
+pub fn build_navigation() -> (transport::BuiltApplicationSources, Vec<u8>) {
+    navigation_sources("button")
+}
+#[cfg(all(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
+pub fn navigation_sources(button_type: &str) -> (transport::BuiltApplicationSources, Vec<u8>) {
+    build_sources(
+        &format!("{{attribute @name=count @type=cart-count}}{{nav @part=root @id={{$instanceID}} | {{button @type={button_type} @aria-disabled=true | {{$count}}}}}}"),
+        ReceiverProfile::BrowserNavigation, VIEW, RECEIVER, CART, false,
+    )
+}
 #[cfg(not(target_arch = "wasm32"))]
 pub fn prepared_sources(
     view: &str,
@@ -593,6 +604,8 @@ enum ReceiverProfile {
     Nested,
     NestedTyped,
     Styled,
+    #[cfg(feature = "application-source-runtime")]
+    BrowserNavigation,
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn build_reserved() -> (transport::BuiltApplicationSources, Vec<u8>) {
@@ -661,7 +674,12 @@ fn build_sources(
         } else {
             format!("file:///runtime/{tag}.xhtml")
         };
-        cem_ql::declaration_artifact::build_declaration_artifact(&format!("<cem-element tag=\"{tag}\"><template id=\"{tag}\" type=\"text/cem-ml\">{body}</template></cem-element>"),&uri,cem_ql::template_artifact::TemplateArtifactSourceMapMode::Prod,None).unwrap()
+        let capability = match profile {
+            #[cfg(feature = "application-source-runtime")]
+            ReceiverProfile::BrowserNavigation if tag == "cem-count" => " capability=\"navigation-landmark\"",
+            _ => "",
+        };
+        cem_ql::declaration_artifact::build_declaration_artifact(&format!("<cem-element tag=\"{tag}\"{capability}><template id=\"{tag}\" type=\"text/cem-ml\">{body}</template></cem-element>"),&uri,cem_ql::template_artifact::TemplateArtifactSourceMapMode::Prod,None).unwrap()
     };
     let mut base = app::EnvelopeBuilder::new(&hash(b"registry")).unwrap();
     let node = base
@@ -691,6 +709,8 @@ fn build_sources(
         ReceiverProfile::Pending => vec![],
         ReceiverProfile::Lexical | ReceiverProfile::Nested | ReceiverProfile::Styled => vec![executable_profile(&mut module, root, false)],
         ReceiverProfile::Typed | ReceiverProfile::NestedTyped => vec![executable_profile(&mut module, root, true)],
+        #[cfg(feature = "application-source-runtime")]
+        ReceiverProfile::BrowserNavigation => vec![executable_profile(&mut module, root, false)],
     };
     let graph = cem_ql::datatype_module_capsule::v2::export(
         "app",

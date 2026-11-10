@@ -113,6 +113,20 @@ pub struct DeclarationRequirements {
     pub expression_count: usize,
     pub ir_node_count: usize,
 }
+#[cfg(any(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
+impl DeclarationRequirements {
+    /// A reviewed host demand may travel in a mixed application envelope. The
+    /// gap stays in the inventory until an original runtime owner binds it.
+    pub(crate) fn reviewed_browser_behavior(&self) -> bool {
+        cfg!(feature = "application-source-runtime")
+            && self.capability.as_deref() == Some("navigation-landmark")
+            && self.data_imports.is_empty()
+            && self.unresolved.len() == 1
+            && self.unresolved.iter().any(|gap| {
+                gap.kind == "shared-behavior-closure" && gap.site == "declaration"
+            })
+    }
+}
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionRequirement {

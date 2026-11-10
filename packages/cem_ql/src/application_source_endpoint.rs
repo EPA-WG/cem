@@ -30,6 +30,10 @@ mod frames;
 #[cfg(feature = "application-source-runtime")]
 mod receiver_checkpoint;
 #[cfg(feature = "application-source-runtime")]
+mod browser_frame;
+#[cfg(feature = "application-source-runtime")]
+pub use browser_frame::ApplicationBrowserBehavior;
+#[cfg(feature = "application-source-runtime")]
 mod styles;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
@@ -126,6 +130,9 @@ pub struct PreparedApplication {
     _registry: Arc<RegistryOwner>,
     compilations: BTreeMap<String, Arc<FreshDependencyDatatypeCompilation>>,
     retained: Vec<RetainedApplicationOwner>,
+    needs_browser_behaviors: usize,
+    #[cfg(feature = "application-source-runtime")]
+    browser_behaviors: BTreeMap<String, ApplicationBrowserBehavior>,
     #[cfg(feature = "application-source-runtime")]
     needs_styles: bool,
     #[cfg(feature = "application-source-runtime")]
@@ -159,6 +166,8 @@ impl PreparedApplication {
         if !sources.matches_publication(&host, &staged) {
             return Err(INVALID.into());
         }
+        let needs_browser_behaviors = staged.envelope().requirements().declarations.values()
+            .filter(|demand| demand.capability.is_some()).count();
         #[cfg(feature = "application-source-runtime")]
         let needs_styles = staged
             .envelope()
@@ -173,6 +182,9 @@ impl PreparedApplication {
             _registry: registry,
             compilations,
             retained,
+            needs_browser_behaviors,
+            #[cfg(feature = "application-source-runtime")]
+            browser_behaviors: BTreeMap::new(),
             #[cfg(feature = "application-source-runtime")]
             needs_styles,
             #[cfg(feature = "application-source-runtime")]
@@ -201,6 +213,10 @@ impl PreparedApplication {
         Ok(self)
     }
     fn owners_live(&self) -> bool {
+        #[cfg(not(feature = "application-source-runtime"))]
+        if self.needs_browser_behaviors != 0 { return false; }
+        #[cfg(feature = "application-source-runtime")]
+        if self.needs_browser_behaviors != self.browser_behaviors.len() { return false; }
         #[cfg(feature = "application-source-runtime")]
         if self.needs_styles && !self.styles.as_ref().is_some_and(styles::ApplicationStyles::current) {
             return false;

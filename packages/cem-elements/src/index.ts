@@ -25,6 +25,7 @@ export { exportNativeCemAttributes, importNativeCemAttributes, exportNativeCemSl
 export { publishEdgeCssDomUpdate, type CemEdgeCssPublicationOptions } from './lib/edge-css-publication.js';
 export { DeclarationStyleOwnership } from './lib/declaration-style-ownership.js';
 export { prepareApplicationStylesheets } from './lib/internal/runtime-support/application-stylesheets.js';
+export { prepareApplicationBrowserFrame } from './lib/internal/runtime-support/application-browser-frame.js';
 export type { CemEdgeStylesheetBatch, CemEdgeStylesheetState, CemEdgeSsrRenderUpdateResult } from './lib/edge-ssr-host.js';
 
 export { getCemActionInvocation, type CemActionInvocation } from './lib/action-command-capability.js';

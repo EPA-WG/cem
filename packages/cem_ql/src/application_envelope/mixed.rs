@@ -250,14 +250,17 @@ pub fn verify(
         &declaration,
         &m.metadata_hash,
     )?;
-    if !inventory.unresolved.is_empty() || hash(&encode(&inventory)?) != m.requirements_hash {
+    if (!inventory.unresolved.is_empty() && !inventory.reviewed_browser_behavior())
+        || hash(&encode(&inventory)?) != m.requirements_hash
+    {
         return Err(INVALID.into());
     }
     let occurrences = occurrences::inspect(&artifact, &m.receivers, &work)?;
     contracts::check(&m.receivers, &application, &work)?;
     let mut dependencies = BTreeSet::new();
     crate::declaration_closure::references(&artifact.nodes, &mut dependencies)?;
-    if dependencies
+    if (inventory.reviewed_browser_behavior() && !dependencies.is_empty())
+        || dependencies
         .iter()
         .any(|tag| application.application().declaration(tag).is_none())
     {

@@ -28,9 +28,11 @@ try {
             await page.evaluate(async mode => {
                 const fixture = await import('/packages/cem_ql/tests/application-styles-browser.mjs');
                 await fixture.verifyApplicationStylesheets(mode);
+                await fixture.verifyApplicationBrowserFrame(mode);
             }, mode);
             assert.deepEqual(external, []);
             console.log(`Application styles (${mode}): real native CSS, sharing, rejected and accepted replacement, and cleanup passed.`);
+            console.log(`Application browser frame (${mode}): original navigation output, shared input behavior, replacement and cleanup passed.`);
         } finally { await page.close(); }
     }
 } finally {

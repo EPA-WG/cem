@@ -24,6 +24,12 @@ const [styledSource, styledPins, styledInput] = await Promise.all([
     readFile(resolve(output, 'styled.pin.json'), 'utf8'),
     readFile(resolve(output, 'styled.inputs')),
 ]);
+const [navigationSource, navigationPins, navigationInput, island] = await Promise.all([
+    readFile(resolve(output, 'navigation.cemah')),
+    readFile(resolve(output, 'navigation.pin.json'), 'utf8'),
+    readFile(resolve(output, 'navigation.inputs')),
+    readFile(resolve(output, 'frame.island')),
+]);
 
 async function verify(heap) {
     const url = pathToFileURL(resolve(output, 'application_source_probe.js'));
@@ -105,6 +111,23 @@ async function verify(heap) {
     reader.applicationSourceReleaseV1(styled);
     reader.probeApplicationUnprovision();
 
+    reader.probeApplicationProvision(navigationPins, navigationInput);
+    assert.throws(() => reader.applicationSourceOpenV1(navigationSource, navigationPins), /application.endpoint.refused/);
+    reader.probeApplicationUnprovision();
+    reader.probeApplicationProvisionNavigation(navigationPins, navigationInput);
+    const navigation = reader.applicationSourceOpenV1(navigationSource, navigationPins);
+    const renderNavigation = (owner, instance = 'island-one') =>
+        reader.applicationSourceRenderBrowserIslandV1(owner, 'cem-count', island, instance);
+    const frame = JSON.parse(renderNavigation(navigation));
+    assert.equal(frame.behaviorIdentity, 'cem-elements-navigation-landmark-v1');
+    assert.match(frame.html, /<nav.*<button[^>]+>3<\/button><\/nav>/);
+    assert.throws(() => renderNavigation({ ...navigation }), /application.endpoint.refused/);
+    assert.throws(() => renderNavigation(navigation, 'foreign'), /application.endpoint.refused/);
+    assert.throws(() => reader.applicationSourceRenderIslandV1(navigation, 'cem-count', island, 'island-one'));
+    reader.applicationSourceReleaseV1(navigation);
+    assert.throws(() => renderNavigation(navigation), /application.endpoint.refused/);
+    reader.probeApplicationUnprovision();
+
     return wasm.memory;
 }
 
@@ -117,7 +140,7 @@ if (isMainThread) {
         worker.once('error', reject);
         worker.once('exit', code => code === 0 ? resolve() : reject(Error(`reader worker exited ${code}`)));
     });
-    console.log(`Application sources, receivers and retained declaration styles passed in two fresh heaps and a real worker; ${source.length} source bytes.`);
+    console.log(`Application sources, receivers, styles and browser frames passed in two fresh heaps and a real worker; ${source.length} source bytes.`);
 } else {
     await verify('worker');
     parentPort.close();

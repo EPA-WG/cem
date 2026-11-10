@@ -15,6 +15,11 @@ pub struct SelectedRegistryPlan {
 impl ApplicationRequirements {
     pub fn selected_registry_plan(&self) -> Result<SelectedRegistryPlan, String> {
         self.require_static_inventory()?;
+        self.plan_native_registry()
+    }
+    /// CEMAPPD4 has separately verified the closed set of host demands. This
+    /// computes only native function selection and keeps the complete pin.
+    pub(crate) fn plan_native_registry(&self) -> Result<SelectedRegistryPlan, String> {
         let (_, requirements_hash) = self.pinned_json()?;
         let mut entries = BTreeSet::new();
         let mut execution_units = BTreeSet::from([NativeExecutionUnit::SelectedDispatch]);

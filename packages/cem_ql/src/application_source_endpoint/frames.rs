@@ -329,10 +329,11 @@ impl ApplicationSourceSession {
         })?;
         Ok((plan, control))
     }
-    fn frame<T>(
+    pub(super) fn frame<T>(
         &mut self,
         tag: &str,
         instance: &str,
+        browser_capability: Option<&str>,
         bind: impl FnOnce(&OperationControl) -> Result<TemplateData, String>,
         render: impl FnOnce(&TemplateArtifact, TemplateData, &OperationControl) -> Result<T, String>,
     ) -> Result<T, String> {
@@ -356,9 +357,10 @@ impl ApplicationSourceSession {
             let artifact = app.envelope().artifact(tag).ok_or(INVALID)?;
             let requirements = app.envelope().requirements();
             let demand = requirements.declarations.get(tag).ok_or(INVALID)?;
-            if declaration.capability.is_some()
+            if declaration.capability.as_deref() != browser_capability
                 || !cfg!(feature = "application-source-runtime") && !artifact.stylesheets.is_empty()
-                || !demand.unresolved.is_empty()
+                || (!demand.unresolved.is_empty()
+                    && !(browser_capability.is_some() && demand.reviewed_browser_behavior()))
                 || !demand.data_imports.is_empty()
                 || requirements
                     .component_dependencies
@@ -400,6 +402,7 @@ impl ApplicationSourceSession {
         self.frame(
             tag,
             instance,
+            None,
             |c| runtime::island::bind(bytes, instance, c),
             runtime::render_data,
         )
@@ -413,6 +416,7 @@ impl ApplicationSourceSession {
         self.frame(
             tag,
             instance,
+            None,
             |c| runtime::island::bind(bytes, instance, c),
             runtime::project_data,
         )
@@ -427,6 +431,7 @@ impl ApplicationSourceSession {
         self.frame(
             tag,
             instance,
+            None,
             |c| runtime::inputs::bind_original(bytes, routing, c),
             runtime::render_data,
         )

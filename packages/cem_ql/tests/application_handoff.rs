@@ -19,6 +19,140 @@ mod stylesheets;
 
 #[cfg(feature = "application-source-runtime")]
 #[test]
+fn browser_navigation_demand_stays_inert_without_its_original_bootstrap_route() {
+    use cem_ql::application_source_endpoint::{
+        ApplicationBootstrapOwner, ApplicationSourceEndpoint,
+    };
+    use std::sync::Arc;
+
+    let (deployment, input) = fixture::build_navigation();
+    let control = Default::default();
+    let sources =
+        cem_ql::application_source_transport::verify(&deployment.bytes, &deployment.pin, &control)
+            .unwrap();
+    assert!(sources
+        .application()
+        .requirements()
+        .require_static_inventory()
+        .is_err());
+    let generation = cem_ml::runtime_admission::generation::NativeGeneration::claim(Arc::new(
+        Default::default(),
+    ))
+    .unwrap();
+    let code = ApplicationBootstrapOwner::new(
+        &generation,
+        control.clone(),
+        deployment.pin.clone(),
+        fixture::Bootstrap {
+            inputs: fixture::Inputs::restore(&input, &control).unwrap(),
+        },
+    )
+    .unwrap();
+    let endpoint = ApplicationSourceEndpoint::new(&code).unwrap();
+    assert!(endpoint
+        .open(
+            &deployment.bytes,
+            &serde_json::to_string(&deployment.pin).unwrap()
+        )
+        .is_err());
+    assert_eq!(generation.inventory().unwrap().live_roots, 2);
+}
+
+#[cfg(feature = "application-source-runtime")]
+#[test]
+fn browser_navigation_uses_original_island_and_closed_output() {
+    use cem_ml::{
+        operation_control::OperationControl, runtime_admission::generation::NativeGeneration,
+    };
+    use cem_ql::{
+        application_source_endpoint::{
+            ApplicationBootstrap, ApplicationBootstrapOwner, ApplicationBrowserBehavior,
+            ApplicationSourceEndpoint, PreparedApplication,
+        },
+        application_source_transport::VerifiedApplicationSources,
+    };
+    use std::sync::Arc;
+
+    struct BrowserBootstrap(fixture::Bootstrap);
+    impl ApplicationBootstrap for BrowserBootstrap {
+        fn prepare(
+            &self,
+            sources: Arc<VerifiedApplicationSources>,
+            generation: &Arc<NativeGeneration>,
+            control: OperationControl,
+        ) -> Result<PreparedApplication, String> {
+            self.0
+                .prepare(sources, generation, control)?
+                .with_browser_behavior("cem-count", ApplicationBrowserBehavior::NavigationLandmark)
+        }
+    }
+    let control = OperationControl::default();
+    let xml = include_str!("../fixtures/component-application/island-domains.xhtml")
+        .replace("quantity", "count");
+    let island = cem_ql::api::native_values::import_document(
+        xml.as_bytes(),
+        "application/xml",
+        "app://runtime/island.xhtml",
+        &Default::default(),
+    )
+    .unwrap();
+    for button_type in ["button", "submit"] {
+        let (deployment, input) = fixture::navigation_sources(button_type);
+        let generation = NativeGeneration::claim(Arc::new(Default::default())).unwrap();
+        let code = ApplicationBootstrapOwner::new(
+            &generation,
+            control.clone(),
+            deployment.pin.clone(),
+            BrowserBootstrap(fixture::Bootstrap {
+                inputs: fixture::Inputs::restore(&input, &control).unwrap(),
+            }),
+        )
+        .unwrap();
+        let endpoint = ApplicationSourceEndpoint::new(&code).unwrap();
+        let mut session = endpoint
+            .open(
+                &deployment.bytes,
+                &serde_json::to_string(&deployment.pin).unwrap(),
+            )
+            .unwrap();
+        let render =
+            |session: &mut cem_ql::application_source_endpoint::ApplicationSourceSession| {
+                session.render_browser_island_json("cem-count", &island, "island-one")
+            };
+        if button_type == "submit" {
+            assert!(render(&mut session).is_err());
+            continue;
+        }
+        assert!(session
+            .render_island_native("cem-count", &island, "island-one")
+            .is_err());
+        assert!(session
+            .project_island_native("cem-count", &island, "island-one")
+            .is_err());
+        assert!(session
+            .render_browser_island_json("cem-app", &island, "island-one")
+            .is_err());
+        assert!(session
+            .render_browser_island_json("cem-count", &island, "foreign")
+            .is_err());
+        let frame: serde_json::Value =
+            serde_json::from_str(&render(&mut session).unwrap()).unwrap();
+        assert_eq!(
+            frame["behaviorIdentity"],
+            "cem-elements-navigation-landmark-v1"
+        );
+        let html = frame["html"].as_str().unwrap();
+        assert!(
+            html.contains("id=\"island-one\"") && html.contains(">3</button>"),
+            "{html}"
+        );
+        code.retire();
+        assert!(render(&mut session).is_err());
+    }
+}
+
+#[cfg(feature = "application-source-runtime")]
+#[test]
 fn native_receiver_frame_requires_original_input_and_available_preparation() {
     use cem_ql::{
         application_source_endpoint::{ApplicationBootstrapOwner, ApplicationSourceEndpoint},
@@ -436,6 +570,13 @@ fn native_application_worker_fixture_has_original_sources_and_real_consumers() {
         std::fs::write(dir.join("styled.cemah"), styled.bytes).unwrap();
         std::fs::write(dir.join("styled.pin.json"), serde_json::to_vec(&styled.pin).unwrap()).unwrap();
         std::fs::write(dir.join("styled.inputs"), styled_input).unwrap();
+        #[cfg(feature = "application-source-runtime")]
+        {
+            let (navigation, navigation_input) = fixture::build_navigation();
+            std::fs::write(dir.join("navigation.cemah"), navigation.bytes).unwrap();
+            std::fs::write(dir.join("navigation.pin.json"), serde_json::to_vec(&navigation.pin).unwrap()).unwrap();
+            std::fs::write(dir.join("navigation.inputs"), navigation_input).unwrap();
+        }
         for (name, view, cart) in [
             ("edited", "{view @items={#data} @count=4 @choice=ok}", "{cart @title=Coffee | {item @quantity=4}}"),
             ("later", fixture::VIEW, "{cart @title=Cocoa | {item @quantity=2}}"),

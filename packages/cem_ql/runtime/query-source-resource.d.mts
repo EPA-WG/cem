@@ -1,13 +1,15 @@
 import type { CemNativeGenerationParticipant, CemNativeGenerationBindingContext } from './native-generation.mjs';
 /** Internal original owner; copied objects and wire IDs confer no authority. */
 export interface QuerySourceOwner { readonly kind: 'cem-query-source-owner' }
-export interface QuerySourceStylesheetReceipt {
+export interface QuerySourceOwnedReceipt {
     readonly receipt: string;
     /** Aborts when the original native owner releases or the endpoint closes. */
     readonly signal: AbortSignal;
     /** Synchronous guard for staging the original receipt. */
     isCurrent(): boolean;
 }
+export type QuerySourceStylesheetReceipt = QuerySourceOwnedReceipt;
+export interface ApplicationBrowserIslandInput { tag: string; bytes: Uint8Array; instance: string }
 export interface QuerySourceEndpoint {
     readonly participant: CemNativeGenerationParticipant;
     identity(): object | undefined;
@@ -15,6 +17,7 @@ export interface QuerySourceEndpoint {
     open(bytes: Uint8Array, pins: string, signal?: AbortSignal): Promise<QuerySourceOwner>;
     capture(owner: QuerySourceOwner, signal?: AbortSignal): Promise<Uint8Array>;
     stylesheets(owner: QuerySourceOwner, tag: string): Promise<QuerySourceStylesheetReceipt>;
+    renderBrowserIsland(owner: QuerySourceOwner, input: ApplicationBrowserIslandInput): Promise<QuerySourceOwnedReceipt>;
     release(owner: QuerySourceOwner, signal?: AbortSignal): Promise<void>;
     dispose(): void;
 }
@@ -25,6 +28,7 @@ export interface QuerySourceNativeBackend {
     release(owner: unknown): unknown | Promise<unknown>;
     /** Application-only, bounded receipt from the original publication. */
     stylesheets?(owner: unknown, tag: string): string | Promise<string>;
+    renderBrowserIsland?(owner: unknown, input: ApplicationBrowserIslandInput): string | Promise<string>;
     /** Original Rust embedding routes on the exact native heap. */
     receiver?: {
         capture(owner: unknown): { bytes: Uint8Array; revision: string } | Promise<{ bytes: Uint8Array; revision: string }>;
@@ -63,6 +67,7 @@ export declare function createQuerySourceWorkerEndpoint(options: Omit<QuerySourc
     port: MessagePort;
     receiverRecovery?: boolean;
     applicationStylesheets?: boolean;
+    applicationBrowserFrames?: boolean;
 }): QuerySourceEndpoint;
 export declare function installQuerySourceWorkerTransport(port: MessagePort, native: QuerySourceNativeBackend): Readonly<{ dispose(): Promise<void> }>;
 export interface QuerySourceResourceOptions {
@@ -81,6 +86,7 @@ export declare class QuerySourceResource {
     #private;
     static open(options: QuerySourceResourceOptions, signal?: AbortSignal): Promise<QuerySourceResource>;
     stylesheets(tag: string): Promise<QuerySourceStylesheetReceipt>;
+    renderBrowserIsland(input: ApplicationBrowserIslandInput): Promise<QuerySourceOwnedReceipt>;
     /** Receiver recovery returns the original native capsule revision. */
     prepareRecovery(signal?: AbortSignal): Promise<string | undefined>;
     dispose(): Promise<void>;

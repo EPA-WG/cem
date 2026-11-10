@@ -2,6 +2,7 @@ import { createCemQlWasmGeneration } from '../../../dist/fixtures/application-so
 import { createCemDeclarationScope } from '../../cem-elements/src/lib/declaration-scope.ts';
 import { DeclarationStyleOwnership } from '../../cem-elements/src/lib/declaration-style-ownership.ts';
 import { prepareApplicationStylesheets } from '../../cem-elements/src/lib/internal/runtime-support/application-stylesheets.ts';
+import { prepareApplicationBrowserFrame } from '../../cem-elements/src/lib/internal/runtime-support/application-browser-frame.ts';
 import { registerNativeGeneration } from '../runtime/native-generation.mjs';
 import {
     createApplicationSourceWasmBackend, createQuerySourceEndpoint, createQuerySourceWorkerEndpoint,
@@ -26,6 +27,7 @@ async function nativeBackend(module, pins, input, variant) {
     const runtime = createCemQlWasmGeneration();
     await runtime.initialize(module);
     if (variant === 'installed') runtime.call('probeApplicationProvision', [pins, input]);
+    else if (variant === 'navigation') runtime.call('probeApplicationProvisionNavigation', [pins, input]);
     else runtime.call('probeApplicationProvisionStyled', [pins, input, variant === 'denied']);
     return { runtime, native: createApplicationSourceWasmBackend(runtime) };
 }
@@ -59,7 +61,7 @@ async function binding(mode, variant) {
                 worker.postMessage({ module, port: channel.port2, pins, input, variant }, [channel.port2]);
             });
             endpoint = createQuerySourceWorkerEndpoint({ identity: worker, participant: register(worker), port: channel.port1,
-                current: () => true, maxSourceBytes: 4 * 1024 * 1024, applicationStylesheets: true });
+                current: () => true, maxSourceBytes: 4 * 1024 * 1024, applicationStylesheets: true, applicationBrowserFrames: true });
         } catch (error) { channel.port1.close(); worker.terminate(); throw error; }
     } else {
         fallback = await nativeBackend(module, pins, input, variant);
@@ -147,5 +149,54 @@ export async function verifyApplicationStylesheets(mode) {
         scope.dispose();
         for (const active of bindings.reverse()) await active.dispose();
         for (const element of [declaration, first, second, outside]) element.remove();
+    }
+}
+
+export async function verifyApplicationBrowserFrame(mode) {
+    const island = await fetch(`${assets}frame.island`).then(response => response.bytes());
+    const host = document.createElement('cem-count');
+    document.body.append(host);
+    const original = await binding(mode, 'navigation');
+    const hostLifetime = new AbortController();
+    let replacement;
+    try {
+        const prepare = (active, instance = 'island-one') =>
+            prepareApplicationBrowserFrame(active.resource, host, island, instance, hostLifetime.signal);
+        await refusal(() => original.resource.renderBrowserIsland({
+            tag: host.localName, instance: 'island-one', bytes: new Uint8Array(1024 * 1024 + 1),
+        }), /resource.limit/);
+        await refusal(() => prepare(original, 'foreign'), /native-refusal|endpoint.refused/);
+        const first = await prepare(original);
+        // Fixture-only mounting of the admitted HTML before the shared commit.
+        host.innerHTML = first.html;
+        const button = host.querySelector('nav[part=root] > button');
+        const permits = () => button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        check(button?.textContent === '3' && permits(), 'The native output or staged behavior was wrong');
+        check(first.commit() && !permits(), 'The shared navigation behavior did not suppress the disabled button');
+        const key = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+        check(!button.dispatchEvent(key), 'The shared navigation behavior did not suppress the Enter key');
+        button.removeAttribute('aria-disabled');
+        check(permits(), 'The shared navigation behavior suppressed an enabled button');
+        button.setAttribute('aria-disabled', 'true');
+
+        replacement = await binding(mode, 'navigation');
+        const obsolete = await prepare(original);
+        const next = await prepare(replacement);
+        check(next.html === first.html && next.declarationIdentity === first.declarationIdentity,
+            'The replacement did not bind the original compiled declaration');
+        check(!obsolete.commit() && next.commit() && !permits(), 'A superseded frame changed the current behavior');
+        await original.dispose();
+        check(!permits(), 'Releasing the first session removed the replacement behavior');
+        hostLifetime.abort();
+        check(permits(), 'The host lifetime did not remove the shared listener');
+        const last = await prepareApplicationBrowserFrame(replacement.resource, host, island, 'island-one', new AbortController().signal);
+        check(last.commit() && !permits(), 'The behavior could not rebind on the same host');
+        await replacement.dispose();
+        check(permits(), 'The original session did not release its browser listener');
+    } finally {
+        hostLifetime.abort();
+        await original.dispose();
+        await replacement?.dispose();
+        host.remove();
     }
 }

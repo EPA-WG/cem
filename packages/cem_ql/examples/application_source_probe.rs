@@ -10,7 +10,7 @@ use cem_ml::{
     runtime_admission::generation::NativeGeneration,
 };
 use cem_ql::application_source_endpoint::{
-    wasm, ApplicationBootstrap, ApplicationBootstrapOwner, ApplicationSourceEndpoint,
+    wasm, ApplicationBootstrap, ApplicationBootstrapOwner, ApplicationBrowserBehavior, ApplicationSourceEndpoint,
     ApplicationTypedReceiverProducer, PreparedApplication, ReceiverCheckpointSeal,
     ReceiverRecoveryPin, ReceiverWriteJournal,
 };
@@ -19,6 +19,7 @@ use std::sync::{Arc, Mutex};
 struct MutableBootstrap {
     inputs: Arc<Mutex<Arc<installed::Inputs>>>,
     redirected_styles: Option<bool>,
+    browser_navigation: bool,
 }
 
 impl ApplicationBootstrap for MutableBootstrap {
@@ -30,12 +31,17 @@ impl ApplicationBootstrap for MutableBootstrap {
     ) -> Result<PreparedApplication, String> {
         let inputs = self.inputs.lock().map_err(|_| "fixture inputs")?.clone();
         let staged = installed::Bootstrap { inputs }.prepare(sources, generation, control)?;
-        match self.redirected_styles {
+        let staged = match self.redirected_styles {
             Some(redirected) => staged.with_stylesheet_policy(
                 installed::style_capability(redirected),
                 Default::default(),
             ),
             None => Ok(staged),
+        }?;
+        if self.browser_navigation {
+            staged.with_browser_behavior("cem-count", ApplicationBrowserBehavior::NavigationLandmark)
+        } else {
+            Ok(staged)
         }
     }
 }
@@ -70,18 +76,24 @@ fn original_inputs() -> Result<Arc<installed::Inputs>, JsValue> {
 // Fixture-only provisioning. Library ABI installation remains Rust-only.
 #[wasm_bindgen(js_name=probeApplicationProvision)]
 pub fn provision(pins: &str, input: &[u8]) -> Result<(), JsValue> {
-    provision_fixture(pins, input, None)
+    provision_fixture(pins, input, None, false)
 }
 
 #[wasm_bindgen(js_name = probeApplicationProvisionStyled)]
 pub fn provision_styled(pins: &str, input: &[u8], redirected: bool) -> Result<(), JsValue> {
-    provision_fixture(pins, input, Some(redirected))
+    provision_fixture(pins, input, Some(redirected), false)
+}
+
+#[wasm_bindgen(js_name = probeApplicationProvisionNavigation)]
+pub fn provision_navigation(pins: &str, input: &[u8]) -> Result<(), JsValue> {
+    provision_fixture(pins, input, None, true)
 }
 
 fn provision_fixture(
     pins: &str,
     input: &[u8],
     redirected_styles: Option<bool>,
+    browser_navigation: bool,
 ) -> Result<(), JsValue> {
     let error = |e: String| JsValue::from_str(&e);
     if pins.len() > 16384 {
@@ -100,6 +112,7 @@ fn provision_fixture(
         MutableBootstrap {
             inputs: inputs.clone(),
             redirected_styles,
+            browser_navigation,
         },
     )
     .map_err(error)?;

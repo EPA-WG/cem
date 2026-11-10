@@ -10,8 +10,8 @@ interface NavigationBehaviorState {
 
 const NAVIGATION_STATES = new WeakMap<HTMLElement, NavigationBehaviorState>();
 
-export const CEM_NAVIGATION_LANDMARK_CAPABILITY: CemProducedElementBehavior = {
-    connected(instance) {
+export const CEM_NAVIGATION_LANDMARK_CAPABILITY = {
+    connected(instance: HTMLElement) {
         const state = stateFor(instance);
         if (state.connected) return;
         state.connected = true;
@@ -25,7 +25,7 @@ export const CEM_NAVIGATION_LANDMARK_CAPABILITY: CemProducedElementBehavior = {
         instance.addEventListener('keydown', state.onKeyDown, true);
         instance.addEventListener('keyup', state.onKeyUp, true);
     },
-    disconnected(instance) {
+    disconnected(instance: HTMLElement) {
         const state = stateFor(instance);
         if (!state.connected) return;
         state.connected = false;
@@ -34,7 +34,7 @@ export const CEM_NAVIGATION_LANDMARK_CAPABILITY: CemProducedElementBehavior = {
         if (state.onKeyDown) instance.removeEventListener('keydown', state.onKeyDown, true);
         if (state.onKeyUp) instance.removeEventListener('keyup', state.onKeyUp, true);
     },
-};
+} satisfies CemProducedElementBehavior;
 
 function stateFor(instance: HTMLElement): NavigationBehaviorState {
     let state = NAVIGATION_STATES.get(instance);

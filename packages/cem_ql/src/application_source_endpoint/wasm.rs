@@ -295,6 +295,18 @@ pub fn render_island(
     let _memory = cem_ml::runtime_memory::admit_input(bytes.len()).map_err(error)?;
     with_session(owner, |s| s.render_island_native(tag, bytes, instance)).map_err(error)
 }
+#[cfg(feature = "application-source-runtime")]
+#[wasm_bindgen(js_name=applicationSourceRenderBrowserIslandV1)]
+pub fn render_browser_island(
+    owner: &JsValue,
+    tag: &str,
+    bytes: &[u8],
+    instance: &str,
+) -> Result<String, JsValue> {
+    let _entry = runtime_admission::admit(false).map_err(error)?;
+    let _memory = cem_ml::runtime_memory::admit_input(bytes.len().saturating_add(instance.len()).saturating_add(tag.len())).map_err(error)?;
+    with_session(owner, |s| s.render_browser_island_json(tag, bytes, instance)).map_err(error)
+}
 #[wasm_bindgen(js_name=applicationSourceProjectIslandV1)]
 pub fn project_island(
     owner: &JsValue,

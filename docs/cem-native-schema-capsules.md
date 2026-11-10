@@ -1848,9 +1848,9 @@ not store mutable input in the source packet or authorize automatic input replay
 
 Frames have the existing 1 MiB input/output limits, 16 KiB routing bound, 64 routes,
 bounded native value graph and five-second scope tied to the original abort
-signal. Capability-bearing declarations, retained styles, nested components,
-unresolved requirements and resource imports await their real ownership adapters
-and refuse before output. Expired bootstrap/endpoint owners fence render and
+signal. Ordinary frame routes refuse capability-bearing declarations, nested
+components, unresolved requirements and resource imports before output. Retained
+styles require the original bootstrap policy. Expired bootstrap/endpoint owners fence render and
 projection as well as source capture. Rejected frames leave the publication
 usable. The opt-in ports preserve default exports and production admission.
 
@@ -2023,8 +2023,34 @@ an earlier admission after a second handoff leaves the newer source owner live.
 The application resource fixture runs the shared checkpoint transaction with
 real worker and owned fallback WASM sessions. It restores edited native input
 through two recoveries and exercises source release and credential entry during
-renewal. The reduced frame endpoint still requires separate admission for
-capability-bearing declarations and their provider/source inputs.
+renewal.
+
+## Reduced navigation landmark frames
+
+The opt-in mixed declaration verifier accepts one reviewed browser demand,
+`navigation-landmark`, when no other unresolved contracts, component
+dependencies or data imports accompany it. CEMAPPD4 keeps the declaration's
+original behavior gap in its pinned inventory. Native function selection can
+proceed from that verified inventory. The general static-inventory gate still
+refuses the host demand.
+
+The original Rust bootstrap must explicitly bind
+`ApplicationBrowserBehavior::NavigationLandmark` to the verified tag before
+the session opens. `applicationSourceRenderBrowserIslandV1` uses that
+session's opaque token and the existing native island and receiver contracts.
+Its bounded receipt pairs the compiled HTML with the instance, tag, declaration
+identity and versioned shared behavior. The final native output admits a
+single navigation root and closed text and button markup. URL attributes,
+submit controls, custom elements and host writes refuse.
+
+The worker opts in to the route with `applicationBrowserFrames`.
+`prepareApplicationBrowserFrame` checks the exact session receipt and host
+generation. The renderer commits the native output before activating the
+existing shared navigation listener. Replacing a frame keeps a single listener
+owner. The session and the connected host generation each have a lifetime
+signal that can release it. Ordinary render and projection calls still refuse
+the capability-bearing declaration. Provider-backed declarations, projected
+payloads and the full `cem-nav` component require their own closure.
 
 ## Native publication generation enrollment
 
