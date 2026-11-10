@@ -457,6 +457,11 @@ Deferred execution gates, in order within this workstream:
   native schemas and source references; do not infer grants from type labels or
   publish pending schemas as ready. Add native/WASM fixtures for input producer
   expiry, original source/scope ownership, richer topology and unavailable cases.
+  - [x] Admit explicit native typed producers for original valueless receiver
+        attributes. Rust and reduced WASM fixtures cover original profile and
+        source ownership, producer expiry, source attribution and checkpoint
+        refusal.
+  - [ ] Admit nested child and field contracts with the original schema topology.
 
 - [ ] Bind compiled declarations, retained CSS and shared behavior/provider/source
   ownership to that ABI. Prove worker/fallback edits, credential refusal and

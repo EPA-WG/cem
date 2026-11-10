@@ -1,7 +1,9 @@
 //! Original flat-instance admission and per-render mixed receiver consumption.
 use super::*;
 use crate::{
+    datatype_validation::ValidationRuntime,
     eval::{Item, ItemStream, RetainedCemNode},
+    external_typed::{ExternalTypedProducer, ExternalTypedValue},
     render::{OriginalReceiverFrame, TemplateArtifact},
 };
 
@@ -195,16 +197,93 @@ impl LinkedMixedReceivers {
         self.group.refresh(host)?;
         Ok(fields)
     }
+
+    pub(crate) fn produce_typed_frame_value(
+        &self,
+        host: &mut FreshStructuralHost,
+        root: &RetainedCemNode,
+        field: &str,
+        values: Vec<Item>,
+        control: &OperationControl,
+    ) -> Result<(AstNodeId, AttributeDatatypeContextLease, ExternalTypedValue), String> {
+        let fields = self.check_frame_input(host, root)?;
+        let attribute = *fields.get(field).ok_or(REFUSED)?;
+        if !matches!(root.owner().ast().get(attribute),
+            Some(CemAstNode::Attribute { value: None, value_nodes, .. }) if value_nodes.is_empty())
+        {
+            return Err(REFUSED.into());
+        }
+        let input = ReceiverInput {
+            source: root.owner().clone(),
+            attribute,
+        };
+        let receiver = self.group.receivers.get(field).ok_or(REFUSED)?;
+        let Binding::Executable { root } = &receiver.binding else {
+            return Err(REFUSED.into());
+        };
+        let facets = root
+            .upgrade()
+            .ok_or(REFUSED)?
+            .bind_receiver(host, receiver.declaration.clone())?
+            .compile_facets(&self.group.schema_uri, Default::default())
+            .map_err(|_| REFUSED)?;
+        let producer = ExternalTypedProducer::new(&facets, field).map_err(|_| REFUSED)?;
+        let limits = crate::instance_island::LIMITS;
+        let value = producer
+            .produce(
+                Some(values),
+                &ValidationRuntime {
+                    control,
+                    scope: ROOT_EXECUTION_SCOPE_ID,
+                    query: Default::default(),
+                },
+                PreparationLimits {
+                    max_lexical_bytes: limits.max_bytes,
+                    max_output_values: limits.max_values,
+                    ..PreparationLimits::default()
+                },
+            )
+            .map_err(|_| REFUSED)?;
+        self.validate_frame_typed(host, field, &input, &value, limits.max_values)?;
+        Ok((attribute, host.context.lease(), value))
+    }
+
+    fn validate_frame_typed(
+        &self,
+        host: &mut FreshStructuralHost,
+        name: &str,
+        input: &ReceiverInput,
+        value: &ExternalTypedValue,
+        max_input_values: usize,
+    ) -> Result<(), String> {
+        value.check_available().map_err(|_| REFUSED)?;
+        let report = self.validate_executable_typed(
+            host,
+            name,
+            input,
+            value.values().to_vec(),
+            ValidationLimits {
+                max_input_values,
+                ..ValidationLimits::default()
+            },
+        )?;
+        if report.accepted != Some(true) {
+            return Err(REFUSED.into());
+        }
+        value.check_available().map_err(|_| REFUSED.into())
+    }
+
     pub(crate) fn consume_frame<'a>(
         &'a self,
         host: &mut FreshStructuralHost,
         root: &RetainedCemNode,
+        mut typed: BTreeMap<AstNodeId, ExternalTypedValue>,
         control: &OperationControl,
     ) -> Result<ReceiverFrame<'a>, String> {
         let fields = self.check_frame_input(host, root)?;
         let mut values = BTreeMap::new();
-        let mut remaining_values = 16_384usize;
-        let mut remaining_bytes = 1_048_576usize;
+        let mut remaining_values = crate::instance_island::LIMITS.max_values;
+        let mut remaining_bytes = crate::instance_island::LIMITS.max_bytes;
         for (name, receiver) in &self.group.receivers {
             control
                 .check_scope(ROOT_EXECUTION_SCOPE_ID)
@@ -256,32 +335,41 @@ impl LinkedMixedReceivers {
                     )?)
                 }
                 Binding::Executable { .. } => {
-                    let invocation = self.preparation_invocation(
-                        host,
-                        name,
-                        input,
-                        PreparationLimits {
-                            max_lexical_bytes: remaining_bytes,
-                            max_output_values: remaining_values,
-                            ..PreparationLimits::default()
-                        },
-                    )?;
-                    let prepared = invocation.prepare(host)?;
-                    if prepared.stopped.is_some() {
-                        return Err(REFUSED.into());
-                    }
-                    let evidence = prepared.evidence.as_ref().ok_or(REFUSED)?;
-                    let values = invocation.consume_frame(
-                        host,
-                        &ReceiverInput {
-                            source: root.owner().clone(),
-                            attribute: *id,
-                        },
-                        evidence,
-                    )?;
+                    let values = if let Some(value) = typed.remove(id) {
+                        if value.byte_len() > remaining_bytes {
+                            return Err(REFUSED.into());
+                        }
+                        self.validate_frame_typed(host, name, &input, &value, remaining_values)?;
+                        value.values().to_vec()
+                    } else {
+                        let invocation = self.preparation_invocation(
+                            host,
+                            name,
+                            input,
+                            PreparationLimits {
+                                max_lexical_bytes: remaining_bytes,
+                                max_output_values: remaining_values,
+                                ..PreparationLimits::default()
+                            },
+                        )?;
+                        let prepared = invocation.prepare(host)?;
+                        if prepared.stopped.is_some() {
+                            return Err(REFUSED.into());
+                        }
+                        let evidence = prepared.evidence.as_ref().ok_or(REFUSED)?;
+                        invocation
+                            .consume_frame(
+                                host,
+                                &ReceiverInput {
+                                    source: root.owner().clone(),
+                                    attribute: *id,
+                                },
+                                evidence,
+                            )?
+                            .items
+                    };
                     ItemStream::from_items(
                         values
-                            .items
                             .into_iter()
                             .enumerate()
                             .map(|(n, v)| sourced(root, *id, v, n, None))
@@ -306,6 +394,9 @@ impl LinkedMixedReceivers {
                 .check_scope(ROOT_EXECUTION_SCOPE_ID)
                 .map_err(|_| REFUSED)?;
             values.insert(name.clone(), items);
+        }
+        if !typed.is_empty() {
+            return Err(REFUSED.into());
         }
         self.check(host)?;
         Ok(ReceiverFrame {

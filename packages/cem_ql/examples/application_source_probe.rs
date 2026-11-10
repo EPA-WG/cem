@@ -11,7 +11,8 @@ use cem_ml::{
 };
 use cem_ql::application_source_endpoint::{
     wasm, ApplicationBootstrap, ApplicationBootstrapOwner, ApplicationSourceEndpoint,
-    PreparedApplication, ReceiverCheckpointSeal, ReceiverRecoveryPin, ReceiverWriteJournal,
+    ApplicationTypedReceiverProducer, PreparedApplication, ReceiverCheckpointSeal,
+    ReceiverRecoveryPin, ReceiverWriteJournal,
 };
 use std::sync::{Arc, Mutex};
 
@@ -35,6 +36,7 @@ struct Deployment {
     inputs: Arc<Mutex<Arc<installed::Inputs>>>,
     captured: Option<(JsValue, ReceiverCheckpointSeal)>,
     journal: Option<(JsValue, ReceiverWriteJournal)>,
+    typed_producer: Option<ApplicationTypedReceiverProducer>,
 }
 thread_local! {
     static DEPLOYMENT: cem_ml::runtime_inventory::NativeRegistry<Option<Deployment>> =
@@ -79,6 +81,7 @@ pub fn provision(pins: &str, input: &[u8]) -> Result<(), JsValue> {
             inputs,
             captured: None,
             journal: None,
+            typed_producer: None,
         })
     });
     Ok(())
@@ -123,6 +126,46 @@ pub fn receiver_input(owner: &JsValue) -> Result<JsValue, JsValue> {
     let root = original_inputs()?.root();
     wasm::register_receiver_input(owner, "cem-receiver-frame", root)
         .map_err(|e| JsValue::from_str(&e))
+}
+
+#[wasm_bindgen(js_name = probeApplicationTypedReceiverInput)]
+pub fn typed_receiver_input(owner: &JsValue) -> Result<JsValue, JsValue> {
+    let root = original_inputs()?.root();
+    let producer = wasm::with_session(owner, |session| {
+        session.register_receiver_typed_producer(
+            "cem-receiver-frame",
+            &root,
+            "choice",
+            vec![cem_ql::eval::Item::Atomic(cem_ql::eval::AtomValue::String(
+                "typed".into(),
+            ))],
+            OperationControl::default(),
+        )
+    })
+    .map_err(fixture_error)?;
+    let input = wasm::register_receiver_input_with_typed_producers(
+        owner,
+        "cem-receiver-frame",
+        root,
+        &[&producer],
+    )
+    .map_err(fixture_error)?;
+    DEPLOYMENT.with(|slot| {
+        slot.borrow_mut()
+            .as_mut()
+            .expect("fixture provisioned")
+            .typed_producer = Some(producer);
+    });
+    Ok(input)
+}
+
+#[wasm_bindgen(js_name = probeApplicationDropTypedProducer)]
+pub fn drop_typed_producer() {
+    DEPLOYMENT.with(|slot| {
+        if let Some(deployment) = slot.borrow_mut().as_mut() {
+            deployment.typed_producer.take();
+        }
+    });
 }
 
 #[wasm_bindgen(js_name = probeApplicationEditReceiver)]

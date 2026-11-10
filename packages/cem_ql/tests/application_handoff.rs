@@ -6,6 +6,10 @@ mod fixture;
 mod receiver_checkpoint;
 
 #[cfg(feature = "application-source-runtime")]
+#[path = "application_handoff/typed_producer.rs"]
+mod typed_producer;
+
+#[cfg(feature = "application-source-runtime")]
 #[test]
 fn native_receiver_frame_requires_original_input_and_available_preparation() {
     use cem_ql::{
@@ -410,6 +414,10 @@ fn native_application_worker_fixture_has_original_sources_and_real_consumers() {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("installed.cemah"), bytes.bytes).unwrap();
         std::fs::write(dir.join("installed.inputs"), input).unwrap();
+        let (typed, typed_input) = fixture::build_typed();
+        std::fs::write(dir.join("typed.cemah"), typed.bytes).unwrap();
+        std::fs::write(dir.join("typed.pin.json"), serde_json::to_vec(&typed.pin).unwrap()).unwrap();
+        std::fs::write(dir.join("typed.inputs"), typed_input).unwrap();
         for (name, view, cart) in [
             ("edited", "{view @items={#data} @count=4 @choice=ok}", "{cart @title=Coffee | {item @quantity=4}}"),
             ("later", fixture::VIEW, "{cart @title=Cocoa | {item @quantity=2}}"),

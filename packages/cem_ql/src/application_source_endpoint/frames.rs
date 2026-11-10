@@ -3,22 +3,86 @@
 use super::*;
 use crate::{
     application_runtime as runtime,
+    eval::{Item, RetainedCemNode},
+    external_typed::ExternalTypedValue,
     render::{TemplateArtifact, TemplateData},
 };
-use cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID;
+use cem_ml::{
+    operation_control::ROOT_EXECUTION_SCOPE_ID,
+    parser::{tree::RetainedCemTree, AstNodeId},
+    schema::attribute_datatypes::AttributeDatatypeContextLease,
+};
 
 /// Original registered input on one exact installed publication. Rust issues
 /// this owner; serialized nodes, scopes and type labels cannot construct it.
 pub struct ApplicationReceiverInput {
     pub(super) app: Weak<LinkedApplication>,
     pub(super) tag: String,
-    pub(super) root: crate::eval::RetainedCemNode,
+    pub(super) root: RetainedCemNode,
+    producers: BTreeMap<AstNodeId, Weak<TypedProducer>>,
+    _owner: ReceiverOwner,
+}
+
+/// Trusted native ownership of typed values for one exact receiver attribute.
+/// Input tokens borrow this owner and expire when it or its scope expires.
+pub struct ApplicationTypedReceiverProducer {
+    producer: Arc<TypedProducer>,
+    _owner: ReceiverOwner,
+}
+
+struct TypedProducer {
+    app: Weak<LinkedApplication>,
+    tag: String,
+    source: Arc<RetainedCemTree>,
+    attribute: AstNodeId,
+    context: AttributeDatatypeContextLease,
+    control: OperationControl,
+    value: ExternalTypedValue,
+}
+
+struct ReceiverOwner {
     _lease: NativeResourceLease,
     owners: Arc<AtomicUsize>,
 }
-impl Drop for ApplicationReceiverInput {
+impl Drop for ReceiverOwner {
     fn drop(&mut self) {
         self.owners.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+impl TypedProducer {
+    fn check(&self) -> Result<(), String> {
+        if !self.context.is_live() || self.value.check_available().is_err() {
+            return Err(INVALID.into());
+        }
+        self.control
+            .check_scope(ROOT_EXECUTION_SCOPE_ID)
+            .map_err(|_| INVALID.into())
+    }
+}
+
+impl ApplicationReceiverInput {
+    #[cfg(feature = "application-source-runtime")]
+    pub(super) fn has_typed_producers(&self) -> bool {
+        !self.producers.is_empty()
+    }
+
+    fn check_producers(&self) -> Result<(), String> {
+        for producer in self.producers.values() {
+            producer.upgrade().ok_or(INVALID)?.check()?;
+        }
+        Ok(())
+    }
+
+    fn typed_values(&self) -> Result<BTreeMap<AstNodeId, ExternalTypedValue>, String> {
+        self.producers
+            .iter()
+            .map(|(&attribute, producer)| {
+                let producer = producer.upgrade().ok_or(INVALID)?;
+                producer.check()?;
+                Ok((attribute, producer.value.clone()))
+            })
+            .collect()
     }
 }
 
@@ -42,21 +106,104 @@ pub(super) fn receiver_artifact<'a>(
 }
 
 impl ApplicationSourceSession {
-    pub fn register_receiver_input(
+    /// Issue native atomic values only after validating an original valueless
+    /// attribute against its installed, explicit typed-only profile.
+    pub fn register_receiver_typed_producer(
         &mut self,
         tag: &str,
-        root: crate::eval::RetainedCemNode,
-    ) -> Result<ApplicationReceiverInput, String> {
-        if tag.len() > 256 {
+        root: &RetainedCemNode,
+        field: &str,
+        values: Vec<Item>,
+        control: OperationControl,
+    ) -> Result<ApplicationTypedReceiverProducer, String> {
+        let limits = crate::instance_island::LIMITS;
+        if tag.len() > 256 || values.len() > limits.max_values {
             return Err(INVALID.into());
         }
         let _entry = self.enter()?;
-        self.with_current_application(|app, host| {
+        control
+            .check_scope(ROOT_EXECUTION_SCOPE_ID)
+            .map_err(|_| INVALID)?;
+        let (attribute, context, value) = self.with_current_application(|app, host| {
+            receiver_artifact(app, tag)?;
             app.receivers(host, tag)?
-                .check_frame_input(host, &root)
-                .map(|_| ())
+                .produce_typed_frame_value(host, root, field, values, &control)
+        })?;
+        let producer = TypedProducer {
+            app: Arc::downgrade(self.prepared.current()?),
+            tag: tag.into(),
+            source: root.owner().clone(),
+            attribute,
+            context,
+            control,
+            value,
+        };
+        producer.check()?;
+        Ok(ApplicationTypedReceiverProducer {
+            producer: Arc::new(producer),
+            _owner: self.claim_receiver_owner()?,
+        })
+    }
+
+    pub fn register_receiver_input(
+        &mut self,
+        tag: &str,
+        root: RetainedCemNode,
+    ) -> Result<ApplicationReceiverInput, String> {
+        self.register_receiver_input_with_typed_producers(tag, root, &[])
+    }
+
+    /// Bind only original producer owners for fields on this exact input.
+    pub fn register_receiver_input_with_typed_producers(
+        &mut self,
+        tag: &str,
+        root: RetainedCemNode,
+        producers: &[&ApplicationTypedReceiverProducer],
+    ) -> Result<ApplicationReceiverInput, String> {
+        if tag.len() > 256 || producers.len() > 64 {
+            return Err(INVALID.into());
+        }
+        let _entry = self.enter()?;
+        let fields = self.with_current_application(|app, host| {
+            app.receivers(host, tag)?.check_frame_input(host, &root)
         })?;
         let app = Arc::downgrade(self.prepared.current()?);
+        let limits = crate::instance_island::LIMITS;
+        let mut remaining_values = limits.max_values;
+        let mut remaining_bytes = limits.max_bytes;
+        let mut bound = BTreeMap::new();
+        for producer in producers {
+            let producer = &producer.producer;
+            producer.check()?;
+            if !Weak::ptr_eq(&app, &producer.app)
+                || producer.tag != tag
+                || !Arc::ptr_eq(root.owner(), &producer.source)
+                || !fields
+                    .values()
+                    .any(|&attribute| attribute == producer.attribute)
+                || bound
+                    .insert(producer.attribute, Arc::downgrade(producer))
+                    .is_some()
+            {
+                return Err(INVALID.into());
+            }
+            remaining_values = remaining_values
+                .checked_sub(producer.value.values().len())
+                .ok_or(INVALID)?;
+            remaining_bytes = remaining_bytes
+                .checked_sub(producer.value.byte_len())
+                .ok_or(INVALID)?;
+        }
+        Ok(ApplicationReceiverInput {
+            app,
+            tag: tag.into(),
+            root,
+            producers: bound,
+            _owner: self.claim_receiver_owner()?,
+        })
+    }
+
+    fn claim_receiver_owner(&self) -> Result<ReceiverOwner, String> {
         let generation = self
             .endpoint
             .upgrade()
@@ -65,19 +212,17 @@ impl ApplicationSourceSession {
         let lease = generation
             .resource(NativeRootKind::Registry)
             .map_err(|_| INVALID)?;
-        self.receiver_inputs
+        self.receiver_owners
             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
                 (n < 64).then_some(n + 1)
             })
             .map_err(|_| INVALID)?;
         #[cfg(feature = "application-source-runtime")]
-        self.receiver_checkpoint_epoch.fetch_add(1, Ordering::AcqRel);
-        Ok(ApplicationReceiverInput {
-            app,
-            tag: tag.into(),
-            root,
+        self.receiver_checkpoint_epoch
+            .fetch_add(1, Ordering::AcqRel);
+        Ok(ReceiverOwner {
             _lease: lease,
-            owners: self.receiver_inputs.clone(),
+            owners: self.receiver_owners.clone(),
         })
     }
     pub fn render_receiver_native(
@@ -99,6 +244,7 @@ impl ApplicationSourceSession {
                     return Err(INVALID.into());
                 }
                 self.check()?;
+                input.check_producers()?;
                 Ok(html)
             })
     }
@@ -118,6 +264,7 @@ impl ApplicationSourceSession {
         )
         .map_err(|_| INVALID.to_string())?;
         self.check()?;
+        input.check_producers()?;
         Ok(bytes)
     }
     fn receiver_plan(
@@ -152,9 +299,12 @@ impl ApplicationSourceSession {
             control
                 .check_scope(ROOT_EXECUTION_SCOPE_ID)
                 .map_err(|_| INVALID)?;
-            let frame =
-                app.receivers(host, &input.tag)?
-                    .consume_frame(host, &input.root, &control)?;
+            let frame = app.receivers(host, &input.tag)?.consume_frame(
+                host,
+                &input.root,
+                input.typed_values()?,
+                &control,
+            )?;
             control
                 .check_scope(ROOT_EXECUTION_SCOPE_ID)
                 .map_err(|_| INVALID)?;

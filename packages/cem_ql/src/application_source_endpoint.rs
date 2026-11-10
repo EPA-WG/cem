@@ -32,7 +32,7 @@ mod receiver_checkpoint;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 #[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
-pub use frames::ApplicationReceiverInput;
+pub use frames::{ApplicationReceiverInput, ApplicationTypedReceiverProducer};
 #[cfg(feature = "application-source-runtime")]
 pub use receiver_checkpoint::{
     ReceiverCheckpointSeal, ReceiverRecoveryPin, ReceiverWriteJournal, VerifiedReceiverCheckpoint,
@@ -291,7 +291,7 @@ impl ApplicationSourceEndpoint {
             endpoint: Arc::downgrade(self),
             prepared,
             _slot: slot,
-            receiver_inputs: Arc::new(AtomicUsize::new(0)),
+            receiver_owners: Arc::new(AtomicUsize::new(0)),
             #[cfg(feature = "application-source-runtime")]
             receiver_checkpoint_epoch: Arc::new(AtomicUsize::new(0)),
         })
@@ -308,7 +308,7 @@ pub struct ApplicationSourceSession {
     endpoint: Weak<ApplicationSourceEndpoint>,
     prepared: PreparedApplication,
     _slot: SessionSlot,
-    receiver_inputs: Arc<AtomicUsize>,
+    receiver_owners: Arc<AtomicUsize>,
     #[cfg(feature = "application-source-runtime")]
     receiver_checkpoint_epoch: Arc<AtomicUsize>,
 }
@@ -329,7 +329,7 @@ impl ApplicationSourceSession {
     }
     pub fn capture(&self) -> Result<Vec<u8>, String> {
         let _entry = self.enter()?;
-        if self.receiver_inputs.load(Ordering::Acquire) != 0 {
+        if self.receiver_owners.load(Ordering::Acquire) != 0 {
             return Err("cem.application.receiver_checkpoint.unavailable".into());
         }
         let inputs = self

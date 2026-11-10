@@ -504,7 +504,7 @@ impl ApplicationSourceSession {
     ) -> Result<ReceiverRecoveryPin, String> {
         let _entry = self.enter()?;
         if !Arc::ptr_eq(&seal.epoch, &self.receiver_checkpoint_epoch)
-            || self.receiver_inputs.load(Ordering::Acquire) != 1
+            || self.receiver_owners.load(Ordering::Acquire) != 1
         {
             return Err(REFUSED.into());
         }
@@ -532,7 +532,8 @@ impl ApplicationSourceSession {
         .map_err(|_| REFUSED)?;
         let original = self.prepared.current()?;
         let budget = checkpoint_budget(&self.prepared.sources, available_bytes)?;
-        if self.receiver_inputs.load(Ordering::Acquire) != 1
+        if self.receiver_owners.load(Ordering::Acquire) != 1
+            || input.has_typed_producers()
             || input
                 .app
                 .upgrade()
@@ -658,7 +659,7 @@ impl ApplicationSourceSession {
         };
         if packet.deployment != deployment_pin(&self.prepared.sources)?
             || checkpoint_artifact(self.prepared.current()?, &packet.tag).is_err()
-            || self.receiver_inputs.load(Ordering::Acquire) != 0
+            || self.receiver_owners.load(Ordering::Acquire) != 0
             || byte_length > checkpoint_budget(&self.prepared.sources, available_bytes)?
         {
             return Err(REFUSED.into());

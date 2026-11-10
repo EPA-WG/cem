@@ -29,6 +29,8 @@ pub const SCALAR_URI: &str = "https://runtime.test/scalars/1";
 pub const RECEIVER:&str="{schema @name=receivers @namespace=https://runtime.test/receivers/1 | {elements | {element @name=view @optional-attributes=\"items count choice\"}} {attributes | {attribute @name=items @type=node @maxItems=2} {attribute @name=count @type=integer @minInclusive=3 @maxInclusive=4} {attribute @name=choice @type={#scalar}}}}";
 pub const SCALARS:&str="{schema @name=scalars @namespace=https://runtime.test/scalars/1 | {attributes | {attribute @name=cart-count @type=integer @minInclusive=2 @maxInclusive=5}}}";
 pub const VIEW: &str = "{view @items={#data} @count=3 @choice=ok}";
+#[cfg(not(target_arch = "wasm32"))]
+pub const TYPED_VIEW: &str = "{view @items={#data} @count=3 @choice}";
 pub const CART: &str = "{cart @title=Tea | {item @quantity=3}}";
 const COUNT_BODY:&str="{attribute @name=count @type=cart-count}{p | {$count}/{$datadom.dataset.fruitName}/{$datadom.slices.cart.title}{$datadom.slices.cart.children.children.children.children.value}/{$instanceID}}{section | {$datadom.slots.heading}}";
 pub fn hash(b: &[u8]) -> String {
@@ -184,9 +186,10 @@ impl cem_ql::datatype_preparation::NativeLexicalPreparer for Preparer {
     }
 }
 #[cfg(not(target_arch = "wasm32"))]
-fn preparation_profile(
+fn executable_profile(
     module: &mut cem_ql::datatype_module_capsule::v2::ModuleSource,
     root: u32,
+    typed: bool,
 ) -> cem_ql::datatype_module_capsule::v2::ProfileArtifact {
     use cem_ml::schema::{
         datatype_registry::{DatatypeKind, DatatypeRegistry},
@@ -198,7 +201,7 @@ fn preparation_profile(
         datatype_preparation::PreparationSignature,
         native_registrations::{
             dependency_sources, profiles::v2 as profiles, profiles::OperationRole,
-            ImplementationIdentity, OperationMode, PreparationMode,
+        FacetMode, ImplementationIdentity, OperationMode, PreparationMode,
         },
     };
     let capture = &module.types.capture;
@@ -225,20 +228,40 @@ fn preparation_profile(
         .unwrap();
     let source = registry.source(&schema, "value").unwrap();
     let representation = ValueRepresentation::Scalar(ScalarRepresentation::String);
-    let implementation = ImplementationIdentity::preparation(
-        "fixture-original-string",
-        hash(b"fixture-preparer-code/1"),
-        "fixture-original-string",
-        PreparationSignature {
-            kind: DatatypeKind::Scalar,
-            output: representation,
-            candidate: CandidateRequirement::Optional,
-        },
-    );
+    let (profile_id, role, mode, implementation) = if typed {
+        use cem_ml::schema::document_model::attribute_facets::FacetFamily;
+        (
+            "typed",
+            OperationRole::FacetProfile,
+            OperationMode::FacetProfile(FacetMode::Ready),
+            ImplementationIdentity::facet_profile(
+                "fixture-typed-string",
+                hash(b"fixture-typed-code/1"),
+                "fixture-typed-string",
+                FacetFamily::TypedScalar(ScalarRepresentation::String),
+            ),
+        )
+    } else {
+        (
+            "prepare",
+            OperationRole::Preparation,
+            OperationMode::Preparation(PreparationMode::Ready),
+            ImplementationIdentity::preparation(
+                "fixture-original-string",
+                hash(b"fixture-preparer-code/1"),
+                "fixture-original-string",
+                PreparationSignature {
+                    kind: DatatypeKind::Scalar,
+                    output: representation,
+                    candidate: CandidateRequirement::Optional,
+                },
+            ),
+        )
+    };
     let dependency = dependency_sources::export_operation(
         capture,
         &source,
-        OperationMode::Preparation(PreparationMode::Ready),
+        mode,
         module.types.identity.clone(),
         implementation,
         &hash(b"registry"),
@@ -251,11 +274,11 @@ fn preparation_profile(
         declaration: root,
         kind: DatatypeKind::Scalar,
         representation,
-        dependencies: BTreeMap::from([(OperationRole::Preparation, dependency.pin.clone())]),
+        dependencies: BTreeMap::from([(role, dependency.pin.clone())]),
     };
     let sources = vec![dependency];
     let built = profiles::export(
-        &BTreeMap::from([("prepare".into(), profile)]),
+        &BTreeMap::from([(profile_id.into(), profile)]),
         &sources,
         &hash(b"registry"),
         &Default::default(),
@@ -265,7 +288,7 @@ fn preparation_profile(
         root,
         assembly::ProfileSelection {
             pin: built.pin.clone(),
-            id: "prepare".into(),
+            id: profile_id.into(),
         },
     );
     assembly::ProfileArtifact {
@@ -388,11 +411,14 @@ pub fn configured(
     let mut owners = vec![];
     for (datatype, profile) in module.profiles() {
         for (role, requirement) in profile.requirements() {
-            if *role != cem_ql::native_registrations::profiles::OperationRole::Preparation {
-                return Err("fixture operation role".into());
+            use cem_ql::native_registrations::NativeSignature;
+            let implementation = requirement.implementation().clone();
+            match implementation.signature {
+                NativeSignature::Preparation(_) => host.register_native_preparer(implementation, Preparer),
+                NativeSignature::FacetProfile(family) => host.register_native_facet_profile(implementation, family),
+                _ => return Err("fixture operation role".into()),
             }
-            host.register_native_preparer(requirement.implementation().clone(), Preparer)
-                .map_err(|e| format!("{e:?}"))?;
+            .map_err(|e| format!("{e:?}"))?;
             let owner = Arc::new(
                 host.link_dependency_operation(requirement.clone(), scope)
                     .map_err(|e| format!("{e:?}"))?,
@@ -489,15 +515,15 @@ pub fn build() -> (transport::BuiltApplicationSources, Vec<u8>) {
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn build_count(body: &str) -> (transport::BuiltApplicationSources, Vec<u8>) {
-    build_options(body, false)
+    build_sources(body, ReceiverProfile::Pending, VIEW, RECEIVER, CART, false)
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn build_prepared() -> (transport::BuiltApplicationSources, Vec<u8>) {
-    build_options(COUNT_BODY, true)
+    prepared_sources(VIEW, RECEIVER, CART)
 }
 #[cfg(not(target_arch = "wasm32"))]
-fn build_options(body: &str, prepared: bool) -> (transport::BuiltApplicationSources, Vec<u8>) {
-    build_sources(body, prepared, VIEW, RECEIVER, CART)
+pub fn build_typed() -> (transport::BuiltApplicationSources, Vec<u8>) {
+    build_sources(COUNT_BODY, ReceiverProfile::Typed, TYPED_VIEW, RECEIVER, CART, false)
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn prepared_sources(
@@ -505,26 +531,22 @@ pub fn prepared_sources(
     receiver: &str,
     cart: &str,
 ) -> (transport::BuiltApplicationSources, Vec<u8>) {
-    build_sources(COUNT_BODY, true, view, receiver, cart)
+    build_sources(COUNT_BODY, ReceiverProfile::Lexical, view, receiver, cart, false)
+}
+#[cfg(not(target_arch = "wasm32"))]
+enum ReceiverProfile {
+    Pending,
+    Lexical,
+    Typed,
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub fn build_reserved() -> (transport::BuiltApplicationSources, Vec<u8>) {
+    build_sources(COUNT_BODY, ReceiverProfile::Lexical, VIEW, RECEIVER, CART, true)
 }
 #[cfg(not(target_arch = "wasm32"))]
 fn build_sources(
     body: &str,
-    prepared: bool,
-    view: &str,
-    receiver: &str,
-    cart: &str,
-) -> (transport::BuiltApplicationSources, Vec<u8>) {
-    build_sources_named(body, prepared, view, receiver, cart, false)
-}
-#[cfg(not(target_arch = "wasm32"))]
-pub fn build_reserved() -> (transport::BuiltApplicationSources, Vec<u8>) {
-    build_sources_named(COUNT_BODY, true, VIEW, RECEIVER, CART, true)
-}
-#[cfg(not(target_arch = "wasm32"))]
-fn build_sources_named(
-    body: &str,
-    prepared: bool,
+    profile: ReceiverProfile,
     view: &str,
     receiver: &str,
     cart: &str,
@@ -605,10 +627,10 @@ fn build_sources_named(
             bindings: BTreeMap::new(),
         },
     );
-    let profiles = if prepared {
-        vec![preparation_profile(&mut module, root)]
-    } else {
-        vec![]
+    let profiles = match profile {
+        ReceiverProfile::Pending => vec![],
+        ReceiverProfile::Lexical => vec![executable_profile(&mut module, root, false)],
+        ReceiverProfile::Typed => vec![executable_profile(&mut module, root, true)],
     };
     let graph = cem_ql::datatype_module_capsule::v2::export(
         "app",

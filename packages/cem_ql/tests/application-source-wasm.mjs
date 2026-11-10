@@ -8,6 +8,11 @@ const output = resolve(isMainThread ? process.argv[2] : workerData.output);
 const binary = await readFile(resolve(output, 'application_source_probe_bg.wasm'));
 const source = await readFile(resolve(output, 'application.cemah'));
 const pins = await readFile(resolve(output, 'application.pin.json'), 'utf8');
+const [typedSource, typedPins, typedInput] = await Promise.all([
+    readFile(resolve(output, 'typed.cemah')),
+    readFile(resolve(output, 'typed.pin.json'), 'utf8'),
+    readFile(resolve(output, 'typed.inputs')),
+]);
 
 async function verify(heap) {
     const url = pathToFileURL(resolve(output, 'application_source_probe.js'));
@@ -31,6 +36,25 @@ async function verify(heap) {
     assert.throws(() => reader.applicationSourceCaptureV1(Object.freeze({})), /application.endpoint.refused/);
     assert.throws(() => reader.applicationSourceReleaseV1(Object.freeze({})), /application.endpoint.refused/);
 
+    reader.probeApplicationProvision(typedPins, typedInput);
+    const owner = reader.applicationSourceOpenV1(typedSource, typedPins);
+    const ordinary = reader.probeApplicationReceiverInput(owner);
+    const render = input => reader.applicationSourceRenderReceiverV1(owner, input, 'typed');
+    assert.throws(() => render(ordinary), /application.endpoint.refused/);
+    reader.applicationSourceReleaseReceiverInputV1(owner, ordinary);
+    const typed = reader.probeApplicationTypedReceiverInput(owner);
+    assert.equal(render(typed), '<p>Tea/3/typed/typed</p>');
+    assert.throws(() => render(Object.freeze({ ...typed })), /application.endpoint.refused/);
+    assert.ok(reader.applicationSourceProjectReceiverV1(owner, typed, 'typed').length);
+    assert.throws(() => reader.applicationSourceCaptureV1(owner), /application.endpoint.refused/);
+    reader.probeApplicationDropTypedProducer();
+    assert.throws(() => render(typed), /application.endpoint.refused/);
+    assert.throws(() => reader.applicationSourceProjectReceiverV1(owner, typed, 'typed'), /application.endpoint.refused/);
+    reader.applicationSourceReleaseReceiverInputV1(owner, typed);
+    assert.deepEqual(Buffer.from(reader.applicationSourceCaptureV1(owner)), typedSource);
+    reader.applicationSourceReleaseV1(owner);
+    reader.probeApplicationUnprovision();
+
     return wasm.memory;
 }
 
@@ -43,7 +67,7 @@ if (isMainThread) {
         worker.once('error', reject);
         worker.once('exit', code => code === 0 ? resolve() : reject(Error(`reader worker exited ${code}`)));
     });
-    console.log(`Application source reader: 36 checks across two fresh heaps and a real worker; ${source.length} source bytes. Native provisioning is required; installed-session acceptance runs in the separate resource target.`);
+    console.log(`Application sources and typed receiver producers passed in two fresh heaps and a real worker; ${source.length} source bytes.`);
 } else {
     await verify('worker');
     parentPort.close();

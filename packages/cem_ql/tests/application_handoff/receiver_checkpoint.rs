@@ -14,14 +14,14 @@ use std::sync::Arc;
 
 const TAG: &str = "cem-receiver-frame";
 
-struct Session {
-    session: ApplicationSourceSession,
+pub(super) struct Session {
+    pub(super) session: ApplicationSourceSession,
     _generation: Arc<NativeGeneration>,
     _code: Arc<ApplicationBootstrapOwner>,
     _endpoint: Arc<ApplicationSourceEndpoint>,
 }
 
-fn open(deployment: &BuiltApplicationSources, inputs: Arc<fixture::Inputs>) -> Session {
+pub(super) fn open(deployment: &BuiltApplicationSources, inputs: Arc<fixture::Inputs>) -> Session {
     let generation = NativeGeneration::claim(Arc::new(Default::default())).unwrap();
     let code = ApplicationBootstrapOwner::new(
         &generation,

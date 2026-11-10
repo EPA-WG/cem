@@ -1870,8 +1870,9 @@ inputs now have the native-owned adapter below.
 an opaque native `ApplicationReceiverInput` bound to that exact application
 publication. Copies restored into another arena, equal-byte sources, foreign
 sessions and inputs retained across publication replacement cannot substitute
-for it. Each owner holds a real generation resource lease; at most 64 input
-owners share a session and the existing 256-resource generation ceiling.
+for it. Each input or typed producer owner holds a real generation resource
+lease. They share a 64-owner session limit and the existing 256-resource
+generation ceiling.
 
 The initial topology profile is one original empty-namespace instance element
 with exact named required/optional attributes. Native consuming-name metadata
@@ -1886,12 +1887,21 @@ Every `render_receiver_native` / `project_receiver_native` call consumes the
 original fields again. Node fields use the existing structural receiver and
 original lexical reference resolution, directed grants, count limits and target
 validation. Selected values remain original retained nodes. Closed scalars use
-their original source restrictions. Executable fields create their original
-lexical preparation invocation, prepare once, and consume its sealed evidence
-through the existing original-root validation and local counts. Missing preparers,
+their original source restrictions. For authored lexical values, executable
+fields prepare once through the original invocation and consume its sealed
+evidence through the existing original-root validation and local counts. Missing preparers,
 pending/rejected preparation, unsupported lexical slots and expired code refuse.
-An unavailable preparer never implies a typed-only input grant; the existing
-explicit typed-only producer policy remains separate.
+
+An original Rust embedding can enroll typed atomic values for a valueless
+attribute through `register_receiver_typed_producer`. This uses the shared
+`ExternalTypedProducer` to check the installed typed-only profile and issue
+immutable values under the original receiving contract. A receiver input borrows
+each producer for its exact attribute, source arena, scope and application
+publication. Each render and projection revalidates the values and keeps the
+original attribute source map.
+Dropping the producer, ending its operation or replacing its scope fences the
+input. Authored lexical values and unavailable preparation cannot authorize
+typed ingress.
 
 A borrowed native receiver frame supplies the resulting values to the shared
 renderer only for its exact original compiled artifact. It has no public
@@ -1908,7 +1918,9 @@ allowance and existing output/graph limits bound the initial adapter.
 The opt-in WASM ABI adds `applicationSourceRenderReceiverV1`,
 `applicationSourceProjectReceiverV1` and
 `applicationSourceReleaseReceiverInputV1`. Only original Rust embedding code can
-call `wasm::register_receiver_input` to mint an original frozen input token.
+call `wasm::register_receiver_input` or
+`wasm::register_receiver_input_with_typed_producers` to mint an original frozen
+input token.
 Neither a JavaScript constructor nor a numeric node/scope handle is exposed.
 Tokens remain in their exact session and heap; copied tokens refuse. Input
 cleanup remains available behind closed admission or expired code, and releasing
@@ -1917,10 +1929,10 @@ resource leases cover these owners without another untracked registry.
 
 Source-only capture returns
 `cem.application.receiver_checkpoint.unavailable` while any native input owner
-is live, including a stale owner retained after replacement. A separate Rust
-adapter captures one current original input, its passive dependency sources and
-its original named native node bindings. This profile uses default reference
-policies and direct named node references. Capture requires embedding approval
+or producer is live, including a stale owner retained after replacement. A
+separate Rust adapter captures one current original input, its passive dependency
+sources and its original named native node bindings. This profile uses default
+reference policies and direct named node references. Capture requires embedding approval
 for each source and applies credential checks, source and node limits, and the
 remaining workspace checkpoint budget, including the deployment and its pins.
 A short-lived, single-use native seal binds the exact bytes and expires when
@@ -1930,7 +1942,8 @@ The fresh bootstrap registers the decoded source owners, recreates the lexical
 contexts and explicitly authorizes cross-scope references. Restoration checks
 the deployment, the new generation, and those exact fresh owners before
 enrolling a new native input. The wire carries no live scope IDs, grants or
-runtime handles.
+runtime handles. An input with typed producer bindings refuses portable capture,
+including after its producer expires.
 
 The opt-in receiver route of the shared source resource charges the capsule,
 deployment, and retained journal to the same workspace budget. The original
@@ -1948,8 +1961,8 @@ route and writes at or before its accepted event sequence. A later input can
 claim a new operation once. The worker and owned fallback fixtures edit both
 the receiver and its referenced data, render from the fresh owners, and exercise
 consumed writes, stale edits, credential refusal, tampered packets and journals,
-and the aggregate byte limit. Typed-only producers and production admission
-remain separate gates.
+and the aggregate byte limit. Nested child and field contracts and production
+admission remain separate gates.
 
 ## Native publication generation enrollment
 

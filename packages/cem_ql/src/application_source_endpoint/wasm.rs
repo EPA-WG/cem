@@ -21,6 +21,16 @@ pub fn register_receiver_input(
     tag: &str,
     root: crate::eval::RetainedCemNode,
 ) -> Result<JsValue, String> {
+    register_receiver_input_with_typed_producers(owner, tag, root, &[])
+}
+
+/// Only Rust embeddings can bind original typed producer owners to a token.
+pub fn register_receiver_input_with_typed_producers(
+    owner: &JsValue,
+    tag: &str,
+    root: crate::eval::RetainedCemNode,
+    producers: &[&ApplicationTypedReceiverProducer],
+) -> Result<JsValue, String> {
     let _entry = runtime_admission::admit(false).map_err(|_| INVALID)?;
     SESSIONS.with(|sessions| {
         let mut sessions = sessions.try_borrow_mut().map_err(|_| INVALID)?;
@@ -31,7 +41,7 @@ pub fn register_receiver_input(
         if entry.inputs.len() >= 64 {
             return Err(INVALID.into());
         }
-        let input = entry.session.register_receiver_input(tag, root)?;
+        let input = entry.session.register_receiver_input_with_typed_producers(tag, root, producers)?;
         let token: JsValue = js_sys::Object::freeze(&js_sys::Object::new()).into();
         entry.inputs.push((token.clone(), input));
         Ok(token)

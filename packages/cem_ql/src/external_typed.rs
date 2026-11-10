@@ -72,10 +72,17 @@ impl ExternalTypedValue {
     pub fn native_handle(&self) -> NativeAttributeTypedValue {
         NativeAttributeTypedValue::new(self.clone())
     }
+    #[cfg(any(feature = "component-runtime", feature = "application-source-runtime"))]
+    pub(crate) fn byte_len(&self) -> usize {
+        self.bytes
+    }
     fn check(&self, binding: &BoundAttributeFacets) -> Result<(), ExternalTypedError> {
         if !self.producer.admission.binding.same_binding(binding) {
             return Err(ExternalTypedError::BindingMismatch);
         }
+        self.check_available()
+    }
+    pub(crate) fn check_available(&self) -> Result<(), ExternalTypedError> {
         if !self.producer.active.load(Ordering::Acquire) || !self.producer.admission.current() {
             return Err(ExternalTypedError::Expired);
         }
