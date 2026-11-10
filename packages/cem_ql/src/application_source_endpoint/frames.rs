@@ -19,6 +19,8 @@ pub struct ApplicationReceiverInput {
     pub(super) app: Weak<LinkedApplication>,
     pub(super) tag: String,
     pub(super) root: RetainedCemNode,
+    #[cfg(feature = "application-source-runtime")]
+    pub(super) browser_instance: Option<String>,
     producers: BTreeMap<AstNodeId, Weak<TypedProducer>>,
     _owner: ReceiverOwner,
 }
@@ -89,14 +91,16 @@ impl ApplicationReceiverInput {
 pub(super) fn receiver_artifact<'a>(
     app: &'a LinkedApplication,
     tag: &str,
+    browser_capability: Option<&str>,
 ) -> Result<&'a TemplateArtifact, String> {
     let artifact = app.envelope().artifact(tag).ok_or(INVALID)?;
     let demand = app.envelope().requirements();
     let requirements = demand.declarations.get(tag).ok_or(INVALID)?;
     if !requirements.host_bindings.contains("instanceID")
-        || requirements.capability.is_some()
+        || requirements.capability.as_deref() != browser_capability
         || !cfg!(feature = "application-source-runtime") && !requirements.stylesheets.is_empty()
-        || !requirements.unresolved.is_empty()
+        || (!requirements.unresolved.is_empty()
+            && !(browser_capability.is_some() && requirements.reviewed_browser_behavior()))
         || !requirements.data_imports.is_empty()
         || !demand.component_dependencies[tag].is_empty()
     {
@@ -125,7 +129,7 @@ impl ApplicationSourceSession {
             .check_scope(ROOT_EXECUTION_SCOPE_ID)
             .map_err(|_| INVALID)?;
         let (attribute, context, value) = self.with_current_application(|app, host| {
-            receiver_artifact(app, tag)?;
+            receiver_artifact(app, tag, None)?;
             app.receivers(host, tag)?
                 .produce_typed_frame_value(host, root, field, values, &control)
         })?;
@@ -197,6 +201,8 @@ impl ApplicationSourceSession {
             app,
             tag: tag.into(),
             root,
+            #[cfg(feature = "application-source-runtime")]
+            browser_instance: None,
             producers: bound,
             _owner: self.claim_receiver_owner()?,
         })
@@ -230,7 +236,7 @@ impl ApplicationSourceSession {
         instance: &str,
     ) -> Result<String, String> {
         let _entry = self.enter()?;
-        self.receiver_plan(input, instance)
+        self.receiver_plan(input, instance, None)
             .and_then(|(plan, control)| {
                 let html = crate::render::render_plan_to_html_with_control(
                     &plan,
@@ -253,7 +259,7 @@ impl ApplicationSourceSession {
         instance: &str,
     ) -> Result<Vec<u8>, String> {
         let _entry = self.enter()?;
-        let (plan, control) = self.receiver_plan(input, instance)?;
+        let (plan, control) = self.receiver_plan(input, instance, None)?;
         let bytes = crate::eval::portable::encode_values_with_control(
             &crate::eval::output::output_nodes(plan.nodes),
             &runtime::inputs::LIMITS,
@@ -266,17 +272,13 @@ impl ApplicationSourceSession {
         input.check_producers()?;
         Ok(bytes)
     }
-    fn receiver_plan(
+    pub(super) fn receiver_plan(
         &mut self,
         input: &ApplicationReceiverInput,
         instance: &str,
+        browser_capability: Option<&str>,
     ) -> Result<(crate::render::RenderPlan, OperationControl), String> {
-        if instance.is_empty()
-            || instance.len() > 1024
-            || instance
-                .chars()
-                .any(|c| c.is_control() || c.is_whitespace())
-        {
+        if !valid_instance(instance) {
             return Err(INVALID.into());
         }
         let original = self.prepared.current()?;
@@ -294,7 +296,7 @@ impl ApplicationSourceSession {
         )
         .map_err(|_| INVALID)?;
         let plan = self.with_current_application(|app, host| {
-            let artifact = receiver_artifact(app, &input.tag)?;
+            let artifact = receiver_artifact(app, &input.tag, browser_capability)?;
             control
                 .check_scope(ROOT_EXECUTION_SCOPE_ID)
                 .map_err(|_| INVALID)?;
@@ -337,13 +339,7 @@ impl ApplicationSourceSession {
         bind: impl FnOnce(&OperationControl) -> Result<TemplateData, String>,
         render: impl FnOnce(&TemplateArtifact, TemplateData, &OperationControl) -> Result<T, String>,
     ) -> Result<T, String> {
-        if tag.len() > 256
-            || instance.is_empty()
-            || instance.len() > 1024
-            || instance
-                .chars()
-                .any(|c| c.is_whitespace() || c.is_control())
-        {
+        if tag.len() > 256 || !valid_instance(instance) {
             return Err("compiled application frame identity refused".into());
         }
         let owner_control = self.endpoint.upgrade().ok_or(INVALID)?.control.clone();
@@ -436,4 +432,9 @@ impl ApplicationSourceSession {
             runtime::render_data,
         )
     }
+}
+
+pub(super) fn valid_instance(instance: &str) -> bool {
+    !instance.is_empty() && instance.len() <= 1024
+        && !instance.chars().any(|c| c.is_control() || c.is_whitespace())
 }

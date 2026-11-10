@@ -582,6 +582,10 @@ pub fn build_navigation() -> (transport::BuiltApplicationSources, Vec<u8>) {
     navigation_sources("button")
 }
 #[cfg(all(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
+pub fn build_provider() -> (transport::BuiltApplicationSources, Vec<u8>) {
+    build_sources(COUNT_BODY, ReceiverProfile::BrowserProvider, VIEW, RECEIVER, CART, false)
+}
+#[cfg(all(not(target_arch = "wasm32"), feature = "application-source-runtime"))]
 pub fn navigation_sources(button_type: &str) -> (transport::BuiltApplicationSources, Vec<u8>) {
     build_sources(
         &format!("{{attribute @name=count @type=cart-count}}{{nav @part=root @id={{$instanceID}} | {{button @type={button_type} @aria-disabled=true | {{$count}}}}}}"),
@@ -606,6 +610,8 @@ enum ReceiverProfile {
     Styled,
     #[cfg(feature = "application-source-runtime")]
     BrowserNavigation,
+    #[cfg(feature = "application-source-runtime")]
+    BrowserProvider,
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn build_reserved() -> (transport::BuiltApplicationSources, Vec<u8>) {
@@ -677,6 +683,8 @@ fn build_sources(
         let capability = match profile {
             #[cfg(feature = "application-source-runtime")]
             ReceiverProfile::BrowserNavigation if tag == "cem-count" => " capability=\"navigation-landmark\"",
+            #[cfg(feature = "application-source-runtime")]
+            ReceiverProfile::BrowserProvider if tag == "cem-receiver-frame" => " capability=\"form-control\"",
             _ => "",
         };
         cem_ql::declaration_artifact::build_declaration_artifact(&format!("<cem-element tag=\"{tag}\"{capability}><template id=\"{tag}\" type=\"text/cem-ml\">{body}</template></cem-element>"),&uri,cem_ql::template_artifact::TemplateArtifactSourceMapMode::Prod,None).unwrap()
@@ -710,7 +718,7 @@ fn build_sources(
         ReceiverProfile::Lexical | ReceiverProfile::Nested | ReceiverProfile::Styled => vec![executable_profile(&mut module, root, false)],
         ReceiverProfile::Typed | ReceiverProfile::NestedTyped => vec![executable_profile(&mut module, root, true)],
         #[cfg(feature = "application-source-runtime")]
-        ReceiverProfile::BrowserNavigation => vec![executable_profile(&mut module, root, false)],
+        ReceiverProfile::BrowserNavigation | ReceiverProfile::BrowserProvider => vec![executable_profile(&mut module, root, false)],
     };
     let graph = cem_ql::datatype_module_capsule::v2::export(
         "app",
@@ -761,10 +769,15 @@ fn build_sources(
         &control,
     )
     .unwrap();
-    let frame_body = if matches!(profile, ReceiverProfile::Nested | ReceiverProfile::NestedTyped) {
+    let frame_body = match profile {
+        #[cfg(feature = "application-source-runtime")]
+        ReceiverProfile::BrowserProvider => "{attribute @name=items @type=cart-lines @maxItems=2}{attribute @name=count @type=cart-count}{attribute @name=choice @type=app-value}{input @part=control @type=text @aria-label=Product @id={$instanceID} @value={$items.attributes.value}}",
+        ReceiverProfile::Nested | ReceiverProfile::NestedTyped => {
         "{attribute @name=items @type=cart-lines @maxItems=2}{attribute @name=count @type=cart-count}{attribute @name=choice @type=app-value}{p | {$items.attributes.value}/{$count}/{$choice}/{$datadom.receiver.children.attributes.count}/{$datadom.receiver.children.children.attributes.choice}/{$datadom.receiver.children.children.attributes.items.attributes.value}/{$datadom.receiver.children.children.attributes.label}/{$instanceID}}"
-    } else {
+        }
+        _ => {
         "{attribute @name=items @type=cart-lines @maxItems=2}{attribute @name=count @type=cart-count}{attribute @name=choice @type=app-value}{p | {$items.attributes.value}/{$count}/{$choice}/{$instanceID}}"
+        }
     };
     let frame = if matches!(profile, ReceiverProfile::Styled) {
         let body = format!("{{style | ``` @import './theme.css'; :host {{ --original: ready; }} ```}}{frame_body}");

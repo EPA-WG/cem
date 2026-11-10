@@ -2027,7 +2027,7 @@ renewal.
 
 ## Reduced navigation landmark frames
 
-The opt-in mixed declaration verifier accepts one reviewed browser demand,
+The opt-in mixed declaration verifier accepts the reviewed browser demand
 `navigation-landmark`, when no other unresolved contracts, component
 dependencies or data imports accompany it. CEMAPPD4 keeps the declaration's
 original behavior gap in its pinned inventory. Native function selection can
@@ -2049,8 +2049,35 @@ generation. The renderer commits the native output before activating the
 existing shared navigation listener. Replacing a frame keeps a single listener
 owner. The session and the connected host generation each have a lifetime
 signal that can release it. Ordinary render and projection calls still refuse
-the capability-bearing declaration. Provider-backed declarations, projected
-payloads and the full `cem-nav` component require their own closure.
+the capability-bearing declaration. Projected payloads and the full `cem-nav`
+component require their own closure.
+
+## Reduced text provider frames
+
+The same verifier accepts a closed `form-control` demand. Its original Rust
+bootstrap grants that behavior for the verified declaration. Rust enrolls one
+retained receiver against the publication and instance, and native frame
+evaluation checks its original input tree and admitted source references.
+`applicationSourceRenderBrowserReceiverV1` takes the opaque session token,
+tag and instance. The route obtains the input from native ownership and admits
+one labelled standalone text field with a single-line value. The island
+render route continues to admit the navigation contract only.
+
+The receiver seal retains the original provider instance. Retirement checks
+that instance against the sealed journal. The fresh bootstrap registers the
+decoded input tree and reference scopes before restoring the binding. Each
+worker or fallback heap uses its own native owner. The shared
+`prepareApplicationTextProvider` adapter binds a new editor provider to the
+retained browser control once its value agrees with the native frame. It uses
+the existing form-control leases, preserves the input and selection, and ends
+the lease on native session or host lifetime release. The renderer ends the
+host lifetime when it replaces the receiver or control.
+
+The Chromium handoff fixture exercises a browser edit followed by an explicit
+trusted native source edit, credential refusal, native census and physical
+retirement, source and provider renewal, and a fresh editor commit. It proves
+the standalone field contract. Multi-control providers, form submission and
+dynamic provider discovery remain separate contracts.
 
 ## Native publication generation enrollment
 

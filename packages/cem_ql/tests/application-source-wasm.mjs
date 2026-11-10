@@ -30,6 +30,11 @@ const [navigationSource, navigationPins, navigationInput, island] = await Promis
     readFile(resolve(output, 'navigation.inputs')),
     readFile(resolve(output, 'frame.island')),
 ]);
+const [providerSource, providerPins, providerInput] = await Promise.all([
+    readFile(resolve(output, 'provider.cemah')),
+    readFile(resolve(output, 'provider.pin.json'), 'utf8'),
+    readFile(resolve(output, 'provider.inputs')),
+]);
 
 async function verify(heap) {
     const url = pathToFileURL(resolve(output, 'application_source_probe.js'));
@@ -126,6 +131,23 @@ async function verify(heap) {
     assert.throws(() => reader.applicationSourceRenderIslandV1(navigation, 'cem-count', island, 'island-one'));
     reader.applicationSourceReleaseV1(navigation);
     assert.throws(() => renderNavigation(navigation), /application.endpoint.refused/);
+    reader.probeApplicationUnprovision();
+
+    reader.probeApplicationProvisionProvider(providerPins, providerInput);
+    const provider = reader.applicationSourceOpenV1(providerSource, providerPins);
+    const providerFrame = (owner = provider, instance = 'source-route') =>
+        reader.applicationSourceRenderBrowserReceiverV1(owner, 'cem-receiver-frame', instance);
+    assert.throws(() => providerFrame(), /application.endpoint.refused/);
+    const originalInput = reader.probeApplicationReceiverInput(provider);
+    const text = JSON.parse(providerFrame());
+    assert.equal(text.value, 'Tea');
+    assert.equal(text.behaviorIdentity, 'cem-elements-form-control-v4');
+    assert.throws(() => providerFrame({ ...provider }), /application.endpoint.refused/);
+    assert.throws(() => providerFrame(provider, 'foreign'), /application.endpoint.refused/);
+    assert.throws(() => reader.applicationSourceRenderBrowserIslandV1(provider, 'cem-receiver-frame', island, 'source-route'), /application.endpoint.refused/);
+    reader.applicationSourceReleaseReceiverInputV1(provider, originalInput);
+    assert.throws(() => providerFrame(), /application.endpoint.refused/);
+    reader.applicationSourceReleaseV1(provider);
     reader.probeApplicationUnprovision();
 
     return wasm.memory;

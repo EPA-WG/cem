@@ -35,11 +35,14 @@ function receiptText(receipt, code) {
         || new TextEncoder().encode(receipt).length > MAX_RECEIPT_BYTES) fail(code);
     return receipt;
 }
-function browserFrameInput(value) {
-    const { tag, instance, bytes } = value ?? {};
+function browserFrameIdentity(value) {
+    const { tag, instance } = value ?? {};
     if (typeof instance !== 'string' || !instance || instance.length > 1024
         || new TextEncoder().encode(instance).length > 1024) fail('browser-frame');
-    return { tag: receiptTag(tag, 'browser-frame'), instance, bytes: source(bytes, '', MAX_RECEIPT_BYTES) };
+    return { tag: receiptTag(tag, 'browser-frame'), instance };
+}
+function browserFrameInput(value) {
+    return { ...browserFrameIdentity(value), bytes: source(value.bytes, '', MAX_RECEIPT_BYTES) };
 }
 /** Native endpoints must first be provisioned by their trusted Rust embedding.
  * Keep the actual Memory weakly; an equal factory/foreign heap cannot substitute
@@ -63,6 +66,7 @@ function wasmBackend(runtime, prefix, maxSourceBytes) {
         ...(prefix === 'applicationSource' && {
             stylesheets: (owner, tag) => call('applicationSourceStylesheetsV1', [owner, tag]),
             renderBrowserIsland: (owner, { tag, bytes, instance }) => call('applicationSourceRenderBrowserIslandV1', [owner, tag, bytes, instance]),
+            renderBrowserReceiver: (owner, { tag, instance }) => call('applicationSourceRenderBrowserReceiverV1', [owner, tag, instance]),
         }),
     });
 }
@@ -74,6 +78,7 @@ export function createQuerySourceEndpoint(options) {
     if (typeof current !== 'function' || !native || ['open', 'capture', 'release'].some(k => typeof native[k] !== 'function')
         || (native.stylesheets !== undefined && typeof native.stylesheets !== 'function')
         || (native.renderBrowserIsland !== undefined && typeof native.renderBrowserIsland !== 'function')
+        || (native.renderBrowserReceiver !== undefined && typeof native.renderBrowserReceiver !== 'function')
         || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) fail('endpoint');
     const maxSourceBytes = options.maxSourceBytes ?? native.maxSourceBytes ?? MAX_BYTES;
     if (!Number.isSafeInteger(maxSourceBytes) || maxSourceBytes < 1 || maxSourceBytes > 4 * 1024 * 1024) fail('limit');
@@ -114,7 +119,7 @@ export function createQuerySourceEndpoint(options) {
         if (!live()) { await native.release(value); fail('stale'); }
         if (owners.size >= 64) { await native.release(value); fail('limit'); }
         const owner = Object.freeze({ kind: 'cem-query-source-owner' });
-        const lifetime = native.stylesheets || native.renderBrowserIsland ? new AbortController() : undefined;
+        const lifetime = native.stylesheets || native.renderBrowserIsland || native.renderBrowserReceiver ? new AbortController() : undefined;
         owners.set(owner, { value, releasing: false, lifetime }); return owner;
     };
     async function readReceipt(owner, read) {
@@ -143,6 +148,11 @@ export function createQuerySourceEndpoint(options) {
             if (!native.renderBrowserIsland) fail('browser-frame');
             const checked = browserFrameInput(input);
             return readReceipt(owner, async value => receiptText(await native.renderBrowserIsland(value, checked), 'browser-frame'));
+        },
+        async renderBrowserReceiver(owner, input) {
+            if (!native.renderBrowserReceiver) fail('browser-frame');
+            const checked = browserFrameIdentity(input);
+            return readReceipt(owner, async value => receiptText(await native.renderBrowserReceiver(value, checked), 'browser-frame'));
         },
         async release(owner, signal) {
             const entry = original(owner); entry.releasing = true;
@@ -222,6 +232,7 @@ export function createQuerySourceWorkerEndpoint(options) {
             release: async id => { if (await call('release', id) !== true) { failed = true; fail('transport'); } },
             stylesheets: options.applicationStylesheets === true ? (id, tag) => call('stylesheets', { id, tag }) : undefined,
             renderBrowserIsland: options.applicationBrowserFrames === true ? (id, input) => call('browser-frame', { id, input }) : undefined,
+            renderBrowserReceiver: options.applicationBrowserFrames === true ? (id, input) => call('browser-receiver', { id, input }) : undefined,
             receiver: options.receiverRecovery === true ? {
                 capture: id => call('capture-receiver', id),
                 retire: (id, bytes, journal) => call('confirm-receiver', { id, bytes, journal }),
@@ -257,7 +268,7 @@ export function installQuerySourceWorkerTransport(port, native) {
                     if (closed) { await native.release(owner); return; }
                     owners.set(++sequence, owner); result = sequence;
                 } else {
-                    const key = ['confirm-receiver', 'stylesheets', 'browser-frame'].includes(op) ? value?.id : value;
+                    const key = ['confirm-receiver', 'stylesheets', 'browser-frame', 'browser-receiver'].includes(op) ? value?.id : value;
                     if (!owners.has(key)) fail('owner');
                     const owner = owners.get(key);
                     if (op === 'capture') result = source(await native.capture(owner), '', limit);
@@ -265,6 +276,8 @@ export function installQuerySourceWorkerTransport(port, native) {
                         result = receiptText(await native.stylesheets(owner, receiptTag(value.tag, 'stylesheet')), 'stylesheet');
                     } else if (op === 'browser-frame' && native.renderBrowserIsland) {
                         result = receiptText(await native.renderBrowserIsland(owner, browserFrameInput(value.input)), 'browser-frame');
+                    } else if (op === 'browser-receiver' && native.renderBrowserReceiver) {
+                        result = receiptText(await native.renderBrowserReceiver(owner, browserFrameIdentity(value.input)), 'browser-frame');
                     } else if (op === 'capture-receiver') result = receiverCapture(await native.receiver?.capture(owner));
                     else if (op === 'confirm-receiver') {
                         result = await (native.receiver?.retire(owner,
@@ -308,6 +321,9 @@ export class QuerySourceResource {
     }
     async renderBrowserIsland(input) {
         return this.#readReceipt((endpoint, owner) => endpoint.renderBrowserIsland(owner, input));
+    }
+    async renderBrowserReceiver(input) {
+        return this.#readReceipt((endpoint, owner) => endpoint.renderBrowserReceiver(owner, input));
     }
     async #readReceipt(read) {
         const endpoint = this.#endpoint, owner = this.#owner;

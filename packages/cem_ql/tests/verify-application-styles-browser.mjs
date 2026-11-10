@@ -29,10 +29,12 @@ try {
                 const fixture = await import('/packages/cem_ql/tests/application-styles-browser.mjs');
                 await fixture.verifyApplicationStylesheets(mode);
                 await fixture.verifyApplicationBrowserFrame(mode);
+                await fixture.verifyApplicationProviderRecovery(mode);
             }, mode);
             assert.deepEqual(external, []);
             console.log(`Application styles (${mode}): real native CSS, sharing, rejected and accepted replacement, and cleanup passed.`);
             console.log(`Application browser frame (${mode}): original navigation output, shared input behavior, replacement and cleanup passed.`);
+            console.log(`Application provider (${mode}): original input/source, fresh editor lease and credential refusal passed.`);
         } finally { await page.close(); }
     }
 } finally {

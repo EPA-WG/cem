@@ -466,9 +466,11 @@ that retained output through its original token and the shared browser styleshee
 service. The [shared checkpoint transaction](cem-native-schema-capsules.md#application-source-and-shared-provider-renewal)
 keeps fresh application and schema source owners current through behavior and
 provider renewal. The [reduced navigation landmark](cem-native-schema-capsules.md#reduced-navigation-landmark-frames)
-uses a pinned native frame and the existing shared browser listener. Provider-backed
-declarations, generated application bootstraps and production component admission
-remain separate.
+uses a pinned native frame and the existing shared browser listener. The
+[reduced text provider](cem-native-schema-capsules.md#reduced-text-provider-frames)
+restores a retained native receiver and renews the shared editor provider on the
+same browser input. Generated application bootstraps and production component
+admission remain separate.
 
 
 Do not equate downloaded code with an active native generation. Register every

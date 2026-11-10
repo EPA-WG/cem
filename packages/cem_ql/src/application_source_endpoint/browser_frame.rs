@@ -2,21 +2,24 @@
 use super::*;
 use crate::{application_runtime, render::RenderPlanNode};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ApplicationBrowserBehavior {
     NavigationLandmark,
+    FormControl,
 }
 
 impl ApplicationBrowserBehavior {
     fn capability(self) -> &'static str {
         match self {
             Self::NavigationLandmark => "navigation-landmark",
+            Self::FormControl => "form-control",
         }
     }
 
     fn identity(self) -> &'static str {
         match self {
             Self::NavigationLandmark => "cem-elements-navigation-landmark-v1",
+            Self::FormControl => "cem-elements-form-control-v4",
         }
     }
 }
@@ -61,17 +64,8 @@ impl ApplicationSourceSession {
         instance: &str,
     ) -> Result<String, String> {
         let _entry = self.enter()?;
-        let behavior = *self.prepared.browser_behaviors.get(tag).ok_or(INVALID)?;
-        let identity = self
-            .prepared
-            .current()?
-            .envelope()
-            .requirements()
-            .declarations
-            .get(tag)
-            .ok_or(INVALID)?
-            .metadata_hash
-            .clone();
+        let behavior = ApplicationBrowserBehavior::NavigationLandmark;
+        let identity = self.browser_declaration(tag, behavior)?;
         let html = self.frame(
             tag,
             instance,
@@ -108,6 +102,136 @@ impl ApplicationSourceSession {
         self.check()?;
         Ok(receipt)
     }
+
+    /// Rust-only ingress for a text provider on this exact native publication.
+    pub fn register_browser_receiver_input(
+        &mut self,
+        tag: &str,
+        root: crate::eval::RetainedCemNode,
+        instance: &str,
+    ) -> Result<ApplicationReceiverInput, String> {
+        if !super::frames::valid_instance(instance) {
+            return Err(INVALID.into());
+        }
+        self.browser_declaration(tag, ApplicationBrowserBehavior::FormControl)?;
+        let mut input = self.register_receiver_input(tag, root)?;
+        input.browser_instance = Some(instance.into());
+        Ok(input)
+    }
+
+    /// The provider consumes a retained receiver and its admitted reference
+    /// scopes. A caller cannot replace that source with an island or JS data.
+    pub fn render_browser_receiver_json(
+        &mut self,
+        input: &ApplicationReceiverInput,
+        instance: &str,
+    ) -> Result<String, String> {
+        let _entry = self.enter()?;
+        if input.browser_instance.as_deref() != Some(instance) {
+            return Err(INVALID.into());
+        }
+        let behavior = ApplicationBrowserBehavior::FormControl;
+        let identity = self.browser_declaration(&input.tag, behavior)?;
+        let (plan, control) = self.receiver_plan(input, instance, Some(behavior.capability()))?;
+        let plan = crate::render::project_render_plan_with_control(
+            &plan,
+            crate::eval::QueryContextScope(0),
+            &application_runtime::inputs::LIMITS,
+            &control,
+            ROOT_EXECUTION_SCOPE_ID,
+        )
+        .map_err(|_| INVALID)?;
+        let value = closed_text_control(&plan, instance)?;
+        let html = crate::render::render_plan_to_html_with_control(
+            &plan,
+            &control,
+            ROOT_EXECUTION_SCOPE_ID,
+        )
+        .map_err(|_| INVALID)?
+        .rendered;
+        let receipt = serde_json::json!({
+            "tag": input.tag, "instance": instance, "behaviorIdentity": behavior.identity(),
+            "declarationIdentity": identity, "html": html, "value": value,
+        })
+        .to_string();
+        if receipt.len() > application_runtime::MAX_INPUT_BYTES {
+            return Err(INVALID.into());
+        }
+        self.check()?;
+        Ok(receipt)
+    }
+
+    fn browser_declaration(
+        &self,
+        tag: &str,
+        behavior: ApplicationBrowserBehavior,
+    ) -> Result<String, String> {
+        if self.prepared.browser_behaviors.get(tag) != Some(&behavior) {
+            return Err(INVALID.into());
+        }
+        Ok(self
+            .prepared
+            .current()?
+            .envelope()
+            .requirements()
+            .declarations
+            .get(tag)
+            .ok_or(INVALID)?
+            .metadata_hash
+            .clone())
+    }
+}
+
+fn closed_text_control<'a>(
+    plan: &'a crate::render::RenderPlan,
+    instance: &str,
+) -> Result<&'a str, String> {
+    let [RenderPlanNode::Element {
+        tag,
+        namespace,
+        qualified_name,
+        attributes,
+        children,
+        ..
+    }] = plan.nodes.as_slice()
+    else {
+        return Err(INVALID.into());
+    };
+    if !plan.host_attribute_updates.is_empty()
+        || tag != "input"
+        || namespace
+            .as_deref()
+            .is_some_and(|ns| ns != "http://www.w3.org/1999/xhtml")
+        || qualified_name.as_deref().is_some_and(|name| name != tag)
+        || !children.is_empty()
+        || attributes.iter().any(|a| {
+            a.namespace.is_some()
+                || a.qualified_name
+                    .as_ref()
+                    .is_some_and(|name| name != &a.name)
+                || !matches!(
+                    a.name.as_str(),
+                    "part" | "type" | "id" | "value" | "aria-label"
+                )
+        })
+    {
+        return Err(INVALID.into());
+    }
+    let attribute = |name| {
+        let mut matches = attributes.iter().filter(|a| a.name == name);
+        let value = matches.next()?.value.as_str();
+        matches.next().is_none().then_some(value)
+    };
+    if attribute("type") != Some("text")
+        || attribute("part") != Some("control")
+        || attribute("id") != Some(instance)
+        || attribute("aria-label").is_none_or(|label| label.trim().is_empty())
+    {
+        return Err(INVALID.into());
+    }
+    attribute("value")
+        .filter(|value| !value.contains(['\r', '\n', '\0']))
+        .ok_or_else(|| INVALID.into())
 }
 
 // The first behavior has no provider, URL or action grant. Review the native

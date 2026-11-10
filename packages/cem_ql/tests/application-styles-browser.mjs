@@ -3,7 +3,13 @@ import { createCemDeclarationScope } from '../../cem-elements/src/lib/declaratio
 import { DeclarationStyleOwnership } from '../../cem-elements/src/lib/declaration-style-ownership.ts';
 import { prepareApplicationStylesheets } from '../../cem-elements/src/lib/internal/runtime-support/application-stylesheets.ts';
 import { prepareApplicationBrowserFrame } from '../../cem-elements/src/lib/internal/runtime-support/application-browser-frame.ts';
-import { registerNativeGeneration } from '../runtime/native-generation.mjs';
+import { prepareApplicationTextProvider } from '../../cem-elements/src/lib/internal/runtime-support/application-text-provider.ts';
+import { getCemEditorProvider, isCemCredentialControl } from '../../cem-elements/src/lib/form-control-capability.ts';
+import { CemCommittedCheckpointStore } from '../../cem-elements/src/lib/committed-checkpoint.ts';
+import { issueCheckpointResumeTicket, resumeCemCheckpointOwners } from '../../cem-elements/src/lib/checkpoint-resume.ts';
+import {
+    CemNativeGenerationGroup, completeNativeRetirement, registerNativeGeneration, releaseNativeGenerationResourcesAsync,
+} from '../runtime/native-generation.mjs';
 import {
     createApplicationSourceWasmBackend, createQuerySourceEndpoint, createQuerySourceWorkerEndpoint,
     installQuerySourceWorkerTransport, QuerySourceResource,
@@ -23,24 +29,61 @@ async function refusal(work, code) {
     throw Error(`Expected refusal ${code}`);
 }
 
-async function nativeBackend(module, pins, input, variant) {
+async function nativeBackend(module, pins, input, variant, runtimeId) {
     const runtime = createCemQlWasmGeneration();
     await runtime.initialize(module);
     if (variant === 'installed') runtime.call('probeApplicationProvision', [pins, input]);
     else if (variant === 'navigation') runtime.call('probeApplicationProvisionNavigation', [pins, input]);
+    else if (variant === 'provider') runtime.call('probeApplicationProvisionProvider', [pins, input]);
     else runtime.call('probeApplicationProvisionStyled', [pins, input, variant === 'denied']);
-    return { runtime, native: createApplicationSourceWasmBackend(runtime) };
+    const native = createApplicationSourceWasmBackend(runtime);
+    let owner, receiver;
+    const call = (name, args) => {
+        if (name === 'dispose') return runtime.dispose();
+        if (name === 'edit') {
+            receiver = runtime.call('probeApplicationEditReceiver', [owner, receiver, ...args]);
+            return;
+        }
+        return runtime.call(name, args);
+    };
+    if (variant !== 'provider') return { runtime, native, call };
+    return { runtime, call, native: {
+        ...native,
+        open(bytes, pins) {
+            owner = native.open(bytes, pins);
+            try { receiver = runtime.call('probeApplicationReceiverInput', [owner]); return owner; }
+            catch (error) { native.release(owner); throw error; }
+        },
+        receiver: {
+            capture(owner) {
+                const [bytes, revision] = runtime.call('probeApplicationCaptureReceiver', [owner, receiver]);
+                return { bytes, revision };
+            },
+            retire(owner, bytes, journal) {
+                return runtime.call('probeApplicationConfirmReceiver', [owner, bytes, journal, runtimeId]);
+            },
+            open(bytes, pins, recovery) {
+                [owner, receiver] = runtime.call('probeApplicationRestoreReceiver',
+                    [bytes, pins, recovery.bytes, recovery.pin, recovery.journal, recovery.runtimeId]);
+                return owner;
+            },
+        },
+    } };
 }
 
 if (typeof document === 'undefined') {
-    globalThis.addEventListener('message', async ({ data: { module, port, pins, input, variant } }) => {
-        const { native } = await nativeBackend(module, pins, input, variant);
+    globalThis.addEventListener('message', async ({ data: { module, port, pins, input, variant, runtimeId } }) => {
+        const { native, call } = await nativeBackend(module, pins, input, variant, runtimeId);
         installQuerySourceWorkerTransport(port, native);
+        globalThis.addEventListener('message', ({ data: { id, name, args } }) => {
+            try { globalThis.postMessage({ id, value: call(name, args) }); }
+            catch (error) { globalThis.postMessage({ id, error: String(error) }); }
+        });
         globalThis.postMessage('ready');
     }, { once: true });
 }
 
-async function binding(mode, variant) {
+async function deployment(variant) {
     const file = variant === 'denied' ? 'styled' : variant;
     const [bytes, pins, input, module] = await Promise.all([
         fetch(`${assets}${file}.cemah`).then(response => response.bytes()),
@@ -48,44 +91,87 @@ async function binding(mode, variant) {
         fetch(`${assets}${file}.inputs`).then(response => response.bytes()),
         compiled ??= WebAssembly.compileStreaming(fetch(`${assets}application_source_probe_bg.wasm`)),
     ]);
-    const register = identity => registerNativeGeneration(identity, crypto.randomUUID(), () => { throw Error('Fixture allocation is explicit'); });
-    let endpoint, worker, fallback;
+    return { bytes, pins, input, module };
+}
+
+async function physical(mode, variant, deployment) {
+    const { pins, input, module } = deployment;
+    const runtimeId = crypto.randomUUID();
+    let endpoint, worker, port, fallback, live = true, sequence = 0;
+    const register = identity => registerNativeGeneration(identity, runtimeId, async (_current, signal) => {
+        const fresh = await physical(mode, variant, deployment);
+        return { identity: fresh.identity, runtimeId: fresh.runtimeId, runtime: fresh,
+            current: () => !signal.aborted && fresh.current(), discard: () => fresh.discard() };
+    });
     if (mode === 'worker') {
         const channel = new MessageChannel();
+        port = channel.port1;
         worker = new Worker('/packages/cem_ql/tests/application-styles-browser.mjs', { type: 'module' });
         try {
             await new Promise((resolve, reject) => {
                 const timer = setTimeout(() => reject(Error('Application stylesheet worker did not start')), 5000);
                 worker.addEventListener('message', () => { clearTimeout(timer); resolve(); }, { once: true });
                 worker.addEventListener('error', event => { clearTimeout(timer); reject(Error(event.message)); }, { once: true });
-                worker.postMessage({ module, port: channel.port2, pins, input, variant }, [channel.port2]);
+                worker.postMessage({ module, port: channel.port2, pins, input, variant, runtimeId }, [channel.port2]);
             });
-            endpoint = createQuerySourceWorkerEndpoint({ identity: worker, participant: register(worker), port: channel.port1,
-                current: () => true, maxSourceBytes: 4 * 1024 * 1024, applicationStylesheets: true, applicationBrowserFrames: true });
         } catch (error) { channel.port1.close(); worker.terminate(); throw error; }
     } else {
-        fallback = await nativeBackend(module, pins, input, variant);
-        const identity = fallback.runtime.memory();
-        endpoint = createQuerySourceEndpoint({ identity, participant: register(identity), current: () => true, native: fallback.native });
+        fallback = await nativeBackend(module, pins, input, variant, runtimeId);
     }
-    const close = () => {
-        endpoint.dispose();
-        worker?.terminate();
-        if (fallback) {
-            const { runtime } = fallback;
-            fallback = undefined;
-            runtime.call('probeApplicationUnprovision', []);
-            runtime.dispose();
-        }
+    const identity = () => live ? (worker ?? fallback.runtime.memory()) : undefined;
+    const call = (name, ...args) => {
+        if (!worker) return Promise.resolve().then(() => fallback.call(name, args));
+        return new Promise((resolve, reject) => {
+            const id = ++sequence;
+            const receive = ({ data }) => {
+                if (data?.id !== id) return;
+                clearTimeout(timer); worker.removeEventListener('message', receive);
+                if (data.error) reject(Error(data.error)); else resolve(data.value);
+            };
+            const timer = setTimeout(() => {
+                worker.removeEventListener('message', receive); reject(Error('Application fixture control timed out'));
+            }, 5000);
+            worker.addEventListener('message', receive);
+            worker.postMessage({ id, name, args });
+        });
     };
+    const close = () => {
+        live = false;
+        endpoint?.dispose();
+        if (!endpoint) port?.close();
+        worker?.terminate();
+    };
+    const dispose = () => {
+        if (!live) return;
+        close();
+        fallback?.call('probeApplicationUnprovision', []);
+        fallback?.call('dispose', []);
+    };
+    return { get identity() { return identity(); }, runtimeId, call, current: () => live, close, dispose,
+        get endpoint() {
+            if (endpoint) return endpoint;
+            const actual = identity();
+            const options = { identity: actual, participant: register(actual), current: () => live };
+            endpoint = worker ? createQuerySourceWorkerEndpoint({ ...options, port, maxSourceBytes: 4 * 1024 * 1024,
+                applicationStylesheets: true, applicationBrowserFrames: true, receiverRecovery: variant === 'provider' })
+                : createQuerySourceEndpoint({ ...options, native: fallback.native });
+            return endpoint;
+        },
+        discard: () => { if (live) setTimeout(dispose, 0); } };
+}
+
+async function binding(mode, variant) {
+    const config = await deployment(variant);
+    const host = await physical(mode, variant, config);
     let allowed = true;
     try {
-        const resource = await QuerySourceResource.open({ endpoint, bytes, pins, current: () => allowed, target: () => endpoint });
+        const resource = await QuerySourceResource.open({ endpoint: host.endpoint, bytes: config.bytes, pins: config.pins,
+            current: () => allowed, target: fresh => fresh.endpoint });
         return {
             resource, refuse: () => { allowed = false; },
-            async dispose() { await resource.dispose(); close(); },
+            async dispose() { await resource.dispose(); host.dispose(); },
         };
-    } catch (error) { close(); throw error; }
+    } catch (error) { host.dispose(); throw error; }
 }
 
 export async function verifyApplicationStylesheets(mode) {
@@ -197,6 +283,111 @@ export async function verifyApplicationBrowserFrame(mode) {
         hostLifetime.abort();
         await original.dispose();
         await replacement?.dispose();
+        host.remove();
+    }
+}
+
+export async function verifyApplicationProviderRecovery(mode) {
+    const config = await deployment('provider');
+    const original = await physical(mode, 'provider', config);
+    const host = document.createElement(tag);
+    const instance = 'source-route';
+    const lifetime = new AbortController();
+    const store = new CemCommittedCheckpointStore(original.runtimeId);
+    document.body.append(host);
+    let input, handoff, admission, resource;
+    const current = () => host.isConnected && (!input || !isCemCredentialControl(input));
+    const prepare = () => prepareApplicationTextProvider(resource, host, instance, lifetime.signal);
+    let changes = 0;
+    host.addEventListener('change', () => changes++);
+    try {
+        resource = await QuerySourceResource.open({ endpoint: original.endpoint, bytes: config.bytes, pins: config.pins,
+            current, target: fresh => fresh.endpoint, receiverCheckpoint: () => handoff.retain() });
+        await refusal(() => resource.renderBrowserReceiver({ tag, instance: 'foreign' }), /native-refusal|endpoint.refused/);
+        const initial = await prepare();
+        // Fixture-only mounting. During recovery the original control stays in place.
+        host.innerHTML = initial.html;
+        input = host.querySelector('input[part=control]');
+        const initialProvider = initial.commit();
+        check(input?.value === 'Tea' && initialProvider === getCemEditorProvider(host), 'Original source did not bind the text provider');
+        const initialLease = initialProvider.lease({});
+        input.setAttribute('autocomplete', 'one-time-code');
+        input.value = 'private draft';
+        await refusal(() => resource.prepareRecovery(), /resource.policy/);
+        check(input.value === 'private draft' && !initialLease.current, 'Credential refusal changed the live input or retained its lease');
+        input.removeAttribute('autocomplete');
+        input.value = 'Tea';
+        check(initialLease.commit('Coffee', { revision: initialProvider.revision }) && changes === 1, 'The actual editor provider did not accept the edit once');
+        const edited = await fetch(`${assets}installed.edited.inputs`).then(response => response.bytes());
+        initial.release();
+        await original.call('edit', config.bytes, config.pins, edited);
+        const unconfirmed = await prepare();
+        input.value = 'unconfirmed draft';
+        check(!unconfirmed.commit() && input.value === 'unconfirmed draft', 'An unconfirmed browser edit bound the native provider');
+        input.value = 'Coffee';
+        const editedFrame = await prepare();
+        const originalProvider = editedFrame.commit();
+        check(originalProvider && !initialLease.current && input.value === 'Coffee', 'The edited source did not bind the original control');
+        const oldLease = originalProvider.lease({});
+        input.focus();
+        input.setSelectionRange(1, 4, 'backward');
+        const revision = await resource.prepareRecovery();
+        const receipt = { runtimeId: original.runtimeId, generation: 1, commitSequence: 1, policyStamp: 'provider-fixture',
+            owners: [{ instanceId: instance, declarationIdentity: JSON.parse(config.pins).hash, dataRevision: revision, acceptedEventSequence: 1 }],
+            operations: [{ instanceId: instance, operationId: 'editor-change', outcome: 'acknowledged' }] };
+        store.acknowledge(receipt);
+        const candidate = JSON.stringify({ version: 'cem-committed-checkpoint/1', receipt,
+            owners: [{ instanceId: instance, island: '<template>original text provider</template>' }] });
+        await store.capture(candidate, (text, proof) => original.call('sealCommittedCheckpoint', text, proof));
+        handoff = store.handoff();
+        const witness = () => current() && host.firstElementChild === input && input.value === 'Coffee'
+            && document.activeElement === input && input.selectionStart === 1 && input.selectionEnd === 4 && input.selectionDirection === 'backward';
+        let freshProvider;
+        const ticket = issueCheckpointResumeTicket(original.runtimeId, store.current(), handoff.current, new Map([[instance, {
+            witness: () => witness,
+            async prepare(context) {
+                check(!context.active() && !oldLease.current && !getCemEditorProvider(host), 'The old provider survived source retirement');
+                return {
+                    owner: { resume: context.renewOwners },
+                    current: witness,
+                    async renew() {
+                        const next = await prepare();
+                        check(next.declarationIdentity === initial.declarationIdentity && next.html.includes('value="Coffee"'),
+                            'Fresh native source did not preserve the edit');
+                        freshProvider = next.commit();
+                        check(freshProvider && freshProvider !== originalProvider && freshProvider.control === input, 'The text field did not acquire a fresh provider');
+                    },
+                    renewed: () => check(witness() && getCemEditorProvider(host) === freshProvider, 'Provider renewal changed the original input'),
+                    discard: () => { lifetime.abort(); },
+                };
+            },
+        }]]));
+        const group = new CemNativeGenerationGroup([original.endpoint.participant]);
+        await releaseNativeGenerationResourcesAsync(original.endpoint.participant, () => witness() && handoff.current());
+        await original.call('probeApplicationUnprovision');
+        await original.call('closeCommandNativeAdmission');
+        const inventory = JSON.parse(await original.call('commandNativeResourceInventory'));
+        check(inventory.blockingResources === 0, 'Original native provider input/source owners did not drain');
+        const confirmation = await original.call('dispose');
+        check(confirmation.frozen === true, 'Original provider heap did not confirm retirement');
+        original.close();
+        const retirement = completeNativeRetirement(original.endpoint.participant, handoff.retain());
+        admission = await group.allocate([retirement]);
+        const resumed = await resumeCemCheckpointOwners(admission, [ticket]);
+        await resumed.owners[0].owner.resume();
+        check(changes === 1 && witness(), 'Recovery replayed an editor change or lost the edit and selection');
+        const lease = freshProvider.lease({});
+        check(lease.valid && !oldLease.commit('old', { revision: originalProvider.revision }), 'The old lease gained access to the new provider');
+        check(lease.commit('Cocoa', { revision: freshProvider.revision }) && input.value === 'Cocoa' && changes === 2,
+            'The replacement provider could not accept a fresh edit');
+        await resource.dispose();
+        check(!lease.current && !getCemEditorProvider(host), 'Session disposal left a provider or lease live');
+    } finally {
+        lifetime.abort();
+        await resource?.dispose();
+        admission?.revoke();
+        original.dispose();
+        store.dispose();
         host.remove();
     }
 }

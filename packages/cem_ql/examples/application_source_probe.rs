@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 struct MutableBootstrap {
     inputs: Arc<Mutex<Arc<installed::Inputs>>>,
     redirected_styles: Option<bool>,
-    browser_navigation: bool,
+    browser: Option<ApplicationBrowserBehavior>,
 }
 
 impl ApplicationBootstrap for MutableBootstrap {
@@ -38,10 +38,10 @@ impl ApplicationBootstrap for MutableBootstrap {
             ),
             None => Ok(staged),
         }?;
-        if self.browser_navigation {
-            staged.with_browser_behavior("cem-count", ApplicationBrowserBehavior::NavigationLandmark)
-        } else {
-            Ok(staged)
+        match self.browser {
+            Some(behavior @ ApplicationBrowserBehavior::NavigationLandmark) => staged.with_browser_behavior("cem-count", behavior),
+            Some(behavior @ ApplicationBrowserBehavior::FormControl) => staged.with_browser_behavior("cem-receiver-frame", behavior),
+            None => Ok(staged),
         }
     }
 }
@@ -53,6 +53,7 @@ struct Deployment {
     captured: Option<(JsValue, ReceiverCheckpointSeal)>,
     journal: Option<(JsValue, ReceiverWriteJournal)>,
     typed_producer: Option<ApplicationTypedReceiverProducer>,
+    browser: Option<ApplicationBrowserBehavior>,
 }
 thread_local! {
     static DEPLOYMENT: cem_ml::runtime_inventory::NativeRegistry<Option<Deployment>> =
@@ -76,24 +77,29 @@ fn original_inputs() -> Result<Arc<installed::Inputs>, JsValue> {
 // Fixture-only provisioning. Library ABI installation remains Rust-only.
 #[wasm_bindgen(js_name=probeApplicationProvision)]
 pub fn provision(pins: &str, input: &[u8]) -> Result<(), JsValue> {
-    provision_fixture(pins, input, None, false)
+    provision_fixture(pins, input, None, None)
 }
 
 #[wasm_bindgen(js_name = probeApplicationProvisionStyled)]
 pub fn provision_styled(pins: &str, input: &[u8], redirected: bool) -> Result<(), JsValue> {
-    provision_fixture(pins, input, Some(redirected), false)
+    provision_fixture(pins, input, Some(redirected), None)
 }
 
 #[wasm_bindgen(js_name = probeApplicationProvisionNavigation)]
 pub fn provision_navigation(pins: &str, input: &[u8]) -> Result<(), JsValue> {
-    provision_fixture(pins, input, None, true)
+    provision_fixture(pins, input, None, Some(ApplicationBrowserBehavior::NavigationLandmark))
+}
+
+#[wasm_bindgen(js_name = probeApplicationProvisionProvider)]
+pub fn provision_provider(pins: &str, input: &[u8]) -> Result<(), JsValue> {
+    provision_fixture(pins, input, None, Some(ApplicationBrowserBehavior::FormControl))
 }
 
 fn provision_fixture(
     pins: &str,
     input: &[u8],
     redirected_styles: Option<bool>,
-    browser_navigation: bool,
+    browser: Option<ApplicationBrowserBehavior>,
 ) -> Result<(), JsValue> {
     let error = |e: String| JsValue::from_str(&e);
     if pins.len() > 16384 {
@@ -112,7 +118,7 @@ fn provision_fixture(
         MutableBootstrap {
             inputs: inputs.clone(),
             redirected_styles,
-            browser_navigation,
+            browser,
         },
     )
     .map_err(error)?;
@@ -126,6 +132,7 @@ fn provision_fixture(
             captured: None,
             journal: None,
             typed_producer: None,
+            browser,
         })
     });
     Ok(())
@@ -168,8 +175,16 @@ pub fn reentrant(owner: &JsValue) -> Result<bool, JsValue> {
 #[wasm_bindgen(js_name=probeApplicationReceiverInput)]
 pub fn receiver_input(owner: &JsValue) -> Result<JsValue, JsValue> {
     let root = original_inputs()?.root();
-    wasm::register_receiver_input(owner, "cem-receiver-frame", root)
-        .map_err(|e| JsValue::from_str(&e))
+    let provider = DEPLOYMENT.with(|slot| slot.borrow().as_ref().is_some_and(|d| d.browser == Some(ApplicationBrowserBehavior::FormControl)));
+    register_fixture_receiver(owner, root, provider)
+}
+
+fn register_fixture_receiver(owner: &JsValue, root: cem_ql::eval::RetainedCemNode, provider: bool) -> Result<JsValue, JsValue> {
+    if provider {
+        wasm::register_browser_receiver_input(owner, "cem-receiver-frame", root, "source-route")
+    } else {
+        wasm::register_receiver_input(owner, "cem-receiver-frame", root)
+    }.map_err(fixture_error)
 }
 
 #[wasm_bindgen(js_name = probeApplicationTypedReceiverInput)]
@@ -236,8 +251,7 @@ pub fn edit_receiver(
             return Err(fixture_error(error));
         }
         wasm::release_receiver(owner, input)?;
-        wasm::register_receiver_input(owner, "cem-receiver-frame", fresh.root())
-            .map_err(fixture_error)
+        register_fixture_receiver(owner, fresh.root(), state.browser == Some(ApplicationBrowserBehavior::FormControl))
     })
 }
 

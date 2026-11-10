@@ -51,6 +51,7 @@ pub struct ReceiverCheckpointSeal {
     revision: usize,
     control: OperationControl,
     authority: OperationControl,
+    browser_instance: Option<String>,
 }
 
 pub struct VerifiedReceiverCheckpoint {
@@ -64,6 +65,7 @@ enum ReceiverCheckpointAdmission {
         generation: Weak<NativeGeneration>,
         control: OperationControl,
         byte_length: usize,
+        instance_id: String,
     },
 }
 
@@ -252,6 +254,7 @@ impl ReceiverRecoveryPin {
                     generation: Arc::downgrade(generation),
                     control: control.clone(),
                     byte_length: bytes.len(),
+                    instance_id: self.instance_id,
                 },
             },
             journal,
@@ -522,6 +525,7 @@ impl ApplicationSourceSession {
         let _entry = self.enter()?;
         if !Arc::ptr_eq(&seal.epoch, &self.receiver_checkpoint_epoch)
             || self.receiver_owners.load(Ordering::Acquire) != 1
+            || seal.browser_instance.as_deref().is_some_and(|original| original != instance_id)
         {
             return Err(REFUSED.into());
         }
@@ -555,7 +559,7 @@ impl ApplicationSourceSession {
                 .app
                 .upgrade()
                 .is_none_or(|app| !Arc::ptr_eq(&app, original))
-            || checkpoint_artifact(original, &input.tag).is_err()
+            || checkpoint_artifact(original, &input.tag, input.browser_instance.is_some()).is_err()
             || sources.len() > MAX_SOURCES
             || sources
                 .iter()
@@ -644,6 +648,7 @@ impl ApplicationSourceSession {
             revision,
             control,
             authority: authority.clone(),
+            browser_instance: input.browser_instance.clone(),
         };
         self.check()?;
         seal.check()?;
@@ -674,8 +679,15 @@ impl ApplicationSourceSession {
             } if Weak::ptr_eq(generation, &endpoint.generation) => *byte_length,
             _ => return Err(REFUSED.into()),
         };
+        let provider = self.prepared.browser_behaviors.get(&packet.tag) == Some(&ApplicationBrowserBehavior::FormControl);
+        let browser_instance = match &admission {
+            ReceiverCheckpointAdmission::Local(seal) => seal.browser_instance.as_deref(),
+            ReceiverCheckpointAdmission::Physical { instance_id, .. } if provider => Some(instance_id.as_str()),
+            _ => None,
+        };
         if packet.deployment != deployment_pin(&self.prepared.sources)?
-            || checkpoint_artifact(self.prepared.current()?, &packet.tag).is_err()
+            || provider != browser_instance.is_some()
+            || checkpoint_artifact(self.prepared.current()?, &packet.tag, provider).is_err()
             || self.receiver_owners.load(Ordering::Acquire) != 0
             || byte_length > checkpoint_budget(&self.prepared.sources, available_bytes)?
         {
@@ -706,14 +718,17 @@ impl ApplicationSourceSession {
             packet.input.node,
         )
         .ok_or(REFUSED)?;
-        let input = self.register_receiver_input(&packet.tag, root)?;
+        let input = match browser_instance {
+            Some(instance) => self.register_browser_receiver_input(&packet.tag, root, instance)?,
+            None => self.register_receiver_input(&packet.tag, root)?,
+        };
         admission.check()?;
         Ok(input)
     }
 }
 
-fn checkpoint_artifact(app: &LinkedApplication, tag: &str) -> Result<(), String> {
-    let artifact = super::frames::receiver_artifact(app, tag)?;
+fn checkpoint_artifact(app: &LinkedApplication, tag: &str, provider: bool) -> Result<(), String> {
+    let artifact = super::frames::receiver_artifact(app, tag, provider.then_some("form-control"))?;
     if artifact.requires_legacy_runtime_resources() {
         return Err(REFUSED.into());
     }

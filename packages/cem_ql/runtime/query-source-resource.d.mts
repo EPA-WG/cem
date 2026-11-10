@@ -9,7 +9,8 @@ export interface QuerySourceOwnedReceipt {
     isCurrent(): boolean;
 }
 export type QuerySourceStylesheetReceipt = QuerySourceOwnedReceipt;
-export interface ApplicationBrowserIslandInput { tag: string; bytes: Uint8Array; instance: string }
+export interface ApplicationBrowserReceiverInput { tag: string; instance: string }
+export interface ApplicationBrowserIslandInput extends ApplicationBrowserReceiverInput { bytes: Uint8Array }
 export interface QuerySourceEndpoint {
     readonly participant: CemNativeGenerationParticipant;
     identity(): object | undefined;
@@ -18,6 +19,7 @@ export interface QuerySourceEndpoint {
     capture(owner: QuerySourceOwner, signal?: AbortSignal): Promise<Uint8Array>;
     stylesheets(owner: QuerySourceOwner, tag: string): Promise<QuerySourceStylesheetReceipt>;
     renderBrowserIsland(owner: QuerySourceOwner, input: ApplicationBrowserIslandInput): Promise<QuerySourceOwnedReceipt>;
+    renderBrowserReceiver(owner: QuerySourceOwner, input: ApplicationBrowserReceiverInput): Promise<QuerySourceOwnedReceipt>;
     release(owner: QuerySourceOwner, signal?: AbortSignal): Promise<void>;
     dispose(): void;
 }
@@ -29,6 +31,7 @@ export interface QuerySourceNativeBackend {
     /** Application-only, bounded receipt from the original publication. */
     stylesheets?(owner: unknown, tag: string): string | Promise<string>;
     renderBrowserIsland?(owner: unknown, input: ApplicationBrowserIslandInput): string | Promise<string>;
+    renderBrowserReceiver?(owner: unknown, input: ApplicationBrowserReceiverInput): string | Promise<string>;
     /** Original Rust embedding routes on the exact native heap. */
     receiver?: {
         capture(owner: unknown): { bytes: Uint8Array; revision: string } | Promise<{ bytes: Uint8Array; revision: string }>;
@@ -87,6 +90,7 @@ export declare class QuerySourceResource {
     static open(options: QuerySourceResourceOptions, signal?: AbortSignal): Promise<QuerySourceResource>;
     stylesheets(tag: string): Promise<QuerySourceStylesheetReceipt>;
     renderBrowserIsland(input: ApplicationBrowserIslandInput): Promise<QuerySourceOwnedReceipt>;
+    renderBrowserReceiver(input: ApplicationBrowserReceiverInput): Promise<QuerySourceOwnedReceipt>;
     /** Receiver recovery returns the original native capsule revision. */
     prepareRecovery(signal?: AbortSignal): Promise<string | undefined>;
     dispose(): Promise<void>;

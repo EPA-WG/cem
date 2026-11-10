@@ -119,7 +119,7 @@ impl DeclarationRequirements {
     /// gap stays in the inventory until an original runtime owner binds it.
     pub(crate) fn reviewed_browser_behavior(&self) -> bool {
         cfg!(feature = "application-source-runtime")
-            && self.capability.as_deref() == Some("navigation-landmark")
+            && matches!(self.capability.as_deref(), Some("navigation-landmark" | "form-control"))
             && self.data_imports.is_empty()
             && self.unresolved.len() == 1
             && self.unresolved.iter().any(|gap| {

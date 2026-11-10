@@ -466,7 +466,7 @@ Deferred execution gates, in order within this workstream:
         typed and reference values, source attribution and checkpoint rebinding.
         Reduced WASM covers nested rendering, projection and invalid values.
 
-- [ ] Bind compiled declarations, retained CSS and shared behavior/provider/source
+- [x] Bind compiled declarations, retained CSS and shared behavior/provider/source
   ownership to that ABI. Prove worker/fallback edits, credential refusal and
   generation handoff without substituting the full tooling bootstrap.
   - [x] Stage pinned declaration CSS under the original native bootstrap policy.
@@ -482,14 +482,18 @@ Deferred execution gates, in order within this workstream:
         checkpoint renewal. Worker and fallback fixtures exercise edited native
         inputs, late release or credential refusal, and repeated recovery.
         Compiled form and schema asset recovery gates also pass.
-  - [ ] Admit capability-bearing compiled declarations through their actual
-        behavior, provider and source contracts in the reduced application.
+  - [x] Admit the reviewed navigation and standalone text-field declarations
+        through their actual behavior, provider and source contracts in the
+        reduced application.
     - [x] Admit one closed navigation landmark through a pinned native frame
           and the existing browser listener owner. Native and reduced WASM
           verify grant and output refusal. Chromium verifies worker/fallback
           input behavior, replacement and listener retirement.
-    - [ ] Bind a provider-backed declaration's original input and source owners
-          into a reduced frame and verify recovery with fresh providers.
+    - [x] Bind a provider-backed declaration's original input and source owners
+          into a reduced frame. Native and reduced WASM tests exercise exact
+          input, instance and source ownership. Chromium worker/fallback tests
+          verify credential refusal, physical retirement, retention of the edited
+          input and selection, and a fresh editor lease.
 
 - [ ] Generate app-build dependencies and GraphQL schema/operation contracts,
   including variable/response validation and compact runtime input checks. Map

@@ -34,8 +34,11 @@ export interface CemEditorProvider {
     lease(owner: object): CemEditorLease;
     validity(owner: object): { set(message: string): boolean; release(): void };
 }
+type FormControlContext = Pick<CemProducedElementBehaviorContext, 'internals'>
+    & Partial<Pick<CemProducedElementBehaviorContext, 'setSlices' | 'requestRender'>>
+    & { current?(): boolean };
 interface FormControlState {
-    context: CemProducedElementBehaviorContext;
+    context: FormControlContext;
     authoredValue: string | null | undefined;
     valueRequest: string | null;
     formDisabled: boolean;
@@ -160,15 +163,10 @@ const validityKeys = [
 ] as const;
 
 /** A single string-valued native control; the produced host owns submission. */
-export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
+export const CEM_FORM_CONTROL_CAPABILITY = {
     formAssociated: true,
     constructed(instance, context) {
-        const state: FormControlState = { context, authoredValue: undefined, valueRequest: null, formDisabled: false, customValidity: '',
-            provider: undefined as unknown as CemEditorProvider, control: null, revision: 0, composing: false,
-            imePresses: new Set(), handledPresses: new Map(), listeners: new Set(), leases: new Set(), attributeClaims: new Map(), validityClaims: new Map(), validityOwners: new Set(), generation: 0 };
-        states.set(instance, state);
-        state.provider = editorProvider(instance, state);
-        providers.set(instance, state.provider);
+        const state = initializeFormControl(instance, context);
         Object.defineProperties(instance, {
             value: { configurable: true, get: () => controlFor(instance)?.value ?? String(context.snapshot().slices.value ?? ''),
                 set: (value: unknown) => replaceValue(instance, state, String(value), 'programmatic') },
@@ -187,14 +185,14 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
             } },
         });
     },
-    connected(instance, context) {
+    connected(instance: HTMLElement, context: FormControlContext) {
         const state = stateFor(instance);
         state.context = context;
         if (state.onInput) return;
         const abort = new AbortController(); state.abort = abort;
         const options = { signal: abort.signal, capture: true };
         state.onInput = event => {
-            if (event.target !== controlFor(instance) || providerEvents.has(event)) return;
+            if (event.target !== controlFor(instance) || providerEvents.has(event) || state.context.current?.() === false) return;
             if (event.type === 'change') {
                 const saved = state.checkpoint, control = controlFor(instance);
                 if (event.isTrusted && saved && saved.control === control && saved.revision === state.revision && saved.value === control?.value) {
@@ -202,7 +200,7 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
                 }
             } else {
                 state.checkpoint = undefined;
-                state.context.setSlices({ value: controlFor(instance)?.value ?? '' }, { render: false });
+                state.context.setSlices?.({ value: controlFor(instance)?.value ?? '' }, { render: false });
                 publish(instance, state, 'input', true);
             }
             synchronize(instance, state);
@@ -250,7 +248,7 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
         state.onKeyDown = event => implicitSubmit(instance, state, event as KeyboardEvent);
         instance.addEventListener('keydown', state.onKeyDown);
     },
-    disconnected(instance) {
+    disconnected(instance: HTMLElement) {
         const state = stateFor(instance);
         state.abort?.abort(); state.abort = undefined;
         state.composing = false; state.compositionEnd = undefined; state.imePresses.clear(); state.handledPresses.clear(); state.checkpoint = undefined;
@@ -290,7 +288,7 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
         }
         context.setSlices(slices, { render: false });
     },
-    rendered(instance) {
+    rendered(instance: HTMLElement) {
         const state = stateFor(instance), control = controlFor(instance);
         if (state.control !== control) {
             state.control = control; state.compositionEnd = undefined; state.generation++; state.leases.clear(); state.validityClaims.clear(); state.validityOwners.clear();
@@ -322,7 +320,40 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
             replaceValue(instance, stateFor(instance), restored ?? '', 'restore');
         }
     },
-};
+} satisfies CemProducedElementBehavior;
+
+function initializeFormControl(instance: HTMLElement, context: FormControlContext): FormControlState {
+    const state: FormControlState = { context, authoredValue: undefined, valueRequest: null, formDisabled: false, customValidity: '',
+        provider: undefined as unknown as CemEditorProvider, control: null, revision: 0, composing: false,
+        imePresses: new Set(), handledPresses: new Map(), listeners: new Set(), leases: new Set(), attributeClaims: new Map(), validityClaims: new Map(), validityOwners: new Set(), generation: 0 };
+    states.set(instance, state);
+    state.provider = editorProvider(instance, state);
+    providers.set(instance, state.provider);
+    return state;
+}
+
+/** A reduced standalone control owns its live input directly. The surrounding
+ * renderer supplies the original frame lifetime and no form submission route. */
+export function bindCemRetainedTextProvider(instance: HTMLElement, control: HTMLInputElement, current: () => boolean) {
+    if (getCemEditorProvider(instance) || controlFor(instance) !== control || !current()) return undefined;
+    const context: FormControlContext = { internals: null, current };
+    const state = initializeFormControl(instance, context);
+    state.authoredValue = instance.getAttribute('value');
+    state.valueRequest = instance.getAttribute('value-request');
+    state.control = control;
+    CEM_FORM_CONTROL_CAPABILITY.connected(instance, context);
+    return { provider: state.provider, release() {
+        if (states.get(instance) !== state) return;
+        try { CEM_FORM_CONTROL_CAPABILITY.disconnected(instance); }
+        finally {
+            state.listeners.clear();
+            state.control = null;
+            state.context = { internals: null, current: () => false };
+            states.delete(instance);
+            if (providers.get(instance) === state.provider) providers.delete(instance);
+        }
+    } };
+}
 
 function applySelectionRequest(instance: HTMLElement, state: FormControlState, control: Control | null): void {
     const request = instance.getAttribute('selection-request');
@@ -371,17 +402,17 @@ function publish(instance: HTMLElement, state: FormControlState, cause: CemEdito
 function replaceValue(instance: HTMLElement, state: FormControlState, value: string, cause: CemEditorChangeCause): void {
     const control = controlFor(instance);
     if (control) control.value = value;
-    state.context.setSlices({ value: control?.value ?? value }, { render: false });
+    state.context.setSlices?.({ value: control?.value ?? value }, { render: false });
     publish(instance, state, cause, true);
     synchronize(instance, state);
-    state.context.requestRender();
+    state.context.requestRender?.();
 }
 
 function editable(instance: HTMLElement, state: FormControlState): boolean {
     const control = controlFor(instance);
     return !!control && instance.isConnected && control.isConnected && !state.formDisabled
         && !instance.hasAttribute('disabled') && !instance.hasAttribute('readonly')
-        && !control.matches(':disabled') && !control.readOnly;
+        && !control.matches(':disabled') && !control.readOnly && state.context.current?.() !== false;
 }
 
 function editorProvider(instance: HTMLElement, state: FormControlState): CemEditorProvider {
@@ -397,7 +428,8 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
             state.validityOwners.add(token);
             return {
                 set(message) {
-                    if (released || generation !== state.generation || !instance.isConnected || !state.abort) return false;
+                    if (released || generation !== state.generation || !instance.isConnected || !state.abort
+                        || state.context.current?.() === false) return false;
                     if (message) state.validityClaims.set(token, message); else state.validityClaims.delete(token);
                     synchronize(instance, state); return true;
                 },
@@ -413,7 +445,7 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
             state.leases.add(token); publish(instance, state, 'claims');
             let released = false;
             const current = () => !released && state.leases.has(token) && instance.isConnected && !!state.abort
-                && !!admitted && controlFor(instance) === admitted;
+                && !!admitted && controlFor(instance) === admitted && state.context.current?.() !== false;
             const valid = () => current() && state.leases.size === 1;
             const attributes = admitted ? createCemEditorAttributeClaim(admitted, () => valid() && editable(instance, state),
                 () => state.revision, () => publish(instance, state, 'attribute-claims')) : {
@@ -449,12 +481,12 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
                         inputType: 'insertReplacementText', data: value, isComposing: false });
                     if (!control.dispatchEvent(before) || !current()) return false;
                     control.value = value;
-                    state.context.setSlices({ value }, { render: false });
+                    state.context.setSlices?.({ value }, { render: false });
                     const revision = ++state.revision; state.checkpoint = undefined;
                     request.applied?.(revision);
                     synchronize(instance, state);
                     publish(instance, state, 'commit');
-                    state.context.requestRender();
+                    state.context.requestRender?.();
                     if (state.revision !== revision || control !== controlFor(instance) || !valid()) return true;
                     const input = new InputEvent('input', { bubbles: true, composed: true,
                         inputType: 'insertReplacementText', data: value, isComposing: false });

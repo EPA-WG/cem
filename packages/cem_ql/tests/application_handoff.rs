@@ -19,6 +19,78 @@ mod stylesheets;
 
 #[cfg(feature = "application-source-runtime")]
 #[test]
+fn browser_provider_demand_needs_the_original_bootstrap() {
+    use cem_ql::application_source_endpoint::{ApplicationBootstrapOwner, ApplicationSourceEndpoint};
+    use std::sync::Arc;
+    let (deployment, input) = fixture::build_provider();
+    let control = Default::default();
+    let generation = cem_ml::runtime_admission::generation::NativeGeneration::claim(Arc::new(Default::default())).unwrap();
+    let code = ApplicationBootstrapOwner::new(&generation, control, deployment.pin.clone(), fixture::Bootstrap {
+        inputs: fixture::Inputs::restore(&input, &Default::default()).unwrap(),
+    }).unwrap();
+    let endpoint = ApplicationSourceEndpoint::new(&code).unwrap();
+    assert!(endpoint.open(&deployment.bytes, &serde_json::to_string(&deployment.pin).unwrap()).is_err());
+    assert_eq!(generation.inventory().unwrap().live_roots, 2);
+}
+
+#[cfg(feature = "application-source-runtime")]
+#[test]
+fn browser_provider_recovers_the_original_input_instance_and_referenced_source() {
+    use cem_ml::{committed_checkpoint::MAX_WORKSPACE_CHECKPOINT_BYTES, operation_control::OperationControl, runtime_admission::generation::NativeGeneration};
+    use cem_ql::{application_source_endpoint::{
+        ApplicationBootstrap, ApplicationBootstrapOwner, ApplicationBrowserBehavior, ApplicationSourceEndpoint, PreparedApplication,
+    }, application_source_transport::VerifiedApplicationSources};
+    use std::sync::Arc;
+
+    struct ProviderBootstrap(fixture::Bootstrap);
+    impl ApplicationBootstrap for ProviderBootstrap {
+        fn prepare(&self, sources: Arc<VerifiedApplicationSources>, generation: &Arc<NativeGeneration>, control: OperationControl) -> Result<PreparedApplication, String> {
+            self.0.prepare(sources, generation, control)?
+                .with_browser_behavior("cem-receiver-frame", ApplicationBrowserBehavior::FormControl)
+        }
+    }
+    let (deployment, original) = fixture::build_provider();
+    let control = OperationControl::default();
+    let provision = |inputs| {
+        let generation = NativeGeneration::claim(Arc::new(Default::default())).unwrap();
+        let code = ApplicationBootstrapOwner::new(&generation, control.clone(), deployment.pin.clone(),
+            ProviderBootstrap(fixture::Bootstrap { inputs })).unwrap();
+        let endpoint = ApplicationSourceEndpoint::new(&code).unwrap();
+        let session = endpoint.open(&deployment.bytes, &serde_json::to_string(&deployment.pin).unwrap()).unwrap();
+        (generation, code, endpoint, session)
+    };
+    let inputs = fixture::Inputs::restore(&original, &control).unwrap();
+    let (_generation, _code, _endpoint, mut session) = provision(inputs.clone());
+    let tag = "cem-receiver-frame";
+    let foreign = fixture::Inputs::restore(&original, &control).unwrap();
+    assert!(session.register_browser_receiver_input(tag, foreign.root(), "source-route").is_err());
+    assert!(session.render_browser_island_json(tag, &[], "source-route").is_err());
+    let input = session.register_browser_receiver_input(tag, inputs.root(), "source-route").unwrap();
+    assert!(session.render_receiver_native(&input, "source-route").is_err());
+    assert!(session.render_browser_receiver_json(&input, "other").is_err());
+    assert!(session.capture_receiver_checkpoint(&input, &[&inputs.view, &foreign.cart],
+        MAX_WORKSPACE_CHECKPOINT_BYTES, &control, |_| true).is_err());
+    let render = |session: &mut cem_ql::application_source_endpoint::ApplicationSourceSession, input: &_| {
+        let json = session.render_browser_receiver_json(input, "source-route").unwrap();
+        let receipt: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(receipt["value"], "Tea");
+        assert_eq!(receipt["behaviorIdentity"], "cem-elements-form-control-v4");
+        assert!(receipt["html"].as_str().unwrap().contains("value=\"Tea\""));
+    };
+    render(&mut session, &input);
+    let (bytes, seal) = session.capture_receiver_checkpoint(&input, &[&inputs.view, &inputs.cart],
+        MAX_WORKSPACE_CHECKPOINT_BYTES, &control, |_| true).unwrap();
+    let checkpoint = seal.verify(&bytes).unwrap();
+    let fresh_inputs = receiver_checkpoint::restore_inputs(&checkpoint);
+    let (_fresh_generation, _fresh_code, _fresh_endpoint, mut fresh) = provision(fresh_inputs);
+    let restored = fresh.restore_receiver_checkpoint(checkpoint, MAX_WORKSPACE_CHECKPOINT_BYTES).unwrap();
+    assert!(fresh.render_browser_receiver_json(&input, "source-route").is_err());
+    assert!(fresh.render_browser_receiver_json(&restored, "other").is_err());
+    render(&mut fresh, &restored);
+}
+
+#[cfg(feature = "application-source-runtime")]
+#[test]
 fn browser_navigation_demand_stays_inert_without_its_original_bootstrap_route() {
     use cem_ql::application_source_endpoint::{
         ApplicationBootstrapOwner, ApplicationSourceEndpoint,
@@ -576,6 +648,10 @@ fn native_application_worker_fixture_has_original_sources_and_real_consumers() {
             std::fs::write(dir.join("navigation.cemah"), navigation.bytes).unwrap();
             std::fs::write(dir.join("navigation.pin.json"), serde_json::to_vec(&navigation.pin).unwrap()).unwrap();
             std::fs::write(dir.join("navigation.inputs"), navigation_input).unwrap();
+            let (provider, provider_input) = fixture::build_provider();
+            std::fs::write(dir.join("provider.cemah"), provider.bytes).unwrap();
+            std::fs::write(dir.join("provider.pin.json"), serde_json::to_vec(&provider.pin).unwrap()).unwrap();
+            std::fs::write(dir.join("provider.inputs"), provider_input).unwrap();
         }
         for (name, view, cart) in [
             ("edited", "{view @items={#data} @count=4 @choice=ok}", "{cart @title=Coffee | {item @quantity=4}}"),

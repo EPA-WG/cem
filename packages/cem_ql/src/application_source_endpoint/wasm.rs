@@ -31,6 +31,23 @@ pub fn register_receiver_input_with_typed_producers(
     root: crate::eval::RetainedCemNode,
     producers: &[&ApplicationTypedReceiverProducer],
 ) -> Result<JsValue, String> {
+    enroll_receiver_input(owner, |session| session.register_receiver_input_with_typed_producers(tag, root, producers))
+}
+
+#[cfg(feature = "application-source-runtime")]
+pub fn register_browser_receiver_input(
+    owner: &JsValue,
+    tag: &str,
+    root: crate::eval::RetainedCemNode,
+    instance: &str,
+) -> Result<JsValue, String> {
+    enroll_receiver_input(owner, |session| session.register_browser_receiver_input(tag, root, instance))
+}
+
+fn enroll_receiver_input(
+    owner: &JsValue,
+    register: impl FnOnce(&mut ApplicationSourceSession) -> Result<ApplicationReceiverInput, String>,
+) -> Result<JsValue, String> {
     let _entry = runtime_admission::admit(false).map_err(|_| INVALID)?;
     SESSIONS.with(|sessions| {
         let mut sessions = sessions.try_borrow_mut().map_err(|_| INVALID)?;
@@ -41,7 +58,15 @@ pub fn register_receiver_input_with_typed_producers(
         if entry.inputs.len() >= 64 {
             return Err(INVALID.into());
         }
-        let input = entry.session.register_receiver_input_with_typed_producers(tag, root, producers)?;
+        let input = register(&mut entry.session)?;
+        #[cfg(feature = "application-source-runtime")]
+        if let Some(instance) = &input.browser_instance {
+            if entry.inputs.iter().any(|(_, existing)| existing.tag == input.tag
+                && existing.browser_instance.as_ref() == Some(instance))
+            {
+                return Err(INVALID.into());
+            }
+        }
         let token: JsValue = js_sys::Object::freeze(&js_sys::Object::new()).into();
         entry.inputs.push((token.clone(), input));
         Ok(token)
@@ -306,6 +331,21 @@ pub fn render_browser_island(
     let _entry = runtime_admission::admit(false).map_err(error)?;
     let _memory = cem_ml::runtime_memory::admit_input(bytes.len().saturating_add(instance.len()).saturating_add(tag.len())).map_err(error)?;
     with_session(owner, |s| s.render_browser_island_json(tag, bytes, instance)).map_err(error)
+}
+#[cfg(feature = "application-source-runtime")]
+#[wasm_bindgen(js_name=applicationSourceRenderBrowserReceiverV1)]
+pub fn render_browser_receiver(owner: &JsValue, tag: &str, instance: &str) -> Result<String, JsValue> {
+    let _entry = runtime_admission::admit(false).map_err(error)?;
+    if tag.len() > 256 || !super::frames::valid_instance(instance) {
+        return Err(error(INVALID));
+    }
+    SESSIONS.with(|sessions| {
+        let mut sessions = sessions.try_borrow_mut().map_err(error)?;
+        let entry = sessions.iter_mut().find(|entry| &entry.token == owner).ok_or_else(|| error(INVALID))?;
+        let (_, input) = entry.inputs.iter().find(|(_, input)| input.tag == tag
+            && input.browser_instance.as_deref() == Some(instance)).ok_or_else(|| error(INVALID))?;
+        entry.session.render_browser_receiver_json(input, instance).map_err(error)
+    })
 }
 #[wasm_bindgen(js_name=applicationSourceProjectIslandV1)]
 pub fn project_island(
