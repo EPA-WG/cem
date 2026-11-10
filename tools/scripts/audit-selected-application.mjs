@@ -208,6 +208,9 @@ try {
         optionalApplicationEndpoint: /cem_ql::application_source_endpoint::/,
         optionalQueryEndpoint: /cem_ql::query_source_endpoint::/,
         templateSourceCompiler: /cem_ql::render::compile_template/,
+        deferredLifecycleAdapters: /<cem_ml::lifecycle::(?:Csv|Yaml|Markdown|Scss|Xslt|CustomElementXsltCompat)Adapter as cem_ml::lifecycle::LifecycleAdapter>::/,
+        deferredParserProviders: /(?:Csv|Markdown|Scss|Xslt)ParserContract as cem_ml::schema::parser_contracts::NativeParserContract>::/,
+        transformEncoderRegistration: /cem_ml::transform_template::TransformTemplateEncodeImplementationRegistry::with_builtin_encoders::/,
         csv: /cem_ml::validation::csv::(?:extract_csv_parse_report|csv_document_ast_from_source_bytes_with_contracts)::/,
         yaml: /cem_ml::validation::yaml::(?:extract_yaml_parse_report|yaml_document_ast_from_source_bytes)::/,
         markdown: /cem_ml::validation::markdown::markdown_document_ast_from_source_bytes(?:_with_contracts)?::/,
@@ -231,6 +234,11 @@ try {
     }));
     for (const family of ['compiledEntry', 'selectedEvaluator', 'graphqlGuard']) {
         assert(witnesses[family].directPaths.renderSelectedApplicationResponse, `missing selected response path to ${family}`);
+    }
+
+    for (const family of ['deferredLifecycleAdapters', 'deferredParserProviders', 'transformEncoderRegistration',
+        'csv', 'yaml', 'markdown', 'xslt', 'highlight', 'scss']) {
+        assert.equal(witnesses[family].namedBodies, 0, `selected profile retained ${family}`);
     }
 
     const report = {

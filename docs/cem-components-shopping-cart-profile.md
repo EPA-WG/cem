@@ -1066,7 +1066,7 @@ It records direct calls and function-table references from that input and checks
 the optimized artifact's hash and public interface. The report and DOT graph
 are written to `dist/reports/components-wasm/selected-link`.
 
-The audited cart build is 12,248,497 optimized bytes with 10 imports and 23
+The pre-specialization cart build was 12,248,497 optimized bytes with 10 imports and 23
 exports. Its SHA-256 is
 `e986e47af44f14e1ba449c35909f5eef68801f43f61bbcb8c09d55ec0032dd65`.
 The optimizer input has 11,113 named defined functions and 2,478 unique function
@@ -1082,8 +1082,8 @@ application/query endpoint symbols.
 
 These witnesses establish retention in the named optimizer input. The audit
 leaves dynamic call targets, table liveness and per-language optimized byte
-attribution open. The next reduction can start with the lifecycle adapter
-registrations and transform encoder paths identified in the report.
+attribution open. The first specialization below targets the lifecycle adapter
+registrations and transform encoder path identified by this baseline.
 
 The handoff fixture runs the separate `application_source_probe` and the
 selected cart WASM in distinct heaps. The probe passes native `CEMV3` projection
@@ -1094,6 +1094,38 @@ checkpoint. The same cart heap stays live through both worker and owned-fallback
 scenarios. This fixture uses the existing test provisioning and checkpoint
 transport. A deployable module catalog and loader remain separate delivery gates.
 
+### Selected registration profile
+
+The build-bound WASM target enables `selected-application-runtime`. This profile
+omits the built-in lifecycle registrations for CSV, YAML, Markdown, SCSS, and
+both XSLT modes. The corresponding deferred parser-backed schemas still require
+their native providers to reach validation readiness. The default transform
+encoder registry starts empty in this profile. Native build tools, the general
+component build, and source-module probes use the complete registrations.
+
+The profile tests exercise native JSON, XML, and CSS registration. The selected
+release tests validate cart variables and six response fixtures, acquire and
+release a compiled `cem-card` stylesheet, and transfer a native projection from
+the existing source probe across worker and owned-fallback recovery. The link
+audit checks the deferred adapter and parser-provider implementations, the
+built-in encoder registration root, and the baseline's parser and highlighting
+witnesses. Each has zero named matches in the specialized optimizer input.
+
+| Measure | Baseline | Specialized |
+| --- | ---: | ---: |
+| Optimized WASM bytes | 12,248,497 | 7,841,649 |
+| Optimized code section payload bytes | 9,894,091 | 6,533,829 |
+| Optimized data section payload bytes | 2,340,011 | 1,297,045 |
+| Named defined functions before optimization | 11,113 | 7,425 |
+| Unique function table entries before optimization | 2,478 | 1,931 |
+
+The specialized binary is 36.0% smaller. Both artifacts use wasm-bindgen 0.2.122
+and Binaryen 132.0.0 `-Oz` and have identical public import and export descriptors.
+The specialized artifact's SHA-256 is
+`e3cfafc32916730d498dc620bdef41749f237f7feec76d2514075163fba122be`.
+The audit records named linker evidence for this profile. Dynamic call targets
+and complete native link closure remain open.
+
 ## Remaining delivery boundaries
 
 - Extend app-build function/resource closure generation and optional module
@@ -1102,8 +1134,8 @@ transport. A deployable module catalog and loader remain separate delivery gates
 - Extend compiled inline CSS admission to imported stylesheet closures before
   removing the CSS source parser. Keep authorized source imports, source-driven
   templates and dynamic styles available through the full/on-demand runtime.
-- Narrow the retained lifecycle and transform roots in the selected build.
-  Verify optional module installation through a deployable catalog and loader.
+- Verify optional module installation through a deployable catalog and loader.
+  Extend native link evidence as additional application profiles are assembled.
 - Bind real quantity/remove actions through shared declarative resources and
   GraphQL transport. The native render fixture sends no requests and has no
   interactive action bindings. Register a normal Studio example project with

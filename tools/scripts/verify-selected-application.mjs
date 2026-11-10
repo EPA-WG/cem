@@ -48,6 +48,14 @@ const responses = [
     ['Cart', 'partial-error', /The shipping estimate is unavailable\..*Tea.*USD 9\.00/s],
     ['Cart', 'failed', /Please sign in again\..*Cart unavailable/s],
 ];
+const requirements = JSON.parse(readFileSync(resolve(bundle, 'requirements.json'), 'utf8'));
+const card = requirements.declarations['cem-card'];
+const cardBytes = readFileSync(resolve(bundle, 'cem-card.bin'));
+const cardMetadata = readFileSync(resolve(bundle, 'cem-card.json'), 'utf8');
+const styleContext = JSON.stringify({
+    identity: 'selected-cart', resolverIdentity: 'cart-build', resourcePolicyStamp: 'compiled-only',
+    frames: [{ frameId: 'card', baseUrl: card.sourceUri, scopes: [], specifiers: { imports: {}, resources: {} } }],
+});
 const memories = [];
 for (let index = 0; index < 2; index++) {
     const app = createCemComponentWasmBindings();
@@ -74,10 +82,21 @@ for (let index = 0; index < 2; index++) {
         if (name === 'removed') assert.ok(!html.includes('Tea'));
         if (name === 'empty' || name === 'failed') assert.ok(!html.includes('<li '));
     }
+    const declaration = app.open(cardBytes, cardMetadata, card.metadataHash);
+    try {
+        const receipt = JSON.parse(declaration.stylesheet('selected-cart', 0, styleContext));
+        assert.equal(receipt.status, 'ready');
+        assert.match(receipt.css, /@scope/);
+        assert.match(receipt.css, /--cem-palette-comfort/);
+        assert.equal(JSON.parse(app.inventory()).stylesheetConsumerLeases, 1);
+        assert.equal(declaration.releaseConsumer('selected-cart'), 1);
+    } finally {
+        declaration.free();
+    }
     const census = JSON.parse(app.inventory());
     assert.equal(census.liveDeclarationOwners, 0);
     assert.equal(census.stylesheetConsumerLeases, 0);
     app.release();
     assert.throws(() => render('Cart', Buffer.from('{}')), /inactive/);
 }
-console.log('Selected application WASM: guarded variables and six original responses passed on two independent heaps.');
+console.log('Selected application WASM: guarded variables, six original responses and retained CSS passed on two independent heaps.');

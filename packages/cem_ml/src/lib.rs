@@ -45,6 +45,12 @@ pub mod handoff;
 pub mod import;
 pub mod interpreter;
 pub mod legacy_custom_element;
+// The selected cart uses an explicit Cargo profile. Native build tooling and
+// companion source modules use their own full registries.
+const SELECTED_APPLICATION_RUNTIME: bool = cfg!(all(
+    target_arch = "wasm32",
+    feature = "selected-application-runtime"
+));
 pub mod lifecycle;
 pub mod module_resolution;
 #[cfg(any(

@@ -185,6 +185,12 @@ pub struct EngineContext {
 
 impl Default for EngineContext {
     fn default() -> Self {
+        Self::for_application::<{ crate::SELECTED_APPLICATION_RUNTIME }>()
+    }
+}
+
+impl EngineContext {
+    fn for_application<const SELECTED: bool>() -> Self {
         let mut template_adapter_registry =
             TransformTemplateAdapterRegistry::with_builtin_adapters();
         template_adapter_registry.register(DomProjectionParityCemtAdapter);
@@ -205,8 +211,11 @@ impl Default for EngineContext {
             resolver_policy: ResolverPolicy::default(),
             resolver_registry: ResolverRegistry::default(),
             template_adapter_registry,
-            transform_template_encode_registry:
-                TransformTemplateEncodeImplementationRegistry::with_builtin_encoders(),
+            transform_template_encode_registry: if SELECTED {
+                TransformTemplateEncodeImplementationRegistry::new()
+            } else {
+                TransformTemplateEncodeImplementationRegistry::with_builtin_encoders()
+            },
             transform_artifact_exporter_registry:
                 TransformArtifactExporterRegistry::with_builtin_exporters(),
             query_runtime_registry: QueryRuntimeRegistry::with_builtin_adapters(),
@@ -1533,6 +1542,16 @@ impl CemMlEngine for NotImplementedEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_application_profile_defers_transform_encoders() {
+        let selected = EngineContext::for_application::<true>();
+        let full = EngineContext::default();
+        for name in ["html.classes", "json.document", "csv.field", "yaml.value"] {
+            assert!(selected.transform_template_encode_registry.implementation_origin(name).is_none());
+            assert!(full.transform_template_encode_registry.implementation_origin(name).is_some());
+        }
+    }
 
     fn engine_input(uri: &str, content_type: &str) -> EngineInput {
         let root_scope = ScopeConfig {

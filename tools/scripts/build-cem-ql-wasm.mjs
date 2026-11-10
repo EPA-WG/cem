@@ -25,7 +25,7 @@ run('cargo', [
     '--package',
     'cem-ql',
     '--lib',
-    ...(componentRuntime ? ['--no-default-features', '--features', 'component-runtime'] : []),
+    ...(componentRuntime ? ['--no-default-features', '--features', selectedApplication ? 'selected-application-runtime' : 'component-runtime'] : []),
     '--release',
     '--target',
     'wasm32-unknown-unknown',

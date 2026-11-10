@@ -515,6 +515,9 @@ Deferred execution gates, in order within this workstream:
   - [x] Audit the selected binary's named functions and public ABI against its
         verified optimizer input. Pass a native projection from the source probe
         into the selected heap before and after worker and fallback recovery.
+  - [x] Narrow lifecycle adapter and transform encoder roots in the selected
+        build. Verify profile registration, retained CSS, guarded cart render,
+        source-module handoff and matched linked-symbol evidence.
 
 - [ ] Assemble and measure the compiled-UI + JSON shopping-cart profile first.
   Add declarative shared GraphQL transport only if existing resource capabilities

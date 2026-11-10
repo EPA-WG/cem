@@ -195,6 +195,10 @@ impl LifecycleRegistry {
     }
 
     pub fn with_builtin_adapters() -> Self {
+        Self::for_application::<{ crate::SELECTED_APPLICATION_RUNTIME }>()
+    }
+
+    fn for_application<const SELECTED: bool>() -> Self {
         let mut registry = Self::new();
         registry.register(CemMlAdapter);
         registry.register(XhtmlAdapter);
@@ -202,14 +206,20 @@ impl LifecycleRegistry {
         registry.register(MathMlAdapter);
         registry.register(CssSelectorAdapter);
         registry.register(XPathAdapter);
-        registry.register(XsltAdapter);
+        if !SELECTED {
+            registry.register(XsltAdapter);
+        }
         registry.register(HtmlAdapter);
-        registry.register(ScssAdapter);
+        if !SELECTED {
+            registry.register(ScssAdapter);
+        }
         registry.register(CssAdapter);
         registry.register(RelaxNgAdapter);
         registry.register(XmlAdapter);
-        registry.register(CsvAdapter);
-        registry.register(YamlAdapter);
+        if !SELECTED {
+            registry.register(CsvAdapter);
+            registry.register(YamlAdapter);
+        }
         registry.register(JsonSchemaAdapter);
         registry.register(CliCommandAdapter);
         registry.register(RunConfigAdapter);
@@ -217,8 +227,10 @@ impl LifecycleRegistry {
         registry.register(StudioProjectCemExportAdapter);
         registry.register(StudioProjectJsonExportAdapter);
         registry.register(JsonAdapter);
-        registry.register(MarkdownAdapter);
-        registry.register(CustomElementXsltCompatAdapter);
+        if !SELECTED {
+            registry.register(MarkdownAdapter);
+            registry.register(CustomElementXsltCompatAdapter);
+        }
         registry.register(DomBinaryProjectionAdapter);
         registry.register(AstBinaryProjectionAdapter);
         registry.register(EventsBinaryProjectionAdapter);
@@ -2374,6 +2386,29 @@ mod tests {
         EngineContext {
             content_type: Some(content_type.to_owned()),
             ..EngineContext::default()
+        }
+    }
+
+    #[test]
+    fn selected_application_profile_keeps_core_formats_and_defers_optional_adapters() {
+        let selected = LifecycleRegistry::for_application::<true>();
+        let full = LifecycleRegistry::with_builtin_adapters();
+        for (mime, bytes, id) in [
+            (JSON_CONTENT_TYPE, br#"{"cart":"tea"}"#.as_slice(), "json"),
+            (XML_CONTENT_TYPE, b"<cart/>", "xml"),
+            (CSS_CONTENT_TYPE, b"p { color: blue }", "css"),
+        ] {
+            let loaded = selected.load(&input(bytes), &context(mime));
+            assert_eq!(loaded.adapter_id, Some(id));
+            assert!(loaded.ast_stream.is_some(), "{:?}", loaded.diagnostics);
+        }
+        for mime in [CSV_CONTENT_TYPE, YAML_CONTENT_TYPE, MARKDOWN_CONTENT_TYPE, SCSS_CONTENT_TYPE, XSLT_CONTENT_TYPE] {
+            let source = input(b"");
+            let context = context(mime);
+            let refused = selected.load(&source, &context);
+            assert!(refused.adapter_id.is_none() && refused.ast_stream.is_none(), "{mime}");
+            assert!(refused.diagnostics.iter().any(|d| d.code == ADAPTER_UNSUPPORTED_CODE), "{mime}");
+            assert!(full.load(&source, &context).adapter_id.is_some(), "{mime}");
         }
     }
 

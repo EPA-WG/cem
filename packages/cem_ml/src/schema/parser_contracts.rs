@@ -132,20 +132,29 @@ pub(crate) fn compile_registered_parser_contract(
     model: &SchemaDocumentModel,
     owner: Option<Arc<RetainedCemTree>>,
 ) -> ParserContractCompilation {
-    if !requires_parser_contract(&model.schema_uri) {
+    compile_parser_contract_for_application::<{ crate::SELECTED_APPLICATION_RUNTIME }>(model, owner)
+}
+
+fn compile_parser_contract_for_application<const SELECTED: bool>(
+    model: &SchemaDocumentModel,
+    owner: Option<Arc<RetainedCemTree>>,
+) -> ParserContractCompilation {
+    if !requires_parser_contract(&model.schema_uri)
+        || SELECTED && model.schema_uri != crate::schema::registry::RELAX_NG_SCHEMA_URI
+    {
         return ParserContractCompilation::default();
     }
     let fact_behavior = match model.schema_uri.as_str() {
-        crate::schema::registry::CSV_SCHEMA_URI => {
+        crate::schema::registry::CSV_SCHEMA_URI if !SELECTED => {
             Some(crate::validation::csv::CSV_PARSE_REPORT_BEHAVIOR)
         }
-        crate::schema::registry::XSLT_SCHEMA_URI => {
+        crate::schema::registry::XSLT_SCHEMA_URI if !SELECTED => {
             Some(crate::validation::xslt::XSLT_FACT_BEHAVIOR)
         }
         crate::schema::registry::RELAX_NG_SCHEMA_URI => {
             Some(crate::validation::relax_ng::RELAX_NG_FACT_BEHAVIOR)
         }
-        crate::schema::registry::SCSS_SCHEMA_URI => {
+        crate::schema::registry::SCSS_SCHEMA_URI if !SELECTED => {
             Some(crate::validation::scss::SCSS_FACT_BEHAVIOR)
         }
         _ => None,
@@ -159,19 +168,19 @@ pub(crate) fn compile_registered_parser_contract(
         .map(|constraint| constraint.kind.clone())
         .collect();
     let (implementation, diagnostics) = match model.schema_uri.as_str() {
-        crate::schema::registry::CSV_SCHEMA_URI => {
+        crate::schema::registry::CSV_SCHEMA_URI if !SELECTED => {
             crate::validation::csv::compile_parser_contract(model)
         }
-        crate::schema::registry::MARKDOWN_SCHEMA_URI => {
+        crate::schema::registry::MARKDOWN_SCHEMA_URI if !SELECTED => {
             crate::validation::markdown::compile_parser_contract(model)
         }
-        crate::schema::registry::XSLT_SCHEMA_URI => {
+        crate::schema::registry::XSLT_SCHEMA_URI if !SELECTED => {
             crate::validation::xslt::compile_parser_contract(model)
         }
         crate::schema::registry::RELAX_NG_SCHEMA_URI => {
             crate::validation::relax_ng::compile_parser_contract(model)
         }
-        crate::schema::registry::SCSS_SCHEMA_URI => {
+        crate::schema::registry::SCSS_SCHEMA_URI if !SELECTED => {
             crate::validation::scss::compile_parser_contract(model)
         }
         _ => unreachable!("closed parser contract provider catalog"),

@@ -10,6 +10,11 @@ fn main() {
             "CEM_SELECTED_APPLICATION_DIR requires component-runtime"
         );
         assert!(
+            env::var("CARGO_CFG_TARGET_ARCH").as_deref() != Ok("wasm32")
+                || env::var_os("CARGO_FEATURE_SELECTED_APPLICATION_RUNTIME").is_some(),
+            "selected application WASM requires selected-application-runtime"
+        );
+        assert!(
             env::var_os("CEM_APPLICATION_REGISTRY_RS").is_none(),
             "the selected application supplies its own registry"
         );

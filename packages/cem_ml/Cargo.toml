@@ -15,6 +15,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["debug-control"]
 debug-control = []
 component-runtime = []
+selected-application-runtime = ["component-runtime"]
 # Passive original source snapshots for the opt-in query owner adapter.
 query-source-runtime = []
 application-source-runtime = ["query-source-runtime"]

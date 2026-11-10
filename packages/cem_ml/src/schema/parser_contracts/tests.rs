@@ -23,6 +23,18 @@ fn retained(source: &str) -> Arc<crate::parser::tree::RetainedCemTree> {
 }
 
 #[test]
+fn selected_application_profile_keeps_deferred_parser_models_unready() {
+    let tree = retained(source());
+    let mut model = compile_schema_document_model_from_retained(CSV_SCHEMA_URI, &tree);
+    assert!(model.is_ready_for_validation());
+    let selected = super::compile_parser_contract_for_application::<true>(&model, Some(tree));
+    assert!(selected.claimed_constraints.is_empty());
+    model.parser_contract = selected.contract;
+    assert!(!model.is_ready_for_validation());
+    assert!(model.validation_blocker_diagnostics().iter().any(|d| d.severity.is_hard_violation()));
+}
+
+#[test]
 fn csv_parser_contract_compiles_from_the_original_source_and_inspection_stays_unbound() {
     let tree = retained(source());
     let model = compile_schema_document_model_from_retained(CSV_SCHEMA_URI, &tree);

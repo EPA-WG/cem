@@ -15,6 +15,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["debug-control"]
 # Separate compiled-component ABI; never used by the full/default build.
 component-runtime = ["cem-ml/component-runtime"]
+selected-application-runtime = ["component-runtime", "cem-ml/selected-application-runtime"]
 debug-control = ["cem-ml/debug-control"]
 # Opt-in source/owner adapters and native-provisioned byte endpoints. No default admission.
 query-source-runtime = ["cem-ml/query-source-runtime"]
