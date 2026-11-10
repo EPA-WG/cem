@@ -38,7 +38,8 @@ use cem_ml::{
     },
 };
 use cem_ql::ssr_page::{
-    prepare_inline_page_with_declaration_reads, InlinePageCoordinator, ReadyInlinePage,
+    prepare_inline_page_with_declaration_reads, prepare_inline_page_with_verified_css_assets,
+    InlinePageCoordinator, ReadyInlinePage,
     SsrPageProgress, SsrReadinessContext, SSR_READY_RENDER_PLAN,
 };
 use std::{
@@ -142,6 +143,17 @@ pub(super) fn render(
     runtime: TransformTemplateRuntimeContext<'_>,
 ) -> Result<TransformTemplateRenderResponse, String> {
     let params = request.compiled.parameters();
+    let verify_css_assets = match params.value("verify-css-assets") {
+        None => false,
+        Some(value) => value
+            .as_bool()
+            .or_else(|| match value.as_str() {
+                Some("true") => Some(true),
+                Some("false") => Some(false),
+                _ => None,
+            })
+            .ok_or("SSR parameter `verify-css-assets` must be true or false")?,
+    };
     // CLI/config parameters are literal strings. Native callers may also pass
     // typed numbers; this is a control grammar, never a document/AST decoder.
     let number = |name: &str| {
@@ -327,7 +339,12 @@ pub(super) fn render(
     let mut read = |request: &ResolveRequest, max_bytes, source: Option<&SourceMapStack>| {
         read_ssr_resource(request, source, &runtime, &cpu, max_bytes, wall_limit)
     };
-    let mut coordinator = prepare_inline_page_with_declaration_reads(
+    let prepare = if verify_css_assets {
+        prepare_inline_page_with_verified_css_assets
+    } else {
+        prepare_inline_page_with_declaration_reads
+    };
+    let mut coordinator = prepare(
         page,
         "ssr",
         capability,

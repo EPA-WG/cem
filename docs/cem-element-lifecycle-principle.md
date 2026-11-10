@@ -719,6 +719,11 @@ styles. Cross-origin verification requires a trusted runtime grant for the
 actual page origin, exact resource URL and MIME type. A later live render uses
 normal stylesheet ownership.
 
+With CSS asset verification enabled at publication, replay also checks the
+typed image and font URLs in each stylesheet against their byte receipts.
+The browser requires the asset proof in addition to matching native CSS output
+and installed CSS rules. CSS continues to refer to the public asset URLs.
+
 An absent, disabled, changed or unresolved stylesheet freezes the group. Shared
 stylesheets require their matching declaration owners in the admitted group.
 Styled groups require compatible declaration versions for every participant.

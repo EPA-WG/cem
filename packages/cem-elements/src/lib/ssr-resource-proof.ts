@@ -3,7 +3,11 @@ export const SSR_DECLARATION_RECEIPT = 'data-cem-ssr-declaration';
 export const SSR_PAYLOAD_RECEIPT = 'data-cem-ssr-payload';
 export const SSR_STYLESHEETS_RECEIPT = 'data-cem-ssr-stylesheets';
 
-const SSR_RESOURCE_TYPES = ['text/html', 'application/xhtml+xml', 'text/css', 'text/cem-ml'] as const;
+export const SSR_STYLESHEET_RESOURCE_TYPES = [
+    'text/css', 'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif',
+    'font/woff', 'font/woff2', 'font/otf', 'font/ttf',
+] as const;
+const SSR_RESOURCE_TYPES = ['text/html', 'application/xhtml+xml', 'text/cem-ml', ...SSR_STYLESHEET_RESOURCE_TYPES] as const;
 
 /** A trusted runtime grant for one public SSR response on one page origin. */
 export interface CemSsrCrossOriginReadGrant {

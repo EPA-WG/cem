@@ -5,7 +5,7 @@ use crate::{
     render::{DomStylesheetSource, RenderPlanNode, TemplateArtifact},
     retained_template::RetainedTemplate,
     ssr_browser_resources::{
-        SourceReceipt, StylesheetReceipt, DECLARATION_ATTRIBUTE, MAX_STYLESHEET_MANIFEST_BYTES,
+        stylesheet_asset, SourceReceipt, StylesheetReceipt, DECLARATION_ATTRIBUTE, MAX_STYLESHEET_MANIFEST_BYTES,
         STYLESHEETS_ATTRIBUTE,
     },
     ssr_stylesheets::{stylesheet_markup, stylesheet_markup_with_identity},
@@ -13,7 +13,6 @@ use crate::{
 use cem_ml::{
     css_emission::{css_stylesheet_cache_key, emit_css_import_closure, CssManagedScope},
     css_imports::{CssImportClosure, CssImportLimits, CssImportResponsePolicy},
-    css_resources::CssResourceKind,
     module_resolution::{
         CemModuleUrlContext, CemModuleUrlFrame, CemModuleUrlResolutionCapability,
         CemResolutionContextHandle, CemScopedModuleUrlResolver,
@@ -77,7 +76,7 @@ impl StylesheetReads {
         self.used.len() == self.bytes.len()
     }
 
-    fn read(&mut self, receipt: &SourceReceipt) -> Result<Vec<u8>, String> {
+    fn read(&mut self, receipt: &SourceReceipt, mime: &str) -> Result<&[u8], String> {
         use crate::ssr_browser_resources::{MAX_STYLESHEET_BYTES, MAX_STYLESHEET_TOTAL_BYTES};
         let bytes = self.bytes.get(&receipt.url).ok_or_else(fail)?;
         self.consumed += bytes.len();
@@ -85,13 +84,13 @@ impl StylesheetReads {
             return Err(fail());
         }
         if receipt.content_type.len() > 128
-            || cem_ml::schema::registry::content_type_essence(&receipt.content_type) != "text/css"
+            || cem_ml::schema::registry::content_type_essence(&receipt.content_type) != mime
         {
             return Err(fail());
         }
         receipt.check_bytes(bytes, &receipt.content_type, MAX_STYLESHEET_BYTES)?;
         self.used.insert(receipt.url.clone());
-        Ok(bytes.clone())
+        Ok(bytes)
     }
 }
 
@@ -302,7 +301,7 @@ fn emit(
                 CssManagedScope::Instance
             };
             if let Some(manifest) = manifest {
-                let closure = replay_imports(source, base.ok_or_else(fail)?, &manifest, reads, c)?;
+                let closure = replay_stylesheet(source, base.ok_or_else(fail)?, &manifest, reads, c)?;
                 let scope = match scope {
                     CssManagedScope::Private { tag, .. } => CssManagedScope::Private {
                         tag,
@@ -367,7 +366,7 @@ fn emit(
     Ok((output, context))
 }
 
-fn replay_imports(
+fn replay_stylesheet(
     source: &crate::render::TemplateStylesheetArtifact,
     base: &str,
     manifest: &StylesheetReceipt,
@@ -423,7 +422,7 @@ fn replay_imports(
         c.check_scope(ROOT_EXECUTION_SCOPE_ID).map_err(|_| fail())?;
         let uri = request.resolution.resolved_url;
         let receipt = receipts.get(uri.as_str()).ok_or_else(fail)?;
-        let bytes = reads.read(receipt)?;
+        let bytes = reads.read(receipt, "text/css")?.to_vec();
         used.insert(receipt.url.as_str());
         closure
             .complete_response_with_control(
@@ -438,15 +437,18 @@ fn replay_imports(
             )
             .map_err(|_| fail())?;
     }
-    if used.len() != receipts.len()
-        || closure.sheets().iter().any(|sheet| {
-            sheet
-                .resources
-                .references
-                .iter()
-                .any(|reference| !matches!(reference.kind, CssResourceKind::Import { .. }))
-        })
-    {
+    for sheet in closure.sheets() {
+        for reference in &sheet.resources.references {
+            c.check_scope(ROOT_EXECUTION_SCOPE_ID).map_err(|_| fail())?;
+            let Some((uri, mime)) = stylesheet_asset(reference).map_err(|_| fail())? else {
+                continue;
+            };
+            let receipt = receipts.get(uri).ok_or_else(fail)?;
+            reads.read(receipt, mime)?;
+            used.insert(receipt.url.as_str());
+        }
+    }
+    if used.len() != receipts.len() {
         return Err(fail());
     }
     Ok(closure)
@@ -469,6 +471,40 @@ fn verify(
 mod tests {
     use super::*;
     use cem_ml::content_cache::ContentHash;
+
+    #[test]
+    fn replay_requires_exact_image_and_font_bytes_without_imports() {
+        let base = "https://ssr.test/assets/page.html";
+        let image = "https://ssr.test/assets/tile.png";
+        let font = "https://ssr.test/assets/label.woff2";
+        let inputs = BTreeMap::from([(image.into(), vec![1, 2]), (font.into(), vec![3, 4])]);
+        let manifest = StylesheetReceipt {
+            owner_key: format!("cem-style-1-{}", "a".repeat(64)),
+            context: format!("cem-context-1-{}", "b".repeat(64)),
+            sources: [(image, "image/png"), (font, "font/woff2")]
+                .into_iter()
+                .map(|(url, mime)| {
+                    let bytes = &inputs[url];
+                    SourceReceipt::new(url, mime, bytes.len(), &ContentHash::from_blake3(bytes))
+                })
+                .collect(),
+        };
+        let root = crate::render::TemplateStylesheetArtifact::adopt(
+            "article {background-image:url('./tile.png');--font-source:url('./label.woff2')}"
+                .into(),
+            None,
+        )
+        .unwrap();
+        let c = OperationControl::default();
+        let replay = |inputs| {
+            let mut reads = StylesheetReads::new(base, base, inputs, &BTreeSet::new()).unwrap();
+            replay_stylesheet(&root, base, &manifest, &mut reads, &c)
+        };
+        assert!(replay(inputs.clone()).is_ok());
+        let mut changed = inputs;
+        changed.insert(font.into(), vec![4, 3]);
+        assert!(replay(changed).is_err());
+    }
 
     #[test]
     fn off_origin_stylesheet_reads_require_an_exact_host_grant() {
@@ -520,7 +556,7 @@ mod tests {
         let control = OperationControl::default();
         let replay = |manifest: &StylesheetReceipt, inputs| {
             let mut reads = StylesheetReads::new(base, base, inputs, &BTreeSet::new()).unwrap();
-            replay_imports(&root, base, manifest, &mut reads, &control)
+            replay_stylesheet(&root, base, manifest, &mut reads, &control)
         };
         let inputs =
             std::collections::BTreeMap::from([(first.into(), main), (second.into(), theme)]);

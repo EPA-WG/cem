@@ -1086,7 +1086,22 @@ group shares a 1 MiB import byte limit. Native output must match the published
 style text and the browser checks the installed CSS rules before retaining the
 style nodes and render range. Missing, changed or redirected imports leave the
 server output in place. The same stylesheet checks apply to stateful groups.
-Other CSS URLs require separate admission.
+
+Set `--param verify-css-assets=true` on direct CLI runs, or add
+`{param @name="verify-css-assets" @value="true"}` to the config transform.
+This adds receipts for external `url()` and static `image-set()` resources
+in managed CSS. Each resource needs an explicit CLI read map or network grant.
+The CLI resolves references against their owning stylesheet URL and reads each
+asset once under the original page budget. It includes the URL, media type,
+byte length and BLAKE3 digest in the stylesheet receipt. [CSS URL resolution](https://www.w3.org/TR/css-values-4/#relative-urls)
+
+The asset profile accepts PNG, JPEG, GIF, WebP, AVIF, WOFF, WOFF2, OpenType
+and TrueType under exact public HTTP(S) URLs with matching media types.
+Each asset has a 256 KiB ceiling. Browser replay verifies fresh bytes before
+adopting the existing range. The emitted stylesheet keeps its public URLs, so
+normal browser image and font loading is separate from receipt verification.
+The managed at-rule profile continues to leave `@font-face` in page-owned CSS.
+[IANA media types](https://www.iana.org/assignments/media-types/)
 
 For cross-origin reads, configure the runtime from trusted page code.
 
@@ -1101,7 +1116,7 @@ const runtime = new CemElementRuntime({
 runtime.install(window);
 ```
 
-Give each external declaration, CEM-ML payload, and imported stylesheet
+Give each external declaration, CEM-ML payload, imported stylesheet, and CSS asset
 its own exact URL and MIME grant. Match the page origin without a trailing
 slash. The authored document base resolves references. The cross-origin
 URL must use HTTPS or literal loopback HTTP

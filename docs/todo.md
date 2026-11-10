@@ -374,8 +374,12 @@ links the corresponding design and verification records.
         browser host grants the exact captured URL.
   - [x] Verify Chromium with two real origins for granted reads, denied
         requests, CORS, credential omission, redirects and changed responses.
-- [ ] Define browser identity checks for non-import CSS resources such as
+- [x] Define browser identity checks for non-import CSS resources such as
       fonts and images referenced through `url()`.
+  - [x] Verify native asset reads use explicit authority, share the SSR budget,
+        and bind image and font receipts to the owning stylesheet.
+  - [x] Verify Chromium adopts matching assets and retains the SSR range when
+        an asset is absent, changed, or denied by the browser read policy.
 - [ ] Admit projected form controls once the native proof can bind form and
       slice ownership across the payload boundary.
 

@@ -169,6 +169,7 @@ pub(super) fn read_definition(
             declaration_bytes: Some(response.bytes.len()),
             payload_bytes: None,
             stylesheet: None,
+            css_asset: None,
         },
         tree: elements.tree.clone(),
         declaration,

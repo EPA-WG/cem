@@ -79,3 +79,4 @@ The [active checklist](../todo.md) records remaining execution work.
 - [Browser verification of SSR stylesheet imports](todo-completed-ssr-browser-css-imports-2026-11-10.md)
 - [Nested and styled stateful SSR hydration](todo-completed-ssr-stateful-groups-2026-11-10.md)
 - [Cross-origin SSR browser read grants](todo-completed-ssr-browser-cross-origin-2026-11-10.md)
+- [CSS asset identities for SSR browser adoption](todo-completed-ssr-css-assets-2026-11-10.md)

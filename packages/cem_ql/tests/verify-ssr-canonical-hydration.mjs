@@ -1072,7 +1072,7 @@ try {
             cookie: req.headers.cookie, authorization: req.headers.authorization });
         const file = crossFiles.get(name);
         if (!(crossScenario === 'missing-cors' && name === 'card.xhtml')) res.setHeader('Access-Control-Allow-Origin', origin);
-        if (!file) { res.writeHead(404).end(); return; }
+        if (!file || (crossScenario === 'missing-font' && name === 'caption.woff2')) { res.writeHead(404).end(); return; }
         const [type, body] = file;
         if (crossScenario === 'cross-redirect' && name === 'nested/color.css') {
             res.writeHead(302, { Location: '/cross/replacement.css' }).end();
@@ -1082,7 +1082,11 @@ try {
         if (crossScenario === 'partial-response' && name === 'payload.cem') {
             res.writeHead(206, { 'Content-Range': `bytes 0-${body.length - 1}/${body.length}` });
         }
-        res.end(crossScenario === 'changed-css' && name === 'nested/color.css' ? body.replace('first', 'other') : body);
+        if (crossScenario === 'changed-font' && name === 'caption.woff2') {
+            const changed = Buffer.from(body);
+            changed[changed.length - 1] ^= 1;
+            res.end(changed);
+        } else res.end(crossScenario === 'changed-css' && name === 'nested/color.css' ? body.replace('first', 'other') : body);
     });
     await new Promise(resolve => remoteServer.listen(0, '127.0.0.1', resolve));
     const remoteOrigin = `http://127.0.0.1:${remoteServer.address().port}`;
@@ -1186,6 +1190,89 @@ try {
             && read.authorization === undefined && read.referer === undefined), `${scenario} ${JSON.stringify(crossReads)}`);
         await context.close();
     }
+    const tile = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a/t8AAAAASUVORK5CYII=', 'base64');
+    const changedTile = Buffer.from(tile);
+    changedTile[changedTile.length - 1] ^= 1;
+    // The font URL is retained in a custom property. Its opaque bytes exercise
+    // receipt verification without installing a document-global font rule.
+    const font = Buffer.from('wOF2opaque-fixture');
+    const fontUrl = `${remoteBase}caption.woff2`;
+    const assetCss = `article { background-image:url('../tile.png'); --caption-font:url('${fontUrl}'); }`;
+    const assetRoot = path.join(temp, 'css-assets');
+    const assetBase = `${origin}/asset-proof/`;
+    await mkdir(path.join(assetRoot, 'styles'), { recursive: true });
+    await writeFile(path.join(assetRoot, 'styles/main.css'), assetCss);
+    await writeFile(path.join(assetRoot, 'tile.png'), tile);
+    await writeFile(path.join(remoteMirror, 'caption.woff2'), font);
+    crossFiles.set('caption.woff2', ['font/woff2', font]);
+    const assetPage = await render([
+        '<cem-element tag="x-asset" version="1.2.3"><template id="x-asset" type="text/cem-ml">',
+        '{style |```@import "./styles/main.css";```}{article | Verified assets}</template></cem-element><x-asset></x-asset>',
+    ].join(''), 'x-asset=1.9.0', ['--param', 'verify-css-assets=true', '--resolver-read-map', `${assetBase}=${assetRoot}`,
+        '--resolver-read-map', `${remoteBase}=${remoteMirror}`], `<base href="${assetBase}">`);
+    pages.set('/asset-proof.html', assetPage);
+    const assetCases = ['matching-assets', 'missing-font', 'changed-font', 'missing-image', 'changed-image', 'wrong-image-type', 'ungranted-font'];
+    for (const scenario of assetCases) {
+        crossScenario = scenario;
+        crossReads.length = 0;
+        const page = await browser.newPage();
+        const proofReads = [];
+        page.on('pageerror', error => errors.push(error.message));
+        await page.route('**/*', route => {
+            const url = new URL(route.request().url());
+            if (url.origin !== origin && url.origin !== remoteOrigin) {
+                requests.push(url.href); return route.abort();
+            }
+            if (!url.href.startsWith(assetBase)) return route.continue();
+            const name = url.href.slice(assetBase.length);
+            const proving = route.request().resourceType() === 'fetch';
+            if (proving) proofReads.push(name);
+            if (name === 'styles/main.css') return route.fulfill({ contentType: 'text/css', body: assetCss });
+            if (name !== 'tile.png' || (proving && scenario === 'missing-image')) return route.fulfill({ status: 404 });
+            return route.fulfill({ contentType: proving && scenario === 'wrong-image-type' ? 'text/plain' : 'image/png',
+                body: proving && scenario === 'changed-image' ? changedTile : tile });
+        });
+        await page.goto(`${origin}/asset-proof.html`);
+        const result = await page.evaluate(async ({ scenario, fontUrl }) => {
+            const { CemElementRuntime } = await import('/packages/cem-elements/dist/lib/cem-elements.js');
+            const declaration = document.querySelector('cem-element');
+            const host = document.querySelector('x-asset');
+            const island = host.firstElementChild;
+            const article = host.querySelector('article');
+            const style = declaration.querySelector('style');
+            const nodes = [...host.childNodes];
+            const before = host.outerHTML;
+            const ssrCrossOriginReads = scenario === 'ungranted-font' ? [] : [{ documentOrigin: location.origin, url: fontUrl, contentType: 'font/woff2' }];
+            const runtime = new CemElementRuntime({ ssrCrossOriginReads,
+                processingWorkerFactory: () => { throw new Error('Use main-thread runtime'); } });
+            runtime.install(window);
+            await runtime.whenDeclarationSettled(declaration);
+            await runtime.whenRenderSettled(host);
+            return {
+                marked: island.hasAttribute('data-cem-ssr-profile'), unchanged: host.outerHTML === before,
+                retained: host.childNodes.length === nodes.length && nodes.every((node, index) => host.childNodes[index] === node)
+                    && style === declaration.querySelector('style'),
+                background: getComputedStyle(article).backgroundImage,
+                diagnostics: runtime.diagnosticsFor(host).map(d => d.code),
+            };
+        }, { scenario, fontUrl });
+        const detail = `${scenario} ${JSON.stringify(result)}`;
+        assert.equal(result.retained, true, detail);
+        assert.equal(result.background, `url("${assetBase}tile.png")`, detail);
+        assert.deepEqual(proofReads, ['styles/main.css', 'tile.png'], detail);
+        if (scenario === 'matching-assets') {
+            assert.equal(result.marked, false, detail);
+            assert.deepEqual(result.diagnostics, [], detail);
+        } else {
+            assert.equal(result.marked, true, detail);
+            assert.equal(result.unchanged, true, detail);
+            assert.ok(result.diagnostics.includes('cem-element.hydration_native_refused'), detail);
+        }
+        const denied = ['ungranted-font', 'missing-image', 'wrong-image-type'].includes(scenario);
+        assert.deepEqual(crossReads.map(read => read.name), denied ? [] : ['caption.woff2'], detail);
+        assert.ok(crossReads.every(read => read.origin === origin && read.cookie === undefined && read.referer === undefined), detail);
+        await page.close();
+    }
     const xhtml = await browser.newPage();
     xhtml.on('pageerror', error => errors.push(error.message));
     const xhtmlReads = [];
@@ -1245,8 +1332,8 @@ try {
         await page.close();
     }
     assert.deepEqual(errors, []); assert.deepEqual(requests, []);
-    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + groupedFormCases.length + authoredPages.length + resourceCases.length + importCases.length + crossCases.size + 4;
-    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} inline stylesheet, ${importCases.length} CSS import, ${payloadCases.length} foreign/source, ${formCases.length} standalone form, ${groupedFormCases.length} form group and ${crossCases.size} cross-origin grant cases, with zero unexpected off-origin requests`);
+    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + groupedFormCases.length + authoredPages.length + resourceCases.length + importCases.length + crossCases.size + assetCases.length + 4;
+    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} inline stylesheet, ${importCases.length} CSS import, ${payloadCases.length} foreign/source, ${formCases.length} standalone form, ${groupedFormCases.length} form group, ${crossCases.size} cross-origin grant and ${assetCases.length} CSS asset cases, with zero unexpected off-origin requests`);
 } finally {
     finishCrossPage?.();
     await browser?.close();

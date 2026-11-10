@@ -112,7 +112,7 @@ import {
 } from './legacy-xslt/template-language.js';
 import { collectSsrStylesheetReceipts, compileSsrCrossOriginReads, fetchSsrSource, readSsrSourceReceipt,
     type CemSsrCrossOriginReadGrant,
-    SSR_DECLARATION_RECEIPT, SSR_PAYLOAD_RECEIPT, SSR_STYLESHEETS_RECEIPT } from './ssr-resource-proof.js';
+    SSR_DECLARATION_RECEIPT, SSR_PAYLOAD_RECEIPT, SSR_STYLESHEETS_RECEIPT, SSR_STYLESHEET_RESOURCE_TYPES } from './ssr-resource-proof.js';
 import { analyzeExternalDeclarationSourceFormat } from './external-declaration-source.js';
 import {
     CemDeclarationScopeError,
@@ -4211,7 +4211,7 @@ export class CemElementRuntime {
                     if (!this.retainedStylesheets) throw new Error('cem.ssr.resume_stylesheets');
                     resourceDeadline = setTimeout(() => resourceAbort.abort(), 5000);
                     for (const receipt of cssReceipts) {
-                        const { bytes, crossOrigin } = await fetchSsrSource(instance.ownerDocument, receipt, ['text/css'],
+                        const { bytes, crossOrigin } = await fetchSsrSource(instance.ownerDocument, receipt, SSR_STYLESHEET_RESOURCE_TYPES,
                             this.ssrCrossOriginReads, resourceAbort.signal);
                         cssReads.push(crossOrigin ? [receipt.url, bytes, true] : [receipt.url, bytes]);
                     }

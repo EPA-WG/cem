@@ -13,6 +13,7 @@
     {param @name="max-bytes" @type="any" @required=true}
     {param @name="wall-ms" @type="any" @required=true}
     {param @name="cpu-ms" @type="any" @required=true}
+    {param @name="verify-css-assets" @type="any"}
     {body}
   }
 }

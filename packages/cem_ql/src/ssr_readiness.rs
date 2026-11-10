@@ -208,26 +208,15 @@ fn stylesheet_manifest(
     resources: &PageResources,
 ) -> Option<String> {
     use crate::ssr_browser_resources::{
-        SourceReceipt, StylesheetReceipt, MAX_STYLESHEET_BYTES, MAX_STYLESHEET_MANIFEST_BYTES,
+        stylesheet_asset, SourceReceipt, StylesheetReceipt, MAX_STYLESHEET_BYTES,
+        MAX_STYLESHEET_MANIFEST_BYTES,
     };
-    use cem_ml::css_resources::CssResourceKind;
     let mut manifests = Vec::new();
     for record in records {
         let closure = record.import_closure();
         if crate::retained_template::is_resource_free_stylesheet(closure) {
             manifests.push(None);
             continue;
-        }
-        // Browser replay currently covers imports. Other URL-bearing CSS keeps
-        // its native SSR output and requires a separate browser resource proof.
-        if closure.edges().is_empty()
-            || closure.sheets().iter().any(|sheet| {
-                sheet.resources.references.iter().any(|reference| {
-                    !matches!(reference.kind, CssResourceKind::Import { .. })
-                })
-            })
-        {
-            return None;
         }
         let mut sources = Vec::new();
         for edge in closure.edges() {
@@ -248,9 +237,38 @@ fn stylesheet_manifest(
             {
                 return None;
             }
-            if !sources.iter().any(|receipt: &SourceReceipt| &receipt.url == url) {
+            if !sources
+                .iter()
+                .any(|receipt: &SourceReceipt| &receipt.url == url)
+            {
                 sources.push(SourceReceipt::new(url, mime, *bytes, &input.content));
             }
+        }
+        for sheet in closure.sheets() {
+            for reference in &sheet.resources.references {
+                let Some((url, expected_mime)) = stylesheet_asset(reference).ok()? else {
+                    continue;
+                };
+                let input = resources.inputs.get(url)?;
+                let asset = input.css_asset.as_ref()?;
+                if input.resolved_uri != url
+                    || asset.mime != expected_mime
+                    || asset.byte_length > MAX_STYLESHEET_BYTES
+                {
+                    return None;
+                }
+                if !sources.iter().any(|receipt| receipt.url == url) {
+                    sources.push(SourceReceipt::new(
+                        url,
+                        &asset.mime,
+                        asset.byte_length,
+                        &input.content,
+                    ));
+                }
+            }
+        }
+        if sources.is_empty() {
+            return None;
         }
         manifests.push(Some(StylesheetReceipt {
             owner_key: record.identity().owner_key.clone(),

@@ -124,6 +124,7 @@ impl QuiescentInlinePage {
     }
 }
 struct PageResources {
+    verify_css_assets: bool,
     payload_sources: Arc<cem_ml::import::element_tree::RetainedCemPayloadSourcePool>,
     capability: cem_ml::module_resolution::CemModuleUrlResolutionCapability,
     fingerprint: String,
@@ -141,6 +142,15 @@ struct ResourceInput {
     payload_bytes: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     stylesheet: Option<(usize, String)>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    css_asset: Option<CssAssetInput>,
+}
+#[derive(Clone, PartialEq, Eq, serde::Serialize)]
+struct CssAssetInput {
+    byte_length: usize,
+    mime: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    integrity: Option<String>,
 }
 impl ResourceInput {
     fn from_payload(input: &cem_ml::import::element_tree::ExternalCemPayloadInput) -> Self {
@@ -150,10 +160,135 @@ impl ResourceInput {
             declaration_bytes: None,
             payload_bytes: Some(input.byte_length),
             stylesheet: None,
+            css_asset: None,
         }
     }
 }
 impl PageResources {
+    fn verify_stylesheet_assets(
+        &mut self,
+        island: &mut PreparedInlineIsland,
+        mut read: Option<&mut SsrResourceReader<'_>>,
+        control: &OperationControl,
+    ) -> Result<(), String> {
+        use crate::ssr_browser_resources::{stylesheet_asset, MAX_STYLESHEET_BYTES};
+        use cem_ml::{
+            resolver::{ResolveDirection, ResolvePurpose, ResolveRequest},
+            schema::registry::content_type_essence,
+        };
+        self.check(control)?;
+        let page = island.prepared().page().clone();
+        let css = island
+            .coordinated_css
+            .as_mut()
+            .and_then(Arc::get_mut)
+            .ok_or("CSS asset proof requires the current participant's stylesheet batch")?;
+        let mut acquired = 0u64;
+        for record in css
+            .declaration_records()
+            .iter()
+            .chain(css.instance_records())
+        {
+            for sheet in record.import_closure().sheets() {
+                for reference in &sheet.resources.references {
+                    control
+                        .check_scope(ROOT_EXECUTION_SCOPE_ID)
+                        .map_err(|e| e.code())?;
+                    let Some((uri, mime)) = stylesheet_asset(reference)? else {
+                        continue;
+                    };
+                    let integrity = reference
+                        .resolution
+                        .as_ref()
+                        .ok()
+                        .and_then(|r| r.integrity.as_deref());
+                    if integrity.is_some_and(|value| value.len() > 8192) {
+                        return Err("CSS asset integrity metadata exceeds bounds".into());
+                    }
+                    if let Some(witness) = self.inputs.get(uri) {
+                        if witness.resolved_uri == uri
+                            && witness.css_asset.as_ref().is_some_and(|input| {
+                                input.mime == mime
+                                    && (integrity.is_none()
+                                        || input.integrity.as_deref() == integrity)
+                            })
+                        {
+                            continue;
+                        }
+                        return Err("CSS asset conflicts with a previously read resource".into());
+                    }
+                    if uri == page.route().page_url {
+                        return Err("The published page cannot be its own CSS asset".into());
+                    }
+                    let limit = page
+                        .policy()
+                        .max_total_bytes
+                        .checked_sub(page.usage().total_bytes)
+                        .and_then(|n| n.checked_sub(css.bytes))
+                        .and_then(|n| n.checked_sub(acquired))
+                        .ok_or("CSS asset byte budget exceeded")?
+                        .min(MAX_STYLESHEET_BYTES as u64) as usize;
+                    if limit == 0 {
+                        return Err("CSS asset byte budget exhausted before acquisition".into());
+                    }
+                    let request = ResolveRequest::new(
+                        uri,
+                        ResolvePurpose::SsrResource,
+                        ResolveDirection::Read,
+                    )
+                    .with_base_uri(&sheet.url)
+                    .with_content_type_hint(mime);
+                    let read = read
+                        .as_deref_mut()
+                        .ok_or("CSS assets require a bounded SSR resource reader")?;
+                    let (response, _permit) = read(&request, limit, Some(&reference.source))?;
+                    if response.uri != uri
+                        || response.bytes.is_empty()
+                        || response.bytes.len() > limit
+                        || response
+                            .content_type
+                            .as_deref()
+                            .map(content_type_essence)
+                            .as_deref()
+                            != Some(mime)
+                    {
+                        return Err(format!(
+                            "CSS asset `{uri}` response URI, media type or length was refused"
+                        ));
+                    }
+                    if let Some(integrity) = integrity {
+                        cem_ml::resource_integrity::verify_resource_integrity(
+                            &response.bytes,
+                            integrity,
+                        )?;
+                    }
+                    let size = response.bytes.len();
+                    acquired += size as u64;
+                    self.inputs.insert(
+                        uri.into(),
+                        ResourceInput {
+                            resolved_uri: uri.into(),
+                            content: ContentHash::from_blake3(&response.bytes),
+                            declaration_bytes: None,
+                            payload_bytes: None,
+                            stylesheet: None,
+                            css_asset: Some(CssAssetInput {
+                                byte_length: size,
+                                mime: mime.into(),
+                                integrity: integrity.map(str::to_owned),
+                            }),
+                        },
+                    );
+                }
+            }
+        }
+        css.bytes = css
+            .bytes
+            .checked_add(acquired)
+            .ok_or("CSS asset byte accounting overflow")?;
+        self.check(control)
+    }
+
     fn check(&self, control: &OperationControl) -> Result<(), String> {
         if self.capability.cache_identity().as_deref() != Some(self.fingerprint.as_str()) {
             self.stale.store(true, Ordering::Relaxed);
@@ -222,6 +357,19 @@ pub fn prepare_inline_page_with_declaration_reads(
     control: &OperationControl,
 ) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
     prepare_measured(page, prefix, Some(capability), Some(read), control)
+}
+/// Opt into binary resource proof using the same authority and original operation.
+pub fn prepare_inline_page_with_verified_css_assets(
+    page: CemSsrPageArtifact,
+    prefix: &str,
+    capability: cem_ml::module_resolution::CemModuleUrlResolutionCapability,
+    read: &mut SsrResourceReader<'_>,
+    control: &OperationControl,
+) -> Result<InlinePageCoordinator, Vec<Diagnostic>> {
+    let mut coordinator =
+        prepare_inline_page_with_declaration_reads(page, prefix, capability, read, control)?;
+    coordinator.resources.as_mut().unwrap().verify_css_assets = true;
+    Ok(coordinator)
 }
 fn cpu_error(_: String) -> Vec<Diagnostic> {
     vec![Diagnostic {
@@ -294,6 +442,7 @@ fn prepare_resources(
         })?,
     );
     Ok(PageResources {
+        verify_css_assets: false,
         payload_sources,
         capability,
         fingerprint,
@@ -800,11 +949,11 @@ impl InlinePageCoordinator {
     fn advance_inner(
         &mut self,
         control: &OperationControl,
-        read: Option<&mut SsrResourceReader<'_>>,
+        mut read: Option<&mut SsrResourceReader<'_>>,
     ) -> Result<SsrPageProgress, Vec<Diagnostic>> {
         self.check(control)?;
         if self.pending.is_some() {
-            return self.advance_resources(control);
+            return self.advance_resources(control, read);
         }
         let Some((instance, tag, depth)) = self.discover()? else {
             self.state = SsrPageState::Quiescent;
@@ -851,7 +1000,7 @@ impl InlinePageCoordinator {
         )?;
         let instance_id = format!("{}-{}", self.prefix, self.participants.len() + 1);
         let island =
-            prepare_inline_island_with_resource_reads(prepared, &instance_id, read, control)?;
+            prepare_inline_island_with_resource_reads(prepared, &instance_id, read.as_deref_mut(), control)?;
         if let Some(input) = island
             .bindings()
             .native_payload_source
@@ -910,13 +1059,14 @@ impl InlinePageCoordinator {
                 instance_id,
                 css,
             });
-            return self.advance_resources(control);
+            return self.advance_resources(control, read);
         }
         self.apply_participant(island, tag, instance_id, depth, control)
     }
     fn advance_resources(
         &mut self,
         control: &OperationControl,
+        read: Option<&mut SsrResourceReader<'_>>,
     ) -> Result<SsrPageProgress, Vec<Diagnostic>> {
         let progress = self
             .pending
@@ -938,13 +1088,18 @@ impl InlinePageCoordinator {
             }
             SsrCssProgress::Ready => {
                 let pending = self.pending.take().unwrap();
-                let island = pending.css.finish(control).map_err(|_| {
+                let mut island = pending.css.finish(control).map_err(|_| {
                     self.fail(
                         "cem.ssr.css_closure_refused",
                         "Native page resource closure refused",
                         None,
                     )
                 })?;
+                if let Some(resources) = self.resources.as_mut().filter(|r| r.verify_css_assets) {
+                    if let Err(error) = resources.verify_stylesheet_assets(&mut island, read, control) {
+                        return Err(self.fail("cem.ssr.css_asset_refused", &error, Some(island.prepared().instance_node())));
+                    }
+                }
                 self.apply_participant(
                     island,
                     pending.tag,
@@ -1043,6 +1198,7 @@ impl InlinePageCoordinator {
                         .or_else(|| request.request().resolution.content_type_hint.clone())
                         .unwrap_or_else(|| "text/css".into()),
                 )),
+                css_asset: None,
             };
             let resources = self.resources.as_ref().unwrap();
             if resources

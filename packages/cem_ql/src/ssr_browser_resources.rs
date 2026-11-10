@@ -9,6 +9,52 @@ pub const MAX_STYLESHEET_BYTES: usize = 256 * 1024;
 pub const MAX_STYLESHEET_TOTAL_BYTES: usize = 1024 * 1024;
 pub const MAX_STYLESHEET_MANIFEST_BYTES: usize = 64 * 1024;
 
+/// Only public binary URLs in the managed stylesheet profile need a read.
+pub(crate) fn stylesheet_asset(
+    reference: &cem_ml::css_resources::CssResourceReference,
+) -> Result<Option<(&str, &'static str)>, &'static str> {
+    use cem_ml::css_resources::CssResourceKind;
+    if reference.kind != CssResourceKind::Url || reference.authored_specifier.starts_with('#') {
+        return Ok(None);
+    }
+    let resolved = reference
+        .resolution
+        .as_ref()
+        .map_err(|_| "CSS asset resolution refused")?;
+    let uri = resolved.resolved_url.as_str();
+    if uri.starts_with("data:") {
+        return Ok(None);
+    }
+    let url = url::Url::parse(uri).map_err(|_| "Invalid CSS asset URL")?;
+    if uri.len() > 4096 || url.query().is_some() || ssr_resource_url(uri).as_deref() != Ok(uri) {
+        return Err("CSS asset reads require an exact public URL without a query or fragment");
+    }
+    let extension = url
+        .path()
+        .rsplit_once('.')
+        .map(|(_, ext)| ext.to_ascii_lowercase());
+    let mime = match extension.as_deref() {
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        Some("avif") => "image/avif",
+        Some("woff") => "font/woff",
+        Some("woff2") => "font/woff2",
+        Some("otf") => "font/otf",
+        Some("ttf") => "font/ttf",
+        _ => return Err("Unsupported CSS asset media type"),
+    };
+    if resolved
+        .content_type_hint
+        .as_deref()
+        .is_some_and(|hint| cem_ml::schema::registry::content_type_essence(hint) != mime)
+    {
+        return Err("CSS asset media type disagrees with its resolver hint");
+    }
+    Ok(Some((uri, mime)))
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SourceReceipt {

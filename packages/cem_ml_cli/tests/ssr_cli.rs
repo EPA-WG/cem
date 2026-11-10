@@ -808,6 +808,92 @@ fn stylesheet_fixture() -> PathBuf {
 }
 
 #[test]
+fn opted_in_css_assets_share_reads_and_preserve_outputs_on_refusal() {
+    let root = stylesheet_fixture();
+    let mirror = root.join("mirror");
+    fs::create_dir(mirror.join("media")).unwrap();
+    let image = b"fixture image bytes";
+    let font = b"fixture font bytes";
+    let main = "@import './nested/color.css'; article {background-image:url('../media/tile.png')}";
+    let nested = "article {background-image:url('../../media/tile.png');--caption-font:url('../../media/caption.woff2')}";
+    fs::write(mirror.join("styles/theme.css"), main).unwrap();
+    fs::write(mirror.join("styles/nested/color.css"), nested).unwrap();
+    fs::write(mirror.join("media/tile.png"), image).unwrap();
+    fs::write(mirror.join("media/caption.woff2"), font).unwrap();
+    let map = format!("https://ssr.test/guide/={}", mirror.display());
+    let args = ["--resolver-read-map", &map];
+    let default = direct(&root, "text/html", &args);
+    assert!(
+        default.status.success(),
+        "{}",
+        String::from_utf8_lossy(&default.stderr)
+    );
+    assert!(!fs::read_to_string(root.join("out.html"))
+        .unwrap()
+        .contains("data-cem-ssr-stylesheets="));
+
+    let mut values = params().to_vec();
+    values.push("verify-css-assets=true");
+    let run = |values: &[&str]| {
+        config_page_with_params(
+            &root,
+            "page.html",
+            r#"@content-type="text/html""#,
+            values,
+            &args,
+        )
+    };
+    let read_report = || {
+        serde_json::from_slice::<serde_json::Value>(&fs::read(root.join("page-out.json")).unwrap())
+            .unwrap()
+    };
+    let verified = run(&values);
+    assert!(
+        verified.status.success(),
+        "{}",
+        String::from_utf8_lossy(&verified.stderr)
+    );
+    let html = fs::read_to_string(root.join("page-out.html")).unwrap();
+    assert!(
+        html.contains("data-cem-ssr-stylesheets=")
+            && html.contains("image/png")
+            && html.contains("font/woff2"),
+        "{html}"
+    );
+    let report = read_report();
+    let total = fs::metadata(root.join("page.html")).unwrap().len() as usize
+        + main.len()
+        + nested.len()
+        + image.len()
+        + font.len();
+    assert_eq!(report["usage"]["totalBytes"], total);
+    assert_eq!(report["usage"]["resources"], 6);
+
+    fs::write(mirror.join("media/caption.woff2"), b"Fixture font bytes").unwrap();
+    assert!(run(&values).status.success());
+    assert_ne!(
+        report["renderInputIdentity"],
+        read_report()["renderInputIdentity"]
+    );
+    let outputs = ["page-out.html", "page-out.json"].map(|name| fs::read(root.join(name)).unwrap());
+    let budget = format!("max-bytes={}", total - 1);
+    let mut too_small = values.clone();
+    too_small[6] = &budget;
+    let oversized = run(&too_small);
+    assert!(!oversized.status.success());
+    assert!(String::from_utf8_lossy(&oversized.stderr).contains("cem.ssr.css_asset_refused"));
+    fs::remove_file(mirror.join("media/tile.png")).unwrap();
+    let missing = run(&values);
+    assert!(!missing.status.success());
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("cem.ssr.css_asset_refused"));
+    assert_eq!(
+        ["page-out.html", "page-out.json"].map(|name| fs::read(root.join(name)).unwrap()),
+        outputs
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn direct_cli_loads_mapped_stylesheets_with_nested_public_bases() {
     let root = stylesheet_fixture();
     let read_map = format!("https://ssr.test/guide/={}", root.join("mirror").display());
