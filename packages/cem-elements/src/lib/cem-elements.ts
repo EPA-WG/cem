@@ -110,7 +110,8 @@ import {
     decideCemDeclarationTemplateLanguage,
     type CemDeclarationTemplateLanguage,
 } from './legacy-xslt/template-language.js';
-import { collectSsrStylesheetReceipts, fetchSsrSource, readSsrSourceReceipt,
+import { collectSsrStylesheetReceipts, compileSsrCrossOriginReads, fetchSsrSource, readSsrSourceReceipt,
+    type CemSsrCrossOriginReadGrant,
     SSR_DECLARATION_RECEIPT, SSR_PAYLOAD_RECEIPT, SSR_STYLESHEETS_RECEIPT } from './ssr-resource-proof.js';
 import { analyzeExternalDeclarationSourceFormat } from './external-declaration-source.js';
 import {
@@ -619,6 +620,8 @@ interface CheckpointScopeBinding {
     stopScope?: () => void;
 }
 
+export type { CemSsrCrossOriginReadGrant } from './ssr-resource-proof.js';
+
 export interface CemElementRuntimeOptions {
     /** Trusted opt-in host domain. Every client sharing a replaceable runtime
      * must use the same coordinator. Capture grants no restart authority. */
@@ -652,6 +655,8 @@ export interface CemElementRuntimeOptions {
     scopePolicyStamp?: string;
     privacyPolicyStamp?: string;
     logger?: Pick<Console, 'warn' | 'error'>;
+    /** Trusted, exact URL grants for cross-origin SSR verification on a page origin. */
+    ssrCrossOriginReads?: readonly CemSsrCrossOriginReadGrant[];
     /**
      * Load the document an external `src` declaration references, after fragment splitting
      * and bare module-specifier resolution. Explicit relative paths retain their existing
@@ -1937,6 +1942,7 @@ export class CemElementRuntime {
     private readonly checkpointPresentationResume = new WeakMap<HTMLElement, HTMLElement>();
     private readonly checkpointResumeRevisions = new WeakMap<HTMLElement, CemCheckpointResumeContext>();
     private readonly verifiedSsrDeclarations = new WeakMap<HTMLElement, { receipt: string; source: string; src: string; base: string; scope?: string }>();
+    private readonly ssrCrossOriginReads: ReturnType<typeof compileSsrCrossOriginReads>;
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
     private readonly resolveScopedModuleUrlOption?: CemElementRuntimeOptions['resolveScopedModuleUrl'];
     private readonly resolveModuleUrlOption?: CemElementRuntimeOptions['resolveModuleUrl'];
@@ -1952,6 +1958,7 @@ export class CemElementRuntime {
     private moduleContextSequence = 0;
 
     constructor(options: CemElementRuntimeOptions = {}) {
+        this.ssrCrossOriginReads = compileSsrCrossOriginReads(options.ssrCrossOriginReads);
         this.checkpointPublication = options.checkpointPublication;
         this.ariaReferenceProfile = resolveAriaReferenceProfile(options.ariaReferenceProfile);
         this.declarationTag = options.declarationTag ?? DEFAULT_DECLARATION_TAG;
@@ -2588,12 +2595,35 @@ export class CemElementRuntime {
         reference: SrcReference,
         declarationScope: CemDeclarationScope,
     ): Promise<void> {
-        const raw = declarationElement.getAttribute(SSR_DECLARATION_RECEIPT);
+        const ownerDocument = declarationElement.ownerDocument;
+        let raw = declarationElement.getAttribute(SSR_DECLARATION_RECEIPT);
+        if (raw === null && ownerDocument.defaultView && ownerDocument.readyState === 'loading' && declarationElement.isConnected
+            && reference.id === tag && declarationVersion) {
+            // A registry stub can connect before the parser reaches its SSR hosts.
+            await new Promise<void>(resolve => ownerDocument.addEventListener('DOMContentLoaded', () => resolve(), { once: true }));
+            if (declarationElement.ownerDocument !== ownerDocument || !declarationElement.isConnected
+                || declarationScope.disposed || analyzeDeclarationElement(declarationElement).src !== src) {
+                this.registeredDeclarationElements.delete(declarationElement);
+                return;
+            }
+            raw = declarationElement.getAttribute(SSR_DECLARATION_RECEIPT);
+        }
+        if (raw === null) {
+            const hosts = Array.from(ownerDocument.getElementsByTagName(tag)).filter(host =>
+                directDataIslands(host).some(island => island.hasAttribute(NATIVE_SSR_PROFILE_ATTR)));
+            if (hosts.length) {
+                const code = 'cem-element.hydration_native_refused';
+                const message = 'cem.ssr.resume_declaration_receipt_missing';
+                this.recordDiagnostics(declarationElement, [declarationDiagnostic(code, message, tag)]);
+                for (const host of hosts) this.recordDiagnostics(host, [renderDiagnostic(code, message, tag)]);
+                return;
+            }
+        }
         if (raw !== null) {
             const controller = new AbortController();
             const release = onCemDeclarationScopeDispose(declarationScope, () => controller.abort());
             try {
-                const document = declarationElement.ownerDocument;
+                const document = ownerDocument;
                 const scope = declarationElement.getAttribute('scope') ?? undefined;
                 const base = document.baseURI;
                 const receipt = readSsrSourceReceipt(raw, 64 * 1024);
@@ -2601,7 +2631,8 @@ export class CemElementRuntime {
                     || new URL(reference.path, document.baseURI).href !== receipt.url) {
                     throw new Error('cem.ssr.resume_declaration_resource');
                 }
-                const bytes = await fetchSsrSource(document, receipt, ['text/html', 'application/xhtml+xml'], controller.signal);
+                const { bytes } = await fetchSsrSource(document, receipt, ['text/html', 'application/xhtml+xml'],
+                    this.ssrCrossOriginReads, controller.signal);
                 const source = await this.renderSupport(declarationScope).verifyCanonicalSsrSource(
                     raw, bytes, tag, declarationVersion, scope);
                 assertCemDeclarationScopeActive(declarationScope);
@@ -4175,13 +4206,14 @@ export class CemElementRuntime {
                 const declarations = [...new Set(participants.map(({ declaration }) => declaration.declarationElement))];
                 const base = instance.ownerDocument.baseURI;
                 const cssReceipts = collectSsrStylesheetReceipts([...declarations, ...members.values()]);
-                const cssReads: [string, Uint8Array][] = [];
+                const cssReads: [string, Uint8Array, true?][] = [];
                 if (cssReceipts.length) {
                     if (!this.retainedStylesheets) throw new Error('cem.ssr.resume_stylesheets');
                     resourceDeadline = setTimeout(() => resourceAbort.abort(), 5000);
                     for (const receipt of cssReceipts) {
-                        const bytes = await fetchSsrSource(instance.ownerDocument, receipt, ['text/css'], resourceAbort.signal);
-                        cssReads.push([receipt.url, bytes]);
+                        const { bytes, crossOrigin } = await fetchSsrSource(instance.ownerDocument, receipt, ['text/css'],
+                            this.ssrCrossOriginReads, resourceAbort.signal);
+                        cssReads.push(crossOrigin ? [receipt.url, bytes, true] : [receipt.url, bytes]);
                     }
                 }
                 const payloads: { host: HTMLElement; bytes: Uint8Array }[] = [];
@@ -4193,7 +4225,8 @@ export class CemElementRuntime {
                     payloadBytes += receipt.byteLength;
                     if (payloadBytes > this.nativeValueLimits.maxBytes) throw new Error('cem.ssr.resume_resource_bounds');
                     resourceDeadline ??= setTimeout(() => resourceAbort.abort(), 5000);
-                    const bytes = await fetchSsrSource(host.ownerDocument, receipt, ['text/cem-ml'], resourceAbort.signal);
+                    const { bytes } = await fetchSsrSource(host.ownerDocument, receipt, ['text/cem-ml'],
+                        this.ssrCrossOriginReads, resourceAbort.signal);
                     payloads.push({ host, bytes });
                 }
                 const decisions = await this.renderSupport(compiled.declarationScope).admitCanonicalSsrInstance(

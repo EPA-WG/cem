@@ -1030,8 +1030,8 @@ Nested imports use the imported stylesheet URL and instance CSS uses the
 document base. The CLI emits the closed declaration styles once for all
 instances. Module maps and external template imports require separate
 admission. The CLI publishes the original `src` and the settled range.
-The browser can adopt a standalone passive declaration after checking its
-same-origin resource receipt and comparing a fresh native render.
+The browser can adopt a standalone passive declaration after verifying its
+resource receipt and comparing a fresh native render.
 
 A participant can read a UTF-8 `text/cem-ml` payload through the same read
 map. Give the produced element one direct, empty payload template.
@@ -1070,7 +1070,8 @@ the content hashes of admitted responses.
 
 The HTML export carries separate declaration and payload receipts with a
 public URL, expected MIME type, byte length and BLAKE3 hash. The browser
-reads bounded same-origin resources without credentials or redirects.
+reads bounded resources without credentials or redirects. Same-origin reads
+are admitted by default.
 WASM validates the fetched bytes before declaration registration or island
 adoption. The native comparison render must agree with the live range.
 Missing resources, changed bytes or stale DOM leave the server-rendered
@@ -1078,14 +1079,40 @@ nodes and markers in place. This profile covers standalone passive external
 declarations and CEM-ML payloads.
 
 The HTML export also attaches import receipts to declaration elements and
-instance islands. Browser adoption replays same-origin stylesheet imports
+instance islands. Browser adoption replays verified stylesheet imports
 through the native CSS loader with the original occurrence order, public URL
 bases, and scope. Each imported sheet has a 256 KiB limit and the comparison
 group shares a 1 MiB import byte limit. Native output must match the published
 style text and the browser checks the installed CSS rules before retaining the
 style nodes and render range. Missing, changed or redirected imports leave the
 server output in place. The same stylesheet checks apply to stateful groups.
-Other CSS URLs and cross-origin reads require separate admission.
+Other CSS URLs require separate admission.
+
+For cross-origin reads, configure the runtime from trusted page code.
+
+```js
+const runtime = new CemElementRuntime({
+    ssrCrossOriginReads: [{
+        documentOrigin: 'https://www.example.com',
+        url: 'https://static.example.net/ui/card.xhtml',
+        contentType: 'application/xhtml+xml',
+    }],
+});
+runtime.install(window);
+```
+
+Give each external declaration, CEM-ML payload, and imported stylesheet
+its own exact URL and MIME grant. Match the page origin without a trailing
+slash. The authored document base resolves references. The cross-origin
+URL must use HTTPS or literal loopback HTTP
+and excludes credentials, queries, fragments and wildcards. The resource
+server must permit the page origin through CORS. The browser omits credentials
+and the referrer, rejects redirects, and verifies the response identity before
+adoption. [Fetch CORS protocol](https://fetch.spec.whatwg.org/#http-cors-protocol)
+
+Runtime grants are separate from CLI read maps and network grants. The HTML
+receipt supplies the expected identity and trusted runtime options authorize
+the browser transport.
 
 Config graphs use the same template, entrypoint and literal `{param}` controls.
 A transform may have both a `text/html` export and an

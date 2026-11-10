@@ -177,6 +177,24 @@ pub fn admit_group_with_stylesheet_reads(
     stylesheet_reads: BTreeMap<String, Vec<u8>>,
     c: &OperationControl,
 ) -> Result<NativeSsrGroup, String> {
+    admit_group_with_stylesheet_grants(
+        host, tag, current_version, source, nested, declaration_nodes, payload_reads,
+        stylesheet_reads, &BTreeSet::new(), c,
+    )
+}
+
+pub(crate) fn admit_group_with_stylesheet_grants(
+    host: &Item,
+    tag: &str,
+    current_version: &str,
+    source: &str,
+    nested: &[NestedDeclaration],
+    declaration_nodes: &[Item],
+    payload_reads: BTreeMap<String, Vec<u8>>,
+    stylesheet_reads: BTreeMap<String, Vec<u8>>,
+    stylesheet_grants: &BTreeSet<String>,
+    c: &OperationControl,
+) -> Result<NativeSsrGroup, String> {
     let mut source_bytes = source.len();
     if nested.len() >= 64
         || declaration_nodes.len() > 64
@@ -185,7 +203,7 @@ pub fn admit_group_with_stylesheet_reads(
     {
         return Err(fail());
     }
-    let stylesheet_reads = if stylesheet_reads.is_empty() {
+    let stylesheet_reads = if stylesheet_reads.is_empty() && stylesheet_grants.is_empty() {
         StylesheetReads::default()
     } else {
         let host = crate::eval::retained_cem_node(host).ok_or_else(fail)?;
@@ -194,6 +212,7 @@ pub fn admit_group_with_stylesheet_reads(
             owner.document_uri().ok_or_else(fail)?,
             owner.base_uri().ok_or_else(fail)?,
             stylesheet_reads,
+            stylesheet_grants,
         )?
     };
     let mut group = Group {

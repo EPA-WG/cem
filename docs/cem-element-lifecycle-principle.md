@@ -515,8 +515,8 @@ through its explicit read map. The lease identifies the authored envelope
 and retains a separately sourced native CEM tree under the original
 operation. The materialized island text carries the fetched resource's byte
 ranges. Browser adoption verifies the external payload receipt against a
-fresh same-origin response and checks those bytes against the captured
-literal envelope before comparing the render.
+fresh response admitted by the browser read policy and checks those bytes
+against the captured literal envelope before comparing the render.
 
 Host attributes, canonical islands and styles still commit through the shared
 native transaction. Previously settled hosts, islands, output boundaries and
@@ -708,14 +708,16 @@ incompatible declaration version, freezes the whole group. A nested child
 receives its own lifecycle only after the group has been admitted.
 
 The profile admits private and shared declaration styles and explicit instance
-styles with resource-free closures or verified same-origin imports. A native key binds each
+styles with resource-free closures or verified imports. A native key binds each
 stylesheet to its declaration or instance, occurrence, scope and source bytes.
 The CLI emits literal HTML style text. The browser rebuilds the closure from
 the live declaration or canonical payload, compares every managed occurrence,
 and checks that the installed CSSOM rules still match the admitted text. For
 imports, the browser checks each response against its published byte identity
 and rebuilds the native import order and scope before adopting the existing
-styles. A later live render uses normal stylesheet ownership.
+styles. Cross-origin verification requires a trusted runtime grant for the
+actual page origin, exact resource URL and MIME type. A later live render uses
+normal stylesheet ownership.
 
 An absent, disabled, changed or unresolved stylesheet freezes the group. Shared
 stylesheets require their matching declaration owners in the admitted group.

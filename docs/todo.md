@@ -368,8 +368,12 @@ links the corresponding design and verification records.
   - [x] Verify Chromium preserves local edits, owned controls and stylesheet
         nodes, patches each participant independently, and freezes the group
         if a later baseline, live form or stylesheet changes during admission.
-- [ ] Define explicit cross-origin browser read grants for external resources
+- [x] Define explicit cross-origin browser read grants for external resources
       and verify transport, identity, and refusal behavior.
+  - [x] Verify native stylesheet replay refuses off-origin bytes unless the
+        browser host grants the exact captured URL.
+  - [x] Verify Chromium with two real origins for granted reads, denied
+        requests, CORS, credential omission, redirects and changed responses.
 - [ ] Define browser identity checks for non-import CSS resources such as
       fonts and images referenced through `url()`.
 - [ ] Admit projected form controls once the native proof can bind form and

@@ -1540,7 +1540,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         members: readonly HTMLElement[], nested: readonly { tag: string; version: string; source: string }[],
         declarations: readonly HTMLElement[],
         payloads: readonly { host: HTMLElement; bytes: Uint8Array }[],
-        stylesheets?: [string, Uint8Array][],
+        stylesheets?: [string, Uint8Array, true?][],
     ) => {
         const styleInputs: Uint8Array[] = [];
         let declarationBytes = 0;

@@ -3,6 +3,41 @@ export const SSR_DECLARATION_RECEIPT = 'data-cem-ssr-declaration';
 export const SSR_PAYLOAD_RECEIPT = 'data-cem-ssr-payload';
 export const SSR_STYLESHEETS_RECEIPT = 'data-cem-ssr-stylesheets';
 
+const SSR_RESOURCE_TYPES = ['text/html', 'application/xhtml+xml', 'text/css', 'text/cem-ml'] as const;
+
+/** A trusted runtime grant for one public SSR response on one page origin. */
+export interface CemSsrCrossOriginReadGrant {
+    documentOrigin: string;
+    url: string;
+    contentType: typeof SSR_RESOURCE_TYPES[number];
+}
+
+type SsrCrossOriginReads = ReadonlyMap<string, ReadonlyMap<string, string>>;
+
+export function compileSsrCrossOriginReads(grants: readonly CemSsrCrossOriginReadGrant[] = []): SsrCrossOriginReads {
+    if (!Array.isArray(grants) || grants.length > 64) throw new TypeError('Invalid SSR cross-origin read grants');
+    const reads = new Map<string, Map<string, string>>();
+    for (const grant of grants) {
+        if (!grant || typeof grant.documentOrigin !== 'string' || grant.documentOrigin.length > 4096
+            || typeof grant.url !== 'string' || !SSR_RESOURCE_TYPES.includes(grant.contentType)) {
+            throw new TypeError('Invalid SSR cross-origin read grant');
+        }
+        const document = new URL(grant.documentOrigin);
+        const url = resourceUrl(grant.url);
+        if (!['http:', 'https:'].includes(document.protocol) || document.origin !== grant.documentOrigin
+            || document.origin === url.origin || grant.documentOrigin.includes('*') || /[?#*]/u.test(grant.url)
+            || (url.protocol === 'http:' && url.hostname !== '[::1]'
+                && !/^127(?:\.\d{1,3}){3}$/u.test(url.hostname))) {
+            throw new TypeError('Invalid SSR cross-origin read authority');
+        }
+        const urls = reads.get(document.origin) ?? new Map<string, string>();
+        if (urls.has(url.href)) throw new TypeError('Duplicate SSR cross-origin read grant');
+        urls.set(url.href, grant.contentType);
+        reads.set(document.origin, urls);
+    }
+    return reads;
+}
+
 interface SourceReceipt {
     url: string;
     contentType: string;
@@ -23,10 +58,16 @@ function sourceReceipt(value: unknown, limit: number): SourceReceipt {
         || !Number.isSafeInteger(receipt.byteLength) || receipt.byteLength < 0 || receipt.byteLength > limit) {
         throw new Error('cem.ssr.resume_resource_identity');
     }
-    const url = new URL(receipt.url);
-    if (!['http:', 'https:'].includes(url.protocol) || url.href !== receipt.url || url.username || url.password
-        || url.search || url.hash) throw new Error('cem.ssr.resume_resource_url');
+    resourceUrl(receipt.url);
     return receipt as SourceReceipt;
+}
+
+function resourceUrl(raw: string): URL {
+    if (raw.length > 4096) throw new Error('cem.ssr.resume_resource_url');
+    const url = new URL(raw);
+    if (!['http:', 'https:'].includes(url.protocol) || url.href !== raw || url.username || url.password
+        || url.search || url.hash) throw new Error('cem.ssr.resume_resource_url');
+    return url;
 }
 
 export function collectSsrStylesheetReceipts(owners: readonly HTMLElement[]): SourceReceipt[] {
@@ -63,12 +104,16 @@ export function collectSsrStylesheetReceipts(owners: readonly HTMLElement[]): So
 }
 
 export async function fetchSsrSource(
-    document: Document, receipt: SourceReceipt, allowedTypes: readonly string[], signal?: AbortSignal,
-): Promise<Uint8Array> {
+    document: Document, receipt: SourceReceipt, allowedTypes: readonly string[], grants: SsrCrossOriginReads,
+    signal?: AbortSignal,
+): Promise<{ bytes: Uint8Array; crossOrigin: boolean }> {
     const mediaType = (value: string) => value.split(';')[0].trim().toLowerCase();
     const expected = mediaType(receipt.contentType);
-    if (new URL(receipt.url).origin !== new URL(document.URL).origin
-        || !allowedTypes.includes(expected)) {
+    const origin = new URL(document.URL).origin;
+    const crossOrigin = new URL(receipt.url).origin !== origin;
+    const view = document.defaultView;
+    if (!view || view.origin !== origin || !allowedTypes.includes(expected)
+        || (crossOrigin && grants.get(origin)?.get(receipt.url) !== expected)) {
         throw new Error('cem.ssr.resume_resource_authority');
     }
     const controller = new AbortController();
@@ -77,11 +122,12 @@ export async function fetchSsrSource(
     signal?.addEventListener('abort', abort, { once: true });
     const timer = setTimeout(abort, 5000);
     try {
-        const response = await fetch(receipt.url, {
-            mode: 'same-origin', credentials: 'omit', redirect: 'error', cache: 'no-store',
+        const response = await view.fetch(receipt.url, {
+            mode: crossOrigin ? 'cors' : 'same-origin', credentials: 'omit', redirect: 'error', cache: 'no-store',
+            ...(crossOrigin ? { referrerPolicy: 'no-referrer' as const } : {}),
             signal: controller.signal, headers: { accept: expected },
         });
-        if (response.status !== 200 || response.url !== receipt.url
+        if (response.status !== 200 || response.url !== receipt.url || (crossOrigin && response.type !== 'cors')
             || response.headers.has('content-range')
             || mediaType(response.headers.get('content-type') ?? '') !== expected
             || !response.body) {
@@ -99,7 +145,7 @@ export async function fetchSsrSource(
                 offset += value.byteLength;
             }
             if (offset !== bytes.length) throw new Error('cem.ssr.resume_resource_identity');
-            return bytes;
+            return { bytes, crossOrigin };
         } finally {
             reader.releaseLock();
         }

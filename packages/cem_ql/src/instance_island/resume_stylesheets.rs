@@ -39,6 +39,7 @@ impl StylesheetReads {
         document: &str,
         base: &str,
         bytes: BTreeMap<String, Vec<u8>>,
+        cross_origin_grants: &BTreeSet<String>,
     ) -> Result<Self, String> {
         use crate::ssr_browser_resources::{MAX_STYLESHEET_BYTES, MAX_STYLESHEET_TOTAL_BYTES};
         if document.len() > 4096
@@ -53,11 +54,17 @@ impl StylesheetReads {
             return Err(fail());
         }
         let origin = url::Url::parse(document).map_err(|_| fail())?.origin();
-        if bytes
-            .keys()
-            .any(|uri| !url::Url::parse(uri).is_ok_and(|url| url.origin() == origin))
-        {
+        if !cross_origin_grants.iter().all(|uri| bytes.contains_key(uri)) {
             return Err(fail());
+        }
+        for uri in bytes.keys() {
+            let url = url::Url::parse(uri).map_err(|_| fail())?;
+            let cross_origin = url.origin() != origin;
+            if cross_origin != cross_origin_grants.contains(uri)
+                || (cross_origin && !cross_origin_stylesheet_url(uri, &url))
+            {
+                return Err(fail());
+            }
         }
         Ok(Self {
             base: Some(base.into()),
@@ -86,6 +93,19 @@ impl StylesheetReads {
         self.used.insert(receipt.url.clone());
         Ok(bytes.clone())
     }
+}
+
+fn cross_origin_stylesheet_url(uri: &str, url: &url::Url) -> bool {
+    let allowed_scheme = match (url.scheme(), url.host()) {
+        ("https", _) => true,
+        ("http", Some(url::Host::Ipv4(ip))) => ip.is_loopback(),
+        ("http", Some(url::Host::Ipv6(ip))) => ip.is_loopback(),
+        _ => false,
+    };
+    allowed_scheme
+        && url.query().is_none()
+        && !uri.contains('*')
+        && cem_ml::resolver::ssr_resource_url(uri).as_deref() == Ok(uri)
 }
 
 #[derive(Default)]
@@ -451,6 +471,28 @@ mod tests {
     use cem_ml::content_cache::ContentHash;
 
     #[test]
+    fn off_origin_stylesheet_reads_require_an_exact_host_grant() {
+        let document = "https://page.test/main.html";
+        let source = "https://cdn.test/styles/main.css";
+        let bytes = BTreeMap::from([(source.into(), b"article {color:red}".to_vec())]);
+        let admit = |grants| StylesheetReads::new(document, document, bytes.clone(), &grants);
+        assert!(admit(BTreeSet::new()).is_err());
+        assert!(admit(BTreeSet::from(["https://cdn.test/styles/other.css".into()])).is_err());
+        assert!(admit(BTreeSet::from([source.into()])).is_ok());
+
+        for (uri, allowed) in [
+            ("http://127.0.0.1:6789/main.css", true),
+            ("http://[::1]:6789/main.css", true),
+            ("http://cdn.test/main.css", false),
+            ("https://cdn.test/main.css?", false),
+        ] {
+            let bytes = BTreeMap::from([(uri.into(), vec![])]);
+            let grants = BTreeSet::from([uri.into()]);
+            assert_eq!(StylesheetReads::new(document, document, bytes, &grants).is_ok(), allowed);
+        }
+    }
+
+    #[test]
     fn replay_requires_exact_nested_import_responses() {
         let base = "https://ssr.test/assets/page.html";
         let first = "https://ssr.test/assets/styles/main.css";
@@ -477,12 +519,12 @@ mod tests {
         .unwrap();
         let control = OperationControl::default();
         let replay = |manifest: &StylesheetReceipt, inputs| {
-            let mut reads = StylesheetReads::new(base, base, inputs).unwrap();
+            let mut reads = StylesheetReads::new(base, base, inputs, &BTreeSet::new()).unwrap();
             replay_imports(&root, base, manifest, &mut reads, &control)
         };
         let inputs =
             std::collections::BTreeMap::from([(first.into(), main), (second.into(), theme)]);
-        assert!(StylesheetReads::new("https://different.test/", base, inputs.clone()).is_err());
+        assert!(StylesheetReads::new("https://different.test/", base, inputs.clone(), &BTreeSet::new()).is_err());
         let closure = replay(&manifest, inputs.clone()).unwrap();
         assert_eq!(
             closure

@@ -627,7 +627,7 @@ fn prove_canonical_ssr_host(
     payloads: Option<js_sys::Array>,
     stylesheets: Option<js_sys::Array>,
 ) -> Result<String, JsValue> {
-    use crate::ssr_browser_resume::{admit, admit_group_with_stylesheet_reads, NestedDeclaration};
+    use crate::ssr_browser_resume::{admit, admit_group_with_stylesheet_grants, NestedDeclaration};
 
     let nested_bytes = nested_json.as_ref().map_or(0, String::len);
     if nested_bytes > 2 * 1024 * 1024 {
@@ -670,6 +670,7 @@ fn prove_canonical_ssr_host(
         }
     }
     let mut css_inputs = std::collections::BTreeMap::new();
+    let mut css_grants = std::collections::BTreeSet::new();
     let mut css_bytes = 0usize;
     if let Some(entries) = stylesheets {
         let fail = || JsValue::from_str("cem.ssr.resume_stylesheet_bounds");
@@ -677,8 +678,13 @@ fn prove_canonical_ssr_host(
         if entries.length() > 64 { return Err(fail()); }
         for entry in entries.iter() {
             let entry = entry.dyn_into::<js_sys::Array>()?;
-            if entry.length() != 2 { return Err(fail()); }
+            if !matches!(entry.length(), 2 | 3) { return Err(fail()); }
             let url = entry.get(0).as_string().filter(|s| s.len() <= 4096).ok_or_else(fail)?;
+            // Only the trusted transport marks an exact URL as granted.
+            if entry.length() == 3 {
+                if entry.get(2).as_bool() != Some(true) { return Err(fail()); }
+                css_grants.insert(url.clone());
+            }
             let bytes = entry.get(1).dyn_into::<js_sys::Uint8Array>()?;
             css_bytes = css_bytes.saturating_add(bytes.length() as usize);
             if bytes.length() as usize > MAX_STYLESHEET_BYTES || css_bytes > MAX_STYLESHEET_TOTAL_BYTES
@@ -701,7 +707,7 @@ fn prove_canonical_ssr_host(
         }
         let payload_reads = payload_inputs.into_iter().map(|(key, bytes)| (key, bytes.to_vec())).collect();
         let stylesheet_reads = css_inputs.into_iter().map(|(url, bytes)| (url, bytes.to_vec())).collect();
-        let group = admit_group_with_stylesheet_reads(&host, tag, version, source, &declarations, &nodes, payload_reads, stylesheet_reads, &control)
+        let group = admit_group_with_stylesheet_grants(&host, tag, version, source, &declarations, &nodes, payload_reads, stylesheet_reads, &css_grants, &control)
             .map_err(|e| JsValue::from_str(&e))?;
         serde_json::to_string(&group)
     } else {

@@ -26,7 +26,7 @@ async function renderSource(source, content, versions, extra = []) {
             'wall-ms=60000', 'cpu-ms=10000'].flatMap(value => ['--param', value]), ...extra]);
     return readFile(output, 'utf8');
 }
-let server, browser;
+let server, remoteServer, browser, finishCrossPage;
 try {
     const html = await render(`<cem-element tag="x-resume" version="1.2.3"><template id="x-resume" type="text/cem-ml">${template}</template></cem-element><x-resume><strong slot="heading">Island input</strong></x-resume>`, 'x-resume=1.9.0');
     const childSource = '{x-child | {em @slot=heading | Nested input}}';
@@ -146,7 +146,12 @@ try {
             const pathname = new URL(req.url, 'http://localhost').pathname;
             if (pages.has(pathname)) {
                 res.setHeader('Content-Type', 'text/html; charset=utf-8');
-                res.end(pages.get(pathname));
+                const html = pages.get(pathname);
+                if (pathname === '/cross-streamed.html') {
+                    const split = html.indexOf('<x-cross');
+                    res.write(html.slice(0, split));
+                    finishCrossPage = () => res.end(html.slice(split));
+                } else res.end(html);
                 return;
             }
             const file = path.resolve(root, `.${pathname}`);
@@ -1049,6 +1054,138 @@ try {
         }
         await page.close();
     }
+    const crossFiles = new Map([
+        ['card.xhtml', ['application/xhtml+xml', [
+            '<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="x-cross" version="1.2.3">',
+            '<template id="x-cross" type="text/cem-ml">{style |```@import "./main.css";```}',
+            '{article | {$ datadom.payload.children.targets.children}}</template></cem-element>',
+        ].join('')]],
+        ['main.css', ['text/css', '@import "./nested/color.css"; article {padding:3px}']],
+        ['nested/color.css', ['text/css', 'article {color:rgb(18,36,54)} /* first */']],
+        ['payload.cem', ['text/cem-ml', '{item | Verified across origins}']],
+    ]);
+    const crossReads = [];
+    let crossScenario = '';
+    remoteServer = http.createServer((req, res) => {
+        const name = req.url.slice('/cross/'.length);
+        crossReads.push({ name, method: req.method, origin: req.headers.origin, referer: req.headers.referer,
+            cookie: req.headers.cookie, authorization: req.headers.authorization });
+        const file = crossFiles.get(name);
+        if (!(crossScenario === 'missing-cors' && name === 'card.xhtml')) res.setHeader('Access-Control-Allow-Origin', origin);
+        if (!file) { res.writeHead(404).end(); return; }
+        const [type, body] = file;
+        if (crossScenario === 'cross-redirect' && name === 'nested/color.css') {
+            res.writeHead(302, { Location: '/cross/replacement.css' }).end();
+            return;
+        }
+        res.setHeader('Content-Type', crossScenario === 'wrong-response-type' && name === 'main.css' ? 'text/plain' : type);
+        if (crossScenario === 'partial-response' && name === 'payload.cem') {
+            res.writeHead(206, { 'Content-Range': `bytes 0-${body.length - 1}/${body.length}` });
+        }
+        res.end(crossScenario === 'changed-css' && name === 'nested/color.css' ? body.replace('first', 'other') : body);
+    });
+    await new Promise(resolve => remoteServer.listen(0, '127.0.0.1', resolve));
+    const remoteOrigin = `http://127.0.0.1:${remoteServer.address().port}`;
+    const remoteBase = `${remoteOrigin}/cross/`;
+    const remoteMirror = path.join(temp, 'cross');
+    await mkdir(path.join(remoteMirror, 'nested'), { recursive: true });
+    for (const [name, [, body]] of crossFiles) await writeFile(path.join(remoteMirror, name), body);
+    const crossPage = await render([
+        '<cem-element tag="x-cross" version="1.2.3" src="./card.xhtml#x-cross"></cem-element>',
+        '<x-cross><template type="text/cem-ml" data-cem-payload-src="./payload.cem"></template></x-cross>',
+    ].join(''), 'x-cross=1.9.0', ['--resolver-read-map', `${remoteBase}=${remoteMirror}`], `<base href="${remoteBase}">`);
+    pages.set('/cross-proof.html', crossPage);
+    pages.set('/cross-streamed.html', crossPage.replace(/ data-cem-ssr-declaration="[^"]*"/gu, ''));
+    const allCrossReads = [...crossFiles.keys()];
+    const allGrants = allCrossReads.map(name => ({ documentOrigin: origin, url: `${remoteBase}${name}`, contentType: crossFiles.get(name)[0] }));
+    const crossCases = new Map([
+        ['granted', allCrossReads], ['ungranted', []], ['wrong-page-origin', []], ['wrong-url', []],
+        ['wrong-grant-type', []], ['missing-declaration-receipt', []], ['missing-receipt-during-parse', []], ['mutated-options', []],
+        ['missing-css-grant', allCrossReads.slice(0, 2)], ['missing-payload-grant', allCrossReads.slice(0, 3)],
+        ['missing-cors', allCrossReads.slice(0, 1)], ['cross-redirect', allCrossReads.slice(0, 3)],
+        ['wrong-response-type', allCrossReads.slice(0, 2)], ['partial-response', allCrossReads], ['changed-css', allCrossReads],
+    ]);
+    for (const [scenario, expectedReads] of crossCases) {
+        crossScenario = scenario;
+        crossReads.length = 0;
+        const context = await browser.newContext();
+        await context.addCookies([{ name: 'ssr-private', value: 'secret', url: remoteOrigin }]);
+        const page = await context.newPage();
+        page.on('pageerror', error => errors.push(error.message));
+        await page.route('**/*', route => {
+            const url = new URL(route.request().url());
+            if (url.origin === origin || url.origin === remoteOrigin) return route.continue();
+            requests.push(url.href); return route.abort();
+        });
+        if (scenario === 'missing-receipt-during-parse') {
+            await page.goto(`${origin}/cross-streamed.html`, { waitUntil: 'commit' });
+            await page.locator('cem-element').waitFor({ state: 'attached' });
+            const readyState = await page.evaluate(async grants => {
+                const { CemElementRuntime } = await import(new URL('/packages/cem-elements/dist/lib/cem-elements.js', location.href).href);
+                window.ssrStreamingRuntime = new CemElementRuntime({ ssrCrossOriginReads: grants });
+                window.ssrStreamingRuntime.install(window);
+                return document.readyState;
+            }, allGrants);
+            assert.equal(readyState, 'loading');
+            finishCrossPage();
+            finishCrossPage = undefined;
+            await page.waitForLoadState('domcontentloaded');
+        } else await page.goto(`${origin}/cross-proof.html`);
+        const result = await page.evaluate(async ({ scenario, allGrants, remoteBase }) => {
+            const { CemElementRuntime } = await import(new URL('/packages/cem-elements/dist/lib/cem-elements.js', location.href).href);
+            const declaration = document.querySelector('cem-element');
+            const host = document.querySelector('x-cross');
+            const island = host.firstElementChild;
+            const article = host.querySelector('article');
+            const style = declaration.querySelector('style');
+            const nodes = [...host.childNodes];
+            if (scenario === 'missing-declaration-receipt') declaration.removeAttribute('data-cem-ssr-declaration');
+            const before = host.outerHTML;
+            const grants = scenario === 'ungranted' || scenario === 'mutated-options' ? [] : allGrants.slice();
+            if (scenario === 'wrong-page-origin') grants[0] = { ...grants[0], documentOrigin: 'https://other.example.test' };
+            if (scenario === 'wrong-url') grants[0] = { ...grants[0], url: `${grants[0].url}.other` };
+            if (scenario === 'wrong-grant-type') grants[0] = { ...grants[0], contentType: 'text/css' };
+            if (scenario === 'missing-css-grant') grants.splice(2, 1);
+            if (scenario === 'missing-payload-grant') grants.pop();
+            if (scenario === 'cross-redirect') grants.push({ ...allGrants[1], url: `${remoteBase}replacement.css` });
+            const invalidUrls = ['https://*.example.test/card.xhtml', 'http://example.test/card.xhtml',
+                'https://example.test/card.xhtml?', 'https://example.test/card.xhtml#', 'https://user@example.test/card.xhtml'];
+            const invalidGrantsRefused = invalidUrls.every(url => {
+                try { new CemElementRuntime({ ssrCrossOriginReads: [{ ...allGrants[0], url }] }); return false; }
+                catch { return true; }
+            });
+            const runtime = window.ssrStreamingRuntime ?? new CemElementRuntime({ ssrCrossOriginReads: grants,
+                processingWorkerFactory: () => { throw new Error('Use main-thread runtime'); } });
+            if (scenario === 'mutated-options') grants.push(...allGrants);
+            runtime.install(window);
+            await runtime.whenDeclarationSettled(declaration);
+            await runtime.whenRenderSettled(host);
+            return {
+                invalidGrantsRefused, marked: island.hasAttribute('data-cem-ssr-profile'), unchanged: host.outerHTML === before,
+                retained: nodes.length === host.childNodes.length && nodes.every((node, index) => host.childNodes[index] === node)
+                    && style === declaration.querySelector('style'),
+                text: article.textContent, color: getComputedStyle(article).color,
+                diagnostics: [...runtime.diagnosticsFor(host), ...runtime.diagnosticsFor(declaration)].map(d => d.code),
+            };
+        }, { scenario, allGrants, remoteBase });
+        const detail = `${scenario} ${JSON.stringify(result)}`;
+        assert.equal(result.invalidGrantsRefused, true, detail);
+        assert.equal(result.retained, true, detail);
+        assert.equal(result.text, crossFiles.get('payload.cem')[1], detail);
+        assert.equal(result.color, 'rgb(18, 36, 54)', detail);
+        if (scenario === 'granted') {
+            assert.equal(result.marked, false, detail);
+            assert.deepEqual(result.diagnostics, [], detail);
+        } else {
+            assert.equal(result.marked, true, detail);
+            assert.equal(result.unchanged, true, detail);
+            assert.ok(result.diagnostics.includes('cem-element.hydration_native_refused'), detail);
+        }
+        assert.deepEqual(crossReads.map(read => read.name), expectedReads, detail);
+        assert.ok(crossReads.every(read => read.method === 'GET' && read.origin === origin && read.cookie === undefined
+            && read.authorization === undefined && read.referer === undefined), `${scenario} ${JSON.stringify(crossReads)}`);
+        await context.close();
+    }
     const xhtml = await browser.newPage();
     xhtml.on('pageerror', error => errors.push(error.message));
     const xhtmlReads = [];
@@ -1108,10 +1245,12 @@ try {
         await page.close();
     }
     assert.deepEqual(errors, []); assert.deepEqual(requests, []);
-    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + groupedFormCases.length + authoredPages.length + resourceCases.length + importCases.length + 4;
-    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} inline stylesheet, ${importCases.length} CSS import, ${payloadCases.length} foreign/source, ${formCases.length} standalone form and ${groupedFormCases.length} form group, two authored source profiles plus verified resources, mapped CSS, declarations and payloads, zero off-origin requests`);
+    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + groupedFormCases.length + authoredPages.length + resourceCases.length + importCases.length + crossCases.size + 4;
+    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} inline stylesheet, ${importCases.length} CSS import, ${payloadCases.length} foreign/source, ${formCases.length} standalone form, ${groupedFormCases.length} form group and ${crossCases.size} cross-origin grant cases, with zero unexpected off-origin requests`);
 } finally {
+    finishCrossPage?.();
     await browser?.close();
     if (server) await new Promise(resolve => server.close(resolve));
+    if (remoteServer) await new Promise(resolve => remoteServer.close(resolve));
     await rm(temp, { recursive: true, force: true });
 }
