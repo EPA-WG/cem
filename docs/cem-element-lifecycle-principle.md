@@ -734,23 +734,28 @@ their runtime URI with unknown authored coordinates. The payload stays inert
 during proof and subsequent rendering. Observing its separate template fragment
 catches edits during proof and invalidates the connected instance on later edits.
 
-Standalone participants with compatible declarations can adopt named scalar
-slice defaults and local native forms. The CLI writes typed defaults into the
-island. Browser admission checks each value against the native declaration
-before using it. A fresh processing baseline must match the retained range
-with the current form mirrors. It gives the existing nodes their runtime
-identities so later patches can update them in place. Native input, textarea
-and single-select controls can write a named slice on input or change.
+Participants with compatible inline declarations and HTML payloads can adopt
+named scalar slice defaults and local native forms, including in nested groups
+with verified stylesheets. The CLI writes typed defaults into each island.
+Browser admission checks them against the native declarations and prepares a
+fresh processing baseline for each participant in a stateful group. The parent
+baseline binds its authored inputs in the child's inert payload. The child's
+baseline binds its own rendered range. All baselines must agree before the
+runtime assigns node identities or attaches listeners. Native input, textarea
+and single-select controls can write an owned slice on input or change.
 
 The browser reads current form values and validity from controls inside the
 owned range, including edits made before hydration. It blocks submission in
 this local profile and reads successful controls without dispatching a
 `formdata` event. External form owners, credentials, file controls and custom
 validation are refused at admission. Private or external fields are excluded
-from subsequent capture. Stateful participants currently require a standalone
-range with no stylesheet closure or inert CEM source payload. External
-capabilities still require separate admission. The retained browser root
-records declaration-level source fidelity.
+from subsequent capture. Form controls projected through payloads require
+separate admission. The browser rechecks every form mirror and the installed
+CSS rules after preparing the baselines. A stale
+member leaves all ranges in the group on their server-rendered output. External
+declarations, inert CEM source payloads and other capabilities retain their
+passive browser profiles. The retained browser root records declaration-level
+source fidelity.
 
 Structured-clone `DataIslandSnapshot` records remain valid processing-boundary
 transport for workers, Edge, or other non-DOM hosts. They are derived from the

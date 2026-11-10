@@ -12,10 +12,11 @@ CPU accounting. The packaged `ssr:render-page` builtin connects native CLI
 `transform` lowering to that proof and explicit HTML/report exports (§8.0).
 Browser adoption supports standalone and nested participants in the bounded
 profile described in the lifecycle contract. It covers passive HTML, SVG and
-MathML, inert CEM source payloads and resource-free declaration and instance
-stylesheets. Standalone participants can also hydrate declaration-owned scalar
-slices and resource-free native forms. The CLI can load external CSS imports
-through explicit public-URL read maps or pinned network grants. Additional
+MathML, inert CEM source payloads and verified declaration and instance
+stylesheets. Groups with compatible inline declarations and HTML payloads can
+also hydrate declaration-owned scalar slices and local native forms. The CLI
+can load external CSS imports through explicit public-URL read maps or pinned
+network grants. Additional
 resource types and page-source forms, the proposed `ssr` shorthand and the
 general page compiler remain future work.
 
@@ -1083,8 +1084,8 @@ bases, and scope. Each imported sheet has a 256 KiB limit and the comparison
 group shares a 1 MiB import byte limit. Native output must match the published
 style text and the browser checks the installed CSS rules before retaining the
 style nodes and render range. Missing, changed or redirected imports leave the
-server output in place. Other CSS URLs, cross-origin reads, and styled stateful
-groups require separate admission.
+server output in place. The same stylesheet checks apply to stateful groups.
+Other CSS URLs and cross-origin reads require separate admission.
 
 Config graphs use the same template, entrypoint and literal `{param}` controls.
 A transform may have both a `text/html` export and an

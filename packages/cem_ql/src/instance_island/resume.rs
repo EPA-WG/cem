@@ -623,7 +623,7 @@ impl Group<'_> {
                 }
             }
         }
-        if stateful && (styled || source_payload.is_some() || !self.registry.is_empty()) {
+        if stateful && source_payload.is_some() {
             return Err(fail());
         }
         if !version

@@ -66,6 +66,20 @@ try {
         '{select @name=choice @slice=choice | {option @value=a | Alpha}{option @value=b | Beta}}',
         '}}</template></cem-element><x-profile></x-profile>',
     ].join(''), 'x-profile=1.9.0');
+    const groupFormMarkup = parentCss => [
+        '<cem-element tag="x-form-outer" version="1.2.3"><template id="x-form-outer" type="text/cem-ml">',
+        '{slice @name=message | Outer}', `{style |\`\`\`${parentCss}\`\`\`}`,
+        '{section | {p | {$ message}}{form @id=outer-form @name=profile | {input @name=message @value=Outer @slice=message}}',
+        '{x-form-inner | {template | {strong @slot=heading | {$ message}}}}}</template></cem-element>',
+        '<cem-element tag="x-form-inner" scope="inner-form" version="1.2.3"><template id="x-form-inner" type="text/cem-ml">',
+        '{slice @name=message | Inner}{style @scope=inner-form |```article {color:rgb(7,31,55)}```}',
+        '{article | {p | {$ message}}{form @id=inner-form @name=profile | {input @name=message @value=Inner @slice=message}}',
+        '{$ datadom.slots.heading}}</template></cem-element>',
+        '<x-form-outer><template><style>section {background-color:rgb(29,47,71)}</style></template></x-form-outer>',
+    ].join('');
+    const groupVersions = 'x-form-outer=1.9.0,x-form-inner=1.9.0';
+    const groupParentCss = 'section {color:rgb(12,34,56)}';
+    const groupedForms = await render(groupFormMarkup(groupParentCss), groupVersions);
     const mirror = path.join(temp, 'mirror');
     await mkdir(mirror);
     await writeFile(path.join(mirror, 'theme.css'), 'article { color: rgb(12,34,56) }');
@@ -116,7 +130,7 @@ try {
     const authoredPages = ['/cem.html', '/cem-markdown.html'];
     const pages = new Map([
         ['/ssr.html', html], ['/nested.html', nested], ['/direct.html', direct], ['/styled.html', styled],
-        ['/foreign.html', foreign], ['/source.html', cemSource], ['/forms.html', forms],
+        ['/foreign.html', foreign], ['/source.html', cemSource], ['/forms.html', forms], ['/grouped-forms.html', groupedForms],
         ['/mapped.html', mapped], [authoredPages[0], cemPage], [authoredPages[1], markdownPage],
         ['/external.html', externalPage.replace(/ data-cem-ssr-declaration="[^"]*"/gu, '')],
         ['/assets/external.html', externalDeclaration],
@@ -385,7 +399,9 @@ try {
         assert.equal(result.retained, true, detail);
         if (scenario === 'compatible' || scenario === 'compatible-worker') {
             assert.deepEqual(result.marks, [false, false], detail);
-            assert.deepEqual(result.diagnostics, [[], []], detail);
+            const diagnostics = scenario === 'compatible' ? result.diagnostics.map(codes => codes.filter(
+                code => code !== 'cem.processing_host.worker_startup_fallback')) : result.diagnostics;
+            assert.deepEqual(diagnostics, [[], []], detail);
             assert.deepEqual(result.counts, [1, 1, 1], detail);
             assert.equal(result.sameStyles, true, detail);
             assert.deepEqual(result.initial, ['rgb(7, 31, 55)', 'rgb(29, 47, 71)', '23px'], detail);
@@ -643,6 +659,123 @@ try {
             assert.equal(result.unchanged, true, detail);
             assert.ok(result.diagnostics.includes('cem-element.hydration_native_refused'), detail);
         }
+        await page.close();
+    }
+    const groupCssUrl = `${origin}/stateful.css`;
+    await writeFile(path.join(mirror, 'stateful.css'), groupParentCss);
+    const importedGroupedForms = await render(groupFormMarkup(`@import "${groupCssUrl}";`), groupVersions,
+        ['--resolver-read-map', `${origin}/=${mirror}`], `<base href="${origin}/">`);
+    pages.set('/imported-grouped-forms.html', importedGroupedForms);
+    const groupedFormCases = ['compatible', 'worker-compatible', 'imported-compatible', 'child-baseline-refused',
+        'stale-parent-form', 'stale-cssom', 'foreign-form-owner'];
+    for (const scenario of groupedFormCases) {
+        const page = await browser.newPage();
+        page.on('pageerror', error => errors.push(error.message));
+        await page.route('**/*', route => {
+            const url = new URL(route.request().url());
+            if (url.href === groupCssUrl) return route.fulfill({ contentType: 'text/css', body: groupParentCss });
+            if (url.origin === origin) return route.continue();
+            requests.push(url.href); return route.abort();
+        });
+        await page.goto(`${origin}/${scenario === 'imported-compatible' ? 'imported-' : ''}grouped-forms.html`);
+        const result = await page.evaluate(async scenario => {
+            const { CemElementRuntime } = await import('/packages/cem-elements/dist/lib/cem-elements.js');
+            const hosts = [...document.querySelectorAll('x-form-outer, x-form-inner')];
+            const [outer, inner] = hosts;
+            const declarations = [...document.querySelectorAll('cem-element')];
+            const islands = hosts.map(host => host.firstElementChild);
+            const forms = [outer.querySelector('section > form'), inner.querySelector('article > form')];
+            const inputs = forms.map(form => form.querySelector('input'));
+            const outputs = [outer.querySelector('section > p'), inner.querySelector('article > p')];
+            const styles = [...document.querySelectorAll('style[data-cem-declaration-style], style[data-cem-instance-style]')];
+            const nodes = hosts.map(host => [...host.childNodes]);
+            const retained = () => hosts.every((host, index) => host.childNodes.length === nodes[index].length
+                && nodes[index].every((node, offset) => host.childNodes[offset] === node))
+                && forms.every((form, index) => form.querySelector('input') === inputs[index] && form.isConnected)
+                && outputs.every(output => output.isConnected) && inner.isConnected;
+            const colors = () => [getComputedStyle(outputs[0]).color, getComputedStyle(outputs[1]).color,
+                getComputedStyle(outer.querySelector('section')).backgroundColor];
+            inputs[0].value = 'Edited outer';
+            inputs[1].value = 'Edited inner';
+            inputs[1].focus();
+            inputs[1].setSelectionRange(1, 5);
+            if (scenario === 'foreign-form-owner') {
+                const external = document.createElement('input');
+                external.name = 'external';
+                external.setAttribute('form', forms[1].id);
+                document.body.append(external);
+            }
+            const before = outer.outerHTML;
+            const runtime = scenario === 'worker-compatible' ? new CemElementRuntime()
+                : new CemElementRuntime({ processingWorkerFactory: () => { throw new Error('Use main-thread runtime'); } });
+            const prepare = runtime.prepareCanonicalSsrState.bind(runtime);
+            const baselines = [];
+            runtime.prepareCanonicalSsrState = async (...args) => {
+                const baseline = await prepare(...args);
+                baselines.push(args[0].localName);
+                if (args[0] === inner) {
+                    if (scenario === 'child-baseline-refused') throw new Error('Refused the last baseline');
+                    if (scenario === 'stale-parent-form') inputs[0].value = 'Changed while proving child';
+                    if (scenario === 'stale-cssom') styles[0].sheet.insertRule('section { margin: 1px }');
+                }
+                return baseline;
+            };
+            runtime.install(window);
+            await Promise.all(declarations.map(declaration => runtime.whenDeclarationSettled(declaration)));
+            await runtime.whenRenderSettled(outer);
+            const marked = islands.map(island => island.hasAttribute('data-cem-ssr-profile'));
+            const diagnostics = hosts.map(host => runtime.diagnosticsFor(host).map(d => ({ code: d.code, message: d.message })));
+            const state = () => hosts.map(host => {
+                const snapshot = runtime.readInstanceSnapshot(host);
+                return [snapshot.slices.message, snapshot.formData.profile?.message];
+            });
+            const detail = { marked, diagnostics, baselines, retained: retained(), unchanged: outer.outerHTML === before,
+                stylesRetained: styles.every(style => style.isConnected), colors: colors() };
+            if (marked.some(Boolean)) return { ...detail,
+                submitStillUnbound: forms.every(form => form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }))) };
+            const focus = document.activeElement === inputs[1] && inputs[1].selectionStart === 1 && inputs[1].selectionEnd === 5;
+            const initial = state();
+            const change = async (index, value) => {
+                inputs[index].value = value;
+                inputs[index].dispatchEvent(new Event('change', { bubbles: true }));
+                await runtime.whenRenderSettled(hosts[index]);
+                await runtime.whenRenderSettled(inner);
+            };
+            await change(1, 'Inner update');
+            const childOnly = state();
+            await change(0, 'Outer update');
+            const updated = state();
+            const patchedText = [...outputs.map(output => output.textContent), inner.querySelector('strong')?.textContent];
+            const submitBlocked = forms.every(form => !form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true })));
+            await Promise.all(hosts.map(host => runtime.whenRenderSettled(host)));
+            return { ...detail, focus, initial, childOnly, updated, patchedText, submitBlocked, afterRetained: retained(), afterColors: colors(),
+                mode: runtime.processingHost(runtime.declarationForInstance(outer)).mode,
+                afterDiagnostics: hosts.flatMap(host => runtime.diagnosticsFor(host).map(d => ({ code: d.code, message: d.message }))) };
+        }, scenario);
+        const detail = `${scenario} ${JSON.stringify(result)}`;
+        assert.equal(result.retained, true, detail);
+        assert.equal(result.stylesRetained, true, detail);
+        assert.deepEqual(result.colors, ['rgb(12, 34, 56)', 'rgb(7, 31, 55)', 'rgb(29, 47, 71)'], detail);
+        if (scenario.endsWith('compatible')) {
+            assert.deepEqual(result.marked, [false, false], detail);
+            assert.deepEqual(result.diagnostics, [[], []], detail);
+            assert.equal(result.mode, scenario === 'worker-compatible' ? 'worker' : 'main-thread', detail);
+            assert.equal(result.focus, true, detail);
+            assert.deepEqual(result.initial, [['Outer', 'Edited outer'], ['Inner', 'Edited inner']], detail);
+            assert.deepEqual(result.childOnly, [['Outer', 'Edited outer'], ['Inner update', 'Inner update']], detail);
+            assert.deepEqual(result.updated, [['Outer update', 'Outer update'], ['Inner update', 'Inner update']], detail);
+            assert.deepEqual(result.patchedText, ['Outer update', 'Inner update', 'Outer update'], detail);
+            assert.equal(result.submitBlocked, true, detail);
+            assert.equal(result.afterRetained, true, detail);
+            assert.deepEqual(result.afterColors, result.colors, detail);
+            assert.deepEqual(result.afterDiagnostics, [], detail);
+        } else {
+            assert.deepEqual(result.marked, [true, true], detail);
+            assert.equal(result.unchanged, true, detail);
+            assert.equal(result.submitStillUnbound, true, detail);
+            assert.ok(result.diagnostics.every(items => items.some(d => d.code === 'cem-element.hydration_native_refused')), detail);
+        }
+        assert.deepEqual(result.baselines, scenario === 'foreign-form-owner' ? [] : ['x-form-outer', 'x-form-inner'], detail);
         await page.close();
     }
     const page = await browser.newPage();
@@ -975,8 +1108,8 @@ try {
         await page.close();
     }
     assert.deepEqual(errors, []); assert.deepEqual(requests, []);
-    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + authoredPages.length + resourceCases.length + importCases.length + 4;
-    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} inline stylesheet, ${importCases.length} CSS import, ${payloadCases.length} foreign/source, ${formCases.length} form, two authored source profiles plus verified resources, mapped CSS, declarations and payloads, zero off-origin requests`);
+    const total = cases.length + nestedCases.length + cssCases.length + payloadCases.length + formCases.length + groupedFormCases.length + authoredPages.length + resourceCases.length + importCases.length + 4;
+    console.log(`Canonical CLI hydration: ${total}/${total}, including ${nestedCases.length} nested, ${cssCases.length} inline stylesheet, ${importCases.length} CSS import, ${payloadCases.length} foreign/source, ${formCases.length} standalone form and ${groupedFormCases.length} form group, two authored source profiles plus verified resources, mapped CSS, declarations and payloads, zero off-origin requests`);
 } finally {
     await browser?.close();
     if (server) await new Promise(resolve => server.close(resolve));

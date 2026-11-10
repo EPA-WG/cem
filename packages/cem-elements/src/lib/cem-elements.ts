@@ -4202,23 +4202,31 @@ export class CemElementRuntime {
                     cssReads.length ? cssReads : undefined,
                 );
                 const resourceDependent = cssReads.length > 0 || payloads.length > 0 || compiled.sourceRef?.kind === 'url';
-                if (resourceDependent && decisions.some(decision => decision.decision !== 'adopt' || decision.stateful)) {
+                const statefulGroup = decisions.some(decision => decision.stateful);
+                if ((resourceDependent && decisions.some(decision => decision.decision !== 'adopt'))
+                    || (statefulGroup && (payloads.length > 0 || compiled.sourceRef?.kind === 'url'))) {
                     throw new Error('cem.ssr.resume_resource_profile');
                 }
                 if (this.canonicalSsrAdmissions.get(instance) !== entry || !instance.isConnected) return;
-                if (changed || observer.takeRecords().length || compiled.declarationScope.disposed
-                    || (resourceDependent && instance.ownerDocument.baseURI !== base)
-                    || participants.some(({ host, declaration }) => !host.isConnected || !instance.contains(host)
-                        || this.canonicalSsrAdmissions.get(host) !== entry || this.declarationForInstance(host) !== declaration)) {
-                    throw new Error('cem.ssr.resume_stale');
-                }
+                const assertCurrent = () => {
+                    if (changed || observer.takeRecords().length || compiled.declarationScope.disposed
+                        || (resourceDependent && instance.ownerDocument.baseURI !== base)
+                        || participants.some(({ host, declaration }) => !host.isConnected || !instance.contains(host)
+                            || this.canonicalSsrAdmissions.get(host) !== entry || this.declarationForInstance(host) !== declaration)) {
+                        throw new Error('cem.ssr.resume_stale');
+                    }
+                };
+                assertCurrent();
                 const document = instance.ownerDocument;
                 const admittedDeclarations = new Set(participants.map(({ declaration }) => declaration));
                 const sharedScopes = new Set(participants.flatMap(({ declaration }) => declaration.sharedStyleScope ? [declaration.sharedStyleScope] : []));
-                if ([...(this.declarationsByDocument.get(document)?.values() ?? [])].some(declaration =>
-                    declaration.sharedStyleScope && sharedScopes.has(declaration.sharedStyleScope) && !admittedDeclarations.has(declaration))) {
-                    throw new Error('cem.ssr.resume_shared_stylesheet_owner');
-                }
+                const assertSharedStylesheetOwners = () => {
+                    if ([...(this.declarationsByDocument.get(document)?.values() ?? [])].some(declaration =>
+                        declaration.sharedStyleScope && sharedScopes.has(declaration.sharedStyleScope) && !admittedDeclarations.has(declaration))) {
+                        throw new Error('cem.ssr.resume_shared_stylesheet_owner');
+                    }
+                };
+                assertSharedStylesheetOwners();
                 const targets = participants.map(({ host, island: memberIsland, declaration }, index) => {
                     const decision = decisions[index];
                     const styleNodes = [
@@ -4238,8 +4246,11 @@ export class CemElementRuntime {
                     }
                     const forms = decision.stateful ? this.captureRenderedForms(host, bounds, true)
                         : { formData: {}, validationState: {}, sliceMirrors: {} };
+                    const payload = directIslandSection(memberIsland, DATA_ISLAND_SECTIONS.payload)!;
+                    const explicit = payload.getAttribute(DATA_ISLAND_EXPLICIT_PAYLOAD_ATTR) === 'true';
                     const snapshot = this.snapshotFromCapturedForms(host, declaration, memberIsland, '0', undefined,
                         forms, false, decision.instanceId);
+                    if (statefulGroup && explicit) snapshot.payload = serializePayload(memberIsland, true);
                     if (decision.stateful) {
                         const defaults = readIslandRecordSection(memberIsland, DATA_ISLAND_SECTIONS.slices);
                         if (Object.keys(forms.sliceMirrors).some(name => Object.hasOwn(defaults, name))) {
@@ -4248,16 +4259,25 @@ export class CemElementRuntime {
                         snapshot.slices = { ...defaults, ...snapshot.slices };
                     }
                     snapshot.declarationVersion = decision.declarationVersion ?? undefined;
-                    return { host, island: memberIsland, declaration, decision, bounds, root, snapshot, forms };
+                    return { host, island: memberIsland, declaration, decision, bounds, root, snapshot, forms, payload, explicit, styleNodes };
                 });
-                const stateful = targets.find(target => target.decision.stateful);
-                const baseline = stateful && await this.prepareCanonicalSsrState(
-                    stateful.host, stateful.island, stateful.declaration, stateful.bounds, stateful.snapshot);
-                if (stateful && (changed || observer.takeRecords().length || !stateful.host.isConnected
-                    || this.canonicalSsrAdmissions.get(stateful.host) !== entry || stateful.declaration.declarationScope.disposed
-                    || this.declarationForInstance(stateful.host) !== stateful.declaration
-                    || !resourceValuesEqual(stateful.forms, this.captureRenderedForms(stateful.host, stateful.bounds, true)))) {
-                    throw new Error('cem.ssr.resume_stale');
+                const baselines = new Map<HTMLElement, Awaited<ReturnType<CemElementRuntime['prepareCanonicalSsrState']>>>();
+                if (statefulGroup) {
+                    const nestedPayloads = new Map(targets.slice(1).map(({ host, payload, explicit }) => [host, { container: payload, explicit }]));
+                    for (const target of targets) {
+                        if (target.payload.getAttribute('content-type') !== DATA_ISLAND_HTML_CONTENT_TYPE) {
+                            throw new Error('cem.ssr.resume_stateful_profile');
+                        }
+                        baselines.set(target.host, await this.prepareCanonicalSsrState(target.host, target.island,
+                            target.declaration, target.bounds, target.snapshot, nestedPayloads));
+                        assertCurrent();
+                    }
+                    assertSharedStylesheetOwners();
+                    if (targets.some(target => target.styleNodes.some(style => !matchesLiveSsrStylesheet(style))
+                        || (target.decision.stateful && !resourceValuesEqual(target.forms,
+                            this.captureRenderedForms(target.host, target.bounds, true))))) {
+                        throw new Error('cem.ssr.resume_stale');
+                    }
                 }
 
                 // Validate every target before changing any island or attaching a lifecycle.
@@ -4278,11 +4298,12 @@ export class CemElementRuntime {
                     if (decision.instanceStylesheets && !memberIsland.hasAttribute(SSR_STYLESHEETS_RECEIPT)) this.portableSsrInstanceStyles.add(host);
                     if (cssReads.length) this.verifiedSsrStylesheetContexts.set(host, host.getAttribute(STYLE_CONTEXT_ATTR));
                     this.hydrationSnapshots.set(host, snapshot);
-                    if (decision.stateful && baseline) {
+                    const baseline = baselines.get(host);
+                    if (baseline) {
                         baseline.commit();
                         this.processingRenderPlans.set(host, baseline.plan);
-                        this.canonicalSsrStateful.add(host);
                     }
+                    if (decision.stateful) this.canonicalSsrStateful.add(host);
                     if (decision.decision === 'adopt' && root) {
                         root.setAttribute(RENDER_TEMPLATE_ARTIFACT_ID_ATTR, declaration.artifactId);
                         root.setAttribute(RENDER_DATA_REVISION_ATTR, '0');
@@ -4325,7 +4346,9 @@ export class CemElementRuntime {
     }
 
     private async prepareCanonicalSsrState(host: HTMLElement, island: HTMLTemplateElement, compiled: CompiledDeclaration,
-        bounds: RenderBounds, snapshot: DataIslandSnapshot): Promise<{ commit(): void; plan: CemProcessingRenderPlanHandle }> {
+        bounds: RenderBounds, snapshot: DataIslandSnapshot,
+        nestedPayloads: ReadonlyMap<Element, { container: Element; explicit: boolean }>,
+    ): Promise<{ commit(): void; plan: CemProcessingRenderPlanHandle }> {
         const payload = directIslandSection(island, DATA_ISLAND_SECTIONS.payload);
         if (!payload || compiled.xpathFunctionsRef || this.elementReferenceInputsOption || this.nativeSuggestionsInputsOption
             || this.localSuggestionsEnabled || this.checkpointPublication) throw new Error('cem.ssr.resume_stateful_profile');
@@ -4342,14 +4365,14 @@ export class CemElementRuntime {
         };
         const result = await this.processingHost(compiled).renderDiff({
             artifact, revision, snapshot, data, nativePayload, nativeValueLimits: this.nativeValueLimits,
-            previousRenderPlan: null, scopeUid: this.currentScopeUid(host, compiled),
+            previousRenderPlan: null, scopeUid: this.currentScopeUid(host, compiled), payloadStylesInstalled: !!this.retainedStylesheets,
         }).result;
         if (result.resourceControls.length || result.elementPlacementUses?.length || result.suggestionPlacements?.length
             || result.diagnostics.some(d => d.severity === 'error' || d.severity === 'fatal')
             || result.hostAttributeUpdates.some(update => host.getAttribute(update.name) !== update.value)) {
             throw new Error('cem.ssr.resume_stateful_profile');
         }
-        return { commit: prepareRetainedSsrPatchBaseline(bounds, result.frames, revision), plan: result.nextRenderPlan };
+        return { commit: prepareRetainedSsrPatchBaseline(bounds, result.frames, revision, nestedPayloads), plan: result.nextRenderPlan };
     }
 
     private disconnectProducedInstance(instance: HTMLElement): void {
@@ -5506,6 +5529,7 @@ export class CemElementRuntime {
                         signal: controller.signal, currentRevision: () => revision,
                         onPublished: connection => {
                             if (!connection || !current()) throw new Error('superseded runtime publication');
+                            this.verifiedSsrStylesheetContexts.delete(instance);
                             this.stylesheetConnections.set(instance, connection);
                             this.instanceStylesheets.set(instance, { key, reported: true,
                                 installation: { ready: Promise.resolve(instanceCss.diagnostics), dispose: () => styles.dispose() } });
@@ -6385,7 +6409,7 @@ export class CemElementRuntime {
     ): void {
         const renderInstance = instance;
         const author = this.renderedSliceBindingOwner(instance, element);
-        if (!author) return;
+        if (!author || (this.canonicalSsrStateful.has(author) && author !== instance)) return;
         if (author !== instance) {
             const declaration = this.declarationForInstance(author);
             if (!declaration) return;
@@ -6624,8 +6648,10 @@ export class CemElementRuntime {
 
         const listener: EventListener = (event) => {
             const canonical = this.canonicalSsrStateful.has(instance);
+            if (canonical && (!instance.contains(form) || !this.ownsRenderedElement(instance, form))) return;
             if (canonical && event.type !== 'submit' && event.target !== form
-                && (!isDomInstance(event.target, 'Element') || !canonicalSsrFormControl(event.target))) return;
+                && (!isDomInstance(event.target, 'Element') || !this.ownsRenderedElement(instance, event.target)
+                    || !canonicalSsrFormControl(event.target))) return;
             if (event.type === 'submit' && (canonical || !this.isFormCurrentlyValid(form))) {
                 event.preventDefault();
             }
@@ -8846,6 +8872,16 @@ export class CemElementRuntime {
         }
         const forms = renderedElementsBetween(bounds, 'form')
             .filter(form => this.ownsRenderedElement(instance, form));
+        if (proving) {
+            const controls = renderedElementsBetween(bounds, 'input,textarea,select,button,fieldset')
+                .filter(control => this.ownsRenderedElement(instance, control));
+            if (controls.some(control => {
+                const form = (control as HTMLInputElement).form;
+                return !canonicalSsrFormControl(control) || (form && !forms.includes(form));
+            })) {
+                throw new Error('cem.ssr.resume_form_owner');
+            }
+        }
         for (const [index, element] of forms.entries()) {
             const form = element as HTMLFormElement;
             if (canonical && !canonicalSsrFormSurface(form)) {

@@ -1132,6 +1132,10 @@ function isHtmlTemplate(node: { tag: string; namespace: string | null }): boolea
     return node.tag === 'template' && (node.namespace === null || node.namespace === XHTML_NAMESPACE);
 }
 
+function isHtmlStyle(node: { tag: string; namespace: string | null }): boolean {
+    return node.tag === STYLE_TAG && (node.namespace === null || node.namespace === XHTML_NAMESPACE);
+}
+
 /**
  * Pure render-plan lowering for declarative slots. It replaces rendered `<slot>`
  * elements with serialized payload nodes assigned to that slot, or with the
@@ -1323,7 +1327,7 @@ export function validateRenderPlanGeneratedIds(plan: RenderPlan): GeneratedRende
             code: 'cem.render_plan.generated_render_node_id_duplicate',
             label: 'render-node ID',
         });
-        if (node.tag === STYLE_TAG && node.namespace === null) {
+        if (isHtmlStyle(node)) {
             recordGeneratedRenderPlanId(stylesheetIds, diagnostics, {
                 kind: 'stylesheet',
                 id: node.renderNodeId,
@@ -1390,7 +1394,7 @@ function projectSlotNodes(nodes: readonly RenderPlanNode[], payload: ProjectionP
 function collectProjectedSlotPayload(payload: ProjectionPayload, name: string): RenderPlanNode[] {
     const projected: RenderPlanNode[] = [];
     for (const node of payload.slots?.[name] ?? []) {
-        if (node.kind === 'element' && node.tag === STYLE_TAG && node.namespace === null) {
+        if (node.kind === 'element' && isHtmlStyle(node)) {
             continue;
         }
         projected.push(payloadNodeToRenderNode(node, name, true));
@@ -1451,7 +1455,7 @@ function collectPayloadStyles(payload: unknown): RenderPlanNode[] {
             if (node.kind !== 'element' || isHtmlTemplate(node)) {
                 continue;
             }
-            if (node.tag === STYLE_TAG && node.namespace === null) {
+            if (isHtmlStyle(node)) {
                 styles.push({
                     kind: 'element',
                     namespace: null,
@@ -1484,7 +1488,7 @@ function stripPayloadStyleNodes(nodes: readonly RenderPlanNode[]): RenderPlanNod
             stripped.push(node);
             continue;
         }
-        if (node.tag === STYLE_TAG && node.namespace === null && isPayloadRenderNode(node)) {
+        if (isHtmlStyle(node) && isPayloadRenderNode(node)) {
             continue;
         }
         stripped.push({
@@ -1508,7 +1512,7 @@ function scopeRenderNodes(
             return node;
         }
 
-        if (node.tag === STYLE_TAG && node.namespace === null && !inertTemplateContent) {
+        if (isHtmlStyle(node) && !inertTemplateContent) {
             const payload = isPayloadRenderNode(node);
             const rewritten = scopeStyleNode(
                 node,
@@ -2465,6 +2469,7 @@ export function preparePatchFramesForRange(bounds: RenderPlanDomRange, frames: r
 /** Bind a fresh, independently admitted plan to the existing SSR range. */
 export function prepareRetainedSsrPatchBaseline(
     bounds: RenderPlanDomRange, frames: readonly PatchFrame[], revision: RenderRevision,
+    nestedPayloads?: ReadonlyMap<Element, { container: Element; explicit: boolean }>,
 ): () => void {
     const parsed = parseCommittedPatchFrames(frames);
     const refuse = () => new Error('cem.ssr.resume_processing_range');
@@ -2481,7 +2486,7 @@ export function prepareRetainedSsrPatchBaseline(
     };
     const authored = (name: string) => name !== DATA_CEM_RENDER_SCOPE_ATTR
         && name !== 'xmlns' && !name.startsWith('xmlns:');
-    const align = (current: ChildNode | null, end: Node | null, nodes: readonly RenderPlanNode[]) => {
+    const align = (current: ChildNode | null, end: Node | null, nodes: readonly RenderPlanNode[], live = true) => {
         for (const node of nodes) {
             if (!current || current === end) throw refuse();
             if (node.kind === 'text' || node.kind === 'comment') {
@@ -2495,18 +2500,39 @@ export function prepareRetainedSsrPatchBaseline(
                 if (element.nodeType !== 1 || element.localName !== node.tag
                     || !renderPlanNamespaceMatches(element.namespaceURI, node.namespace)) throw refuse();
                 const attributes = new Map(node.attributes.map(attribute => [attribute.name, attribute.value]));
+                const nested = live ? nestedPayloads?.get(element) : undefined;
                 if (node.attributes.some(attribute => authored(attribute.name)
                         && renderPlanAttributeValue(element, attribute.name) !== attribute.value)
                     || Array.from(element.attributes).some(attribute => authored(attribute.name)
+                        && !(nested && !attributes.has(attribute.name)
+                            && (attribute.name === 'scope' || attribute.name === 'data-cem-css-context'))
                         && attributes.get(attribute.name) !== attribute.value)) throw refuse();
                 unique(node.renderNodeId);
-                const children = renderPlanElementChildContainer(element);
-                align(children.firstChild as ChildNode | null, null, node.children);
+                const children = nested?.container ?? renderPlanElementChildContainer(element);
+                let inputs = node.children;
+                if (nested?.explicit) {
+                    const [desired] = inputs;
+                    if (inputs.length !== 1 || desired?.kind !== 'element' || !isHtmlTemplate(desired)
+                        || desired.attributes.some(({ name, value }) => name !== 'type' || value !== 'text/html')) throw refuse();
+                    // SSR keeps the template contents in the island. Recreate its patch target off-DOM.
+                    const envelope = element.ownerDocument.createElement('template');
+                    if (desired.attributes.length) envelope.setAttribute('type', 'text/html');
+                    unique(desired.renderNodeId);
+                    writes.push(() => {
+                        mirrorRenderIdentity(envelope, desired.renderNodeId, plan.instanceId);
+                        retainCapturedPayloadEnvelope(nested.container, envelope);
+                    });
+                    inputs = desired.children;
+                }
+                align(children.firstChild as ChildNode | null, null, inputs, live && !nested);
                 writes.push(() => {
                     mirrorRenderIdentity(element, node.renderNodeId, plan.instanceId);
                     renderedAttributeValues.set(element, attributes);
                     syncNativeAttributes(element, node.attributes);
-                    rememberRenderedChildren(element, node.children, plan);
+                    if (nested) {
+                        renderedChildren.set(element, { plan: node.children, nodes: [...children.childNodes],
+                            owner: renderPlanOwnerKey(plan), origin: checkpointProjectionOrigin(plan) });
+                    } else rememberRenderedChildren(element, node.children, plan);
                     for (const [name, value] of renderPlanElementAttributes(node, plan)) {
                         if ((isRenderMetadataAttribute(name) || name === DATA_CEM_RENDER_SCOPE_ATTR)
                             && element.getAttribute(name) !== value) element.setAttribute(name, value);

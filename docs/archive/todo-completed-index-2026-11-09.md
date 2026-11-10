@@ -77,3 +77,4 @@ The [active checklist](../todo.md) records remaining execution work.
 - [Endpoint-pinned SSR network reads](todo-completed-ssr-network-policy-2026-11-09.md)
 - [Browser verification of external SSR resources](todo-completed-ssr-browser-resource-proof-2026-11-10.md)
 - [Browser verification of SSR stylesheet imports](todo-completed-ssr-browser-css-imports-2026-11-10.md)
+- [Nested and styled stateful SSR hydration](todo-completed-ssr-stateful-groups-2026-11-10.md)

@@ -291,7 +291,8 @@ through Phase 9 release governance.
 The native coordinator, readiness proof and named CLI exports are complete.
 Browser adoption covers passive inline HTML, SVG and MathML, inert native
 CEM source payloads, nested participants and resource-free scoped CSS.
-Standalone stateful participants support named scalar slices and local forms.
+Stateful groups with compatible inline declarations and HTML payloads support
+owned scalar slices, local forms and verified stylesheets.
 The CLI publishes scoped CSS from explicitly mapped stylesheet imports and
 accepts a single authored HTTP(S) document base. Direct and concrete config
 page reads and native HTML parsing share the original SSR CPU budget.
@@ -360,12 +361,19 @@ links the corresponding design and verification records.
         verifies response identities and rejects incomplete or unrelated receipts.
   - [x] Verify Chromium preserves rendered and stylesheet nodes for matching,
         missing, changed, redirected and tampered imports.
-- [ ] Extend stateful browser admission to nested and styled groups. Verify form
+- [x] Extend stateful browser admission to nested and styled groups. Verify form
       and slice ownership across participants and preserve group atomicity.
+  - [x] Verify native group admission accepts a stateful child and refuses an
+        incompatible child before admitting the group.
+  - [x] Verify Chromium preserves local edits, owned controls and stylesheet
+        nodes, patches each participant independently, and freezes the group
+        if a later baseline, live form or stylesheet changes during admission.
 - [ ] Define explicit cross-origin browser read grants for external resources
       and verify transport, identity, and refusal behavior.
 - [ ] Define browser identity checks for non-import CSS resources such as
       fonts and images referenced through `url()`.
+- [ ] Admit projected form controls once the native proof can bind form and
+      slice ownership across the payload boundary.
 
 ## Component gallery source-link maintenance (after Studio presentation work)
 

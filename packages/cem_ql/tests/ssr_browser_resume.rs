@@ -248,16 +248,16 @@ fn push_host(
             } else {
                 "ssr-2"
             },
-            Some(if case == "nested-version" {
+            Some(if matches!(case, "nested-version" | "nested-stateful-version") {
                 "2.0.0"
             } else {
                 "1.2.3"
             }),
             text,
-            if case == "nested-source" {
-                "source-valid"
-            } else {
-                ""
+            match case {
+                "nested-source" => "source-valid",
+                "nested-stateful" | "nested-stateful-version" => "state-valid",
+                _ => "",
             },
         );
     } else if case == "slot" {
@@ -491,6 +491,33 @@ fn nested_group_requires_fresh_output_and_parent_owned_inputs_for_every_child() 
     let wrong_source = source.replace("div 0", "div 1");
     assert!(run("nested-source", "Nested", &wrong_source).is_err());
 }
+#[test]
+fn nested_stateful_child_requires_compatible_group() {
+    use cem_ql::ssr_browser_resume::{admit_group, NestedDeclaration};
+
+    let child = NestedDeclaration {
+        tag: "x-child".into(),
+        version: "1.9.0".into(),
+        source: "{slice @name=message | Ready}{b | {form | {input @name=message @slice=message}}}".into(),
+    };
+    let run = |case| {
+        admit_group(
+            &host_case(Some("1.2.3"), "", case),
+            "x-card",
+            "1.9.0",
+            "{b | {x-child | {em | Input}}}",
+            std::slice::from_ref(&child),
+            &OperationControl::default(),
+        )
+    };
+    let group = run("nested-stateful").unwrap();
+    assert_eq!(
+        group.participants.iter().map(|p| p.stateful).collect::<Vec<_>>(),
+        [false, true]
+    );
+    assert!(run("nested-stateful-version").is_err());
+}
+
 #[test]
 fn compatible_output_requires_fresh_native_render_agreement() {
     let c = OperationControl::default();
