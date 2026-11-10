@@ -512,6 +512,9 @@ Deferred execution gates, in order within this workstream:
   - [x] Link the original cart entry and its generated registry, operation
         document and GraphQL guard into the opt-in runtime. Verify native
         source attribution, pin refusal and all six responses on fresh WASM heaps.
+  - [x] Audit the selected binary's named functions and public ABI against its
+        verified optimizer input. Pass a native projection from the source probe
+        into the selected heap before and after worker and fallback recovery.
 
 - [ ] Assemble and measure the compiled-UI + JSON shopping-cart profile first.
   Add declarative shared GraphQL transport only if existing resource capabilities

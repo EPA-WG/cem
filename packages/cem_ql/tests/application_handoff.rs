@@ -588,6 +588,74 @@ fn direct_inputs() -> (Vec<u8>, &'static str) {
         r#"[{"name":"count","index":0,"target":"attribute"},{"name":"fruitName","index":1,"target":"dataset","attribute":"data-fruit-name"},{"name":"cart","index":2,"target":"slice"}]"#,
     )
 }
+#[cfg(feature = "application-source-runtime")]
+const PROJECTION_ROUTE: &str = r#"[{"target":"slice","name":"fragment","index":0}]"#;
+
+#[cfg(feature = "application-source-runtime")]
+fn projection_consumer() -> cem_ql::declaration_artifact::BuiltDeclarationArtifact {
+    cem_ql::declaration_artifact::build_declaration_artifact(
+        r#"<cem-element tag="cem-projection-consumer"><template id="cem-projection-consumer" type="text/cem-ml">{section | {$datadom.slices.fragment}}</template></cem-element>"#,
+        "app://runtime/projection-consumer.xhtml",
+        cem_ql::template_artifact::TemplateArtifactSourceMapMode::Prod,
+        None,
+    )
+    .unwrap()
+}
+
+#[cfg(all(feature = "component-runtime", feature = "application-source-runtime"))]
+#[test]
+fn native_optional_receiver_projection_is_admitted_by_a_compiled_consumer() {
+    use cem_ql::{
+        application_runtime::owners::CompiledDeclarationOwner,
+        application_source_endpoint::{ApplicationBootstrapOwner, ApplicationSourceEndpoint},
+    };
+    let (deployment, input) = fixture::build_prepared();
+    let control = Default::default();
+    let inputs = fixture::Inputs::restore(&input, &control).unwrap();
+    let generation = cem_ml::runtime_admission::generation::NativeGeneration::claim(
+        std::sync::Arc::new(Default::default()),
+    )
+    .unwrap();
+    let code = ApplicationBootstrapOwner::new(
+        &generation,
+        control,
+        deployment.pin.clone(),
+        fixture::Bootstrap {
+            inputs: inputs.clone(),
+        },
+    )
+    .unwrap();
+    let endpoint = ApplicationSourceEndpoint::new(&code).unwrap();
+    let mut source = endpoint
+        .open(
+            &deployment.bytes,
+            &serde_json::to_string(&deployment.pin).unwrap(),
+        )
+        .unwrap();
+    let input = source
+        .register_receiver_input("cem-receiver-frame", inputs.root())
+        .unwrap();
+    let projection = source
+        .project_receiver_native(&input, "native-one")
+        .unwrap();
+    let built = projection_consumer();
+    let consumer = CompiledDeclarationOwner::admit(
+        &built.template.bytes,
+        &built.metadata_json,
+        &built.metadata_hash,
+    )
+    .unwrap();
+    assert_eq!(
+        consumer
+            .render_inputs_native(&projection, PROJECTION_ROUTE)
+            .unwrap(),
+        "<section><p>Tea/3/ok/native-one</p></section>"
+    );
+    assert!(consumer
+        .render_inputs_native(&projection[..5], PROJECTION_ROUTE)
+        .is_err());
+}
+
 #[test]
 fn native_application_worker_fixture_has_original_sources_and_real_consumers() {
     use cem_ql::{
@@ -690,6 +758,14 @@ fn native_application_worker_fixture_has_original_sources_and_real_consumers() {
             )
             .unwrap();
             std::fs::write(dir.join(name), native).unwrap();
+        }
+        #[cfg(feature = "application-source-runtime")]
+        {
+            let consumer = projection_consumer();
+            std::fs::write(dir.join("projection-consumer.bin"), consumer.template.bytes).unwrap();
+            std::fs::write(dir.join("projection-consumer.json"), consumer.metadata_json).unwrap();
+            std::fs::write(dir.join("projection-consumer.hash"), consumer.metadata_hash).unwrap();
+            std::fs::write(dir.join("projection-consumer.route.json"), PROJECTION_ROUTE).unwrap();
         }
         let (inputs, route) = direct_inputs();
         std::fs::write(dir.join("frame.inputs"), inputs).unwrap();

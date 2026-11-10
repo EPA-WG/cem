@@ -1,12 +1,18 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import ts from 'typescript';
 import { cemQlWasmFactory } from './cem-ql-wasm-factory.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
-const output = resolve(root, 'dist/fixtures/application-source-wasm');
 const transport = process.argv.includes('--resource-transport');
+const selectedCore = process.argv.includes('--selected-core');
+if (selectedCore && !transport) throw Error('--selected-core requires --resource-transport');
+const core = resolve(root, 'packages/cem_ql/dist/wasm-selected-application');
+if (selectedCore && ['cem_ql_bg.wasm', 'cem_ql_factory.js'].some(file => !existsSync(resolve(core, file)))) {
+    throw Error('Build the selected cart first with cem_ql:test:selected-application-runtime');
+}
+const output = resolve(root, selectedCore ? 'dist/fixtures/selected-application-handoff' : 'dist/fixtures/application-source-wasm');
 const target = transport ? 'dist/target/cem_ql' : 'dist/target/cem_ql_component';
 const run = (command, args, env = process.env) => {
     const result = spawnSync(command, args, { cwd: root, env, stdio: 'inherit' });
@@ -37,5 +43,6 @@ if (transport) {
     writeFileSync(resolve(output, 'checkpoint-resume.js'), hostModule('checkpoint-resume.ts')
         .replace('./committed-checkpoint.js', './checkpoint-store.js')
         .replace('./internal/runtime-support/native-generation.js', '../../../packages/cem_ql/runtime/native-generation.mjs'));
-    run(process.execPath,['packages/cem_ql/tests/application-resource-wasm.mjs',output]);
+    run(process.execPath, ['packages/cem_ql/tests/application-resource-wasm.mjs', output,
+        ...(selectedCore ? [core] : [])]);
 }

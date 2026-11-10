@@ -1051,6 +1051,49 @@ share the request's operation control. Tests compare guarded and ordinary JSON
 source keys, ranges and maps, and exercise all six original responses on two
 independently instantiated WASM heaps.
 
+## Linked audit and source-module handoff
+
+Run both checks against the built selected application.
+
+```bash
+yarn nx run cem_ql:audit:selected-application-link
+yarn nx run cem_ql:test:selected-application-handoff
+```
+
+The link audit regenerates the named wasm-bindgen output from the selected
+release link. Removing its name section reproduces the optimizer input exactly.
+It records direct calls and function-table references from that input and checks
+the optimized artifact's hash and public interface. The report and DOT graph
+are written to `dist/reports/components-wasm/selected-link`.
+
+The audited cart build is 12,248,497 optimized bytes with 10 imports and 23
+exports. Its SHA-256 is
+`e986e47af44f14e1ba449c35909f5eef68801f43f61bbcb8c09d55ec0032dd65`.
+The optimizer input has 11,113 named defined functions and 2,478 unique function
+table entries. Direct paths from the response export reach the compiled entry,
+the GraphQL guard, and the selected evaluator. The named input has zero matches
+for the inspected Apollo compiler, template source compiler, and optional
+application/query endpoint symbols.
+
+| Retained implementation | Linked witness |
+| --- | --- |
+| CSV, YAML, Markdown, SCSS, XSLT | Table-referenced lifecycle adapters and direct paths to the inspected parser or evaluator bodies |
+| Source highlighting | A table-referenced transform encoder reaches the source syntax stream and highlighter |
+
+These witnesses establish retention in the named optimizer input. The audit
+leaves dynamic call targets, table liveness and per-language optimized byte
+attribution open. The next reduction can start with the lifecycle adapter
+registrations and transform encoder paths identified in the report.
+
+The handoff fixture runs the separate `application_source_probe` and the
+selected cart WASM in distinct heaps. The probe passes native `CEMV3` projection
+bytes to a pinned compiled declaration in the selected heap. The declaration
+renders the original projection, refuses a truncated frame, then renders the
+edited projection before and after the probe retires and restores its native
+checkpoint. The same cart heap stays live through both worker and owned-fallback
+scenarios. This fixture uses the existing test provisioning and checkpoint
+transport. A deployable module catalog and loader remain separate delivery gates.
+
 ## Remaining delivery boundaries
 
 - Extend app-build function/resource closure generation and optional module
@@ -1059,8 +1102,8 @@ independently instantiated WASM heaps.
 - Extend compiled inline CSS admission to imported stylesheet closures before
   removing the CSS source parser. Keep authorized source imports, source-driven
   templates and dynamic styles available through the full/on-demand runtime.
-- Audit linked code and optional-module handoff for the build-bound entry.
-  The manifest records the reviewed registry entries and their source paths.
+- Narrow the retained lifecycle and transform roots in the selected build.
+  Verify optional module installation through a deployable catalog and loader.
 - Bind real quantity/remove actions through shared declarative resources and
   GraphQL transport. The native render fixture sends no requests and has no
   interactive action bindings. Register a normal Studio example project with

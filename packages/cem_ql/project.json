@@ -171,6 +171,23 @@
             "options": { "command": "node tools/scripts/verify-query-source-wasm.mjs", "cwd": "{workspaceRoot}" },
             "outputs": ["{workspaceRoot}/dist/fixtures/query-source-wasm"]
         },
+        "audit:selected-application-link": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": { "command": "node tools/scripts/audit-selected-application.mjs", "cwd": "{workspaceRoot}" }
+        },
+        "test:selected-application-handoff": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": {
+                "commands": [
+                    "cargo test --locked --offline -p cem-ql --no-default-features --features component-runtime,application-source-runtime --test application_handoff native_optional_receiver_projection_is_admitted_by_a_compiled_consumer",
+                    "node tools/scripts/verify-application-source-wasm.mjs --resource-transport --selected-core"
+                ],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            }
+        },
         "test:selected-application-runtime": {
             "cache": false,
             "executor": "nx:run-commands",

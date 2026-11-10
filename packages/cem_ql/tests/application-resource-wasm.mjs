@@ -95,6 +95,7 @@ if (!isMainThread) {
             if (op === 'prepare') value = runtime.prepareRetirement(args[0]);
             else if (op === 'dispose') value = runtime.dispose();
             else if (op === 'validate') value = runtime.call('probeApplicationValidate', [last]);
+            else if (op === 'projection') value = runtime.call('applicationSourceProjectReceiverV1', [last, lastInput, 'native-one']);
             else if (op === 'frame') value = await frame(runtime, last, lastInput, workerData.directory, ...args);
             else if (op === 'edit') value = route.edit(...args);
             else if (op === 'claimWrite') value = runtime.call('probeApplicationClaimWrite', [last, ...args]);
@@ -108,6 +109,36 @@ if (!isMainThread) {
     const directory = resolve(process.argv[2]);
     const { CemCommittedCheckpointStore } = await import(pathToFileURL(resolve(directory, 'checkpoint-store.js')).href);
     const { issueCheckpointResumeTicket, resumeCemCheckpointOwners } = await import(pathToFileURL(resolve(directory, 'checkpoint-resume.js')).href);
+    const coreDirectory = process.argv[3] && resolve(process.argv[3]);
+    async function openSelectedConsumer() {
+        const { createCemComponentWasmBindings } = await import(pathToFileURL(resolve(coreDirectory, 'cem_ql_factory.js')).href);
+        const core = createCemComponentWasmBindings();
+        await core.initialize(await WebAssembly.compile(await readFile(resolve(coreDirectory, 'cem_ql_bg.wasm'))));
+        const [template, metadata, pin, route, cart] = await Promise.all([
+            readFile(resolve(directory, 'projection-consumer.bin')),
+            ...['json', 'hash', 'route.json'].map(ext => readFile(resolve(directory, `projection-consumer.${ext}`), 'utf8')),
+            readFile(new URL('../fixtures/component-application/shopping-cart/cart.json', import.meta.url)),
+        ]);
+        const consumer = core.open(template, metadata, pin);
+        const cartHtml = () => core.renderResponse('Cart', cart, 'app://shopping-cart/response.json');
+        const original = cartHtml();
+        assert.match(original, /Tea.*USD 18\.00/s);
+        return {
+            memory: core.memory(),
+            verify(bytes, expected) {
+                assert.ok(bytes instanceof Uint8Array);
+                assert.equal(Buffer.from(bytes.subarray(0, 5)).toString('hex'), '43454d5603');
+                assert.throws(() => consumer.renderInputs(bytes.subarray(0, 5), route));
+                assert.equal(consumer.renderInputs(bytes, route), `<section>${expected}</section>`);
+                assert.equal(cartHtml(), original);
+            },
+            dispose() {
+                consumer.free();
+                assert.equal(JSON.parse(core.inventory()).liveDeclarationOwners, 0);
+                core.release();
+            },
+        };
+    }
     let bytes, pins;
     let allocations = 0, scenarios = 0;
     async function physical(mode, scenario) {
@@ -139,6 +170,7 @@ if (!isMainThread) {
                 if (op === 'prepare') return runtime.prepareRetirement(args[0]);
                 if (op === 'dispose') return runtime.dispose();
                 if (op === 'validate') return runtime.call('probeApplicationValidate', [last]);
+                if (op === 'projection') return runtime.call('applicationSourceProjectReceiverV1', [last, lastInput, 'native-one']);
                 if (op === 'frame') return frame(runtime, last, lastInput, directory, ...args);
                 if (op === 'edit') return route.edit(...args);
                 if (op === 'claimWrite') return runtime.call('probeApplicationClaimWrite', [last, ...args]);
@@ -217,8 +249,14 @@ if (!isMainThread) {
         const resource = await QuerySourceResource.open({ endpoint: old.endpoint(), bytes, pins,
             current: () => !privateInput, target: fresh => scenario === 'foreign-target' ? old.endpoint() : fresh.endpoint(), onBound: endpoint => { bound = endpoint; },
             receiverCheckpoint: mutable ? () => journal.retain() : undefined });
-        let admission, stores = [];
+        let admission, selected, originalIdentity, stores = [];
         try {
+            if (coreDirectory && scenario === 'mutable-resume') {
+                selected = await openSelectedConsumer();
+                originalIdentity = old.identity();
+                assert.notEqual(selected.memory, originalIdentity);
+                selected.verify(await old.call('projection'), '<p>Tea/3/ok/native-one</p>');
+            }
             const original = comparableReport(await old.call('validate', ['same']));
             const originalFrame = await old.call('frame');
             assert.equal(original, 'true:true:true');
@@ -241,6 +279,7 @@ if (!isMainThread) {
             }
             const editedHtml = '<p>Coffee/4/ok/native-one</p>';
             if (mutable) await old.call('frame', [editedHtml]);
+            if (selected) selected.verify(await old.call('projection'), editedHtml);
             const styles = await resource.stylesheets('cem-count');
             assert.equal(styles.receipt, '[]');
             assert.equal(styles.isCurrent(), true);
@@ -300,6 +339,12 @@ if (!isMainThread) {
             await resumeNativeGenerationBindings(admission, [ticket]);
             const fresh = admission.generations[0].runtime;
             assert.equal(bound, fresh.endpoint());
+            if (selected) {
+                assert.notEqual(selected.memory, fresh.identity());
+                assert.notEqual(originalIdentity, fresh.identity());
+                selected.verify(await fresh.call('projection'), editedHtml);
+                console.log(`Selected core / optional source projection: ${mode} handoff passed.`);
+            }
             const replacementStyles = await resource.stylesheets('cem-count');
             assert.equal(replacementStyles.receipt, '[]');
             assert.equal(replacementStyles.isCurrent(), true);
@@ -321,7 +366,11 @@ if (!isMainThread) {
             await fresh.call('probeApplicationUnprovision');
             assert.equal(JSON.parse(await fresh.call('commandNativeResourceInventory')).blockingResources, 0);
             console.log(`Application resource ${variant}/${mode}: native-sealed journal, full v2 census, original release, physical retirement and fresh source rebinding passed.`);
-        } finally { scenarios++; await resource.dispose(); admission?.revoke(); scope.dispose(); await old.discard(); for (const store of stores) store.dispose(); }
+        } finally {
+            scenarios++;
+            try { selected?.dispose(); }
+            finally { await resource.dispose(); admission?.revoke(); scope.dispose(); await old.discard(); for (const store of stores) store.dispose(); }
+        }
     }
     }
     assert.equal(scenarios, 24);

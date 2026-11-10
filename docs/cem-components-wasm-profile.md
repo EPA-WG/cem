@@ -138,6 +138,11 @@ same WASM twice, so unique file size and repeated transfer cost are reported
 separately. Repeated timing runs, active-worker/aggregate memory and the full
 capability/offline total remain follow-up measurements.
 
+The [selected cart link audit and source-module handoff](cem-components-shopping-cart-profile.md#linked-audit-and-source-module-handoff)
+identifies retained lifecycle adapter and transform roots in the named optimizer
+input. A selected-heap consumer accepts native value projection bytes across
+fresh source-probe generations in worker and owned-fallback tests.
+
 The component runtime currently vendors the CEM-QL binary, which depends on the
 common CEM-ML engine. The native binding facade imports that generated runtime
 statically. Default Cargo features include debug control, and the common crate
